@@ -644,7 +644,7 @@ export default function ContentAutopilot() {
       />
       {/* Plan my week — the lead action (Levi, 9 Jul: planner-first) */}
       {!composing && (
-        <div style={{ background: 'var(--tone-1, #fbf1ea)', borderRadius: 20, padding: '18px 18px 16px',
+        <div style={{ background: 'var(--tone-1, #fbf1ea)', borderRadius: 22, padding: '18px 18px 16px',
           marginBottom: 14,
         }}>
           <h2 style={{ fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
@@ -659,7 +659,7 @@ export default function ContentAutopilot() {
           <button
             onClick={handlePlanWeek}
             disabled={planning}
-            style={{ padding: '12px 22px', borderRadius: 12, border: 'none',
+            style={{ padding: '12px 22px', borderRadius: 10, border: 'none',
               background: 'var(--accent, #92405E)', color: '#fff', fontSize: 14, fontWeight: 700,
               cursor: 'pointer', fontFamily: 'inherit', opacity: planning ? 0.6 : 1,
             }}
@@ -687,7 +687,7 @@ export default function ContentAutopilot() {
             <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--accent, #92405E)' }}>Your grid preview</span>
             <span style={{ fontSize: 12, color: 'var(--text-secondary, #574A42)' }}>{scheduled.length} scheduled · {drafts.length} drafts</span>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, borderRadius: 14, overflow: 'hidden' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, borderRadius: 16, overflow: 'hidden' }}>
             {[...scheduled, ...drafts, ...posted].slice(0, 12).map(post => {
               const badge = post.status === 'scheduled'
                 ? (post.scheduled_for ? new Date(post.scheduled_for).toLocaleDateString('en-GB', { weekday: 'short' }) : 'Soon')
@@ -878,7 +878,7 @@ export default function ContentAutopilot() {
       {tab === 'compose' && composing && (
         <div style={styles.composeArea}>
           {/* Live Instagram-style preview — updates as she builds the post */}
-          <div style={{ background: '#fff', border: '1px solid rgba(146,64,94,0.12)', borderRadius: 16, overflow: 'hidden', marginBottom: 14, boxShadow: '0 1px 2px rgba(92,40,46,0.06)' }}>
+          <div style={{ background: '#fff', border: '1px solid rgba(146,64,94,0.12)', borderRadius: 16, overflow: 'hidden', marginBottom: 14, boxShadow: 'var(--elev-1)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px' }}>
               <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--accent, #92405E)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, overflow: 'hidden', flexShrink: 0 }}>
                 {beautician?.logo_url ? <img src={beautician.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (beautician?.first_name?.[0] || beautician?.business_name?.[0] || 'F').toUpperCase()}
@@ -923,7 +923,7 @@ export default function ContentAutopilot() {
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: '11px 14px', marginBottom: 10, borderRadius: 12, border: `1.5px dashed ${composeImagePreview ? 'var(--accent, #92405E)' : 'var(--border-light, #ede7e3)'}`, background: composeImagePreview ? 'rgba(146,64,94,0.05)' : 'transparent', color: composeImagePreview ? 'var(--accent, #92405E)' : 'var(--text-secondary, #574A42)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: '11px 14px', marginBottom: 10, borderRadius: 10, border: `1.5px dashed ${composeImagePreview ? 'var(--accent, #92405E)' : 'var(--border-light, #ede7e3)'}`, background: composeImagePreview ? 'rgba(146,64,94,0.05)' : 'transparent', color: composeImagePreview ? 'var(--accent, #92405E)' : 'var(--text-secondary, #574A42)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
           >
             <Icon name={iconName(composeImagePreview ? 'check_circle' : 'add_a_photo')} size={19} inline />
             {composeImagePreview ? 'Photo added, tap to change' : 'Add a photo'}
@@ -1037,7 +1037,7 @@ export default function ContentAutopilot() {
           {drafts.length > 1 && deckIndex === null && (
             <button
               onClick={() => setDeckIndex(0)}
-              style={{ padding: '11px 0', borderRadius: 12, border: '1.5px solid var(--accent, #92405e)', background: 'transparent', color: 'var(--accent, #92405e)', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+              style={{ padding: '11px 0', borderRadius: 10, border: '1.5px solid var(--accent, #92405e)', background: 'transparent', color: 'var(--accent, #92405e)', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
             >
               Review one by one ({drafts.length})
             </button>
@@ -1194,9 +1194,9 @@ export default function ContentAutopilot() {
             <button onClick={() => setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1))} style={styles.calendarNav}>→</button>
           </div>
           <div style={{ display: 'flex', gap: 14, justifyContent: 'center', margin: '2px 0 10px', fontSize: 11, color: 'var(--text-secondary, #574A42)' }}>
-            <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 4, background: '#D1D5DB', marginRight: 4 }} />draft</span>
-            <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 4, background: '#60A5FA', marginRight: 4 }} />scheduled</span>
-            <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 4, background: '#34D399', marginRight: 4 }} />posted</span>
+            <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 6, background: '#D1D5DB', marginRight: 4 }} />draft</span>
+            <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 6, background: '#60A5FA', marginRight: 4 }} />scheduled</span>
+            <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 6, background: '#34D399', marginRight: 4 }} />posted</span>
           </div>
           <div style={styles.calendarGrid}>
             {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
@@ -1447,9 +1447,9 @@ const styles = {
   ideaGroupLabel: { fontSize: 11, fontWeight: 600, color: 'var(--accent, #92405e)', textTransform: 'uppercase', letterSpacing: '0.04em' },
   ideaCard: {
     background: 'var(--bg-card, #FFFCF9)',
-    borderRadius: 12,
+    borderRadius: 10,
     padding: 16,
-    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+    boxShadow: 'var(--elev-1)',
     cursor: 'pointer',
     transition: 'transform 0.1s',
     position: 'relative',
@@ -1462,14 +1462,14 @@ const styles = {
   composeTypeBtn: {
     minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     padding: '6px 12px',
-    borderRadius: 8,
+    borderRadius: 10,
     border: 'none',
     fontSize: 12,
     cursor: 'pointer',
     fontFamily: 'inherit',
   },
   photoArea: {
-    borderRadius: 12,
+    borderRadius: 10,
     border: '1.5px dashed var(--border, var(--border, #E8DDD4))',
     overflow: 'hidden',
     cursor: 'pointer',
@@ -1483,7 +1483,7 @@ const styles = {
   composeTextarea: {
     width: '100%',
     padding: '14px',
-    borderRadius: 12,
+    borderRadius: 10,
     border: '1.5px solid var(--border, var(--border, #E8DDD4))',
     fontSize: 14,
     fontFamily: 'inherit',
@@ -1496,7 +1496,7 @@ const styles = {
     minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     alignSelf: 'flex-start',
     padding: '6px 14px',
-    borderRadius: 8,
+    borderRadius: 10,
     border: '1.5px solid var(--border, var(--border, #E8DDD4))',
     background: 'transparent',
     color: 'var(--text-secondary, #574A42)',
@@ -1520,7 +1520,7 @@ const styles = {
   primaryBtn: {
     flex: 1,
     padding: '14px 0',
-    borderRadius: 12,
+    borderRadius: 10,
     border: 'none',
     background: 'var(--accent, #92405e)',
     color: 'var(--bg-card, #FFFCF9)',
@@ -1531,7 +1531,7 @@ const styles = {
   },
   cancelBtn: {
     padding: '14px 20px',
-    borderRadius: 12,
+    borderRadius: 10,
     border: 'none',
     background: 'var(--bg-hover, var(--bg-subtle, #ede7e3))',
     color: 'var(--text-secondary, #574A42)',
@@ -1543,7 +1543,7 @@ const styles = {
   postList: { display: 'flex', flexDirection: 'column', gap: 14 },
   postCard: {
     background: 'var(--tone-1, #fbf1ea)',
-    borderRadius: 20,
+    borderRadius: 22,
     padding: 16,
   },
   typeBadge: {
@@ -1608,12 +1608,12 @@ const styles = {
   },
   editActions: { display: 'flex', gap: 8, marginTop: 8 },
   saveEditBtn: {
-    padding: '8px 16px', borderRadius: 8, border: 'none',
+    padding: '8px 16px', borderRadius: 10, border: 'none',
     background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', fontSize: 13, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit'
   },
   cancelEditBtn: {
-    padding: '8px 16px', borderRadius: 8, border: 'none',
+    padding: '8px 16px', borderRadius: 10, border: 'none',
     background: 'var(--bg-hover, var(--bg-subtle, #ede7e3))', color: 'var(--text-secondary, #574A42)', fontSize: 13,
     cursor: 'pointer', fontFamily: 'inherit'
   },
@@ -1635,18 +1635,18 @@ const styles = {
   galleryHeaderRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 },
   galleryAddBtn: {
     minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-    padding: '8px 14px', borderRadius: 8, border: 'none',
+    padding: '8px 14px', borderRadius: 10, border: 'none',
     background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', fontSize: 12, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
   },
   galleryAddCard: {
-    background: 'var(--bg-card, #FFFCF9)', borderRadius: 14, padding: 16,
-    boxShadow: '0 1px 3px rgba(0,0,0,0.04)', marginBottom: 8,
+    background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: 16,
+    boxShadow: 'var(--elev-1)', marginBottom: 8,
     display: 'flex', flexDirection: 'column', gap: 10,
   },
   galleryPhotoPair: { display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center' },
   galleryPhotoSlot: {
-    flex: 1, maxWidth: 160, aspectRatio: '1', borderRadius: 12,
+    flex: 1, maxWidth: 160, aspectRatio: '1', borderRadius: 10,
     border: '1.5px dashed var(--border, var(--border, #E8DDD4))', overflow: 'hidden', cursor: 'pointer',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
@@ -1666,15 +1666,15 @@ const styles = {
   },
   galleryFormActions: { display: 'flex', gap: 8 },
   galleryCard: {
-    background: 'var(--bg-card, #FFFCF9)', borderRadius: 14, overflow: 'hidden',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.04)', marginBottom: 4,
+    background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, overflow: 'hidden',
+    boxShadow: 'var(--elev-1)', marginBottom: 4,
   },
   galleryPhotoPairView: { display: 'flex', gap: 2 },
   galleryPhotoView: { flex: 1, position: 'relative' },
   galleryViewImg: { width: '100%', height: 160, objectFit: 'cover', display: 'block' },
   galleryLabel: {
     position: 'absolute', bottom: 6, left: 6,
-    padding: '2px 8px', borderRadius: 4,
+    padding: '2px 8px', borderRadius: 6,
     background: 'rgba(0,0,0,0.5)', color: 'var(--bg-card, #FFFCF9)',
     fontSize: 10, fontWeight: 600,
   },
@@ -1686,10 +1686,10 @@ const styles = {
   aiSuggestionsSection: { marginBottom: 4 },
   aiSuggestionsHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   refreshBtn: { minWidth: 44, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '2px 8px', borderRadius: 6, border: '1px solid var(--border, #E8DDD4)', background: 'transparent', cursor: 'pointer', fontSize: 14, color: 'var(--text-muted, #6B5D54)', fontFamily: 'inherit' },
-  aiLoadingCard: { padding: 14, borderRadius: 12, background: 'linear-gradient(135deg, #FBF0F3, #F3EEFF)', textAlign: 'center' },
+  aiLoadingCard: { padding: 14, borderRadius: 10, background: 'linear-gradient(135deg, #FBF0F3, #F3EEFF)', textAlign: 'center' },
   aiSuggestionCard: {
     background: 'linear-gradient(135deg, #FBF0F3, #F3EEFF)',
-    borderRadius: 12,
+    borderRadius: 10,
     padding: '12px 14px',
     marginBottom: 8,
     cursor: 'pointer',
@@ -1713,10 +1713,10 @@ const styles = {
   },
   streamFormCard: {
     background: 'var(--bg-card, #FFFCF9)',
-    borderRadius: 14,
+    borderRadius: 16,
     padding: 14,
     marginBottom: 12,
-    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+    boxShadow: 'var(--elev-1)',
     display: 'flex',
     flexDirection: 'column',
     gap: 8,
@@ -1744,13 +1744,13 @@ const styles = {
   progressBar: {
     height: 8,
     background: 'var(--bg-subtle, #ede7e3)',
-    borderRadius: 4,
+    borderRadius: 6,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
     transition: 'width 0.3s ease',
-    borderRadius: 4,
+    borderRadius: 6,
   },
   // Cancelled prompt
   cancelledPromptBanner: {
@@ -1758,7 +1758,7 @@ const styles = {
     gap: 10,
     alignItems: 'center',
     padding: 12,
-    borderRadius: 12,
+    borderRadius: 10,
     background: 'linear-gradient(135deg, #FEF3C7, #FEF9E7)',
     border: '1px solid #FCD34D',
     marginBottom: 12,
@@ -1766,7 +1766,7 @@ const styles = {
   promptActionBtn: {
     minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     padding: '6px 12px',
-    borderRadius: 8,
+    borderRadius: 10,
     border: 'none',
     background: '#F59E0B',
     color: 'white',
@@ -1812,7 +1812,7 @@ const styles = {
   calendarCell: {
     minHeight: 80,
     padding: 6,
-    borderRadius: 8,
+    borderRadius: 10,
     border: '1px solid var(--border, #E8DDD4)',
     position: 'relative',
     cursor: 'pointer',
@@ -1832,7 +1832,7 @@ const styles = {
   calendarChip: {
     width: 6,
     height: 6,
-    borderRadius: 2,
+    borderRadius: 6,
     cursor: 'pointer',
   },
   calendarMore: {

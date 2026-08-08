@@ -503,7 +503,7 @@ const styles = {
   packCard: {
     background: 'var(--accent-light, #F6E7EC)',
     border: '1px solid var(--border, #E8DDD4)',
-    borderRadius: 18,
+    borderRadius: 16,
     padding: '18px 18px 16px',
     marginBottom: 22,
   },
@@ -536,7 +536,7 @@ const styles = {
   packBtn: {
     width: '100%',
     padding: '13px 16px',
-    borderRadius: 12,
+    borderRadius: 10,
     border: 'none',
     background: 'var(--accent, #92405e)',
     color: '#fff',
@@ -547,7 +547,7 @@ const styles = {
   },
   packResults: {
     background: 'var(--bg-card, #FFFCF9)',
-    borderRadius: 12,
+    borderRadius: 10,
     padding: '6px 12px',
   },
   packResultRow: {
@@ -609,7 +609,7 @@ const styles = {
   // WhatsApp bubble preview
   bubbleStrip: {
     background: '#EAE2DA',
-    borderRadius: 12,
+    borderRadius: 10,
     padding: '10px 12px',
   },
   bubble: {
@@ -622,7 +622,7 @@ const styles = {
     maxWidth: '92%',
     marginLeft: 'auto',
     whiteSpace: 'pre-wrap',
-    boxShadow: '0 1px 1px rgba(0,0,0,.06)',
+    boxShadow: 'var(--elev-1)',
   },
   bubbleMeta: {
     display: 'inline-block',
@@ -635,7 +635,7 @@ const styles = {
   cardActions: { display: 'flex', justifyContent: 'flex-end', marginTop: 10 },
   removeBtn: {
     padding: '6px 12px',
-    borderRadius: 8,
+    borderRadius: 10,
     border: '1px solid var(--border-light, #ede7e3)',
     background: 'transparent',
     color: 'var(--text-muted, #6B5D54)',
@@ -648,7 +648,7 @@ const styles = {
   errorBanner: {
     background: 'var(--danger-bg, #F7E4E4)',
     border: '1px solid #F5C6C0',
-    borderRadius: 12,
+    borderRadius: 10,
     padding: 14,
     color: '#8A2A1C',
     marginBottom: 12,
@@ -696,7 +696,7 @@ const styles = {
     maxWidth: 560,
     maxHeight: '92vh',
     overflowY: 'auto',
-    boxShadow: '0 -6px 24px rgba(0,0,0,0.18)',
+    boxShadow: 'var(--elev-3)',
   },
   modalHeader: {
     display: 'flex',

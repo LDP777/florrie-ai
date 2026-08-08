@@ -181,7 +181,7 @@ export default function SMSConfig() {
           <div>
             <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 4 }}>SMS GATEWAY</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-              <div style={{ width: 10, height: 10, borderRadius: 5,
+              <div style={{ width: 10, height: 10, borderRadius: 6,
                 background: birdConfigured ? '#4ADE80' : '#F87171',
               }} />
               <span style={{ fontSize: 16, fontWeight: 600 }}>
@@ -193,7 +193,7 @@ export default function SMSConfig() {
               {smsEnabled ? ' · SMS enabled' : ' · SMS disabled (WhatsApp primary)'}
             </div>
             <div style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 999, background: twoWay ? 'rgba(74,222,128,0.2)' : 'rgba(250,204,21,0.18)', fontSize: 11, fontWeight: 600 }}>
-              <span style={{ width: 6, height: 6, borderRadius: 3, background: twoWay ? '#4ADE80' : '#FACC15' }} />
+              <span style={{ width: 6, height: 6, borderRadius: 6, background: twoWay ? '#4ADE80' : '#FACC15' }} />
               {twoWay ? '2-way, clients can reply' : 'One-way, alphanumeric sender, no replies'}
             </div>
           </div>
@@ -216,7 +216,7 @@ export default function SMSConfig() {
         )}
 
         {!birdConfigured && (
-          <div style={{ marginTop: 12, padding: '10px 12px', background: 'rgba(248,113,113,0.15)', borderRadius: 8, fontSize: 12 }}>
+          <div style={{ marginTop: 12, padding: '10px 12px', background: 'rgba(248,113,113,0.15)', borderRadius: 10, fontSize: 12 }}>
             Bird API key not set. Contact your Florrie admin to complete setup.
           </div>
         )}
@@ -255,7 +255,7 @@ export default function SMSConfig() {
               },
             ].map(s => (
               <div key={s.step} style={{ display: 'flex', gap: 12, marginBottom: 14, alignItems: 'flex-start' }}>
-                <div style={{ width: 24, height: 24, borderRadius: 12, background: 'var(--accent)',
+                <div style={{ width: 24, height: 24, borderRadius: 10, background: 'var(--accent)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0,
                 }}>{s.step}</div>
@@ -285,7 +285,7 @@ export default function SMSConfig() {
                     ...(isEnabled ? ds.badgeSuccess : { background: 'var(--bg-subtle)', color: 'var(--text-muted)' }),
                   }}>{isEnabled ? 'Active' : 'Off'}</div>
                 </div>
-                <div style={{ background: 'var(--bg-subtle)', borderRadius: 12, padding: 12,
+                <div style={{ background: 'var(--bg-subtle)', borderRadius: 10, padding: 12,
                   borderLeft: '3px solid var(--accent)',
                 }}>
                   <div style={{ ...type.mono, fontSize: 12, lineHeight: 1.5, color: 'var(--text-secondary)' }}>
@@ -342,7 +342,7 @@ export default function SMSConfig() {
                       setOriginatorInput(raw.replace(/[^a-zA-Z0-9 ]/g, '').substring(0, 11));
                     }
                   }}
-                  style={{ flex: 1, padding: '8px 12px', borderRadius: 8,
+                  style={{ flex: 1, padding: '8px 12px', borderRadius: 10,
                     border: '1px solid var(--border)', background: 'var(--bg-card)',
                     color: 'var(--text-primary)', fontSize: 14,
                   }}
@@ -380,7 +380,7 @@ export default function SMSConfig() {
                   value={testPhone}
                   onChange={e => setTestPhone(e.target.value)}
                   placeholder="+447700900000"
-                  style={{ flex: 1, padding: '8px 12px', borderRadius: 8,
+                  style={{ flex: 1, padding: '8px 12px', borderRadius: 10,
                     border: '1px solid var(--border)', background: 'var(--bg-card)',
                     color: 'var(--text-primary)', fontSize: 14,
                   }}

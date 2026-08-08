@@ -386,7 +386,7 @@ export default function ClientTags() {
               {saving ? `${editingTag || editingSegment ? 'Saving' : 'Creating'}…` : `${editingTag || editingSegment ? 'Update' : 'Create'} ${createType === 'tag' ? 'Tag' : 'Segment'}`}
             </button>
 
-            {error && <div style={{ marginTop: 10, padding: 10, borderRadius: 8, background: '#F44336', color: 'var(--bg-card, #FFFCF9)', fontSize: 12, textAlign: 'center' }}>{error}</div>}
+            {error && <div style={{ marginTop: 10, padding: 10, borderRadius: 10, background: '#F44336', color: 'var(--bg-card, #FFFCF9)', fontSize: 12, textAlign: 'center' }}>{error}</div>}
           </div>
         </div>
       )}
@@ -399,7 +399,7 @@ const S = {
   title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #241B17)', margin: '0 0 16px' },
 
   overviewRow: { display: 'flex', gap: 8, marginBottom: 16 },
-  overviewCard: { flex: 1, background: 'var(--card, #FFFCF9)', borderRadius: 12, padding: '14px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
+  overviewCard: { flex: 1, background: 'var(--card, #FFFCF9)', borderRadius: 10, padding: '14px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
   overviewNum: { fontSize: 22, fontWeight: 700, color: 'var(--accent, #92405e)' },
   overviewLabel: { fontSize: 11, color: 'var(--text-muted, #6B5D54)', fontWeight: 500 },
 
@@ -408,7 +408,7 @@ const S = {
   tabActive: { background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)' },
 
   list: { display: 'flex', flexDirection: 'column', gap: 10 },
-  card: { background: 'var(--card, #FFFCF9)', borderRadius: 14, padding: 14, cursor: 'pointer' },
+  card: { background: 'var(--card, #FFFCF9)', borderRadius: 16, padding: 14, cursor: 'pointer' },
   cardHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   cardLeft: { display: 'flex', gap: 10, alignItems: 'center' },
   tagDot: { width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 },
@@ -421,21 +421,21 @@ const S = {
   chevron: { fontSize: 10, color: 'var(--text-muted, #6B5D54)' },
 
   expandedSection: { marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border, #E8DDD4)' },
-  ruleBox: { background: 'var(--bg-hover, var(--bg-subtle, #ede7e3))', borderRadius: 8, padding: 10, marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 4 },
+  ruleBox: { background: 'var(--bg-hover, var(--bg-subtle, #ede7e3))', borderRadius: 10, padding: 10, marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 4 },
   ruleLabel: { fontSize: 10, fontWeight: 600, color: 'var(--text-muted, #6B5D54)', textTransform: 'uppercase' },
   ruleValue: { fontSize: 13, color: 'var(--text, #241B17)', fontWeight: 500 },
   clientChips: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 },
-  clientChip: { padding: '5px 12px', borderRadius: 20, background: 'var(--accent-light, #F6E7EC)', color: 'var(--accent, #92405e)', fontSize: 12, fontWeight: 500 },
-  clientChipSelect: { padding: '5px 12px', borderRadius: 20, background: 'var(--border, #E8DDD4)', color: 'var(--text-secondary, #574A42)', fontSize: 12, fontWeight: 500, cursor: 'pointer' },
+  clientChip: { padding: '5px 12px', borderRadius: 22, background: 'var(--accent-light, #F6E7EC)', color: 'var(--accent, #92405e)', fontSize: 12, fontWeight: 500 },
+  clientChipSelect: { padding: '5px 12px', borderRadius: 22, background: 'var(--border, #E8DDD4)', color: 'var(--text-secondary, #574A42)', fontSize: 12, fontWeight: 500, cursor: 'pointer' },
   actionRow: { display: 'flex', gap: 8, marginTop: 8 },
-  actionBtn: { flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid var(--border, #E8DDD4)', background: 'var(--card, #FFFCF9)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #241B17)' },
+  actionBtn: { flex: 1, padding: '9px 0', borderRadius: 10, border: '1px solid var(--border, #E8DDD4)', background: 'var(--card, #FFFCF9)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #241B17)' },
 
   segDesc: { fontSize: 13, color: 'var(--text-secondary, #574A42)', margin: '0 0 10px', lineHeight: 1.4 },
   segTags: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10, alignItems: 'center' },
-  segTagChip: { padding: '4px 10px', borderRadius: 8, fontSize: 12, fontWeight: 600 },
+  segTagChip: { padding: '4px 10px', borderRadius: 10, fontSize: 12, fontWeight: 600 },
   matchLabel: { fontSize: 11, color: 'var(--text-muted, #6B5D54)', fontStyle: 'italic' },
 
-  fab: { position: 'fixed', bottom: 'calc(env(safe-area-inset-bottom, 0px) + 80px)', left: 20, width: 52, height: 52, borderRadius: 26, background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', fontSize: 26, border: 'none', cursor: 'pointer', boxShadow: '0 4px 12px rgba(199,107,138,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit', zIndex: 50 },
+  fab: { position: 'fixed', bottom: 'calc(env(safe-area-inset-bottom, 0px) + 80px)', left: 20, width: 52, height: 52, borderRadius: 22, background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', fontSize: 26, border: 'none', cursor: 'pointer', boxShadow: 'var(--elev-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit', zIndex: 50 },
 
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
   modal: { background: 'var(--bg-card, #FFFCF9)', borderRadius: '18px 18px 0 0', width: '100%', maxWidth: 480, maxHeight: '85vh', overflow: 'auto', padding: '20px 16px 32px' },
@@ -444,14 +444,14 @@ const S = {
   closeBtn: { background: 'none', border: 'none', fontSize: 18, color: 'var(--text-muted, #6B5D54)', cursor: 'pointer' },
 
   typeToggle: { display: 'flex', gap: 8, marginBottom: 14 },
-  typeBtn: { flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid var(--border, #E8DDD4)', background: 'var(--card, #FFFCF9)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-muted, #6B5D54)' },
+  typeBtn: { flex: 1, padding: '8px 0', borderRadius: 10, border: '1px solid var(--border, #E8DDD4)', background: 'var(--card, #FFFCF9)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-muted, #6B5D54)' },
   typeBtnActive: { background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', border: '1px solid var(--accent, #92405e)' },
 
   formBody: { display: 'flex', flexDirection: 'column', gap: 10 },
   label: { fontSize: 12, fontWeight: 600, color: 'var(--text-muted, #6B5D54)', marginTop: 4 },
   input: { padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, #E8DDD4)', fontSize: 14, fontFamily: 'inherit', color: 'var(--text, #241B17)', background: 'var(--card, #FFFCF9)' },
   colourRow: { display: 'flex', gap: 10 },
-  colourDot: { width: 28, height: 28, borderRadius: 14, cursor: 'pointer', border: '2px solid transparent' },
+  colourDot: { width: 28, height: 28, borderRadius: 16, cursor: 'pointer', border: '2px solid transparent' },
 
-  saveBtn: { marginTop: 16, width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  saveBtn: { marginTop: 16, width: '100%', padding: '14px 0', borderRadius: 10, border: 'none', background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 };

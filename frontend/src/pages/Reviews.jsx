@@ -297,8 +297,8 @@ const styles = {
 
   // Hero card
   heroCard: {
-    display: 'flex', gap: 16, background: 'var(--bg-card, #FFFCF9)', borderRadius: 14,
-    padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.04)', marginBottom: 12,
+    display: 'flex', gap: 16, background: 'var(--bg-card, #FFFCF9)', borderRadius: 16,
+    padding: 16, boxShadow: 'var(--elev-1)', marginBottom: 12,
   },
   heroLeft: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minWidth: 80 },
   heroRating: { fontSize: 36, fontWeight: 700, color: 'var(--text, #241B17)', lineHeight: 1 },
@@ -307,8 +307,8 @@ const styles = {
   heroRight: { flex: 1, display: 'flex', flexDirection: 'column', gap: 4, justifyContent: 'center' },
   ratingBar: { display: 'flex', alignItems: 'center', gap: 6 },
   ratingBarLabel: { fontSize: 11, color: 'var(--text-muted, #6B5D54)', width: 22, textAlign: 'right' },
-  ratingBarTrack: { flex: 1, height: 6, borderRadius: 3, background: 'var(--bg-hover, #f3ede9)', overflow: 'hidden' },
-  ratingBarFill: { height: '100%', borderRadius: 3, background: 'var(--success, #3F7D5C)', transition: 'width 0.3s ease' },
+  ratingBarTrack: { flex: 1, height: 6, borderRadius: 6, background: 'var(--bg-hover, #f3ede9)', overflow: 'hidden' },
+  ratingBarFill: { height: '100%', borderRadius: 6, background: 'var(--success, #3F7D5C)', transition: 'width 0.3s ease' },
   ratingBarPct: { fontSize: 10, color: 'var(--text-muted, #6B5D54)', width: 28, textAlign: 'right' },
 
   // Tabs
@@ -318,7 +318,7 @@ const styles = {
   body: { display: 'flex', flexDirection: 'column', gap: 10 },
 
   // Review cards
-  reviewCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 14, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
+  reviewCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: 16, boxShadow: 'var(--elev-1)' },
   reviewHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 },
   reviewAuthorRow: { display: 'flex', gap: 10, alignItems: 'center' },
   reviewAvatar: { width: 32, height: 32, borderRadius: 16, background: 'var(--accent-light, #F6E7EC)', color: 'var(--accent, #92405e)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700 },
@@ -330,43 +330,43 @@ const styles = {
   replyCard: { background: 'var(--bg, #FBF6F1)', borderRadius: 10, padding: 12, marginTop: 4 },
   replyLabel: { display: 'block', fontSize: 10, fontWeight: 600, color: 'var(--text-muted, #6B5D54)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 },
   replyText: { fontSize: 12, color: 'var(--text-secondary, #574A42)', margin: 0, lineHeight: 1.5 },
-  replyBtn: { padding: '6px 14px', borderRadius: 8, border: '1.5px solid var(--border, #E8DDD4)', background: 'transparent', color: 'var(--accent, #92405e)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 4 },
+  replyBtn: { padding: '6px 14px', borderRadius: 10, border: '1.5px solid var(--border, #E8DDD4)', background: 'transparent', color: 'var(--accent, #92405e)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 4 },
 
   // Reply form
   replyForm: { background: 'var(--bg, #FBF6F1)', borderRadius: 10, padding: 12, marginTop: 8 },
   replyDraftLabel: { display: 'block', fontSize: 11, color: 'var(--accent, #92405e)', fontWeight: 500, marginBottom: 6 },
-  replyTextarea: { width: '100%', padding: 10, borderRadius: 8, border: '1.5px solid var(--border, #E8DDD4)', fontSize: 13, fontFamily: 'inherit', resize: 'vertical', outline: 'none', lineHeight: 1.5, boxSizing: 'border-box' },
+  replyTextarea: { width: '100%', padding: 10, borderRadius: 10, border: '1.5px solid var(--border, #E8DDD4)', fontSize: 13, fontFamily: 'inherit', resize: 'vertical', outline: 'none', lineHeight: 1.5, boxSizing: 'border-box' },
   replyActions: { display: 'flex', gap: 8, marginTop: 8 },
   replySubmitBtn: { flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: 'var(--accent, #92405e)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   replyCancelBtn: { padding: '10px 16px', borderRadius: 10, border: 'none', background: 'var(--bg-hover, #f3ede9)', color: 'var(--text-secondary, #574A42)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' },
 
   // Request tab
-  requestCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 14, padding: 20, textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
+  requestCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: 20, textAlign: 'center', boxShadow: 'var(--elev-1)' },
   requestTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 6px' },
   requestDesc: { fontSize: 13, color: 'var(--text-secondary, #574A42)', margin: '0 0 16px', lineHeight: 1.5 },
   requestPreview: { background: 'var(--bg, #FBF6F1)', borderRadius: 10, padding: 12, marginBottom: 16, textAlign: 'left' },
   requestPreviewLabel: { display: 'block', fontSize: 10, fontWeight: 600, color: 'var(--text-muted, #6B5D54)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 },
   requestPreviewText: { fontSize: 12, color: 'var(--text-secondary, #574A42)', margin: 0, lineHeight: 1.5, fontStyle: 'italic' },
-  requestSendBtn: { padding: '12px 24px', borderRadius: 12, border: 'none', background: 'var(--accent, #92405e)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  requestHistoryCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 14, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
+  requestSendBtn: { padding: '12px 24px', borderRadius: 10, border: 'none', background: 'var(--accent, #92405e)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  requestHistoryCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: 16, boxShadow: 'var(--elev-1)' },
   sectionLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-muted, #6B5D54)', textTransform: 'uppercase', letterSpacing: '0.04em', margin: '0 0 10px' },
   requestRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--bg-hover, #f3ede9)' },
-  requestAvatar: { width: 28, height: 28, borderRadius: 14, background: 'var(--accent-light, #F6E7EC)', color: 'var(--accent, #92405e)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 },
+  requestAvatar: { width: 28, height: 28, borderRadius: 16, background: 'var(--accent-light, #F6E7EC)', color: 'var(--accent, #92405e)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 },
   requestName: { display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text, #241B17)' },
   requestMeta: { display: 'block', fontSize: 11, color: 'var(--text-muted, #6B5D54)' },
-  requestStatusDot: { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
+  requestStatusDot: { width: 8, height: 8, borderRadius: 6, flexShrink: 0 },
 
   // Settings tab
-  settingsCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 14, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
+  settingsCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: 16, boxShadow: 'var(--elev-1)' },
   settingRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--bg-hover, #f3ede9)' },
   settingLabel: { display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text, #241B17)' },
   settingHint: { display: 'block', fontSize: 11, color: 'var(--text-muted, #6B5D54)', marginTop: 2 },
   settingValue: { fontSize: 12, fontWeight: 600, color: 'var(--accent, #92405e)', flexShrink: 0 },
-  toggle: { width: 40, height: 24, borderRadius: 12, padding: 2, cursor: 'pointer', flexShrink: 0 },
-  toggleDot: { width: 20, height: 20, borderRadius: 10, background: 'var(--bg-card, #FFFCF9)', boxShadow: '0 1px 3px rgba(0,0,0,0.15)', transition: 'transform 0.2s ease' },
+  toggle: { width: 40, height: 24, borderRadius: 10, padding: 2, cursor: 'pointer', flexShrink: 0 },
+  toggleDot: { width: 20, height: 20, borderRadius: 10, background: 'var(--bg-card, #FFFCF9)', boxShadow: 'var(--elev-1)', transition: 'transform 0.2s ease' },
   platformRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--bg-hover, #f3ede9)' },
   platformName: { flex: 1, fontSize: 13, fontWeight: 500, color: 'var(--text, #241B17)' },
-  platformBtn: { padding: '6px 14px', borderRadius: 8, border: 'none', background: 'var(--bg-hover, #f3ede9)', color: 'var(--text-secondary, #574A42)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  platformBtn: { padding: '6px 14px', borderRadius: 10, border: 'none', background: 'var(--bg-hover, #f3ede9)', color: 'var(--text-secondary, #574A42)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
   // Empty
   emptyState: { textAlign: 'center', padding: '40px 20px' },

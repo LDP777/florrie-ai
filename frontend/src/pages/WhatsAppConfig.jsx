@@ -54,8 +54,8 @@ function UsageBar({ usage }) {
           </span>
         )}
       </div>
-      <div style={{ height: 6, background: 'var(--border, #E8DDD4)', borderRadius: 3 }}>
-        <div style={{ width: `${pct}%`, height: '100%', background: barColor, borderRadius: 3, transition: 'width 0.4s' }} />
+      <div style={{ height: 6, background: 'var(--border, #E8DDD4)', borderRadius: 6 }}>
+        <div style={{ width: `${pct}%`, height: '100%', background: barColor, borderRadius: 6, transition: 'width 0.4s' }} />
       </div>
       {isOver && (
         <div style={{ fontSize: 11, color: '#E85D75', marginTop: 4 }}>
@@ -253,7 +253,7 @@ function ResetButton({ phone, onDone, variant = 'inline', children = 'Reset and 
       }
     : {
         padding: '7px 12px',
-        borderRadius: 8,
+        borderRadius: 10,
         border: '1px solid #F5C6C0',
         background: '#fff',
         color: '#8A2A1C',
@@ -311,7 +311,7 @@ function DiagnosticError({ error, errBody, onRetry, onReset, phone }) {
   return (
     <div style={{ background: t.bg,
       border: `1px solid ${t.border}`,
-      borderRadius: 14,
+      borderRadius: 16,
       padding: 14,
       marginBottom: 14,
     }}>
@@ -337,7 +337,7 @@ function DiagnosticError({ error, errBody, onRetry, onReset, phone }) {
               marginTop: 8,
               padding: '6px 10px',
               background: 'rgba(255,255,255,0.7)',
-              borderRadius: 8,
+              borderRadius: 10,
               display: 'inline-block',
             }}>
               ⏳ Auto-retry queued. You don't need to do anything.
@@ -351,7 +351,7 @@ function DiagnosticError({ error, errBody, onRetry, onReset, phone }) {
               marginTop: 8,
               padding: '6px 10px',
               background: 'rgba(255,255,255,0.6)',
-              borderRadius: 8,
+              borderRadius: 10,
               display: 'inline-block',
             }}>
               {formatCountdown(secondsLeft)}
@@ -366,7 +366,7 @@ function DiagnosticError({ error, errBody, onRetry, onReset, phone }) {
             type="button"
             onClick={onRetry}
             style={{ padding: '7px 12px',
-              borderRadius: 8,
+              borderRadius: 10,
               border: `1px solid ${t.border}`,
               background: '#fff',
               color: t.text,
@@ -389,7 +389,7 @@ function DiagnosticError({ error, errBody, onRetry, onReset, phone }) {
             type="button"
             onClick={() => setShowDetails(v => !v)}
             style={{ padding: '7px 12px',
-              borderRadius: 8,
+              borderRadius: 10,
               border: `1px solid ${t.border}`,
               background: 'transparent',
               color: t.text,
@@ -408,7 +408,7 @@ function DiagnosticError({ error, errBody, onRetry, onReset, phone }) {
         <div style={{ marginTop: 10,
           padding: 10,
           background: 'rgba(255,255,255,0.7)',
-          borderRadius: 8,
+          borderRadius: 10,
           fontSize: 11,
           fontFamily: '"SF Mono", ui-monospace, monospace',
           color: '#3A332E',
@@ -537,7 +537,7 @@ function PendingActivation({ phone, onConnected, onReset }) {
         </div>
       </div>
       {elapsed > 180 ? (
-        <div style={{ marginTop: 14, fontSize: 12, color: 'var(--text, #241B17)', background: '#FFF8E1', border: '1px solid #FFE082', borderRadius: 8, padding: 10, textAlign: 'center' }}>
+        <div style={{ marginTop: 14, fontSize: 12, color: 'var(--text, #241B17)', background: '#FFF8E1', border: '1px solid #FFE082', borderRadius: 10, padding: 10, textAlign: 'center' }}>
           <div style={{ marginBottom: 8, fontWeight: 600 }}>
             Still waiting after 3 minutes? Meta might be having issues.
           </div>
@@ -907,7 +907,7 @@ function SendMessagePanel() {
     fontSize: 12,
     fontWeight: 600,
     border: 'none',
-    borderRadius: 8,
+    borderRadius: 10,
     cursor: 'pointer',
     fontFamily: 'inherit',
     background: mode === id ? 'var(--bg-card, #FFFCF9)' : 'transparent',
@@ -1158,7 +1158,7 @@ export default function WhatsAppConfig() {
       {!connected && !pendingActivation && status?.retry_exhausted && (
         <div style={{ background: '#FDECEA',
           border: '1px solid #F5C6C0',
-          borderRadius: 14,
+          borderRadius: 16,
           padding: 14,
           marginBottom: 14,
           display: 'flex',
@@ -1186,7 +1186,7 @@ export default function WhatsAppConfig() {
               <a
                 href="mailto:hello@florrie.ai?subject=WhatsApp%20connection%20help"
                 style={{ padding: '7px 12px',
-                  borderRadius: 8,
+                  borderRadius: 10,
                   border: '1px solid #8A2A1C',
                   background: '#8A2A1C',
                   color: '#fff',
@@ -1201,7 +1201,7 @@ export default function WhatsAppConfig() {
               <button
                 onClick={handleReset}
                 style={{ padding: '7px 12px',
-                  borderRadius: 8,
+                  borderRadius: 10,
                   border: '1px solid #F5C6C0',
                   background: '#fff',
                   color: '#8A2A1C',
@@ -1405,7 +1405,7 @@ const styles = {
   title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #241B17)', margin: 0 },
   statusBadge: { padding: '4px 10px', borderRadius: 10, fontSize: 12, fontWeight: 600 },
 
-  connectBox: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 18, padding: 24, border: '1px solid var(--border, #E8DDD4)' },
+  connectBox: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: 24, border: '1px solid var(--border, #E8DDD4)' },
   connectIcon: { width: 56, height: 56, borderRadius: 16, background: 'var(--success-bg, #E9F0EB)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
   connectTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text, #241B17)', margin: '0 0 8px' },
   connectDesc: { fontSize: 14, color: 'var(--text-secondary, #574A42)', lineHeight: 1.6, margin: '0 0 14px' },
@@ -1414,12 +1414,12 @@ const styles = {
   outcomeItem: { fontSize: 13, color: 'var(--text, #241B17)', lineHeight: 1.5, display: 'flex', gap: 8, alignItems: 'flex-start' },
   outcomeTick: { color: '#25D366', fontWeight: 800, flexShrink: 0, marginTop: 1 },
   inputLabel: { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #574A42)', marginBottom: 6 },
-  input: { width: '100%', padding: '12px 14px', borderRadius: 12, border: '1.5px solid var(--border, #E8DDD4)', fontSize: 15, fontFamily: 'inherit', color: 'var(--text, #241B17)', background: 'var(--bg, #FBF6F1)', outline: 'none', boxSizing: 'border-box', marginBottom: 12 },
-  connectBtn: { width: '100%', padding: '13px 0', borderRadius: 12, border: 'none', background: '#25D366', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  diagnoseBtn: { width: '100%', padding: '11px 0', borderRadius: 12, border: '1px solid var(--border, #E8DDD4)', background: 'var(--bg, #FBF6F1)', color: 'var(--text-secondary, #574A42)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', marginTop: 10 },
+  input: { width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid var(--border, #E8DDD4)', fontSize: 15, fontFamily: 'inherit', color: 'var(--text, #241B17)', background: 'var(--bg, #FBF6F1)', outline: 'none', boxSizing: 'border-box', marginBottom: 12 },
+  connectBtn: { width: '100%', padding: '13px 0', borderRadius: 10, border: 'none', background: '#25D366', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  diagnoseBtn: { width: '100%', padding: '11px 0', borderRadius: 10, border: '1px solid var(--border, #E8DDD4)', background: 'var(--bg, #FBF6F1)', color: 'var(--text-secondary, #574A42)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', marginTop: 10 },
   checkResult: { fontSize: 13, border: '1px solid', borderRadius: 10, padding: 12, marginBottom: 12, lineHeight: 1.5 },
-  backBtn: { width: '100%', padding: '10px 0', borderRadius: 12, border: 'none', background: 'none', color: 'var(--text-muted, #6B5D54)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', marginTop: 8 },
-  resendBtn: { width: '100%', padding: '10px 0', borderRadius: 12, border: '1px solid var(--border, #E8DDD4)', background: 'var(--bg, #FBF6F1)', color: 'var(--text-secondary, #574A42)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', marginTop: 10 },
+  backBtn: { width: '100%', padding: '10px 0', borderRadius: 10, border: 'none', background: 'none', color: 'var(--text-muted, #6B5D54)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', marginTop: 8 },
+  resendBtn: { width: '100%', padding: '10px 0', borderRadius: 10, border: '1px solid var(--border, #E8DDD4)', background: 'var(--bg, #FBF6F1)', color: 'var(--text-secondary, #574A42)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', marginTop: 10 },
   resendNote: { fontSize: 12, color: '#2E7D32', background: '#E8F5E9', border: '1px solid #C8E6C9', borderRadius: 10, padding: '8px 12px', marginBottom: 10 },
   errorMsg: { fontSize: 13, color: '#E85D75', marginBottom: 10 },
 
@@ -1429,14 +1429,14 @@ const styles = {
     alignItems: 'flex-start',
     background: '#EDF3FA',
     border: '1px solid #CFD8E5',
-    borderRadius: 14,
+    borderRadius: 16,
     padding: 14,
     marginBottom: 14,
   },
 
   pendingBox: {
     background: 'var(--bg-card, #FFFCF9)',
-    borderRadius: 18,
+    borderRadius: 16,
     padding: 28,
     border: '1px solid var(--border, #E8DDD4)',
     textAlign: 'center',
@@ -1452,7 +1452,7 @@ const styles = {
   },
   pendingMeta: {
     background: 'var(--bg, #FBF6F1)',
-    borderRadius: 12,
+    borderRadius: 10,
     padding: '10px 14px',
     marginTop: 6,
     textAlign: 'left',
@@ -1466,35 +1466,35 @@ const styles = {
     borderBottom: '1px solid var(--border, #E8DDD4)',
   },
 
-  usageBar: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 12, padding: '12px 14px', border: '1px solid var(--border, #E8DDD4)', marginBottom: 12 },
+  usageBar: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 10, padding: '12px 14px', border: '1px solid var(--border, #E8DDD4)', marginBottom: 12 },
 
-  connectionCard: { display: 'flex', alignItems: 'center', gap: 12, background: 'var(--bg-card, #FFFCF9)', borderRadius: 14, padding: 14, border: '1px solid var(--border, #E8DDD4)', marginBottom: 12 },
-  waLogo: { width: 44, height: 44, borderRadius: 12, background: 'var(--success-bg, #E9F0EB)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  connectionCard: { display: 'flex', alignItems: 'center', gap: 12, background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: 14, border: '1px solid var(--border, #E8DDD4)', marginBottom: 12 },
+  waLogo: { width: 44, height: 44, borderRadius: 10, background: 'var(--success-bg, #E9F0EB)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   metaBadge: { fontSize: 10, color: 'var(--text-muted, #6B5D54)', background: 'var(--border, #E8DDD4)', padding: '3px 8px', borderRadius: 6 },
 
-  tabs: { display: 'flex', gap: 4, marginBottom: 16, background: 'var(--border, #E8DDD4)', borderRadius: 12, padding: 4 },
+  tabs: { display: 'flex', gap: 4, marginBottom: 16, background: 'var(--border, #E8DDD4)', borderRadius: 10, padding: 4 },
   tab: { flex: 1, padding: '8px 0', fontSize: 11, fontWeight: 500, border: 'none', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', background: 'none', color: 'var(--text-secondary, #574A42)' },
-  tabActive: { background: 'var(--bg-card, #FFFCF9)', color: 'var(--text, #241B17)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' },
+  tabActive: { background: 'var(--bg-card, #FFFCF9)', color: 'var(--text, #241B17)', boxShadow: 'var(--elev-1)' },
 
   statsRow: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 },
-  statCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 12, padding: 14, border: '1px solid var(--border, #E8DDD4)', textAlign: 'center' },
+  statCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 10, padding: 14, border: '1px solid var(--border, #E8DDD4)', textAlign: 'center' },
   statValue: { fontSize: 22, fontWeight: 700, color: 'var(--text, #241B17)' },
   statLabel: { fontSize: 11, color: 'var(--text-muted, #6B5D54)', marginTop: 2 },
 
-  funnelCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 14, padding: 16, border: '1px solid var(--border, #E8DDD4)', marginBottom: 16 },
+  funnelCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: 16, border: '1px solid var(--border, #E8DDD4)', marginBottom: 16 },
   funnelTitle: { fontSize: 13, fontWeight: 600, color: 'var(--text, #241B17)', marginBottom: 12 },
   funnelRow: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 },
   funnelLabel: { fontSize: 12, color: 'var(--text-secondary, #574A42)', width: 60 },
-  funnelBarBg: { flex: 1, height: 8, background: 'var(--border, #E8DDD4)', borderRadius: 4 },
-  funnelBarFill: { height: '100%', borderRadius: 4, transition: 'width 0.5s' },
+  funnelBarBg: { flex: 1, height: 8, background: 'var(--border, #E8DDD4)', borderRadius: 6 },
+  funnelBarFill: { height: '100%', borderRadius: 6, transition: 'width 0.5s' },
   funnelValue: { fontSize: 12, fontWeight: 600, color: 'var(--text, #241B17)', width: 36, textAlign: 'right' },
 
-  insightCard: { display: 'flex', gap: 10, background: '#FFF8F0', border: '1px solid #FFE8CC', borderRadius: 12, padding: 14, marginBottom: 16 },
+  insightCard: { display: 'flex', gap: 10, background: '#FFF8F0', border: '1px solid #FFE8CC', borderRadius: 10, padding: 14, marginBottom: 16 },
 
-  newTemplateBtn: { width: '100%', padding: '12px 0', borderRadius: 12, border: '2px dashed var(--border, #E8DDD4)', background: 'none', fontSize: 14, fontWeight: 600, color: 'var(--text-muted, #6B5D54)', cursor: 'pointer', fontFamily: 'inherit', marginBottom: 12 },
-  manageTemplatesLink: { display: 'block', padding: '12px 14px', borderRadius: 12, background: 'var(--accent, #92405e)', color: '#fff', fontSize: 13, fontWeight: 600, textDecoration: 'none', textAlign: 'center', marginBottom: 8 },
+  newTemplateBtn: { width: '100%', padding: '12px 0', borderRadius: 10, border: '2px dashed var(--border, #E8DDD4)', background: 'none', fontSize: 14, fontWeight: 600, color: 'var(--text-muted, #6B5D54)', cursor: 'pointer', fontFamily: 'inherit', marginBottom: 12 },
+  manageTemplatesLink: { display: 'block', padding: '12px 14px', borderRadius: 10, background: 'var(--accent, #92405e)', color: '#fff', fontSize: 13, fontWeight: 600, textDecoration: 'none', textAlign: 'center', marginBottom: 8 },
   manageTemplatesHint: { fontSize: 12, color: 'var(--text-muted, #6B5D54)', textAlign: 'center', marginBottom: 14, lineHeight: 1.5 },
-  templateCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 14, border: '1px solid var(--border, #E8DDD4)', marginBottom: 8, overflow: 'hidden' },
+  templateCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, border: '1px solid var(--border, #E8DDD4)', marginBottom: 8, overflow: 'hidden' },
   templateHeader: { display: 'flex', alignItems: 'center', gap: 8, padding: 14, cursor: 'pointer' },
   templateName: { fontSize: 14, fontWeight: 600, color: 'var(--text, #241B17)' },
   tmplStatus: { fontSize: 10, fontWeight: 600, padding: '2px 6px', borderRadius: 6 },
@@ -1502,27 +1502,27 @@ const styles = {
   templatePreview: { padding: '0 14px 14px', borderTop: '1px solid var(--border, #E8DDD4)' },
   previewBubble: { background: 'var(--success-bg, #E9F0EB)', borderRadius: '12px 12px 12px 0', padding: 12, fontSize: 13, color: 'var(--text, #241B17)', lineHeight: 1.5, marginTop: 12, marginBottom: 10 },
   previewActions: { display: 'flex', gap: 8 },
-  previewBtn: { padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border, #E8DDD4)', background: 'var(--bg, #FBF6F1)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-secondary, #574A42)' },
+  previewBtn: { padding: '6px 12px', borderRadius: 10, border: '1px solid var(--border, #E8DDD4)', background: 'var(--bg, #FBF6F1)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-secondary, #574A42)' },
 
-  autoReplyHint: { fontSize: 13, color: 'var(--text-secondary, #574A42)', lineHeight: 1.5, marginBottom: 16, background: 'var(--bg, #FBF6F1)', padding: 12, borderRadius: 12 },
-  autoReplyCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 14, padding: 14, border: '1px solid var(--border, #E8DDD4)', marginBottom: 10 },
+  autoReplyHint: { fontSize: 13, color: 'var(--text-secondary, #574A42)', lineHeight: 1.5, marginBottom: 16, background: 'var(--bg, #FBF6F1)', padding: 12, borderRadius: 10 },
+  autoReplyCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: 14, border: '1px solid var(--border, #E8DDD4)', marginBottom: 10 },
   autoReplyPreview: { fontSize: 13, color: 'var(--text-secondary, #574A42)', lineHeight: 1.5, background: 'var(--bg, #FBF6F1)', borderRadius: 10, padding: 10 },
-  aiToggleCard: { display: 'flex', alignItems: 'center', gap: 12, background: '#FFF8F0', border: '1px solid #FFE8CC', borderRadius: 14, padding: 14, marginTop: 16 },
+  aiToggleCard: { display: 'flex', alignItems: 'center', gap: 12, background: '#FFF8F0', border: '1px solid #FFE8CC', borderRadius: 16, padding: 14, marginTop: 16 },
 
-  toggle: { width: 42, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer', position: 'relative', flexShrink: 0, transition: 'background 0.2s' },
-  toggleDot: { width: 20, height: 20, borderRadius: 10, background: 'var(--bg-card, #FFFCF9)', position: 'absolute', top: 2, left: 2, transition: 'transform 0.2s', boxShadow: '0 1px 2px rgba(0,0,0,0.15)' },
+  toggle: { width: 42, height: 24, borderRadius: 10, border: 'none', cursor: 'pointer', position: 'relative', flexShrink: 0, transition: 'background 0.2s' },
+  toggleDot: { width: 20, height: 20, borderRadius: 10, background: 'var(--bg-card, #FFFCF9)', position: 'absolute', top: 2, left: 2, transition: 'transform 0.2s', boxShadow: 'var(--elev-1)' },
 
-  sendCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 14, padding: 16, border: '1px solid var(--border, #E8DDD4)', marginBottom: 16 },
+  sendCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: 16, border: '1px solid var(--border, #E8DDD4)', marginBottom: 16 },
   sendHeader: { marginBottom: 12 },
   sendTitle: { fontSize: 15, fontWeight: 700, color: 'var(--text, #241B17)', marginBottom: 2 },
   sendSubtitle: { fontSize: 12, color: 'var(--text-secondary, #574A42)', lineHeight: 1.5 },
   sendTabs: { display: 'flex', gap: 4, marginBottom: 14, background: 'var(--border, #E8DDD4)', borderRadius: 10, padding: 4 },
   sendSuccess: { background: '#E8F5E9', border: '1px solid #C8E6C9', borderRadius: 10, padding: 12, marginTop: 12, fontSize: 12, color: '#2E7D32', lineHeight: 1.5 },
   sendError: { background: '#FDECEA', border: '1px solid #F5C6C0', borderRadius: 10, padding: 12, marginTop: 12, fontSize: 12, color: '#8A2A1C', lineHeight: 1.5 },
-  sendNote: { fontSize: 11, color: 'var(--text-muted, #6B5D54)', lineHeight: 1.5, marginTop: 12, padding: '8px 10px', background: 'var(--bg, #FBF6F1)', borderRadius: 8 },
+  sendNote: { fontSize: 11, color: 'var(--text-muted, #6B5D54)', lineHeight: 1.5, marginTop: 12, padding: '8px 10px', background: 'var(--bg, #FBF6F1)', borderRadius: 10 },
 
   settingRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '14px 0', borderBottom: '1px solid var(--border, #E8DDD4)' },
-  dangerZone: { marginTop: 24, padding: 16, background: 'var(--danger-bg, #F7E4E4)', borderRadius: 14, border: '1px solid var(--danger, #9E2B32)' },
+  dangerZone: { marginTop: 24, padding: 16, background: 'var(--danger-bg, #F7E4E4)', borderRadius: 16, border: '1px solid var(--danger, #9E2B32)' },
   disconnectBtn: { padding: '10px 16px', borderRadius: 10, border: '1px solid var(--danger, #9E2B32)', background: 'none', color: 'var(--danger, #9E2B32)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 };
 

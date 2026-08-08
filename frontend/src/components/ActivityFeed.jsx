@@ -333,7 +333,7 @@ function SkeletonRow() {
 const F = {
   card: {
     background: 'var(--tone-1, #fbf1ea)',
-    borderRadius: 20,
+    borderRadius: 22,
     padding: '14px 14px 8px',
     marginBottom: 16,
   },
@@ -356,7 +356,7 @@ const F = {
     color: '#92405e',
     background: '#ffd9e2',
     padding: '2px 8px',
-    borderRadius: 20,
+    borderRadius: 22,
     letterSpacing: '0.04em',
   },
   group: { marginBottom: 6 },
@@ -398,7 +398,7 @@ const F = {
     alignItems: 'center',
     justifyContent: 'center',
     lineHeight: 1,
-    borderRadius: 8,
+    borderRadius: 10,
     // One accent marks agent activity, so Ellie can tell what came from Florrie
     // without reading a word.
     color: 'var(--accent, #92405E)',
@@ -454,7 +454,7 @@ const F = {
   skelTime: {
     height: 10,
     width: 42,
-    borderRadius: 5,
+    borderRadius: 6,
     background: '#f3ede9',
     display: 'block',
   },

@@ -230,7 +230,7 @@ const S = {
   errorBanner: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--danger-bg, #F7E4E4)', borderRadius: 10, padding: '10px 12px', marginBottom: 16, color: 'var(--danger-text, #9E2B32)', fontSize: 13 },
   errorClose: { background: 'none', border: 'none', color: 'var(--danger-text, #9E2B32)', cursor: 'pointer', fontSize: 16, fontWeight: 600, padding: 0 },
 
-  summaryCard: { background: 'var(--card, #FFFCF9)', borderRadius: 14, padding: 16, marginBottom: 16 },
+  summaryCard: { background: 'var(--card, #FFFCF9)', borderRadius: 16, padding: 16, marginBottom: 16 },
   summaryMain: { display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid var(--border, #E8DDD4)' },
   summaryLabel: { fontSize: 12, color: 'var(--text-muted, #6B5D54)', fontWeight: 500 },
   summaryValue: { fontSize: 28, fontWeight: 700, color: 'var(--accent, #92405e)' },
@@ -247,16 +247,16 @@ const S = {
   list: { display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 },
   empty: { textAlign: 'center', color: 'var(--text-muted, #6B5D54)', fontSize: 14, padding: 32 },
 
-  depositCard: { background: 'var(--card, #FFFCF9)', borderRadius: 14, padding: 14, cursor: 'pointer' },
+  depositCard: { background: 'var(--card, #FFFCF9)', borderRadius: 16, padding: 14, cursor: 'pointer' },
   depositHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' },
   depositLeft: { display: 'flex', gap: 10, alignItems: 'center' },
-  avatar: { width: 36, height: 36, borderRadius: 18, background: 'var(--accent-light, #F6E7EC)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 600, color: 'var(--accent, #92405e)', flexShrink: 0 },
+  avatar: { width: 36, height: 36, borderRadius: 16, background: 'var(--accent-light, #F6E7EC)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 600, color: 'var(--accent, #92405e)', flexShrink: 0 },
   depositInfo: { display: 'flex', flexDirection: 'column', gap: 2 },
   depositClient: { fontSize: 14, fontWeight: 600, color: 'var(--text, var(--text-primary, #241B17))' },
   depositTreatment: { fontSize: 12, color: 'var(--text-muted, #6B5D54)' },
   depositRight: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 },
   depositAmount: { fontSize: 16, fontWeight: 700, color: 'var(--accent, #92405e)' },
-  statusBadge: { padding: '3px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600 },
+  statusBadge: { padding: '3px 10px', borderRadius: 10, fontSize: 11, fontWeight: 600 },
 
   expandedSection: { marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border, #E8DDD4)' },
   detailGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 10 },
@@ -265,7 +265,7 @@ const S = {
   detailValue: { fontSize: 13, fontWeight: 600, color: 'var(--text, var(--text-primary, #241B17))' },
   depositHint: { fontSize: 12, color: 'var(--text-secondary, #574A42)', lineHeight: 1.5, margin: '4px 0 0' },
 
-  policyCard: { background: 'var(--bg-subtle, #ede7e3)', borderRadius: 12, padding: 14 },
+  policyCard: { background: 'var(--bg-subtle, #ede7e3)', borderRadius: 10, padding: 14 },
   policyTitle: { fontSize: 13, fontWeight: 600, color: 'var(--text, var(--text-primary, #241B17))' },
   policyText: { fontSize: 12, color: 'var(--text-secondary, #574A42)', lineHeight: 1.4, margin: '6px 0' },
   policyLink: { background: 'none', border: 'none', color: 'var(--accent, #92405e)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0, fontFamily: 'inherit' },

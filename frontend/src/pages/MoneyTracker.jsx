@@ -1029,8 +1029,8 @@ export default function MoneyTracker() {
 
       {/* Today's takings, always visible at the top of the page */}
       <div style={{ background: 'var(--gradient-hero)',
-        borderRadius: 18, padding: '16px 18px', color: '#fff',
-        boxShadow: '0 6px 20px rgba(146,64,94,0.22)', marginBottom: 14,
+        borderRadius: 16, padding: '16px 18px', color: '#fff',
+        boxShadow: 'var(--elev-2)', marginBottom: 14,
         display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12,
       }}>
         <div>
@@ -1508,7 +1508,7 @@ export default function MoneyTracker() {
 
               {newExpense.ocr_confidence > 0 && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6,
-                  padding: '8px 12px', marginBottom: 12, borderRadius: 8,
+                  padding: '8px 12px', marginBottom: 12, borderRadius: 10,
                   background: newExpense.ocr_confidence >= 0.8 ? 'var(--success-bg, #E9F0EB)' : 'var(--gold-light, #ffdea4)',
                   fontSize: 12, color: newExpense.ocr_confidence >= 0.8 ? 'var(--success, #3F7D5C)' : 'var(--gold-text, #795f2b)',
                 }}>
@@ -2057,8 +2057,8 @@ export default function MoneyTracker() {
                   <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t.period.start} to {t.period.end}</span>
 
                   {/* Year progress bar */}
-                  <div style={{ marginTop: 10, background: 'var(--border, #E8DDD4)', borderRadius: 4, height: 6, overflow: 'hidden' }}>
-                    <div style={{ width: `${Math.round(t.yearProgress * 100)}%`, height: '100%', background: 'var(--accent, #92405e)', borderRadius: 4, transition: 'width 0.3s ease' }} />
+                  <div style={{ marginTop: 10, background: 'var(--border, #E8DDD4)', borderRadius: 6, height: 6, overflow: 'hidden' }}>
+                    <div style={{ width: `${Math.round(t.yearProgress * 100)}%`, height: '100%', background: 'var(--accent, #92405e)', borderRadius: 6, transition: 'width 0.3s ease' }} />
                   </div>
                   <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>{Math.round(t.yearProgress * 100)}% through tax year</span>
                 </div>
@@ -2152,7 +2152,7 @@ export default function MoneyTracker() {
                       </div>
                       <button
                         onClick={() => { window.location.href = '/settings?section=tax'; }}
-                        style={{ marginTop: 8, padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'none', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'inherit' }}
+                        style={{ marginTop: 8, padding: '6px 12px', borderRadius: 10, border: '1px solid var(--border)', background: 'none', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'inherit' }}
                       >
                         Update VAT number in Settings →
                       </button>
@@ -2164,8 +2164,8 @@ export default function MoneyTracker() {
                       <h4 style={{ ...S.breakdownTitle, margin: 0 }}>VAT Threshold</h4>
                       <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Not registered</span>
                     </div>
-                    <div style={{ background: 'var(--border, #E8DDD4)', borderRadius: 4, height: 8, overflow: 'hidden', marginBottom: 6 }}>
-                      <div style={{ width: `${t.vat.vatPct}%`, height: '100%', borderRadius: 4, transition: 'width 0.4s ease',
+                    <div style={{ background: 'var(--border, #E8DDD4)', borderRadius: 6, height: 8, overflow: 'hidden', marginBottom: 6 }}>
+                      <div style={{ width: `${t.vat.vatPct}%`, height: '100%', borderRadius: 6, transition: 'width 0.4s ease',
                         background: t.vat.vatPct >= 90 ? '#ef4444' : t.vat.vatPct >= 75 ? '#f59e0b' : '#22c55e',
                       }} />
                     </div>
@@ -2177,14 +2177,14 @@ export default function MoneyTracker() {
                       <span style={{ fontSize: 13, fontWeight: 700, color: t.vat.vatPct >= 75 ? '#ef4444' : 'var(--text-muted)' }}>{t.vat.vatPct}%</span>
                     </div>
                     {t.vat.vatPct >= 75 && (
-                      <div style={{ marginTop: 10, padding: '8px 10px', borderRadius: 8, background: '#fef3c7', border: '1px solid #fcd34d' }}>
+                      <div style={{ marginTop: 10, padding: '8px 10px', borderRadius: 10, background: '#fef3c7', border: '1px solid #fcd34d' }}>
                         <span style={{ fontSize: 12, color: '#92400e', fontWeight: 500 }}><Icon name="alert-triangle" size={14} inline /> You're {t.vat.vatPct}% of the way to the VAT threshold. HMRC requires registration within 30 days of exceeding £90,000.
                         </span>
                       </div>
                     )}
                     <button
                       onClick={() => { window.location.href = '/settings'; }}
-                      style={{ marginTop: 8, padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'none', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'inherit' }}
+                      style={{ marginTop: 8, padding: '6px 12px', borderRadius: 10, border: '1px solid var(--border)', background: 'none', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'inherit' }}
                     >
                       Update VAT status in Settings →
                     </button>
@@ -2263,7 +2263,7 @@ export default function MoneyTracker() {
                     a.download = '';
                     a.click();
                   }}
-                  style={{ width: '100%', padding: '14px 0', borderRadius: 12,
+                  style={{ width: '100%', padding: '14px 0', borderRadius: 10,
                     border: 'none', background: 'var(--accent)', color: '#fff',
                     fontSize: 14, fontWeight: 600, cursor: 'pointer',
                     fontFamily: 'inherit', marginBottom: 12,
@@ -2318,7 +2318,7 @@ export default function MoneyTracker() {
               <button
                 onClick={handleDeleteExpense}
                 disabled={deleting}
-                style={{ flex: 1, padding: '13px 0', borderRadius: 12, border: 'none',
+                style={{ flex: 1, padding: '13px 0', borderRadius: 10, border: 'none',
                   background: 'var(--danger, #9E2B32)', color: '#fff',
                   fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
                   opacity: deleting ? 0.6 : 1,
@@ -2328,7 +2328,7 @@ export default function MoneyTracker() {
               </button>
               <button
                 onClick={() => setConfirmDeleteExp(null)}
-                style={{ flex: 1, padding: '13px 0', borderRadius: 12,
+                style={{ flex: 1, padding: '13px 0', borderRadius: 10,
                   border: '1.5px solid var(--border, #E8DDD4)', background: 'var(--bg-card, #FFFCF9)',
                   color: 'var(--text-primary)', fontSize: 14, fontWeight: 600,
                   cursor: 'pointer', fontFamily: 'inherit',
@@ -2369,7 +2369,7 @@ export default function MoneyTracker() {
             <div style={{ display: 'flex', gap: 10 }}>
               <button
                 onClick={handleDeleteRecurring}
-                style={{ flex: 1, padding: '13px 0', borderRadius: 12, border: 'none',
+                style={{ flex: 1, padding: '13px 0', borderRadius: 10, border: 'none',
                   background: 'var(--danger, #9E2B32)', color: '#fff',
                   fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
                   minHeight: 44,
@@ -2379,7 +2379,7 @@ export default function MoneyTracker() {
               </button>
               <button
                 onClick={() => setConfirmDeleteRule(null)}
-                style={{ flex: 1, padding: '13px 0', borderRadius: 12,
+                style={{ flex: 1, padding: '13px 0', borderRadius: 10,
                   border: '1.5px solid var(--border, #E8DDD4)', background: 'var(--bg-card, #FFFCF9)',
                   color: 'var(--text-primary)', fontSize: 14, fontWeight: 600,
                   cursor: 'pointer', fontFamily: 'inherit', minHeight: 44,
@@ -2416,12 +2416,12 @@ const S = {
   // Tab bar - pill style
   tabBar: {
     display: 'flex', gap: 4,
-    background: 'var(--tone-2, #f6e7dd)', borderRadius: 14, padding: 4,
+    background: 'var(--tone-2, #f6e7dd)', borderRadius: 16, padding: 4,
     marginBottom: 20,
   },
   tab: {
     flex: 1, padding: '9px 0', fontSize: 13, fontWeight: 500,
-    border: 'none', borderRadius: 11, cursor: 'pointer',
+    border: 'none', borderRadius: 10, cursor: 'pointer',
     fontFamily: 'inherit', background: 'none', color: 'var(--text-muted)',
     transition: 'all 0.2s ease',
   },
@@ -2432,7 +2432,7 @@ const S = {
 
   // Period selector
   reportsCard: {
-    background: 'var(--tone-1, #fbf1ea)', borderRadius: 20, padding: '18px 16px', marginBottom: 16,
+    background: 'var(--tone-1, #fbf1ea)', borderRadius: 22, padding: '18px 16px', marginBottom: 16,
   },
   reportsTitle: {
     fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
@@ -2450,7 +2450,7 @@ const S = {
     display: 'flex', gap: 8, marginBottom: 16,
   },
   periodBtn: {
-    padding: '7px 15px', borderRadius: 20,
+    padding: '7px 15px', borderRadius: 22,
     border: 'none', background: 'var(--tone-2, #f6e7dd)',
     fontSize: 12, fontWeight: 500, color: 'var(--text-muted)',
     cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s ease',
@@ -2464,8 +2464,8 @@ const S = {
   heroCard: {
     position: 'relative', overflow: 'hidden',
     background: 'var(--gradient-hero)',
-    color: '#fff', borderRadius: 24, padding: 24, marginBottom: 16,
-    boxShadow: '0 8px 32px rgba(146, 64, 94, 0.15)',
+    color: '#fff', borderRadius: 22, padding: 24, marginBottom: 16,
+    boxShadow: 'var(--elev-3)',
   },
   heroDecor: {
     position: 'absolute', top: 0, right: 0,
@@ -2487,13 +2487,13 @@ const S = {
     fontFeatureSettings: '"tnum" 1, "lnum" 1',
   },
   changeBadge: {
-    display: 'inline-block', padding: '3px 10px', borderRadius: 12,
+    display: 'inline-block', padding: '3px 10px', borderRadius: 10,
     fontSize: 11, fontWeight: 600,
   },
 
   // Chart card
   chartCard: {
-    background: 'var(--tone-1, #fbf1ea)', borderRadius: 20, padding: 16,
+    background: 'var(--tone-1, #fbf1ea)', borderRadius: 22, padding: 16,
     marginBottom: 16,
   },
 
@@ -2514,14 +2514,14 @@ const S = {
 
   // Quick log card
   quickLogCard: {
-    background: 'var(--tone-1, #fbf1ea)', borderRadius: 20, padding: 16, marginBottom: 16,
+    background: 'var(--tone-1, #fbf1ea)', borderRadius: 22, padding: 16, marginBottom: 16,
     animation: 'fadeIn 0.2s ease',
   },
 
   // Quick stats row
   quickStats: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-around',
-    background: 'var(--tone-1, #fbf1ea)', borderRadius: 20, padding: '14px 8px',
+    background: 'var(--tone-1, #fbf1ea)', borderRadius: 22, padding: '14px 8px',
     marginBottom: 24,
   },
   qStat: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
@@ -2550,7 +2550,7 @@ const S = {
     display: 'flex', alignItems: 'center', gap: 12,
   },
   txAvatar: {
-    width: 36, height: 36, borderRadius: 12,
+    width: 36, height: 36, borderRadius: 10,
     background: 'linear-gradient(135deg, #ffd9e2 0%, #ffb1c8 100%)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontSize: 14, fontWeight: 700, color: '#92405e', flexShrink: 0,
@@ -2563,7 +2563,7 @@ const S = {
 
   // Comparison card
   compCard: {
-    background: 'var(--tone-1, #fbf1ea)', borderRadius: 20, padding: 16,
+    background: 'var(--tone-1, #fbf1ea)', borderRadius: 22, padding: 16,
   },
   compTitle: {
     fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 12px',
@@ -2583,7 +2583,7 @@ const S = {
     textAlign: 'center',
   },
   taxCard: {
-    background: 'var(--tone-1, #fbf1ea)', borderRadius: 20, padding: 16,
+    background: 'var(--tone-1, #fbf1ea)', borderRadius: 22, padding: 16,
   },
   taxCardLabel: {
     display: 'block', fontSize: 10, textTransform: 'uppercase',
@@ -2596,7 +2596,7 @@ const S = {
 
   // Breakdown sections
   breakdownCard: {
-    background: 'var(--tone-1, #fbf1ea)', borderRadius: 20, padding: 16, marginBottom: 12,
+    background: 'var(--tone-1, #fbf1ea)', borderRadius: 22, padding: 16, marginBottom: 12,
   },
   breakdownTitle: { fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 12px' },
   breakdownRow: {
@@ -2606,21 +2606,21 @@ const S = {
 
   // Buttons
   btnPrimary: {
-    flex: 1, padding: '11px 0', borderRadius: 12,
+    flex: 1, padding: '11px 0', borderRadius: 10,
     border: 'none', background: 'var(--accent)', color: '#fff',
     fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    boxShadow: '0 2px 8px rgba(146, 64, 94, 0.25)',
+    boxShadow: 'var(--elev-2)',
   },
   btnSecondary: {
-    flex: 1, padding: '11px 0', borderRadius: 12,
+    flex: 1, padding: '11px 0', borderRadius: 10,
     border: '1.5px solid var(--border)', background: 'var(--bg-card)',
     color: 'var(--text-secondary)', fontSize: 13, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
   btnGhost: {
-    padding: '11px 16px', borderRadius: 12, border: 'none',
+    padding: '11px 16px', borderRadius: 10, border: 'none',
     background: 'var(--bg-hover)', color: 'var(--text-secondary)', fontSize: 13,
     cursor: 'pointer', fontFamily: 'inherit',
   },
@@ -2628,7 +2628,7 @@ const S = {
   noticeBar: {
     display: 'flex', alignItems: 'center', gap: 8,
     background: 'var(--warning-bg, #F7EEDD)', color: 'var(--text-primary)',
-    borderRadius: 12, padding: '10px 12px', marginBottom: 12,
+    borderRadius: 10, padding: '10px 12px', marginBottom: 12,
     fontSize: 12.5, lineHeight: 1.45,
   },
   noticeClose: {
@@ -2639,7 +2639,7 @@ const S = {
 
   // Year to date (UK tax year)
   ytdCard: {
-    background: 'var(--tone-1, #fbf1ea)', borderRadius: 20, padding: '16px 16px 14px',
+    background: 'var(--tone-1, #fbf1ea)', borderRadius: 22, padding: '16px 16px 14px',
     marginBottom: 14,
   },
   ytdHead: {
@@ -2671,7 +2671,7 @@ const S = {
   // Ledger
   ledgerFilters: { display: 'flex', gap: 8, marginBottom: 10 },
   ledgerSelect: {
-    flex: 1, minWidth: 0, minHeight: 44, padding: '10px 12px', borderRadius: 12,
+    flex: 1, minWidth: 0, minHeight: 44, padding: '10px 12px', borderRadius: 10,
     border: '1.5px solid var(--border)', background: 'var(--bg-input)',
     color: 'var(--text-primary)', fontSize: 13, fontFamily: 'inherit',
   },
@@ -2681,7 +2681,7 @@ const S = {
     margin: '0 0 12px',
   },
   ledgerTotalCard: {
-    background: 'var(--tone-1, #fbf1ea)', borderRadius: 20, padding: 16,
+    background: 'var(--tone-1, #fbf1ea)', borderRadius: 22, padding: 16,
     marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 2,
   },
   ledgerTotalLabel: {
@@ -2698,13 +2698,13 @@ const S = {
     gap: 10, margin: '14px 0',
   },
   pagerBtn: {
-    minHeight: 44, padding: '11px 18px', borderRadius: 12,
+    minHeight: 44, padding: '11px 18px', borderRadius: 10,
     border: '1.5px solid var(--border)', background: 'var(--bg-card)',
     color: 'var(--text-secondary)', fontSize: 13, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
   exportBtn: {
-    width: '100%', minHeight: 44, padding: '14px 0', borderRadius: 12,
+    width: '100%', minHeight: 44, padding: '14px 0', borderRadius: 10,
     border: 'none', background: 'var(--accent)', color: '#fff',
     fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
     marginTop: 8,
@@ -2712,18 +2712,18 @@ const S = {
 
   // Regular costs
   addRuleBtn: {
-    minHeight: 44, padding: '10px 16px', borderRadius: 12,
+    minHeight: 44, padding: '10px 16px', borderRadius: 10,
     border: '1.5px solid var(--border)', background: 'var(--bg-card)',
     color: 'var(--accent)', fontSize: 13, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
   iconBtn: {
-    width: 44, height: 44, borderRadius: 12, border: 'none',
+    width: 44, height: 44, borderRadius: 10, border: 'none',
     background: 'transparent', cursor: 'pointer', fontFamily: 'inherit',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
   chip: {
-    flex: 1, minHeight: 44, padding: '10px 12px', borderRadius: 12,
+    flex: 1, minHeight: 44, padding: '10px 12px', borderRadius: 10,
     border: '1.5px solid var(--border-light)', background: 'var(--bg-card)',
     color: 'var(--text-secondary)', fontSize: 13, fontWeight: 500,
     cursor: 'pointer', fontFamily: 'inherit',
@@ -2734,7 +2734,7 @@ const S = {
   },
   repeatBox: {
     background: 'var(--bg-card)', border: '1.5px solid var(--border-light)',
-    borderRadius: 14, padding: 12, marginBottom: 14,
+    borderRadius: 16, padding: 12, marginBottom: 14,
   },
   repeatToggle: {
     display: 'flex', alignItems: 'center', minHeight: 44,
@@ -2747,14 +2747,14 @@ const S = {
 
   // Form
   formCard: {
-    background: 'var(--tone-1, #fbf1ea)', borderRadius: 20, padding: 16, marginBottom: 16,
+    background: 'var(--tone-1, #fbf1ea)', borderRadius: 22, padding: 16, marginBottom: 16,
   },
   formLabel: {
     display: 'block', fontSize: 12, fontWeight: 600,
     color: 'var(--text-secondary)', marginBottom: 6, letterSpacing: '0.01em',
   },
   formInput: {
-    width: '100%', padding: '11px 14px', borderRadius: 12,
+    width: '100%', padding: '11px 14px', borderRadius: 10,
     border: '1.5px solid var(--border)', fontSize: 14,
     fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box',
     background: 'var(--bg-input)', color: 'var(--text-primary)',

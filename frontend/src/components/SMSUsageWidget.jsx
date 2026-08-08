@@ -147,7 +147,7 @@ const styles = {
   widget: {
     background: 'var(--bg-card)',
     border: '1px solid var(--border)',
-    borderRadius: 14,
+    borderRadius: 16,
     padding: 16,
     marginBottom: 12,
     boxShadow: 'var(--shadow-xs)',
@@ -168,7 +168,7 @@ const styles = {
     fontSize: 13,
     fontWeight: 600,
     padding: '4px 10px',
-    borderRadius: 8,
+    borderRadius: 10,
   },
   progressContainer: {
     marginBottom: 12,
@@ -176,12 +176,12 @@ const styles = {
   progressBg: {
     height: 6,
     background: 'var(--border-light)',
-    borderRadius: 3,
+    borderRadius: 6,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    borderRadius: 3,
+    borderRadius: 6,
     transition: 'width 0.3s ease',
   },
   status: {

@@ -180,7 +180,7 @@ const TAP = 44;
 const treatSelectStyle = {
   minHeight: TAP,
   padding: '8px 10px',
-  borderRadius: 8,
+  borderRadius: 10,
   border: `1px solid ${COLORS.outlineVariant}`,
   fontFamily: 'inherit',
   fontSize: 13,
@@ -192,7 +192,7 @@ const dashedBtnStyle = {
   minWidth: TAP,
   background: 'none',
   border: `1px dashed ${COLORS.outlineVariant}`,
-  borderRadius: 8,
+  borderRadius: 10,
   padding: '3px 10px',
   color: COLORS.primary,
   fontSize: 12,
@@ -1048,7 +1048,7 @@ export default function CalendarView({ initialView } = {}) {
                     // Kill the iOS long-press magnifier/text-selection so the
                     // press-and-hold reads as "pick the card up", nothing else.
                     WebkitUserSelect: 'none', userSelect: 'none', WebkitTouchCallout: 'none',
-                    ...(lifted ? { zIndex: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.25)', opacity: 0.95, transform: 'scale(1.02)' } : {}),
+                    ...(lifted ? { zIndex: 10, boxShadow: 'var(--elev-3)', opacity: 0.95, transform: 'scale(1.02)' } : {}),
                   }}
                 >
                   {/* Paid in full must be visible WITHOUT opening the sheet:
@@ -1086,7 +1086,7 @@ export default function CalendarView({ initialView } = {}) {
             })}
             {/* While a card is lifted: the time it will land on, live */}
             {dragMove && (
-              <div style={{ position: 'absolute', top: Math.max(0, dragMove.top - 26), right: 8, zIndex: 11, background: COLORS.primary, color: '#fff', borderRadius: 8, padding: '3px 9px', fontSize: 12, fontWeight: 700, pointerEvents: 'none', fontVariantNumeric: 'tabular-nums' }}>
+              <div style={{ position: 'absolute', top: Math.max(0, dragMove.top - 26), right: 8, zIndex: 11, background: COLORS.primary, color: '#fff', borderRadius: 10, padding: '3px 9px', fontSize: 12, fontWeight: 700, pointerEvents: 'none', fontVariantNumeric: 'tabular-nums' }}>
                 {minToHHMM(dragMove.startMin)} to {minToHHMM(dragMove.startMin + dragMove.durMin)}
               </div>
             )}
@@ -1121,7 +1121,7 @@ export default function CalendarView({ initialView } = {}) {
                       height: Math.max(height, 36),
                       background: 'repeating-linear-gradient(45deg, rgba(146,64,94,0.07) 0px, rgba(146,64,94,0.07) 5px, rgba(146,64,94,0.02) 5px, rgba(146,64,94,0.02) 10px)',
                       borderLeft: '3px solid rgba(146,64,94,0.5)',
-                      borderRadius: 4,
+                      borderRadius: 6,
                       zIndex: 1,
                       pointerEvents: 'none',
                     }}
@@ -1200,7 +1200,7 @@ export default function CalendarView({ initialView } = {}) {
               <div style={{ position: 'absolute', top: (8 - START_HOUR) * HOUR_HEIGHT + 60, left: 0, right: 0, textAlign: 'center', padding: '0 16px' }}>
                 <button
                   onClick={() => loadAppointments()}
-                  style={{ padding: '12px 18px', borderRadius: 12, border: `1px solid ${COLORS.outlineVariant}`, background: 'var(--bg-card)', color: COLORS.primary, fontSize: 13, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}
+                  style={{ padding: '12px 18px', borderRadius: 10, border: `1px solid ${COLORS.outlineVariant}`, background: 'var(--bg-card)', color: COLORS.primary, fontSize: 13, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}
                 >
                   {loadError} Tap to try again.
                 </button>
@@ -2224,10 +2224,10 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                       type="datetime-local" autoFocus
                       value={timeInput}
                       onChange={e => setTimeInput(e.target.value)}
-                      style={{ padding: '5px 8px', borderRadius: 8, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 12.5, fontFamily: 'inherit', outline: 'none' }}
+                      style={{ padding: '5px 8px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 12.5, fontFamily: 'inherit', outline: 'none' }}
                     />
                     <button onClick={handleSaveTime} disabled={timeSaving}
-                      style={{ padding: '5px 10px', borderRadius: 8, border: 'none', background: COLORS.primary, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      style={{ padding: '5px 10px', borderRadius: 10, border: 'none', background: COLORS.primary, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                       {timeSaving ? '…' : 'Move'}
                     </button>
                     <button onClick={() => setTimeEditing(false)} disabled={timeSaving}
@@ -2241,7 +2241,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                 <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={styles.detailValue}>{formatWallTime(appointment.starts_at)}{appointment.ends_at ? ` - ${formatWallTime(appointment.ends_at)}` : ''}</span>
                   <button onClick={openTimeEdit}
-                    style={{ background: 'none', border: `1.5px dashed ${COLORS.outlineVariant}`, borderRadius: 8, padding: '3px 9px', fontSize: 11, fontWeight: 600, color: COLORS.primary, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    style={{ background: 'none', border: `1.5px dashed ${COLORS.outlineVariant}`, borderRadius: 10, padding: '3px 9px', fontSize: 11, fontWeight: 600, color: COLORS.primary, cursor: 'pointer', fontFamily: 'inherit' }}>
                     Move
                   </button>
                 </span>
@@ -2255,7 +2255,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                     defaultValue={appointment.duration_minutes || ''}
                     onChange={e => e.target.value && handleChangeDuration(e.target.value)}
                     disabled={durSaving}
-                    style={{ padding: '8px 10px', borderRadius: 8, border: `1px solid ${COLORS.outlineVariant}`, fontFamily: 'inherit', fontSize: 13, background: 'var(--bg-card)', maxWidth: '100%' }}
+                    style={{ padding: '8px 10px', borderRadius: 10, border: `1px solid ${COLORS.outlineVariant}`, fontFamily: 'inherit', fontSize: 13, background: 'var(--bg-card)', maxWidth: '100%' }}
                   >
                     <option value="" disabled>Choose a length...</option>
                     {/* Keep an off-step current length selectable so the menu never lies about what is set */}
@@ -2271,7 +2271,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               ) : (
                 <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={styles.detailValue}>{appointment.duration_minutes ? durationLabel(appointment.duration_minutes) : 'Not set'}</span>
-                  <button onClick={() => setDurEditing(true)} style={{ background: 'none', border: `1px dashed ${COLORS.outlineVariant}`, borderRadius: 8, padding: '3px 8px', color: COLORS.primary, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Change</button>
+                  <button onClick={() => setDurEditing(true)} style={{ background: 'none', border: `1px dashed ${COLORS.outlineVariant}`, borderRadius: 10, padding: '3px 8px', color: COLORS.primary, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Change</button>
                 </span>
               )}
             </div>
@@ -2286,10 +2286,10 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                     onChange={e => setPriceInput(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter') handleSavePrice(); }}
                     placeholder="0.00"
-                    style={{ width: 72, padding: '5px 8px', borderRadius: 8, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 13, fontFamily: 'inherit', outline: 'none', textAlign: 'right' }}
+                    style={{ width: 72, padding: '5px 8px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 13, fontFamily: 'inherit', outline: 'none', textAlign: 'right' }}
                   />
                   <button onClick={handleSavePrice} disabled={priceSaving}
-                    style={{ padding: '5px 10px', borderRadius: 8, border: 'none', background: COLORS.primary, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    style={{ padding: '5px 10px', borderRadius: 10, border: 'none', background: COLORS.primary, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                     {priceSaving ? '…' : 'Save'}
                   </button>
                 </span>
@@ -2301,7 +2301,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                   )}
                   <button
                     onClick={() => { setPriceInput(appointment.price_cents > 0 ? (appointment.price_cents / 100).toFixed(2) : ''); setPriceEditing(true); }}
-                    style={{ background: 'none', border: `1.5px dashed ${COLORS.outlineVariant}`, borderRadius: 8, padding: '4px 10px', fontSize: 12, fontWeight: 600, color: COLORS.primary, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    style={{ background: 'none', border: `1.5px dashed ${COLORS.outlineVariant}`, borderRadius: 10, padding: '4px 10px', fontSize: 12, fontWeight: 600, color: COLORS.primary, cursor: 'pointer', fontFamily: 'inherit' }}>
                     {appointment.price_cents > 0 ? 'Edit' : 'Set price'}
                   </button>
                 </span>
@@ -2345,7 +2345,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               is one on file (read it here, in place), or the treatment needs
               one and there is nothing (say so BEFORE the client arrives). */}
           {consultation && (consultation.response || consultation.requires_consultation) && (
-            <div style={{ marginTop: 14, border: `1.5px solid ${COLORS.outlineVariant}`, borderRadius: 12, padding: '10px 12px' }}>
+            <div style={{ marginTop: 14, border: `1.5px solid ${COLORS.outlineVariant}`, borderRadius: 10, padding: '10px 12px' }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #574A42)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>Consultation</div>
 
               {consultation.response ? (
@@ -2438,7 +2438,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               ?? (paidInFull ? 0 : Math.max(0, (appointment.price_cents || 0) - paidCents));
             const fees = cardInfo?.fees;
             return (
-              <div style={{ marginTop: 14, border: `1.5px solid ${COLORS.outlineVariant}`, borderRadius: 12, padding: '10px 12px' }}>
+              <div style={{ marginTop: 14, border: `1.5px solid ${COLORS.outlineVariant}`, borderRadius: 10, padding: '10px 12px' }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #574A42)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>Payments</div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', fontSize: 13 }}>
                   <span>Total</span>
@@ -2495,7 +2495,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               onChange={e => setNotes(e.target.value)}
               placeholder="Colour mix, skin notes, preferences, anything worth remembering..."
               rows={3}
-              style={{ width: '100%', padding: '9px 11px', borderRadius: 8, border: '1.5px solid var(--border, #E8DDD4)', fontSize: 13, fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box', color: 'var(--text, #241B17)', background: 'var(--bg-input, #F4EDE6)' }}
+              style={{ width: '100%', padding: '9px 11px', borderRadius: 10, border: '1.5px solid var(--border, #E8DDD4)', fontSize: 13, fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box', color: 'var(--text, #241B17)', background: 'var(--bg-input, #F4EDE6)' }}
               onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); handleSaveNote(); } }}
             />
             <p style={{ fontSize: 11, color: 'var(--text-muted, #6B5D54)', margin: '4px 0 0' }}>⌘S to save · notes shown next time this client books</p>
@@ -2547,7 +2547,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                 </button>
               )}
               {chargeOpen && (
-                <div style={{ border: `1.5px solid ${COLORS.outlineVariant}`, borderRadius: 12, padding: 12, background: 'var(--bg-card)' }}>
+                <div style={{ border: `1.5px solid ${COLORS.outlineVariant}`, borderRadius: 10, padding: 12, background: 'var(--bg-card)' }}>
                   <p style={{ margin: '0 0 8px', fontSize: 12, color: COLORS.stone400 }}>
                     Charging {appointment.clients?.first_name || 'this client'}'s saved card
                     {cardInfo?.brand ? ` (${cardInfo.brand}${cardInfo.last4 ? ` \u00b7\u00b7\u00b7\u00b7 ${cardInfo.last4}` : ''})` : ''}.
@@ -2558,7 +2558,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                       value={chargeAmount}
                       onChange={e => setChargeAmount(e.target.value)}
                       placeholder="Amount, e.g. 15.00"
-                      style={{ flex: 1, minWidth: 0, padding: '10px', borderRadius: 8, border: `1px solid ${COLORS.outlineVariant}`, fontFamily: 'inherit', fontSize: 14 }}
+                      style={{ flex: 1, minWidth: 0, padding: '10px', borderRadius: 10, border: `1px solid ${COLORS.outlineVariant}`, fontFamily: 'inherit', fontSize: 14 }}
                     />
                   </div>
                   {/* Live "what reaches you" as she types. Mirrors the server's
@@ -2580,15 +2580,15 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                     value={chargeReason}
                     onChange={e => setChargeReason(e.target.value)}
                     placeholder="What's it for? (shows on her receipt)"
-                    style={{ width: '100%', boxSizing: 'border-box', padding: '10px', borderRadius: 8, border: `1px solid ${COLORS.outlineVariant}`, fontFamily: 'inherit', fontSize: 13, marginBottom: 10 }}
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '10px', borderRadius: 10, border: `1px solid ${COLORS.outlineVariant}`, fontFamily: 'inherit', fontSize: 13, marginBottom: 10 }}
                   />
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button onClick={handleChargeCard} disabled={chargingCard}
-                      style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: COLORS.primary, color: '#fff', fontSize: 13, fontWeight: 700, cursor: chargingCard ? 'wait' : 'pointer', fontFamily: 'inherit' }}>
+                      style={{ flex: 1, padding: '10px', borderRadius: 10, border: 'none', background: COLORS.primary, color: '#fff', fontSize: 13, fontWeight: 700, cursor: chargingCard ? 'wait' : 'pointer', fontFamily: 'inherit' }}>
                       {chargingCard ? 'Charging...' : 'Take payment'}
                     </button>
                     <button onClick={() => { setChargeOpen(false); setChargeAmount(''); setChargeReason(''); }} disabled={chargingCard}
-                      style={{ flex: 1, padding: '10px', borderRadius: 8, border: `1px solid ${COLORS.outlineVariant}`, background: 'var(--bg-card)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      style={{ flex: 1, padding: '10px', borderRadius: 10, border: `1px solid ${COLORS.outlineVariant}`, background: 'var(--bg-card)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
                       Cancel
                     </button>
                   </div>
@@ -2601,7 +2601,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                     Send them a link to add one. It saves the card, it doesn't take any money.
                   </p>
                   <button onClick={() => { hapticTap(); handleGetCardLink(); }} disabled={cardLinkBusy}
-                    style={{ width: '100%', minHeight: 40, padding: '9px 12px', borderRadius: 9, border: `1.5px solid ${COLORS.outlineVariant}`, background: 'var(--bg-card)', color: COLORS.primary, fontSize: 13, fontWeight: 600, cursor: cardLinkBusy ? 'wait' : 'pointer', fontFamily: 'inherit' }}>
+                    style={{ width: '100%', minHeight: 40, padding: '9px 12px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, background: 'var(--bg-card)', color: COLORS.primary, fontSize: 13, fontWeight: 600, cursor: cardLinkBusy ? 'wait' : 'pointer', fontFamily: 'inherit' }}>
                     {cardLinkBusy ? '\u2026' : (cardLink ? '\u2713 Link copied, paste it to them' : 'Get a card-on-file link')}
                   </button>
                   {cardLink && (
@@ -2634,11 +2634,11 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                   <p style={{ fontSize: 13, color: 'var(--danger-text)', margin: '0 0 8px' }}>Charge {appointment.clients?.first_name || 'this client'} a no-show fee?</p>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button onClick={handleChargeNoShow} disabled={saving}
-                      style={{ flex: 1, padding: '8px', borderRadius: 8, border: 'none', background: 'var(--danger)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      style={{ flex: 1, padding: '8px', borderRadius: 10, border: 'none', background: 'var(--danger)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                       {saving ? 'Charging...' : `Charge £${((noShowFeeInfo.amount_cents || 0) / 100).toFixed(2)}`}
                     </button>
                     <button onClick={() => setNoShowCharging(false)}
-                      style={{ flex: 1, padding: '8px', borderRadius: 8, border: '1px solid var(--border-light)', background: 'var(--bg-card)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      style={{ flex: 1, padding: '8px', borderRadius: 10, border: '1px solid var(--border-light)', background: 'var(--bg-card)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
                       Not this time
                     </button>
                   </div>
@@ -2652,7 +2652,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                       : 'Your cancellation policy has no no-show fee set, so there\u2019s nothing to charge. You can set one in Settings > Policy.'}
                   </p>
                   <button onClick={() => setNoShowCharging(false)}
-                    style={{ width: '100%', padding: '8px', borderRadius: 8, border: '1px solid var(--border-light)', background: 'var(--bg-card)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    style={{ width: '100%', padding: '8px', borderRadius: 10, border: '1px solid var(--border-light)', background: 'var(--bg-card)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
                     Got it
                   </button>
                 </>
@@ -2709,7 +2709,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
           )}
           {/* Show status for already no-show or completed */}
           {appointment.status === 'no_show' && (
-            <div style={{ marginTop: 12, padding: 10, borderRadius: 8, background: 'var(--danger-bg)', textAlign: 'center' }}>
+            <div style={{ marginTop: 12, padding: 10, borderRadius: 10, background: 'var(--danger-bg)', textAlign: 'center' }}>
               <span style={{ fontSize: 13, color: 'var(--danger-text)', fontWeight: 600 }}>Marked as no-show</span>
               {!appointment.no_show_fee_charged && (
                 <button onClick={handleSendPaymentLink} disabled={linkLoading}
@@ -2723,7 +2723,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               no-show at the end of the day - the backend reverses the takings
               and charges the policy fee, so the Money tab updates. */}
           {isCompleted && (
-            <div style={{ marginTop: 12, padding: 10, borderRadius: 8, background: 'var(--success-bg, #E9F0EB)', textAlign: 'center' }}>
+            <div style={{ marginTop: 12, padding: 10, borderRadius: 10, background: 'var(--success-bg, #E9F0EB)', textAlign: 'center' }}>
               <span style={{ fontSize: 13, color: 'var(--success-text, #3F7D5C)', fontWeight: 600 }}>
                 {appointment.payment_method ? 'Completed' : 'Done (assumed)'}
               </span>
@@ -2833,35 +2833,35 @@ const styles = {
   headerTop: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
   headerCenter: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 },
   dateTitle: { fontSize: 17, fontWeight: 600, margin: 0, textAlign: 'center', fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" },
-  todayBtn: { background: 'none', border: `1px solid ${COLORS.outlineVariant}`, borderRadius: 8, padding: '4px 12px', minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: COLORS.stone400, cursor: 'pointer', fontFamily: 'inherit' },
+  todayBtn: { background: 'none', border: `1px solid ${COLORS.outlineVariant}`, borderRadius: 10, padding: '4px 12px', minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: COLORS.stone400, cursor: 'pointer', fontFamily: 'inherit' },
   navBtn: { background: 'none', border: 'none', fontSize: 28, color: COLORS.stone400, cursor: 'pointer', padding: '0 8px', minWidth: 44, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' },
-  viewToggle: { display: 'flex', gap: 3, background: 'var(--card-bg, #FFFCF9)', borderRadius: 12, padding: 3, border: `1px solid ${COLORS.outlineVariant}` },
-  toggleBtn: { flex: 1, padding: '6px 14px', minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'inherit' },
+  viewToggle: { display: 'flex', gap: 3, background: 'var(--card-bg, #FFFCF9)', borderRadius: 10, padding: 3, border: `1px solid ${COLORS.outlineVariant}` },
+  toggleBtn: { flex: 1, padding: '6px 14px', minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'inherit' },
   // Weekly Date Strip. The month label and the made-up "WEEK 5" that used to
   // sit above it are gone: the title directly above already says the date, and
   // the closer the seven days sit to it the more they read as one control.
-  weeklyStripContainer: { marginBottom: 14, background: COLORS.surfaceContainerLow, borderRadius: 24, padding: '8px 10px', position: 'relative' },
+  weeklyStripContainer: { marginBottom: 14, background: COLORS.surfaceContainerLow, borderRadius: 22, padding: '8px 10px', position: 'relative' },
   weeklyStrip: { display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 },
   // 56px tall, and seven columns of a 480px page leave roughly 57px each, so
   // every day clears the 44px thumb minimum on its own.
-  weeklyStripDay: { minHeight: 56, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '7px 2px', borderRadius: 14, border: 'none', cursor: 'pointer', fontFamily: 'inherit', transition: 'background 0.18s ease, color 0.18s ease, opacity 0.18s ease', WebkitTapHighlightColor: 'transparent' },
+  weeklyStripDay: { minHeight: 56, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '7px 2px', borderRadius: 16, border: 'none', cursor: 'pointer', fontFamily: 'inherit', transition: 'background 0.18s ease, color 0.18s ease, opacity 0.18s ease', WebkitTapHighlightColor: 'transparent' },
   weeklyStripDayName: { fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', opacity: 0.7 },
   weeklyStripDayNumber: { fontSize: 16, fontWeight: 700, marginTop: 1, fontVariantNumeric: 'tabular-nums' },
   weeklyStripDots: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, height: 4, marginTop: 5 },
   weeklyStripDot: { width: 4, height: 4, borderRadius: '50%' },
   // Day View Timeline. The grid scrolls inside its own container so the
   // full 06:00-23:00 day fits and we can auto-scroll to the first booking.
-  dayGrid: { display: 'flex', gap: 0, background: 'var(--tone-1, #fbf1ea)', borderRadius: 20, overflowY: 'auto', overflowX: 'hidden', maxHeight: 'calc(var(--shell-viewport) - 280px)', minHeight: 420, WebkitOverflowScrolling: 'touch' },
+  dayGrid: { display: 'flex', gap: 0, background: 'var(--tone-1, #fbf1ea)', borderRadius: 22, overflowY: 'auto', overflowX: 'hidden', maxHeight: 'calc(var(--shell-viewport) - 280px)', minHeight: 420, WebkitOverflowScrolling: 'touch' },
   timeColumn: { width: 56, position: 'relative', borderRight: `1px solid ${COLORS.outlineVariant}33`, flexShrink: 0 },
   timeLabel: { position: 'absolute', right: 8, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: COLORS.stone400, transform: 'translateY(-6px)' },
   appointmentColumn: { flex: 1, position: 'relative' },
   // Floating add button: 140px up keeps clear of the mic FAB at +78px
-  addFab: { position: 'fixed', bottom: 'calc(env(safe-area-inset-bottom, 0px) + 140px)', right: 16, width: 52, height: 52, borderRadius: 26, border: 'none', background: COLORS.primary, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 6px 18px rgba(146, 64, 94, 0.35)', zIndex: 840, fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' },
+  addFab: { position: 'fixed', bottom: 'calc(env(safe-area-inset-bottom, 0px) + 140px)', right: 16, width: 52, height: 52, borderRadius: 22, border: 'none', background: COLORS.primary, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--elev-2)', zIndex: 840, fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' },
   hourLine: { position: 'absolute', left: 0, right: 0, height: 1, background: `${COLORS.outlineVariant}33` },
   nowLine: { position: 'absolute', left: -4, right: 0, height: 2, background: '#E53E3E', zIndex: 10 },
   nowDot: { width: 8, height: 8, borderRadius: '50%', background: '#E53E3E', position: 'absolute', left: -2, top: -3 },
   // Appointment Cards
-  appointmentCard: { position: 'absolute', left: 4, right: 4, borderRadius: 12, padding: '6px 10px', cursor: 'pointer', transition: 'all 0.15s', fontFamily: 'inherit', textAlign: 'left', border: 'none', borderLeft: '4px solid', boxShadow: '0 10px 30px rgba(146, 64, 94, 0.06)', overflow: 'visible', width: 'calc(100% - 8px)', zIndex: 2, minHeight: 56 },
+  appointmentCard: { position: 'absolute', left: 4, right: 4, borderRadius: 10, padding: '6px 10px', cursor: 'pointer', transition: 'all 0.15s', fontFamily: 'inherit', textAlign: 'left', border: 'none', borderLeft: '4px solid', boxShadow: 'var(--elev-3)', overflow: 'visible', width: 'calc(100% - 8px)', zIndex: 2, minHeight: 56 },
   appointmentCardContent: { display: 'flex', alignItems: 'center', gap: 8 },
   appointmentCardHeader: { display: 'flex', gap: 8, alignItems: 'center', flex: 1, minWidth: 0 },
   appointmentAvatar: { width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 10, fontWeight: 700, flexShrink: 0 },
@@ -2870,19 +2870,19 @@ const styles = {
   appointmentCardTreatment: { fontSize: 10, fontWeight: 500, textTransform: 'uppercase', color: COLORS.stone400, letterSpacing: '0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
   appointmentCardMeta: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, flexShrink: 0 },
   appointmentCardTime: { fontWeight: 600, color: COLORS.stone400, textTransform: 'uppercase' },
-  aiTag: { display: 'inline-block', padding: '2px 6px', borderRadius: 4, fontSize: 9, fontWeight: 600, background: '#EEF4FC', color: '#4A90D9', letterSpacing: '0.03em' },
+  aiTag: { display: 'inline-block', padding: '2px 6px', borderRadius: 6, fontSize: 9, fontWeight: 600, background: '#EEF4FC', color: '#4A90D9', letterSpacing: '0.03em' },
   // Open Slot Cards
   openSlotCard: { position: 'absolute', left: 4, right: 4, borderRadius: 16, border: `2px dashed ${COLORS.outlineVariant}80`, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 'calc(100% - 8px)' },
   openSlotText: { fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: COLORS.stone400 },
   // Week View - agenda by day
   weekAgenda: { display: 'flex', flexDirection: 'column', gap: 12 },
-  weekDaySection: { background: 'var(--tone-1, #fbf1ea)', borderRadius: 20, overflow: 'hidden' },
+  weekDaySection: { background: 'var(--tone-1, #fbf1ea)', borderRadius: 22, overflow: 'hidden' },
   weekDaySectionToday: { boxShadow: `0 0 0 1.5px ${COLORS.primary}` },
   weekDayHead: { width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '12px 14px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' },
   weekDayHeadLeft: { display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 },
   weekDayDow: { fontSize: 17, fontWeight: 600, fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" },
   weekDayDate: { fontSize: 12, fontWeight: 500, color: COLORS.stone400 },
-  weekTodayTag: { fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#fff', background: COLORS.primary, padding: '2px 6px', borderRadius: 5 },
+  weekTodayTag: { fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#fff', background: COLORS.primary, padding: '2px 6px', borderRadius: 6 },
   weekDayStats: { display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 },
   weekDayCount: { fontSize: 12, fontWeight: 600, color: COLORS.onSurface },
   weekDayMoney: { fontSize: 12, fontWeight: 700, color: COLORS.primary },
@@ -2900,7 +2900,7 @@ const styles = {
   insightsPillIcon: { fontSize: 14 },
   insightsPillText: { fontSize: 12, fontWeight: 600 },
   // Detail Panel
-  detailPanel: { background: 'var(--tone-1, #fbf1ea)', borderRadius: 20, padding: 20, marginTop: 16 },
+  detailPanel: { background: 'var(--tone-1, #fbf1ea)', borderRadius: 22, padding: 20, marginTop: 16 },
   detailHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
   detailTitle: { fontSize: 17, fontWeight: 700, margin: 0 },
   detailClose: { background: 'none', border: 'none', fontSize: 22, color: COLORS.stone400, cursor: 'pointer', minWidth: 44, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' },
@@ -2909,25 +2909,25 @@ const styles = {
   detailLabel: { fontSize: 13, color: COLORS.stone400, fontWeight: 500 },
   detailValue: { fontSize: 13, fontWeight: 600, textAlign: 'right' },
   statusBadge: { padding: '3px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600, textTransform: 'capitalize' },
-  completeBtn: { width: '100%', padding: '12px 0', borderRadius: 12, border: 'none', background: '#5BA67F', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 14 },
+  completeBtn: { width: '100%', padding: '12px 0', borderRadius: 10, border: 'none', background: '#5BA67F', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 14 },
   completionFlow: { display: 'flex', flexDirection: 'column', gap: 16 },
   completionSection: { display: 'flex', flexDirection: 'column', gap: 6 },
   completionLabel: { fontSize: 11, fontWeight: 700, color: COLORS.stone400, textTransform: 'uppercase', letterSpacing: '0.05em' },
   paymentOptions: { display: 'flex', gap: 6, flexWrap: 'wrap' },
-  paymentChip: { padding: '8px 14px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', textTransform: 'capitalize', transition: 'all 0.15s' },
-  notesInput: { width: '100%', padding: '10px 12px', borderRadius: 8, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box' },
+  paymentChip: { padding: '8px 14px', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', textTransform: 'capitalize', transition: 'all 0.15s' },
+  notesInput: { width: '100%', padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box' },
   photoHint: { fontSize: 12, color: COLORS.stone400, margin: 0 },
-  photoUploadBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 0', borderRadius: 12, border: `2px dashed ${COLORS.outlineVariant}`, fontSize: 14, fontWeight: 500, color: COLORS.stone400, cursor: 'pointer', fontFamily: 'inherit' },
-  photoPreview: { position: 'relative', borderRadius: 12, overflow: 'hidden' },
-  photoImg: { width: '100%', borderRadius: 12, maxHeight: 200, objectFit: 'cover' },
+  photoUploadBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 0', borderRadius: 10, border: `2px dashed ${COLORS.outlineVariant}`, fontSize: 14, fontWeight: 500, color: COLORS.stone400, cursor: 'pointer', fontFamily: 'inherit' },
+  photoPreview: { position: 'relative', borderRadius: 10, overflow: 'hidden' },
+  photoImg: { width: '100%', borderRadius: 10, maxHeight: 200, objectFit: 'cover' },
   photoRemove: { position: 'absolute', top: 8, right: 8, width: 44, height: 44, borderRadius: '50%', background: 'rgba(0,0,0,0.5)', color: '#fff', border: 'none', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  confirmCompleteBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: '#5BA67F', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  confirmCompleteBtn: { width: '100%', padding: '14px 0', borderRadius: 10, border: 'none', background: '#5BA67F', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   doneScreen: { textAlign: 'center', padding: '20px 0' },
-  rebookSection: { background: COLORS.surfaceContainerLow, borderRadius: 12, padding: 16, textAlign: 'left', marginBottom: 12 },
+  rebookSection: { background: COLORS.surfaceContainerLow, borderRadius: 10, padding: 16, textAlign: 'left', marginBottom: 12 },
   rebookOptions: { display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 },
-  rebookChip: { padding: '6px 12px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' },
-  rebookSendBtn: { width: '100%', padding: '10px 0', borderRadius: 8, border: 'none', background: COLORS.primary, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  doneCloseBtn: { width: '100%', padding: '10px 0', borderRadius: 8, border: 'none', background: `${COLORS.outlineVariant}33`, color: COLORS.stone400, fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
+  rebookChip: { padding: '6px 12px', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' },
+  rebookSendBtn: { width: '100%', padding: '10px 0', borderRadius: 10, border: 'none', background: COLORS.primary, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  doneCloseBtn: { width: '100%', padding: '10px 0', borderRadius: 10, border: 'none', background: `${COLORS.outlineVariant}33`, color: COLORS.stone400, fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
 };
 // BlockTimeModal - create a new time block
 const BLOCK_REASONS = [
@@ -3010,7 +3010,7 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
             <button
               key={p.label}
               onClick={p.apply}
-              style={{ padding: '7px 12px', borderRadius: 8, border: `1.5px solid ${COLORS.outlineVariant}`, background: 'var(--bg-card)', color: COLORS.onSurface, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+              style={{ padding: '7px 12px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, background: 'var(--bg-card)', color: COLORS.onSurface, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
             >
               {p.label}
             </button>
@@ -3029,7 +3029,7 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
           <span style={{ fontSize: 14, fontWeight: 500, color: COLORS.onSurface }}>All day</span>
           <button
             onClick={() => setType(type === 'closed' ? 'amended' : 'closed')}
-            style={{ width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', padding: 0, background: type === 'closed' ? COLORS.primary : COLORS.outlineVariant }}
+            style={{ width: 44, height: 24, borderRadius: 10, border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', padding: 0, background: type === 'closed' ? COLORS.primary : COLORS.outlineVariant }}
           >
             <div style={{ width: 20, height: 20, borderRadius: 10, background: '#fff', position: 'absolute', top: 2, transition: 'transform 0.2s', transform: type === 'closed' ? 'translateX(20px)' : 'translateX(2px)' }} />
           </button>
@@ -3065,7 +3065,7 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
             <button
               key={r.key}
               onClick={() => setReason(r.key)}
-              style={{ padding: '7px 12px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+              style={{ padding: '7px 12px', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
                 background: reason === r.key ? COLORS.primary : `${COLORS.outlineVariant}33`,
                 color: reason === r.key ? '#fff' : COLORS.onSurface,
               }}
@@ -3086,7 +3086,7 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
         <button
           onClick={handleSave}
           disabled={saving}
-          style={{ width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: saving ? COLORS.stone400 : COLORS.primary, color: '#fff', fontSize: 15, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}
+          style={{ width: '100%', padding: '14px 0', borderRadius: 10, border: 'none', background: saving ? COLORS.stone400 : COLORS.primary, color: '#fff', fontSize: 15, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}
         >
           {saving ? 'Saving…' : 'Block this time'}
         </button>
@@ -3110,7 +3110,7 @@ function BlockDetailSheet({ block, onDelete, onClose }) {
           <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: COLORS.onSurface }}>Time block</h3>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: COLORS.stone400 }}>×</button>
         </div>
-        <div style={{ background: `${COLORS.outlineVariant}22`, borderRadius: 12, padding: 14, marginBottom: 20 }}>
+        <div style={{ background: `${COLORS.outlineVariant}22`, borderRadius: 10, padding: 14, marginBottom: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
             <span style={{ fontSize: 12, color: COLORS.stone400 }}>Date</span>
             <span style={{ fontSize: 13, fontWeight: 600 }}>{block.date}</span>
@@ -3145,7 +3145,7 @@ function BlockDetailSheet({ block, onDelete, onClose }) {
         ) : (
           <button
             onClick={() => setConfirming(true)}
-            style={{ width: '100%', padding: '13px 0', borderRadius: 12, border: 'none', background: '#FEE2E2', color: '#B91C1C', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+            style={{ width: '100%', padding: '13px 0', borderRadius: 10, border: 'none', background: '#FEE2E2', color: '#B91C1C', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
           >
             Remove this block
           </button>
@@ -3310,7 +3310,7 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], initialCl
   // safe-area inset.
   const sheet = { background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, margin: '0 auto', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxHeight: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' };
   const sheetBody = { padding: '20px 20px 16px', overflowY: 'auto', WebkitOverflowScrolling: 'touch', flex: '1 1 auto', minHeight: 0 };
-  const sheetFooter = { flexShrink: 0, padding: '12px 20px calc(14px + env(safe-area-inset-bottom))', borderTop: `1px solid ${COLORS.outlineVariant}55`, background: 'var(--bg-card)', boxShadow: '0 -4px 16px rgba(0,0,0,0.06)' };
+  const sheetFooter = { flexShrink: 0, padding: '12px 20px calc(14px + env(safe-area-inset-bottom))', borderTop: `1px solid ${COLORS.outlineVariant}55`, background: 'var(--bg-card)', boxShadow: 'var(--elev-3)' };
   const labelStyle = { fontSize: 12, fontWeight: 600, color: COLORS.stone400, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block' };
   const inputStyle = { display: 'block', width: '100%', minWidth: 0, maxWidth: '100%', marginTop: 4, padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: 'var(--bg-card)', color: COLORS.onSurface };
   return createPortal(
@@ -3338,7 +3338,7 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], initialCl
                 <button
                   key={opt.key}
                   onClick={() => { setClientMode(opt.key); setError(null); }}
-                  style={{ padding: '7px 12px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                  style={{ padding: '7px 12px', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
                     background: clientMode === opt.key ? COLORS.primary : `${COLORS.outlineVariant}33`,
                     color: clientMode === opt.key ? '#fff' : COLORS.onSurface,
                   }}
@@ -3477,7 +3477,7 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], initialCl
           <button
             onClick={() => setSendConfirmation(v => !v)}
             aria-pressed={sendConfirmation}
-            style={{ width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', padding: 0, background: sendConfirmation ? COLORS.primary : COLORS.outlineVariant }}
+            style={{ width: 44, height: 24, borderRadius: 10, border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', padding: 0, background: sendConfirmation ? COLORS.primary : COLORS.outlineVariant }}
           >
             <div style={{ width: 20, height: 20, borderRadius: 10, background: '#fff', position: 'absolute', top: 2, transition: 'transform 0.2s', transform: sendConfirmation ? 'translateX(20px)' : 'translateX(2px)' }} />
           </button>
@@ -3507,14 +3507,14 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], initialCl
               type="button"
               onClick={onClose}
               disabled={saving}
-              style={{ flex: '0 0 auto', padding: '14px 18px', borderRadius: 12, border: `1.5px solid ${COLORS.outlineVariant}`, background: 'var(--bg-card)', color: COLORS.onSurface, fontSize: 15, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}
+              style={{ flex: '0 0 auto', padding: '14px 18px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, background: 'var(--bg-card)', color: COLORS.onSurface, fontSize: 15, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}
             >
               Cancel
             </button>
             <button
               onClick={() => { hapticTap(); handleSave(); }}
               disabled={saving}
-              style={{ flex: 1, padding: '14px 0', borderRadius: 12, border: 'none', background: saving ? COLORS.stone400 : COLORS.primary, color: '#fff', fontSize: 15, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}
+              style={{ flex: 1, padding: '14px 0', borderRadius: 10, border: 'none', background: saving ? COLORS.stone400 : COLORS.primary, color: '#fff', fontSize: 15, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}
             >
               {saving ? 'Saving...' : (clash ? 'Add anyway' : 'Add appointment')}
             </button>

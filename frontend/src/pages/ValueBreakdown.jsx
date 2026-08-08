@@ -174,7 +174,7 @@ const S = {
   },
   header: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 },
   back: {
-    width: 40, height: 40, borderRadius: 12, border: 'none', background: 'var(--tone-1, #fbf1ea)',
+    width: 40, height: 40, borderRadius: 10, border: 'none', background: 'var(--tone-1, #fbf1ea)',
     color: 'var(--text-primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
   title: { fontSize: 22, fontWeight: 700, margin: 0, fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" },

@@ -373,35 +373,35 @@ const styles = {
   ruleInput: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border, var(--border, var(--border, #E8DDD4)))', fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 16, boxSizing: 'border-box', background: 'var(--bg, var(--bg, #FBF6F1))' },
   stepLabel: { fontSize: 12, fontWeight: 700, color: '#6B6560', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, marginTop: 12 },
   chipGrid: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
-  chip: { display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', background: 'var(--bg, var(--bg, #FBF6F1))', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#4A4540' },
+  chip: { display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', borderRadius: 10, border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', background: 'var(--bg, var(--bg, #FBF6F1))', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#4A4540' },
   chipSelected: { background: 'var(--accent-light, #F6E7EC)', borderColor: 'var(--accent, #92405e)', color: 'var(--accent, #92405e)' },
   delayRow: { display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 },
-  delayChip: { padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', background: 'var(--bg, var(--bg, #FBF6F1))', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#4A4540' },
+  delayChip: { padding: '6px 12px', borderRadius: 10, border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', background: 'var(--bg, var(--bg, #FBF6F1))', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#4A4540' },
   conditionsList: { display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 },
   conditionRow: { display: 'flex', alignItems: 'center', gap: 6 },
   condSelect: { padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', fontSize: 11, fontFamily: 'inherit', background: 'var(--bg, var(--bg, #FBF6F1))', color: '#4A4540' },
   condInput: { width: 60, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', fontSize: 11, fontFamily: 'inherit', background: 'var(--bg, var(--bg, #FBF6F1))' },
-  saveRuleBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 8 },
-  tabs: { display: 'flex', gap: 4, marginBottom: 16, background: 'var(--border, var(--border, var(--border, #E8DDD4)))', borderRadius: 12, padding: 4 },
+  saveRuleBtn: { width: '100%', padding: '14px 0', borderRadius: 10, border: 'none', background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 8 },
+  tabs: { display: 'flex', gap: 4, marginBottom: 16, background: 'var(--border, var(--border, var(--border, #E8DDD4)))', borderRadius: 10, padding: 4 },
   tab: { flex: 1, padding: '8px 0', fontSize: 12, fontWeight: 500, border: 'none', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', background: 'none', color: '#6B6560' },
-  tabActive: { background: 'var(--bg-card, #FFFCF9)', color: 'var(--text-primary, #241B17)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' },
-  ruleCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 14, border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', marginBottom: 10, overflow: 'hidden' },
+  tabActive: { background: 'var(--bg-card, #FFFCF9)', color: 'var(--text-primary, #241B17)', boxShadow: 'var(--elev-1)' },
+  ruleCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', marginBottom: 10, overflow: 'hidden' },
   ruleHeader: { display: 'flex', alignItems: 'center', gap: 12, padding: 14, cursor: 'pointer' },
   ruleName: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #241B17)', marginBottom: 2 },
   ruleDesc: { fontSize: 12, color: '#6B6560', lineHeight: 1.4, marginBottom: 6 },
   ruleMeta: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'var(--text-muted, var(--text-muted, #6B5D54))' },
-  toggle: { width: 42, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer', position: 'relative', flexShrink: 0, transition: 'background 0.2s' },
-  toggleDot: { width: 20, height: 20, borderRadius: 10, background: 'var(--bg-card, #FFFCF9)', position: 'absolute', top: 2, left: 2, transition: 'transform 0.2s', boxShadow: '0 1px 2px rgba(0,0,0,0.15)' },
+  toggle: { width: 42, height: 24, borderRadius: 10, border: 'none', cursor: 'pointer', position: 'relative', flexShrink: 0, transition: 'background 0.2s' },
+  toggleDot: { width: 20, height: 20, borderRadius: 10, background: 'var(--bg-card, #FFFCF9)', position: 'absolute', top: 2, left: 2, transition: 'transform 0.2s', boxShadow: 'var(--elev-1)' },
   ruleExpanded: { padding: '0 14px 14px', borderTop: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))' },
   ruleStatRow: { display: 'flex', gap: 24, padding: '12px 0' },
   ruleStatItem: { textAlign: 'center' },
   ruleActions: { display: 'flex', gap: 8 },
-  ruleActionBtn: { padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', background: 'var(--bg, var(--bg, #FBF6F1))', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#6B6560' },
+  ruleActionBtn: { padding: '6px 12px', borderRadius: 10, border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', background: 'var(--bg, var(--bg, #FBF6F1))', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#6B6560' },
   templatesHint: { fontSize: 13, color: 'var(--text-muted, var(--text-muted, #6B5D54))', marginBottom: 12 },
-  templateCard: { display: 'flex', alignItems: 'center', gap: 12, background: 'var(--bg-card, #FFFCF9)', borderRadius: 14, padding: 14, border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', marginBottom: 10 },
-  useTemplateBtn: { padding: '8px 14px', borderRadius: 8, border: 'none', background: 'var(--border, var(--border, var(--border, #E8DDD4)))', color: 'var(--text-primary, #241B17)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 },
+  templateCard: { display: 'flex', alignItems: 'center', gap: 12, background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: 14, border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', marginBottom: 10 },
+  useTemplateBtn: { padding: '8px 14px', borderRadius: 10, border: 'none', background: 'var(--border, var(--border, var(--border, #E8DDD4)))', color: 'var(--text-primary, #241B17)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 },
   logRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '12px 0', borderBottom: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))' },
-  logDot: { width: 6, height: 6, borderRadius: 3, flexShrink: 0 },
+  logDot: { width: 6, height: 6, borderRadius: 6, flexShrink: 0 },
 };
 const SEQ_TRIGGERS = [
   { value: 'after-appointment', label: 'After Appointment', icon: 'check-circle' },
@@ -485,14 +485,14 @@ function SequencesPanel({ beautician }) {
           { label: 'Msgs sent',  value: totalSent,    color: 'var(--accent-rose, #C76B8A)' },
           { label: 'Reply rate', value: `${replyRate}%`, color: '#7B6BA8' },
         ].map(s => (
-          <div key={s.label} style={{ flex: 1, background: 'var(--bg-card, #FFFCF9)', borderRadius: 12, padding: '10px 8px', border: '1px solid var(--border-light, #ede7e3)', textAlign: 'center' }}>
+          <div key={s.label} style={{ flex: 1, background: 'var(--bg-card, #FFFCF9)', borderRadius: 10, padding: '10px 8px', border: '1px solid var(--border-light, #ede7e3)', textAlign: 'center' }}>
             <div style={{ fontSize: 18, fontWeight: 700, color: s.color }}>{s.value}</div>
             <div style={{ fontSize: 10, color: 'var(--text-muted, #6B5D54)', marginTop: 2 }}>{s.label}</div>
           </div>
         ))}
         <button
           onClick={() => setShowCreate(true)}
-          style={{ padding: '10px 14px', borderRadius: 12, border: 'none', background: 'var(--accent-rose, #C76B8A)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}
+          style={{ padding: '10px 14px', borderRadius: 10, border: 'none', background: 'var(--accent-rose, #C76B8A)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}
         >+ New</button>
       </div>
       {/* Sequence cards */}
@@ -509,7 +509,7 @@ function SequencesPanel({ beautician }) {
         const trigger  = SEQ_TRIGGERS.find(t => t.value === seq.trigger);
         const isOpen   = expanded === seq.id;
         return (
-          <div key={seq.id} style={{ background: 'var(--bg-card, #FFFCF9)', borderRadius: 14, border: '1px solid var(--border-light, #ede7e3)', marginBottom: 10, overflow: 'hidden' }}>
+          <div key={seq.id} style={{ background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, border: '1px solid var(--border-light, #ede7e3)', marginBottom: 10, overflow: 'hidden' }}>
             <div
               style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 14, cursor: 'pointer' }}
               onClick={() => setExpanded(isOpen ? null : seq.id)}
@@ -521,7 +521,7 @@ function SequencesPanel({ beautician }) {
                 <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #241B17)', marginBottom: 2 }}>{seq.name}</div>
                 <div style={{ fontSize: 12, color: '#8B8580' }}>{seq.steps.length} steps · {trigger?.label}</div>
               </div>
-              <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 8, background: seq.active ? 'var(--success-bg, #E9F0EB)' : '#F0ECE8', color: seq.active ? '#5BA97B' : '#B5AFA8' }}>
+              <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 10, background: seq.active ? 'var(--success-bg, #E9F0EB)' : '#F0ECE8', color: seq.active ? '#5BA97B' : '#B5AFA8' }}>
                 {seq.active ? 'Active' : 'Paused'}
               </span>
             </div>
@@ -532,7 +532,7 @@ function SequencesPanel({ beautician }) {
                   {seq.steps.map((step, i) => (
                     <div key={i} style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <div style={{ width: 8, height: 8, borderRadius: 4, background: 'var(--accent-rose, #C76B8A)', marginTop: 4, flexShrink: 0 }} />
+                        <div style={{ width: 8, height: 8, borderRadius: 6, background: 'var(--accent-rose, #C76B8A)', marginTop: 4, flexShrink: 0 }} />
                         {i < seq.steps.length - 1 && <div style={{ width: 1, flex: 1, background: 'var(--border-light, #ede7e3)', marginTop: 4 }} />}
                       </div>
                       <div style={{ flex: 1, paddingBottom: 4 }}>
@@ -552,8 +552,8 @@ function SequencesPanel({ beautician }) {
                   <span>{seq.stats?.replied || 0} replied</span>
                 </div>
                 <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                  <button onClick={() => handleToggle(seq)} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border-light, #ede7e3)', background: '#FAF8F5', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#6B6560' }}>{seq.active ? 'Pause' : 'Activate'}</button>
-                  <button onClick={() => handleDelete(seq.id)} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border-light, #ede7e3)', background: '#FAF8F5', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#E85D75' }}>Delete</button>
+                  <button onClick={() => handleToggle(seq)} style={{ padding: '6px 12px', borderRadius: 10, border: '1px solid var(--border-light, #ede7e3)', background: '#FAF8F5', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#6B6560' }}>{seq.active ? 'Pause' : 'Activate'}</button>
+                  <button onClick={() => handleDelete(seq.id)} style={{ padding: '6px 12px', borderRadius: 10, border: '1px solid var(--border-light, #ede7e3)', background: '#FAF8F5', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#E85D75' }}>Delete</button>
                 </div>
               </div>
             )}
@@ -572,7 +572,7 @@ function SequencesPanel({ beautician }) {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
               {SEQ_TRIGGERS.map(t => (
                 <button key={t.value} onClick={() => setCreateForm(f => ({ ...f, trigger: t.value }))}
-                  style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border-light, #ede7e3)', background: createForm.trigger === t.value ? '#FFF0F3' : '#FAF8F5', color: createForm.trigger === t.value ? '#C76B8A' : '#4A4540', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  style={{ padding: '6px 10px', borderRadius: 10, border: '1px solid var(--border-light, #ede7e3)', background: createForm.trigger === t.value ? '#FFF0F3' : '#FAF8F5', color: createForm.trigger === t.value ? '#C76B8A' : '#4A4540', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
                   {t.icon} {t.label}
                 </button>
               ))}
@@ -582,21 +582,21 @@ function SequencesPanel({ beautician }) {
               <div key={i} style={{ background: '#FAF8F5', borderRadius: 10, padding: 10, marginBottom: 8 }}>
                 <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
                   <select value={step.delay} onChange={e => setCreateForm(f => ({ ...f, steps: f.steps.map((s, j) => j === i ? { ...s, delay: e.target.value } : s) }))}
-                    style={{ flex: 1, padding: '6px 8px', borderRadius: 8, border: '1px solid var(--border-light, #ede7e3)', fontSize: 12, fontFamily: 'inherit', background: 'var(--bg-card, #FFFCF9)' }}>
+                    style={{ flex: 1, padding: '6px 8px', borderRadius: 10, border: '1px solid var(--border-light, #ede7e3)', fontSize: 12, fontFamily: 'inherit', background: 'var(--bg-card, #FFFCF9)' }}>
                     {SEQ_DELAYS.map(d => <option key={d} value={d}>{formatSeqDelay(d)}</option>)}
                   </select>
                   <select value={step.channel} onChange={e => setCreateForm(f => ({ ...f, steps: f.steps.map((s, j) => j === i ? { ...s, channel: e.target.value } : s) }))}
-                    style={{ flex: 1, padding: '6px 8px', borderRadius: 8, border: '1px solid var(--border-light, #ede7e3)', fontSize: 12, fontFamily: 'inherit', background: 'var(--bg-card, #FFFCF9)' }}>
+                    style={{ flex: 1, padding: '6px 8px', borderRadius: 10, border: '1px solid var(--border-light, #ede7e3)', fontSize: 12, fontFamily: 'inherit', background: 'var(--bg-card, #FFFCF9)' }}>
                     {SEQ_CHANNELS.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                   {createForm.steps.length > 1 && (
                     <button onClick={() => setCreateForm(f => ({ ...f, steps: f.steps.filter((_, j) => j !== i) }))}
-                      style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border-light, #ede7e3)', background: 'var(--bg-card, #FFFCF9)', fontSize: 12, cursor: 'pointer', color: '#E85D75', fontFamily: 'inherit' }}><Icon name="x" size={15} /></button>
+                      style={{ padding: '6px 10px', borderRadius: 10, border: '1px solid var(--border-light, #ede7e3)', background: 'var(--bg-card, #FFFCF9)', fontSize: 12, cursor: 'pointer', color: '#E85D75', fontFamily: 'inherit' }}><Icon name="x" size={15} /></button>
                   )}
                 </div>
                 <textarea value={step.message} onChange={e => setCreateForm(f => ({ ...f, steps: f.steps.map((s, j) => j === i ? { ...s, message: e.target.value } : s) }))}
                   placeholder="Message... use {name}, {booking_link} etc."
-                  style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border-light, #ede7e3)', fontSize: 12, fontFamily: 'inherit', resize: 'vertical', minHeight: 72, boxSizing: 'border-box', background: 'var(--bg-card, #FFFCF9)' }} />
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: 10, border: '1px solid var(--border-light, #ede7e3)', fontSize: 12, fontFamily: 'inherit', resize: 'vertical', minHeight: 72, boxSizing: 'border-box', background: 'var(--bg-card, #FFFCF9)' }} />
               </div>
             ))}
             <button onClick={() => setCreateForm(f => ({ ...f, steps: [...f.steps, { delay: '24h', channel: 'whatsapp', message: '' }] }))}
@@ -604,7 +604,7 @@ function SequencesPanel({ beautician }) {
               + Add step
             </button>
             <button onClick={handleCreate} disabled={saving || !createForm.name.trim()}
-              style={{ width: '100%', padding: 14, borderRadius: 12, border: 'none', background: 'var(--accent-rose, #C76B8A)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', opacity: saving || !createForm.name.trim() ? 0.6 : 1 }}>
+              style={{ width: '100%', padding: 14, borderRadius: 10, border: 'none', background: 'var(--accent-rose, #C76B8A)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', opacity: saving || !createForm.name.trim() ? 0.6 : 1 }}>
               {saving ? 'Saving…' : 'Create Sequence'}
             </button>
           </div>

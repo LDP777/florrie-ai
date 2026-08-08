@@ -343,7 +343,7 @@ export default function Settings({ onLogout }) {
         style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%',
           background: 'rgba(146,64,94,0.06)',
           border: '1px solid rgba(146,64,94,0.12)',
-          borderRadius: 12, padding: '11px 14px', marginBottom: 14, minHeight: 44, boxSizing: 'border-box',
+          borderRadius: 10, padding: '11px 14px', marginBottom: 14, minHeight: 44, boxSizing: 'border-box',
           cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
           fontSize: 13, fontWeight: 600, color: 'var(--accent, #92405e)',
           WebkitTapHighlightColor: 'transparent',
@@ -435,7 +435,7 @@ export default function Settings({ onLogout }) {
                   <button
                     key={opt.key}
                     onClick={() => saveProfile({ business_type: opt.key })}
-                    style={{ padding: '6px 12px', borderRadius: 8, border: 'none',
+                    style={{ padding: '6px 12px', borderRadius: 10, border: 'none',
                       fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
                       background: active ? 'var(--accent)' : 'var(--border-light)',
                       color: active ? 'var(--bg-card)' : 'var(--text-secondary)',
@@ -705,7 +705,7 @@ export default function Settings({ onLogout }) {
                     </span>
                   </div>
                   {noShowPercent > 0 && !(beautician.payment_settings?.require_deposit || beautician.payment_settings?.deposit_required) && (
-                    <p style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--warning-text, #8A6420)', background: 'var(--warning-bg, #F7EEDD)', border: '1px solid #F0D9A8', borderRadius: 8, padding: '8px 10px', margin: '10px 0 0' }}>
+                    <p style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--warning-text, #8A6420)', background: 'var(--warning-bg, #F7EEDD)', border: '1px solid #F0D9A8', borderRadius: 10, padding: '8px 10px', margin: '10px 0 0' }}>
                       Heads up: you can only charge a card you actually hold. Cards are saved when
                       deposits are on (Settings &gt; Payments). With deposits off, a no-show fee has
                       nothing to charge against.
@@ -805,16 +805,16 @@ export default function Settings({ onLogout }) {
         <div>
           {/* Stripe return banners */}
           {stripeBanner === 'success' && (
-            <div style={{ background: 'var(--success)', color: '#fff', borderRadius: 12, padding: '12px 16px', marginBottom: 12, fontSize: 13, fontWeight: 500 }}><Icon name="check" size={14} inline /> Stripe connected, you can now accept card payments and deposits.
+            <div style={{ background: 'var(--success)', color: '#fff', borderRadius: 10, padding: '12px 16px', marginBottom: 12, fontSize: 13, fontWeight: 500 }}><Icon name="check" size={14} inline /> Stripe connected, you can now accept card payments and deposits.
             </div>
           )}
           {stripeBanner === 'pending' && (
-            <div style={{ background: 'var(--warning)', color: '#fff', borderRadius: 12, padding: '12px 16px', marginBottom: 12, fontSize: 13, fontWeight: 500 }}>
+            <div style={{ background: 'var(--warning)', color: '#fff', borderRadius: 10, padding: '12px 16px', marginBottom: 12, fontSize: 13, fontWeight: 500 }}>
               Stripe setup received, it may take a few minutes for your account to be fully verified. Refresh this page shortly.
             </div>
           )}
           {stripeBanner === 'refresh' && (
-            <div style={{ background: 'var(--border)', color: 'var(--text-primary)', borderRadius: 12, padding: '12px 16px', marginBottom: 12, fontSize: 13 }}>
+            <div style={{ background: 'var(--border)', color: 'var(--text-primary)', borderRadius: 10, padding: '12px 16px', marginBottom: 12, fontSize: 13 }}>
               Stripe setup wasn't completed. Click Connect Stripe to try again.
             </div>
           )}
@@ -955,7 +955,7 @@ export default function Settings({ onLogout }) {
                 href="https://dashboard.stripe.com/express/login"
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{ display: 'inline-block', padding: '8px 16px', borderRadius: 8,
+                style={{ display: 'inline-block', padding: '8px 16px', borderRadius: 10,
                   background: 'var(--bg-secondary, #f8f2ef)', border: '1px solid var(--border)',
                   fontSize: 13, fontWeight: 500, color: 'var(--text-primary)',
                   textDecoration: 'none',
@@ -1175,7 +1175,7 @@ export default function Settings({ onLogout }) {
                   const np = { ...(beautician.notification_prefs || {}), quiet_hours: { ...qh, enabled: qh.enabled !== true } };
                   saveProfile({ notification_prefs: np });
                 }}
-                style={{ width: 48, height: 28, borderRadius: 14, border: 'none', cursor: 'pointer',
+                style={{ width: 48, height: 28, borderRadius: 16, border: 'none', cursor: 'pointer',
                   background: beautician.notification_prefs?.quiet_hours?.enabled === true ? 'var(--accent-rose, #C76B8A)' : '#E5E0DB',
                   position: 'relative', transition: 'background 0.15s ease',
                 }}
@@ -1183,8 +1183,8 @@ export default function Settings({ onLogout }) {
               >
                 <span style={{ position: 'absolute', top: 3,
                   left: beautician.notification_prefs?.quiet_hours?.enabled === true ? 23 : 3,
-                  width: 22, height: 22, borderRadius: 11, background: '#fff',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.15s ease',
+                  width: 22, height: 22, borderRadius: 10, background: '#fff',
+                  boxShadow: 'var(--elev-1)', transition: 'left 0.15s ease',
                 }} />
               </button>
             </div>
@@ -1199,7 +1199,7 @@ export default function Settings({ onLogout }) {
                     const np = { ...(beautician.notification_prefs || {}), quiet_hours: { ...qh, enabled: true, start: e.target.value } };
                     saveProfile({ notification_prefs: np });
                   }}
-                  style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border, #E8DDD4)', fontFamily: 'inherit', fontSize: 13 }}
+                  style={{ padding: '6px 10px', borderRadius: 10, border: '1px solid var(--border, #E8DDD4)', fontFamily: 'inherit', fontSize: 13 }}
                 />
                 <label style={{ fontSize: 13, color: 'var(--text-secondary)' }}>to</label>
                 <input
@@ -1210,7 +1210,7 @@ export default function Settings({ onLogout }) {
                     const np = { ...(beautician.notification_prefs || {}), quiet_hours: { ...qh, enabled: true, end: e.target.value } };
                     saveProfile({ notification_prefs: np });
                   }}
-                  style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border, #E8DDD4)', fontFamily: 'inherit', fontSize: 13 }}
+                  style={{ padding: '6px 10px', borderRadius: 10, border: '1px solid var(--border, #E8DDD4)', fontFamily: 'inherit', fontSize: 13 }}
                 />
               </div>
             )}
@@ -1433,7 +1433,7 @@ export default function Settings({ onLogout }) {
                 {/* Always sent (read-only) */}
                 <div style={{ marginBottom: 18 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: 4, background: 'var(--success)', flexShrink: 0 }} />
+                    <div style={{ width: 8, height: 8, borderRadius: 6, background: 'var(--success)', flexShrink: 0 }} />
                     <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Always sent</span>
                   </div>
                   <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 8px 14px', lineHeight: 1.4 }}>
@@ -1448,7 +1448,7 @@ export default function Settings({ onLogout }) {
 
                 {/* You choose */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                  <div style={{ width: 8, height: 8, borderRadius: 4, background: 'var(--accent)', flexShrink: 0 }} />
+                  <div style={{ width: 8, height: 8, borderRadius: 6, background: 'var(--accent)', flexShrink: 0 }} />
                   <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>You choose</span>
                 </div>
                 {PROACTIVE.map(item => {
@@ -1486,7 +1486,7 @@ export default function Settings({ onLogout }) {
                     Default 2 when unset (matches isKnownClient in outbound-guard.js). */}
                 <div style={{ marginTop: 20, paddingTop: 18, borderTop: '1px solid var(--border-light)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: 4, background: 'var(--accent)', flexShrink: 0 }} />
+                    <div style={{ width: 8, height: 8, borderRadius: 6, background: 'var(--accent)', flexShrink: 0 }} />
                     <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Clients you know</span>
                   </div>
                   <p style={{ fontSize: 11.5, color: 'var(--text-muted)', margin: '0 0 10px 14px', lineHeight: 1.5 }}>
@@ -1500,7 +1500,7 @@ export default function Settings({ onLogout }) {
                         setPendingAutonomy(next);
                         saveProfile({ autonomy: next }).finally(() => setPendingAutonomy(null));
                       }}
-                      style={{ width: '100%', padding: '10px 12px', borderRadius: 8,
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: 10,
                         border: '1.5px solid var(--border)', background: 'var(--bg-card)',
                         color: 'var(--text-primary)', fontSize: 13, fontWeight: 600,
                         fontFamily: 'inherit', cursor: 'pointer',
@@ -1604,7 +1604,7 @@ export default function Settings({ onLogout }) {
             {igNeedsReconnect && (
               <div style={{ marginTop: 12,
                 padding: '12px 14px',
-                borderRadius: 12,
+                borderRadius: 10,
                 background: 'var(--danger-bg, #F7E4E4)',
               }}>
                 <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--danger)', margin: '0 0 4px' }}>
@@ -1641,7 +1641,7 @@ export default function Settings({ onLogout }) {
                 she comes back to. It exists because a screen that still says
                 "Reconnect" after she has just reconnected reads as a failure. */}
             {igAwaitingReturn && (
-              <div style={{ marginTop: 12, padding: '12px 14px', borderRadius: 12,
+              <div style={{ marginTop: 12, padding: '12px 14px', borderRadius: 10,
                 background: 'var(--tone-1, #fbf1ea)', border: '1px solid var(--border)',
               }}>
                 <p style={{ fontSize: 13, fontWeight: 700, margin: '0 0 4px' }}>
@@ -1718,13 +1718,13 @@ export default function Settings({ onLogout }) {
                   <button
                     key={opt.key}
                     onClick={() => saveProfile({ autonomy: { ...(beautician.autonomy || {}), proactive: opt.key } })}
-                    style={{ textAlign: 'left', padding: '12px 14px', borderRadius: 12, cursor: 'pointer', fontFamily: 'inherit',
+                    style={{ textAlign: 'left', padding: '12px 14px', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit',
                       border: active ? '1.5px solid var(--accent)' : '1.5px solid var(--border)',
                       background: active ? 'rgba(146,64,94,0.06)' : 'var(--bg-card)',
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ width: 16, height: 16, borderRadius: 8, flexShrink: 0, boxSizing: 'border-box', border: active ? '5px solid var(--accent)' : '1.5px solid var(--border)' }} />
+                      <span style={{ width: 16, height: 16, borderRadius: 10, flexShrink: 0, boxSizing: 'border-box', border: active ? '5px solid var(--accent)' : '1.5px solid var(--border)' }} />
                       <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{opt.label}</span>
                     </div>
                     <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '6px 0 0 24px', lineHeight: 1.4 }}>{opt.hint}</p>
@@ -1854,7 +1854,7 @@ export default function Settings({ onLogout }) {
                     onChange={e => saveProfile({ instagram_redirect_message: e.target.value })}
                     placeholder={defaultMsg}
                     rows={3}
-                    style={{ width: '100%', marginTop: 6, padding: '10px 12px', borderRadius: 8,
+                    style={{ width: '100%', marginTop: 6, padding: '10px 12px', borderRadius: 10,
                       border: '1.5px solid var(--border)', background: 'var(--bg)', color: 'var(--text-primary)',
                       fontSize: 13, fontFamily: 'inherit', resize: 'none', outline: 'none', boxSizing: 'border-box',
                       lineHeight: 1.5,
@@ -2160,11 +2160,11 @@ const styles = {
   savedBadge: { padding: '4px 10px', borderRadius: 6, background: 'var(--success-bg)', color: 'var(--success)', fontSize: 12, fontWeight: 600 },
   loadingText: { textAlign: 'center', color: 'var(--text-muted)', padding: 60, fontSize: 14, fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)" },
   sectionNav: { display: 'flex', gap: 6, marginBottom: 16, overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none', paddingBottom: 2 },
-  sectionTab: { padding: '8px 12px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s', whiteSpace: 'nowrap', flexShrink: 0 },
-  card: { background: 'var(--bg-card)', borderRadius: 14, padding: 16, marginBottom: 12, boxShadow: 'var(--shadow-sm)' },
+  sectionTab: { padding: '8px 12px', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s', whiteSpace: 'nowrap', flexShrink: 0 },
+  card: { background: 'var(--bg-card)', borderRadius: 16, padding: 16, marginBottom: 12, boxShadow: 'var(--shadow-sm)' },
   cardTitle: { fontSize: 14, fontWeight: 600, margin: '0 0 6px', color: 'var(--text-primary)' },
   cardDesc: { fontSize: 13, color: 'var(--text-muted)', margin: '0 0 16px', lineHeight: 1.5 },
-  pauseRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', marginBottom: 14, borderRadius: 12, background: 'var(--accent-light)', border: '1px solid transparent' },
+  pauseRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', marginBottom: 14, borderRadius: 10, background: 'var(--accent-light)', border: '1px solid transparent' },
   pauseRowOn: { background: 'rgba(212,96,92,0.10)', border: '1px solid rgba(212,96,92,0.30)' },
   pauseTitle: { fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' },
   pauseDesc: { fontSize: 12, color: 'var(--text-muted)', marginTop: 2, lineHeight: 1.4 },
@@ -2174,7 +2174,7 @@ const styles = {
   fieldInput: { fontSize: 13, fontWeight: 500, fontFamily: 'inherit', textAlign: 'right', border: 'none', borderBottom: '1.5px solid var(--accent)', outline: 'none', padding: '2px 0', background: 'transparent', color: 'var(--text-primary)' },
   bookingLinkCard: { background: 'linear-gradient(160deg, #ffffff, #fdf1ea)', borderRadius: 16, padding: 18, marginBottom: 8, border: '1px solid rgba(146,64,94,0.14)', boxShadow: 'var(--elev-1)' },
   bookingLinkHeader: { marginBottom: 8 },
-  bookingLinkUrl: { background: 'var(--bg-card)', borderRadius: 8, padding: '10px 12px', marginBottom: 10 },
+  bookingLinkUrl: { background: 'var(--bg-card)', borderRadius: 10, padding: '10px 12px', marginBottom: 10 },
   bookingLinkActions: { display: 'flex', gap: 8 },
   bookingLinkBtn: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, flex: 1, padding: '12px 0', minHeight: 44, borderRadius: 10, border: '1.5px solid rgba(146,64,94,0.35)', background: 'var(--bg-card)', color: 'var(--accent)', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   slugDisplay: { display: 'flex', alignItems: 'center', gap: 2 },
@@ -2188,19 +2188,19 @@ const styles = {
   timeSep: { fontSize: 11, color: 'var(--text-muted)' },
   toggleRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--border-light)' },
   toggleLabel: { fontSize: 13, fontWeight: 500 },
-  toggle: { width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', padding: 0 },
+  toggle: { width: 44, height: 24, borderRadius: 10, border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', padding: 0 },
   toggleDot: { width: 20, height: 20, borderRadius: 10, background: 'var(--bg-card)', transition: 'transform 0.2s', position: 'absolute', top: 2 },
   sliderSection: { padding: '14px 0' },
   sliderHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   sliderLabel: { fontSize: 13, fontWeight: 500 },
   sliderValue: { fontSize: 14, fontWeight: 700, color: 'var(--accent)' },
-  slider: { width: '100%', appearance: 'none', height: 4, borderRadius: 2, background: 'var(--border)', outline: 'none' },
+  slider: { width: '100%', appearance: 'none', height: 4, borderRadius: 6, background: 'var(--border)', outline: 'none' },
   sliderHints: { display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: 10, color: 'var(--text-muted)' },
   toneItem: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border-light)' },
   toneLabel: { fontSize: 12, color: 'var(--text-muted)', fontWeight: 500 },
   toneValue: { fontSize: 13, color: 'var(--text-primary)', textAlign: 'right', maxWidth: '60%' },
-  logoutBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: '1.5px solid var(--danger)', background: 'transparent', color: 'var(--danger)', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 8 },
-  deleteAccountBtn: { width: '100%', padding: '10px 0', borderRadius: 12, border: 'none', background: 'transparent', color: 'var(--danger, #9E2B32)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 6, textDecoration: 'underline', textUnderlineOffset: 3 },
+  logoutBtn: { width: '100%', padding: '14px 0', borderRadius: 10, border: '1.5px solid var(--danger)', background: 'transparent', color: 'var(--danger)', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 8 },
+  deleteAccountBtn: { width: '100%', padding: '10px 0', borderRadius: 10, border: 'none', background: 'transparent', color: 'var(--danger, #9E2B32)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 6, textDecoration: 'underline', textUnderlineOffset: 3 },
 
   // Notification styles
   notifRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--border-light)' },
@@ -2208,13 +2208,13 @@ const styles = {
   notifLabel: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' },
   notifDesc: { fontSize: 11, color: 'var(--text-muted)' },
   notifChannels: { display: 'flex', gap: 4 },
-  notifChip: { width: 32, height: 32, borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  notifChip: { width: 32, height: 32, borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' },
   reminderRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--border-light)' },
   reminderLabel: { fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' },
   channelPicker: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 14, marginTop: 4 },
   channelLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' },
   channelOptions: { display: 'flex', gap: 6 },
-  channelChip: { padding: '6px 12px', borderRadius: 8, border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  channelChip: { padding: '6px 12px', borderRadius: 10, border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
   // Messaging channels card
   msgChannelRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 0', borderBottom: '1px solid var(--border-light)', gap: 12 },
@@ -2227,7 +2227,7 @@ const styles = {
   // Block time links
   blockLinkBtn: {
     display: 'flex', alignItems: 'center', gap: 12,
-    padding: '12px 14px', borderRadius: 12, border: '1px solid var(--border)',
+    padding: '12px 14px', borderRadius: 10, border: '1px solid var(--border)',
     background: 'var(--bg-hover, var(--bg-subtle, #ede7e3))', cursor: 'pointer',
     fontFamily: 'inherit', textAlign: 'left', width: '100%',
   },
@@ -2237,7 +2237,7 @@ const styles = {
 
   brandingLinkBtn: {
     display: 'flex', alignItems: 'center', gap: 12,
-    padding: '12px 14px', marginTop: 12, borderRadius: 12, border: '1px solid var(--border)',
+    padding: '12px 14px', marginTop: 12, borderRadius: 10, border: '1px solid var(--border)',
     background: 'var(--bg-hover, var(--bg-subtle, #ede7e3))', cursor: 'pointer',
     fontFamily: 'inherit', textAlign: 'left', width: '100%',
   },
@@ -2247,7 +2247,7 @@ const styles = {
 
   // Payments
   connectionStatus: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 },
-  statusDot: { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
+  statusDot: { width: 8, height: 8, borderRadius: 6, flexShrink: 0 },
   connectionLabel: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' },
   connectBtn: { padding: '10px 20px', borderRadius: 10, border: 'none', background: 'var(--accent)', color: 'var(--bg-card)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   paymentMethodRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--border-light)' },
@@ -2259,7 +2259,7 @@ const styles = {
   depositAmountRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--border-light)' },
   depositAmountLabel: { fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' },
   depositOptions: { display: 'flex', gap: 6 },
-  depositChip: { padding: '6px 14px', borderRadius: 8, border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  depositChip: { padding: '6px 14px', borderRadius: 10, border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   depositFooter: { fontSize: 11, color: 'var(--text-muted)', margin: '10px 0 0', lineHeight: 1.5 },
   payoutRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--border-light)' },
   payoutLabel: { fontSize: 12, color: 'var(--text-muted)' },
@@ -2273,18 +2273,18 @@ const styles = {
   syncLabel: { display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' },
   syncHint: { display: 'block', fontSize: 11, color: 'var(--text-muted)', marginTop: 1 },
   bufferOptions: { display: 'flex', gap: 6, flexWrap: 'wrap' },
-  bufferChip: { padding: '8px 14px', borderRadius: 8, border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  bufferChip: { padding: '8px 14px', borderRadius: 10, border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
   // Florrie's Voice
   chipRow: { display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 },
-  chip: { padding: '6px 14px', borderRadius: 8, border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', textTransform: 'capitalize' },
+  chip: { padding: '6px 14px', borderRadius: 10, border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', textTransform: 'capitalize' },
   exampleCard: { background: 'var(--bg-hover)', borderRadius: 10, padding: 12, marginBottom: 10 },
-  exampleBubble: { background: 'var(--bg-card)', borderRadius: 8, padding: '8px 12px', marginBottom: 6 },
+  exampleBubble: { background: 'var(--bg-card)', borderRadius: 10, padding: '8px 12px', marginBottom: 6 },
   exampleLabel: { fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 2 },
   exampleText: { fontSize: 13, lineHeight: 1.5, margin: 0, color: 'var(--text-primary)' },
   removeExBtn: { background: 'none', border: 'none', fontSize: 11, color: 'var(--danger)', cursor: 'pointer', padding: '4px 0', fontFamily: 'inherit' },
   addExForm: { display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 },
-  exTextarea: { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 13, fontFamily: 'inherit', resize: 'vertical', outline: 'none', lineHeight: 1.5, boxSizing: 'border-box', background: 'var(--bg-card)' },
+  exTextarea: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border)', fontSize: 13, fontFamily: 'inherit', resize: 'vertical', outline: 'none', lineHeight: 1.5, boxSizing: 'border-box', background: 'var(--bg-card)' },
   addExSaveBtn: { padding: '10px 18px', borderRadius: 10, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   addExCancelBtn: { padding: '10px 14px', borderRadius: 10, border: 'none', background: 'var(--bg-hover)', color: 'var(--text-secondary)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' },
   addExBtn: { padding: '10px 0', background: 'none', border: 'none', color: 'var(--accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },

@@ -374,7 +374,7 @@ const styles = {
   includesSection: { marginBottom: 16, paddingTop: 16, borderTop: '1px solid #F0ECE8' },
   includesTitle: { fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.04em' },
   includesWrap: { display: 'flex', flexWrap: 'wrap', gap: 6 },
-  includeTag: { fontSize: 13, background: '#FBF6F1', border: '1px solid #efe2e5', borderRadius: 8, padding: '5px 10px', color: '#4A4540' },
+  includeTag: { fontSize: 13, background: '#FBF6F1', border: '1px solid #efe2e5', borderRadius: 10, padding: '5px 10px', color: '#4A4540' },
 
   priceSection: { paddingTop: 16, borderTop: '1px solid #F0ECE8', textAlign: 'center' },
   priceMain: { fontSize: 28, fontWeight: 700, color: '#92405e' },
@@ -385,13 +385,13 @@ const styles = {
   label: { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6, marginTop: 14, textTransform: 'uppercase', letterSpacing: '0.04em' },
   input: { width: '100%', padding: '11px 14px', borderRadius: 10, border: '1.5px solid #efe2e5', fontSize: 15, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: '#FBF6F1', color: '#1d1b19' },
 
-  submitBtn: { width: '100%', padding: '15px 0', borderRadius: 12, border: 'none', color: '#fff', fontSize: 16, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20 },
+  submitBtn: { width: '100%', padding: '15px 0', borderRadius: 10, border: 'none', color: '#fff', fontSize: 16, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20 },
   depositNote: { fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', marginTop: 10, lineHeight: 1.5 },
 
   errorBanner: { background: '#FDEDF0', color: '#C62828', padding: '10px 14px', borderRadius: 10, fontSize: 13, marginTop: 12, fontWeight: 500 },
   cancelledBanner: { background: '#FFF3E0', color: '#E65100', padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 500, marginBottom: 16, textAlign: 'center' },
 
-  fullBanner: { display: 'flex', alignItems: 'center', gap: 12, background: '#FFF3E0', borderRadius: 12, padding: '16px 14px', marginBottom: 16 },
+  fullBanner: { display: 'flex', alignItems: 'center', gap: 12, background: '#FFF3E0', borderRadius: 10, padding: '16px 14px', marginBottom: 16 },
 
   successCard: { background: '#ffffff', borderRadius: 16, padding: '40px 20px', textAlign: 'center', border: '1px solid #efe2e5', marginTop: 40 },
   successIcon: { fontSize: 48, marginBottom: 12 },

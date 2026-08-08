@@ -555,7 +555,7 @@ const S = {
 
   upcomingBubble: {
     display: 'flex', flexDirection: 'column', alignItems: 'center',
-    background: 'var(--accent, #92405e)', borderRadius: 12,
+    background: 'var(--accent, #92405e)', borderRadius: 10,
     padding: '6px 12px', minWidth: 48,
   },
   upcomingNum: { fontSize: 18, fontWeight: 700, color: '#fff', lineHeight: 1 },
@@ -586,22 +586,22 @@ const S = {
   // Range mode
   rangeModeRow: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    background: 'var(--bg-card, #FFFCF9)', borderRadius: 12, padding: '10px 14px',
-    marginBottom: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+    background: 'var(--bg-card, #FFFCF9)', borderRadius: 10, padding: '10px 14px',
+    marginBottom: 8, boxShadow: 'var(--elev-1)',
   },
   rangeModeLabel: { fontSize: 13, fontWeight: 500, color: 'var(--text-primary, #241B17)' },
   rangeToggle: {
-    width: 44, height: 26, borderRadius: 13, border: 'none',
+    width: 44, height: 26, borderRadius: 16, border: 'none',
     cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0,
   },
   rangeToggleDot: {
-    width: 22, height: 22, borderRadius: 11, background: 'var(--bg-card, #FFFCF9)',
+    width: 22, height: 22, borderRadius: 10, background: 'var(--bg-card, #FFFCF9)',
     position: 'absolute', top: 2, transition: 'transform 0.2s',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+    boxShadow: 'var(--elev-1)',
   },
   rangeHint: {
     fontSize: 13, color: 'var(--accent, #92405e)', fontWeight: 500,
-    padding: '6px 12px', background: '#FBF0F3', borderRadius: 8,
+    padding: '6px 12px', background: '#FBF0F3', borderRadius: 10,
     marginBottom: 10, textAlign: 'center',
   },
 
@@ -631,7 +631,7 @@ const S = {
     minWidth: 0,
   },
   excDot: {
-    width: 4, height: 4, borderRadius: 2, marginTop: 1,
+    width: 4, height: 4, borderRadius: 6, marginTop: 1,
   },
 
   // Legend
@@ -640,14 +640,14 @@ const S = {
     padding: '10px 0', marginBottom: 8,
   },
   legendItem: { display: 'flex', alignItems: 'center', gap: 5 },
-  legendDot: { width: 8, height: 8, borderRadius: 4 },
+  legendDot: { width: 8, height: 8, borderRadius: 6 },
   legendLabel: { fontSize: 11, color: 'var(--text-muted)' },
 
   // Quick-block panel
   quickPanel: {
     background: 'var(--bg-card, #FFFCF9)',
     borderRadius: 16, padding: 16,
-    boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+    boxShadow: 'var(--elev-2)',
     marginBottom: 20, border: '1.5px solid #F0ECE8',
   },
   quickPanelHeader: {
@@ -656,7 +656,7 @@ const S = {
   },
   quickPanelDate: { fontSize: 15, fontWeight: 700, color: 'var(--text-primary, #241B17)' },
   closeBtn: {
-    width: 28, height: 28, borderRadius: 14, border: 'none',
+    width: 28, height: 28, borderRadius: 16, border: 'none',
     background: '#F5F2EF', color: 'var(--text-muted)', fontSize: 12,
     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
@@ -670,7 +670,7 @@ const S = {
 
   reasonRow: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
   reasonChip: {
-    padding: '6px 10px', borderRadius: 8, border: 'none',
+    padding: '6px 10px', borderRadius: 10, border: 'none',
     fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
     transition: 'all 0.15s',
   },
@@ -678,13 +678,13 @@ const S = {
   timeRow: { display: 'flex', gap: 10, marginBottom: 12 },
   timeLabel: { display: 'block', fontSize: 11, color: 'var(--text-muted, #6B5D54)', marginBottom: 4 },
   timeInput: {
-    width: '100%', padding: '9px 10px', borderRadius: 8,
+    width: '100%', padding: '9px 10px', borderRadius: 10,
     border: '1.5px solid var(--border-light, #ede7e3)', fontSize: 14, fontFamily: 'inherit',
     outline: 'none', boxSizing: 'border-box',
   },
 
   noteInput: {
-    width: '100%', padding: '10px 12px', borderRadius: 8,
+    width: '100%', padding: '10px 12px', borderRadius: 10,
     border: '1.5px solid var(--border-light, #ede7e3)', fontSize: 13, fontFamily: 'inherit',
     outline: 'none', boxSizing: 'border-box', marginBottom: 12,
     color: 'var(--text-primary, #241B17)',
@@ -697,17 +697,17 @@ const S = {
   notifyLabel: { display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-primary, #241B17)' },
   notifyHint:  { display: 'block', fontSize: 11, color: 'var(--text-muted, #6B5D54)', marginTop: 2 },
   toggle: {
-    width: 44, height: 26, borderRadius: 13, border: 'none',
+    width: 44, height: 26, borderRadius: 16, border: 'none',
     cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0,
   },
   toggleDot: {
-    width: 22, height: 22, borderRadius: 11, background: 'var(--bg-card, #FFFCF9)',
+    width: 22, height: 22, borderRadius: 10, background: 'var(--bg-card, #FFFCF9)',
     position: 'absolute', top: 2, transition: 'transform 0.2s',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+    boxShadow: 'var(--elev-1)',
   },
 
   saveBtn: {
-    width: '100%', padding: '13px 0', borderRadius: 12, border: 'none',
+    width: '100%', padding: '13px 0', borderRadius: 10, border: 'none',
     background: 'var(--accent, #92405e)', color: '#fff', fontSize: 14, fontWeight: 700,
     cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.01em',
   },
@@ -720,26 +720,26 @@ const S = {
   excList: { display: 'flex', flexDirection: 'column', gap: 8 },
   excCard: {
     display: 'flex', alignItems: 'center', gap: 12,
-    background: 'var(--bg-card, #FFFCF9)', borderRadius: 12, padding: '12px 12px',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+    background: 'var(--bg-card, #FFFCF9)', borderRadius: 10, padding: '12px 12px',
+    boxShadow: 'var(--elev-1)',
   },
-  excDotLarge: { width: 10, height: 10, borderRadius: 5, flexShrink: 0 },
+  excDotLarge: { width: 10, height: 10, borderRadius: 6, flexShrink: 0 },
   excTopRow:   { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
   excDate:     { fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #241B17)' },
-  excBadge:    { padding: '2px 7px', borderRadius: 5, fontSize: 10, fontWeight: 600, flexShrink: 0 },
+  excBadge:    { padding: '2px 7px', borderRadius: 6, fontSize: 10, fontWeight: 600, flexShrink: 0 },
   excTimes:    { display: 'block', fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 },
   excMeta:     { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' },
   excAway:     { fontSize: 11, color: 'var(--text-muted, #6B5D54)' },
   excNote:     { fontSize: 12, color: 'var(--text-muted)' },
   notifyTag:   { display: 'block', fontSize: 10, color: 'var(--success, #3F7D5C)', marginTop: 3 },
   deleteBtn: {
-    width: 26, height: 26, borderRadius: 13, border: 'none',
+    width: 26, height: 26, borderRadius: 16, border: 'none',
     background: 'var(--danger-bg, #F7E4E4)', color: '#E57373', fontSize: 12, flexShrink: 0,
     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
 
   emptyCard: {
-    background: 'var(--bg-card, #FFFCF9)', borderRadius: 12, padding: '20px 16px',
-    textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+    background: 'var(--bg-card, #FFFCF9)', borderRadius: 10, padding: '20px 16px',
+    textAlign: 'center', boxShadow: 'var(--elev-1)',
   },
 };

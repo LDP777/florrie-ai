@@ -202,7 +202,7 @@ const S = {
   hero: {
     display: 'flex', alignItems: 'flex-start', gap: 14,
     background: 'linear-gradient(135deg, #fdf5e8 0%, #fff 70%)',
-    borderRadius: 20, padding: '16px 14px',
+    borderRadius: 22, padding: '16px 14px',
     border: '1px solid rgba(201,169,110,0.2)',
     marginBottom: 14,
     position: 'relative',
@@ -217,12 +217,12 @@ const S = {
   pendingBadge: {
     position: 'absolute', top: 14, right: 14,
     fontSize: 11, fontWeight: 700, color: '#fff',
-    background: '#E85D75', padding: '4px 10px', borderRadius: 20,
+    background: '#E85D75', padding: '4px 10px', borderRadius: 22,
   },
 
   explainerCard: {
     display: 'flex', gap: 10, alignItems: 'flex-start',
-    background: '#fffbf2', borderRadius: 14,
+    background: '#fffbf2', borderRadius: 16,
     border: '1px solid rgba(201,169,110,0.2)',
     padding: '12px 14px', marginBottom: 14,
   },
@@ -230,12 +230,12 @@ const S = {
 
   pillarCard: {
     width: '100%', textAlign: 'left',
-    background: 'var(--bg-card, #FFFCF9)', borderRadius: 18,
+    background: 'var(--bg-card, #FFFCF9)', borderRadius: 16,
     border: '1px solid rgba(199,107,138,0.1)',
     padding: '16px 14px', marginBottom: 12,
     cursor: 'pointer', fontFamily: 'inherit',
     WebkitTapHighlightColor: 'transparent',
-    boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
+    boxShadow: 'var(--elev-2)',
     boxSizing: 'border-box',
     display: 'block',
   },
@@ -243,7 +243,7 @@ const S = {
     display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14,
   },
   pillarIcon: {
-    width: 44, height: 44, borderRadius: 12,
+    width: 44, height: 44, borderRadius: 10,
     display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
   pillarInfo: { flex: 1 },
@@ -265,7 +265,7 @@ const S = {
 
   tipCard: {
     display: 'flex', gap: 10, alignItems: 'flex-start',
-    background: '#fffbf2', borderRadius: 14,
+    background: '#fffbf2', borderRadius: 16,
     border: '1px solid rgba(201,169,110,0.15)',
     padding: '12px 14px', marginTop: 4,
   },

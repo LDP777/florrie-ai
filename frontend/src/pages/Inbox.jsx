@@ -150,7 +150,7 @@ function ChannelMark({ channel, size = 22 }) {
         alignItems: 'center',
         justifyContent: 'center',
         flexShrink: 0,
-        boxShadow: '0 1px 1.5px rgba(146,64,94,0.14)',
+        boxShadow: 'var(--elev-1)',
       }}
     >
       <Icon name={iconName(c.icon)} inline style={{ fontSize: Math.round(size * 0.62), color: '#fff', lineHeight: 1, }} />
@@ -1046,7 +1046,7 @@ function EmptyConvoPlaceholder() {
   return (
     <div style={S.placeholder}>
       <Icon name={iconName('forum')} size={30} inline style={{ color: 'var(--accent, #92405e)', marginBottom: 12,
-          width: 68, height: 68, borderRadius: 34,
+          width: 68, height: 68, borderRadius: 22,
           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
           background: 'linear-gradient(135deg, #ffe7ee 0%, #fdeef3 100%)',
           boxShadow: 'inset 0 0 0 1px rgba(146,64,94,0.08)' }} />
@@ -1671,7 +1671,7 @@ const S = {
   },
   paneList: {
     background: 'var(--tone-1, #fbf1ea)',
-    borderRadius: 20,
+    borderRadius: 22,
     padding: '4px 0 14px',
     maxHeight: 'var(--shell-viewport)',
     overflowY: 'auto',
@@ -1679,7 +1679,7 @@ const S = {
   },
   paneConvo: {
     background: 'var(--tone-1, #fbf1ea)',
-    borderRadius: 20,
+    borderRadius: 22,
     display: 'flex',
     flexDirection: 'column',
     minHeight: 'var(--shell-viewport)',
@@ -1729,7 +1729,7 @@ const S = {
   },
   spaceTab: {
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-    minHeight: 48, padding: '10px 12px', borderRadius: 14, border: 'none',
+    minHeight: 48, padding: '10px 12px', borderRadius: 16, border: 'none',
     background: 'var(--tone-2, #f6e7dd)', color: 'var(--text-secondary, #574A42)',
     fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
     transition: 'background 0.15s ease, color 0.15s ease',
@@ -1821,7 +1821,7 @@ const S = {
     whiteSpace: 'nowrap',
   },
   draftBubble: {
-    maxWidth: 'min(78%, 420px)', padding: '10px 14px', borderRadius: 20,
+    maxWidth: 'min(78%, 420px)', padding: '10px 14px', borderRadius: 22,
     borderBottomRightRadius: 6, background: 'rgba(146,64,94,0.04)',
     border: '1.5px dashed rgba(146,64,94,0.45)', color: 'var(--text-primary, #241B17)',
     boxSizing: 'border-box',
@@ -1890,11 +1890,11 @@ const S = {
   rowMenu: {
     position: 'absolute', top: 38, right: 6, zIndex: 5,
     background: 'var(--bg-card, #FFFCF9)', border: '1px solid var(--border-light, #ede7e3)',
-    borderRadius: 14, boxShadow: '0 10px 28px rgba(146,64,94,0.16)', padding: 5, minWidth: 188,
+    borderRadius: 16, boxShadow: 'var(--elev-3)', padding: 5, minWidth: 188,
   },
   rowMenuItem: {
     display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-    padding: '9px 11px', borderRadius: 9, border: 'none', background: 'transparent',
+    padding: '9px 11px', borderRadius: 10, border: 'none', background: 'transparent',
     color: 'var(--danger, #9E2B32)', fontSize: 13, fontWeight: 600, cursor: 'pointer',
     fontFamily: 'inherit', textAlign: 'left',
   },
@@ -1907,17 +1907,17 @@ const S = {
     boxShadow: 'inset 0 0 0 1px rgba(146,64,94,0.05)',
   },
   avatarMuted: {
-    width: 38, height: 38, borderRadius: 19, fontSize: 15,
+    width: 38, height: 38, borderRadius: 22, fontSize: 15,
     background: 'var(--border-light, #ede7e3)',
     color: 'var(--text-muted, #6B5D54)',
   },
   // The channel mark rides the avatar's bottom-right corner so the row reads
   // cleanly, with a cream ring punching it off the photo. Uses ChannelMark.
   avatarChannel: {
-    position: 'absolute', right: -3, bottom: -3, borderRadius: 8,
+    position: 'absolute', right: -3, bottom: -3, borderRadius: 10,
     padding: 2, background: 'var(--bg-card, #FFFCF9)',
     display: 'inline-flex', lineHeight: 0,
-    boxShadow: '0 1px 2px rgba(146,64,94,0.16)',
+    boxShadow: 'var(--elev-1)',
   },
   flagDot: {
     position: 'absolute', top: -1, left: -1, width: 12, height: 12,
@@ -1945,14 +1945,14 @@ const S = {
   rowPreviewMuted: { fontSize: 12.5 },
   rowBadge: {
     fontSize: 10.5, fontWeight: 700, color: '#fff', background: 'var(--accent, #92405e)',
-    padding: '1px 7px', borderRadius: 20, minWidth: 17, textAlign: 'center', flexShrink: 0,
-    lineHeight: 1.5, boxShadow: '0 1px 2px rgba(146,64,94,0.22)',
+    padding: '1px 7px', borderRadius: 22, minWidth: 17, textAlign: 'center', flexShrink: 0,
+    lineHeight: 1.5, boxShadow: 'var(--elev-1)',
   },
   // Social lane: still countable, never urgent. No accent, no shadow.
   rowBadgeQuiet: {
     fontSize: 10.5, fontWeight: 600, color: 'var(--text-muted, #6B5D54)',
     background: 'rgba(146,64,94,0.06)',
-    padding: '1px 7px', borderRadius: 20, minWidth: 17, textAlign: 'center', flexShrink: 0,
+    padding: '1px 7px', borderRadius: 22, minWidth: 17, textAlign: 'center', flexShrink: 0,
     lineHeight: 1.5,
   },
   rowMetaRow: { display: 'flex', alignItems: 'center', gap: 6, marginTop: 1 },
@@ -1961,7 +1961,7 @@ const S = {
     fontSize: 11, fontWeight: 600, color: 'var(--text-muted, #6B5D54)',
     letterSpacing: '0.01em',
   },
-  typeDot: { width: 6, height: 6, borderRadius: 3, flexShrink: 0 },
+  typeDot: { width: 6, height: 6, borderRadius: 6, flexShrink: 0 },
 
   empty: {
     display: 'flex', flexDirection: 'column', alignItems: 'center',
@@ -1969,7 +1969,7 @@ const S = {
   },
   emptyIcon: {
     fontSize: 32, color: 'var(--accent, #92405e)', lineHeight: 1,
-    width: 72, height: 72, borderRadius: 36,
+    width: 72, height: 72, borderRadius: 22,
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     background: 'linear-gradient(135deg, #ffe7ee 0%, #fdeef3 100%)',
     boxShadow: 'inset 0 0 0 1px rgba(146,64,94,0.08)', marginBottom: 6,
@@ -1982,7 +1982,7 @@ const S = {
   emptyHint: { fontSize: 12, color: 'var(--text-muted, #6B5D54)', margin: 0, maxWidth: 260 },
   errorCard: {
     margin: '12px 18px', padding: 14, background: '#FFF8F0', border: '1px solid #FFE8CC',
-    borderRadius: 12, fontSize: 13, color: '#7B5E00', lineHeight: 1.5,
+    borderRadius: 10, fontSize: 13, color: '#7B5E00', lineHeight: 1.5,
   },
 
   placeholder: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 },
@@ -2005,7 +2005,7 @@ const S = {
     fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 44, minHeight: 44,
   },
   convoAvatar: {
-    width: 36, height: 36, borderRadius: 18,
+    width: 36, height: 36, borderRadius: 16,
     background: 'var(--accent-light, #F6E7EC)', color: 'var(--accent, #92405e)',
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     fontSize: 15, fontWeight: 600, fontFamily: "'Playfair Display', Georgia, serif",
@@ -2042,20 +2042,20 @@ const S = {
   },
   bubbleTag: { fontSize: 9.5, fontWeight: 700, color: 'var(--accent, #92405e)', letterSpacing: '0.05em', textTransform: 'uppercase', paddingLeft: 3, opacity: 0.85 },
   bubble: {
-    padding: '10px 14px', border: '1px solid', borderRadius: 20,
-    boxShadow: '0 1px 2px rgba(146,64,94,0.06)',
+    padding: '10px 14px', border: '1px solid', borderRadius: 22,
+    boxShadow: 'var(--elev-1)',
   },
   bubbleText: { fontSize: 14, lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word' },
   bubbleMeta: { fontSize: 10, marginTop: 4, display: 'flex', alignItems: 'center', gap: 5, justifyContent: 'flex-end' },
 
   waHint: {
     margin: '0 14px 8px', padding: '10px 12px', background: '#FFF8E1', border: '1px solid #FFE082',
-    borderRadius: 12, fontSize: 12, color: '#7B5E00', lineHeight: 1.5,
+    borderRadius: 10, fontSize: 12, color: '#7B5E00', lineHeight: 1.5,
   },
   waHintLink: { color: '#7B5E00', fontWeight: 700, marginLeft: 6, textDecoration: 'underline' },
   noContact: {
     margin: '0 14px 14px', padding: 12, background: '#FDECEA', border: '1px solid #F5C6C0',
-    borderRadius: 12, fontSize: 12, color: '#8A2A1C', lineHeight: 1.5,
+    borderRadius: 10, fontSize: 12, color: '#8A2A1C', lineHeight: 1.5,
   },
 
   composerBar: {
@@ -2080,7 +2080,7 @@ const S = {
   },
   composerRow: { display: 'flex', alignItems: 'flex-end', gap: 8 },
   composerInput: {
-    flex: 1, padding: '11px 15px', border: '1px solid var(--border-light, #ede7e3)', borderRadius: 20,
+    flex: 1, padding: '11px 15px', border: '1px solid var(--border-light, #ede7e3)', borderRadius: 22,
     background: 'var(--bg, #FBF6F1)', fontSize: 14, fontFamily: 'inherit', resize: 'none', maxHeight: 140,
     color: 'var(--text-primary, #241B17)', outline: 'none', lineHeight: 1.4,
     transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
@@ -2088,14 +2088,14 @@ const S = {
   sendBtn: {
     width: 44, height: 44, borderRadius: 22, border: 'none', background: 'var(--accent, #92405e)', color: '#fff',
     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-    boxShadow: '0 2px 6px rgba(146,64,94,0.24)', transition: 'opacity 0.15s ease, transform 0.1s ease',
+    boxShadow: 'var(--elev-1)', transition: 'opacity 0.15s ease, transform 0.1s ease',
   },
   sendError: {
     fontSize: 12, color: '#8A2A1C', background: '#FDECEA', border: '1px solid #F5C6C0', borderRadius: 10, padding: '6px 10px',
   },
 
   skelLine: { height: 12, width: '60%', borderRadius: 6, background: 'var(--border-light, #ede7e3)', display: 'block' },
-  skelLineShort: { height: 10, width: '40%', borderRadius: 5, background: 'var(--border-light, #ede7e3)', display: 'block', marginTop: 4 },
+  skelLineShort: { height: 10, width: '40%', borderRadius: 6, background: 'var(--border-light, #ede7e3)', display: 'block', marginTop: 4 },
 };
 
 if (typeof document !== 'undefined' && !document.getElementById('inbox-bold-css')) {

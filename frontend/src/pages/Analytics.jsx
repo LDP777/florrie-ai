@@ -582,8 +582,8 @@ function DayBarChart({ data }) {
 function SkeletonCard({ height = 80 }) {
   return (
     <div style={{ ...styles.card, height, display: 'flex', flexDirection: 'column', gap: 10, justifyContent: 'center' }}>
-      <div style={{ height: 14, width: '40%', borderRadius: 7, background: 'var(--border-light, #ede7e3)' }} />
-      <div style={{ height: 14, width: '65%', borderRadius: 7, background: 'var(--bg-subtle, #ede7e3)' }} />
+      <div style={{ height: 14, width: '40%', borderRadius: 10, background: 'var(--border-light, #ede7e3)' }} />
+      <div style={{ height: 14, width: '65%', borderRadius: 10, background: 'var(--bg-subtle, #ede7e3)' }} />
     </div>
   );
 }
@@ -671,10 +671,10 @@ const styles = {
   title: { fontSize: 22, fontWeight: 700, margin: 0, fontFamily: "'Playfair Display', Georgia, serif", letterSpacing: '-0.02em' },
 
   tabNav: { display: 'flex', gap: 6, marginBottom: 12 },
-  tabBtn: { flex: 1, padding: '9px 0', borderRadius: 9, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s' },
+  tabBtn: { flex: 1, padding: '9px 0', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s' },
 
   periodNav: { display: 'flex', gap: 6, marginBottom: 14 },
-  periodTab: { flex: 1, padding: '7px 0', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' },
+  periodTab: { flex: 1, padding: '7px 0', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' },
 
   // Hero revenue
   heroCard: { background: 'linear-gradient(135deg, #C76B8A 0%, #D4899F 100%)', borderRadius: 16, padding: 20, marginBottom: 12, color: '#fff' },
@@ -687,22 +687,22 @@ const styles = {
   heroDivider: { width: 1, background: 'rgba(255,255,255,0.2)', margin: '0 4px' },
 
   statsGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 },
-  statCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 12, padding: 14, display: 'flex', flexDirection: 'column', gap: 2, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
+  statCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 10, padding: 14, display: 'flex', flexDirection: 'column', gap: 2, boxShadow: 'var(--elev-1)' },
   statLabel: { fontSize: 11, color: 'var(--text-muted, #6B5D54)', fontWeight: 500 },
   statValue: { fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em' },
   statSub: { fontSize: 11, color: 'var(--text-muted, #6B5D54)' },
 
-  insightCard: { display: 'flex', alignItems: 'center', gap: 12, padding: 14, borderRadius: 12, background: 'var(--warning-bg, #F7EEDD)', marginBottom: 12 },
+  insightCard: { display: 'flex', alignItems: 'center', gap: 12, padding: 14, borderRadius: 10, background: 'var(--warning-bg, #F7EEDD)', marginBottom: 12 },
   insightIcon: { fontSize: 24, flexShrink: 0 },
   insightContent: { display: 'flex', flexDirection: 'column', gap: 2 },
   insightTitle: { fontSize: 12, fontWeight: 600, color: 'var(--warning, #8A6420)' },
   insightText: { fontSize: 13, color: 'var(--text-secondary, #574A42)' },
 
-  card: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 14, padding: 16, marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
+  card: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: 16, marginBottom: 12, boxShadow: 'var(--elev-1)' },
   cardTitle: { fontSize: 14, fontWeight: 600, margin: '0 0 12px', color: 'var(--text-primary, #241B17)' },
 
   clientRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border-light, #ede7e3)' },
-  clientRank: { width: 24, height: 24, borderRadius: 12, background: 'var(--bg-subtle, #ede7e3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: 'var(--text-muted, #6B5D54)', flexShrink: 0 },
+  clientRank: { width: 24, height: 24, borderRadius: 10, background: 'var(--bg-subtle, #ede7e3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: 'var(--text-muted, #6B5D54)', flexShrink: 0 },
   clientInfo: { flex: 1, display: 'flex', flexDirection: 'column', gap: 1 },
   clientName: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #241B17)' },
   clientVisits: { fontSize: 11, color: 'var(--text-muted, #6B5D54)' },
@@ -711,8 +711,8 @@ const styles = {
   barChart: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: 120, gap: 4, paddingTop: 8 },
   barCol: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flex: 1 },
   barValue: { fontSize: 10, fontWeight: 600, color: 'var(--text-muted, #6B5D54)' },
-  barTrack: { width: '100%', height: 80, borderRadius: 4, background: 'var(--bg, #FBF6F1)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', overflow: 'hidden' },
-  barFill: { width: '100%', borderRadius: 4, transition: 'height 0.4s ease', minHeight: 3 },
+  barTrack: { width: '100%', height: 80, borderRadius: 6, background: 'var(--bg, #FBF6F1)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', overflow: 'hidden' },
+  barFill: { width: '100%', borderRadius: 6, transition: 'height 0.4s ease', minHeight: 3 },
   barLabel: { fontSize: 10, fontWeight: 600 },
 
   insightsList: { display: 'flex', flexDirection: 'column', gap: 8 },
@@ -722,11 +722,11 @@ const styles = {
 
   // Treatments tab
   filterRow: { display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 },
-  filterChip: { padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' },
+  filterChip: { padding: '6px 12px', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' },
 
-  treatmentCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 12, padding: 14, marginBottom: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
+  treatmentCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 10, padding: 14, marginBottom: 8, boxShadow: 'var(--elev-1)' },
   treatmentHeader: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 },
-  treatmentRankBadge: { width: 28, height: 28, borderRadius: 8, background: 'var(--accent-light, rgba(199,107,138,0.08))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: 'var(--accent, #92405e)', flexShrink: 0 },
+  treatmentRankBadge: { width: 28, height: 28, borderRadius: 10, background: 'var(--accent-light, rgba(199,107,138,0.08))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: 'var(--accent, #92405e)', flexShrink: 0 },
   treatmentMeta: { flex: 1, display: 'flex', flexDirection: 'column', gap: 1 },
   treatmentName: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #241B17)' },
   treatmentCat: { fontSize: 11, color: 'var(--text-muted, #6B5D54)', textTransform: 'capitalize' },
@@ -737,11 +737,11 @@ const styles = {
 
   // Export tab
   exportDesc: { fontSize: 13, color: 'var(--text-muted, #6B5D54)', margin: '0 0 16px', lineHeight: 1.5 },
-  exportCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 12, padding: 14, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
+  exportCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 10, padding: 14, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12, boxShadow: 'var(--elev-1)' },
   exportCardLeft: { display: 'flex', alignItems: 'center', gap: 12, flex: 1 },
   exportCardTitle: { display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #241B17)' },
   exportCardDesc: { display: 'block', fontSize: 11, color: 'var(--text-muted, #6B5D54)', marginTop: 2 },
-  exportBtn: { padding: '8px 16px', borderRadius: 8, border: 'none', background: 'var(--accent, #92405e)', color: '#fff', fontSize: 12, fontWeight: 700, fontFamily: 'inherit', flexShrink: 0 },
+  exportBtn: { padding: '8px 16px', borderRadius: 10, border: 'none', background: 'var(--accent, #92405e)', color: '#fff', fontSize: 12, fontWeight: 700, fontFamily: 'inherit', flexShrink: 0 },
   exportNote: { background: 'var(--bg-subtle, #ede7e3)', borderRadius: 10, padding: 12, marginTop: 8 },
 
   skeletonGroup: { display: 'flex', flexDirection: 'column', gap: 10 },

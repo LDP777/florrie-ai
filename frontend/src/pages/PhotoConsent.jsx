@@ -426,10 +426,10 @@ const S = {
   page: { padding: '20px 16px 32px', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 480, margin: '0 auto' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #241B17)', margin: 0 },
-  reqBtn: { background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', border: 'none', borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  reqBtn: { background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', border: 'none', borderRadius: 22, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
   statsRow: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 16 },
-  statCard: { background: 'var(--card, #FFFCF9)', borderRadius: 12, padding: '10px 6px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
+  statCard: { background: 'var(--card, #FFFCF9)', borderRadius: 10, padding: '10px 6px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
   statValue: { fontSize: 18, fontWeight: 700 },
   statLabel: { fontSize: 10, color: 'var(--text-muted, #6B5D54)' },
 
@@ -440,14 +440,14 @@ const S = {
   list: { display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 },
   empty: { textAlign: 'center', color: 'var(--text-muted, #6B5D54)', fontSize: 14, padding: 32 },
 
-  consentCard: { background: 'var(--card, #FFFCF9)', borderRadius: 14, padding: 14, cursor: 'pointer' },
+  consentCard: { background: 'var(--card, #FFFCF9)', borderRadius: 16, padding: 14, cursor: 'pointer' },
   consentHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   consentLeft: { display: 'flex', gap: 10, alignItems: 'center' },
-  avatar: { width: 36, height: 36, borderRadius: 18, background: '#F0E6ED', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 600, color: 'var(--accent, #92405e)', flexShrink: 0 },
+  avatar: { width: 36, height: 36, borderRadius: 16, background: '#F0E6ED', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 600, color: 'var(--accent, #92405e)', flexShrink: 0 },
   consentInfo: { display: 'flex', flexDirection: 'column', gap: 2 },
   consentClient: { fontSize: 14, fontWeight: 600, color: 'var(--text, #241B17)' },
   consentDate: { fontSize: 11, color: 'var(--text-muted, #6B5D54)' },
-  statusBadge: { padding: '4px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600 },
+  statusBadge: { padding: '4px 10px', borderRadius: 10, fontSize: 11, fontWeight: 600 },
 
   scopeRow: { display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 },
   scopeTag: { padding: '3px 8px', borderRadius: 6, background: '#F0E6ED', color: 'var(--accent, #92405e)', fontSize: 11 },
@@ -458,9 +458,9 @@ const S = {
   detailLabel: { fontSize: 12, color: 'var(--text-muted, #6B5D54)' },
   detailValue: { fontSize: 12, fontWeight: 600, color: 'var(--text, #241B17)' },
   actionRow: { display: 'flex', gap: 8, marginTop: 10 },
-  actionBtn: { flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid #F0ECE8', background: 'var(--card, #FFFCF9)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #241B17)' },
+  actionBtn: { flex: 1, padding: '9px 0', borderRadius: 10, border: '1px solid #F0ECE8', background: 'var(--card, #FFFCF9)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #241B17)' },
 
-  gdprCard: { background: '#F9F7F4', borderRadius: 12, padding: 14, marginTop: 4 },
+  gdprCard: { background: '#F9F7F4', borderRadius: 10, padding: 14, marginTop: 4 },
   gdprTitle: { fontSize: 13, fontWeight: 600, color: 'var(--text, #241B17)' },
   gdprText: { fontSize: 12, color: '#8B6F5E', lineHeight: 1.4, margin: '6px 0 0' },
 
@@ -480,15 +480,15 @@ const S = {
   chip: { flex: 1, padding: '10px 0', borderRadius: 10, border: '1px solid #F0ECE8', background: 'var(--bg-card, #FFFCF9)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #241B17)', textAlign: 'center' },
   chipActive: { background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', border: '1px solid #C76B8A' },
   textarea: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #F0ECE8', fontSize: 13, fontFamily: 'inherit', color: 'var(--text-primary, #241B17)', outline: 'none', resize: 'vertical', boxSizing: 'border-box' },
-  saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20 },
+  saveBtn: { width: '100%', padding: '14px 0', borderRadius: 10, border: 'none', background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20 },
   saveBtnBusy: { opacity: 0.6, cursor: 'default' },
 
   actionBtnBusy: { opacity: 0.6, cursor: 'default' },
 
-  toast: { background: '#E8F5E9', color: '#2E7D32', borderRadius: 12, padding: '10px 14px', fontSize: 13, fontWeight: 500, marginBottom: 12 },
+  toast: { background: '#E8F5E9', color: '#2E7D32', borderRadius: 10, padding: '10px 14px', fontSize: 13, fontWeight: 500, marginBottom: 12 },
 
-  errorBanner: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, background: '#FFEBEE', color: '#C62828', borderRadius: 12, padding: '10px 14px', fontSize: 13, fontWeight: 500, marginBottom: 12 },
-  retryBtn: { background: '#C62828', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 },
+  errorBanner: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, background: '#FFEBEE', color: '#C62828', borderRadius: 10, padding: '10px 14px', fontSize: 13, fontWeight: 500, marginBottom: 12 },
+  retryBtn: { background: '#C62828', color: '#fff', border: 'none', borderRadius: 10, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 },
 
   modalError: { background: '#FFEBEE', color: '#C62828', borderRadius: 10, padding: '10px 12px', fontSize: 13, fontWeight: 500, marginTop: 16 },
 };

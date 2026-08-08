@@ -370,7 +370,7 @@ const s = {
   statCard: {
     flex: 1,
     background: 'var(--card-bg, #FFFCF9)',
-    borderRadius: 12,
+    borderRadius: 10,
     padding: '12px 10px',
     display: 'flex',
     flexDirection: 'column',
@@ -387,7 +387,7 @@ const s = {
   },
   tabBadge: {
     fontSize: 10, fontWeight: 700, background: 'var(--border, #E8DDD4)',
-    borderRadius: 8, padding: '1px 6px',
+    borderRadius: 10, padding: '1px 6px',
   },
   templateRow: {
     display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap',
@@ -400,7 +400,7 @@ const s = {
   },
   clientList: { display: 'flex', flexDirection: 'column', gap: 10 },
   clientCard: {
-    background: 'var(--card-bg, #FFFCF9)', borderRadius: 14, padding: 14,
+    background: 'var(--card-bg, #FFFCF9)', borderRadius: 16, padding: 14,
     border: '1px solid var(--border, #E8DDD4)',
   },
   clientTop: {
@@ -408,7 +408,7 @@ const s = {
   },
   clientLeft: { display: 'flex', gap: 10, alignItems: 'center' },
   avatar: {
-    width: 38, height: 38, borderRadius: 19,
+    width: 38, height: 38, borderRadius: 22,
     background: 'linear-gradient(135deg, #C76B8A22, #C76B8A44)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontSize: 14, fontWeight: 700, color: 'var(--accent, #92405e)', flexShrink: 0,
@@ -442,10 +442,10 @@ const s = {
     display: 'flex', alignItems: 'center', gap: 4,
   },
   bulkBtn: {
-    width: '100%', padding: '13px 0', marginTop: 16, borderRadius: 12,
+    width: '100%', padding: '13px 0', marginTop: 16, borderRadius: 10,
     border: 'none', background: 'linear-gradient(135deg, var(--accent, #92405e), var(--accent-hover, #782b49))',
     color: 'var(--bg-card, #FFFCF9)', fontSize: 14, fontWeight: 700, cursor: 'pointer',
-    fontFamily: 'inherit', boxShadow: '0 4px 14px rgba(199,107,138,0.3)',
+    fontFamily: 'inherit', boxShadow: 'var(--elev-2)',
   },
   empty: { textAlign: 'center', padding: '32px 20px' },
   emptyText: { fontSize: 13, color: 'var(--text-muted, #6B5D54)' },
@@ -453,22 +453,22 @@ const s = {
   settingsSection: { display: 'flex', flexDirection: 'column', gap: 12 },
   toggleRow: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    padding: '14px 16px', background: 'var(--card-bg, #FFFCF9)', borderRadius: 14,
+    padding: '14px 16px', background: 'var(--card-bg, #FFFCF9)', borderRadius: 16,
     border: '1px solid var(--border, #E8DDD4)',
   },
   toggleLabel: { display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--text, #241B17)' },
   toggleDesc: { display: 'block', fontSize: 12, color: 'var(--text-muted, #6B5D54)', marginTop: 2 },
   toggle: {
-    width: 44, height: 26, borderRadius: 13, border: 'none',
+    width: 44, height: 26, borderRadius: 16, border: 'none',
     cursor: 'pointer', position: 'relative', flexShrink: 0, transition: 'background 0.2s', background: 'var(--accent, #92405e)',
   },
   toggleThumb: {
-    width: 22, height: 22, borderRadius: 11, background: 'var(--bg-card, #FFFCF9)',
+    width: 22, height: 22, borderRadius: 10, background: 'var(--bg-card, #FFFCF9)',
     position: 'absolute', top: 2, transition: 'transform 0.2s',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+    boxShadow: 'var(--elev-1)',
   },
   settingCard: {
-    background: 'var(--card-bg, #FFFCF9)', borderRadius: 14, padding: 16,
+    background: 'var(--card-bg, #FFFCF9)', borderRadius: 16, padding: 16,
     border: '1px solid var(--border, #E8DDD4)',
   },
   settingLabel: { display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--text, #241B17)', marginBottom: 4 },

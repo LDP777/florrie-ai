@@ -290,7 +290,7 @@ const S = {
 
   toggleWrap: {
     display: 'flex', gap: 0, marginBottom: 16,
-    background: 'var(--bg-subtle, #ede7e3)', borderRadius: 12, padding: 3,
+    background: 'var(--bg-subtle, #ede7e3)', borderRadius: 10, padding: 3,
   },
   toggleBtn: {
     flex: 1, padding: '10px 0', borderRadius: 10, border: 'none',
@@ -300,7 +300,7 @@ const S = {
   },
   toggleActive: {
     background: 'var(--card, #FFFCF9)', color: 'var(--text, #241B17)',
-    boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+    boxShadow: 'var(--elev-1)',
   },
   saveBadge: {
     background: 'var(--success, #3F7D5C)', color: '#fff',
@@ -310,7 +310,7 @@ const S = {
   card: {
     background: 'var(--card, #FFFCF9)', borderRadius: 16, padding: 18,
     border: '2px solid var(--accent, #92405e)', marginBottom: 12,
-    boxShadow: '0 4px 16px rgba(199,107,138,0.12)',
+    boxShadow: 'var(--elev-2)',
   },
   cardHeader: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4,
@@ -331,7 +331,7 @@ const S = {
     color: 'var(--text-muted, #6B5D54)', borderTop: '1px solid var(--border, #E8DDD4)',
   },
   upgradeBtn: {
-    width: '100%', padding: '12px 0', borderRadius: 12, border: 'none',
+    width: '100%', padding: '12px 0', borderRadius: 10, border: 'none',
     background: 'var(--accent, #92405e)', color: '#fff', fontSize: 14, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
@@ -359,13 +359,13 @@ const S = {
 
   urgency: {
     background: 'linear-gradient(135deg, rgba(199,107,138,0.08), rgba(199,107,138,0.15))',
-    borderRadius: 12, padding: 14, marginBottom: 20,
+    borderRadius: 10, padding: 14, marginBottom: 20,
     fontSize: 13, color: 'var(--text, #241B17)', lineHeight: 1.4,
     border: '1px solid rgba(199,107,138,0.2)',
   },
 
   faq: { display: 'flex', flexDirection: 'column', gap: 12 },
-  faqItem: { background: 'var(--card, #FFFCF9)', borderRadius: 12, padding: 14 },
+  faqItem: { background: 'var(--card, #FFFCF9)', borderRadius: 10, padding: 14 },
   faqQ: { fontSize: 14, fontWeight: 600, color: 'var(--text, #241B17)', marginBottom: 4 },
   faqA: { fontSize: 13, color: 'var(--text-secondary, #574A42)', lineHeight: 1.4 },
 

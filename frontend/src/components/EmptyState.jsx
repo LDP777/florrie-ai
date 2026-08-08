@@ -48,7 +48,7 @@ const S = {
   btn: {
     marginTop: 16,
     padding: '10px 20px',
-    borderRadius: 12,
+    borderRadius: 10,
     border: 'none',
     background: 'var(--accent, #92405e)',
     color: '#fff',

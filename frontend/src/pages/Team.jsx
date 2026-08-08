@@ -366,7 +366,7 @@ const styles = {
   addBtn: { padding: '8px 16px', borderRadius: 10, border: 'none', background: 'var(--accent, #92405e)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
 
   // Pricing summary
-  pricingCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 14, padding: 16, marginBottom: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
+  pricingCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: 16, marginBottom: 16, boxShadow: 'var(--elev-1)' },
   pricingRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--bg, #FBF6F1)' },
   pricingLabel: { fontSize: 13, color: 'var(--text-muted)' },
   pricingValue: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #241B17)' },
@@ -376,16 +376,16 @@ const styles = {
   emptyIcon: { fontSize: 48, marginBottom: 12 },
   emptyTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 8px', color: 'var(--text-primary, #241B17)' },
   emptyDesc: { fontSize: 13, color: 'var(--text-muted, var(--text-muted, #6B5D54))', lineHeight: 1.5, margin: '0 0 20px' },
-  emptyBtn: { padding: '12px 24px', borderRadius: 12, border: 'none', background: 'var(--accent, #92405e)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  emptyBtn: { padding: '12px 24px', borderRadius: 10, border: 'none', background: 'var(--accent, #92405e)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
   // Member list
   memberList: { display: 'flex', flexDirection: 'column', gap: 8 },
-  memberCard: { display: 'flex', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, background: 'var(--bg-card, #FFFCF9)', border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', width: '100%' },
-  memberAvatar: { width: 42, height: 42, borderRadius: 21, background: 'linear-gradient(135deg, var(--accent, #92405e) 0%, #D4899F 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 16, flexShrink: 0 },
+  memberCard: { display: 'flex', alignItems: 'center', gap: 12, padding: 14, borderRadius: 16, background: 'var(--bg-card, #FFFCF9)', border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', boxShadow: 'var(--elev-1)', width: '100%' },
+  memberAvatar: { width: 42, height: 42, borderRadius: 22, background: 'linear-gradient(135deg, var(--accent, #92405e) 0%, #D4899F 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 16, flexShrink: 0 },
   memberInfo: { flex: 1, display: 'flex', flexDirection: 'column', gap: 2 },
   memberName: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #241B17)' },
   memberRole: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #6B5D54))' },
-  statusDot: { width: 8, height: 8, borderRadius: 4 },
+  statusDot: { width: 8, height: 8, borderRadius: 6 },
   chevron: { fontSize: 18, color: '#D5D0CB', fontWeight: 300 },
 
   // Modal
@@ -402,7 +402,7 @@ const styles = {
   roleGrid: { display: 'flex', flexDirection: 'column', gap: 8 },
   roleCard: { display: 'flex', flexDirection: 'column', gap: 2, padding: '12px 14px', borderRadius: 10, border: '1.5px solid var(--border, var(--border, #E8DDD4))', cursor: 'pointer', textAlign: 'left', background: 'var(--bg-card, #FFFCF9)', fontFamily: 'inherit' },
   pricingNote: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #6B5D54))', textAlign: 'center', margin: '12px 0 16px', lineHeight: 1.5 },
-  saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #92405e)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  saveBtn: { width: '100%', padding: '14px 0', borderRadius: 10, border: 'none', background: 'var(--accent, #92405e)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
   // Detail modal
   detailSection: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--bg, #FBF6F1)' },
@@ -416,6 +416,6 @@ const styles = {
   actionBtn: { width: '100%', padding: '12px 0', borderRadius: 10, border: '1.5px solid', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
   // Skeleton
-  skeleton: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 14, padding: 20, marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 10 },
-  skeletonLine: { height: 14, borderRadius: 7, background: 'linear-gradient(90deg, var(--bg-hover, #f3ede9) 25%, var(--bg, #FBF6F1) 50%, var(--bg-hover, #f3ede9) 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.5s infinite' },
+  skeleton: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: 20, marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 10 },
+  skeletonLine: { height: 14, borderRadius: 10, background: 'linear-gradient(90deg, var(--bg-hover, #f3ede9) 25%, var(--bg, #FBF6F1) 50%, var(--bg-hover, #f3ede9) 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.5s infinite' },
 };

@@ -993,7 +993,7 @@ export default function BookingPage() {
           </p>
           {/* Patch test prompt, the moment they book a treatment that needs one */}
           {needsPatchTest && success.manageUrl && (
-            <div style={{ marginTop: 16, padding: '14px 16px', borderRadius: 12, background: brandLight, border: `1.5px solid ${brandMedium}`, textAlign: 'left' }}>
+            <div style={{ marginTop: 16, padding: '14px 16px', borderRadius: 10, background: brandLight, border: `1.5px solid ${brandMedium}`, textAlign: 'left' }}>
               <p style={{ fontSize: 14, fontWeight: 700, color: brand, margin: '0 0 4px' }}>One more step: your patch test 🩹</p>
               <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 10px', lineHeight: 1.5 }}>
                 This treatment needs a quick patch test at least 24 hours before your appointment. It only takes a few minutes, tap below to pick a time.
@@ -1014,7 +1014,7 @@ export default function BookingPage() {
             if (!(remaining > 0)) return null;
             const firstName = (clientDetails.name || '').trim().split(' ')[0];
             return (
-              <div style={{ marginTop: 16, padding: '14px 16px', borderRadius: 12, background: brandLight, border: `1.5px solid ${brandMedium}`, textAlign: 'left' }}>
+              <div style={{ marginTop: 16, padding: '14px 16px', borderRadius: 10, background: brandLight, border: `1.5px solid ${brandMedium}`, textAlign: 'left' }}>
                 <p style={{ fontSize: 14, fontWeight: 700, color: brand, margin: '0 0 4px' }}>Pay the rest by bank transfer 🏦</p>
                 <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 10px', lineHeight: 1.5 }}>
                   <strong style={{ color: brand }}>£{remaining.toFixed(2)}</strong> remaining after your deposit. Transfer it to:
@@ -1062,7 +1062,7 @@ export default function BookingPage() {
               <a
                 href={success.manageUrl}
                 style={{ display: 'block', width: '100%', boxSizing: 'border-box',
-                  padding: '13px 0', borderRadius: 12, textAlign: 'center',
+                  padding: '13px 0', borderRadius: 10, textAlign: 'center',
                   background: brandLight, color: brand,
                   fontWeight: 600, fontSize: 15, textDecoration: 'none',
                   border: `1.5px solid ${brand}22`,
@@ -1120,7 +1120,7 @@ export default function BookingPage() {
           <div>
             {/* Returning clients: recognise + one-tap "same again" */}
             {rebookState !== 'matched' && (
-              <div style={{ background: 'var(--tone-2, #f6e7dd)', borderRadius: 14, padding: '12px 14px', marginBottom: 18 }}>
+              <div style={{ background: 'var(--tone-2, #f6e7dd)', borderRadius: 16, padding: '12px 14px', marginBottom: 18 }}>
                 <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 8px' }}>
                   Been here before? Pop your mobile in and skip the form.
                 </p>
@@ -1150,7 +1150,7 @@ export default function BookingPage() {
               </div>
             )}
             {rebookState === 'matched' && rebookMatch && (
-              <div style={{ background: brandLight, borderRadius: 14, padding: '14px 16px', marginBottom: 18 }}>
+              <div style={{ background: brandLight, borderRadius: 16, padding: '14px 16px', marginBottom: 18 }}>
                 <p style={{ fontSize: 15, fontWeight: 700, color: brand, margin: 0, fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" }}>
                   Welcome back, {rebookMatch.client.name.split(' ')[0]}
                 </p>
@@ -1161,7 +1161,7 @@ export default function BookingPage() {
                     </p>
                     <button
                       onClick={rebookSameAgain}
-                      style={{ width: '100%', minHeight: 46, borderRadius: 12, border: 'none', background: brand, color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+                      style={{ width: '100%', minHeight: 46, borderRadius: 10, border: 'none', background: brand, color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
                     >
                       Yes, pick a time
                     </button>
@@ -1289,7 +1289,7 @@ export default function BookingPage() {
                   })}
                 </div>
                 {selectedAddOns.length > 0 && (
-                  <div style={{ marginTop: 10, padding: '8px 12px', borderRadius: 8, background: brandLight, fontSize: 13, fontWeight: 500, color: brand, textAlign: 'center' }}>
+                  <div style={{ marginTop: 10, padding: '8px 12px', borderRadius: 10, background: brandLight, fontSize: 13, fontWeight: 500, color: brand, textAlign: 'center' }}>
                     Total: £{(grandTotalCents / 100).toFixed(2)} · {(selectedTreatment.duration_minutes || 0) + addOnDuration} min
                   </div>
                 )}
@@ -1320,7 +1320,7 @@ export default function BookingPage() {
                           <img
                             src={product.image_url}
                             alt={product.name}
-                            style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover' }}
+                            style={{ width: 44, height: 44, borderRadius: 10, objectFit: 'cover' }}
                           />
                         )}
                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -1363,7 +1363,7 @@ export default function BookingPage() {
                   })}
                 </div>
                 {cartTotalCents > 0 && (
-                  <div style={{ marginTop: 10, padding: '8px 12px', borderRadius: 8, background: brandLight, fontSize: 13, fontWeight: 500, color: brand, textAlign: 'center' }}>
+                  <div style={{ marginTop: 10, padding: '8px 12px', borderRadius: 10, background: brandLight, fontSize: 13, fontWeight: 500, color: brand, textAlign: 'center' }}>
                     Products: £{(cartTotalCents / 100).toFixed(2)} · {cartItems.length} item{cartItems.length !== 1 ? 's' : ''}
                   </div>
                 )}
@@ -1384,7 +1384,7 @@ export default function BookingPage() {
           <div>
             <h2 style={styles.stepTitle}>Pick a date and time</h2>
             {needsPatchTest && (
-              <div style={{ margin: '0 0 12px', padding: '11px 13px', borderRadius: 12, background: brandLight, border: `1px solid ${brandMedium}`, fontSize: 12.5, lineHeight: 1.5, color: 'var(--text-secondary)' }}>
+              <div style={{ margin: '0 0 12px', padding: '11px 13px', borderRadius: 10, background: brandLight, border: `1px solid ${brandMedium}`, fontSize: 12.5, lineHeight: 1.5, color: 'var(--text-secondary)' }}>
                 <strong style={{ color: brand }}>Heads up:</strong> new clients need a quick patch test at least 24 hours before this treatment. Pick a time from tomorrow onwards and we'll set the patch test up right after you book.
               </div>
             )}
@@ -1537,7 +1537,7 @@ export default function BookingPage() {
             <h2 style={styles.stepTitle}>Your details</h2>
             {needsPatchTest && !recognisedClient?.found && selectedSlot &&
               ((new Date(selectedSlot.starts_at).getTime() - Date.now()) / 3600000) < 24 && (
-              <div style={{ margin: '0 0 12px', padding: '11px 13px', borderRadius: 12, background: '#FEF3C7', border: '1px solid #F5D67E', fontSize: 12.5, lineHeight: 1.5, color: '#8A5A00' }}>
+              <div style={{ margin: '0 0 12px', padding: '11px 13px', borderRadius: 10, background: '#FEF3C7', border: '1px solid #F5D67E', fontSize: 12.5, lineHeight: 1.5, color: '#8A5A00' }}>
                 That time is under 24 hours away. As a new client you'll need a quick patch test first, so please <button type="button" onClick={() => setStep(1)} style={{ background: 'none', border: 'none', padding: 0, color: '#8A5A00', fontWeight: 700, textDecoration: 'underline', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5 }}>pick a time from tomorrow onwards</button>.
               </div>
             )}
@@ -1564,7 +1564,7 @@ export default function BookingPage() {
                 {fieldErrors.phone && <span style={styles.fieldErrorText}>{fieldErrors.phone}</span>}
                 {memberInfo && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6,
-                    padding: '6px 10px', borderRadius: 8, background: 'var(--gold-bg, #FFF8E1)',
+                    padding: '6px 10px', borderRadius: 10, background: 'var(--gold-bg, #FFF8E1)',
                     border: '1px solid var(--gold, #8A6420)', fontSize: 12, fontWeight: 500,
                     color: 'var(--gold, #8A6420)',
                   }}><Icon name="star" size={14} inline /> Member, {memberInfo.plan_name}
@@ -1689,7 +1689,7 @@ export default function BookingPage() {
                     <div style={{ display: 'flex', gap: 8 }}>
                       {['Yes', 'No'].map(opt => (
                         <button key={opt} onClick={() => setConsultationAnswers(p => ({ ...p, [q.key]: opt }))}
-                          style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: 'none', fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
+                          style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
                             background: consultationAnswers[q.key] === opt ? brand : '#F0ECE8',
                             color: consultationAnswers[q.key] === opt ? '#fff' : 'var(--text-secondary)'
                           }}>
@@ -1703,7 +1703,7 @@ export default function BookingPage() {
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                       {q.options.map(opt => (
                         <button key={opt} onClick={() => setConsultationAnswers(p => ({ ...p, [q.key]: opt }))}
-                          style={{ padding: '8px 14px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 500,
+                          style={{ padding: '8px 14px', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 500,
                             cursor: 'pointer', fontFamily: 'inherit',
                             background: consultationAnswers[q.key] === opt ? brand : '#F0ECE8',
                             color: consultationAnswers[q.key] === opt ? '#fff' : 'var(--text-secondary)'
@@ -1725,7 +1725,7 @@ export default function BookingPage() {
                               return { ...p, [q.key]: selected ? current.filter(v => v !== opt) : [...current, opt] };
                             });
                           }}
-                            style={{ padding: '8px 14px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 500,
+                            style={{ padding: '8px 14px', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 500,
                               cursor: 'pointer', fontFamily: 'inherit',
                               background: selected ? brand : '#F0ECE8',
                               color: selected ? '#fff' : 'var(--text-secondary)'
@@ -1761,7 +1761,7 @@ export default function BookingPage() {
                   {q.type === 'signature' && (
                     <div>
                       {[...new Set(consultationForms.map(cf => cf.consent_text).filter(Boolean))].map((txt, ci) => (
-                        <p key={`consent-${ci}`} style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.5, padding: '10px 12px', background: 'var(--bg-subtle, #ede7e3)', borderRadius: 8, border: '1px solid var(--border-light)' }}>{txt}</p>
+                        <p key={`consent-${ci}`} style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.5, padding: '10px 12px', background: 'var(--bg-subtle, #ede7e3)', borderRadius: 10, border: '1px solid var(--border-light)' }}>{txt}</p>
                       ))}
                       <input
                         type="text"
@@ -1788,7 +1788,7 @@ export default function BookingPage() {
               })}
             </div>
             {!consultationQuestions.some(q => q.type === 'signature') && [...new Set(consultationForms.map(cf => cf.consent_text).filter(Boolean))].map((txt, ci) => (
-              <p key={`consent-fb-${ci}`} style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.5, padding: '10px 12px', background: 'var(--bg-subtle, #ede7e3)', borderRadius: 8, border: '1px solid var(--border-light)' }}>{txt}</p>
+              <p key={`consent-fb-${ci}`} style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.5, padding: '10px 12px', background: 'var(--bg-subtle, #ede7e3)', borderRadius: 10, border: '1px solid var(--border-light)' }}>{txt}</p>
             ))}
             {showConsultationErrors && missingConsultation.length > 0 && (
               <p style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 600, color: 'var(--danger, #9E2B32)', lineHeight: 1.5 }}>
@@ -1922,7 +1922,7 @@ export default function BookingPage() {
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
                       onClick={() => setPaymentType('deposit')}
-                      style={{ flex: 1, padding: '10px 0', borderRadius: 8, fontSize: 13, fontWeight: 500,
+                      style={{ flex: 1, padding: '10px 0', borderRadius: 10, fontSize: 13, fontWeight: 500,
                         cursor: 'pointer', fontFamily: 'inherit', border: 'none',
                         background: paymentType === 'deposit' ? brand : '#F0ECE8',
                         color: paymentType === 'deposit' ? '#fff' : 'var(--text-secondary)',
@@ -1932,7 +1932,7 @@ export default function BookingPage() {
                     </button>
                     <button
                       onClick={() => setPaymentType('full')}
-                      style={{ flex: 1, padding: '10px 0', borderRadius: 8, fontSize: 13, fontWeight: 500,
+                      style={{ flex: 1, padding: '10px 0', borderRadius: 10, fontSize: 13, fontWeight: 500,
                         cursor: 'pointer', fontFamily: 'inherit', border: 'none',
                         background: paymentType === 'full' ? brand : '#F0ECE8',
                         color: paymentType === 'full' ? '#fff' : 'var(--text-secondary)',
@@ -1965,7 +1965,7 @@ export default function BookingPage() {
                       <button
                         key={m.key}
                         onClick={() => setPaymentMethod(m.key)}
-                        style={{ flex: 1, minWidth: 100, padding: '10px 12px', borderRadius: 8,
+                        style={{ flex: 1, minWidth: 100, padding: '10px 12px', borderRadius: 10,
                           fontSize: 13, fontWeight: 500, cursor: 'pointer',
                           fontFamily: 'inherit', border: 'none',
                           background: paymentMethod === m.key ? brand : '#F0ECE8',
@@ -1990,7 +1990,7 @@ export default function BookingPage() {
             {/* Membership badge */}
             {memberInfo && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12,
-                padding: '8px 12px', borderRadius: 8, background: 'var(--gold-bg, #FFF8E1)',
+                padding: '8px 12px', borderRadius: 10, background: 'var(--gold-bg, #FFF8E1)',
                 border: '1px solid var(--gold, #8A6420)', fontSize: 13, fontWeight: 500,
                 color: 'var(--gold, #8A6420)',
               }}>
@@ -2038,7 +2038,7 @@ export default function BookingPage() {
             {!selectedPackage && <div style={{ marginBottom: 16 }}>
               {appliedDiscount ? (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  padding: '10px 14px', borderRadius: 8, background: 'var(--success-bg, #E9F0EB)',
+                  padding: '10px 14px', borderRadius: 10, background: 'var(--success-bg, #E9F0EB)',
                   border: '1px solid var(--success, #3F7D5C)', fontSize: 13,
                 }}>
                   <span style={{ color: 'var(--success, #3F7D5C)', fontWeight: 600 }}>
@@ -2314,7 +2314,7 @@ const styles = {
     animation: 'spin 0.8s linear infinite'
   },
   header: { textAlign: 'center', paddingTop: 48, paddingBottom: 24 },
-  brandBand: { textAlign: 'center', padding: '36px 20px 28px', marginTop: 24, marginBottom: 20, borderRadius: 18 },
+  brandBand: { textAlign: 'center', padding: '36px 20px 28px', marginTop: 24, marginBottom: 20, borderRadius: 16 },
   brandLogo: { maxHeight: 64, maxWidth: 180, objectFit: 'contain', margin: '0 auto 12px', display: 'block' },
   brandMonogram: { width: 60, height: 60, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', color: '#fff', fontSize: 26, fontWeight: 700, fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" },
   categoryLabel: { fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', margin: '4px 0 10px' },
@@ -2334,7 +2334,7 @@ const styles = {
   treatmentList: { display: 'flex', flexDirection: 'column', gap: 10 },
   treatmentCard: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    padding: '16px 18px', borderRadius: 12, border: '1.5px solid var(--border)',
+    padding: '16px 18px', borderRadius: 10, border: '1.5px solid var(--border)',
     cursor: 'pointer', transition: 'all 0.2s', textAlign: 'left',
     background: 'var(--bg-card)', width: '100%', fontFamily: 'inherit'
   },
@@ -2373,7 +2373,7 @@ const styles = {
   },
   calGrid: { display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 },
   calCell: {
-    aspectRatio: '1 / 1', borderRadius: 12, fontFamily: 'inherit', fontSize: 15,
+    aspectRatio: '1 / 1', borderRadius: 10, fontFamily: 'inherit', fontSize: 15,
     display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
     gap: 3, padding: 0, transition: 'background 0.15s, color 0.15s',
   },
@@ -2402,7 +2402,7 @@ const styles = {
     fontSize: 15, fontFamily: 'inherit', outline: 'none', color: 'var(--text-primary)', background: 'var(--bg-subtle, #ede7e3)'
   },
   summaryCard: {
-    background: 'var(--bg-subtle, #ede7e3)', borderRadius: 12, padding: '4px 18px',
+    background: 'var(--bg-subtle, #ede7e3)', borderRadius: 10, padding: '4px 18px',
     marginBottom: 16, border: '1px solid var(--border)'
   },
   summaryRow: {
@@ -2413,7 +2413,7 @@ const styles = {
   summaryValue: { fontSize: 14, fontWeight: 500, textAlign: 'right' },
   summaryClient: { marginBottom: 20, fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.6 },
   depositBanner: {
-    padding: '10px 14px', borderRadius: 8, fontSize: 13, fontWeight: 500,
+    padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 500,
     marginTop: 8, marginBottom: 8, border: '1px solid', textAlign: 'center'
   },
   buttonRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
@@ -2422,7 +2422,7 @@ const styles = {
     cursor: 'pointer', padding: '10px 0', fontFamily: 'inherit'
   },
   primaryBtn: {
-    padding: '14px 28px', borderRadius: 12, border: 'none', color: '#fff',
+    padding: '14px 28px', borderRadius: 10, border: 'none', color: '#fff',
     fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit'
   },
   successIcon: {
@@ -2451,7 +2451,7 @@ const styles = {
   },
   errorClose: { background: 'none', border: 'none', fontSize: 18, color: 'var(--danger)', cursor: 'pointer' },
   inlineError: {
-    background: 'var(--danger-bg)', border: '1px solid var(--danger)', borderRadius: 8,
+    background: 'var(--danger-bg)', border: '1px solid var(--danger)', borderRadius: 10,
     padding: '10px 12px', marginBottom: 12, fontSize: 13, color: 'var(--danger)'
   },
   fieldErrorText: { display: 'block', fontSize: 12, color: 'var(--danger)', marginTop: 4 },

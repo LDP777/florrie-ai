@@ -303,13 +303,13 @@ const S = {
   quietNote: {
     display: 'flex', alignItems: 'center', gap: 8,
     background: 'var(--tone-2, #f6e7dd)',
-    borderRadius: 14, padding: '12px 14px',
+    borderRadius: 16, padding: '12px 14px',
     fontSize: 13, color: 'var(--text-secondary, #574A42)',
     marginBottom: 16,
   },
   errorNote: {
     background: 'var(--danger-bg, #F7E4E4)',
-    color: '#B4443C', borderRadius: 14,
+    color: '#B4443C', borderRadius: 16,
     padding: '12px 14px', fontSize: 13, marginBottom: 16,
   },
   addButton: {
@@ -322,7 +322,7 @@ const S = {
   },
   formCard: {
     background: 'var(--tone-1, #fbf1ea)',
-    borderRadius: 20, padding: 16, marginBottom: 16,
+    borderRadius: 22, padding: 16, marginBottom: 16,
   },
   formTitleRow: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -336,21 +336,21 @@ const S = {
   },
   select: {
     width: '100%', minHeight: 44, padding: '10px 12px',
-    borderRadius: 14, border: 'none',
+    borderRadius: 16, border: 'none',
     background: 'var(--bg, #FBF6F1)', fontSize: 14,
     fontFamily: 'inherit', color: 'var(--text-primary, #241B17)',
     outline: 'none', boxSizing: 'border-box',
   },
   input: {
     width: '100%', minHeight: 44, padding: '10px 12px',
-    borderRadius: 14, border: 'none',
+    borderRadius: 16, border: 'none',
     background: 'var(--bg, #FBF6F1)', fontSize: 14,
     fontFamily: 'inherit', color: 'var(--text-primary, #241B17)',
     outline: 'none', boxSizing: 'border-box',
   },
   textarea: {
     width: '100%', padding: '10px 12px',
-    borderRadius: 14, border: 'none',
+    borderRadius: 16, border: 'none',
     background: 'var(--bg, #FBF6F1)', fontSize: 14,
     fontFamily: 'inherit', color: 'var(--text-primary, #241B17)',
     outline: 'none', boxSizing: 'border-box', resize: 'vertical',
@@ -366,7 +366,7 @@ const S = {
   },
   emptyCard: {
     background: 'var(--tone-1, #fbf1ea)',
-    borderRadius: 20, padding: '20px 16px',
+    borderRadius: 22, padding: '20px 16px',
     textAlign: 'center', marginBottom: 16,
   },
   emptyText: {
@@ -376,7 +376,7 @@ const S = {
   starterButton: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
     gap: 10, width: '100%', minHeight: 44,
-    padding: '12px 14px', borderRadius: 14, border: 'none',
+    padding: '12px 14px', borderRadius: 16, border: 'none',
     background: 'var(--bg, #FBF6F1)', cursor: 'pointer',
     fontFamily: 'inherit',
     WebkitTapHighlightColor: 'transparent',
@@ -416,7 +416,7 @@ const S = {
   },
   iconButton: {
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    minWidth: 44, minHeight: 44, borderRadius: 12,
+    minWidth: 44, minHeight: 44, borderRadius: 10,
     border: 'none', background: 'transparent', cursor: 'pointer',
     WebkitTapHighlightColor: 'transparent',
   },

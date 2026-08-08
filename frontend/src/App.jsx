@@ -203,7 +203,7 @@ function TrialExpiredScreen({ onSignOut }) {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg, #FBF6F1)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-      <div style={{ maxWidth: 440, width: '100%', background: '#fff', borderRadius: 20, padding: '48px 40px', textAlign: 'center', boxShadow: '0 4px 32px rgba(0,0,0,0.08)' }}>
+      <div style={{ maxWidth: 440, width: '100%', background: '#fff', borderRadius: 22, padding: '48px 40px', textAlign: 'center', boxShadow: 'var(--elev-3)' }}>
         <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'center', color: 'var(--accent, #92405E)' }}>
           <Icon name="flower" size={44} strokeWidth={1.3} />
         </div>
@@ -220,7 +220,7 @@ function TrialExpiredScreen({ onSignOut }) {
             <button
               onClick={startCheckout}
               disabled={starting}
-              style={{ display: 'block', width: '100%', background: 'var(--accent, #92405e)', color: '#fff', border: 'none', borderRadius: 12, padding: '14px 24px', fontSize: 15, fontWeight: 600, cursor: starting ? 'default' : 'pointer', opacity: starting ? 0.7 : 1, marginBottom: 12 }}
+              style={{ display: 'block', width: '100%', background: 'var(--accent, #92405e)', color: '#fff', border: 'none', borderRadius: 10, padding: '14px 24px', fontSize: 15, fontWeight: 600, cursor: starting ? 'default' : 'pointer', opacity: starting ? 0.7 : 1, marginBottom: 12 }}
             >
               {starting ? 'Opening checkout...' : 'Continue for £29 a month'}
             </button>
@@ -720,7 +720,7 @@ function NavTab({ tab, onNav }) {
         />
         {showBadge && (
           <span style={{ position: 'absolute', top: -4, right: -6,
-            minWidth: 16, height: 16, borderRadius: 8,
+            minWidth: 16, height: 16, borderRadius: 10,
             background: '#E85D75', color: '#fff',
             fontSize: 9, fontWeight: 700, lineHeight: '16px',
             textAlign: 'center', padding: '0 3px',
@@ -919,11 +919,11 @@ const styles = {
     backdropFilter: 'blur(16px) saturate(1.3)',
     WebkitBackdropFilter: 'blur(16px) saturate(1.3)',
     border: '1px solid rgba(146, 64, 94, 0.10)',
-    borderRadius: 34,
+    borderRadius: 22,
     padding: '6px 8px',
     zIndex: 100,
     fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
-    boxShadow: '0 6px 22px rgba(146, 64, 94, 0.16)',
+    boxShadow: 'var(--elev-3)',
   },
   navItem: {
     display: 'flex',
@@ -942,7 +942,7 @@ const styles = {
   navDot: {
     width: 4,
     height: 4,
-    borderRadius: 2,
+    borderRadius: 6,
     background: '#92405e',
     position: 'absolute',
     bottom: -1,
@@ -968,7 +968,7 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    boxShadow: '0 4px 12px rgba(146, 64, 94, 0.35)',
+    boxShadow: 'var(--elev-2)',
     border: '3px solid #FBF6F1',
     marginTop: -20,
   },

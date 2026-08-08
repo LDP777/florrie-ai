@@ -486,8 +486,8 @@ const styles = {
   // Stats
   statsBar: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-around',
-    background: 'var(--bg-card, #FFFCF9)', borderRadius: 14, padding: '14px 0',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.04)', marginBottom: 12,
+    background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: '14px 0',
+    boxShadow: 'var(--elev-1)', marginBottom: 12,
   },
   statItem: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
   statNum: { fontSize: 18, fontWeight: 700, color: 'var(--accent, #92405e)' },
@@ -517,8 +517,8 @@ const styles = {
   // Voucher cards
   voucherList: { display: 'flex', flexDirection: 'column', gap: 10 },
   voucherCard: {
-    background: 'var(--bg-card, #FFFCF9)', borderRadius: 14, padding: 14,
-    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+    background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: 14,
+    boxShadow: 'var(--elev-1)',
   },
   voucherTop: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 },
   voucherIcon: {
@@ -530,7 +530,7 @@ const styles = {
   voucherFor: { fontSize: 11, color: 'var(--text-muted, #6B5D54)' },
   statusBadge: { padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, flexShrink: 0 },
   voucherCode: {
-    padding: '8px 12px', borderRadius: 8, background: 'var(--bg, #FBF6F1)',
+    padding: '8px 12px', borderRadius: 10, background: 'var(--bg, #FBF6F1)',
     fontSize: 14, fontWeight: 700, letterSpacing: '0.12em', color: 'var(--accent, #92405e)',
     textAlign: 'center', marginBottom: 6,
   },
@@ -545,23 +545,23 @@ const styles = {
 
   // Create form
   formCard: {
-    background: 'var(--bg-card, #FFFCF9)', borderRadius: 14, padding: 16,
-    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+    background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: 16,
+    boxShadow: 'var(--elev-1)',
   },
   formGroup: { marginBottom: 14 },
   formLabel: { display: 'block', fontSize: 12, color: 'var(--text-muted, #6B5D54)', marginBottom: 6, fontWeight: 500 },
   formInput: {
-    width: '100%', padding: '10px 12px', borderRadius: 8,
+    width: '100%', padding: '10px 12px', borderRadius: 10,
     border: '1.5px solid var(--border, #E8DDD4)', fontSize: 14, fontFamily: 'inherit',
     outline: 'none', boxSizing: 'border-box',
   },
   formTextarea: {
-    width: '100%', padding: '10px 12px', borderRadius: 8,
+    width: '100%', padding: '10px 12px', borderRadius: 10,
     border: '1.5px solid var(--border, #E8DDD4)', fontSize: 14, fontFamily: 'inherit',
     outline: 'none', boxSizing: 'border-box', resize: 'vertical',
   },
   formSelect: {
-    width: '100%', padding: '10px 12px', borderRadius: 8,
+    width: '100%', padding: '10px 12px', borderRadius: 10,
     border: '1.5px solid var(--border, #E8DDD4)', fontSize: 14, fontFamily: 'inherit',
     outline: 'none', background: 'var(--bg-card, #FFFCF9)', boxSizing: 'border-box',
   },
@@ -575,19 +575,19 @@ const styles = {
   typeBtnLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-primary, #241B17)' },
   amountGrid: { display: 'flex', flexWrap: 'wrap', gap: 8 },
   amountChip: {
-    padding: '8px 14px', borderRadius: 8, border: '1.5px solid var(--border, #E8DDD4)',
+    padding: '8px 14px', borderRadius: 10, border: '1.5px solid var(--border, #E8DDD4)',
     fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
   },
   expiryRow: { display: 'flex', gap: 8 },
   expiryChip: {
-    flex: 1, padding: '8px 0', borderRadius: 8, border: '1.5px solid var(--border, #E8DDD4)',
+    flex: 1, padding: '8px 0', borderRadius: 10, border: '1.5px solid var(--border, #E8DDD4)',
     fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center',
   },
 
   // Preview
   previewCard: {
     background: 'linear-gradient(135deg, var(--accent, #92405e) 0%, #E8A0B5 100%)',
-    borderRadius: 14, padding: 20, marginBottom: 14, textAlign: 'center', color: '#fff',
+    borderRadius: 16, padding: 20, marginBottom: 14, textAlign: 'center', color: '#fff',
   },
   previewBrand: { fontSize: 12, opacity: 0.9, marginBottom: 12 },
   previewAmount: { fontSize: 24, fontWeight: 700, marginBottom: 6 },
@@ -616,7 +616,7 @@ const styles = {
   modalTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 14px', color: 'var(--text-primary, #241B17)' },
   redeemInputRow: { display: 'flex', gap: 8, marginBottom: 14 },
   searchBtn: {
-    padding: '10px 16px', borderRadius: 8, border: 'none',
+    padding: '10px 16px', borderRadius: 10, border: 'none',
     background: 'var(--accent, #92405e)', color: '#fff', fontSize: 13, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
@@ -632,12 +632,12 @@ const styles = {
   redeemFoundAmount: { fontSize: 16, fontWeight: 700, color: 'var(--text-primary, #241B17)' },
   redeemFoundDetail: { fontSize: 12, color: 'var(--text-secondary, #574A42)', margin: '2px 0' },
   redeemConfirmBtn: {
-    width: '100%', padding: '10px 0', borderRadius: 8, border: 'none',
+    width: '100%', padding: '10px 0', borderRadius: 10, border: 'none',
     background: 'var(--success, #3F7D5C)', color: '#fff', fontSize: 13, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit', marginTop: 10,
   },
   cancelBtn: {
-    width: '100%', padding: '10px 0', borderRadius: 8, border: 'none',
+    width: '100%', padding: '10px 0', borderRadius: 10, border: 'none',
     background: 'var(--bg-hover, #f3ede9)', color: 'var(--text-secondary, #574A42)', fontSize: 13,
     cursor: 'pointer', fontFamily: 'inherit',
   },

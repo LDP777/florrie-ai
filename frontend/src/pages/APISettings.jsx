@@ -127,8 +127,8 @@ export default function APISettings() {
           <div style={{ ...ds.insightCard, marginTop: 16 }}>
             <span style={{ fontSize: 18 }}><Icon name="lock" size={15} /></span>
             <div style={{ ...type.bodySmall, fontSize: 12, lineHeight: 1.5 }}>
-              All authenticated endpoints require a <code style={{ fontFamily: 'var(--font-mono)', background: 'var(--bg-subtle)', padding: '1px 4px', borderRadius: 4 }}>Bearer</code> token
-              from your Supabase session. Pass it as the <code style={{ fontFamily: 'var(--font-mono)', background: 'var(--bg-subtle)', padding: '1px 4px', borderRadius: 4 }}>Authorization</code> header.
+              All authenticated endpoints require a <code style={{ fontFamily: 'var(--font-mono)', background: 'var(--bg-subtle)', padding: '1px 4px', borderRadius: 6 }}>Bearer</code> token
+              from your Supabase session. Pass it as the <code style={{ fontFamily: 'var(--font-mono)', background: 'var(--bg-subtle)', padding: '1px 4px', borderRadius: 6 }}>Authorization</code> header.
             </div>
           </div>
         </div>
@@ -156,7 +156,7 @@ export default function APISettings() {
                   </button>
                 )}
               </div>
-              <div style={{ background: 'var(--bg-subtle)', borderRadius: 8, padding: '8px 12px', marginBottom: 6,
+              <div style={{ background: 'var(--bg-subtle)', borderRadius: 10, padding: '8px 12px', marginBottom: 6,
                 fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-secondary)',
                 wordBreak: 'break-all',
               }}>
@@ -172,7 +172,7 @@ export default function APISettings() {
             <div style={{ ...type.bodySmall, fontSize: 13, lineHeight: 1.6 }}>
               The florrie.ai API uses Supabase JWT tokens for authentication. When you sign in, your session token is stored locally and passed as a Bearer token on every authenticated API request.
             </div>
-            <div style={{ background: 'var(--bg-subtle)', borderRadius: 8, padding: '10px 12px', marginTop: 10,
+            <div style={{ background: 'var(--bg-subtle)', borderRadius: 10, padding: '10px 12px', marginTop: 10,
               fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.8,
             }}>
               Authorization: Bearer {'<your-supabase-jwt>'}

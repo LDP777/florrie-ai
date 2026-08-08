@@ -133,12 +133,12 @@ const S = {
   sub: { fontSize: 13.5, color: 'var(--text-secondary, #574A42)', margin: '0 0 18px' },
   errorCard: {
     background: 'var(--danger-bg, #F7E4E4)', color: 'var(--danger-text, #9E2B32)',
-    borderRadius: 12, padding: 14, fontSize: 13.5,
+    borderRadius: 10, padding: 14, fontSize: 13.5,
   },
   card: {
     background: 'linear-gradient(150deg, #9b4d6e 0%, #7c3350 55%, #5f2038 100%)',
-    borderRadius: 24, padding: '22px 22px 16px', color: '#fff',
-    boxShadow: '0 10px 34px rgba(124,51,80,0.35)',
+    borderRadius: 22, padding: '22px 22px 16px', color: '#fff',
+    boxShadow: 'var(--elev-3)',
   },
   bloomRow: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 },
   bloom: { fontSize: 20 },
@@ -169,7 +169,7 @@ const S = {
     fontSize: 11, color: 'rgba(255,255,255,0.6)', textAlign: 'center', letterSpacing: '0.04em',
   },
   shareBtn: {
-    width: '100%', marginTop: 16, padding: '15px 0', borderRadius: 14, border: 'none',
+    width: '100%', marginTop: 16, padding: '15px 0', borderRadius: 16, border: 'none',
     background: 'var(--accent, #92405E)', color: '#fff', fontSize: 15, fontWeight: 700,
     cursor: 'pointer', fontFamily: 'inherit',
   },

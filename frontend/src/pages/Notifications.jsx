@@ -269,7 +269,7 @@ const styles = {
   title: { fontSize: 22, fontWeight: 700, margin: '0 0 2px' },
   subtitle: { fontSize: 13, color: 'var(--accent, #92405e)', margin: 0, fontWeight: 500 },
   markAllBtn: {
-    padding: '6px 14px', borderRadius: 8, border: 'none',
+    padding: '6px 14px', borderRadius: 10, border: 'none',
     background: 'var(--accent-light, #F6E7EC)', color: 'var(--accent, #92405e)', fontSize: 11, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
@@ -282,13 +282,13 @@ const styles = {
     gap: 11,
     background: 'var(--bg-card, #FFFCF9)',
     border: '1px solid rgba(146,64,94,0.14)',
-    borderRadius: 14,
+    borderRadius: 16,
     padding: '12px 12px',
     margin: '4px 0 12px',
     cursor: 'pointer',
     fontFamily: 'inherit',
     textAlign: 'left',
-    boxShadow: '0 2px 10px rgba(146,64,94,0.07)',
+    boxShadow: 'var(--elev-2)',
     boxSizing: 'border-box',
   },
   approvalIcon: {
@@ -310,7 +310,7 @@ const styles = {
     scrollbarWidth: 'none',
   },
   filterChip: {
-    padding: '7px 12px', borderRadius: 8, border: '1.5px solid var(--border, var(--border, var(--border, #E8DDD4)))',
+    padding: '7px 12px', borderRadius: 10, border: '1.5px solid var(--border, var(--border, var(--border, #E8DDD4)))',
     fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
     whiteSpace: 'nowrap', flexShrink: 0,
   },
@@ -323,12 +323,12 @@ const styles = {
   },
   notifCard: {
     display: 'flex', alignItems: 'flex-start', gap: 10,
-    padding: '12px 10px', borderRadius: 12, marginBottom: 6,
-    boxShadow: '0 1px 2px rgba(0,0,0,0.03)', cursor: 'pointer',
+    padding: '12px 10px', borderRadius: 10, marginBottom: 6,
+    boxShadow: 'var(--elev-1)', cursor: 'pointer',
     position: 'relative', transition: 'background 0.2s',
   },
   notifIcon: {
-    width: 32, height: 32, borderRadius: 8,
+    width: 32, height: 32, borderRadius: 10,
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     flexShrink: 0,
   },
@@ -338,7 +338,7 @@ const styles = {
   notifTime: { fontSize: 10, color: 'var(--text-muted, #6B5D54)', flexShrink: 0, marginLeft: 8 },
   notifText: { fontSize: 12, color: 'var(--text-muted)', margin: 0, lineHeight: 1.4 },
   unreadDot: {
-    width: 8, height: 8, borderRadius: 4, background: 'var(--accent, #92405e)',
+    width: 8, height: 8, borderRadius: 6, background: 'var(--accent, #92405e)',
     position: 'absolute', top: 14, right: 10, flexShrink: 0,
   },
 

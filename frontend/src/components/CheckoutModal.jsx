@@ -338,10 +338,10 @@ const S = {
   },
   modal: {
     background: '#fff',
-    borderRadius: 20,
+    borderRadius: 22,
     width: '100%', maxWidth: 480,
     maxHeight: '92vh', overflowY: 'auto',
-    boxShadow: '0 24px 64px rgba(146, 64, 94, 0.15), 0 4px 16px rgba(0,0,0,0.1)',
+    boxShadow: 'var(--elev-3)',
     animation: 'scaleIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)',
   },
   header: {
@@ -362,7 +362,7 @@ const S = {
   closeBtn: {
     background: 'none', border: 'none', cursor: 'pointer',
     fontSize: 14, color: 'var(--text-muted)', padding: '6px 8px',
-    borderRadius: 8, fontFamily: 'inherit', lineHeight: 1,
+    borderRadius: 10, fontFamily: 'inherit', lineHeight: 1,
   },
 
   centreWrap: {
@@ -401,11 +401,11 @@ const S = {
 
   payBtn: {
     width: '100%', padding: '14px 0',
-    borderRadius: 12, border: 'none',
+    borderRadius: 10, border: 'none',
     background: 'linear-gradient(135deg, #c76b8a 0%, #92405e 100%)',
     color: '#fff', fontSize: 15, fontWeight: 700,
     cursor: 'pointer', fontFamily: 'inherit',
-    boxShadow: '0 4px 16px rgba(146, 64, 94, 0.3)',
+    boxShadow: 'var(--elev-2)',
     transition: 'opacity 0.15s ease, transform 0.15s ease',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
   },

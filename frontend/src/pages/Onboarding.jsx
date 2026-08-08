@@ -758,14 +758,14 @@ export default function Onboarding({ onComplete }) {
               copy();
             };
             return (
-              <div style={{ background: 'var(--gradient-hero)', borderRadius: 18, padding: 18, color: '#fff', marginBottom: 16, boxShadow: '0 6px 20px rgba(146,64,94,0.22)' }}>
+              <div style={{ background: 'var(--gradient-hero)', borderRadius: 16, padding: 18, color: '#fff', marginBottom: 16, boxShadow: 'var(--elev-2)' }}>
                 <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', opacity: 0.85, marginBottom: 6 }}>Your booking link is live</div>
                 <div style={{ fontSize: 15, fontWeight: 700, wordBreak: 'break-all', marginBottom: 12 }}>florrie.ai/book/{bookingSlug}</div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={copy} style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: 'none', background: 'rgba(255,255,255,0.18)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  <button onClick={copy} style={{ flex: 1, padding: '11px 0', borderRadius: 10, border: 'none', background: 'rgba(255,255,255,0.18)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                     {linkCopied ? 'Copied' : 'Copy link'}
                   </button>
-                  <button onClick={share} style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: 'none', background: '#fff', color: 'var(--accent)', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  <button onClick={share} style={{ flex: 1, padding: '11px 0', borderRadius: 10, border: 'none', background: '#fff', color: 'var(--accent)', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                     Share
                   </button>
                 </div>
@@ -777,7 +777,7 @@ export default function Onboarding({ onComplete }) {
           </p>
           <div style={{ ...styles.planCard,
             border: '1.5px solid var(--accent, #92405e)',
-            boxShadow: '0 2px 12px rgba(199, 107, 138, 0.12)',
+            boxShadow: 'var(--elev-2)',
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <div style={styles.planName}>{PLAN.name}</div>
@@ -1009,7 +1009,7 @@ const styles = {
   progressBar: {
     height: 4,
     background: 'var(--border)',
-    borderRadius: 2,
+    borderRadius: 6,
     marginTop: 20,
     marginBottom: 8,
     overflow: 'hidden'
@@ -1017,7 +1017,7 @@ const styles = {
   progressFill: {
     height: '100%',
     background: 'var(--accent)',
-    borderRadius: 2,
+    borderRadius: 6,
     transition: 'width 0.3s ease'
   },
   stepIndicator: {
@@ -1075,7 +1075,7 @@ const styles = {
   primaryBtn: {
     width: '100%',
     padding: '14px 0',
-    borderRadius: 12,
+    borderRadius: 10,
     border: 'none',
     background: 'var(--accent)',
     color: '#fff',
@@ -1100,7 +1100,7 @@ const styles = {
   // Treatments
   treatmentCard: {
     background: 'var(--bg-card)',
-    borderRadius: 14,
+    borderRadius: 16,
     padding: 16,
     marginBottom: 10,
     boxShadow: 'var(--shadow-sm)'
@@ -1153,7 +1153,7 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     background: 'var(--bg-card)',
-    borderRadius: 12,
+    borderRadius: 10,
     padding: '4px 4px 4px 14px',
     border: '1.5px solid var(--border)'
   },
@@ -1171,14 +1171,14 @@ const styles = {
   // Import
   importGuide: {
     background: 'var(--bg-card)',
-    borderRadius: 12,
+    borderRadius: 10,
     padding: 16,
     marginBottom: 10,
     border: '1.5px solid rgba(199, 107, 138, 0.19)',
   },
   importArea: {
     background: 'var(--bg-card)',
-    borderRadius: 14,
+    borderRadius: 16,
     padding: 20,
     textAlign: 'center',
     marginBottom: 12,
@@ -1219,13 +1219,13 @@ const styles = {
   planCard: {
     background: 'var(--bg-card, #FFFCF9)',
     border: '1.5px solid var(--border)',
-    borderRadius: 14,
+    borderRadius: 16,
     padding: '16px 18px',
     position: 'relative',
   },
   planCardPopular: {
     border: '1.5px solid var(--accent, #92405e)',
-    boxShadow: '0 2px 12px rgba(199, 107, 138, 0.12)',
+    boxShadow: 'var(--elev-2)',
   },
   popularBadge: {
     position: 'absolute',
@@ -1276,7 +1276,7 @@ const styles = {
   pushCard: {
     background: 'var(--bg-card, #FFFCF9)',
     border: '1.5px solid var(--border)',
-    borderRadius: 14,
+    borderRadius: 16,
     padding: '16px 18px',
     marginBottom: 16,
     marginTop: 4,
@@ -1326,7 +1326,7 @@ const styles = {
   messagingCard: {
     background: 'linear-gradient(180deg, rgba(37, 211, 102, 0.06) 0%, var(--bg-card, #FFFCF9) 60%)',
     border: '1.5px solid rgba(37, 211, 102, 0.25)',
-    borderRadius: 14,
+    borderRadius: 16,
     padding: '16px 18px',
     marginBottom: 16,
     marginTop: 4,
@@ -1441,7 +1441,7 @@ const styles = {
     gap: 12,
     width: '100%',
     padding: '12px 14px',
-    borderRadius: 12,
+    borderRadius: 10,
     border: '1px solid var(--border)',
     background: 'var(--bg, #FBF6F1)',
     color: 'var(--text-primary)',
@@ -1482,7 +1482,7 @@ const styles = {
   smsForkPanel: {
     background: 'var(--bg-card, #FFFCF9)',
     border: '1px solid var(--border)',
-    borderRadius: 12,
+    borderRadius: 10,
     padding: '14px 14px 16px',
   },
   smsForkHeadRow: {
@@ -1535,7 +1535,7 @@ const styles = {
     flex: 1,
     width: '100%',
     padding: '10px 12px',
-    borderRadius: 9,
+    borderRadius: 10,
     border: '1px solid var(--border)',
     background: 'var(--bg, #FBF6F1)',
     color: 'var(--text-primary)',
@@ -1556,7 +1556,7 @@ const styles = {
   },
   smsTestBtn: {
     padding: '10px 12px',
-    borderRadius: 9,
+    borderRadius: 10,
     border: '1px solid var(--border)',
     background: 'var(--bg, #FBF6F1)',
     color: 'var(--text-primary)',
@@ -1578,7 +1578,7 @@ const styles = {
     color: 'var(--danger-text, #9E2B32)',
     background: 'var(--danger-bg, rgba(180, 60, 60, 0.08))',
     border: '1px solid var(--danger-border, rgba(180, 60, 60, 0.25))',
-    borderRadius: 8,
+    borderRadius: 10,
     padding: '8px 10px',
     marginBottom: 10,
   },

@@ -255,7 +255,7 @@ export default function Integrations() {
           gap: 12,
           width: '100%',
           padding: '14px 16px',
-          borderRadius: 12,
+          borderRadius: 10,
           border: '1px solid var(--border)',
           background: 'var(--bg-card, #FFFCF9)',
           color: 'var(--text-primary)',
@@ -324,7 +324,7 @@ export default function Integrations() {
               onClick={() => setExpanded(expanded === i ? null : i)}
             >
               <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                <div style={{ width: 44, height: 44, borderRadius: 12,
+                <div style={{ width: 44, height: 44, borderRadius: 10,
                   background: integ.status === 'connected' ? 'var(--success-bg)' : 'var(--bg-subtle)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0,
                 }}>{integ.icon}</div>

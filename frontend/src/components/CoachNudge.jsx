@@ -84,9 +84,9 @@ export default function CoachNudge() {
         maxWidth: 460,
         zIndex: 9999,
         transition: 'transform 0.38s cubic-bezier(0.34, 1.56, 0.64, 1)',
-        borderRadius: 20,
+        borderRadius: 22,
         overflow: 'hidden',
-        boxShadow: '0 12px 40px rgba(0,0,0,0.18)',
+        boxShadow: 'var(--elev-3)',
         fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
       }}
     >
@@ -96,7 +96,7 @@ export default function CoachNudge() {
         {/* Coloured header strip */}
         <div style={{ background: colours.bg, padding: '14px 16px 12px', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
           {/* Icon circle */}
-          <div style={{ width: 38, height: 38, borderRadius: 19,
+          <div style={{ width: 38, height: 38, borderRadius: 22,
             background: 'rgba(255,255,255,0.22)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             flexShrink: 0,
@@ -121,7 +121,7 @@ export default function CoachNudge() {
           {/* Dismiss */}
           <button
             onClick={dismiss}
-            style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 12,
+            style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 10,
               width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center',
               cursor: 'pointer', flexShrink: 0, padding: 0,
             }}

@@ -256,7 +256,7 @@ export default function PriceList() {
                     background: t.bg,
                     border: theme === t.key ? `2px solid ${t.accent}` : `2px solid ${t.border}`,
                   }}>
-                    <div style={{ width: 16, height: 16, borderRadius: 8, background: t.accent }} />
+                    <div style={{ width: 16, height: 16, borderRadius: 10, background: t.accent }} />
                     <span style={{ fontSize: 11, fontWeight: 600, color: t.text }}>{t.label}</span>
                   </button>
                 ))}
@@ -387,7 +387,7 @@ const S = {
   previewSub: { fontSize: 13, margin: 0 },
   catFilterRow: { display: 'flex', gap: 6, overflowX: 'auto', marginBottom: 16, paddingBottom: 4 },
   catChip: {
-    padding: '5px 12px', borderRadius: 20, border: '1px solid var(--border, #E8DDD4)',
+    padding: '5px 12px', borderRadius: 22, border: '1px solid var(--border, #E8DDD4)',
     background: 'transparent', fontSize: 11, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
   },
@@ -414,20 +414,20 @@ const S = {
   themeRow: { display: 'flex', gap: 8, marginBottom: 20 },
   themeBtn: {
     flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-    padding: '12px 8px', borderRadius: 12, cursor: 'pointer', fontFamily: 'inherit',
+    padding: '12px 8px', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit',
   },
   optionRow: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    background: 'var(--bg-card, #FFFCF9)', borderRadius: 12, padding: '12px 14px',
+    background: 'var(--bg-card, #FFFCF9)', borderRadius: 10, padding: '12px 14px',
     marginBottom: 16, cursor: 'pointer',
     border: '1px solid var(--border, #E8DDD4)',
   },
   optionLabel: { fontSize: 14, fontWeight: 500, color: 'var(--text-primary, #241B17)' },
-  toggle: { width: 42, height: 24, borderRadius: 12, position: 'relative', transition: 'background .2s' },
+  toggle: { width: 42, height: 24, borderRadius: 10, position: 'relative', transition: 'background .2s' },
   toggleDot: {
     width: 20, height: 20, borderRadius: 10, background: '#fff',
     position: 'absolute', top: 2, transition: 'transform .2s',
-    boxShadow: '0 1px 3px rgba(0,0,0,.2)',
+    boxShadow: 'var(--elev-1)',
   },
   hint: { fontSize: 12, color: 'var(--text-muted, #6B5D54)', margin: '0 0 8px' },
   treatmentToggle: {
@@ -445,7 +445,7 @@ const S = {
   // Share
   shareCard: {
     display: 'flex', gap: 12, alignItems: 'center',
-    background: 'var(--bg-card, #FFFCF9)', borderRadius: 12, padding: '12px 14px',
+    background: 'var(--bg-card, #FFFCF9)', borderRadius: 10, padding: '12px 14px',
     marginBottom: 8, border: '1px solid var(--border, #E8DDD4)',
   },
   shareIcon: { fontSize: 22 },
@@ -454,14 +454,14 @@ const S = {
   shareLink: { fontSize: 12, color: 'var(--accent, #92405e)', fontWeight: 500 },
   shareSub: { fontSize: 12, color: 'var(--text-muted, #6B5D54)' },
   copyBtn: {
-    padding: '8px 16px', borderRadius: 8, border: 'none',
+    padding: '8px 16px', borderRadius: 10, border: 'none',
     background: 'var(--accent, #92405e)', color: '#fff',
     fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
     minWidth: 64, transition: 'opacity 0.15s',
   },
 
   tipCard: {
-    background: 'var(--bg-subtle, #ede7e3)', borderRadius: 12, padding: 14,
+    background: 'var(--bg-subtle, #ede7e3)', borderRadius: 10, padding: 14,
     display: 'flex', gap: 10, alignItems: 'flex-start', marginTop: 12,
     border: '1px solid var(--border, #E8DDD4)',
   },
@@ -473,8 +473,8 @@ const S = {
     position: 'fixed', bottom: 90, left: '50%', transform: 'translateX(-50%)',
     display: 'flex', alignItems: 'center', gap: 8,
     background: 'var(--text-primary, #241B17)', color: '#fff',
-    padding: '10px 20px', borderRadius: 12,
-    boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+    padding: '10px 20px', borderRadius: 10,
+    boxShadow: 'var(--elev-3)',
     zIndex: 9999, fontSize: 13, fontWeight: 500,
     animation: 'slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
     fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",

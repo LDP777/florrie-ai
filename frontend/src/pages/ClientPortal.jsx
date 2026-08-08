@@ -317,39 +317,39 @@ const s = {
   subtitle: { fontSize: 13, color: 'var(--text-muted)', marginTop: 2 },
   savedBanner: { background: 'var(--success, #3F7D5C)', color: '#fff', borderRadius: 10, padding: '8px 14px', fontSize: 13, fontWeight: 600, marginBottom: 12, textAlign: 'center' },
 
-  linkCard: { background: 'linear-gradient(135deg, #C76B8A 0%, #A85575 100%)', borderRadius: 14, padding: 16, marginBottom: 16, color: '#fff' },
+  linkCard: { background: 'linear-gradient(135deg, #C76B8A 0%, #A85575 100%)', borderRadius: 16, padding: 16, marginBottom: 16, color: '#fff' },
   linkLabel: { fontSize: 11, opacity: 0.8, marginBottom: 6 },
   linkRow: { display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 },
-  linkUrl: { flex: 1, fontSize: 12, background: 'rgba(255,255,255,0.15)', borderRadius: 8, padding: '8px 10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  copyBtn: { padding: '8px 12px', borderRadius: 8, border: 'none', background: 'rgba(255,255,255,0.25)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 },
+  linkUrl: { flex: 1, fontSize: 12, background: 'rgba(255,255,255,0.15)', borderRadius: 10, padding: '8px 10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  copyBtn: { padding: '8px 12px', borderRadius: 10, border: 'none', background: 'rgba(255,255,255,0.25)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 },
   shareRow: { display: 'flex', gap: 8 },
-  shareBtn: { flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid rgba(255,255,255,0.3)', background: 'rgba(255,255,255,0.1)', color: '#fff', fontSize: 11, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
+  shareBtn: { flex: 1, padding: '8px 0', borderRadius: 10, border: '1px solid rgba(255,255,255,0.3)', background: 'rgba(255,255,255,0.1)', color: '#fff', fontSize: 11, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
 
-  tabs: { display: 'flex', gap: 4, marginBottom: 16, background: '#F0ECE8', borderRadius: 12, padding: 4 },
+  tabs: { display: 'flex', gap: 4, marginBottom: 16, background: '#F0ECE8', borderRadius: 10, padding: 4 },
   tab: { flex: 1, padding: '8px 0', fontSize: 12, fontWeight: 500, border: 'none', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', background: 'none', color: '#6B6560' },
-  tabActive: { background: 'var(--bg-card, #FFFCF9)', color: 'var(--text-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' },
+  tabActive: { background: 'var(--bg-card, #FFFCF9)', color: 'var(--text-primary)', boxShadow: 'var(--elev-1)' },
 
   statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 16 },
-  statCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 12, padding: 16, border: '1px solid var(--border, #E8DDD4)', textAlign: 'center' },
+  statCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 10, padding: 16, border: '1px solid var(--border, #E8DDD4)', textAlign: 'center' },
   statValue: { fontSize: 28, fontWeight: 700, color: 'var(--text-primary)' },
   statLabel: { fontSize: 11, color: 'var(--text-muted)', marginTop: 2 },
 
-  card: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 14, padding: 16, border: '1px solid var(--border, #E8DDD4)', marginBottom: 12 },
+  card: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: 16, border: '1px solid var(--border, #E8DDD4)', marginBottom: 12 },
   cardTitle: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 10 },
   apptRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--border-light, #ede7e3)' },
   statusChip: { fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 6, textTransform: 'capitalize' },
 
   textInput: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border, #E8DDD4)', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: 'var(--bg, #FBF6F1)', color: 'var(--text-primary)' },
   colourRow: { display: 'flex', gap: 8 },
-  colourChip: { width: 32, height: 32, borderRadius: 8, cursor: 'pointer', flexShrink: 0 },
+  colourChip: { width: 32, height: 32, borderRadius: 10, cursor: 'pointer', flexShrink: 0 },
   toggleRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
 
-  toggle: { width: 42, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer', position: 'relative', flexShrink: 0, transition: 'background 0.2s' },
-  toggleDot: { width: 20, height: 20, borderRadius: 10, background: '#fff', position: 'absolute', top: 2, left: 2, transition: 'transform 0.2s', boxShadow: '0 1px 2px rgba(0,0,0,0.15)' },
+  toggle: { width: 42, height: 24, borderRadius: 10, border: 'none', cursor: 'pointer', position: 'relative', flexShrink: 0, transition: 'background 0.2s' },
+  toggleDot: { width: 20, height: 20, borderRadius: 10, background: '#fff', position: 'absolute', top: 2, left: 2, transition: 'transform 0.2s', boxShadow: 'var(--elev-1)' },
 
   previewLabel: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 10, marginTop: 4 },
-  phoneFrame: { background: 'var(--text-primary, #241B17)', borderRadius: 24, padding: 8, maxWidth: 240, margin: '0 auto 16px' },
-  phoneScreen: { background: 'var(--bg, #FBF6F1)', borderRadius: 18, minHeight: 220, overflow: 'hidden' },
+  phoneFrame: { background: 'var(--text-primary, #241B17)', borderRadius: 22, padding: 8, maxWidth: 240, margin: '0 auto 16px' },
+  phoneScreen: { background: 'var(--bg, #FBF6F1)', borderRadius: 16, minHeight: 220, overflow: 'hidden' },
 
   featureRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--border-light, #ede7e3)' },
 };

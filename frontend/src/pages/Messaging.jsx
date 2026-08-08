@@ -197,7 +197,7 @@ const styles = {
     gap: 6,
     padding: 4,
     background: 'var(--bg-hover)',
-    borderRadius: 12,
+    borderRadius: 10,
     marginBottom: 4,
   },
   tab: {
@@ -207,7 +207,7 @@ const styles = {
     justifyContent: 'center',
     gap: 6,
     padding: '9px 10px',
-    borderRadius: 9,
+    borderRadius: 10,
     border: 'none',
     background: 'transparent',
     color: 'var(--text-secondary)',
@@ -219,7 +219,7 @@ const styles = {
   tabActive: {
     background: 'var(--bg-card, #FFFCF9)',
     color: 'var(--text-primary)',
-    boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+    boxShadow: 'var(--elev-1)',
   },
   statusDot: {
     width: 7,
@@ -234,7 +234,7 @@ const styles = {
     marginTop: 14,
   },
   channelCard: {
-    borderRadius: 14,
+    borderRadius: 16,
     padding: 16,
     border: '1px solid var(--border)',
     background: 'var(--bg-card, #FFFCF9)',

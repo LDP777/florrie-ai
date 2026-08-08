@@ -428,10 +428,10 @@ const styles = {
     margin: '0 0 4px', letterSpacing: '-0.03em',
     fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)"
   },
-  goldBar: { width: 40, height: 2, background: 'var(--gold, #8A6420)', margin: '12px auto 0', borderRadius: 1 },
+  goldBar: { width: 40, height: 2, background: 'var(--gold, #8A6420)', margin: '12px auto 0', borderRadius: 6 },
   tagline: { fontSize: 14, color: 'var(--text-muted)', margin: 0 },
   form: {
-    background: 'var(--bg-card)', borderRadius: 20, padding: 24,
+    background: 'var(--bg-card)', borderRadius: 22, padding: 24,
     boxShadow: 'var(--shadow-lg)', position: 'relative'
   },
   formTitle: {
@@ -462,17 +462,17 @@ const styles = {
   },
   error: {
     fontSize: 13, color: 'var(--danger)', margin: '0 0 10px',
-    padding: '8px 12px', background: 'var(--danger-bg)', borderRadius: 8
+    padding: '8px 12px', background: 'var(--danger-bg)', borderRadius: 10
   },
   info: {
     fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 10px',
-    padding: '8px 12px', background: 'var(--bg-subtle, #ede7e3)', borderRadius: 8
+    padding: '8px 12px', background: 'var(--bg-subtle, #ede7e3)', borderRadius: 10
   },
   submitBtn: {
-    width: '100%', padding: '14px 0', borderRadius: 12, border: 'none',
+    width: '100%', padding: '14px 0', borderRadius: 10, border: 'none',
     background: 'var(--accent)', color: 'var(--bg-card)', fontSize: 15,
     fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginBottom: 10,
-    boxShadow: '0 2px 8px rgba(199, 107, 138, 0.25)',
+    boxShadow: 'var(--elev-2)',
     transition: 'all 0.15s ease'
   },
   divider: { display: 'flex', alignItems: 'center', gap: 12, margin: '16px 0' },
@@ -482,7 +482,7 @@ const styles = {
   // corner radius matching other buttons (12px). Sits ABOVE Google to meet
   // the at-least-equal-prominence requirement.
   appleBtn: {
-    width: '100%', padding: '12px 0', borderRadius: 12,
+    width: '100%', padding: '12px 0', borderRadius: 10,
     border: '1px solid #000', background: '#000',
     fontSize: 14, fontWeight: 600, cursor: 'pointer',
     fontFamily: '-apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif',
@@ -492,7 +492,7 @@ const styles = {
     letterSpacing: '-0.01em',
   },
   googleBtn: {
-    width: '100%', padding: '12px 0', borderRadius: 12,
+    width: '100%', padding: '12px 0', borderRadius: 10,
     border: '1.5px solid var(--border)', background: 'var(--bg-card)',
     fontSize: 14, fontWeight: 500, cursor: 'pointer',
     fontFamily: 'inherit', color: 'var(--text-primary)',

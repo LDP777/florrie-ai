@@ -768,7 +768,7 @@ const s = {
 
   card: {
     background: 'var(--tone-1, #fbf1ea)',
-    borderRadius: 20,
+    borderRadius: 22,
     padding: 16,
   },
   cardTop: {
@@ -780,7 +780,7 @@ const s = {
   avatar: {
     width: 38,
     height: 38,
-    borderRadius: 19,
+    borderRadius: 22,
     background: 'linear-gradient(135deg, #ffd9e2 0%, #ffb8c8 100%)',
     color: '#92405e',
     display: 'inline-flex',
@@ -843,7 +843,7 @@ const s = {
     flexDirection: 'column',
     gap: 3,
     background: 'var(--bg, #FBF6F1)',
-    borderRadius: 12,
+    borderRadius: 10,
     padding: '9px 12px',
     marginBottom: 10,
     borderLeft: '3px solid var(--accent-light, #F6E7EC)',
@@ -867,7 +867,7 @@ const s = {
     resize: 'vertical',
     minHeight: 80,
     padding: '11px 12px',
-    borderRadius: 12,
+    borderRadius: 10,
     border: 'none',
     background: 'var(--tone-2, #f6e7dd)',
     color: 'var(--text-primary, #241B17)',
@@ -881,7 +881,7 @@ const s = {
   approveBtn: {
     flex: 1,
     padding: '11px 0',
-    borderRadius: 12,
+    borderRadius: 10,
     border: 'none',
     background: 'var(--accent, #92405e)',
     color: '#fff',
@@ -893,7 +893,7 @@ const s = {
   },
   skipBtn: {
     padding: '11px 20px',
-    borderRadius: 12,
+    borderRadius: 10,
     border: 'none',
     background: 'var(--tone-2, #f6e7dd)',
     color: 'var(--text-secondary, #574A42)',
@@ -905,7 +905,7 @@ const s = {
   },
 
   bodyBox: {
-    background: 'var(--tone-2, #f6e7dd)', borderRadius: 12,
+    background: 'var(--tone-2, #f6e7dd)', borderRadius: 10,
     padding: '10px 12px', fontSize: 13, lineHeight: 1.5,
     color: 'var(--text-primary, #241B17)', whiteSpace: 'pre-wrap',
   },
@@ -917,7 +917,7 @@ const s = {
   },
   batchRow: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    background: 'var(--tone-2, #f6e7dd)', borderRadius: 12, padding: '8px 12px', marginTop: 6,
+    background: 'var(--tone-2, #f6e7dd)', borderRadius: 10, padding: '8px 12px', marginTop: 6,
   },
   deckOverlay: {
     position: 'fixed', inset: 0, zIndex: 1000,
@@ -934,8 +934,8 @@ const s = {
   deckBehind: { position: 'absolute', left: '8%', right: '8%', bottom: -10, height: 16, background: 'var(--tone-2, #f6e7dd)', borderRadius: 16, zIndex: 0 },
   deckCard: {
     position: 'relative', zIndex: 1,
-    background: 'var(--tone-1, #fbf1ea)', borderRadius: 24, padding: 20,
-    boxShadow: '0 18px 44px rgba(146,64,94,0.14)',
+    background: 'var(--tone-1, #fbf1ea)', borderRadius: 22, padding: 20,
+    boxShadow: 'var(--elev-3)',
     transition: 'transform 0.26s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.26s',
   },
   deckDone: {
@@ -950,7 +950,7 @@ const s = {
   },
   skelBlock: {
     height: 70,
-    borderRadius: 12,
+    borderRadius: 10,
     background: 'var(--tone-2, #f6e7dd)',
   },
 
@@ -1003,7 +1003,7 @@ const s = {
     fontWeight: 500,
     padding: '10px 18px',
     borderRadius: 999,
-    boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
+    boxShadow: 'var(--elev-2)',
     zIndex: 1000,
     maxWidth: 'calc(100vw - 32px)',
     textAlign: 'center',

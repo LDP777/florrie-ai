@@ -387,7 +387,7 @@ const S = {
   title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #241B17)', margin: '0 0 16px' },
 
   summaryRow: { display: 'flex', gap: 8, marginBottom: 16 },
-  summaryCard: { flex: 1, background: 'var(--card, #FFFCF9)', borderRadius: 12, padding: '14px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
+  summaryCard: { flex: 1, background: 'var(--card, #FFFCF9)', borderRadius: 10, padding: '14px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
   summaryNum: { fontSize: 20, fontWeight: 700, color: 'var(--accent, #92405e)' },
   summaryLabel: { fontSize: 11, color: 'var(--text-muted, #6B5D54)', fontWeight: 500 },
 
@@ -398,15 +398,15 @@ const S = {
   list: { display: 'flex', flexDirection: 'column', gap: 10 },
   empty: { textAlign: 'center', color: 'var(--text-muted, #6B5D54)', fontSize: 14, padding: 32 },
 
-  card: { background: 'var(--card, #FFFCF9)', borderRadius: 14, padding: 14, cursor: 'pointer' },
+  card: { background: 'var(--card, #FFFCF9)', borderRadius: 16, padding: 14, cursor: 'pointer' },
   cardHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   cardLeft: { display: 'flex', gap: 10, alignItems: 'center' },
-  codeBox: { background: 'var(--bg-hover, #f3ede9)', borderRadius: 8, padding: '6px 10px', border: '1px dashed var(--text-muted, #6B5D54)' },
+  codeBox: { background: 'var(--bg-hover, #f3ede9)', borderRadius: 10, padding: '6px 10px', border: '1px dashed var(--text-muted, #6B5D54)' },
   codeText: { fontSize: 13, fontWeight: 700, color: 'var(--accent, #92405e)', letterSpacing: 1, fontFamily: 'monospace' },
   cardInfo: { display: 'flex', flexDirection: 'column', gap: 2 },
   cardDiscount: { fontSize: 14, fontWeight: 600, color: 'var(--text, #241B17)' },
   cardMeta: { fontSize: 12, color: 'var(--text-muted, #6B5D54)' },
-  statusBadge: { padding: '3px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600 },
+  statusBadge: { padding: '3px 10px', borderRadius: 10, fontSize: 11, fontWeight: 600 },
 
   expandedSection: { marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border, #E8DDD4)' },
   codeDesc: { fontSize: 13, color: 'var(--text-secondary, #574A42)', margin: '0 0 10px', fontStyle: 'italic' },
@@ -417,18 +417,18 @@ const S = {
 
   treatmentRow: { marginBottom: 10 },
   treatmentChips: { display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 },
-  treatmentChip: { padding: '4px 10px', borderRadius: 8, background: 'var(--accent-light, #F6E7EC)', color: 'var(--accent, #92405e)', fontSize: 11, fontWeight: 500 },
-  treatmentChipSelect: { padding: '5px 12px', borderRadius: 20, background: 'var(--border, #E8DDD4)', color: 'var(--text-secondary, #574A42)', fontSize: 12, fontWeight: 500, cursor: 'pointer' },
+  treatmentChip: { padding: '4px 10px', borderRadius: 10, background: 'var(--accent-light, #F6E7EC)', color: 'var(--accent, #92405e)', fontSize: 11, fontWeight: 500 },
+  treatmentChipSelect: { padding: '5px 12px', borderRadius: 22, background: 'var(--border, #E8DDD4)', color: 'var(--text-secondary, #574A42)', fontSize: 12, fontWeight: 500, cursor: 'pointer' },
 
   usageBar: { marginBottom: 10 },
-  usageTrack: { height: 6, borderRadius: 3, background: 'var(--border, #E8DDD4)', overflow: 'hidden', marginBottom: 4 },
-  usageFill: { height: '100%', borderRadius: 3, transition: 'width .3s' },
+  usageTrack: { height: 6, borderRadius: 6, background: 'var(--border, #E8DDD4)', overflow: 'hidden', marginBottom: 4 },
+  usageFill: { height: '100%', borderRadius: 6, transition: 'width .3s' },
   usageText: { fontSize: 11, color: 'var(--text-muted, #6B5D54)' },
 
   actionRow: { display: 'flex', gap: 8, marginTop: 8 },
-  actionBtn: { flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid var(--border, #E8DDD4)', background: 'var(--card, #FFFCF9)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text, #241B17)' },
+  actionBtn: { flex: 1, padding: '9px 0', borderRadius: 10, border: '1px solid var(--border, #E8DDD4)', background: 'var(--card, #FFFCF9)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text, #241B17)' },
 
-  fab: { position: 'fixed', bottom: 'calc(env(safe-area-inset-bottom, 0px) + 80px)', left: 20, width: 52, height: 52, borderRadius: 26, background: 'var(--accent, #92405e)', color: '#fff', fontSize: 26, border: 'none', cursor: 'pointer', boxShadow: '0 4px 12px rgba(199,107,138,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit', zIndex: 50 },
+  fab: { position: 'fixed', bottom: 'calc(env(safe-area-inset-bottom, 0px) + 80px)', left: 20, width: 52, height: 52, borderRadius: 22, background: 'var(--accent, #92405e)', color: '#fff', fontSize: 26, border: 'none', cursor: 'pointer', boxShadow: 'var(--elev-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit', zIndex: 50 },
 
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
   modal: { background: 'var(--bg, #FBF6F1)', borderRadius: '18px 18px 0 0', width: '100%', maxWidth: 480, maxHeight: '85vh', overflow: 'auto', padding: '20px 16px 32px' },
@@ -440,8 +440,8 @@ const S = {
   label: { fontSize: 12, fontWeight: 600, color: 'var(--text-muted, #6B5D54)', marginTop: 4 },
   input: { padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, #E8DDD4)', fontSize: 14, fontFamily: 'inherit', color: 'var(--text, #241B17)', background: 'var(--card, #FFFCF9)' },
   typeToggle: { display: 'flex', gap: 8 },
-  typeBtn: { flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid var(--border, #E8DDD4)', background: 'var(--card, #FFFCF9)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-muted, #6B5D54)' },
+  typeBtn: { flex: 1, padding: '8px 0', borderRadius: 10, border: '1px solid var(--border, #E8DDD4)', background: 'var(--card, #FFFCF9)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-muted, #6B5D54)' },
   typeBtnActive: { background: 'var(--accent, #92405e)', color: '#fff', border: '1px solid var(--accent, #92405e)' },
 
-  saveBtn: { marginTop: 16, width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #92405e)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  saveBtn: { marginTop: 16, width: '100%', padding: '14px 0', borderRadius: 10, border: 'none', background: 'var(--accent, #92405e)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 };

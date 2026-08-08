@@ -220,7 +220,7 @@ export default function ClientMemberships() {
                     <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text, #241B17)' }}>{member.name}</div>
                     <div style={{ fontSize: 12, color: plan?.color || 'var(--text-muted, #6B5D54)', fontWeight: 600 }}>{plan?.name || 'Unknown plan'}</div>
                   </div>
-                  <span style={{ padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 600, background: sc.bg, color: sc.color }}>
+                  <span style={{ padding: '3px 10px', borderRadius: 10, fontSize: 11, fontWeight: 600, background: sc.bg, color: sc.color }}>
                     {member.status}
                   </span>
                 </div>
@@ -265,17 +265,17 @@ const s = {
   tab: { flex: 1, padding: '10px 0', border: 'none', background: 'none', fontSize: 13, fontWeight: 500, cursor: 'pointer', color: 'var(--text-muted, #6B5D54)', fontFamily: 'inherit' },
   tabActive: { background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)' },
   planList: { display: 'flex', flexDirection: 'column', gap: 12 },
-  planCard: { padding: 16, borderRadius: 14, background: 'var(--card-bg, #FFFCF9)', border: '1px solid var(--card-border, #E8DDD4)' },
+  planCard: { padding: 16, borderRadius: 16, background: 'var(--card-bg, #FFFCF9)', border: '1px solid var(--card-border, #E8DDD4)' },
   planHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   perkList: { display: 'flex', flexDirection: 'column', gap: 6 },
   perkItem: { display: 'flex', alignItems: 'center', gap: 8 },
   addBtn: { padding: '14px', borderRadius: 10, border: '2px dashed var(--card-border, #E8DDD4)', background: 'none', fontSize: 14, fontWeight: 600, color: 'var(--accent, #92405e)', cursor: 'pointer', fontFamily: 'inherit' },
-  formCard: { padding: 16, borderRadius: 12, background: 'var(--card-bg, #FFFCF9)', border: '1px solid var(--card-border, #E8DDD4)' },
-  input: { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--card-border, #E8DDD4)', fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box', background: 'var(--card-bg, #FFFCF9)', color: 'var(--text, #241B17)' },
-  primaryBtn: { padding: '10px 20px', borderRadius: 8, border: 'none', background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  ghostBtn: { padding: '10px 20px', borderRadius: 8, border: '1px solid var(--card-border, #E8DDD4)', background: 'none', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-muted, #6B5D54)' },
+  formCard: { padding: 16, borderRadius: 10, background: 'var(--card-bg, #FFFCF9)', border: '1px solid var(--card-border, #E8DDD4)' },
+  input: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--card-border, #E8DDD4)', fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box', background: 'var(--card-bg, #FFFCF9)', color: 'var(--text, #241B17)' },
+  primaryBtn: { padding: '10px 20px', borderRadius: 10, border: 'none', background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  ghostBtn: { padding: '10px 20px', borderRadius: 10, border: '1px solid var(--card-border, #E8DDD4)', background: 'none', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-muted, #6B5D54)' },
   memberList: { display: 'flex', flexDirection: 'column', gap: 10 },
-  memberCard: { padding: '14px 12px', borderRadius: 12, background: 'var(--card-bg, #FFFCF9)', border: '1px solid var(--card-border, #E8DDD4)', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%' },
+  memberCard: { padding: '14px 12px', borderRadius: 10, background: 'var(--card-bg, #FFFCF9)', border: '1px solid var(--card-border, #E8DDD4)', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%' },
   memberTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   detailRow: { display: 'flex', justifyContent: 'space-between', padding: '4px 0', color: 'var(--text, #241B17)' },
   detailLabel: { color: 'var(--text-muted, #6B5D54)' },

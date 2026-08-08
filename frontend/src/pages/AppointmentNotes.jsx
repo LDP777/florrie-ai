@@ -295,16 +295,16 @@ const S = {
   page: { padding: '20px 16px 32px', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 480, margin: '0 auto' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   title: { fontSize: 22, fontWeight: 700, color: 'var(--text, var(--text-primary, #241B17))', margin: 0 },
-  addBtn: { background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', border: 'none', borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  addBtn: { background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', border: 'none', borderRadius: 22, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
   // Client flags overview
   flagsOverview: { display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 },
-  flagCard: { background: 'var(--card, #FFFCF9)', borderRadius: 12, padding: 12 },
+  flagCard: { background: 'var(--card, #FFFCF9)', borderRadius: 10, padding: 12 },
   flagCardHeader: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 },
   flagClient: { fontSize: 14, fontWeight: 600, color: 'var(--text, var(--text-primary, #241B17))', flex: 1 },
   flagCount: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #6B5D54))' },
   flagTags: { display: 'flex', flexWrap: 'wrap', gap: 6 },
-  flagTag: { padding: '4px 10px', borderRadius: 8, background: '#FFF5E6', color: 'var(--gold, #8A6420)', fontSize: 11, fontWeight: 500 },
+  flagTag: { padding: '4px 10px', borderRadius: 10, background: '#FFF5E6', color: 'var(--gold, #8A6420)', fontSize: 11, fontWeight: 500 },
 
   avatar: { width: 32, height: 32, borderRadius: 16, background: '#F0E6ED', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600, color: 'var(--accent, #92405e)', flexShrink: 0 },
 
@@ -314,7 +314,7 @@ const S = {
 
   // Notes list
   notesList: { display: 'flex', flexDirection: 'column', gap: 10 },
-  noteCard: { background: 'var(--card, #FFFCF9)', borderRadius: 14, padding: 14, cursor: 'pointer' },
+  noteCard: { background: 'var(--card, #FFFCF9)', borderRadius: 16, padding: 14, cursor: 'pointer' },
   noteHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' },
   noteLeft: { display: 'flex', gap: 10, alignItems: 'center' },
   noteInfo: { display: 'flex', flexDirection: 'column', gap: 2 },
@@ -331,12 +331,12 @@ const S = {
   section: { marginBottom: 12 },
   sectionLabel: { fontSize: 11, fontWeight: 700, color: 'var(--text-muted, var(--text-muted, #6B5D54))', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 6 },
   chipRow: { display: 'flex', flexWrap: 'wrap', gap: 6 },
-  productChip: { padding: '4px 10px', borderRadius: 8, background: 'var(--border, var(--border, var(--border, #E8DDD4)))', color: 'var(--text-secondary, #574A42)', fontSize: 12 },
-  flagChip: { padding: '4px 10px', borderRadius: 8, background: '#FFF5E6', color: 'var(--gold, #8A6420)', fontSize: 12 },
+  productChip: { padding: '4px 10px', borderRadius: 10, background: 'var(--border, var(--border, var(--border, #E8DDD4)))', color: 'var(--text-secondary, #574A42)', fontSize: 12 },
+  flagChip: { padding: '4px 10px', borderRadius: 10, background: '#FFF5E6', color: 'var(--gold, #8A6420)', fontSize: 12 },
   metaRow: { display: 'flex', gap: 16, marginBottom: 12 },
   metaItem: { fontSize: 13, color: 'var(--accent, #92405e)' },
   actionRow: { display: 'flex', gap: 8 },
-  actionBtn: { flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', background: 'var(--card, #FFFCF9)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #241B17)' },
+  actionBtn: { flex: 1, padding: '8px 0', borderRadius: 10, border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', background: 'var(--card, #FFFCF9)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #241B17)' },
 
   // Modal
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 960, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
@@ -348,5 +348,5 @@ const S = {
   textarea: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary, #241B17)', outline: 'none', resize: 'vertical', boxSizing: 'border-box' },
   ratingRow: { display: 'flex', gap: 8 },
   starBtn: { background: 'none', border: 'none', fontSize: 28, cursor: 'pointer', padding: 0 },
-  saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20 },
+  saveBtn: { width: '100%', padding: '14px 0', borderRadius: 10, border: 'none', background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20 },
 };

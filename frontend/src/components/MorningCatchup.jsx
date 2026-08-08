@@ -285,7 +285,7 @@ const MC = {
     zIndex: 1101,
     maxWidth: 480,
     margin: '0 auto',
-    boxShadow: '0 -10px 40px rgba(146,64,94,0.18)',
+    boxShadow: 'var(--elev-3)',
     fontFamily: "'Plus Jakarta Sans', sans-serif",
     animation: 'mcSlideUp 0.28s ease-out',
   },
@@ -293,7 +293,7 @@ const MC = {
     width: 42,
     height: 4,
     background: '#E0D6CF',
-    borderRadius: 2,
+    borderRadius: 6,
     margin: '0 auto 14px',
   },
   heading: {
@@ -322,7 +322,7 @@ const MC = {
     gap: 12,
     background: '#fff',
     border: '1px solid rgba(146,64,94,0.08)',
-    borderRadius: 14,
+    borderRadius: 16,
     padding: '12px 14px',
   },
   rowClickable: {
@@ -362,14 +362,14 @@ const MC = {
     background: '#92405e',
     color: '#fff',
     border: 'none',
-    borderRadius: 14,
+    borderRadius: 16,
     padding: '14px 16px',
     fontSize: 15,
     fontWeight: 700,
     fontFamily: 'inherit',
     cursor: 'pointer',
     WebkitTapHighlightColor: 'transparent',
-    boxShadow: '0 4px 14px rgba(146,64,94,0.22)',
+    boxShadow: 'var(--elev-2)',
   },
 };
 

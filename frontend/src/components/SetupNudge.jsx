@@ -92,7 +92,7 @@ const S = {
     alignItems: 'center',
     gap: 10,
     background: 'var(--tone-1, #fbf1ea)',
-    borderRadius: 20,
+    borderRadius: 22,
     padding: '11px 12px 11px 14px',
     marginBottom: 14,
     cursor: 'pointer',

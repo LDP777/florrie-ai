@@ -163,7 +163,7 @@ export default function BusinessProfile() {
       <div style={{ ...s.heroCard, background: `linear-gradient(135deg, ${brandColor}, ${brandColor}CC)` }}>
         <div style={s.heroLogo}>
           {logoPreview ? (
-            <img src={logoPreview} alt="Logo" style={{ width: 48, height: 48, borderRadius: 24, objectFit: 'cover' }} />
+            <img src={logoPreview} alt="Logo" style={{ width: 48, height: 48, borderRadius: 22, objectFit: 'cover' }} />
           ) : (
             <span style={s.heroInitial}>{businessName[0] || 'F'}</span>
           )}
@@ -244,7 +244,7 @@ export default function BusinessProfile() {
             <div style={s.logoUpload}>
               <div style={s.logoPlaceholder}>
                 {logoPreview ? (
-                  <img src={logoPreview} alt="Logo" style={{ width: 64, height: 64, borderRadius: 12, objectFit: 'cover' }} />
+                  <img src={logoPreview} alt="Logo" style={{ width: 64, height: 64, borderRadius: 10, objectFit: 'cover' }} />
                 ) : (
                   <span style={s.logoIcon}><Icon name="camera" size={15} /></span>
                 )}
@@ -287,7 +287,7 @@ export default function BusinessProfile() {
             <div style={s.brandPreview}>
               <div style={{ ...s.previewBar, background: brandColor, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {logoPreview
-                  ? <img src={logoPreview} alt="" style={{ width: 28, height: 28, borderRadius: 7, objectFit: 'cover' }} />
+                  ? <img src={logoPreview} alt="" style={{ width: 28, height: 28, borderRadius: 10, objectFit: 'cover' }} />
                   : <span style={{ color: '#fff', fontWeight: 700, fontSize: 13 }}>{businessName || 'Your Business'}</span>}
               </div>
               <div style={s.previewContent}>
@@ -421,7 +421,7 @@ const s = {
   heroLogo: {
     width: 56,
     height: 56,
-    borderRadius: 28,
+    borderRadius: 22,
     background: 'rgba(255,255,255,0.25)',
     display: 'flex',
     alignItems: 'center',
@@ -467,7 +467,7 @@ const s = {
   },
   card: {
     background: 'var(--card-bg, #FFFCF9)',
-    borderRadius: 14,
+    borderRadius: 16,
     padding: 16,
     border: '1px solid var(--border, #E8DDD4)',
   },
@@ -486,7 +486,7 @@ const s = {
   },
   fieldGroup: {
     background: 'var(--card-bg, #FFFCF9)',
-    borderRadius: 14,
+    borderRadius: 16,
     padding: '12px 16px',
     border: '1px solid var(--border, #E8DDD4)',
   },
@@ -539,7 +539,7 @@ const s = {
   colourDot: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: 16,
     cursor: 'pointer',
     transition: 'transform 0.15s',
   },
@@ -576,7 +576,7 @@ const s = {
   logoPlaceholder: {
     width: 72,
     height: 72,
-    borderRadius: 14,
+    borderRadius: 16,
     background: 'var(--bg, var(--bg, #FBF6F1))',
     border: '2px dashed var(--border, #E8DDD4)',
     display: 'flex',
@@ -633,7 +633,7 @@ const s = {
   },
   previewButton: {
     padding: '6px 14px',
-    borderRadius: 8,
+    borderRadius: 10,
     color: 'var(--bg-card, #FFFCF9)',
     fontSize: 12,
     fontWeight: 600,
@@ -644,7 +644,7 @@ const s = {
     gap: 12,
     padding: '12px 14px',
     background: 'var(--card-bg, #FFFCF9)',
-    borderRadius: 14,
+    borderRadius: 16,
     border: '1px solid var(--border, #E8DDD4)',
   },
   socialIcon: { fontSize: 22 },
@@ -688,7 +688,7 @@ const s = {
   },
   copyBtn: {
     padding: '6px 14px',
-    borderRadius: 8,
+    borderRadius: 10,
     border: '1px solid var(--accent, #92405e)',
     background: 'transparent',
     color: 'var(--accent, #92405e)',
@@ -715,7 +715,7 @@ const s = {
     color: 'var(--text, #241B17)',
   },
   bookingPreview: {
-    borderRadius: 12,
+    borderRadius: 10,
     overflow: 'hidden',
     border: '1px solid var(--border, #E8DDD4)',
     marginTop: 8,
@@ -769,7 +769,7 @@ const s = {
     width: '100%',
     padding: '14px 0',
     marginTop: 20,
-    borderRadius: 12,
+    borderRadius: 10,
     border: 'none',
     background: 'linear-gradient(135deg, var(--accent, #92405e), var(--accent-hover, #782b49))',
     color: 'var(--bg-card, #FFFCF9)',
@@ -777,6 +777,6 @@ const s = {
     fontWeight: 700,
     cursor: 'pointer',
     fontFamily: 'inherit',
-    boxShadow: '0 4px 14px rgba(199,107,138,0.3)',
+    boxShadow: 'var(--elev-2)',
   },
 };

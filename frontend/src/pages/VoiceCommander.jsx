@@ -80,7 +80,7 @@ function ProposalCard({ prop, onDone }) {
     // "Leave it" used to set this to 'done', so declining a send told her it
     // had happened. Two outcomes, two words.
     return (
-      <div style={{ marginTop: 8, padding: '10px 14px', borderRadius: 14, background: 'var(--tone-2, #f6e7dd)', fontSize: 13, fontWeight: 600, color: state === 'done' ? 'var(--accent, #92405e)' : 'var(--text-secondary, #574A42)' }}>
+      <div style={{ marginTop: 8, padding: '10px 14px', borderRadius: 16, background: 'var(--tone-2, #f6e7dd)', fontSize: 13, fontWeight: 600, color: state === 'done' ? 'var(--accent, #92405e)' : 'var(--text-secondary, #574A42)' }}>
         {state === 'done' ? 'Done ✓' : 'Left it'}
       </div>
     );
@@ -93,14 +93,14 @@ function ProposalCard({ prop, onDone }) {
         <button
           onClick={confirm}
           disabled={state === 'running'}
-          style={{ flex: 1, minHeight: 42, borderRadius: 12, border: 'none', background: 'var(--accent, #92405e)', color: '#fff', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: state === 'running' ? 0.6 : 1 }}
+          style={{ flex: 1, minHeight: 42, borderRadius: 10, border: 'none', background: 'var(--accent, #92405e)', color: '#fff', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: state === 'running' ? 0.6 : 1 }}
         >
           {state === 'running' ? 'Doing it…' : 'Yes, do it'}
         </button>
         {state === 'idle' && (
           <button
             onClick={() => setState('dismissed')}
-            style={{ minHeight: 42, padding: '0 16px', borderRadius: 12, border: 'none', background: 'var(--tone-2, #f6e7dd)', color: 'var(--text-secondary, #574A42)', fontSize: 13.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+            style={{ minHeight: 42, padding: '0 16px', borderRadius: 10, border: 'none', background: 'var(--tone-2, #f6e7dd)', color: 'var(--text-secondary, #574A42)', fontSize: 13.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
           >
             Leave it
           </button>
@@ -178,7 +178,7 @@ function ConsultationCard({ consultation, count = 1, clientName }) {
               ...(pair.worth_knowing ? {
                 background: 'var(--tone-2, #f6e7dd)',
                 borderLeft: '3px solid var(--accent, #92405e)',
-                borderRadius: 8,
+                borderRadius: 10,
                 marginTop: 4,
               } : {}),
             }}>
@@ -951,12 +951,12 @@ const styles = {
   },
   msgRow: { display: 'flex', gap: 8, alignItems: 'flex-end' },
   agentAvatar: {
-    width: 30, height: 30, borderRadius: 15, background: 'var(--accent-light)',
+    width: 30, height: 30, borderRadius: 16, background: 'var(--accent-light)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     flexShrink: 0,
   },
   bubble: {
-    maxWidth: '82%', borderRadius: 20, padding: '11px 15px',
+    maxWidth: '82%', borderRadius: 22, padding: '11px 15px',
     animation: 'fadeIn 0.2s ease',
   },
   userBubble: {
@@ -977,7 +977,7 @@ const styles = {
   multiStepBadge: {
     display: 'inline-flex', alignItems: 'center', gap: 4,
     fontSize: 10, fontWeight: 600, opacity: 0.65, marginTop: 4,
-    padding: '2px 6px', borderRadius: 4,
+    padding: '2px 6px', borderRadius: 6,
     background: 'var(--accent-light)', color: 'var(--accent)',
   },
   actionBtn: {
@@ -1033,7 +1033,7 @@ const styles = {
     gap: 8, paddingTop: 24, paddingBottom: 8, position: 'relative',
   },
   petalBtn: {
-    width: 84, height: 84, borderRadius: 42, border: 'none',
+    width: 84, height: 84, borderRadius: 22, border: 'none',
     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
     transition: 'transform 0.15s ease, box-shadow 0.2s ease',
     WebkitTapHighlightColor: 'transparent',
@@ -1043,7 +1043,7 @@ const styles = {
   },
   recordingRipple: {
     position: 'absolute',
-    width: 92, height: 92, borderRadius: 46,
+    width: 92, height: 92, borderRadius: 22,
     border: '2px solid rgba(212,96,92,0.4)',
     animation: 'ripple 1.4s ease-out infinite',
     pointerEvents: 'none',
@@ -1056,7 +1056,7 @@ const styles = {
     marginTop: 10,
   },
   interimBar: {
-    padding: '8px 14px', marginBottom: 8, borderRadius: 14,
+    padding: '8px 14px', marginBottom: 8, borderRadius: 16,
     background: 'var(--tone-2, #f6e7dd)', fontSize: 13,
     color: 'var(--text-secondary)', fontStyle: 'italic',
   },
@@ -1067,7 +1067,7 @@ const styles = {
     background: 'var(--danger-bg)',
   },
   recordingDot: {
-    width: 8, height: 8, borderRadius: 4, background: 'var(--danger)',
+    width: 8, height: 8, borderRadius: 6, background: 'var(--danger)',
     animation: 'pulse 1s ease infinite',
   },
   recordingText: { fontSize: 12, fontWeight: 600, color: 'var(--danger)', flex: 1 },

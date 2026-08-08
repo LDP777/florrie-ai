@@ -297,7 +297,7 @@ function WeekGrid({ days, apptsOn, blocksOn = () => [], onPickDay, onOpenAppt = 
                       style={{ position: 'absolute', left: 1, right: 1, top: Math.max(0, top), height,
                         background: 'repeating-linear-gradient(45deg, rgba(146,64,94,0.08) 0px, rgba(146,64,94,0.08) 5px, rgba(146,64,94,0.02) 5px, rgba(146,64,94,0.02) 10px)',
                         borderLeft: '3px solid rgba(146,64,94,0.45)',
-                        borderRadius: 4, zIndex: 1, pointerEvents: 'none',
+                        borderRadius: 6, zIndex: 1, pointerEvents: 'none',
                         display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 4,
                       }}
                     >
@@ -523,14 +523,14 @@ const S = {
   navBtn: { width: 36, height: 36, borderRadius: 10, border: `1px solid ${C.line}`, background: C.card, color: C.muted, fontSize: 22, lineHeight: 1, cursor: 'pointer' },
   todayBtn: { height: 36, padding: '0 14px', borderRadius: 10, border: `1px solid ${C.line}`, background: C.card, color: C.text, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   rangeLabel: { marginLeft: 6, fontSize: 'clamp(15px, 2vw, 19px)', fontWeight: 700, fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" },
-  viewToggle: { display: 'flex', gap: 3, background: C.card, borderRadius: 12, padding: 3, border: `1px solid ${C.line}` },
-  toggleBtn: { padding: '7px 18px', borderRadius: 9, border: 'none', background: 'transparent', color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  viewToggle: { display: 'flex', gap: 3, background: C.card, borderRadius: 10, padding: 3, border: `1px solid ${C.line}` },
+  toggleBtn: { padding: '7px 18px', borderRadius: 10, border: 'none', background: 'transparent', color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   toggleOn: { background: C.accent, color: '#fff' },
 
   loading: { padding: '40px 0', textAlign: 'center', color: C.muted, fontSize: 14 },
 
   // Week grid
-  weekWrap: { background: C.card, borderRadius: 18, boxShadow: '0 10px 30px rgba(146, 64, 94, 0.06)', overflow: 'hidden' },
+  weekWrap: { background: C.card, borderRadius: 16, boxShadow: 'var(--elev-3)', overflow: 'hidden' },
   weekHeadRow: { display: 'grid', gridTemplateColumns: '52px repeat(7, 1fr)', borderBottom: `1px solid ${C.line}` },
   weekHeadSpacer: {},
   weekHeadCell: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, padding: '10px 2px', border: 'none', borderLeft: `1px solid ${C.lineSoft}`, background: 'transparent', cursor: 'pointer', fontFamily: 'inherit' },
@@ -544,13 +544,13 @@ const S = {
   timeLabel: { position: 'absolute', right: 6, fontSize: 10, fontWeight: 700, color: C.muted, transform: 'translateY(-6px)' },
   dayCol: { position: 'relative', borderLeft: `1px solid ${C.lineSoft}` },
   hourLine: { position: 'absolute', left: 0, right: 0, height: 1, background: C.lineSoft },
-  event: { position: 'absolute', borderRadius: 7, padding: '3px 5px', overflow: 'hidden', boxSizing: 'border-box', cursor: 'pointer', textAlign: 'left', font: 'inherit', appearance: 'none', WebkitAppearance: 'none' },
+  event: { position: 'absolute', borderRadius: 10, padding: '3px 5px', overflow: 'hidden', boxSizing: 'border-box', cursor: 'pointer', textAlign: 'left', font: 'inherit', appearance: 'none', WebkitAppearance: 'none' },
   eventTime: { fontSize: 9, fontWeight: 700 },
   eventName: { fontSize: 11, fontWeight: 700, color: C.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
   eventTreat: { fontSize: 9, color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
 
   // Month grid
-  monthWrap: { background: C.card, borderRadius: 18, padding: 12, boxShadow: '0 10px 30px rgba(146, 64, 94, 0.06)' },
+  monthWrap: { background: C.card, borderRadius: 16, padding: 12, boxShadow: 'var(--elev-3)' },
   monthDowRow: { display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', marginBottom: 6 },
   monthDow: { textAlign: 'center', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: C.muted, padding: '4px 0' },
   monthGrid: { display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5 },
@@ -571,7 +571,7 @@ const S = {
 
   // Sync sheet
   overlay: { position: 'fixed', inset: 0, background: 'rgba(40, 20, 28, 0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, zIndex: 1000 },
-  sheet: { width: '100%', maxWidth: 460, maxHeight: '90vh', overflowY: 'auto', background: C.card, borderRadius: 20, padding: 22, boxShadow: '0 24px 60px rgba(40, 20, 28, 0.3)' },
+  sheet: { width: '100%', maxWidth: 460, maxHeight: '90vh', overflowY: 'auto', background: C.card, borderRadius: 22, padding: 22, boxShadow: 'var(--elev-3)' },
   sheetHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
   sheetTitle: { fontSize: 20, fontWeight: 700, margin: 0, fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" },
   sheetClose: { background: 'none', border: 'none', fontSize: 26, lineHeight: 1, color: C.muted, cursor: 'pointer' },
@@ -582,8 +582,8 @@ const S = {
   linkBlock: { marginBottom: 18 },
   linkLabel: { fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: C.muted },
   linkRow: { display: 'flex', gap: 8, marginTop: 8 },
-  linkInput: { flex: 1, minWidth: 0, padding: '9px 11px', borderRadius: 9, border: `1px solid ${C.line}`, background: C.bg, fontSize: 12, color: C.text, fontFamily: 'inherit' },
-  copyBtn: { padding: '0 14px', borderRadius: 9, border: 'none', background: C.accent, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 },
+  linkInput: { flex: 1, minWidth: 0, padding: '9px 11px', borderRadius: 10, border: `1px solid ${C.line}`, background: C.bg, fontSize: 12, color: C.text, fontFamily: 'inherit' },
+  copyBtn: { padding: '0 14px', borderRadius: 10, border: 'none', background: C.accent, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 },
   linkHint: { fontSize: 11, color: C.muted, margin: '8px 0 0', lineHeight: 1.5 },
 
   howBlock: { marginBottom: 14 },

@@ -103,7 +103,7 @@ export default function ValueReceipt() {
 const S = {
   card: {
     background: 'var(--tone-1, #fbf1ea)',
-    borderRadius: 20,
+    borderRadius: 22,
     padding: '14px 16px',
     marginBottom: 14,
   },

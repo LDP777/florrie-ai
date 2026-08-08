@@ -462,7 +462,7 @@ export default function Treatments() {
                 )
               )}
               {form.requires_consultation && (
-                <div style={{ marginTop: 8, padding: '8px 10px', background: 'var(--accent-wash, #FBF2F5)', borderRadius: 8, display: 'flex', gap: 6, alignItems: 'flex-start' }}>
+                <div style={{ marginTop: 8, padding: '8px 10px', background: 'var(--accent-wash, #FBF2F5)', borderRadius: 10, display: 'flex', gap: 6, alignItems: 'flex-start' }}>
                   <Icon name={iconName('verified')} size={16} inline style={{ color: 'var(--accent)', flexShrink: 0 }} />
                   <span style={{ fontSize: 12, color: 'var(--text, #241B17)', lineHeight: 1.45 }}>
                     New clients booking this online get {(() => { const n = forms.find(f => f.id === form.consultation_form_id)?.name; return n ? `the "${n}" form` : 'your questions'; })()} to complete first. Returning clients are not asked again.
@@ -746,7 +746,7 @@ const styles = {
     cursor: 'pointer', fontFamily: 'inherit'
   },
   addForm: {
-    background: 'var(--bg-card)', borderRadius: 14, padding: 16, marginBottom: 14,
+    background: 'var(--bg-card)', borderRadius: 16, padding: 16, marginBottom: 14,
     boxShadow: 'var(--shadow-xs, 0 1px 3px rgba(0,0,0,0.04))'
   },
   formTitle: { fontSize: 14, fontWeight: 600, margin: '0 0 14px', color: 'var(--accent)' },
@@ -754,18 +754,18 @@ const styles = {
   formGroup: { flex: 1, marginBottom: 10 },
   formLabel: { display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4, fontWeight: 500 },
   formInput: {
-    width: '100%', padding: '10px 12px', borderRadius: 8,
+    width: '100%', padding: '10px 12px', borderRadius: 10,
     border: '1.5px solid var(--border)', fontSize: 14, fontFamily: 'inherit',
     outline: 'none', boxSizing: 'border-box'
   },
   formSelect: {
-    width: '100%', padding: '10px 12px', borderRadius: 8,
+    width: '100%', padding: '10px 12px', borderRadius: 10,
     border: '1.5px solid var(--border)', fontSize: 14, fontFamily: 'inherit',
     outline: 'none', background: 'var(--bg-card)', boxSizing: 'border-box'
   },
   formHint: { display: 'block', fontSize: 11, color: 'var(--text-muted)', marginTop: 4 },
   toggleBtn: {
-    width: '100%', padding: '10px 12px', borderRadius: 8, border: 'none',
+    width: '100%', padding: '10px 12px', borderRadius: 10, border: 'none',
     fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
     transition: 'all 0.2s'
   },
@@ -802,7 +802,7 @@ const styles = {
   },
   treatmentCard: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    background: 'var(--bg-card)', borderRadius: 12, padding: '12px 14px', marginBottom: 6,
+    background: 'var(--bg-card)', borderRadius: 10, padding: '12px 14px', marginBottom: 6,
     boxShadow: 'var(--shadow-xs, 0 1px 3px rgba(0,0,0,0.04))'
   },
   treatmentInfo: { flex: 1, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 },
@@ -811,7 +811,7 @@ const styles = {
   colorDot: { width: 10, height: 10, borderRadius: '50%', flexShrink: 0 },
   swatchRow: { display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   swatch: { width: 26, height: 26, borderRadius: '50%', border: 'none', cursor: 'pointer', padding: 0 },
-  autoSwatch: { height: 26, padding: '0 12px', borderRadius: 13, border: '1.5px solid var(--border)', background: 'var(--bg-card)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  autoSwatch: { height: 26, padding: '0 12px', borderRadius: 16, border: '1.5px solid var(--border)', background: 'var(--bg-card)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   treatmentMeta: { fontSize: 12, color: 'var(--text-muted)' },
   treatmentDesc: { fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   treatmentActions: { display: 'flex', gap: 6, marginLeft: 10, flexShrink: 0 },
@@ -841,7 +841,7 @@ const styles = {
   emptyDesc: { fontSize: 13, color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 },
   previewBtn: {
     marginTop: 8, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-    gap: 6, padding: '9px 12px', borderRadius: 8,
+    gap: 6, padding: '9px 12px', borderRadius: 10,
     border: '1.5px solid var(--accent)', background: 'transparent', color: 'var(--accent)',
     fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit'
   },
@@ -855,7 +855,7 @@ const styles = {
     width: '100%', maxWidth: 480, maxHeight: '88vh',
     background: 'var(--bg, #FBF6F1)', borderTopLeftRadius: 20, borderTopRightRadius: 20,
     display: 'flex', flexDirection: 'column', overflow: 'hidden',
-    boxShadow: '0 -8px 40px rgba(0,0,0,0.18)',
+    boxShadow: 'var(--elev-3)',
     fontFamily: "var(--font-body, 'Plus Jakarta Sans', -apple-system, sans-serif)"
   },
   previewHeader: {
@@ -879,20 +879,20 @@ const styles = {
   },
   previewConsent: {
     fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16, lineHeight: 1.5,
-    padding: '10px 12px', background: 'var(--bg-card, #FFFCF9)', borderRadius: 8,
+    padding: '10px 12px', background: 'var(--bg-card, #FFFCF9)', borderRadius: 10,
     border: '1px solid var(--border-light)'
   },
   previewQLabel: { display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-primary, #241B17)', marginBottom: 6 },
   previewChoice: {
-    padding: '8px 14px', borderRadius: 8, background: 'var(--bg-card, #FFFCF9)',
+    padding: '8px 14px', borderRadius: 10, background: 'var(--bg-card, #FFFCF9)',
     border: '1px solid var(--border)', fontSize: 13, color: 'var(--text-secondary)'
   },
   previewCheckbox: {
-    width: 18, height: 18, borderRadius: 4, border: '1.5px solid var(--border)',
+    width: 18, height: 18, borderRadius: 6, border: '1.5px solid var(--border)',
     background: 'var(--bg-card, #FFFCF9)', display: 'inline-block', flexShrink: 0
   },
   previewInputGhost: {
-    width: '100%', padding: '10px 12px', borderRadius: 8,
+    width: '100%', padding: '10px 12px', borderRadius: 10,
     border: '1.5px solid var(--border)', background: 'var(--bg-card, #FFFCF9)',
     boxSizing: 'border-box', display: 'flex', alignItems: 'flex-start'
   },

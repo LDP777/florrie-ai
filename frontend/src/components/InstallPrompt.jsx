@@ -77,7 +77,7 @@ const s = {
     borderTop: '1px solid var(--border, #E8DDD4)',
     padding: '14px 16px',
     zIndex: 9999,
-    boxShadow: '0 -2px 12px rgba(0,0,0,0.06)',
+    boxShadow: 'var(--elev-3)',
     animation: 'slideUp 0.3s ease',
   },
   content: {

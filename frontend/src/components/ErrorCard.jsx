@@ -17,7 +17,7 @@ const S = {
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: '12px 16px',
-    borderRadius: 12,
+    borderRadius: 10,
     background: 'var(--danger-bg, #F7E4E4)',
     border: '1px solid var(--danger-border, #EFCFCF)',
     marginBottom: 16,

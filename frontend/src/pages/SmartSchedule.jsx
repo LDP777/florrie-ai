@@ -813,17 +813,17 @@ const styles = {
 
   // Utilisation
   utilisationCard: {
-    background: 'var(--bg-card, #FFFCF9)', borderRadius: 14, padding: 16,
-    boxShadow: '0 1px 3px rgba(0,0,0,0.04)', marginBottom: 16,
+    background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: 16,
+    boxShadow: 'var(--elev-1)', marginBottom: 16,
   },
   utilisationHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   utilisationLabel: { fontSize: 12, color: 'var(--text-muted, #6B5D54)', textTransform: 'uppercase', letterSpacing: '0.04em' },
   utilisationPct: { fontSize: 14, fontWeight: 700, color: 'var(--text-primary, #241B17)' },
   utilisationBar: {
-    height: 8, borderRadius: 4, background: '#F0ECE8', overflow: 'hidden', marginBottom: 8,
+    height: 8, borderRadius: 6, background: '#F0ECE8', overflow: 'hidden', marginBottom: 8,
   },
   utilisationFill: {
-    height: '100%', borderRadius: 4,
+    height: '100%', borderRadius: 6,
     background: 'linear-gradient(90deg, #C76B8A, #E8A0B5)',
     transition: 'width 0.6s ease',
   },
@@ -840,8 +840,8 @@ const styles = {
   // Gap cards
   gapList: { display: 'flex', flexDirection: 'column', gap: 10 },
   gapCard: {
-    background: 'var(--bg-card, #FFFCF9)', borderRadius: 14, padding: 14,
-    boxShadow: '0 1px 3px rgba(0,0,0,0.04)', cursor: 'pointer',
+    background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: 14,
+    boxShadow: 'var(--elev-1)', cursor: 'pointer',
     transition: 'box-shadow 0.2s',
   },
   gapHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
@@ -864,7 +864,7 @@ const styles = {
   },
   suggestionTop: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 },
   suggAvatar: {
-    width: 34, height: 34, borderRadius: 17, background: '#FBF0F3',
+    width: 34, height: 34, borderRadius: 16, background: '#FBF0F3',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontSize: 14, fontWeight: 600, color: 'var(--accent, #92405e)', flexShrink: 0,
   },
@@ -879,7 +879,7 @@ const styles = {
   suggTreatLabel: { fontSize: 12, fontWeight: 500, color: '#5A5550' },
   suggTreatDur: { fontSize: 11, color: 'var(--text-muted, #6B5D54)' },
   offerBtn: {
-    width: '100%', padding: '8px 0', borderRadius: 8, border: 'none',
+    width: '100%', padding: '8px 0', borderRadius: 10, border: 'none',
     background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', fontSize: 12, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
@@ -899,14 +899,14 @@ const styles = {
     fontSize: 12, color: '#6b6560', lineHeight: 1.45, margin: 0,
   },
   fillSecondaryBtn: {
-    width: '100%', padding: '8px 0', borderRadius: 8,
+    width: '100%', padding: '8px 0', borderRadius: 10,
     border: '1px solid var(--accent, #92405e)', background: 'transparent',
     color: 'var(--accent, #92405e)', fontSize: 12, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
   fillHeroCard: {
-    background: 'var(--bg-card, #FFFCF9)', borderRadius: 14, padding: 16,
-    boxShadow: '0 1px 3px rgba(0,0,0,0.04)', marginBottom: 20,
+    background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: 16,
+    boxShadow: 'var(--elev-1)', marginBottom: 20,
     display: 'flex', flexDirection: 'column', gap: 8,
   },
   fillHeroTitle: { fontSize: 15, fontWeight: 600, color: 'var(--text-primary, #241B17)' },
@@ -921,8 +921,8 @@ const styles = {
   suggSectionTitle: { fontSize: 15, fontWeight: 600, margin: '0 0 2px', color: 'var(--text-primary, #241B17)' },
   suggSectionDesc: { fontSize: 12, color: 'var(--text-muted, #6B5D54)', margin: '0 0 12px' },
   suggFullCard: {
-    background: 'var(--bg-card, #FFFCF9)', borderRadius: 14, padding: 14,
-    boxShadow: '0 1px 3px rgba(0,0,0,0.04)', marginBottom: 10,
+    background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: 14,
+    boxShadow: 'var(--elev-1)', marginBottom: 10,
   },
   suggReasonText: { fontSize: 12, color: '#6b6560', margin: '8px 0', lineHeight: 1.4 },
   overdueBadge: {
@@ -933,21 +933,21 @@ const styles = {
   // Insights
   insightGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 },
   insightCard: {
-    background: 'var(--bg-card, #FFFCF9)', borderRadius: 14, padding: '16px 14px', textAlign: 'center',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+    background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: '16px 14px', textAlign: 'center',
+    boxShadow: 'var(--elev-1)',
   },
   insightNum: { display: 'block', fontSize: 22, fontWeight: 700, color: 'var(--accent, #92405e)' },
   insightLabel: { display: 'block', fontSize: 11, color: 'var(--text-muted, #6B5D54)', textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 4 },
 
   insightSection: {
-    background: 'var(--bg-card, #FFFCF9)', borderRadius: 14, padding: 16, marginBottom: 12,
-    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+    background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: 16, marginBottom: 12,
+    boxShadow: 'var(--elev-1)',
   },
   insightSectionTitle: { fontSize: 14, fontWeight: 600, margin: '0 0 12px', color: 'var(--text-primary, #241B17)' },
   dayRow: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 },
   dayName: { fontSize: 12, color: '#5A5550', width: 70, flexShrink: 0 },
-  dayBar: { flex: 1, height: 6, borderRadius: 3, background: '#F0ECE8', overflow: 'hidden' },
-  dayBarFill: { height: '100%', borderRadius: 3, transition: 'width 0.6s ease' },
+  dayBar: { flex: 1, height: 6, borderRadius: 6, background: '#F0ECE8', overflow: 'hidden' },
+  dayBarFill: { height: '100%', borderRadius: 6, transition: 'width 0.6s ease' },
   dayPct: { fontSize: 11, fontWeight: 600, color: 'var(--text-primary, #241B17)', width: 30, textAlign: 'right' },
 
   hardSlotList: { display: 'flex', flexDirection: 'column', gap: 8 },
@@ -957,7 +957,7 @@ const styles = {
 
   tipCard: {
     display: 'flex', alignItems: 'flex-start', gap: 4,
-    background: '#FBF0F3', borderRadius: 14, padding: 14,
+    background: '#FBF0F3', borderRadius: 16, padding: 14,
   },
   tipTitle: { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--accent, #92405e)', marginBottom: 4 },
   tipText: { display: 'block', fontSize: 12, color: '#5A5550', lineHeight: 1.5 },

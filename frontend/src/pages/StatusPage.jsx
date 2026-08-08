@@ -39,8 +39,8 @@ export default function StatusPage({ kind = 'card_saved' }) {
       fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif",
     }}>
       <div style={{ maxWidth: 380, width: '100%', textAlign: 'center', background: '#fff',
-        border: '1px solid #EFE7DA', borderRadius: 18, padding: '32px 26px',
-        boxShadow: '0 12px 40px rgba(146,64,94,0.07)',
+        border: '1px solid #EFE7DA', borderRadius: 16, padding: '32px 26px',
+        boxShadow: 'var(--elev-3)',
       }}>
         <div style={{ width: 52, height: 52, borderRadius: '50%', margin: '0 auto 16px',
           background: `${COPY.tone}1A`, color: COPY.tone,

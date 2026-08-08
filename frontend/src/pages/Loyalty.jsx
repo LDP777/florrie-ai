@@ -476,7 +476,7 @@ const styles = {
   toggle: {
     width: 40,
     height: 24,
-    borderRadius: 12,
+    borderRadius: 10,
     padding: 2,
     border: 'none',
     cursor: 'pointer',
@@ -489,7 +489,7 @@ const styles = {
     height: 20,
     borderRadius: 10,
     background: '#fff',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+    boxShadow: 'var(--elev-1)',
     transition: 'transform 0.2s ease',
   },
 
@@ -558,7 +558,7 @@ const styles = {
   saveBtn: {
     width: '100%',
     padding: '12px 16px',
-    borderRadius: 12,
+    borderRadius: 10,
     border: 'none',
     background: 'var(--accent, #92405e)',
     color: '#fff',
@@ -655,7 +655,7 @@ const styles = {
   memberAvatar: {
     width: 38,
     height: 38,
-    borderRadius: 19,
+    borderRadius: 22,
     background: 'var(--accent-light, #F6E7EC)',
     color: 'var(--accent, #92405e)',
     display: 'flex',
@@ -684,11 +684,11 @@ const styles = {
 
   progressTrack: {
     height: 5,
-    borderRadius: 3,
+    borderRadius: 6,
     background: 'var(--bg-input, #F4EDE6)',
     overflow: 'hidden',
   },
-  progressFill: { height: '100%', borderRadius: 3, transition: 'width 0.3s ease' },
+  progressFill: { height: '100%', borderRadius: 6, transition: 'width 0.3s ease' },
   progressHint: {
     display: 'block',
     fontSize: 11,

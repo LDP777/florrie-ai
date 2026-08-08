@@ -177,8 +177,8 @@ function SkeletonCard() {
       <div style={{ height: 14, background: '#f3ede9', borderRadius: 6, marginTop: 10, width: '90%' }} />
       <div style={{ height: 14, background: '#f3ede9', borderRadius: 6, marginTop: 6, width: '60%' }} />
       <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
-        <div style={{ flex: 1, height: 28, background: '#f3ede9', borderRadius: 8 }} />
-        <div style={{ flex: 1, height: 28, background: '#f3ede9', borderRadius: 8 }} />
+        <div style={{ flex: 1, height: 28, background: '#f3ede9', borderRadius: 10 }} />
+        <div style={{ flex: 1, height: 28, background: '#f3ede9', borderRadius: 10 }} />
       </div>
     </div>
   );
@@ -195,14 +195,14 @@ const SC = {
   },
   count: {
     fontSize: 11, fontWeight: 700, color: 'var(--accent)', background: '#ffd9e2',
-    padding: '2px 8px', borderRadius: 20, letterSpacing: '0.04em',
+    padding: '2px 8px', borderRadius: 22, letterSpacing: '0.04em',
   },
   row: {
     display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 6, WebkitOverflowScrolling: 'touch',
     scrollSnapType: 'x mandatory', msOverflowStyle: 'none', scrollbarWidth: 'none',
   },
   card: {
-    flex: '0 0 260px', minWidth: 260, background: 'var(--tone-1, #fbf1ea)', borderRadius: 20,
+    flex: '0 0 260px', minWidth: 260, background: 'var(--tone-1, #fbf1ea)', borderRadius: 22,
     padding: '12px 12px 12px', display: 'flex', flexDirection: 'column', scrollSnapAlign: 'start',
   },
   cardHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 6 },
@@ -213,7 +213,7 @@ const SC = {
   },
   impact: {
     fontSize: 13, fontWeight: 800, color: 'var(--accent)', background: 'rgba(146,64,94,0.08)',
-    padding: '2px 9px', borderRadius: 20, letterSpacing: '0.01em',
+    padding: '2px 9px', borderRadius: 22, letterSpacing: '0.01em',
   },
   summary: { fontSize: 13, lineHeight: 1.4, color: '#1d1b19', fontWeight: 500, margin: '4px 0 6px', minHeight: 36 },
   // The evidence line: small, muted, tappable through to the source message

@@ -23,8 +23,8 @@ function memberRole(m) {
 function Bar({ value, max, color = 'var(--accent-rose, #C76B8A)' }) {
   const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0;
   return (
-    <div style={{ height: 6, borderRadius: 3, background: 'var(--card-border, #E8DDD4)', overflow: 'hidden' }}>
-      <div style={{ height: '100%', width: `${pct}%`, borderRadius: 3, background: color, transition: 'width 0.4s ease' }} />
+    <div style={{ height: 6, borderRadius: 6, background: 'var(--card-border, #E8DDD4)', overflow: 'hidden' }}>
+      <div style={{ height: '100%', width: `${pct}%`, borderRadius: 6, background: color, transition: 'width 0.4s ease' }} />
     </div>
   );
 }
@@ -178,7 +178,7 @@ export default function StaffPerformance() {
             <div key={m.id} style={s.leaderRow}>
               <span style={{ ...s.rank, background: 'var(--card-border, #E8DDD4)', color: 'var(--text, #241B17)' }}>{i + 1}</span>
               {m.avatar_url
-                ? <img src={m.avatar_url} alt="" style={{ width: 24, height: 24, borderRadius: 12, objectFit: 'cover' }} />
+                ? <img src={m.avatar_url} alt="" style={{ width: 24, height: 24, borderRadius: 10, objectFit: 'cover' }} />
                 : <span style={{ fontSize: 22 }}><Icon name="user" size={15} /></span>}
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 600, fontSize: 14 }}>{memberName(m)}</div>
@@ -199,7 +199,7 @@ export default function StaffPerformance() {
             {staff.map(m => (
               <div key={m.id} style={{ flex: 1, textAlign: 'center' }}>
                 {m.avatar_url
-                  ? <img src={m.avatar_url} alt="" style={{ width: 24, height: 24, borderRadius: 12, objectFit: 'cover' }} />
+                  ? <img src={m.avatar_url} alt="" style={{ width: 24, height: 24, borderRadius: 10, objectFit: 'cover' }} />
                   : <span style={{ fontSize: 24 }}><Icon name="user" size={24} /></span>}
                 <div style={{ fontSize: 12, fontWeight: 600, marginTop: 4 }}>{memberName(m)}</div>
               </div>
@@ -227,23 +227,23 @@ const s = {
   subtitle: { fontSize: 13, color: 'var(--text-muted, #6B5D54)', margin: '4px 0 0' },
   kpiNote: { fontSize: 11, color: 'var(--text-muted, #6B5D54)', margin: '8px 0 16px', fontStyle: 'italic' },
   periodRow: { display: 'flex', gap: 8, marginBottom: 16, overflowX: 'auto' },
-  periodChip: { padding: '6px 14px', borderRadius: 20, border: '1px solid var(--card-border, #E8DDD4)', background: 'none', fontSize: 12, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap', color: 'var(--text, #241B17)', fontFamily: 'inherit' },
+  periodChip: { padding: '6px 14px', borderRadius: 22, border: '1px solid var(--card-border, #E8DDD4)', background: 'none', fontSize: 12, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap', color: 'var(--text, #241B17)', fontFamily: 'inherit' },
   periodActive: { background: 'var(--accent, #92405e)', color: '#fff', borderColor: 'var(--accent, #92405e)' },
   summaryGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 },
-  statCard: { display: 'flex', flexDirection: 'column', gap: 2, padding: '14px 12px', borderRadius: 12, background: 'var(--card-bg, #FFFCF9)', border: '1px solid var(--card-border, #E8DDD4)' },
+  statCard: { display: 'flex', flexDirection: 'column', gap: 2, padding: '14px 12px', borderRadius: 10, background: 'var(--card-bg, #FFFCF9)', border: '1px solid var(--card-border, #E8DDD4)' },
   tabRow: { display: 'flex', gap: 0, marginBottom: 16, borderRadius: 10, overflow: 'hidden', border: '1px solid var(--card-border, #E8DDD4)' },
   tab: { flex: 1, padding: '10px 0', border: 'none', background: 'none', fontSize: 13, fontWeight: 500, cursor: 'pointer', color: 'var(--text-muted, #6B5D54)', fontFamily: 'inherit' },
   tabActive: { background: 'var(--accent, #92405e)', color: '#fff' },
   staffList: { display: 'flex', flexDirection: 'column', gap: 12 },
-  staffCard: { padding: 16, borderRadius: 14, background: 'var(--card-bg, #FFFCF9)', border: '1px solid var(--card-border, #E8DDD4)', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%' },
+  staffCard: { padding: 16, borderRadius: 16, background: 'var(--card-bg, #FFFCF9)', border: '1px solid var(--card-border, #E8DDD4)', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%' },
   staffTop: { display: 'flex', alignItems: 'center', gap: 12 },
   detailPanel: { animation: 'fadeIn 0.2s ease' },
   backBtn: { background: 'none', border: 'none', color: 'var(--accent, #92405e)', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '4px 0', marginBottom: 12, fontFamily: 'inherit' },
   detailHeader: { display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 },
-  aiCard: { padding: 14, borderRadius: 12, background: 'linear-gradient(135deg, rgba(199,107,138,0.06), rgba(232,168,56,0.06))', border: '1px solid rgba(199,107,138,0.15)', marginTop: 4 },
+  aiCard: { padding: 14, borderRadius: 10, background: 'linear-gradient(135deg, rgba(199,107,138,0.06), rgba(232,168,56,0.06))', border: '1px solid rgba(199,107,138,0.15)', marginTop: 4 },
   leaderboard: { display: 'flex', flexDirection: 'column', gap: 0 },
   leaderRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--card-border, #E8DDD4)' },
-  rank: { width: 26, height: 26, borderRadius: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 },
+  rank: { width: 26, height: 26, borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 },
   compareGrid: { display: 'flex', flexDirection: 'column', gap: 0 },
   compareHeader: { display: 'flex', alignItems: 'center', padding: '12px 0', borderBottom: '2px solid var(--card-border, #E8DDD4)' },
   compareRow: { display: 'flex', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--card-border, #E8DDD4)' },

@@ -317,7 +317,7 @@ export default function ClientManagePage() {
             }}
             style={{ width: '100%', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
               display: 'flex', gap: 12, alignItems: 'flex-start',
-              padding: '14px 16px', borderRadius: 14, marginBottom: 16,
+              padding: '14px 16px', borderRadius: 16, marginBottom: 16,
               background: brandLight, border: `1.5px solid ${brand}`,
             }}
           >
@@ -337,7 +337,7 @@ export default function ClientManagePage() {
 
         {/* Cancellation result banner */}
         {cancelResult && (
-          <div style={{ padding: '12px 16px', borderRadius: 12, marginBottom: 16,
+          <div style={{ padding: '12px 16px', borderRadius: 10, marginBottom: 16,
             background: cancelResult.isLateCancel ? 'var(--warning-bg)' : 'var(--success-bg)',
             border: `1px solid ${cancelResult.isLateCancel ? '#F59E0B' : '#86EFAC'}`,
             fontSize: 14, color: cancelResult.isLateCancel ? 'var(--warning-text)' : 'var(--success-text)',
@@ -348,7 +348,7 @@ export default function ClientManagePage() {
 
         {/* Reschedule result banner */}
         {rescheduleResult && (
-          <div style={{ padding: '12px 16px', borderRadius: 12, marginBottom: 16,
+          <div style={{ padding: '12px 16px', borderRadius: 10, marginBottom: 16,
             background: rescheduleResult.isLateReschedule ? 'var(--warning-bg)' : 'var(--success-bg)',
             border: `1px solid ${rescheduleResult.isLateReschedule ? '#F59E0B' : '#86EFAC'}`,
             fontSize: 14, color: rescheduleResult.isLateReschedule ? 'var(--warning-text)' : 'var(--success-text)',
@@ -360,7 +360,7 @@ export default function ClientManagePage() {
 
         {/* Pending payment banner */}
         {appointment.status === 'pending' && !appointment.depositPaid && (
-          <div style={{ padding: '12px 16px', borderRadius: 12, marginBottom: 4,
+          <div style={{ padding: '12px 16px', borderRadius: 10, marginBottom: 4,
             background: 'var(--warning-bg)', border: '1px solid #F59E0B',
             fontSize: 13, color: 'var(--warning-text)',
           }}>
@@ -422,7 +422,7 @@ export default function ClientManagePage() {
                   Change my treatment
                 </button>
               ) : (
-                <div style={{ border: `1px solid ${brand}33`, borderRadius: 12, padding: 12, background: brandLight }}>
+                <div style={{ border: `1px solid ${brand}33`, borderRadius: 10, padding: 12, background: brandLight }}>
                   <p style={{ fontSize: 13, fontWeight: 700, color: '#2D1B1B', margin: '0 0 4px' }}>
                     Pick a different treatment
                   </p>
@@ -523,7 +523,7 @@ export default function ClientManagePage() {
               <strong style={{ fontSize: 16, color: '#2D1B1B' }}>£{(payment.remainingCents / 100).toFixed(2)}</strong> {payment.depositPaidCents > 0 ? 'remaining after your deposit.' : 'to pay.'}
             </p>
             {payment.bankDetails?.account_number ? (
-              <div style={{ marginTop: 12, padding: '14px', borderRadius: 12, background: brandLight, border: `1px solid ${brand}22` }}>
+              <div style={{ marginTop: 12, padding: '14px', borderRadius: 10, background: brandLight, border: `1px solid ${brand}22` }}>
                 <p style={{ ...S.policyText, fontWeight: 600, color: '#2D1B1B', margin: '0 0 8px' }}>Pay by bank transfer:</p>
                 {payment.bankDetails.account_name && (
                   <div style={S.bankRow}>
@@ -605,7 +605,7 @@ export default function ClientManagePage() {
             <p style={S.sectionLabel}>Patch tests</p>
 
             {patchTestBooked && (
-              <div style={{ background: brandLight, border: `1.5px solid ${brand}`, borderRadius: 12,
+              <div style={{ background: brandLight, border: `1.5px solid ${brand}`, borderRadius: 10,
                 padding: '12px 14px', marginBottom: 12,
               }}>
                 <p style={{ margin: '0 0 2px', fontSize: 14, fontWeight: 700, color: brand }}>
@@ -1007,7 +1007,7 @@ function PatchTestPicker({ slots, duration, onPick, confirming, error, onBack, b
   const times = selectedDay ? (byDay.get(selectedDay) || []) : [];
 
   const navBtn = (on) => ({
-    width: 30, height: 30, borderRadius: 8, border: 'none', background: 'transparent',
+    width: 30, height: 30, borderRadius: 10, border: 'none', background: 'transparent',
     color: on ? brand : '#D8D2CC', fontSize: 18, cursor: on ? 'pointer' : 'default', fontFamily: 'inherit',
   });
 
@@ -1103,7 +1103,7 @@ function PatchTestPicker({ slots, duration, onPick, confirming, error, onBack, b
             type="button"
             disabled={confirming}
             onClick={() => onPick(selectedTime)}
-            style={{ width: '100%', padding: '14px', borderRadius: 12, border: 'none',
+            style={{ width: '100%', padding: '14px', borderRadius: 10, border: 'none',
               background: brand, color: '#fff', fontSize: 15, fontWeight: 700,
               fontFamily: 'inherit', cursor: confirming ? 'wait' : 'pointer',
               opacity: confirming ? 0.75 : 1, marginBottom: 8,
@@ -1156,7 +1156,7 @@ const S = {
   content: { flex: 1, maxWidth: 480, margin: '0 auto', width: '100%', padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 12 },
   card: {
     background: 'var(--bg-card)', borderRadius: 16,
-    padding: '18px 18px', boxShadow: '0 2px 12px rgba(0,0,0,0.05)',
+    padding: '18px 18px', boxShadow: 'var(--elev-2)',
   },
   cardTitle: {
     textAlign: 'center', fontSize: 18, fontWeight: 700, margin: '0 0 8px',
@@ -1186,7 +1186,7 @@ const S = {
   clientMeta: { margin: '0 0 2px', fontSize: 13, color: 'var(--text-secondary)' },
   policyCard: {
     background: 'var(--bg-card)', borderRadius: 16,
-    padding: '16px 18px', boxShadow: '0 2px 12px rgba(0,0,0,0.05)',
+    padding: '16px 18px', boxShadow: 'var(--elev-2)',
   },
   policyText: { margin: '0 0 4px', fontSize: 13, color: '#555', lineHeight: 1.5 },
   bankRow: {
@@ -1211,7 +1211,7 @@ const S = {
   patchTestName: { margin: 0, fontSize: 14, fontWeight: 600, color: '#2D1B1B' },
   patchTestMeta: { margin: '2px 0 0', fontSize: 12, color: 'var(--text-secondary)' },
   patchTestBooking: {
-    padding: '14px', borderRadius: 12, background: '#FFFBF0',
+    padding: '14px', borderRadius: 10, background: '#FFFBF0',
     border: '1.5px solid #F5E6D3',
   },
   confirmSlotBtn: {
@@ -1226,7 +1226,7 @@ const S = {
   },
   slotPickerCard: {
     background: 'var(--bg-card)', borderRadius: 16, padding: '18px 18px',
-    boxShadow: '0 2px 12px rgba(0,0,0,0.05)', border: '1px solid #E8E4DF',
+    boxShadow: 'var(--elev-2)', border: '1px solid #E8E4DF',
   },
   formRow: {
     display: 'flex', alignItems: 'center', gap: 10,
@@ -1235,17 +1235,17 @@ const S = {
   formName: { margin: 0, fontSize: 14, fontWeight: 600, color: '#2D1B1B' },
   formMeta: { margin: '2px 0 0', fontSize: 12, color: 'var(--text-secondary)' },
   formLink: {
-    padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+    padding: '6px 12px', borderRadius: 10, fontSize: 12, fontWeight: 600,
     border: '1.5px solid', textDecoration: 'none', flexShrink: 0,
   },
   cancelBtn: {
-    width: '100%', padding: '13px 0', borderRadius: 12, border: '1.5px solid #FECACA',
+    width: '100%', padding: '13px 0', borderRadius: 10, border: '1.5px solid #FECACA',
     background: '#FFF5F5', color: 'var(--danger)', fontSize: 14, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
   confirmCancel: {
     background: 'var(--bg-card)', borderRadius: 16, padding: '18px 18px',
-    boxShadow: '0 2px 12px rgba(0,0,0,0.05)', border: '1px solid #FECACA',
+    boxShadow: 'var(--elev-2)', border: '1px solid #FECACA',
   },
   keepBtn: {
     flex: 1, padding: '12px 0', borderRadius: 10, border: '1.5px solid #E8E4DF',
@@ -1258,7 +1258,7 @@ const S = {
     cursor: 'pointer', fontFamily: 'inherit',
   },
   cancelledBanner: {
-    textAlign: 'center', padding: '16px', borderRadius: 12,
+    textAlign: 'center', padding: '16px', borderRadius: 10,
     background: '#F9F9F9', fontSize: 14, color: 'var(--text-secondary)',
     border: '1px solid #E8E4DF',
   },
@@ -1267,18 +1267,18 @@ const S = {
     borderTop: '1px solid #F0EBE6',
   },
   reschedUsedNote: {
-    padding: '14px 16px', borderRadius: 12, background: '#F9F9F9',
+    padding: '14px 16px', borderRadius: 10, background: '#F9F9F9',
     border: '1px solid #E8E4DF', fontSize: 13.5, color: 'var(--text-secondary)', lineHeight: 1.5,
   },
   rescheduleBtn: {
-    width: '100%', padding: '13px 0', borderRadius: 12,
+    width: '100%', padding: '13px 0', borderRadius: 10,
     border: '1.5px solid #C76B8A33', background: '#FFF0F4',
     color: 'var(--accent-rose)', fontSize: 14, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
   rescheduleCard: {
     background: 'var(--bg-card)', borderRadius: 16, padding: '18px 18px',
-    boxShadow: '0 2px 12px rgba(0,0,0,0.05)', border: '1px solid #E8E4DF',
+    boxShadow: 'var(--elev-2)', border: '1px solid #E8E4DF',
   },
   dateInput: {
     padding: '10px 12px', borderRadius: 10, border: '1.5px solid #E8E4DF',

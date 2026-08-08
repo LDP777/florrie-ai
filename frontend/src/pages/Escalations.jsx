@@ -286,7 +286,7 @@ const styles = {
   list: { display: 'flex', flexDirection: 'column', gap: 12 },
   card: {
     background: 'var(--bg-card)',
-    borderRadius: 14,
+    borderRadius: 16,
     padding: 18,
     boxShadow: 'var(--shadow-xs)'
   },
@@ -312,13 +312,13 @@ const styles = {
   },
   inboundBubble: {
     background: 'var(--bg-subtle)',
-    borderRadius: 12,
+    borderRadius: 10,
     padding: '10px 14px',
     marginBottom: 8
   },
   suggestionBubble: {
     background: 'var(--bg-hover)',
-    borderRadius: 12,
+    borderRadius: 10,
     padding: '10px 14px',
     marginBottom: 12,
     borderLeft: '3px solid var(--accent)'

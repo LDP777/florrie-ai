@@ -321,10 +321,10 @@ const S = {
   page: { padding: '20px 16px 32px', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 480, margin: '0 auto' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   title: { fontSize: 22, fontWeight: 700, color: 'var(--text, var(--text-primary, #241B17))', margin: 0 },
-  uploadBtn: { background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', border: 'none', borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  uploadBtn: { background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', border: 'none', borderRadius: 22, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
   statsRow: { display: 'flex', gap: 10, marginBottom: 16 },
-  statCard: { flex: 1, background: 'var(--card, #FFFCF9)', borderRadius: 12, padding: '12px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
+  statCard: { flex: 1, background: 'var(--card, #FFFCF9)', borderRadius: 10, padding: '12px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
   statValue: { fontSize: 20, fontWeight: 700 },
   statLabel: { fontSize: 11, color: 'var(--text-muted, var(--text-muted, #6B5D54))' },
 
@@ -338,17 +338,17 @@ const S = {
 
   // Gallery grid
   grid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 },
-  gridItem: { position: 'relative', borderRadius: 12, overflow: 'hidden', background: 'var(--card, #FFFCF9)' },
+  gridItem: { position: 'relative', borderRadius: 10, overflow: 'hidden', background: 'var(--card, #FFFCF9)' },
   photoPlaceholder: { aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '12px 12px 0 0' },
   placeholderIcon: { fontSize: 28, opacity: 0.5 },
   photoMeta: { padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 2 },
   photoTreatment: { fontSize: 12, fontWeight: 600, color: 'var(--text, var(--text-primary, #241B17))' },
   photoClient: { fontSize: 11, color: 'var(--text-muted, var(--text-muted, #6B5D54))' },
-  typeBadge: { position: 'absolute', top: 8, right: 8, padding: '3px 8px', borderRadius: 8, fontSize: 10, fontWeight: 600, textTransform: 'uppercase' },
+  typeBadge: { position: 'absolute', top: 8, right: 8, padding: '3px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600, textTransform: 'uppercase' },
 
   // Before/After pairs
   pairsContainer: { display: 'flex', flexDirection: 'column', gap: 12 },
-  pairCard: { background: 'var(--card, #FFFCF9)', borderRadius: 14, padding: 14, cursor: 'pointer' },
+  pairCard: { background: 'var(--card, #FFFCF9)', borderRadius: 16, padding: 14, cursor: 'pointer' },
   pairHeader: { display: 'flex', justifyContent: 'space-between', marginBottom: 10 },
   pairTreatment: { fontSize: 14, fontWeight: 600, color: 'var(--text, var(--text-primary, #241B17))' },
   pairDate: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #6B5D54))' },
@@ -360,7 +360,7 @@ const S = {
   arrow: { fontSize: 20, color: 'var(--accent, #92405e)' },
   pairClient: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #6B5D54))', marginTop: 8 },
   shareRow: { display: 'flex', gap: 8, marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))' },
-  shareBtn: { flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', background: 'var(--card, #FFFCF9)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #241B17)' },
+  shareBtn: { flex: 1, padding: '8px 0', borderRadius: 10, border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', background: 'var(--card, #FFFCF9)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #241B17)' },
 
   empty: { textAlign: 'center', color: 'var(--text-muted, var(--text-muted, #6B5D54))', fontSize: 14, padding: 32 },
 
@@ -368,15 +368,15 @@ const S = {
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 960, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
   modal: { background: 'var(--bg-card, #FFFCF9)', borderRadius: '16px 16px 0 0', padding: '20px 20px 32px', width: '100%', maxWidth: 480 },
   modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text-primary, #241B17)', margin: '0 0 16px' },
-  uploadZone: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: 32, border: '2px dashed var(--border, var(--border, #E8DDD4))', borderRadius: 12, marginBottom: 16, cursor: 'pointer' },
+  uploadZone: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: 32, border: '2px dashed var(--border, var(--border, #E8DDD4))', borderRadius: 10, marginBottom: 16, cursor: 'pointer' },
   uploadText: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #241B17)' },
   uploadHint: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #6B5D54))' },
   fieldLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #574A42)', marginBottom: 6, marginTop: 12 },
   typeRow: { display: 'flex', gap: 8 },
-  typeBtn: { flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', background: 'var(--bg-card, #FFFCF9)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #241B17)' },
+  typeBtn: { flex: 1, padding: '8px 0', borderRadius: 10, border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', background: 'var(--bg-card, #FFFCF9)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #241B17)' },
   typeBtnActive: { background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', border: '1px solid var(--accent, #92405e)' },
   select: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary, #241B17)', background: 'var(--bg-card, #FFFCF9)', outline: 'none' },
   input: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary, #241B17)', outline: 'none', boxSizing: 'border-box' },
-  saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20 },
+  saveBtn: { width: '100%', padding: '14px 0', borderRadius: 10, border: 'none', background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20 },
   deleteBtn: { background: 'none', border: 'none', fontSize: 16, color: 'var(--text-muted, var(--text-muted, #6B5D54))', cursor: 'pointer', padding: '0 4px', lineHeight: 1 },
 };

@@ -630,7 +630,7 @@ const S = {
   subTabActive: {
     background: '#92405e',
     color: '#fff',
-    boxShadow: '0 2px 8px rgba(146,64,94,0.24)',
+    boxShadow: 'var(--elev-2)',
   },
   subPane: {
     marginTop: 4,
@@ -638,7 +638,7 @@ const S = {
     borderRadius: 16,
     overflow: 'hidden',
     border: '1px solid rgba(146,64,94,0.07)',
-    boxShadow: '0 1px 4px rgba(146,64,94,0.05)',
+    boxShadow: 'var(--elev-1)',
   },
 };
 
@@ -648,7 +648,7 @@ const TS = {
     borderRadius: 22,
     padding: '18px 18px 16px',
     marginBottom: 16,
-    boxShadow: '0 8px 26px rgba(124,51,80,0.30)',
+    boxShadow: 'var(--elev-3)',
     color: '#fff',
   },
   row: {
@@ -679,7 +679,7 @@ const TS = {
     flexShrink: 0,
     maxWidth: 150,
     padding: '8px 12px',
-    borderRadius: 14,
+    borderRadius: 16,
     border: '1px solid rgba(255,255,255,0.22)',
     background: 'rgba(255,255,255,0.12)',
     color: '#fff',
@@ -754,7 +754,7 @@ const TS = {
     gap: 8,
     background: 'rgba(255,255,255,0.12)',
     border: 'none',
-    borderRadius: 12,
+    borderRadius: 10,
     padding: '9px 12px',
     cursor: 'pointer',
     fontFamily: 'inherit',
@@ -773,7 +773,7 @@ const TS = {
     gap: 8,
     background: 'rgba(255,255,255,0.16)',
     border: '1px solid rgba(255,255,255,0.22)',
-    borderRadius: 12,
+    borderRadius: 10,
     padding: '8px 12px',
     cursor: 'pointer',
     fontFamily: 'inherit',
@@ -826,7 +826,7 @@ const AC = {
     gap: 12,
     background: 'var(--tone-1, #fbf1ea)',
     border: 'none',
-    borderRadius: 20,
+    borderRadius: 22,
     padding: '16px',
     marginBottom: 14,
     cursor: 'default',
@@ -838,7 +838,7 @@ const AC = {
   iconWrap: {
     width: 40,
     height: 40,
-    borderRadius: 12,
+    borderRadius: 10,
     background: 'rgba(146,64,94,0.10)',
     display: 'flex',
     alignItems: 'center',

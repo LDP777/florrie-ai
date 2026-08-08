@@ -130,7 +130,7 @@ const s = {
   },
   faqList: {
     background: 'var(--card, #FFFCF9)',
-    borderRadius: 12,
+    borderRadius: 10,
     overflow: 'hidden',
   },
   faqItem: {

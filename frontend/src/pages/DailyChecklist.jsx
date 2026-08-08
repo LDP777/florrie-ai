@@ -586,7 +586,7 @@ export default function DailyChecklist() {
             <Icon name={iconName(t.icon)} size={16} filled={tab === t.key} inline style={{ color: tab === t.key ? '#fff' : 'var(--text-muted, #6B5D54)' }} />
             {t.label}
             {editing && <span style={{ fontSize: 9, fontWeight: 700, marginLeft: 2,
-              background: 'rgba(255,255,255,0.25)', borderRadius: 4,
+              background: 'rgba(255,255,255,0.25)', borderRadius: 6,
               padding: '1px 4px', color: tab === t.key ? '#fff' : 'var(--text-muted, #6B5D54)',
             }}>{checklists[t.key]?.length || 0}</span>}
           </button>
@@ -817,7 +817,7 @@ const S = {
   // Edit toggle
   editToggle: {
     display: 'flex', alignItems: 'center', gap: 5,
-    padding: '7px 14px', borderRadius: 12,
+    padding: '7px 14px', borderRadius: 10,
     border: 'none', fontSize: 12, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
     transition: 'all 0.2s ease',
@@ -825,10 +825,10 @@ const S = {
   // Toast
   toast: {
     display: 'flex', alignItems: 'center', gap: 8,
-    background: 'var(--bg-card, #FFFCF9)', borderRadius: 12, padding: '10px 16px',
+    background: 'var(--bg-card, #FFFCF9)', borderRadius: 10, padding: '10px 16px',
     marginBottom: 12, fontSize: 13, fontWeight: 500, color: 'var(--text-primary, #241B17)',
     border: '1px solid rgba(91, 169, 123, 0.15)',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
+    boxShadow: 'var(--elev-2)',
     animation: 'fadeIn 0.2s ease',
   },
   // Edit banner
@@ -842,8 +842,8 @@ const S = {
   overviewCard: {
     position: 'relative', overflow: 'hidden',
     background: 'var(--gradient-hero, linear-gradient(135deg, #c76b8a 0%, #92405e 100%))',
-    color: '#fff', borderRadius: 24, padding: 24, marginBottom: 16,
-    boxShadow: '0 8px 32px rgba(146, 64, 94, 0.15)',
+    color: '#fff', borderRadius: 22, padding: 24, marginBottom: 16,
+    boxShadow: 'var(--elev-3)',
   },
   overviewDecor: {
     position: 'absolute', top: 0, right: 0,
@@ -871,7 +871,7 @@ const S = {
     flex: 1, background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: '12px 14px',
     display: 'flex', alignItems: 'center', gap: 10,
     border: '1px solid rgba(146, 64, 94, 0.05)',
-    boxShadow: '0 1px 3px rgba(146, 64, 94, 0.04)',
+    boxShadow: 'var(--elev-1)',
   },
   streakNum: {
     fontSize: 18, fontWeight: 700, color: 'var(--text-primary, #241B17)',
@@ -880,51 +880,51 @@ const S = {
   streakLabel: { fontSize: 12, color: 'var(--text-muted, #6B5D54)', fontWeight: 500 },
   streakBest: {
     fontSize: 10, color: 'var(--text-muted, #6B5D54)', marginLeft: 'auto',
-    background: 'rgba(146, 64, 94, 0.06)', padding: '3px 8px', borderRadius: 8,
+    background: 'rgba(146, 64, 94, 0.06)', padding: '3px 8px', borderRadius: 10,
   },
   statusPills: { display: 'flex', flexDirection: 'column', gap: 6 },
   statusPill: {
     display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'center',
-    padding: '8px 14px', borderRadius: 12,
+    padding: '8px 14px', borderRadius: 10,
     border: '1px solid transparent',
   },
   // Tab bar
   tabBar: {
     display: 'flex', gap: 4,
-    background: 'var(--bg-hover, #f3ede9)', borderRadius: 14, padding: 4,
+    background: 'var(--bg-hover, #f3ede9)', borderRadius: 16, padding: 4,
     marginBottom: 16,
   },
   tab: {
     flex: 1, padding: '9px 0', fontSize: 12, fontWeight: 500,
-    border: 'none', borderRadius: 11, cursor: 'pointer',
+    border: 'none', borderRadius: 10, cursor: 'pointer',
     fontFamily: 'inherit', background: 'none', color: 'var(--text-muted, #6B5D54)',
     transition: 'all 0.2s ease',
     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
   },
   tabActive: {
     background: 'var(--accent, #92405e)', color: '#fff',
-    boxShadow: '0 2px 8px rgba(146, 64, 94, 0.2)',
+    boxShadow: 'var(--elev-2)',
     fontWeight: 600,
   },
   // Progress
   progressSection: { marginBottom: 16 },
   progressTrack: {
-    height: 6, borderRadius: 3,
+    height: 6, borderRadius: 6,
     background: 'rgba(146, 64, 94, 0.08)',
     overflow: 'hidden', marginBottom: 4,
   },
-  progressFill: { height: '100%', borderRadius: 3, transition: 'width 0.3s ease' },
+  progressFill: { height: '100%', borderRadius: 6, transition: 'width 0.3s ease' },
   progressText: { fontSize: 11, color: 'var(--text-muted, #6B5D54)', fontWeight: 500 },
   // Checklist items
   checkItem: {
     display: 'flex', gap: 10, alignItems: 'center',
-    background: 'var(--bg-card, #FFFCF9)', borderRadius: 14, padding: '13px 14px',
+    background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: '13px 14px',
     transition: 'opacity 0.2s ease',
     border: '1px solid rgba(146, 64, 94, 0.04)',
-    boxShadow: '0 1px 2px rgba(146, 64, 94, 0.03)',
+    boxShadow: 'var(--elev-1)',
   },
   checkbox: {
-    width: 24, height: 24, borderRadius: 8,
+    width: 24, height: 24, borderRadius: 10,
     border: '2px solid rgba(146, 64, 94, 0.2)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     flexShrink: 0, transition: 'all 0.2s ease',
@@ -960,7 +960,7 @@ const S = {
   celebrationText: { fontSize: 14, fontWeight: 600, color: 'var(--success, #3F7D5C)' },
   // Add item
   addBtn: {
-    width: '100%', padding: '12px 0', borderRadius: 14,
+    width: '100%', padding: '12px 0', borderRadius: 16,
     border: '1.5px dashed rgba(146, 64, 94, 0.15)',
     background: 'transparent', fontSize: 13, fontWeight: 600,
     color: 'var(--accent, #92405e)', cursor: 'pointer', fontFamily: 'inherit',
@@ -971,24 +971,24 @@ const S = {
     background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: 14, marginBottom: 16,
     display: 'flex', flexDirection: 'column', gap: 8,
     border: '1px solid rgba(146, 64, 94, 0.06)',
-    boxShadow: '0 2px 8px rgba(146, 64, 94, 0.06)',
+    boxShadow: 'var(--elev-2)',
   },
   formInput: {
-    width: '100%', padding: '11px 14px', borderRadius: 12,
+    width: '100%', padding: '11px 14px', borderRadius: 10,
     border: '1.5px solid var(--border, #E8DDD4)', fontSize: 14,
     fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box',
     background: 'var(--bg-input, #F4EDE6)', color: 'var(--text-primary, #241B17)',
     transition: 'border-color 0.2s ease',
   },
   saveBtn: {
-    padding: '11px 20px', borderRadius: 12, border: 'none',
+    padding: '11px 20px', borderRadius: 10, border: 'none',
     background: 'var(--accent, #92405e)', color: '#fff', fontSize: 13, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
-    boxShadow: '0 2px 8px rgba(146, 64, 94, 0.25)',
+    boxShadow: 'var(--elev-2)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
   cancelBtn: {
-    padding: '11px 14px', borderRadius: 12, border: 'none',
+    padding: '11px 14px', borderRadius: 10, border: 'none',
     background: 'var(--bg-hover, #f3ede9)', color: 'var(--text-secondary, #574A42)', fontSize: 13,
     cursor: 'pointer', fontFamily: 'inherit',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -1032,7 +1032,7 @@ const S = {
   },
   // Appointment rows
   apptRow: {
-    background: 'var(--bg-input, #F4EDE6)', padding: 14, borderRadius: 14,
+    background: 'var(--bg-input, #F4EDE6)', padding: 14, borderRadius: 16,
     display: 'flex', alignItems: 'center', gap: 12,
   },
   apptDivider: {

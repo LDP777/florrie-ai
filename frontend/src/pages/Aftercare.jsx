@@ -453,9 +453,9 @@ const styles = {
   statusBar: {
     display: 'flex', alignItems: 'center', gap: 8,
     padding: '10px 14px', borderRadius: 10, background: 'var(--bg-card, #FFFCF9)',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.04)', marginBottom: 12,
+    boxShadow: 'var(--elev-1)', marginBottom: 12,
   },
-  statusDot: { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
+  statusDot: { width: 8, height: 8, borderRadius: 6, flexShrink: 0 },
   statusText: { fontSize: 12, color: 'var(--text-secondary, #574A42)', flex: 1 },
   statusCount: { fontSize: 11, color: 'var(--accent, #92405e)', fontWeight: 600 },
 
@@ -468,8 +468,8 @@ const styles = {
   // Card list
   cardList: { display: 'flex', flexDirection: 'column', gap: 12 },
   aftercareCard: {
-    background: 'var(--bg-card, #FFFCF9)', borderRadius: 14, padding: 16,
-    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+    background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: 16,
+    boxShadow: 'var(--elev-1)',
   },
   cardHeader: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 },
   cardIcon: {
@@ -502,36 +502,36 @@ const styles = {
 
   cardActions: { display: 'flex', gap: 8 },
   previewBtn: {
-    flex: 1, padding: '8px 0', borderRadius: 8, border: '1.5px solid var(--border, #E8DDD4)',
+    flex: 1, padding: '8px 0', borderRadius: 10, border: '1.5px solid var(--border, #E8DDD4)',
     background: 'var(--bg-card, #FFFCF9)', color: 'var(--text-secondary, #574A42)', fontSize: 12, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
   toggleAutoBtn: {
-    padding: '8px 16px', borderRadius: 8, border: 'none',
+    padding: '8px 16px', borderRadius: 10, border: 'none',
     background: 'var(--accent-light, #F6E7EC)', color: 'var(--accent, #92405e)', fontSize: 12, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
 
   // Form
   formCard: {
-    background: 'var(--bg-card, #FFFCF9)', borderRadius: 14, padding: 16,
-    boxShadow: '0 1px 3px rgba(0,0,0,0.04)', marginBottom: 16,
+    background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: 16,
+    boxShadow: 'var(--elev-1)', marginBottom: 16,
   },
   formTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 14px', color: 'var(--text, #241B17)' },
   formGroup: { marginBottom: 14 },
   formLabel: { display: 'block', fontSize: 12, color: 'var(--text-muted, #6B5D54)', marginBottom: 6, fontWeight: 500 },
   formInput: {
-    width: '100%', padding: '10px 12px', borderRadius: 8,
+    width: '100%', padding: '10px 12px', borderRadius: 10,
     border: '1.5px solid var(--border, #E8DDD4)', fontSize: 14, fontFamily: 'inherit',
     outline: 'none', boxSizing: 'border-box',
   },
   formTextarea: {
-    width: '100%', padding: '10px 12px', borderRadius: 8,
+    width: '100%', padding: '10px 12px', borderRadius: 10,
     border: '1.5px solid var(--border, #E8DDD4)', fontSize: 14, fontFamily: 'inherit',
     outline: 'none', boxSizing: 'border-box', resize: 'vertical',
   },
   formSelect: {
-    width: '100%', padding: '10px 12px', borderRadius: 8,
+    width: '100%', padding: '10px 12px', borderRadius: 10,
     border: '1.5px solid var(--border, #E8DDD4)', fontSize: 14, fontFamily: 'inherit',
     outline: 'none', background: 'var(--bg-card, #FFFCF9)', boxSizing: 'border-box',
   },
@@ -555,7 +555,7 @@ const styles = {
   },
   instructionRow: { display: 'flex', gap: 8, marginBottom: 10 },
   removeBtn: {
-    width: 28, height: 28, borderRadius: 14, border: 'none',
+    width: 28, height: 28, borderRadius: 16, border: 'none',
     background: 'var(--danger-bg, #F7E4E4)', color: 'var(--danger, #9E2B32)', fontSize: 16,
     cursor: 'pointer', display: 'flex', alignItems: 'center',
     justifyContent: 'center', flexShrink: 0, marginTop: 4,
@@ -568,8 +568,8 @@ const styles = {
 
   // Settings
   settingsCard: {
-    background: 'var(--bg-card, #FFFCF9)', borderRadius: 14, padding: 16,
-    boxShadow: '0 1px 3px rgba(0,0,0,0.04)', marginBottom: 12,
+    background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: 16,
+    boxShadow: 'var(--elev-1)', marginBottom: 12,
   },
   settingsSectionTitle: { fontSize: 14, fontWeight: 600, margin: '0 0 14px', color: 'var(--text, #241B17)' },
   settingsRow: {
@@ -579,18 +579,18 @@ const styles = {
   settingsLabel: { display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text, #241B17)' },
   settingsHint: { display: 'block', fontSize: 11, color: 'var(--text-muted, #6B5D54)', marginTop: 2 },
   settingsSelect: {
-    padding: '6px 10px', borderRadius: 8, border: '1.5px solid var(--border, #E8DDD4)',
+    padding: '6px 10px', borderRadius: 10, border: '1.5px solid var(--border, #E8DDD4)',
     fontSize: 12, fontFamily: 'inherit', background: 'var(--bg-card, #FFFCF9)', color: 'var(--text-secondary, #574A42)',
   },
   toggle: {
-    width: 44, height: 26, borderRadius: 13, border: 'none',
+    width: 44, height: 26, borderRadius: 16, border: 'none',
     cursor: 'pointer', position: 'relative', flexShrink: 0,
     transition: 'background 0.2s',
   },
   toggleDot: {
-    width: 22, height: 22, borderRadius: 11, background: 'var(--bg-card, #FFFCF9)',
+    width: 22, height: 22, borderRadius: 10, background: 'var(--bg-card, #FFFCF9)',
     position: 'absolute', top: 2, transition: 'transform 0.2s',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+    boxShadow: 'var(--elev-1)',
   },
 
   // Preview modal
@@ -608,7 +608,7 @@ const styles = {
     padding: '14px 16px', borderBottom: '1px solid var(--border, #E8DDD4)',
   },
   closeBtn: {
-    width: 28, height: 28, borderRadius: 14, border: 'none',
+    width: 28, height: 28, borderRadius: 16, border: 'none',
     background: 'var(--bg-hover, #f3ede9)', fontSize: 16, cursor: 'pointer',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
@@ -618,10 +618,10 @@ const styles = {
     background: 'var(--border, #E8DDD4)', padding: '12px 10px', borderRadius: '0 0 16px 16px',
   },
   phoneNotch: {
-    width: 60, height: 4, borderRadius: 2, background: 'var(--text-muted, #6B5D54)',
+    width: 60, height: 4, borderRadius: 6, background: 'var(--text-muted, #6B5D54)',
     margin: '0 auto 12px',
   },
-  phoneContent: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 12, padding: 12 },
+  phoneContent: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 10, padding: 12 },
   phoneMessage: {},
   phoneSender: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -653,7 +653,7 @@ const styles = {
     fontStyle: 'italic',
   },
   phoneRebook: {
-    padding: '10px 12px', borderRadius: 8, background: 'var(--accent-light, #F6E7EC)',
+    padding: '10px 12px', borderRadius: 10, background: 'var(--accent-light, #F6E7EC)',
     fontSize: 12, color: 'var(--accent, #92405e)', fontWeight: 500, textAlign: 'center',
   },
 

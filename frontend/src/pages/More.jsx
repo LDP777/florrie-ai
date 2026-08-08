@@ -376,7 +376,7 @@ const S = {
   searchClear: {
     position: 'absolute', right: 10, top: '50%',
     transform: 'translateY(-50%)',
-    background: '#f3ede9', border: 'none', borderRadius: 8,
+    background: '#f3ede9', border: 'none', borderRadius: 10,
     width: 22, height: 22, color: 'var(--text-muted)', cursor: 'pointer',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
@@ -407,7 +407,7 @@ const S = {
 
   catCard: {
     background: 'var(--tone-1, #fbf1ea)',
-    borderRadius: 20,
+    borderRadius: 22,
     border: 'none',
     overflow: 'hidden',
   },
@@ -436,7 +436,7 @@ const S = {
     alignItems: 'flex-start',
     padding: '14px 12px 12px',
     minHeight: 44,
-    borderRadius: 14,
+    borderRadius: 16,
     border: 'none',
     background: 'var(--bg, #FBF6F1)',
     cursor: 'pointer',
@@ -458,7 +458,7 @@ const S = {
   lockBadge: {
     fontSize: 9, fontWeight: 700,
     background: 'linear-gradient(135deg, #745a27, #fedb9b)',
-    color: '#fff', padding: '2px 6px', borderRadius: 5,
+    color: '#fff', padding: '2px 6px', borderRadius: 6,
     letterSpacing: '0.05em',
   },
 };

@@ -1036,7 +1036,7 @@ const styles = {
   platformGrid: { display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 },
   platformCard: {
     display: 'flex', alignItems: 'center', gap: 14,
-    padding: '16px 18px', borderRadius: 14,
+    padding: '16px 18px', borderRadius: 16,
     background: 'var(--bg-card, #FFFCF9)',
     border: '2px solid var(--border, #E8DDD4)',
     cursor: 'pointer', fontFamily: 'inherit',
@@ -1049,7 +1049,7 @@ const styles = {
 
   // Help card
   helpCard: {
-    background: 'var(--gold-light, #ffdea4)', borderRadius: 12, padding: '14px 16px',
+    background: 'var(--gold-light, #ffdea4)', borderRadius: 10, padding: '14px 16px',
     marginBottom: 12,
   },
   helpTitle: { fontSize: 12, fontWeight: 700, color: 'var(--gold-text, #795f2b)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' },
@@ -1066,7 +1066,7 @@ const styles = {
   centreCard: {
     textAlign: 'center', padding: 48,
     background: 'var(--bg-card, #FFFCF9)', borderRadius: 16,
-    boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+    boxShadow: 'var(--elev-2)',
   },
   spinner: {
     width: 32, height: 32, border: '3px solid var(--border, #E8DDD4)',
@@ -1087,9 +1087,9 @@ const styles = {
   summaryGrid: { display: 'flex', gap: 8 },
   summaryCard: {
     flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-    padding: '16px 8px', borderRadius: 14,
+    padding: '16px 8px', borderRadius: 16,
     background: 'var(--bg-card, #FFFCF9)',
-    boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+    boxShadow: 'var(--elev-1)',
   },
   summaryIcon: { fontSize: 20 },
   summaryNum: { fontSize: 24, fontWeight: 700, color: 'var(--text-primary, #241B17)' },
@@ -1098,8 +1098,8 @@ const styles = {
   previewSection: { marginTop: 4 },
   sectionTitle: { fontSize: 12, fontWeight: 700, color: 'var(--text-muted, #6B5D54)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 },
   previewList: {
-    background: 'var(--bg-card, #FFFCF9)', borderRadius: 14,
-    padding: '4px 14px', boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+    background: 'var(--bg-card, #FFFCF9)', borderRadius: 16,
+    padding: '4px 14px', boxShadow: 'var(--elev-1)',
     maxHeight: 360, overflowY: 'auto',
   },
   previewRow: {
@@ -1131,25 +1131,25 @@ const styles = {
   editRowTop: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
   editPair: { display: 'flex', gap: 8 },
   editInput: {
-    flex: 1, padding: '8px 10px', borderRadius: 8,
+    flex: 1, padding: '8px 10px', borderRadius: 10,
     border: '1.5px solid var(--border, #E8DDD4)',
     fontSize: 13, fontFamily: 'inherit', outline: 'none',
     boxSizing: 'border-box',
   },
   removeBtn: {
-    padding: '4px 10px', borderRadius: 8, border: 'none',
+    padding: '4px 10px', borderRadius: 10, border: 'none',
     background: 'var(--danger-bg, #F7E4E4)', color: 'var(--danger, #9E2B32)',
     fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
   },
   doneBtn: {
-    padding: '8px 0', borderRadius: 8, border: 'none',
+    padding: '8px 0', borderRadius: 10, border: 'none',
     background: 'var(--accent-light, #F6E7EC)', color: 'var(--accent, #92405e)',
     fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
   },
 
   chipGrid: { display: 'flex', flexWrap: 'wrap', gap: 6 },
   chip: {
-    padding: '6px 12px', borderRadius: 20,
+    padding: '6px 12px', borderRadius: 22,
     background: 'var(--accent-light, #F6E7EC)',
     color: 'var(--accent, #92405e)', fontSize: 12, fontWeight: 500,
     display: 'flex', alignItems: 'center', gap: 6,
@@ -1162,14 +1162,14 @@ const styles = {
   },
 
   importBtn: {
-    display: 'block', width: '100%', padding: '16px 0', borderRadius: 14,
+    display: 'block', width: '100%', padding: '16px 0', borderRadius: 16,
     border: 'none', background: 'var(--accent, #92405e)', color: '#fff',
     fontSize: 16, fontWeight: 600, cursor: 'pointer',
     fontFamily: 'inherit', textAlign: 'center', textDecoration: 'none',
-    boxShadow: '0 2px 12px rgba(199, 107, 138, 0.3)',
+    boxShadow: 'var(--elev-2)',
   },
   backBtn: {
-    display: 'block', width: '100%', padding: '14px 0', borderRadius: 12,
+    display: 'block', width: '100%', padding: '14px 0', borderRadius: 10,
     border: 'none', background: 'var(--bg-hover, #f3ede9)', color: 'var(--text-muted, #6B5D54)',
     fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center',
   },
@@ -1178,7 +1178,7 @@ const styles = {
   doneCard: {
     textAlign: 'center', padding: '40px 20px',
     background: 'var(--bg-card, #FFFCF9)', borderRadius: 16,
-    boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+    boxShadow: 'var(--elev-2)',
   },
   doneEmoji: { fontSize: 48, display: 'block', marginBottom: 8 },
   doneTitle: {
@@ -1197,11 +1197,11 @@ const styles = {
   manualCard: { display: 'flex', flexDirection: 'column', gap: 12 },
   exampleBox: {
     background: 'var(--bg-card, #FFFCF9)', borderRadius: 10, padding: 12,
-    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+    boxShadow: 'var(--elev-1)',
   },
   exampleLine: { fontSize: 12, color: 'var(--text-muted, #6B5D54)', fontFamily: 'monospace', lineHeight: 1.8 },
   textarea: {
-    width: '100%', padding: 14, borderRadius: 12,
+    width: '100%', padding: 14, borderRadius: 10,
     border: '1.5px solid var(--border, #E8DDD4)',
     fontSize: 14, fontFamily: 'inherit', resize: 'vertical',
     outline: 'none', lineHeight: 1.6, boxSizing: 'border-box',
@@ -1215,23 +1215,23 @@ const styles = {
     fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
   },
   timelyUploadBtn: {
-    display: 'block', width: '100%', padding: '14px 0', borderRadius: 14,
+    display: 'block', width: '100%', padding: '14px 0', borderRadius: 16,
     border: '2px solid var(--accent, #92405e)', background: 'transparent',
     color: 'var(--accent, #92405e)', fontSize: 15, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center',
   },
   timelyPreviewCard: {
-    background: 'var(--bg-card, #FFFCF9)', borderRadius: 14,
-    padding: '16px 18px', boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+    background: 'var(--bg-card, #FFFCF9)', borderRadius: 16,
+    padding: '16px 18px', boxShadow: 'var(--elev-1)',
     display: 'flex', flexDirection: 'column', gap: 12,
   },
   timelyPreviewLine: { fontSize: 14, color: 'var(--text-primary, #241B17)', lineHeight: 1.5 },
   timelyPreviewSub: { fontSize: 12, color: 'var(--text-muted, #6B5D54)', lineHeight: 1.5 },
   timelyProgressTrack: {
-    height: 8, borderRadius: 4, background: 'var(--bg-hover, #f3ede9)', overflow: 'hidden',
+    height: 8, borderRadius: 6, background: 'var(--bg-hover, #f3ede9)', overflow: 'hidden',
   },
   timelyProgressFill: {
-    height: '100%', borderRadius: 4, background: 'var(--accent, #92405e)',
+    height: '100%', borderRadius: 6, background: 'var(--accent, #92405e)',
     transition: 'width 0.3s ease',
   },
   timelyResultList: { display: 'flex', flexDirection: 'column', gap: 8 },
