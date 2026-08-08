@@ -171,7 +171,7 @@ const COLORS = {
   surfaceContainerLow: 'var(--bg-input)',
   onSurface: 'var(--text-primary)',
   outlineVariant: '#d8c1c6',
-  stone400: '#78716b',
+  stone400: 'var(--text-muted, #6B5D54)',   // was #78716b, 4.3:1 on cream
 };
 
 // Controls on the treatments list. Pulled out because the same select and the
@@ -922,7 +922,7 @@ export default function CalendarView({ initialView } = {}) {
             onClick={handleMarkAllDone}
             disabled={markingAllDone}
             title="Mark all done"
-            style={{ height: 36, padding: '0 12px', borderRadius: 10, border: `1px solid ${COLORS.outlineVariant}`, background: 'var(--card-bg, #FFFCF9)', color: '#5BA67F', cursor: markingAllDone ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, flexShrink: 0, fontSize: 12, fontWeight: 600, fontFamily: 'inherit', opacity: markingAllDone ? 0.6 : 1 }}
+            style={{ height: 36, padding: '0 12px', borderRadius: 10, border: `1px solid ${COLORS.outlineVariant}`, background: 'var(--card-bg, #FFFCF9)', color: 'var(--success, #3F7D5C)', cursor: markingAllDone ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, flexShrink: 0, fontSize: 12, fontWeight: 600, fontFamily: 'inherit', opacity: markingAllDone ? 0.6 : 1 }}
           >
             <Icon name={iconName('done_all')} size={15} inline style={{ }} />
             {markingAllDone ? '…' : 'All done'}

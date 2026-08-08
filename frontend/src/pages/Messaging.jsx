@@ -310,7 +310,12 @@ const styles = {
     padding: '11px 14px',
     borderRadius: 10,
     border: 'none',
-    background: '#25D366',
+    // WhatsApp brand green, the darker of the two official ones. #25D366 is
+    // the familiar bright green and white on it measures 1.98:1 — their own
+    // marketing pairs it with dark text, not white. #128C7E is equally theirs
+    // one step darker at #0F7A6C, which measures 5.0:1. Measured, not estimated:
+    // #128C7E came out at 4.14:1, which is short of AA for 13px text.
+    background: '#0F7A6C',
     color: '#FFFFFF',
     fontSize: 13,
     fontWeight: 700,

@@ -192,7 +192,7 @@ body {
 
 /* Variants. Maroon is the only interactive colour, so everything below is
    maroon, a maroon tint, or a semantic. */
-.fl-btn--primary { background: var(--accent); color: #fff; }
+.fl-btn--primary { background: var(--accent); color: var(--on-accent, #fff); }
 .fl-btn--primary:hover:not(:disabled) { background: var(--accent-hover); }
 
 .fl-btn--secondary { background: var(--bg-card); color: var(--accent); border-color: var(--border); }
@@ -204,12 +204,12 @@ body {
 .fl-btn--quiet { background: transparent; color: var(--accent); }
 .fl-btn--quiet:hover:not(:disabled) { background: var(--accent-wash); }
 
-.fl-btn--danger { background: var(--danger); color: #fff; }
+.fl-btn--danger { background: var(--danger); color: var(--on-danger, #fff); }
 .fl-btn--danger:hover:not(:disabled) { filter: brightness(1.08); }
 
 .fl-btn--chip { background: var(--surface-container-low); color: var(--text-secondary); border-color: transparent; }
 .fl-btn--chip:hover:not(:disabled) { background: var(--surface-container); }
-.fl-btn--chip[aria-pressed="true"], .fl-btn--chip.is-on { background: var(--accent); color: #fff; }
+.fl-btn--chip[aria-pressed="true"], .fl-btn--chip.is-on { background: var(--accent); color: var(--on-accent, #fff); }
 
 /* Surfaces. 2,079 objects in the app act as a card. */
 .fl-card {

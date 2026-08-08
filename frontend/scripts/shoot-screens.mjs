@@ -29,6 +29,7 @@ mkdirSync(OUT, { recursive: true });
 
 const argv = process.argv.slice(2).filter(a => !a.startsWith('--'));
 const ALL = process.argv.includes('--all');
+const DARK = process.argv.includes('--dark');
 const names = ALL
   ? readdirSync(join(SRC, 'pages')).filter(f => f.endsWith('.jsx')).map(f => f.replace('.jsx', ''))
   : (argv.length ? argv : ['Settings', 'ValueBreakdown', 'MoneyTracker', 'Treatments', 'Hub']);
@@ -80,6 +81,19 @@ const indexHtml = readFileSync(new URL('../index.html', import.meta.url).pathnam
 const headBits = [...indexHtml.matchAll(/<link[^>]+fonts\.(googleapis|gstatic)[^>]*>/g)].map(m => m[0]).join('\n');
 const rootVars = (/<style>([\s\S]*?)<\/style>/.exec(indexHtml) || [, ''])[1];
 
+// Dark mode is applied at runtime by theme.jsx writing to documentElement.style,
+// which a static render never executes. So the token map is read out of the
+// source and written into :root here — the same values, the same way round.
+let darkCss = '';
+if (DARK) {
+  const theme = readFileSync(join(SRC, 'lib/theme.jsx'), 'utf8');
+  const start = theme.indexOf('const darkTokens = {');
+  const end = theme.indexOf('\n};', start);
+  const body = theme.slice(start, end);
+  const decls = [...body.matchAll(/'(--[\w-]+)':\s*'([^']*)'/g)].map(m => `${m[1]}:${m[2]}`).join(';');
+  darkCss = `:root{${decls}} html,body{color-scheme:dark}`;
+}
+
 // The shell, as App.jsx builds it: the scroll region reserves the pill band,
 // and the pills are fixed on top. Getting this wrong would make the picture
 // lie in exactly the place the bug was.
@@ -93,6 +107,7 @@ const page = (name, body) => `<!doctype html><meta charset=utf-8>
 ${headBits}
 <style>${rootVars}</style>
 <style>${css}</style>
+<style>${darkCss}</style>
 <style>
   html,body{margin:0;background:var(--bg,#FBF6F1);font-family:var(--font-body);}
   #shell{position:relative;width:390px;min-height:844px;overflow:hidden;}
@@ -125,7 +140,7 @@ const written = [];
 for (const name of names) {
   await pg.goto(`http://127.0.0.1:${port}/${encodeURIComponent(name)}`, { waitUntil: 'networkidle' });
   await pg.evaluate(() => document.fonts?.ready);
-  const file = join(OUT, `${name}.png`);
+  const file = join(OUT, `${name}${DARK ? '-dark' : ''}.png`);
   await pg.screenshot({ path: file, fullPage: false });
   written.push(file);
 }

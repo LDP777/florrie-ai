@@ -86,3 +86,11 @@ jobs:
       # text clipped by its own container with no ellipsis. "So much text is
       # hidden now" was a real report from a real user.
       - run: npm run check:overflow --workspace frontend
+
+      # check:contrast measures every text node against what is actually
+      # painted behind it. LIGHT ONLY, deliberately: dark mode currently fails
+      # on 64 nodes and is unreachable in the app anyway (theme.jsx starts
+      # light, does not persist, does not read prefers-color-scheme), so
+      # gating on it would block every push for a palette nobody can see.
+      # Run `npm run check:contrast:dark` to see the debt.
+      - run: npm run check:contrast --workspace frontend

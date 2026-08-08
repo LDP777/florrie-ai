@@ -24,7 +24,9 @@
     "check:chrome": "node scripts/check-chrome.mjs",
     "check:render": "node scripts/check-render.mjs",
     "check:safe-area": "node scripts/check-safe-area.mjs",
-    "check:overflow": "node scripts/check-overflow.mjs"
+    "check:overflow": "node scripts/check-overflow.mjs",
+    "check:contrast": "node scripts/check-contrast.mjs --light",
+    "check:contrast:dark": "node scripts/check-contrast.mjs --dark"
   },
   "dependencies": {
     "@capacitor-community/apple-sign-in": "^6.0.0",

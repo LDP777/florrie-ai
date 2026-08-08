@@ -30,7 +30,7 @@ const C = {
   bg: 'var(--bg)',
   card: 'var(--bg-card)',
   text: 'var(--text-primary)',
-  muted: '#78716b',
+  muted: 'var(--text-muted, #6B5D54)',   // was #78716b, 4.3:1 on cream
   line: 'rgba(146, 64, 94, 0.12)',
   lineSoft: 'rgba(146, 64, 94, 0.07)',
 };

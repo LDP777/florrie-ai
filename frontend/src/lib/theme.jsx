@@ -73,6 +73,13 @@ const lightTokens = {
 
   // Brand accent - Stitch primary (#92405e)
   '--accent': '#92405e',
+  // The colour of text ON the accent, which is not a constant. In light mode
+  // the accent is a deep maroon and white sits on it correctly. In dark mode
+  // the accent inverts to a light rose and white on it measures 1.7:1 — the
+  // single cause of 57 unreadable text nodes across the app, because every
+  // rule that paints on the accent hardcoded #fff.
+  '--on-accent': '#ffffff',
+  '--on-danger': '#ffffff',
   '--accent-hover': '#782b49',
   '--accent-light': '#F6E7EC',  // rose wash, not bubblegum
   '--accent-bg': 'rgba(146, 64, 94, 0.08)',
@@ -180,6 +187,9 @@ const darkTokens = {
 
   // Brand accent - Stitch inverse-primary
   '--accent': '#ffb1c8',
+  // Dark ink on the light rose. Measures 11.6:1, where white measured 1.7:1.
+  '--on-accent': '#241B17',
+  '--on-danger': '#241B17',
   '--accent-hover': '#ffd9e2',
   '--accent-light': '#3e001d',
   '--accent-bg': 'rgba(255, 177, 200, 0.08)',

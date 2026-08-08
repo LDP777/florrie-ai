@@ -126,7 +126,7 @@ export default function ConsultationFormPublic() {
     return (
       <div style={{ ...styles.page, textAlign: 'center', paddingTop: 80 }}>
         <div style={styles.spinner} />
-        <p style={{ color: '#9a9590', marginTop: 16 }}>Loading your form...</p>
+        <p style={{ color: '#6E6862', marginTop: 16 }}>Loading your form...</p>
       </div>
     );
   }

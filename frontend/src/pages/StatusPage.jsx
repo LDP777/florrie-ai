@@ -57,7 +57,7 @@ export default function StatusPage({ kind = 'card_saved' }) {
         <p style={{ fontSize: 14, lineHeight: 1.6, color: '#7A716A', margin: 0 }}>
           {COPY.body}
         </p>
-        <p style={{ fontSize: 12, color: '#B3A890', margin: '22px 0 0' }}>
+        <p style={{ fontSize: 12, color: '#6E6862', margin: '22px 0 0' }}>
           You can close this page.
         </p>
       </div>
