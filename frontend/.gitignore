@@ -1,1 +1,5 @@
 .render-harness.mjs
+
+shots/
+.shoot-harness.mjs
+.sheet.mjs
