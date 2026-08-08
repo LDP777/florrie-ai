@@ -8,6 +8,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import logger from '../lib/logger.js';
 import { expenseSchema } from '../lib/schemas.js';
 import {
+import { selectable, writable } from '../lib/schema-probe.js';
   buildLedger,
   currentTaxYear,
   paginate,
@@ -180,7 +181,9 @@ router.get('/tax-summary', requireAuth, async (req, res) => {
     // All expenses
     const { data: expenses, error: expenseError } = await supabase
       .from('expenses')
-      .select('amount_cents, category, hmrc_category, vendor, date, tax_deductible')
+      .select(await selectable(supabase, 'expenses',
+          ['amount_cents', 'category', 'vendor', 'date', 'tax_deductible'],
+          ['hmrc_category']))
       .eq('beautician_id', req.beautician.id)
       .gte('date', periodStart)
       .lte('date', periodEnd);
@@ -307,7 +310,7 @@ router.post('/expenses', requireAuth, async (req, res) => {
 
   const { data, error } = await supabase
     .from('expenses')
-    .insert({
+    .insert(await writable(supabase, 'expenses', {
       beautician_id: req.beautician.id,
       amount_cents,
       vendor: vendor || null,
@@ -318,7 +321,7 @@ router.post('/expenses', requireAuth, async (req, res) => {
       tax_deductible,
       tax_year: getTaxYear(new Date(date)),
       ...(recurringExpenseId ? { recurring_expense_id: recurringExpenseId } : {}),
-    })
+    }, ['hmrc_category']))
     .select()
     .single();
 
@@ -701,7 +704,10 @@ router.get('/ledger', requireAuth, async (req, res) => {
     if (wantExpenses) {
       let q = supabase
         .from('expenses')
-        .select('id, amount_cents, vendor, description, category, hmrc_category, date, tax_deductible, recurring_expense_id, created_at')
+        .select(await selectable(supabase, 'expenses',
+          ['id', 'amount_cents', 'vendor', 'description', 'category', 'date',
+           'tax_deductible', 'recurring_expense_id', 'created_at'],
+          ['hmrc_category']))
         .eq('beautician_id', beauticianId)
         .order('date', { ascending: false })
         .limit(MAX_LEDGER_ROWS);

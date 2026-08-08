@@ -20,6 +20,7 @@
  */
 import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
+import { selectable } from '../lib/schema-probe.js';
 
 const HMRC_BASE = process.env.HMRC_API_BASE || 'https://test-api.service.hmrc.gov.uk';
 const HMRC_CLIENT_ID = process.env.HMRC_CLIENT_ID;
@@ -76,7 +77,7 @@ export async function buildQuarterlySummary(beauticianId, taxYear, quarterIndex)
   // Fetch expenses grouped by HMRC category
   const { data: expenses } = await supabase
     .from('expenses')
-    .select('amount_cents, hmrc_category, date')
+    .select(await selectable(supabase, 'expenses', ['amount_cents', 'date'], ['hmrc_category']))
     .eq('beautician_id', beauticianId)
     .gte('date', qStart)
     .lte('date', qEnd);

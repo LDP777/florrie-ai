@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
+import { selectable } from '../lib/schema-probe.js';
 
 const router = Router();
 
@@ -197,7 +198,9 @@ router.get('/tax-quarterly', requireAuth, async (req, res) => {
         .lte('created_at', `${periodEnd}T23:59:59Z`),
       supabase
         .from('expenses')
-        .select('amount_cents, category, hmrc_category, vendor, description, date, tax_deductible')
+        .select(await selectable(supabase, 'expenses',
+            ['amount_cents', 'category', 'vendor', 'description', 'date', 'tax_deductible'],
+            ['hmrc_category']))
         .eq('beautician_id', req.beautician.id)
         .gte('date', periodStart)
         .lte('date', periodEnd)
