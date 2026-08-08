@@ -2,7 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { ThemeProvider } from './lib/theme.jsx';
-import * as Sentry from '@sentry/react';
+import { afterPaint } from './lib/after-paint.js';
 import { initAnalytics } from './lib/analytics.js';
 import App from './App.jsx';
 import './index.css';
@@ -14,15 +14,29 @@ try {
   console.error('[florrie] initAnalytics failed at startup:', err);
 }
 
+// Sentry is 110 KB and was loading before first paint, which bought nothing:
+// it cannot report an error that has not happened yet. It loads after paint
+// now, and the gap is covered by a twelve-line buffer installed synchronously
+// below — so a crash during boot, which is the one moment deferring could have
+// cost us, is still captured and replayed once the SDK arrives.
+const earlyErrors = [];
+const onEarlyError = (e) => {
+  earlyErrors.push(e.error || e.reason || new Error(e.message || 'unknown error'));
+};
+window.addEventListener('error', onEarlyError);
+window.addEventListener('unhandledrejection', onEarlyError);
+
 if (import.meta.env.VITE_SENTRY_DSN) {
-  try {
-    Sentry.init({
-      dsn: import.meta.env.VITE_SENTRY_DSN,
-      environment: import.meta.env.MODE,
-      integrations: [
-        Sentry.browserTracingIntegration(),
-      ],
-      tracesSampleRate: 0.1,
+  const startSentry = async () => {
+    try {
+      const Sentry = await import('@sentry/react');
+      Sentry.init({
+        dsn: import.meta.env.VITE_SENTRY_DSN,
+        environment: import.meta.env.MODE,
+        integrations: [
+          Sentry.browserTracingIntegration(),
+        ],
+        tracesSampleRate: 0.1,
       beforeSend(event, hint) {
         const error = hint?.originalException;
         const message = error?.message || event?.message || '';
@@ -41,10 +55,16 @@ if (import.meta.env.VITE_SENTRY_DSN) {
         if (frames.some(f => /sendDataToNative|sendPageHideMessage|sendMessageToNative/i.test(f?.function || ''))) return null;
         return event;
       },
-    });
-  } catch (err) {
-    console.error('[florrie] Sentry init failed at startup:', err);
-  }
+      });
+      window.removeEventListener('error', onEarlyError);
+      window.removeEventListener('unhandledrejection', onEarlyError);
+      // Anything that blew up while the SDK was still downloading.
+      for (const err of earlyErrors.splice(0)) Sentry.captureException(err);
+    } catch (err) {
+      console.error('[florrie] Sentry init failed at startup:', err);
+    }
+  };
+  afterPaint(startSentry);
 }
 
 // Native app ships fresh bundled assets each build; a leftover service worker can

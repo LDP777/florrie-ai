@@ -15,11 +15,40 @@
  *   - session replay masks all input fields by default; use
  *     data-ph-mask="true" on any additional content to mask
  */
-import posthog from 'posthog-js';
+import { afterPaint } from './after-paint.js';
 import { supabase } from './supabase.js';
 import logger from './logger.js';
 
 let initialized = false;
+
+/**
+ * PostHog is loaded AFTER first paint, not before it.
+ *
+ * It is 230 KB — 27% of everything the browser had to fetch before Ellie could
+ * see anything, on a screen she opens between clients on mobile data. Measured
+ * with scripts/check-boot.mjs on a throttled 4G phone, not guessed at.
+ *
+ * Nothing is lost by arriving a second late: every call site here is
+ * fire-and-forget, and the calls made before the SDK lands are queued and
+ * replayed in order. Feature flags read false until it loads, which is safe
+ * because nothing in the app reads a flag (grep: zero call sites).
+ */
+let posthog = null;
+const queue = [];
+
+function flush() {
+  while (queue.length) {
+    const [fn, args] = queue.shift();
+    try { posthog[fn](...args); } catch (err) { logger.warn(`PostHog ${fn} failed:`, err); }
+  }
+}
+
+/** Queue until the SDK is here, then pass straight through. */
+function call(fn, ...args) {
+  if (!initialized) return;
+  if (!posthog) { queue.push([fn, args]); return; }
+  try { posthog[fn](...args); } catch (err) { logger.warn(`PostHog ${fn} failed:`, err); }
+}
 
 export function initAnalytics() {
   if (initialized) return;
@@ -32,7 +61,18 @@ export function initAnalytics() {
     return;
   }
 
+  initialized = true;   // start accepting calls into the queue immediately
+
+  afterPaint(() => {
+    import('posthog-js')
+      .then(m => { boot(m.default, key, host); })
+      .catch(err => logger.warn('PostHog failed to load:', err));
+  });
+}
+
+function boot(ph, key, host) {
   try {
+    posthog = ph;
     posthog.init(key, {
       api_host: host,
       // We emit events deliberately. Autocapture generates noise that's
@@ -54,9 +94,12 @@ export function initAnalytics() {
         if (import.meta.env?.DEV) ph.opt_out_capturing();
       },
     });
-    initialized = true;
+    // Anything called between initAnalytics() and now is waiting in the queue.
+    flush();
   } catch (err) {
     logger.warn('PostHog init failed:', err);
+    posthog = null;
+    queue.length = 0;   // do not hold events for an SDK that will never arrive
     return;
   }
 
@@ -77,36 +120,15 @@ export function initAnalytics() {
   }
 }
 
-export function track(event, props = {}) {
-  if (!initialized) return;
-  try {
-    posthog.capture(event, props);
-  } catch (err) {
-    logger.warn('PostHog track failed:', err);
-  }
-}
+export function track(event, props = {}) { call('capture', event, props); }
 
-export function identify(userId, traits = {}) {
-  if (!initialized || !userId) return;
-  try {
-    posthog.identify(userId, traits);
-  } catch (err) {
-    logger.warn('PostHog identify failed:', err);
-  }
-}
+export function identify(userId, traits = {}) { if (userId) call('identify', userId, traits); }
 
-export function reset() {
-  if (!initialized) return;
-  try {
-    posthog.reset();
-  } catch (err) {
-    logger.warn('PostHog reset failed:', err);
-  }
-}
+export function reset() { call('reset'); }
 
 /** Returns true if a feature flag is enabled for the current user. */
 export function isFeatureEnabled(flagKey) {
-  if (!initialized) return false;
+  if (!initialized || !posthog) return false;
   try {
     return posthog.isFeatureEnabled(flagKey);
   } catch {
@@ -116,7 +138,7 @@ export function isFeatureEnabled(flagKey) {
 
 /** Returns the variant value for a multivariate flag (string | boolean | null). */
 export function getFeatureFlag(flagKey) {
-  if (!initialized) return null;
+  if (!initialized || !posthog) return null;
   try {
     return posthog.getFeatureFlag(flagKey);
   } catch {

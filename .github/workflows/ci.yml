@@ -101,3 +101,10 @@ jobs:
       # weight of its own but no font-family, so it inherited the serif. That
       # is not findable by reading; it needs measuring.
       - run: npm run check:numerals --workspace frontend
+
+      # check:deferred proves PostHog and Sentry still ARRIVE after being moved
+      # behind first paint. The risk in that change is not a crash, it is
+      # silence — two implementations shipped past a green build loading
+      # NEITHER chunk, and the only symptom would have been an empty dashboard
+      # noticed weeks later.
+      - run: npm run check:deferred --workspace frontend

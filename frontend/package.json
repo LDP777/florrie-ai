@@ -28,7 +28,8 @@
     "check:contrast": "node scripts/check-contrast.mjs --light",
     "check:contrast:dark": "node scripts/check-contrast.mjs --dark",
     "check:numerals": "node scripts/check-numerals.mjs",
-    "check:boot": "node scripts/check-boot.mjs"
+    "check:boot": "node scripts/check-boot.mjs",
+    "check:deferred": "node scripts/check-deferred.mjs"
   },
   "dependencies": {
     "@capacitor-community/apple-sign-in": "^6.0.0",

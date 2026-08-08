@@ -54,18 +54,28 @@ if (!FAST) {
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });   // a phone, not a laptop
 }
 
+const rawJs = [];
+page.on('response', async (r) => {
+  if (!/\.js(\?|$)/.test(r.url())) return;
+  try { rawJs.push({ name: r.url().split('/').pop().split('?')[0], size: (await r.body()).length }); }
+  catch { /* redirect or aborted */ }
+});
+
 const t0 = Date.now();
 // Go straight to the route the app settles on. Booting at / triggers a FULL
 // page reload to /login, which resets the performance timeline — the first
 // version of this measured an empty timeline and cheerfully reported 0 KB.
-await page.goto(`http://127.0.0.1:${port}/login`, { waitUntil: 'load' });
+await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'load' });
 // The app redirects to /login on boot, which tears down the execution context
 // mid-evaluate. Let the client-side navigation settle first, then read the
 // timings — performance entries survive a same-document route change.
 await page.waitForLoadState('networkidle').catch(() => {});
 await page.waitForTimeout(400);
 
-const paint = await page.evaluate(() => new Promise((resolve) => {
+// The app hard-reloads to /login during boot, so an evaluate started before
+// that lands mid-navigation. Retry once on the far side rather than pretending
+// a destroyed context is a measurement of zero.
+const readPaint = () => page.evaluate(() => new Promise((resolve) => {
   const read = () => {
     const fcp = performance.getEntriesByName('first-contentful-paint')[0];
     const nav = performance.getEntriesByType('navigation')[0];
@@ -73,22 +83,30 @@ const paint = await page.evaluate(() => new Promise((resolve) => {
     else setTimeout(read, 50);
   };
   read();
-  setTimeout(() => resolve({ fcp: -1, domContentLoaded: -1, load: -1 }), 15000);
+  setTimeout(() => resolve({ fcp: -1, domContentLoaded: -1, load: -1 }), 8000);
 }));
 
-// Taken from the browser's own resource timeline, not from response events.
-// Listening for responses and stamping Date.now() measures when NODE finished
-// reading the body, which is asynchronous and lands after FCP — it reported
-// "0 KB before paint" for a page that plainly could not have painted without
-// its script. resource entries and paint entries share one clock.
-const js = await page.evaluate((fcp) => performance.getEntriesByType('resource')
-  .filter(r => /\.js(\?|$)/.test(r.name))
-  .map(r => ({
-    name: r.name.split('/').pop().split('?')[0],
-    size: r.encodedBodySize || r.transferSize || 0,
-    end: Math.round(r.responseEnd),
-    blocksPaint: r.responseEnd <= fcp,
-  })), paint.fcp);
+let paint;
+try { paint = await readPaint(); }
+catch {
+  await page.waitForLoadState('load').catch(() => {});
+  await page.waitForTimeout(300);
+  paint = await readPaint();
+}
+
+// Render-blocking is read from index.html's own modulepreload set, not from
+// timings. Two earlier attempts got this wrong in opposite directions:
+// stamping Date.now() in a response listener measures when NODE finished
+// reading the body (async, lands after FCP, reported 0 KB), and reading
+// performance.getEntriesByType('resource') after boot finds an empty timeline
+// because the app does a FULL page reload to /login, which resets it.
+//
+// The preload set is deterministic and is exactly what the browser must have
+// before it can run the app, so it is the honest answer to "what does she wait
+// for".
+const indexHtml = readFileSync(join(DIST, 'index.html'), 'utf8');
+const preloaded = new Set([...indexHtml.matchAll(/(?:modulepreload|module)"?[^>]*(?:href|src)="\/?(assets\/[^"]+\.js)"/g)].map(m => m[1].split('/').pop()));
+const js = rawJs.map(j => ({ ...j, blocksPaint: preloaded.has(j.name) }));
 
 const beforePaint = js.filter(j => j.blocksPaint);
 const totalJs = js.reduce((a, j) => a + j.size, 0);
