@@ -153,12 +153,14 @@ async function loadData(beautician) {
 
   const yesterdayStart = new Date(todayStart); yesterdayStart.setDate(yesterdayStart.getDate() - 1);
 
-  const [apptRes, pulseRes, suggRes] = await Promise.all([
+  // /api/money/pulse sat in this list bound to `pulseRes` and was never read.
+  // The docblock above still promises yesterday's revenue from it; that has
+  // not been true for some time, and the brief renders without it.
+  const [apptRes, suggRes] = await Promise.all([
     fetch(
       `${API_BASE}/api/appointments?from=${todayStart.toISOString()}&to=${todayEnd.toISOString()}&per_page=100`,
       { headers: h }
     ).catch(() => null),
-    fetch(`${API_BASE}/api/money/pulse`, { headers: h }).catch(() => null),
     // Same source as the cards below, so the brief's count can never disagree
     // with what actually renders.
     fetch(`${API_BASE}/api/florrie-thinks`, { headers: h }).catch(() => null),

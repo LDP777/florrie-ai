@@ -11,6 +11,7 @@ import ValueReceipt from '../components/ValueReceipt.jsx';
 import SetupNudge from '../components/SetupNudge.jsx';
 import { milestoneBloom } from '../lib/bloom.js';
 import Icon, { iconName } from '../components/ui/Icon';
+import { dedupeFetch } from '../lib/dedupe-fetch.js';
 
 const CalendarView = lazy(() => import('./CalendarView.jsx'));
 const SmartSchedule = lazy(() => import('./SmartSchedule.jsx'));
@@ -221,7 +222,7 @@ function ApprovalCard({ onNav }) {
         const [pendRes, escRes, actRes] = await Promise.all([
           fetch(`${API_BASE}/api/outbound/pending`, { headers: h }).catch(() => null),
           fetch(`${API_BASE}/api/escalations`, { headers: h }).catch(() => null),
-          fetch(`${API_BASE}/api/activity/feed?limit=50`, { headers: h }).catch(() => null),
+          dedupeFetch(`${API_BASE}/api/activity/feed?limit=50`, { headers: h }).catch(() => null),
         ]);
         if (cancelled) return;
 
@@ -334,10 +335,10 @@ function TodaySummary({ beautician, onNav }) {
       const end   = ymd(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1));
 
       try {
-        const [apptRes, msgRes] = await Promise.all([
-          fetch(`${API_BASE}/api/appointments?from=${start}&to=${end}&per_page=100`, { headers: h }),
-          fetch(`${API_BASE}/api/ai-actions/summary`, { headers: h }).catch(() => null),
-        ]);
+        // /api/ai-actions/summary used to be fetched alongside this and bound
+        // to `msgRes`, which nothing ever read. A round trip on the critical
+        // path of the screen Ellie opens first, for a response thrown away.
+        const apptRes = await fetch(`${API_BASE}/api/appointments?from=${start}&to=${end}&per_page=100`, { headers: h });
 
         if (cancelled) return;
 

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { API_BASE } from '../lib/config.js';
 import { deDash } from '../lib/text.js';
 import Icon, { iconName } from './ui/Icon';
+import { dedupeFetch } from '../lib/dedupe-fetch.js';
 
 /**
  * ActivityFeed , Day 1 of the 2026-05-28 refactor.
@@ -169,7 +170,7 @@ export default function ActivityFeed({ limit = 50 }) {
       const token = getToken();
       if (!token) { setState({ status: 'ready', rows: [] }); return; }
       try {
-        const res = await fetch(`${API_BASE}/api/activity/feed?limit=${limit}`, {
+        const res = await dedupeFetch(`${API_BASE}/api/activity/feed?limit=${limit}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!res.ok) {
