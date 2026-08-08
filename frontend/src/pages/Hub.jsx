@@ -423,16 +423,28 @@ function TodaySummary({ beautician, onNav }) {
   }
 
   const revenue = formatGbp(Math.round(animatedRevenue));
-  const nextLabel = data.next
-    ? `${formatTime(data.next.starts_at)} · ${nextClientName(data.next)}`
-    : 'No clients booked';
+
+  // The headline slot is 27px bold in half a 390px card. It fits about ten
+  // characters. It was being handed "14:30 · Jo Whitfield-Barrowman", and on a
+  // quiet day the sentence "No clients booked" — which came out as "No clients
+  // book…", a headline truncated mid-word.
+  //
+  // Cutting the font down to make the sentence fit would be the wrong fix: a
+  // hero number that changes size depending on whose name is in it looks
+  // broken. The slot is the wrong shape for a sentence, so it gets the one
+  // thing that is always short — the TIME — and the name moves down to the
+  // subtitle, which wraps.
+  const nextLabel = data.next ? formatTime(data.next.starts_at) : 'Free day';
   // `treatments`, plural. The appointments route selects
   // `treatments(name, duration_minutes, price_cents)`, so the field is
   // `treatments.name` — which the chip 30 lines below reads correctly. This
   // line read `treatment` and `treatment_name`, neither of which exists, so
   // the next-client card has shown the literal words "Booked in" on every
   // render since it shipped instead of "Lash lift".
-  const nextSub = data.next?.treatments?.name || data.next?.treatment_name || (data.next ? 'Booked in' : 'Enjoy the breathing room');
+  const nextSub = data.next ? nextClientName(data.next) : 'Enjoy the breathing room';
+  const nextSub2 = data.next
+    ? (data.next.treatments?.name || data.next.treatment_name || null)
+    : null;
 
   return (
     <section style={TS.wrap}>
@@ -444,7 +456,7 @@ function TodaySummary({ beautician, onNav }) {
           sub2={data.potentialPence > 0 ? `${formatGbp(data.potentialPence)} potential` : null}
         />
         <div style={TS.divider} />
-        <Stat label="Next" value={nextLabel} sub={nextSub} wide />
+        <Stat label="Next" value={nextLabel} sub={nextSub} sub2={nextSub2} wide />
       </div>
 
       {/* Who's in today — the day at a glance, in time order. Tap = open on
@@ -503,13 +515,13 @@ function Stat({ label, value, sub, sub2, wide }) {
   return (
     <div style={{ ...TS.stat, ...(wide ? { flex: 2, minWidth: 0 } : {}) }}>
       <span style={TS.statLabel}>{label}</span>
-      <span style={{ ...TS.statValue,
-        ...(wide ? { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } : {}),
-      }}>
-        {value}
-      </span>
-      {sub && <span style={TS.statSub}>{sub}</span>}
-      {sub2 && <span style={TS.statSub2}>{sub2}</span>}
+      {/* No ellipsis. A headline that trails off mid-word is a layout that has
+          given up; the callers keep the value short instead. */}
+      <span style={TS.statValue}>{value}</span>
+      {/* The name and the treatment DO vary in length, so they wrap and clamp.
+          Two lines of 11px is unremarkable; "No clients book…" is not. */}
+      {sub && <span style={{ ...TS.statSub, ...TS.clamp2 }}>{sub}</span>}
+      {sub2 && <span style={{ ...TS.statSub2, ...TS.clamp2 }}>{sub2}</span>}
     </div>
   );
 }
@@ -753,6 +765,10 @@ const TS = {
     letterSpacing: '-0.02em',
     fontVariantNumeric: 'tabular-nums',
     fontFeatureSettings: '"tnum" 1, "lnum" 1',
+  },
+  clamp2: {
+    display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 2,
+    overflow: 'hidden', overflowWrap: 'anywhere',
   },
   statSub: {
     fontSize: 11,

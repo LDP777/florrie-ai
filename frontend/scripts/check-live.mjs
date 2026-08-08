@@ -151,7 +151,20 @@ const EDGE_SRC = `(() => {
     return bits.join(' > ');
   };
 
-  return { visibleRight, pathOf };
+  /**
+   * A headline that trails off mid-word. An ellipsis on a list row is what
+   * ellipses are for; at display size it means the copy and the slot were
+   * designed by different people.
+   */
+  const cutOff = (el) => {
+    const s = getComputedStyle(el);
+    return el.children.length === 0
+      && parseFloat(s.fontSize) >= 20
+      && s.textOverflow === 'ellipsis'
+      && el.scrollWidth > el.clientWidth + 1;
+  };
+
+  return { visibleRight, pathOf, cutOff };
 })()`;
 
 // The detector, as a source string, so the self-test at the bottom runs the
@@ -250,7 +263,7 @@ for (const route of ROUTES) {
       return { r:255, g:255, b:255, a:1 };
     };
 
-    const { visibleRight, pathOf } = EDGE;
+    const { visibleRight, pathOf, cutOff } = EDGE;
 
     const seen = new Set();
     const leaves = [];
@@ -285,6 +298,21 @@ for (const route of ROUTES) {
       if (r.right > 391 && visibleRight(el, r) > 391) {
         const k = 'w' + el.tagName + own.slice(0, 20);
         if (!seen.has(k)) { seen.add(k); push('past the right edge', { by: Math.round(visibleRight(el, r) - 390), text: own.slice(0, 40) || el.tagName.toLowerCase(), where: pathOf(el) }); }
+      }
+
+      // 1c. A HEADLINE THAT TRAILS OFF. Levi's words: "the next bit having text
+      //     too big for the capsule makes no sense." The Hub hero rendered
+      //     "No clients book…" — a 27px display slot with
+      //     nowrap/overflow-hidden/ellipsis on it, handed a sentence.
+      //
+      //     An ellipsis on a list row is fine; that is what it is for. On
+      //     something set at display size it means the copy and the slot were
+      //     designed by different people, and the fix is shorter copy or a
+      //     different slot, never a smaller font.
+      if (own && cutOff(el)) {
+        const k = 'e' + own.slice(0, 20);
+        if (!seen.has(k)) { seen.add(k); push('headline cut off mid-word', {
+          text: own.slice(0, 40), by: el.scrollWidth - el.clientWidth, where: pathOf(el) }); }
       }
 
       if (!own) continue;
@@ -460,14 +488,20 @@ await page.setContent(`<style>body{margin:0}</style>
   <div style="width:390px;overflow:hidden;height:40px">
     <div data-case="escaped" style="position:absolute;top:200px;right:0;width:128px;height:20px;margin-right:-64px"></div>
   </div>
+  <div style="width:200px;margin-top:240px">
+    <span data-cut="headline" style="display:block;font:700 27px sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">No clients booked today</span>
+    <span data-cut="listrow" style="display:block;font:400 13px sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">A perfectly ordinary list row that is allowed to end in an ellipsis</span>
+    <span data-cut="fits" style="display:block;font:700 27px sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Free day</span>
+  </div>
 </div>`);
 const edgeTest = await page.evaluate((edgeSrc) => {
-  const { visibleRight } = new Function('return ' + edgeSrc)();
-  const out = {};
+  const { visibleRight, cutOff } = new Function('return ' + edgeSrc)();
+  const out = { cut: {} };
   for (const el of document.querySelectorAll('[data-case]')) {
     const r = el.getBoundingClientRect();
     out[el.dataset.case] = { box: Math.round(r.right), painted: Math.round(visibleRight(el, r)) };
   }
+  for (const el of document.querySelectorAll('[data-cut]')) out.cut[el.dataset.cut] = cutOff(el);
   return out;
 }, EDGE_SRC);
 
@@ -485,6 +519,18 @@ if (selfTest.falsePositive) {
   console.error('✗ live: the collision detector fired on "Powered by florrie.ai",\n' +
     '  which is one sentence in two spans and is SUPPOSED to touch. A check\n' +
     '  that cries wolf gets skipped within a week.\n');
+  process.exit(1);
+}
+
+for (const [name, want] of [['headline', true], ['listrow', false], ['fits', false]]) {
+  const got = edgeTest.cut[name];
+  if (got === want) continue;
+  console.error(want
+    ? `✗ live: the cut-off-headline rule did not fire on "${name}" — 27px, nowrap,\n` +
+      `  ellipsis, and wider than its box. That is the exact shape of the Hub hero\n` +
+      `  rendering "No clients book…". If it forgives this it catches nothing.\n`
+    : `✗ live: the cut-off-headline rule fired on "${name}". An ellipsis on a list\n` +
+      `  row is what ellipses are for, and a headline that fits is not a defect.\n`);
   process.exit(1);
 }
 
