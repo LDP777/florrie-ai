@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm run check:icons && npm run check:icon-usage && npm run check:chrome && npm run check:primitives && npm run check:tap && vite build",
+    "build": "npm run check:icons && npm run check:icon-usage && npm run check:chrome && npm run check:primitives && npm run check:tap && npm run check:render && vite build",
     "preview": "vite preview",
     "test:e2e": "playwright test",
     "test:e2e:booking": "playwright test --project=booking",
@@ -21,7 +21,8 @@
     "check:tap": "node scripts/check-tap-inventory.mjs",
     "check:tap:browser": "node scripts/check-tap-targets.mjs",
     "check:icon-usage": "node scripts/check-icon-usage.mjs",
-    "check:chrome": "node scripts/check-chrome.mjs"
+    "check:chrome": "node scripts/check-chrome.mjs",
+    "check:render": "node scripts/check-render.mjs"
   },
   "dependencies": {
     "@capacitor-community/apple-sign-in": "^6.0.0",
