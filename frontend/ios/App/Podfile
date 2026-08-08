@@ -1,6 +1,9 @@
 require_relative '../../../node_modules/@capacitor/ios/scripts/pods_helpers'
 
-platform :ios, '13.0'
+# App Store Connect warning 90068: from Spring 2027 every upload must declare a
+# MinimumOSVersion of 15.0 or later. iOS 15 shipped in 2021, so nobody running a
+# phone that can install this app is excluded.
+platform :ios, '15.0'
 use_frameworks!
 
 # workaround to avoid Xcode caching of Pods that requires
