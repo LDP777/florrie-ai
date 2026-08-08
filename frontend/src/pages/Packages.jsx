@@ -383,12 +383,12 @@ export default function Courses() {
                   <div style={s.courseName}>{course.name}</div>
                   {course.date && (
                     <div style={s.courseMeta}>
-                      📅 {formatDate(course.date)}
-                      {course.location && <> · 📍 {course.location}</>}
+                      {<Icon name="calendar" inline />} {formatDate(course.date)}
+                      {course.location && <> · {<Icon name="map-pin" inline />} {course.location}</>}
                     </div>
                   )}
                   {course.duration && (
-                    <div style={s.courseMeta}>⏱ {course.duration}</div>
+                    <div style={s.courseMeta}>{<Icon name="clock" inline />} {course.duration}</div>
                   )}
                 </div>
                 <div style={s.coursePrice}>
@@ -494,7 +494,7 @@ export default function Courses() {
         <div style={s.list}>
           {enrollments.length === 0 && (
             <div style={s.empty}>
-              <div style={s.emptyIcon}>👩‍🎓</div>
+              <div style={s.emptyIcon}>{<Icon name="users" inline />}‍{<Icon name="users" inline />}</div>
               <p style={s.emptyTitle}>No enrollments yet</p>
               <p style={s.emptyText}>Share your course links and students will appear here when they sign up.</p>
             </div>
@@ -519,7 +519,7 @@ export default function Courses() {
                 </div>
                 {course && (
                   <div style={s.enrollMeta}>
-                    📅 {formatDate(course.date)} · £{course.price}
+                    {<Icon name="calendar" inline />} {formatDate(course.date)} · £{course.price}
                     {course.deposit > 0 && ` (£${course.deposit} deposit)`}
                   </div>
                 )}

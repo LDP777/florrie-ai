@@ -74,7 +74,7 @@ const Toast = ({ id, message, variant = 'info', duration = 3000, onDismiss }) =>
     },
     info: {
       background: 'var(--accent)',
-      icon: 'ℹ',
+      icon: 'info',
     },
   };
 

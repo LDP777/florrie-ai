@@ -2745,7 +2745,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               {['card', 'cash', 'transfer', 'unpaid'].map(m => (
                 <button key={m} onClick={() => setPaymentMethod(m)}
                   style={{ ...styles.paymentChip, background: paymentMethod === m ? 'var(--accent)' : 'var(--border-light)', color: paymentMethod === m ? '#fff' : 'var(--text-secondary)' }}>
-                  {m === 'card' ? '💳' : m === 'cash' ? '💵' : m === 'transfer' ? '🏦' : '⏳'} {m}
+                  {m === 'card' ? 'card' : m === 'cash' ? 'pound' : m === 'transfer' ? 'wallet' : 'clock'} {m}
                 </button>
               ))}
             </div>
@@ -2772,7 +2772,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               </div>
             ) : (
               <label style={styles.photoUploadBtn}>
-                📸 {uploading ? 'Uploading...' : 'Take or upload photo'}
+                {<Icon name="camera" inline />} {uploading ? 'Uploading...' : 'Take or upload photo'}
                 <input type="file" accept="image/*" capture="environment" onChange={handlePhotoUpload} style={{ display: 'none' }} />
               </label>
             )}

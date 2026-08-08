@@ -335,7 +335,7 @@ export default function GiftVouchers() {
 
           {/* Preview */}
           <div style={styles.previewCard}>
-            <div style={styles.previewBrand}>🎁 {beautician?.business_name || 'Ellindigo Brows & Beauty'}</div>
+            <div style={styles.previewBrand}>{<Icon name="gift" inline />} {beautician?.business_name || 'Ellindigo Brows & Beauty'}</div>
             <div style={styles.previewAmount}>
               {form.type === 'treatment'
                 ? (treatments.find(t => t.id === form.treatment_id)?.name || 'Treatment voucher')
@@ -388,7 +388,7 @@ export default function GiftVouchers() {
 
             {redeemSearch === 'not_found' && (
               <div style={styles.redeemNotFound}>
-                <span style={{ fontSize: 20 }}>🤷</span>
+                <span style={{ fontSize: 20 }}>{<Icon name="search-off" inline />}</span>
                 <span>No active voucher found with that code</span>
               </div>
             )}
@@ -432,7 +432,7 @@ function VoucherCard({ voucher, onRedeem }) {
     <div style={styles.voucherCard}>
       <div style={styles.voucherTop}>
         <div style={styles.voucherIcon}>
-          {voucher.type === 'treatment' ? '💅' : '💷'}
+          {voucher.type === 'treatment' ? '💅' : 'pound'}
         </div>
         <div style={styles.voucherInfo}>
           <span style={styles.voucherAmount}>

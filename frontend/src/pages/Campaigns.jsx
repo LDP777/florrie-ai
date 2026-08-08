@@ -24,8 +24,8 @@ import Money from '../components/ui/Money';
 
 const TYPE_CONFIG = {
   reactivation: { label: 'Comeback', icon: 'mail', color: 'var(--accent, #92405e)', desc: 'Win back clients who haven\'t visited in a while' },
-  rescue: { label: 'Rescue', icon: '🆘', color: 'var(--danger, #9E2B32)', desc: 'Save a cancellation with a quick rebook offer' },
-  weather: { label: 'Weather', icon: '🌧️', color: 'var(--info, #4A6C82)', desc: 'Bad weather = pamper day. Triggered by forecast' },
+  rescue: { label: 'Rescue', icon: 'alert-triangle', color: 'var(--danger, #9E2B32)', desc: 'Save a cancellation with a quick rebook offer' },
+  weather: { label: 'Weather', icon: 'thermometer', color: 'var(--info, #4A6C82)', desc: 'Bad weather = pamper day. Triggered by forecast' },
   bank_holiday: { label: 'Bank Holiday', icon: 'sparkles', color: 'var(--warning, #8A6420)', desc: 'Promo blast before long weekends' },
   event: { label: 'Seasonal', icon: 'gift', color: 'var(--success, #3F7D5C)', desc: 'Christmas, Valentine\'s, Mother\'s Day specials' },
   custom: { label: 'Custom', icon: 'edit', color: 'var(--text-secondary, #574A42)', desc: 'Write your own campaign from scratch' },
@@ -454,7 +454,7 @@ export default function Campaigns() {
             <button onClick={() => setSendResult(null)} style={styles.closeBtn}>×</button>
             {sendResult.error ? (
               <div style={styles.resultHeader}>
-                <span style={{ fontSize: 30 }}>😕</span>
+                <span style={{ fontSize: 30 }}>{<Icon name="alert-triangle" inline />}</span>
                 <h2 style={styles.detailName}>Couldn't send</h2>
                 <p style={styles.resultSubtle}>{sendResult.error}</p>
               </div>
@@ -527,10 +527,10 @@ function CampaignCard({ campaign, sending, onApprove, onSend, onCancel, onView }
       {/* Sent stats inline */}
       {campaign.status === 'sent' && (
         <div style={styles.miniStats}>
-          <span style={styles.miniStat}>📬 {campaign.delivered_count || 0}</span>
-          <span style={styles.miniStat}>👀 {campaign.opened_count || 0}</span>
-          <span style={styles.miniStat}>💬 {campaign.responded_count || 0}</span>
-          <span style={{ ...styles.miniStat, color: '#4CAF50', fontWeight: 600 }}>📅 {campaign.booked_count || 0}</span>
+          <span style={styles.miniStat}>{<Icon name="inbox" inline />} {campaign.delivered_count || 0}</span>
+          <span style={styles.miniStat}>{<Icon name="eye" inline />} {campaign.opened_count || 0}</span>
+          <span style={styles.miniStat}>{<Icon name="message" inline />} {campaign.responded_count || 0}</span>
+          <span style={{ ...styles.miniStat, color: '#4CAF50', fontWeight: 600 }}>{<Icon name="calendar" inline />} {campaign.booked_count || 0}</span>
         </div>
       )}
 

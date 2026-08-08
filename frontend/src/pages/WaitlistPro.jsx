@@ -250,7 +250,7 @@ export default function WaitlistPro() {
         <div style={S.list}>
           {activeList.length === 0 && (
             <EmptyState
-              icon="⏳"
+              icon='clock'
               title="No one waiting yet"
               subtitle="Add a client who wants a slot and Florrie will nudge them the moment one frees up."
               actionLabel="Add to waitlist"

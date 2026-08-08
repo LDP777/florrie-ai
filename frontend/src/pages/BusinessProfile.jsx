@@ -26,10 +26,10 @@ const BRAND_COLOURS = [
 ];
 
 const SOCIAL_PLATFORMS = [
-  { key: 'instagram', label: 'Instagram', icon: '📷', placeholder: '@ellindigo' },
-  { key: 'tiktok', label: 'TikTok', icon: '🎵', placeholder: '@ellindigo' },
-  { key: 'facebook', label: 'Facebook', icon: '📘', placeholder: 'Ellindigo Brows & Beauty' },
-  { key: 'website', label: 'Website', icon: '🌐', placeholder: 'www.ellindigo.co.uk' },
+  { key: 'instagram', label: 'Instagram', icon: 'camera', placeholder: '@ellindigo' },
+  { key: 'tiktok', label: 'TikTok', icon: 'mic', placeholder: '@ellindigo' },
+  { key: 'facebook', label: 'Facebook', icon: 'users', placeholder: 'Ellindigo Brows & Beauty' },
+  { key: 'website', label: 'Website', icon: 'link', placeholder: 'www.ellindigo.co.uk' },
 ];
 
 export default function BusinessProfile() {
@@ -341,7 +341,7 @@ export default function BusinessProfile() {
             <div style={s.shareGrid}>
               <button style={s.shareBtn} onClick={shareWhatsApp}><Icon name="phone" size={14} inline /> WhatsApp</button>
               <button style={s.shareBtn} onClick={shareInstagram}><Icon name="camera" size={14} inline /> Instagram</button>
-              <button style={s.shareBtn} onClick={shareFacebook}>📘 Facebook</button>
+              <button style={s.shareBtn} onClick={shareFacebook}>{<Icon name="users" inline />} Facebook</button>
               <button style={s.shareBtn} onClick={handleCopy}>{linkCopied ? 'Copied' : 'Copy link'}</button>
             </div>
           </div>

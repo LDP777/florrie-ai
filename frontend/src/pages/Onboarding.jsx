@@ -431,7 +431,7 @@ export default function Onboarding({ onComplete }) {
           </p>
           {error && (
             <div style={styles.errorBanner}>
-              <span style={{ fontSize: 13, color: 'var(--danger-text)', fontWeight: 500 }}>⚠ {error}</span>
+              <span style={{ fontSize: 13, color: 'var(--danger-text)', fontWeight: 500 }}>{<Icon name="alert-triangle" inline />} {error}</span>
             </div>
           )}
           <div style={styles.formGroup}>
@@ -480,7 +480,7 @@ export default function Onboarding({ onComplete }) {
           </p>
           {error && (
             <div style={styles.errorBanner}>
-              <span style={{ fontSize: 13, color: 'var(--danger-text)', fontWeight: 500 }}>⚠ {error}</span>
+              <span style={{ fontSize: 13, color: 'var(--danger-text)', fontWeight: 500 }}>{<Icon name="alert-triangle" inline />} {error}</span>
             </div>
           )}
           {treatments.map((t, idx) => (
@@ -570,7 +570,7 @@ export default function Onboarding({ onComplete }) {
           </p>
           {error && (
             <div style={styles.errorBanner}>
-              <span style={{ fontSize: 13, color: 'var(--danger-text)', fontWeight: 500 }}>⚠ {error}</span>
+              <span style={{ fontSize: 13, color: 'var(--danger-text)', fontWeight: 500 }}>{<Icon name="alert-triangle" inline />} {error}</span>
             </div>
           )}
           {DAY_KEYS.map((day, idx) => (
@@ -627,7 +627,7 @@ export default function Onboarding({ onComplete }) {
           </p>
           {error && (
             <div style={styles.errorBanner}>
-              <span style={{ fontSize: 13, color: 'var(--danger-text)', fontWeight: 500 }}>⚠ {error}</span>
+              <span style={{ fontSize: 13, color: 'var(--danger-text)', fontWeight: 500 }}>{<Icon name="alert-triangle" inline />} {error}</span>
             </div>
           )}
           <div style={styles.slugPreview}>
@@ -660,13 +660,13 @@ export default function Onboarding({ onComplete }) {
           </p>
           {error && (
             <div style={styles.errorBanner}>
-              <span style={{ fontSize: 13, color: 'var(--danger-text)', fontWeight: 500 }}>⚠ {error}</span>
+              <span style={{ fontSize: 13, color: 'var(--danger-text)', fontWeight: 500 }}>{<Icon name="alert-triangle" inline />} {error}</span>
             </div>
           )}
           {/* Import from Timely - branded */}
           <div style={styles.importGuide}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-              <span style={{ fontSize: 20 }}>⏱️</span>
+              <span style={{ fontSize: 20 }}>{<Icon name="clock" inline />}</span>
               <span style={{ fontSize: 15, fontWeight: 600 }}>Import from Timely</span>
             </div>
             <ol style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.8 }}>
@@ -793,7 +793,7 @@ export default function Onboarding({ onComplete }) {
           </div>
           {billingError && (
             <div style={styles.errorBanner}>
-              <span style={{ fontSize: 13, color: 'var(--danger-text)', fontWeight: 500 }}>⚠ {billingError}</span>
+              <span style={{ fontSize: 13, color: 'var(--danger-text)', fontWeight: 500 }}>{<Icon name="alert-triangle" inline />} {billingError}</span>
             </div>
           )}
           {isIOSNative() ? (

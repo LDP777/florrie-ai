@@ -19,6 +19,7 @@ import { build } from 'esbuild';
 import { readFileSync, writeFileSync, mkdirSync, unlinkSync, readdirSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { join } from 'node:path';
+import { installDomStub } from './lib/dom-stub.mjs';
 import http from 'node:http';
 import { launch } from './lib/browser.mjs';
 
@@ -64,25 +65,7 @@ const bundle = await build({
   },
 });
 
-const noop = () => {};
-const store = { getItem: () => null, setItem: noop, removeItem: noop, clear: noop, key: () => null, length: 0 };
-globalThis.window ??= globalThis;
-globalThis.location ??= new URL('http://localhost/');
-globalThis.history ??= { length: 1, pushState: noop, replaceState: noop, back: noop, go: noop, state: null };
-globalThis.localStorage ??= store;
-globalThis.sessionStorage ??= store;
-globalThis.matchMedia ??= () => ({ matches: false, addEventListener: noop, removeEventListener: noop, addListener: noop, removeListener: noop });
-globalThis.fetch = async () => ({ ok: true, status: 200, headers: { get: () => null }, json: async () => ({}), text: async () => '', clone() { return this; } });
-globalThis.IntersectionObserver ??= class { observe() {} unobserve() {} disconnect() {} };
-globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
-globalThis.requestAnimationFrame ??= noop;
-globalThis.document ??= {
-  documentElement: { style: { setProperty: noop, removeProperty: noop }, classList: { add: noop, remove: noop, toggle: noop, contains: () => false } },
-  body: { style: {}, classList: { add: noop, remove: noop, contains: () => false }, appendChild: noop, removeChild: noop },
-  createElement: () => ({ style: {}, setAttribute: noop, appendChild: noop, remove: noop, classList: { add: noop, remove: noop } }),
-  getElementById: () => null, querySelector: () => null, querySelectorAll: () => [],
-  addEventListener: noop, removeEventListener: noop, head: { appendChild: noop },
-};
+installDomStub();
 
 const harness = new URL('../.shoot-harness.mjs', import.meta.url).pathname;
 writeFileSync(harness, bundle.outputFiles[0].text);
@@ -100,6 +83,11 @@ const rootVars = (/<style>([\s\S]*?)<\/style>/.exec(indexHtml) || [, ''])[1];
 // The shell, as App.jsx builds it: the scroll region reserves the pill band,
 // and the pills are fixed on top. Getting this wrong would make the picture
 // lie in exactly the place the bug was.
+// Root screens show only the More pill and get NO reserved band — App.jsx
+// excludes them, because their headers are left-aligned and 60px there would
+// just be dead cream above the greeting. Drawing the Back pill on Hub would
+// make this tool lie in exactly the place the bug was.
+const ROOT = new Set(['Hub', 'Inbox', 'MoneyTracker', 'ContentAutopilot', 'VoiceCommander', 'More', 'SmartSchedule', 'CalendarView']);
 const page = (name, body) => `<!doctype html><meta charset=utf-8>
 <meta name=viewport content="width=390,initial-scale=1">
 ${headBits}
@@ -117,9 +105,9 @@ ${headBits}
   #label{position:fixed;bottom:0;left:0;right:0;background:#241B17;color:#FBF6F1;
     font:600 11px/28px ui-monospace,monospace;text-align:center;z-index:999;letter-spacing:.06em}
 </style>
-<div id=shell><div id=scroll>${body}</div>
-  <div class="pill" id=back>‹ Back</div><div class="pill" id=more>More</div>
-  <div id=label>${name}</div>
+<div id=shell><div id=scroll style="padding-top:${ROOT.has(name) ? 0 : 60}px">${body}</div>
+  ${ROOT.has(name) ? '' : '<div class="pill" id=back>‹ Back</div>'}<div class="pill" id=more>More</div>
+  <div id=label>${name}${ROOT.has(name) ? ' · root, no back pill, no band' : ' · band reserved'}</div>
 </div>`;
 
 const server = http.createServer((req, res) => {

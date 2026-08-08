@@ -171,7 +171,7 @@ export default function Reviews() {
                 <p style={styles.reviewText}>{review.text}</p>
 
                 {review.treatment && (
-                  <span style={styles.reviewTreatment}>💅 {review.treatment}</span>
+                  <span style={styles.reviewTreatment}>{<Icon name="sparkles" inline />} {review.treatment}</span>
                 )}
 
                 {/* Reply section */}

@@ -1025,10 +1025,10 @@ function ClientDetailPanel({ detail, onClose, onNavigate, onChanged }) {
         {/* Contact row */}
         <div style={styles.contactRow}>
           {client?.phone && (
-            <a href={`tel:${client.phone}`} style={styles.contactChip}>📞 {client.phone}</a>
+            <a href={`tel:${client.phone}`} style={styles.contactChip}>{<Icon name="phone" inline />} {client.phone}</a>
           )}
           {client?.email && (
-            <a href={`mailto:${client.email}`} style={styles.contactChip}>✉️ {client.email}</a>
+            <a href={`mailto:${client.email}`} style={styles.contactChip}>{<Icon name="mail" inline />} {client.email}</a>
           )}
         </div>
 
@@ -1343,7 +1343,7 @@ function ClientDetailPanel({ detail, onClose, onNavigate, onChanged }) {
                   <div style={styles.channelToggle}>
                     {['whatsapp', 'sms', 'email'].map(ch => {
                       const active = replyChannel === ch;
-                      const icon = ch === 'whatsapp' ? '💬' : ch === 'sms' ? '📱' : '✉️';
+                      const icon = ch === 'whatsapp' ? 'message' : ch === 'sms' ? 'phone' : 'mail';
                       return (
                         <button
                           key={ch}
@@ -1574,9 +1574,9 @@ function ConsultationSection({ clientId, data }) {
  */
 function ClientBubble({ msg }) {
   const out = msg.direction === 'outbound';
-  const icon = msg.channel === 'whatsapp' ? '💬'
-    : msg.channel === 'sms' ? '📱'
-    : msg.channel === 'email' ? '✉️'
+  const icon = msg.channel === 'whatsapp' ? 'message'
+    : msg.channel === 'sms' ? 'phone'
+    : msg.channel === 'email' ? 'mail'
     : '·';
   const body = msg.body || msg.content || '';
   const time = msg.created_at ? new Date(msg.created_at).toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit' }) : '';

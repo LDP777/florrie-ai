@@ -774,7 +774,7 @@ export default function SmartSchedule() {
           <div style={styles.insightSection}>
             <h3 style={styles.insightSectionTitle}>This week's hard slots</h3>
             {hardSlots.length === 0 ? (
-              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>No gaps this week, fully booked 🎉</p>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>No gaps this week, fully booked {<Icon name="sparkles" inline />}</p>
             ) : (
               <div style={styles.hardSlotList}>
                 {hardSlots.map(s => (

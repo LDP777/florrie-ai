@@ -1806,8 +1806,8 @@ export default function Settings({ onLogout }) {
             {/* Mode selector */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
               {[
-                { key: 'redirect', label: 'Redirect to WhatsApp', desc: 'Send one auto-reply with your WhatsApp link, then stop', icon: '💬' },
-                { key: 'off', label: 'Store only', desc: 'Log the message but don\'t reply at all', icon: '🔕' },
+                { key: 'redirect', label: 'Redirect to WhatsApp', desc: 'Send one auto-reply with your WhatsApp link, then stop', icon: 'message' },
+                { key: 'off', label: 'Store only', desc: 'Log the message but don\'t reply at all', icon: 'bell' },
               ].map(opt => {
                 // treat legacy 'ai' setting as 'redirect' since Instagram DM replies aren't supported
                 const mode = ['ai', 'redirect'].includes(beautician.instagram_dm_mode) ? 'redirect' : (beautician.instagram_dm_mode || 'redirect');

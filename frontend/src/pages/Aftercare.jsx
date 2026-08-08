@@ -155,7 +155,7 @@ export default function Aftercare() {
     setShowPreview(true);
   }
 
-  const ICON_OPTIONS = ['✨', '👁️', '🖌️', '💅', '💆', '🌸', '🧴', '💋', '⭐', '🎨'];
+  const ICON_OPTIONS = ['sparkles', 'eye', 'edit', 'sparkle', 'hand', 'flower', 'spray', 'heart', 'star', 'palette'];
 
   return (
     <div style={styles.page}>

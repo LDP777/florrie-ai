@@ -447,7 +447,7 @@ export default function App() {
       <div style={styles.appShell} className="app-shell">
         {showTrialWarning && !isIOSNative() && (
           <div style={{ background: 'var(--gold, #8A6420)', color: '#fff', textAlign: 'center', padding: '8px 16px', fontSize: 13, fontWeight: 500 }}>
-            ⏳ Your free trial ends in {daysLeft} day{daysLeft === 1 ? '' : 's'}.{' '}
+            {<Icon name="clock" inline />} Your free trial ends in {daysLeft} day{daysLeft === 1 ? '' : 's'}.{' '}
             {/* Points at the real checkout, not a mailto. A beautician who
                 wants to keep Florrie should be able to pay in two taps. */}
             <a href="/pricing" style={{ color: '#fff', fontWeight: 700, textDecoration: 'underline' }}>

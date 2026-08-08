@@ -25,6 +25,7 @@ import { build } from 'esbuild';
 import { readdirSync, writeFileSync, unlinkSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { join } from 'node:path';
+import { installDomStub } from './lib/dom-stub.mjs';
 
 const SRC = new URL('../src', import.meta.url).pathname;
 const PAGES = readdirSync(join(SRC, 'pages')).filter(f => f.endsWith('.jsx'));
@@ -85,43 +86,7 @@ const out = await build({
 
 // Minimal browser surface. Anything a page touches at module scope or on its
 // first render has to exist, but must not do real work.
-const noop = () => {};
-const store = { getItem: () => null, setItem: noop, removeItem: noop, clear: noop, key: () => null, length: 0 };
-globalThis.window ??= globalThis;
-// Pages read window.location directly (Inbox pulls ?client= out of the query),
-// and node's globalThis has no location, so without this the harness reports
-// an app crash that is really a hole in the harness.
-globalThis.location ??= new URL('http://localhost/');
-globalThis.history ??= { length: 1, pushState: noop, replaceState: noop, back: noop, go: noop, state: null };
-globalThis.localStorage ??= store;
-globalThis.sessionStorage ??= store;
-globalThis.navigator ??= { userAgent: 'node', language: 'en-GB', onLine: true };
-globalThis.matchMedia ??= () => ({ matches: false, addEventListener: noop, removeEventListener: noop, addListener: noop, removeListener: noop });
-// Resolve immediately with an empty payload rather than never resolving. A
-// pending promise looks harmless and is not: a component that suspends on it
-// makes renderToString hang forever, which turns a fast check into a build that
-// never finishes.
-globalThis.fetch = async () => ({
-  ok: true, status: 200, headers: { get: () => null },
-  json: async () => ({}), text: async () => '', clone() { return this; },
-});
-globalThis.addEventListener ??= noop;
-globalThis.removeEventListener ??= noop;
-globalThis.requestAnimationFrame ??= noop;
-globalThis.cancelAnimationFrame ??= noop;
-globalThis.scrollTo ??= noop;
-globalThis.IntersectionObserver ??= class { observe() {} unobserve() {} disconnect() {} };
-globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
-globalThis.document ??= {
-  documentElement: { style: { setProperty: noop, removeProperty: noop }, classList: { add: noop, remove: noop, toggle: noop, contains: () => false } },
-  body: { style: {}, classList: { add: noop, remove: noop, contains: () => false }, appendChild: noop, removeChild: noop },
-  createElement: () => ({ style: {}, setAttribute: noop, appendChild: noop, remove: noop, classList: { add: noop, remove: noop } }),
-  getElementById: () => null,
-  querySelector: () => null,
-  querySelectorAll: () => [],
-  addEventListener: noop, removeEventListener: noop,
-  head: { appendChild: noop },
-};
+installDomStub();
 
 // Written to a real file rather than a data: URL, because a data: module
 // cannot resolve bare specifiers like "react" — the externals would all fail

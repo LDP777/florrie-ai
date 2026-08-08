@@ -15,14 +15,14 @@ const triggerOptions = [
   { id: 'birthday', label: 'Client birthday', icon: 'gift' },
   { id: 'review_received', label: 'Review received', icon: 'star' },
   { id: 'payment_received', label: 'Payment received', icon: 'wallet' },
-  { id: 'waitlist_match', label: 'Waitlist slot opens', icon: '⏳' },
+  { id: 'waitlist_match', label: 'Waitlist slot opens', icon: 'clock' },
   { id: 'loyalty_milestone', label: 'Loyalty tier reached', icon: 'badge' },
   { id: 'patch_test_expiry', label: 'Patch test expiring', icon: 'shield' },
 ];
 const actionOptions = [
-  { id: 'send_whatsapp', label: 'Send WhatsApp message', icon: '💬' },
+  { id: 'send_whatsapp', label: 'Send WhatsApp message', icon: 'message' },
   { id: 'send_email', label: 'Send email', icon: 'mail' },
-  { id: 'send_sms', label: 'Send SMS', icon: '📱' },
+  { id: 'send_sms', label: 'Send SMS', icon: 'phone' },
   { id: 'add_tag', label: 'Add client tag', icon: 'tag' },
   { id: 'remove_tag', label: 'Remove client tag', icon: 'tag' },
   { id: 'add_loyalty', label: 'Award loyalty points', icon: 'star' },
@@ -192,7 +192,7 @@ export default function AutomationRules() {
             ))}
           </div>
           {/* Delay */}
-          <div style={styles.stepLabel}>⏱️ Wait...</div>
+          <div style={styles.stepLabel}>{<Icon name="clock" inline />} Wait...</div>
           <div style={styles.delayRow}>
             {['0', '5', '30', '60', '1440'].map(mins => (
               <button
@@ -407,8 +407,8 @@ const SEQ_TRIGGERS = [
   { value: 'after-appointment', label: 'After Appointment', icon: 'check-circle' },
   { value: 'on-birthday',       label: 'On Birthday',       icon: 'gift' },
   { value: 'no-visit-30-days',  label: 'No Visit 30 Days',  icon: 'calendar' },
-  { value: 'no-visit-60-days',  label: 'No Visit 60 Days',  icon: '⏰' },
-  { value: 'manual',            label: 'Manual Start',       icon: '▶️' },
+  { value: 'no-visit-60-days',  label: 'No Visit 60 Days',  icon: 'clock' },
+  { value: 'manual',            label: 'Manual Start',       icon: 'play' },
 ];
 const SEQ_DELAYS  = ['0h','1h','2h','4h','12h','24h','2d','3d','5d','7d','14d','21d','30d','35d'];
 const SEQ_CHANNELS = ['whatsapp', 'sms', 'email'];
@@ -515,7 +515,7 @@ function SequencesPanel({ beautician }) {
               onClick={() => setExpanded(isOpen ? null : seq.id)}
             >
               <div style={{ width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, background: seq.active ? 'var(--success-bg, #E9F0EB)' : '#F0ECE8', flexShrink: 0 }}>
-                {trigger?.icon || '📨'}
+                {trigger?.icon || 'send'}
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #241B17)', marginBottom: 2 }}>{seq.name}</div>
@@ -538,7 +538,7 @@ function SequencesPanel({ beautician }) {
                       <div style={{ flex: 1, paddingBottom: 4 }}>
                         <div style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
                           <span style={{ fontSize: 10, fontWeight: 700, color: '#C76B8A', background: '#FFF0F3', padding: '2px 7px', borderRadius: 6 }}>{formatSeqDelay(step.delay)}</span>
-                          <span style={{ fontSize: 10, color: '#8B8580' }}>{step.channel === 'whatsapp' ? '💬' : step.channel === 'sms' ? '📱' : '✉️'} {step.channel}</span>
+                          <span style={{ fontSize: 10, color: '#8B8580' }}>{step.channel === 'whatsapp' ? 'message' : step.channel === 'sms' ? 'phone' : 'mail'} {step.channel}</span>
                         </div>
                         <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary, #574A42)', lineHeight: 1.5 }}>{step.message}</p>
                       </div>

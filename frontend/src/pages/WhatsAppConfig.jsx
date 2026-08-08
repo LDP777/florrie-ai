@@ -109,7 +109,7 @@ const DIAGNOSTIC_META = {
     ],
   },
   cooldown_active: {
-    icon: '⏳',
+    icon: 'clock',
     title: 'Meta is still processing this number',
     tone: 'waiting',
     steps: [
@@ -138,7 +138,7 @@ const DIAGNOSTIC_META = {
     ],
   },
   missing_business_name: {
-    icon: '📛',
+    icon: 'alert-triangle',
     title: 'Set your business name first',
     tone: 'error',
     steps: [
@@ -147,7 +147,7 @@ const DIAGNOSTIC_META = {
     ],
   },
   rate_limit: {
-    icon: '🚦',
+    icon: 'pause',
     title: 'Too many attempts in a short window',
     tone: 'waiting',
     steps: [
@@ -339,7 +339,7 @@ function DiagnosticError({ error, errBody, onRetry, onReset, phone }) {
               borderRadius: 10,
               display: 'inline-block',
             }}>
-              ⏳ Auto-retry queued. You don't need to do anything.
+              {<Icon name="clock" inline />} Auto-retry queued. You don't need to do anything.
             </div>
           )}
 
@@ -455,7 +455,7 @@ function RetryBanner({ retry, onReset }) {
 
   return (
     <div style={styles.retryBanner}>
-      <span style={{ fontSize: 20 }}>⏳</span>
+      <span style={{ fontSize: 20 }}>{<Icon name="clock" inline />}</span>
       <div style={{ flex: 1 }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: '#2E4A6B', marginBottom: 3 }}>
           Auto-retry queued

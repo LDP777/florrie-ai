@@ -1326,7 +1326,7 @@ export default function MoneyTracker() {
                       const isTipOrSale = tx.type === 'tip' || tx.type === 'product_sale';
                       const name = isTipOrSale ? (tx.description || (tx.type === 'tip' ? 'Tip' : 'Product Sale')) : (tx.appointments?.clients?.first_name || 'Payment');
                       const treatment = isTipOrSale ? '' : (tx.appointments?.treatments?.name || '');
-                      const initial = isTipOrSale ? (tx.type === 'tip' ? '♥' : '🛍') : name.charAt(0).toUpperCase();
+                      const initial = isTipOrSale ? (tx.type === 'tip' ? 'heart' : 'shopping-bag') : name.charAt(0).toUpperCase();
                       const time = new Date(tx.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
                       const isIncome = tx.amount_cents >= 0;
                       const clientId = tx.appointments?.client_id;
@@ -2015,7 +2015,7 @@ export default function MoneyTracker() {
             const isTipOrSale = tx.type === 'tip' || tx.type === 'product_sale';
             const name = isTipOrSale ? (tx.description || (tx.type === 'tip' ? 'Tip' : 'Product Sale')) : (tx.appointments?.clients?.first_name || 'Payment');
             const treatment = isTipOrSale ? '' : (tx.appointments?.treatments?.name || '');
-            const initial = isTipOrSale ? (tx.type === 'tip' ? '♥' : '🛍') : name.charAt(0).toUpperCase();
+            const initial = isTipOrSale ? (tx.type === 'tip' ? 'heart' : 'shopping-bag') : name.charAt(0).toUpperCase();
             const typeLabel = { payment: 'Payment', deposit: 'Deposit', no_show_fee: 'No-show fee', tip: 'Tip', product_sale: 'Product sale' }[tx.type] || tx.type;
             return (
               <div key={tx.id} style={S.txRow}>
@@ -2144,7 +2144,7 @@ export default function MoneyTracker() {
                       </div>
                       <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 10, background: daysToVat <= 30 ? '#fef3c7' : '#f0fdf4', border: `1px solid ${daysToVat <= 30 ? '#fcd34d' : '#86efac'}` }}>
                         <span style={{ fontSize: 12, fontWeight: 600, color: daysToVat <= 30 ? '#92400e' : '#166534' }}>
-                          📅 {nextVatDeadline.label} return due in {daysToVat} days ({nextVatDeadline.due.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })})
+                          {<Icon name="calendar" inline />} {nextVatDeadline.label} return due in {daysToVat} days ({nextVatDeadline.due.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })})
                         </span>
                         <span style={{ display: 'block', fontSize: 11, color: '#534247', marginTop: 2 }}>
                           Set aside ~{fmt(vatOwedPerQuarter)} per quarter for VAT

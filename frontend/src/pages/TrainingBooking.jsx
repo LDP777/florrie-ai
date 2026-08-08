@@ -134,7 +134,7 @@ export default function TrainingBooking() {
       <div style={styles.page}>
         <div style={styles.successCard}>
           <div style={styles.successIcon}>
-            {success.type === 'paid' ? '🎉' : success.type === 'pending' ? '⏳' : '✅'}
+            {success.type === 'paid' ? 'sparkles' : success.type === 'pending' ? 'clock' : 'check-circle'}
           </div>
           <h2 style={styles.successTitle}>
             {success.type === 'paid'
@@ -153,8 +153,8 @@ export default function TrainingBooking() {
           {course && (
             <div style={styles.successMeta}>
               <p style={{ margin: '4px 0', fontWeight: 600 }}>{course.name}</p>
-              {course.date && <p style={{ margin: '2px 0' }}>📅 {formatDate(course.date)}</p>}
-              {course.location && <p style={{ margin: '2px 0' }}>📍 {course.location}</p>}
+              {course.date && <p style={{ margin: '2px 0' }}>{<Icon name="calendar" inline />} {formatDate(course.date)}</p>}
+              {course.location && <p style={{ margin: '2px 0' }}>{<Icon name="map-pin" inline />} {course.location}</p>}
             </div>
           )}
         </div>
@@ -167,7 +167,7 @@ export default function TrainingBooking() {
     return (
       <div style={styles.page}>
         <div style={styles.errorCard}>
-          <div style={{ fontSize: 32, marginBottom: 8 }}>😕</div>
+          <div style={{ fontSize: 32, marginBottom: 8 }}>{<Icon name="alert-triangle" inline />}</div>
           <h2 style={{ fontSize: 18, margin: '0 0 8px' }}>Course not available</h2>
           <p style={styles.errorText}>{error}</p>
         </div>
@@ -208,7 +208,7 @@ export default function TrainingBooking() {
           )}
           {course.duration && (
             <div style={styles.detailItem}>
-              <span style={styles.detailIcon}>⏱</span>
+              <span style={styles.detailIcon}>{<Icon name="clock" inline />}</span>
               <span style={styles.detailText}>{course.duration}</span>
             </div>
           )}
@@ -254,7 +254,7 @@ export default function TrainingBooking() {
       {/* Enrollment form */}
       {course.is_full ? (
         <div style={styles.fullBanner}>
-          <span style={{ fontSize: 20 }}>😕</span>
+          <span style={{ fontSize: 20 }}>{<Icon name="alert-triangle" inline />}</span>
           <div>
             <div style={{ fontWeight: 600, fontSize: 15 }}>This course is fully booked</div>
             <div style={{ fontSize: 13, color: '#6B6560', marginTop: 2 }}>
