@@ -737,7 +737,9 @@ function BottomNav({ current, session }) {
 }
 
 function NavTab({ tab, onNav }) {
-  const color = tab.active ? '#92405e' : '#867277';
+  // #867277 on the nav's near-white is 4.44:1 — just under AA, on five labels
+  // that are always on screen. #6E5C61 is the same warm grey at 5.6:1.
+  const color = tab.active ? '#92405e' : '#6E5C61';
   const showBadge = tab.badge > 0;
   return (
     <button onClick={onNav} style={styles.navItem} aria-label={tab.label} aria-current={tab.active ? 'page' : undefined}>
@@ -751,7 +753,10 @@ function NavTab({ tab, onNav }) {
         {showBadge && (
           <span style={{ position: 'absolute', top: -4, right: -6,
             minWidth: 16, height: 16, borderRadius: 10,
-            background: '#E85D75', color: '#fff',
+            // #E85D75 with white on it is 3.36:1 — under AA, on the one number
+            // Ellie glances at most. #C2374C is the same red a shade deeper and
+            // measures 5.1:1.
+            background: '#C2374C', color: '#fff',
             fontSize: 9, fontWeight: 700, lineHeight: '16px',
             textAlign: 'center', padding: '0 3px',
             border: '1.5px solid #FBF6F1',

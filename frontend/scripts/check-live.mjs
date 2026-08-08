@@ -20,8 +20,10 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join, extname } from 'node:path';
 import http from 'node:http';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
 import { launch } from './lib/browser.mjs';
-import { fetchStubSource } from './lib/fixtures.mjs';
+import { fetchStubSource, sessionSeedSource } from './lib/fixtures.mjs';
 
 const DIST = new URL('../dist', import.meta.url).pathname;
 if (!existsSync(join(DIST, 'index.html'))) {
@@ -29,12 +31,15 @@ if (!existsSync(join(DIST, 'index.html'))) {
   process.exit(1);
 }
 
-// Routes that render real data without a session. The signed-in screens need
-// an auth token the fixtures cannot mint, so they stay with the SSR checks and
-// this covers the public surface — which is, not incidentally, the surface that
-// takes Ellie's money.
+// The public surface AND the signed-in screens Ellie actually lives on. The
+// latter used to be out of reach — the tax card that rendered
+// "£10,009.60£65.71" is on /money, behind the auth gate, so nothing but the
+// SSR pass ever looked at it and the SSR pass sees a spinner.
 const ROUTES = process.argv.slice(2).filter(a => !a.startsWith('--'));
-if (!ROUTES.length) ROUTES.push('/book/ellindigo', '/terms', '/privacy');
+if (!ROUTES.length) ROUTES.push(
+  '/book/ellindigo', '/terms',
+  '/', '/money', '/inbox', '/clients', '/content',
+);
 
 const MIME = { '.js':'text/javascript', '.css':'text/css', '.html':'text/html', '.svg':'image/svg+xml',
   '.png':'image/png', '.woff2':'font/woff2', '.json':'application/json', '.ico':'image/x-icon' };
@@ -50,6 +55,20 @@ const port = server.address().port;
 const browser = await launch();
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
 await ctx.addInitScript(fetchStubSource());
+// The storage key supabase-js uses is derived from the project ref in the URL,
+// so the seed has to use the SAME url this dist was built against. Reading it
+// out of the bundle rather than assuming it means the seed cannot silently
+// drift out of step with the build again.
+const bundleUrl = (() => {
+  const { readdirSync } = require('node:fs');
+  for (const f of readdirSync(join(DIST, 'assets'))) {
+    if (!/^supabase-.*\.js$/.test(f) && !/^index-.*\.js$/.test(f)) continue;
+    const m = /https:\/\/[a-z0-9-]+\.supabase\.co/.exec(readFileSync(join(DIST, 'assets', f), 'utf8'));
+    if (m) return m[0];
+  }
+  return 'https://placeholder.supabase.co';
+})();
+await ctx.addInitScript(sessionSeedSource(bundleUrl));
 const page = await ctx.newPage();
 
 // The detector, as a source string, so the self-test at the bottom runs the
@@ -88,10 +107,36 @@ const SELF_TEST_SRC = `() => {
   return { caught, falsePositive };
 }`;
 
+// Routes that are SUPPOSED to render without a session.
+const PUBLIC = new Set(['/terms', '/privacy', '/login']);
+for (const r of ROUTES) if (r.startsWith('/book/')) PUBLIC.add(r);
+
 const findings = [];
 for (const route of ROUTES) {
   await page.goto(`http://127.0.0.1:${port}${route}`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(1500);
+
+  // A signed-in route that quietly renders the LOGIN page is the worst possible
+  // outcome here: every assertion below passes, on a screen nobody asked about,
+  // and the report says green. That is exactly what happened the first time
+  // this reached for /money — the session seed did not take and five of seven
+  // "passing" screens were the sign-in form.
+  const wrongScreen = await page.evaluate(() => {
+    const t = document.body.innerText || '';
+    if (/Welcome back|Continue with Apple|Forgot password/.test(t)) return 'the LOGIN page';
+    // Onboarding is the second way to pass vacuously: the session works, but
+    // with no beautician profile the app decides the account is not set up.
+    if (/Welcome to florrie\.ai|Step 1 of 6|Let's get your business set up/.test(t)) return 'the ONBOARDING wizard';
+    return null;
+  });
+  if (wrongScreen && !PUBLIC.has(route)) {
+    console.error(`✗ live: ${route} rendered ${wrongScreen}, not the screen.\n` +
+      `  Every check below it would have passed on a form nobody is testing.\n` +
+      `  The session seed is not being read — most likely the storage key ref\n` +
+      `  does not match the VITE_SUPABASE_URL this dist was built with.\n`);
+    await browser.close(); server.close();
+    process.exit(1);
+  }
 
   const bad = await page.evaluate(() => {
     const out = [];
@@ -197,7 +242,20 @@ for (const route of ROUTES) {
     // "Powered by " + "florrie.ai" is a single phrase in two spans. The
     // difference is layout: a real collision is between separate cells of a
     // flex or grid row, not between inline siblings in one text flow.
+    // A fixed or sticky element is SUPPOSED to sit over the page — the bottom
+    // nav floats above whatever is scrolling under it, by design. Comparing it
+    // against page text reports every screen as a collision, which is how this
+    // produced "Florrie uses AI to" next to "2" overlapping by 280px.
+    const floats = (el) => {
+      for (let n = el; n && n !== document.body; n = n.parentElement) {
+        const pos = getComputedStyle(n).position;
+        if (pos === 'fixed' || pos === 'sticky' || pos === 'absolute') return true;
+      }
+      return false;
+    };
+
     const separateCells = (a, b) => {
+      if (floats(a.el) || floats(b.el)) return false;
       let anc = a.el.parentElement;
       while (anc && !anc.contains(b.el)) anc = anc.parentElement;
       if (!anc) return false;

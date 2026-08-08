@@ -58,6 +58,22 @@ const ROWS = [
  * page should be checkable even when a fixture for one of its calls is missing.
  */
 const ROUTES = [
+  // The beautician profile does NOT come through /api — it is a direct
+  // Supabase table read (lib/supabase.js:76, .maybeSingle()), so it hits
+  // /rest/v1/beauticians and fell through to the empty fallback. That made the
+  // app decide the account was not set up and bounce /money to onboarding,
+  // which is how five "passing" screens turned out to be a setup wizard.
+  //
+  // maybeSingle() sends Accept: application/vnd.pgrst.object+json and expects
+  // ONE object, not an array.
+  [/\/rest\/v1\/beauticians/, () => ({
+    id: 'b1', auth_id: 'b1', email: 'ellie@ellindigo.test',
+    first_name: 'Ellie', last_name: 'Royden', business_name: 'Ellindigo',
+    slug: 'ellindigo', brand_color: '#C76B8A',
+    onboarding_completed_at: '2026-06-01T10:00:00Z',
+    trial_ends_at: '2099-01-01T00:00:00Z', plan: 'pro',
+    stripe_onboarding_complete: true, timezone: 'Europe/London',
+  })],
   [/\/api\/booking\/[^/]+\/page/, () => ({ salon: SALON, treatments: TREATMENTS, addOns: [] })],
   [/\/api\/products\/public/, () => ({ products: [] })],
   [/\/api\/appointments/, () => ({ data: APPOINTMENTS, count: APPOINTMENTS.length })],
@@ -121,3 +137,42 @@ export function fetchStubSource() {
 }
 
 export const FIXTURE_NOW = NOW;
+
+/**
+ * A shape-valid Supabase session, seeded into localStorage before the app boots.
+ *
+ * Without it check-live can only reach the three public routes, and the screens
+ * Ellie actually lives on — Today, Money, Inbox, Clients — are checked by
+ * nothing but the SSR pass, which sees a loading spinner. That is precisely the
+ * blind spot that let "£10,009.60£65.71" reach her phone: the tax card is on
+ * /money, behind this gate.
+ *
+ * The token is a syntactically valid unsigned JWT with a far-future expiry. It
+ * authenticates nothing — every request is answered by the fetch stub above, so
+ * it never leaves the browser — it exists only so `supabase.auth.getSession()`
+ * returns a session and the app renders its signed-in tree.
+ */
+const b64u = (o) => Buffer.from(JSON.stringify(o)).toString('base64')
+  .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+export function sessionSeedSource(supabaseUrl = 'http://localhost/stub') {
+  const exp = 4102444800;   // 2100-01-01, so it never expires mid-run
+  const user = { id: 'b1', aud: 'authenticated', role: 'authenticated', email: 'ellie@ellindigo.test' };
+  const token = `${b64u({ alg: 'HS256', typ: 'JWT' })}.${b64u({ ...user, sub: 'b1', exp })}.stub`;
+  const session = {
+    access_token: token, refresh_token: 'stub-refresh', token_type: 'bearer',
+    expires_in: 3600, expires_at: exp, user,
+  };
+  // supabase-js keys its storage on the project ref taken from the URL host.
+  const ref = (() => { try { return new URL(supabaseUrl).hostname.split('.')[0]; } catch { return 'stub'; } })();
+  return `
+    try {
+      const s = ${JSON.stringify(session)};
+      // Both the current key format and the legacy one, so this keeps working
+      // across a supabase-js upgrade rather than silently falling back to the
+      // logged-out tree and checking a login page by accident.
+      localStorage.setItem('sb-${ref}-auth-token', JSON.stringify(s));
+      localStorage.setItem('supabase.auth.token', JSON.stringify({ currentSession: s, expiresAt: ${exp} }));
+    } catch {}
+  `;
+}

@@ -17,7 +17,7 @@ import { readFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join, extname } from 'node:path';
 import http from 'node:http';
 import { launch } from './lib/browser.mjs';
-import { fetchStubSource } from './lib/fixtures.mjs';
+import { fetchStubSource, sessionSeedSource } from './lib/fixtures.mjs';
 
 const DIST = new URL('../dist', import.meta.url).pathname;
 const OUT = new URL('../shots', import.meta.url).pathname;
@@ -49,6 +49,7 @@ const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, de
 // Before any app code runs. The app reads API_BASE at module scope, so the
 // stub has to be in place before the bundle evaluates, not after.
 await ctx.addInitScript(fetchStubSource());
+await ctx.addInitScript(sessionSeedSource(process.env.VITE_SUPABASE_URL || 'https://placeholder.supabase.co'));
 
 const page = await ctx.newPage();
 const errors = [];

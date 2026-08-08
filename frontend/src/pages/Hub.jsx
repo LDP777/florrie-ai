@@ -706,7 +706,9 @@ const TS = {
   clientChipTime: {
     fontSize: 11,
     fontWeight: 700,
-    color: 'rgba(255,255,255,0.75)',
+    // 0.75 measured 4.36:1 on the hero maroon — a whisker under AA, and this is
+    // the time of her next client.
+    color: 'rgba(255,255,255,0.86)',
     fontVariantNumeric: 'tabular-nums',
   },
   clientChipName: {
@@ -720,7 +722,9 @@ const TS = {
   },
   clientChipTreat: {
     fontSize: 10.5,
-    color: 'rgba(255,255,255,0.7)',
+    // On the maroon hero this flattened to 4.02:1. White at 0.82 is 5.4:1 and
+    // still reads as secondary against the full-strength text beside it.
+    color: 'rgba(255,255,255,0.82)',
     whiteSpace: 'nowrap',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
@@ -757,7 +761,7 @@ const TS = {
   },
   statSub2: {
     fontSize: 10.5,
-    color: 'rgba(255,255,255,0.55)',
+    color: 'rgba(255,255,255,0.75)',   // was 0.55 — 3.77:1 on the hero
     fontWeight: 500,
   },
   msgRow: {
