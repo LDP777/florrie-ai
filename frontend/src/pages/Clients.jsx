@@ -8,6 +8,7 @@ import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import { todayLocal } from '../lib/dates.js';
 import Icon, { iconName } from '../components/ui/Icon';
+import Money from '../components/ui/Money';
 function getToken() {
   const key = Object.keys(localStorage).find(k => /^sb-.+-auth-token$/.test(k));
   if (!key) return null;
@@ -1085,7 +1086,7 @@ function ClientDetailPanel({ detail, onClose, onNavigate, onChanged }) {
                 <span style={styles.statLabel}>Visits</span>
               </div>
               <div style={styles.statBox}>
-                <span style={styles.statNum}>£{((client?.total_spend_cents || 0) / 100).toFixed(0)}</span>
+                <span style={styles.statNum}><Money pence={(client?.total_spend_cents || 0)} round /></span>
                 <span style={styles.statLabel}>Spent</span>
               </div>
               <div style={styles.statBox}>
@@ -1102,7 +1103,7 @@ function ClientDetailPanel({ detail, onClose, onNavigate, onChanged }) {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <h4 style={{ ...styles.sectionLabel, margin: 0 }}>Payments</h4>
                   <span style={styles.paymentsTotal}>
-                    £{((detail.payments.deposits_total_cents || 0) / 100).toFixed(2)} paid in deposits
+                    <Money pence={(detail.payments.deposits_total_cents || 0)} /> paid in deposits
                   </span>
                 </div>
                 {(detail.payments.per_appointment || []).length === 0 ? (
@@ -1269,7 +1270,7 @@ function ClientDetailPanel({ detail, onClose, onNavigate, onChanged }) {
                         {appt.status?.replace(/_/g, ' ')}
                       </span>
                       {appt.price_cents > 0 && (
-                        <span style={styles.historyPrice}>£{(appt.price_cents / 100).toFixed(0)}</span>
+                        <span style={styles.historyPrice}><Money pence={appt.price_cents} round /></span>
                       )}
                     </div>
                   </div>

@@ -5,6 +5,7 @@ import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import Icon, { iconName } from '../components/ui/Icon';
+import Money from '../components/ui/Money';
 /**
  * Analytics - unified historical analytics hub.
  *
@@ -333,7 +334,7 @@ export default function Analytics() {
           <>
             <div style={styles.heroCard}>
               <span style={styles.heroLabel}>Revenue</span>
-              <span style={styles.heroAmount}>£{(stats.totalRevenue / 100).toFixed(2)}</span>
+              <span style={styles.heroAmount}><Money pence={stats.totalRevenue} /></span>
               <div style={styles.heroRow}>
                 <div style={styles.heroStat}>
                   <span style={styles.heroStatValue}>{stats.completedCount}</span>
@@ -341,13 +342,13 @@ export default function Analytics() {
                 </div>
                 <div style={styles.heroDivider} />
                 <div style={styles.heroStat}>
-                  <span style={styles.heroStatValue}>£{(stats.avgPerAppointment / 100).toFixed(0)}</span>
+                  <span style={styles.heroStatValue}><Money pence={stats.avgPerAppointment} round /></span>
                   <span style={styles.heroStatLabel}>avg per visit</span>
                 </div>
                 <div style={styles.heroDivider} />
                 <div style={styles.heroStat}>
                   <span style={{ ...styles.heroStatValue, color: stats.profit >= 0 ? 'rgba(255,255,255,0.9)' : '#FFCDD2' }}>
-                    £{(stats.profit / 100).toFixed(0)}
+                    <Money pence={stats.profit} round />
                   </span>
                   <span style={styles.heroStatLabel}>profit</span>
                 </div>
@@ -387,7 +388,7 @@ export default function Analytics() {
                       <span style={styles.clientName}>{client.name}</span>
                       <span style={styles.clientVisits}>{client.visits} visit{client.visits !== 1 ? 's' : ''}</span>
                     </div>
-                    <span style={styles.clientSpend}>£{(client.spend / 100).toFixed(0)}</span>
+                    <span style={styles.clientSpend}><Money pence={client.spend} round /></span>
                   </div>
                 ))}
               </div>
@@ -477,7 +478,7 @@ export default function Analytics() {
                   </div>
                   <div style={styles.treatmentStats}>
                     <div style={styles.treatmentStat}>
-                      <span style={styles.treatmentStatValue}>£{(t.revenue / 100).toFixed(0)}</span>
+                      <span style={styles.treatmentStatValue}><Money pence={t.revenue} round /></span>
                       <span style={styles.treatmentStatLabel}>revenue</span>
                     </div>
                     <div style={styles.treatmentStat}>
@@ -485,7 +486,7 @@ export default function Analytics() {
                       <span style={styles.treatmentStatLabel}>bookings</span>
                     </div>
                     <div style={styles.treatmentStat}>
-                      <span style={styles.treatmentStatValue}>£{(t.hourlyRate / 100).toFixed(0)}/h</span>
+                      <span style={styles.treatmentStatValue}><Money pence={t.hourlyRate} round />/h</span>
                       <span style={styles.treatmentStatLabel}>rate</span>
                     </div>
                     {t.returnRate > 0 && (

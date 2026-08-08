@@ -38,7 +38,12 @@ export function formatMoney(value, { round = false, signed = false, currency = '
 export default function Money({
   pence,
   amount,
-  size = 20,
+  // No default size. Money is used two ways: as a headline, where the caller
+  // sets the size, and inline inside a span that already has one — a week-view
+  // cell at 11px, a detail row at 13px. Defaulting to 20 made every one of the
+  // 74 inline sites jump to 20px and ignore its container, which is a worse
+  // regression than the inconsistency this component exists to fix.
+  size,
   weight = 700,
   round = false,
   signed = false,
@@ -55,12 +60,14 @@ export default function Money({
       className={className}
       style={{ fontFamily: '"Plus Jakarta Sans", -apple-system, sans-serif',
         fontWeight: weight,
-        fontSize: size,
+        ...(size ? { fontSize: size } : null),
         // Digits keep a fixed advance width, so a ticking figure does not shuffle
         // and a column of figures lines up on the decimal.
         fontVariantNumeric: 'tabular-nums',
         fontFeatureSettings: '"tnum" 1, "lnum" 1',
         letterSpacing: size >= 32 ? '-0.03em' : '-0.01em',
+        // Inherit rather than force, so a figure inside a 13px detail row stays
+        // 13px and only the typeface and the tabular figures change.
         lineHeight: 1.05,
         ...style,
       }}

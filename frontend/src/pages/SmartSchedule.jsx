@@ -7,6 +7,7 @@ import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import Icon from '../components/ui/Icon';
+import Money from '../components/ui/Money';
 
 /**
  * Smart Schedule, Gap Finder & Fill Assistant.
@@ -588,7 +589,7 @@ export default function SmartSchedule() {
                             </div>
                             <div style={styles.suggTreatment}>
                               <span style={styles.suggTreatLabel}>{s.treatment.name}</span>
-                              <span style={styles.suggTreatDur}>{s.treatment.duration_minutes}min · £{(s.treatment.price_cents / 100).toFixed(2)}</span>
+                              <span style={styles.suggTreatDur}>{s.treatment.duration_minutes}min · <Money pence={s.treatment.price_cents} /></span>
                             </div>
                             <button
                               onClick={e => { e.stopPropagation(); navigate(`/inbox?client=${s.client.id}`); }}

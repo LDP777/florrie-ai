@@ -7,6 +7,7 @@ import EmptyState from '../components/EmptyState.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import Icon, { iconName } from '../components/ui/Icon';
+import Money from '../components/ui/Money';
 /**
  * Campaigns, AI-powered client outreach.
  *
@@ -429,7 +430,7 @@ export default function Campaigns() {
             {detail.status === 'sent' && detail.revenue_recovered_cents > 0 && (
               <div style={styles.revenueRecovered}>
                 <span style={styles.recoveredLabel}>Revenue recovered</span>
-                <span style={styles.recoveredAmount}>£{(detail.revenue_recovered_cents / 100).toFixed(0)}</span>
+                <span style={styles.recoveredAmount}><Money pence={detail.revenue_recovered_cents} round /></span>
               </div>
             )}
 

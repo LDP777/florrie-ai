@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { API_BASE } from '../lib/config.js';
 import Icon, { iconName } from '../components/ui/Icon';
+import Money from '../components/ui/Money';
 
 /**
  * ClientManagePage - public client self-service portal.
@@ -450,7 +451,7 @@ export default function ClientManagePage() {
                     >
                       <span style={{ fontSize: 13, fontWeight: 600, color: '#2D1B1B' }}>{t.name}</span>
                       <span style={{ fontSize: 12, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-                        £{((t.price_cents || 0) / 100).toFixed(2)} · {t.duration_minutes}m
+                        <Money pence={(t.price_cents || 0)} /> · {t.duration_minutes}m
                       </span>
                     </button>
                   ))}
@@ -488,12 +489,12 @@ export default function ClientManagePage() {
                 other way round); a visible sum leaves no room for that. */}
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: 14, color: '#2D1B1B' }}>
               <span>Total</span>
-              <span style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>£{((payment.priceCents || 0) / 100).toFixed(2)}</span>
+              <span style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}><Money pence={(payment.priceCents || 0)} /></span>
             </div>
             {payment.depositPaidCents > 0 && (
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: 14, color: 'var(--text-muted, #6B5D54)' }}>
                 <span>{payment.paidInFull ? 'Paid at booking' : 'Deposit paid'}</span>
-                <span style={{ fontVariantNumeric: 'tabular-nums' }}>{'\u2212'}£{(payment.depositPaidCents / 100).toFixed(2)}</span>
+                <span style={{ fontVariantNumeric: 'tabular-nums' }}>{'\u2212'}<Money pence={payment.depositPaidCents} /></span>
               </div>
             )}
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0 0', marginTop: 4, borderTop: '1px solid rgba(0,0,0,0.08)', fontSize: 15 }}>
@@ -502,7 +503,7 @@ export default function ClientManagePage() {
               ) : (
                 <>
                   <span style={{ fontWeight: 700, color: brand }}>Outstanding</span>
-                  <span style={{ fontWeight: 700, color: brand, fontVariantNumeric: 'tabular-nums' }}>£{(payment.remainingCents / 100).toFixed(2)}</span>
+                  <span style={{ fontWeight: 700, color: brand, fontVariantNumeric: 'tabular-nums' }}><Money pence={payment.remainingCents} /></span>
                 </>
               )}
             </div>
@@ -520,7 +521,7 @@ export default function ClientManagePage() {
           <div style={{ ...S.policyCard, borderLeft: `3px solid ${brand}` }}>
             <p style={S.sectionLabel}>Balance to pay</p>
             <p style={S.policyText}>
-              <strong style={{ fontSize: 16, color: '#2D1B1B' }}>£{(payment.remainingCents / 100).toFixed(2)}</strong> {payment.depositPaidCents > 0 ? 'remaining after your deposit.' : 'to pay.'}
+              <strong style={{ fontSize: 16, color: '#2D1B1B' }}><Money pence={payment.remainingCents} /></strong> {payment.depositPaidCents > 0 ? 'remaining after your deposit.' : 'to pay.'}
             </p>
             {payment.bankDetails?.account_number ? (
               <div style={{ marginTop: 12, padding: '14px', borderRadius: 10, background: brandLight, border: `1px solid ${brand}22` }}>

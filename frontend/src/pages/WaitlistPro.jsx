@@ -15,6 +15,7 @@ import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import Icon, { iconName } from '../components/ui/Icon';
+import Money from '../components/ui/Money';
 
 const PRIORITY_CONFIG = {
   vip: { label: 'VIP', bg: '#F0E6ED', color: 'var(--accent, #92405e)', icon: 'star' },
@@ -318,7 +319,7 @@ export default function WaitlistPro() {
                       {w.deposit_held && (
                         <div style={S.detailItem}>
                           <span style={S.detailLabel}>Deposit</span>
-                          <span style={{ ...S.detailValue, color: '#6B8F7B' }}>£{((w.deposit_amount_cents || 0) / 100).toFixed(0)} held</span>
+                          <span style={{ ...S.detailValue, color: '#6B8F7B' }}><Money pence={(w.deposit_amount_cents || 0)} round /> held</span>
                         </div>
                       )}
                     </div>

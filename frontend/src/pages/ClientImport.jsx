@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useBeautician } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import Icon, { iconName } from '../components/ui/Icon';
+import Money from '../components/ui/Money';
 /**
  * Client Import: one-click migration from Fresha, Timely, Vagaro, or any CSV/XLSX.
  *
@@ -485,7 +486,7 @@ export default function ClientImport() {
                 {preview.treatments.slice(0, 12).map((t, i) => (
                   <div key={i} style={styles.chip}>
                     {t.name}
-                    {t.price_cents > 0 && <span style={styles.chipPrice}>£{(t.price_cents / 100).toFixed(0)}</span>}
+                    {t.price_cents > 0 && <span style={styles.chipPrice}><Money pence={t.price_cents} round /></span>}
                   </div>
                 ))}
                 {preview.treatments.length > 12 && (

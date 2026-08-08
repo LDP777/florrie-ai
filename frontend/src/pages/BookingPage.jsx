@@ -4,6 +4,7 @@ import { useParams, useLocation } from 'react-router-dom';
 import PhoneField from '../components/PhoneField.jsx';
 import { API_BASE } from '../lib/config.js';
 import Icon, { iconName } from '../components/ui/Icon';
+import Money from '../components/ui/Money';
 // Cloudflare Turnstile (bot protection). Renders ONLY when VITE_TURNSTILE_SITE_KEY
 // is set, so environments without keys behave exactly as before.
 const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || '';
@@ -942,11 +943,11 @@ export default function BookingPage() {
                   <div style={{ marginTop: 12, textAlign: 'left', background: brandLight, borderRadius: 10, padding: '10px 14px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: 14 }}>
                       <span>Total</span>
-                      <span style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>£{((receipt.priceCents || 0) / 100).toFixed(2)}</span>
+                      <span style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}><Money pence={(receipt.priceCents || 0)} /></span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: 14, color: 'var(--text-secondary)' }}>
                       <span>{receipt.paidInFull ? 'Paid now' : 'Deposit paid now'}</span>
-                      <span style={{ fontVariantNumeric: 'tabular-nums' }}>{'\u2212'}£{(receipt.depositPaidCents / 100).toFixed(2)}</span>
+                      <span style={{ fontVariantNumeric: 'tabular-nums' }}>{'\u2212'}<Money pence={receipt.depositPaidCents} /></span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0 0', marginTop: 4, borderTop: '1px solid rgba(0,0,0,0.08)', fontSize: 15 }}>
                       {receipt.paidInFull || receipt.remainingCents === 0 ? (
@@ -954,7 +955,7 @@ export default function BookingPage() {
                       ) : (
                         <>
                           <span style={{ fontWeight: 700, color: brand }}>To pay on the day</span>
-                          <span style={{ fontWeight: 700, color: brand, fontVariantNumeric: 'tabular-nums' }}>£{(receipt.remainingCents / 100).toFixed(2)}</span>
+                          <span style={{ fontWeight: 700, color: brand, fontVariantNumeric: 'tabular-nums' }}><Money pence={receipt.remainingCents} /></span>
                         </>
                       )}
                     </div>
@@ -1016,7 +1017,7 @@ export default function BookingPage() {
               <div style={{ marginTop: 16, padding: '14px 16px', borderRadius: 10, background: brandLight, border: `1.5px solid ${brandMedium}`, textAlign: 'left' }}>
                 <p style={{ fontSize: 14, fontWeight: 700, color: brand, margin: '0 0 4px' }}>Pay the rest by bank transfer 🏦</p>
                 <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 10px', lineHeight: 1.5 }}>
-                  <strong style={{ color: brand }}>£{remaining.toFixed(2)}</strong> remaining after your deposit. Transfer it to:
+                  <strong style={{ color: brand }}><Money amount={remaining} /></strong> remaining after your deposit. Transfer it to:
                 </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {bankDetails.account_name && (
@@ -1235,7 +1236,7 @@ export default function BookingPage() {
                       <span style={styles.treatmentDuration}>{t.duration_minutes} min</span>
                     </div>
                     <span style={styles.treatmentPrice}>
-                      £{(t.price_cents / 100).toFixed(2)}
+                      <Money pence={t.price_cents} />
                     </span>
                   </button>
                   </Fragment>
@@ -1246,7 +1247,7 @@ export default function BookingPage() {
             {selectedTreatments.length > 1 && (
               <div style={{ marginTop: 10, padding: '10px 14px', borderRadius: 10, background: brandLight, border: `1px solid ${brand}30`, textAlign: 'center' }}>
                 <span style={{ fontSize: 14, fontWeight: 600, color: brand }}>
-                  {selectedTreatments.length} treatments · {combinedDuration} min · £{(combinedTreatmentCents / 100).toFixed(2)}
+                  {selectedTreatments.length} treatments · {combinedDuration} min · <Money pence={combinedTreatmentCents} />
                 </span>
               </div>
             )}
@@ -1281,7 +1282,7 @@ export default function BookingPage() {
                           {ao.duration_minutes > 0 && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>+{ao.duration_minutes} min</span>}
                         </div>
                         <span style={{ fontSize: 14, fontWeight: 600, color: brand }}>
-                          +£{(ao.price_cents / 100).toFixed(2)}
+                          +<Money pence={ao.price_cents} />
                         </span>
                       </button>
                     );
@@ -1289,7 +1290,7 @@ export default function BookingPage() {
                 </div>
                 {selectedAddOns.length > 0 && (
                   <div style={{ marginTop: 10, padding: '8px 12px', borderRadius: 10, background: brandLight, fontSize: 13, fontWeight: 500, color: brand, textAlign: 'center' }}>
-                    Total: £{(grandTotalCents / 100).toFixed(2)} · {(selectedTreatment.duration_minutes || 0) + addOnDuration} min
+                    Total: <Money pence={grandTotalCents} /> · {(selectedTreatment.duration_minutes || 0) + addOnDuration} min
                   </div>
                 )}
               </div>
@@ -1330,7 +1331,7 @@ export default function BookingPage() {
                             </div>
                           )}
                           <div style={{ fontSize: 13, fontWeight: 600, color: brand, marginTop: 2 }}>
-                            £{(product.price_cents / 100).toFixed(2)}
+                            <Money pence={product.price_cents} />
                           </div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -1363,7 +1364,7 @@ export default function BookingPage() {
                 </div>
                 {cartTotalCents > 0 && (
                   <div style={{ marginTop: 10, padding: '8px 12px', borderRadius: 10, background: brandLight, fontSize: 13, fontWeight: 500, color: brand, textAlign: 'center' }}>
-                    Products: £{(cartTotalCents / 100).toFixed(2)} · {cartItems.length} item{cartItems.length !== 1 ? 's' : ''}
+                    Products: <Money pence={cartTotalCents} /> · {cartItems.length} item{cartItems.length !== 1 ? 's' : ''}
                   </div>
                 )}
               </div>
@@ -1830,7 +1831,7 @@ export default function BookingPage() {
                 background: `${brand}10`, border: `1px solid ${brand}30`,
                 fontSize: 13, color: 'var(--text-primary, #241B17)', lineHeight: 1.55,
               }}>
-                Looks like there is an outstanding balance of £{(recognisedClient.outstandingBalanceCents / 100).toFixed(2)} from a previous visit. This will need settling at your appointment.
+                Looks like there is an outstanding balance of <Money pence={recognisedClient.outstandingBalanceCents} /> from a previous visit. This will need settling at your appointment.
               </div>
             )}
             <div style={styles.summaryCard}>
@@ -1843,7 +1844,7 @@ export default function BookingPage() {
                   {selectedTreatments.map(t => (
                     <div key={t.id} style={styles.summaryRow}>
                       <span style={styles.summaryLabel}>{t.name} ({t.duration_minutes} min)</span>
-                      <span style={styles.summaryValue}>£{(t.price_cents / 100).toFixed(2)}</span>
+                      <span style={styles.summaryValue}><Money pence={t.price_cents} /></span>
                     </div>
                   ))}
                 </>
@@ -1872,13 +1873,13 @@ export default function BookingPage() {
                   {selectedTreatments.length <= 1 && (
                     <div style={styles.summaryRow}>
                       <span style={styles.summaryLabel}>Treatment price</span>
-                      <span style={styles.summaryValue}>£{(combinedTreatmentCents / 100).toFixed(2)}</span>
+                      <span style={styles.summaryValue}><Money pence={combinedTreatmentCents} /></span>
                     </div>
                   )}
                   {selectedAddOns.map(ao => (
                     <div key={ao.id} style={styles.summaryRow}>
                       <span style={styles.summaryLabel}>+ {ao.name}</span>
-                      <span style={styles.summaryValue}>£{(ao.price_cents / 100).toFixed(2)}</span>
+                      <span style={styles.summaryValue}><Money pence={ao.price_cents} /></span>
                     </div>
                   ))}
                 </>
@@ -1890,7 +1891,7 @@ export default function BookingPage() {
                       <span style={styles.summaryLabel}>
                         🛍 {item.name} × {item.qty}
                       </span>
-                      <span style={styles.summaryValue}>£{(item.lineTotal / 100).toFixed(2)}</span>
+                      <span style={styles.summaryValue}><Money pence={item.lineTotal} /></span>
                     </div>
                   ))}
                 </>
@@ -1901,14 +1902,14 @@ export default function BookingPage() {
                     Discount ({appliedDiscount.code})
                   </span>
                   <span style={{ ...styles.summaryValue, color: 'var(--success, #3F7D5C)' }}>
-                    −£{(discountCents / 100).toFixed(2)}
+                    −<Money pence={discountCents} />
                   </span>
                 </div>
               )}
               <div style={{ ...styles.summaryRow, borderBottom: 'none' }}>
                 <span style={styles.summaryLabel}>Total</span>
                 <span style={{ ...styles.summaryValue, color: brand, fontWeight: 700, fontSize: 18 }}>
-                  £{((grandTotalCents + cartTotalCents) / 100).toFixed(2)}
+                  <Money pence={(grandTotalCents + cartTotalCents)} />
                 </span>
               </div>
               {hasDeposit && !selectedPackage && (
@@ -1927,7 +1928,7 @@ export default function BookingPage() {
                         color: paymentType === 'deposit' ? '#fff' : 'var(--text-secondary)',
                       }}
                     >
-                      Pay deposit (£{(depositCents / 100).toFixed(2)})
+                      Pay deposit (<Money pence={depositCents} />)
                     </button>
                     <button className="fl-tap"
                       onClick={() => setPaymentType('full')}
@@ -1937,7 +1938,7 @@ export default function BookingPage() {
                         color: paymentType === 'full' ? '#fff' : 'var(--text-secondary)',
                       }}
                     >
-                      Pay in full (£{(grandTotalCents / 100).toFixed(2)})
+                      Pay in full (<Money pence={grandTotalCents} />)
                     </button>
                   </div>
                 </div>
@@ -2041,7 +2042,7 @@ export default function BookingPage() {
                   border: '1px solid var(--success, #3F7D5C)', fontSize: 13,
                 }}>
                   <span style={{ color: 'var(--success, #3F7D5C)', fontWeight: 600 }}>
-                    ✓ {appliedDiscount.code}, saving £{(discountCents / 100).toFixed(2)}
+                    ✓ {appliedDiscount.code}, saving <Money pence={discountCents} />
                   </span>
                   <button className="fl-tap" onClick={removeDiscount} style={{ background: 'none', border: 'none', fontSize: 16, color: 'var(--text-muted)',
                     cursor: 'pointer', padding: '0 4px', fontFamily: 'inherit',

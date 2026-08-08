@@ -8,6 +8,7 @@ import { hapticTap, hapticSuccess } from '../lib/native.js';
 import { treatmentColor, tint } from '../lib/treatmentColors.js';
 import { parseDateOnly } from '../lib/dates.js';
 import Icon, { iconName } from '../components/ui/Icon';
+import Money from '../components/ui/Money';
 
 // 15-minute duration steps for the appointment-length picker (15 min to 8 h).
 const DURATION_STEPS = Array.from({ length: 32 }, (_, i) => (i + 1) * 15);
@@ -1265,7 +1266,7 @@ export default function CalendarView({ initialView } = {}) {
                   {live.length > 0 ? (
                     <span style={styles.weekDayStats}>
                       <span style={styles.weekDayCount}>{live.length} booking{live.length === 1 ? '' : 's'}</span>
-                      {takingsPence > 0 && <span style={styles.weekDayMoney}>£{(takingsPence / 100).toFixed(0)}</span>}
+                      {takingsPence > 0 && <span style={styles.weekDayMoney}><Money pence={takingsPence} round /></span>}
                       <span style={styles.weekDayHours}>{hours % 1 === 0 ? hours : hours.toFixed(1)}h</span>
                     </span>
                   ) : (
@@ -1304,7 +1305,7 @@ export default function CalendarView({ initialView } = {}) {
                             <span style={{ ...styles.weekRowName, textDecoration: dead ? 'line-through' : 'none' }}>{clientLabel}</span>
                             {apptLabel(appt, treatNames) && <span style={styles.weekRowTreatment}>{apptLabel(appt, treatNames)}</span>}
                           </span>
-                          {price > 0 && <span style={styles.weekRowPrice}>£{(price / 100).toFixed(0)}</span>}
+                          {price > 0 && <span style={styles.weekRowPrice}><Money pence={price} round /></span>}
                           {appt.ai_booked && <span style={styles.aiTag}>AI</span>}
                         </button>
                       );
@@ -2209,7 +2210,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                   <span style={{ fontSize: 12, color: COLORS.stone400, fontFamily: 'inherit', textAlign: 'right' }}>
                     {appointment.duration_minutes ? durationLabel(appointment.duration_minutes) : ''}
                     {appointment.duration_minutes ? ', ' : ''}
-                    £{(((appointment.price_cents ?? appointment.treatments?.price_cents) || 0) / 100).toFixed(2)}
+                    <Money pence={((appointment.price_cents ?? appointment.treatments?.price_cents) || 0)} />
                     {appointment.ends_at ? ` · ends ${formatWallTime(appointment.ends_at)}` : ''}
                   </span>
                 )}
@@ -2297,7 +2298,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                 // Price is always editable (tap to change), not just when it's £0.
                 <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   {appointment.price_cents > 0 && (
-                    <span style={styles.detailValue}>£{(appointment.price_cents / 100).toFixed(2)}</span>
+                    <span style={styles.detailValue}><Money pence={appointment.price_cents} /></span>
                   )}
                   <button className="fl-tap"
                     onClick={() => { setPriceInput(appointment.price_cents > 0 ? (appointment.price_cents / 100).toFixed(2) : ''); setPriceEditing(true); }}
@@ -2314,7 +2315,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
             {owesCents > 0 && (
               <div style={styles.detailRow}>
                 <span style={styles.detailLabel}>Outstanding balance</span>
-                <span style={{ ...styles.detailValue, color: 'var(--accent, #92405e)' }}>£{(owesCents / 100).toFixed(2)} from before</span>
+                <span style={{ ...styles.detailValue, color: 'var(--accent, #92405e)' }}><Money pence={owesCents} /> from before</span>
               </div>
             )}
             {appointment.buffer_minutes > 0 && (
@@ -2442,12 +2443,12 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                 <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #574A42)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>Payments</div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', fontSize: 13 }}>
                   <span>Total</span>
-                  <span style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>£{((appointment.price_cents || 0) / 100).toFixed(2)}</span>
+                  <span style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}><Money pence={(appointment.price_cents || 0)} /></span>
                 </div>
                 {paidCents > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', fontSize: 13, color: COLORS.stone400 }}>
                     <span>{paidInFull ? 'Paid in full at booking' : 'Deposit paid'}</span>
-                    <span style={{ fontVariantNumeric: 'tabular-nums' }}>{'\u2212'}£{(paidCents / 100).toFixed(2)}</span>
+                    <span style={{ fontVariantNumeric: 'tabular-nums' }}>{'\u2212'}<Money pence={paidCents} /></span>
                   </div>
                 )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0 0', marginTop: 3, borderTop: `1px solid ${COLORS.outlineVariant}66`, fontSize: 14 }}>
@@ -2455,7 +2456,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                     {owed <= 0 && <Icon name={iconName('check_circle')} size={16} inline />}
                     {owed > 0 ? 'To collect' : paidInFull ? 'Paid in full' : 'Nothing to collect'}
                   </span>
-                  {owed > 0 && <span style={{ fontWeight: 700, color: COLORS.primary, fontVariantNumeric: 'tabular-nums' }}>£{(owed / 100).toFixed(2)}</span>}
+                  {owed > 0 && <span style={{ fontWeight: 700, color: COLORS.primary, fontVariantNumeric: 'tabular-nums' }}><Money pence={owed} /></span>}
                 </div>
                 {/* The question Ellie actually asks in front of this sheet is
                     "if they no-show, am I covered?". For a paid-in-full booking
@@ -2469,8 +2470,8 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                 )}
                 {owed > 0 && fees && fees.amount_cents > 0 && (
                   <p style={{ fontSize: 11, color: COLORS.stone400, margin: '6px 0 0', lineHeight: 1.45 }}>
-                    On the card that's about £{((fees.estimated_net_cents || 0) / 100).toFixed(2)} to you after
-                    fees (Stripe + Florrie, estimate). Cash or bank transfer: the full £{(owed / 100).toFixed(2)}, no fees.
+                    On the card that's about <Money pence={(fees.estimated_net_cents || 0)} /> to you after
+                    fees (Stripe + Florrie, estimate). Cash or bank transfer: the full <Money pence={owed} />, no fees.
                   </p>
                 )}
               </div>
@@ -2572,7 +2573,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                     const net = Math.max(0, cents - plat - stripe);
                     return (
                       <p style={{ fontSize: 11, color: COLORS.stone400, margin: '0 0 8px' }}>
-                        You'd receive about £{(net / 100).toFixed(2)} after card fees (estimate).
+                        You'd receive about <Money pence={net} /> after card fees (estimate).
                       </p>
                     );
                   })()}
@@ -2786,7 +2787,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
           <span style={{ fontSize: 40 }}><Icon name="check-circle" size={40} /></span>
           <h3 style={{ fontSize: 18, fontWeight: 700, margin: '12px 0 4px' }}>Done!</h3>
           <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 16 }}>
-            £{(appointment.price_cents / 100).toFixed(2)} logged via {paymentMethod}
+            <Money pence={appointment.price_cents} /> logged via {paymentMethod}
           </p>
           {/* Rebook prompt */}
           <div style={styles.rebookSection}>
@@ -3414,7 +3415,7 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], initialCl
                   color: on ? '#fff' : COLORS.onSurface,
                 }}
               >
-                {on ? '✓ ' : ''}{t.name} £{(t.price_cents || 0) % 100 === 0 ? ((t.price_cents || 0) / 100).toFixed(0) : ((t.price_cents || 0) / 100).toFixed(2)}
+                {on ? '✓ ' : ''}{t.name} <Money pence={t.price_cents || 0} round />
               </button>
             );
           })}

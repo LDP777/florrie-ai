@@ -20,6 +20,7 @@ import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import { todayLocal } from '../lib/dates.js';
 import Icon, { iconName } from '../components/ui/Icon';
+import Money from '../components/ui/Money';
 const todayStr = () => todayLocal();
 /* ─── Factory default templates ─── */
 const FACTORY_OPENING = [
@@ -510,7 +511,7 @@ export default function DailyChecklist() {
               </div>
               <div>
                 <span style={S.overviewBig}>
-                  £{(todayInsights.expectedRevenue / 100).toFixed(0)}
+                  <Money pence={todayInsights.expectedRevenue} round />
                 </span>
                 <span style={S.overviewUnit}> expected</span>
               </div>
@@ -785,7 +786,7 @@ export default function DailyChecklist() {
                     <p style={{ fontSize: 11, color: 'var(--text-muted, #6B5D54)', margin: 0 }}>{apt.treatment_name}</p>
                   </div>
                   <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--gold, #8A6420)' }}>
-                    £{(apt.price_cents / 100).toFixed(0)}
+                    <Money pence={apt.price_cents} round />
                   </span>
                 </div>
               );
