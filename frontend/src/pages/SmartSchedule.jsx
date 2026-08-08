@@ -825,7 +825,7 @@ const styles = {
   },
   utilisationFill: {
     height: '100%', borderRadius: 6,
-    background: 'linear-gradient(90deg, #C76B8A, #E8A0B5)',
+    background: 'linear-gradient(90deg, #B9466D, #C9315D)',
     transition: 'width 0.6s ease',
   },
   utilisationStats: { display: 'flex', justifyContent: 'space-between' },

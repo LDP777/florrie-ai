@@ -552,7 +552,7 @@ export default function FloatingMic() {
             ? 'linear-gradient(135deg, #D4605C 0%, #b04540 100%)'
             : processing
               ? 'linear-gradient(135deg, #b5879a 0%, #8a5d70 100%)'
-              : 'linear-gradient(135deg, #C76B8A 0%, #92405e 100%)',
+              : 'linear-gradient(135deg, #B9466D 0%, #92405e 100%)',
           boxShadow: recording
             ? '0 0 0 8px rgba(212,96,92,0.18), 0 4px 16px rgba(212,96,92,0.35)'
             : '0 4px 14px rgba(146,64,94,0.32)',

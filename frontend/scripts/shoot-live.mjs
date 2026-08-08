@@ -17,7 +17,7 @@ import { readFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join, extname } from 'node:path';
 import http from 'node:http';
 import { launch } from './lib/browser.mjs';
-import { fetchStubSource, sessionSeedSource } from './lib/fixtures.mjs';
+import { fetchStubSource, sessionSeedSource, bundleSupabaseUrl, WRONG_SCREEN_PROBE } from './lib/fixtures.mjs';
 
 const DIST = new URL('../dist', import.meta.url).pathname;
 const OUT = new URL('../shots', import.meta.url).pathname;
@@ -49,9 +49,17 @@ const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, de
 // Before any app code runs. The app reads API_BASE at module scope, so the
 // stub has to be in place before the bundle evaluates, not after.
 await ctx.addInitScript(fetchStubSource());
-await ctx.addInitScript(sessionSeedSource(process.env.VITE_SUPABASE_URL || 'https://placeholder.supabase.co'));
+// Read out of the BUILD, not out of the environment. The storage key
+// supabase-js reads is derived from the project ref in this URL, so guessing
+// it seeds a key nobody looks at, the app decides nobody is signed in, and
+// every signed-in route is photographed as the sign-in form. That is what this
+// line did until now: `node scripts/shoot-live.mjs /pricing` with no
+// VITE_SUPABASE_URL exported produced a picture of the login page, captioned
+// "pricing", with no warning of any kind.
+await ctx.addInitScript(sessionSeedSource(bundleSupabaseUrl(DIST)));
 
 const page = await ctx.newPage();
+const PUBLIC = new Set(['/terms', '/privacy', '/login', '/support', '/data-deletion']);
 const errors = [];
 page.on('pageerror', e => errors.push(String(e).slice(0, 120)));
 
@@ -64,7 +72,12 @@ for (const route of routes) {
   const name = route.replace(/^\//, '').replace(/\//g, '-') || 'root';
   const file = join(OUT, `live-${name}.png`);
   await page.screenshot({ path: file, fullPage: false });
-  written.push(file);
+
+  // Say so, loudly, rather than handing over a mislabelled picture. A wrong
+  // screenshot is worse than a missing one: it gets looked at, believed, and
+  // decisions get made off it.
+  const wrong = await page.evaluate(`(${WRONG_SCREEN_PROBE})()`);
+  written.push(wrong && !PUBLIC.has(route) ? `${file}   ⚠ this is ${wrong}, not ${route}` : file);
 }
 
 await browser.close();

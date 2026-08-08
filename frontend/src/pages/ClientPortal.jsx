@@ -316,7 +316,7 @@ const s = {
   subtitle: { fontSize: 13, color: 'var(--text-muted)', marginTop: 2 },
   savedBanner: { background: 'var(--success, #386F52)', color: '#fff', borderRadius: 10, padding: '8px 14px', fontSize: 13, fontWeight: 600, marginBottom: 12, textAlign: 'center' },
 
-  linkCard: { background: 'linear-gradient(135deg, #C76B8A 0%, #A85575 100%)', borderRadius: 16, padding: 16, marginBottom: 16, color: '#fff' },
+  linkCard: { background: 'linear-gradient(135deg, #B9466D 0%, #A85575 100%)', borderRadius: 16, padding: 16, marginBottom: 16, color: '#fff' },
   linkLabel: { fontSize: 11, opacity: 0.8, marginBottom: 6 },
   linkRow: { display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 },
   linkUrl: { flex: 1, fontSize: 12, background: 'rgba(255,255,255,0.15)', borderRadius: 10, padding: '8px 10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },

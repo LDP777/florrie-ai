@@ -136,7 +136,7 @@ export const ds = {
 
   // Hero card (gradient) — Stitch primary gradient
   heroCard: {
-    background: 'linear-gradient(135deg, #c76b8a 0%, #92405e 100%)',
+    background: 'linear-gradient(135deg, #B9466D 0%, #92405e 100%)',
     borderRadius: 24,
     padding: 24,
     color: '#fff',

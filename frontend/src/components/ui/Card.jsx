@@ -39,7 +39,7 @@ const Card = ({
       boxShadow: 'none',
     },
     gradient: {
-      background: 'linear-gradient(135deg, #C76B8A 0%, #B85D7B 40%, #C9A96E 100%)',
+      background: 'linear-gradient(135deg, #B9466D 0%, #B85D7B 40%, #C9A96E 100%)',
       border: 'none',
       boxShadow: '0 8px 24px rgba(199, 107, 138, 0.2)',
       color: '#fff',

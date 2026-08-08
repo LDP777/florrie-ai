@@ -409,7 +409,7 @@ const s = {
   clientLeft: { display: 'flex', gap: 10, alignItems: 'center' },
   avatar: {
     width: 38, height: 38, borderRadius: 22,
-    background: 'linear-gradient(135deg, #C76B8A22, #C76B8A44)',
+    background: 'linear-gradient(135deg, #B9466D22, #B9466D44)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontSize: 14, fontWeight: 700, color: 'var(--accent, #92405e)', flexShrink: 0,
   },

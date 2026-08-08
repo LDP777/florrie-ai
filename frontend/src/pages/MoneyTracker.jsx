@@ -1205,7 +1205,7 @@ export default function MoneyTracker() {
                           height: h,
                           borderRadius: 6,
                           background: isToday
-                            ? 'linear-gradient(180deg, #c76b8a 0%, #92405e 100%)'
+                            ? 'linear-gradient(180deg, #B9466D 0%, #92405e 100%)'
                             : 'rgba(146, 64, 94, 0.15)',
                           transition: 'height 0.3s ease',
                         }} />

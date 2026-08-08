@@ -74,7 +74,7 @@ export default function APISettings() {
       </div>
 
       {/* Hero */}
-      <div style={{ ...ds.heroCard, marginBottom: 20, background: 'linear-gradient(135deg, #2D2D3F 0%, #1A1A2E 40%, #C76B8A 100%)' }}>
+      <div style={{ ...ds.heroCard, marginBottom: 20, background: 'linear-gradient(135deg, #2D2D3F 0%, #1A1A2E 40%, #B9466D 100%)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
             <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 4 }}>FLORRIE API</div>

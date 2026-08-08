@@ -37,7 +37,7 @@ const S = {
   },
   avatar: {
     width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
-    background: 'linear-gradient(135deg,#C76B8A,#92405e)', color: '#fff',
+    background: 'linear-gradient(135deg,#B9466D,#92405e)', color: '#fff',
     display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: 14,
   },
   name: { fontSize: 14, fontWeight: 600, color: '#1d1b19', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },

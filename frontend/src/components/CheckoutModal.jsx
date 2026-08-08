@@ -351,7 +351,7 @@ const S = {
   headerLeft: { display: 'flex', alignItems: 'center', gap: 12 },
   logo: {
     width: 36, height: 36,
-    background: 'linear-gradient(135deg, #c76b8a 0%, #92405e 100%)',
+    background: 'linear-gradient(135deg, #B9466D 0%, #92405e 100%)',
     borderRadius: 10,
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     color: '#fff', fontSize: 16, fontWeight: 700, flexShrink: 0,
@@ -401,7 +401,7 @@ const S = {
   payBtn: {
     width: '100%', padding: '14px 0',
     borderRadius: 10, border: 'none',
-    background: 'linear-gradient(135deg, #c76b8a 0%, #92405e 100%)',
+    background: 'linear-gradient(135deg, #B9466D 0%, #92405e 100%)',
     color: '#fff', fontSize: 15, fontWeight: 700,
     cursor: 'pointer', fontFamily: 'inherit',
     boxShadow: 'var(--elev-2)',

@@ -86,7 +86,7 @@ const lightTokens = {
   '--accent-text': '#3e001d',
   // Brand rose (the lighter end of the hero gradient) + the hero gradient itself
   '--accent-rose': '#c76b8a',
-  '--gradient-hero': 'linear-gradient(135deg, #c76b8a 0%, #92405e 100%)',
+  '--gradient-hero': 'linear-gradient(135deg, #B9466D 0%, #92405e 100%)',
 
   // Primary scale
   '--primary-container': '#b05877',
@@ -196,7 +196,7 @@ const darkTokens = {
   '--accent-text': '#ffd9e2',
   // Brand rose + hero gradient stay on-brand in dark mode (rose on rose).
   '--accent-rose': '#c76b8a',
-  '--gradient-hero': 'linear-gradient(135deg, #c76b8a 0%, #92405e 100%)',
+  '--gradient-hero': 'linear-gradient(135deg, #B9466D 0%, #92405e 100%)',
 
   // Primary scale (dark)
   '--primary-container': '#b05877',

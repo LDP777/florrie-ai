@@ -15,7 +15,7 @@ import Icon, { iconName } from './ui/Icon';
 
 const URGENCY_COLOURS = {
   opportunity: { bg: 'linear-gradient(135deg, #7B6BA8 0%, #9B8BC8 100%)', accent: '#C9A96E', pill: '#F5F0FF', pillText: '#7B6BA8', label: 'OPPORTUNITY' },
-  warning:     { bg: 'linear-gradient(135deg, #C76B8A 0%, #E8A0B5 100%)', accent: '#fff',    pill: '#FFF0F3', pillText: '#C76B8A', label: 'HEADS UP'    },
+  warning:     { bg: 'linear-gradient(135deg, #B9466D 0%, #C9315D 100%)', accent: '#fff',    pill: '#FFF0F3', pillText: '#C76B8A', label: 'HEADS UP'    },
   info:        { bg: 'linear-gradient(135deg, #5A7A8A 0%, #7BA0B0 100%)', accent: '#C9A96E', pill: '#F0F6F9', pillText: '#5A7A8A', label: 'BIZ INSIGHT' },
 };
 

@@ -677,7 +677,7 @@ const styles = {
   periodTab: { flex: 1, padding: '7px 0', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' },
 
   // Hero revenue
-  heroCard: { background: 'linear-gradient(135deg, #C76B8A 0%, #D4899F 100%)', borderRadius: 16, padding: 20, marginBottom: 12, color: '#fff' },
+  heroCard: { background: 'linear-gradient(135deg, #B9466D 0%, #BB4668 100%)', borderRadius: 16, padding: 20, marginBottom: 12, color: '#fff' },
   heroLabel: { fontSize: 11, fontWeight: 600, opacity: 0.8, textTransform: 'uppercase', letterSpacing: '0.06em' },
   heroAmount: { display: 'block', fontSize: 36, fontWeight: 800, marginTop: 4, letterSpacing: '-0.02em' },
   heroRow: { display: 'flex', justifyContent: 'space-between', marginTop: 16, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.2)' },

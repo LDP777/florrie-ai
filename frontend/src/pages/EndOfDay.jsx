@@ -441,7 +441,7 @@ const styles = {
 
   closedBanner: { display: 'flex', alignItems: 'center', gap: 12, background: 'var(--success-bg, #E9F0EB)', borderRadius: 10, padding: '12px 16px', marginBottom: 16 },
 
-  heroCard: { background: 'linear-gradient(135deg, #C76B8A 0%, #A85575 100%)', borderRadius: 16, padding: 20, marginBottom: 16, color: 'var(--bg-card, #FFFCF9)' },
+  heroCard: { background: 'linear-gradient(135deg, #B9466D 0%, #A85575 100%)', borderRadius: 16, padding: 20, marginBottom: 16, color: 'var(--bg-card, #FFFCF9)' },
   heroLabel: { fontSize: 12, opacity: 0.8, marginBottom: 4 },
   heroAmount: { fontSize: 32, fontWeight: 700, marginBottom: 8 },
   heroBreakdown: { display: 'flex', gap: 16, fontSize: 13, opacity: 0.9, marginBottom: 16 },

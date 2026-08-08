@@ -191,7 +191,7 @@ const styles = {
   upgradeBtn: {
     width: '100%',
     padding: '14px 24px',
-    background: 'linear-gradient(135deg, #c76b8a 0%, #92405e 100%)',
+    background: 'linear-gradient(135deg, #B9466D 0%, #92405e 100%)',
     color: '#fff',
     border: 'none',
     borderRadius: 10,

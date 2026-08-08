@@ -601,7 +601,7 @@ export default function DailyChecklist() {
               width: `${progress}%`,
               background: progress === 100
                 ? 'linear-gradient(90deg, #5ba97b 0%, #78c99b 100%)'
-                : 'linear-gradient(90deg, #c76b8a 0%, #92405e 100%)',
+                : 'linear-gradient(90deg, #B9466D 0%, #92405e 100%)',
             }} />
           </div>
           <span style={S.progressText}>{doneCount}/{totalCount} complete</span>
@@ -842,7 +842,7 @@ const S = {
   // Overview card
   overviewCard: {
     position: 'relative', overflow: 'hidden',
-    background: 'var(--gradient-hero, linear-gradient(135deg, #c76b8a 0%, #92405e 100%))',
+    background: 'var(--gradient-hero, linear-gradient(135deg, #B9466D 0%, #92405e 100%))',
     color: '#fff', borderRadius: 22, padding: 24, marginBottom: 16,
     boxShadow: 'var(--elev-3)',
   },

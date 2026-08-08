@@ -999,7 +999,7 @@ const styles = {
     width: 48,
     height: 48,
     borderRadius: '50%',
-    background: 'linear-gradient(135deg, #c76b8a 0%, #92405e 100%)',
+    background: 'linear-gradient(135deg, #B9466D 0%, #92405e 100%)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',

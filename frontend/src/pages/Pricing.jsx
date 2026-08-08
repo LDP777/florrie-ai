@@ -269,7 +269,7 @@ const S = {
   subtitle: { fontSize: 13, color: 'var(--text-muted, #6B5D54)', margin: '0 0 20px' },
 
   banner: {
-    background: 'linear-gradient(135deg, #2D2D3F 0%, #1A1A2E 40%, #C76B8A 100%)',
+    background: 'linear-gradient(135deg, #2D2D3F 0%, #1A1A2E 40%, #B9466D 100%)',
     borderRadius: 16, padding: '18px 16px', marginBottom: 20, color: '#fff',
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
   },

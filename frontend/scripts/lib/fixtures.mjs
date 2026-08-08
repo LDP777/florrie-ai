@@ -1,3 +1,5 @@
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 /**
  * Plausible API responses, so a screen can be checked in the state Ellie sees.
  *
@@ -154,6 +156,42 @@ export const FIXTURE_NOW = NOW;
  */
 const b64u = (o) => Buffer.from(JSON.stringify(o)).toString('base64')
   .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+/**
+ * The Supabase URL this dist was actually built against, read out of the
+ * bundle.
+ *
+ * The seed above keys localStorage on the project ref taken from the host, so
+ * a caller that guesses the URL seeds a key nobody reads, the app decides
+ * nobody is signed in, and every signed-in route quietly renders the LOGIN
+ * page. check-live learned that the hard way — five "passing" screens turned
+ * out to be a sign-in form — and shoot-live.mjs was still guessing from
+ * process.env months later, so every screenshot taken of a signed-in screen
+ * without VITE_SUPABASE_URL exported was a picture of the login page.
+ *
+ * Reading it out of the build is the only version that cannot drift.
+ */
+export function bundleSupabaseUrl(distDir) {
+  try {
+    for (const f of readdirSync(join(distDir, 'assets'))) {
+      if (!/^(supabase|index)-.*\.js$/.test(f)) continue;
+      const m = /https:\/\/[a-z0-9-]+\.supabase\.co/.exec(readFileSync(join(distDir, 'assets', f), 'utf8'));
+      if (m) return m[0];
+    }
+  } catch {}
+  return 'https://placeholder.supabase.co';
+}
+
+/**
+ * Did we end up on the screen we asked for, or on the sign-in form?
+ * Returns a description of the wrong screen, or null when it is the right one.
+ */
+export const WRONG_SCREEN_PROBE = `() => {
+  const t = document.body.innerText || '';
+  if (/Welcome back|Continue with Apple|Forgot password/.test(t)) return 'the LOGIN page';
+  if (/Welcome to florrie\\.ai|Step 1 of 6|Let's get your business set up/.test(t)) return 'the ONBOARDING wizard';
+  return null;
+}`;
 
 export function sessionSeedSource(supabaseUrl = 'http://localhost/stub') {
   const exp = 4102444800;   // 2100-01-01, so it never expires mid-run
