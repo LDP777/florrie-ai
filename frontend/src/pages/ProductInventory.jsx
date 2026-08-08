@@ -409,7 +409,7 @@ const S = {
   sortRow: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 },
   sortLabel: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #6B5D54))', fontWeight: 600 },
   sortBtn: { padding: '5px 12px', borderRadius: 10, border: '1px solid var(--border, var(--border, #E8DDD4))', background: 'var(--card, #FFFCF9)', fontSize: 11, fontWeight: 600, color: 'var(--text-muted, var(--text-muted, #6B5D54))', cursor: 'pointer', fontFamily: 'inherit' },
-  sortBtnActive: { background: 'var(--accent-light, #F6E7EC)', color: 'var(--accent, #92405e)', border: '1px solid var(--accent, #92405e)20' },
+  sortBtnActive: { background: 'var(--accent-light, #F6E7EC)', color: 'var(--accent, #92405e)', border: '1px solid rgba(146, 64, 94, 0.13)' },   // was var(--accent, #92405e)20 — alpha on a var() is invalid CSS, so this border never drew
   list: { display: 'flex', flexDirection: 'column', gap: 8 },
   card: { background: 'var(--card, #FFFCF9)', borderRadius: 16, padding: 14, cursor: 'pointer' },
   cardHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },

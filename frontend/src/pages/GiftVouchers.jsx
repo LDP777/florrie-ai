@@ -586,7 +586,7 @@ const styles = {
 
   // Preview
   previewCard: {
-    background: 'linear-gradient(135deg, var(--accent, #92405e) 0%, #E8A0B5 100%)',
+    background: 'linear-gradient(135deg, var(--accent, #92405e) 0%, #c9315d 100%)',
     borderRadius: 16, padding: 20, marginBottom: 14, textAlign: 'center', color: '#fff',
   },
   previewBrand: { fontSize: 12, opacity: 0.9, marginBottom: 12 },

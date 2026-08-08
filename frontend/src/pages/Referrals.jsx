@@ -405,7 +405,14 @@ const s = {
   rewardArrow: { fontSize: 18, color: 'var(--text-muted, #6B5D54)' },
   leaderRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--border, #E8DDD4)' },
   rank: { fontSize: 14, fontWeight: 700, minWidth: 24 },
-  leaderAvatar: { width: 32, height: 32, borderRadius: 16, background: 'linear-gradient(135deg, var(--accent, #92405e)22, var(--accent, #92405e)44)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: 'var(--accent, #92405e)', flexShrink: 0 },
+  // `var(--accent, #92405e)22` is not CSS. The eight-digit-hex alpha trick only
+  // works on a literal — appending 22 to a var() reference makes the whole
+  // colour invalid, the gradient is dropped, and the avatar has been rendering
+  // with no fill at all: accent-on-card initials floating in a circle that is
+  // not there. Nobody spotted it because it fails silently and still looks
+  // vaguely intentional. The same accent, at the 13% and 27% those hex alphas
+  // meant, written so a browser will accept it.
+  leaderAvatar: { width: 32, height: 32, borderRadius: 16, background: 'linear-gradient(135deg, rgba(146, 64, 94, 0.13), rgba(146, 64, 94, 0.27))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: 'var(--accent, #92405e)', flexShrink: 0 },
   leaderInfo: { flex: 1 },
   leaderName: { display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--text, #241B17)' },
   leaderMeta: { display: 'block', fontSize: 11, color: 'var(--text-muted, #6B5D54)' },

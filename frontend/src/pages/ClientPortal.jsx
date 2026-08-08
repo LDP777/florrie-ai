@@ -213,7 +213,7 @@ export default function ClientPortal() {
                       {a.treatments?.name} · {new Date(a.starts_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}
                     </div>
                   </div>
-                  <div style={{ ...s.statusChip, background: a.status === 'confirmed' ? '#E8F5E9' : '#FFF8E1', color: a.status === 'confirmed' ? '#388E3C' : '#F57C00' }}>
+                  <div style={{ ...s.statusChip, background: a.status === 'confirmed' ? '#E8F5E9' : '#FFF8E1', color: a.status === 'confirmed' ? '#2c7130' : '#a35300' }}>
                     {a.status}
                   </div>
                 </div>

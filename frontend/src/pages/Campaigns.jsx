@@ -701,7 +701,7 @@ const styles = {
   perfStatValue: { display: 'block', fontSize: 18, fontWeight: 700 },
   perfStatLabel: { display: 'block', fontSize: 9, color: 'var(--text-muted, #6B5D54)', textTransform: 'uppercase', marginTop: 2 },
   revenueRecovered: {
-    background: 'linear-gradient(135deg, var(--accent, #92405e) 0%, #D4899F 100%)',
+    background: 'linear-gradient(135deg, var(--accent, #92405e) 0%, #bb4668 100%)',
     borderRadius: 10, padding: 14, textAlign: 'center', color: '#fff', marginBottom: 12,
   },
   recoveredLabel: { display: 'block', fontSize: 10, opacity: 0.7, textTransform: 'uppercase', letterSpacing: '0.04em' },

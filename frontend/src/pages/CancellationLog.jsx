@@ -17,7 +17,7 @@ const fmt = (cents) => `£${(cents / 100).toFixed(2)}`;
 const TYPE_CONFIG = {
   // Not the client's doing, so it does not wear the client's badge.
   unpaid: { label: 'Deposit unpaid', icon: '\u{1F4B3}', bg: 'var(--bg-hover, #f3ede9)', color: 'var(--text-secondary, #574A42)' },
-  'no-show': { label: 'No Show', bg: '#FFEBEE', color: '#F44336', icon: 'x' },
+  'no-show': { label: 'No Show', bg: '#FFEBEE', color: '#c4170b', icon: 'x' },
   'late-cancel': { label: 'Late Cancel', bg: '#FFF5E6', color: 'var(--gold, #79581C)', icon: '⏰' },
   'cancelled': { label: 'Cancelled', bg: '#F0ECE8', color: '#735C4E', icon: '↩' },
 };
@@ -243,7 +243,7 @@ export default function CancellationLog() {
                       <span style={S.offenderDetail}>{data.noShows} no-show{data.noShows !== 1 ? 's' : ''}, {data.total} total</span>
                     </div>
                   </div>
-                  <span style={{ ...S.offenderBadge, background: data.noShows >= 2 ? '#FFEBEE' : '#FFF5E6', color: data.noShows >= 2 ? '#F44336' : '#B8860B' }}>
+                  <span style={{ ...S.offenderBadge, background: data.noShows >= 2 ? '#FFEBEE' : '#FFF5E6', color: data.noShows >= 2 ? '#c4170b' : '#886308' }}>
                     {data.noShows >= 2 ? 'Flag' : 'Watch'}
                   </span>
                 </div>

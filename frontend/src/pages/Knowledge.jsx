@@ -309,7 +309,7 @@ const S = {
   },
   errorNote: {
     background: 'var(--danger-bg, #F7E4E4)',
-    color: '#B4443C', borderRadius: 16,
+    color: '#a53e37', borderRadius: 16,
     padding: '12px 14px', fontSize: 13, marginBottom: 16,
   },
   addButton: {

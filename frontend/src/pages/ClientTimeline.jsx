@@ -52,9 +52,9 @@ const TYPE_CONFIG = {
   note: { icon: 'edit', colour: 'var(--text-secondary, #574A42)', bg: 'var(--border, #E8DDD4)' },
   feedback: { icon: 'star', colour: 'var(--gold, #79581C)', bg: 'var(--gold-light, #ffdea4)' },
   payment: { icon: 'wallet', colour: 'var(--success, #386F52)', bg: 'var(--success-bg, #E9F0EB)' },
-  message: { icon: '💬', colour: '#2196F3', bg: '#E3F2FD' },
-  consent: { icon: 'list', colour: '#7B6B8F', bg: '#F0E6F4' },
-  referral: { icon: 'users', colour: '#5E8B8B', bg: '#E0F2F1' },
+  message: { icon: '💬', colour: '#0966af', bg: '#E3F2FD' },
+  consent: { icon: 'list', colour: '#675a78', bg: '#F0E6F4' },
+  referral: { icon: 'users', colour: '#456666', bg: '#E0F2F1' },
 };
 const fmt = (cents) => `£${(cents / 100).toFixed(2)}`;
 export default function ClientTimeline() {

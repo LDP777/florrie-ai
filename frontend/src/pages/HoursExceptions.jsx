@@ -27,9 +27,9 @@ const QUICK_REASONS = [
 ];
 
 const TYPE_CFG = {
-  closed:   { label: 'Day off',        color: '#E57373', bg: 'var(--danger-bg, #F7E4E4)', dot: '#E57373' },
-  amended:  { label: 'Changed hours',  color: '#F59E0B', bg: '#FFF8E1', dot: '#F59E0B' },
-  extended: { label: 'Extra hours',    color: '#5BA97B', bg: '#E8F5E9', dot: '#5BA97B' },
+  closed:   { label: 'Day off',        color: '#bb2323', bg: 'var(--danger-bg, #F7E4E4)', dot: '#E57373' },
+  amended:  { label: 'Changed hours',  color: '#945f06', bg: '#FFF8E1', dot: '#F59E0B' },
+  extended: { label: 'Extra hours',    color: '#3a6e4f', bg: '#E8F5E9', dot: '#5BA97B' },
 };
 
 // ── date helpers ────────────────────────────────────────────────────────────
@@ -562,7 +562,7 @@ const S = {
 
   // Next-off hero card
   nextCard: {
-    background: 'linear-gradient(135deg, var(--accent, #92405e) 0%, #E8A0B5 100%)',
+    background: 'linear-gradient(135deg, var(--accent, #92405e) 0%, #c9315d 100%)',
     borderRadius: 16, padding: '14px 16px', marginBottom: 14, color: '#fff',
   },
   nextTag:  { display: 'block', fontSize: 10, opacity: 0.8, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 },
@@ -733,7 +733,7 @@ const S = {
   notifyTag:   { display: 'block', fontSize: 10, color: 'var(--success, #386F52)', marginTop: 3 },
   deleteBtn: {
     width: 26, height: 26, borderRadius: 16, border: 'none',
-    background: 'var(--danger-bg, #F7E4E4)', color: '#E57373', fontSize: 12, flexShrink: 0,
+    background: 'var(--danger-bg, #F7E4E4)', color: '#bb2323', fontSize: 12, flexShrink: 0,
     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
 

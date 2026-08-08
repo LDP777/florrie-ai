@@ -475,7 +475,7 @@ export default function Courses() {
                       </div>
                       <span style={{ ...s.enrollStatus,
                         background: e.payment_status === 'paid' ? 'var(--success-bg, #E9F0EB)' : e.payment_status === 'deposit_paid' ? 'var(--warning-bg, #F7EEDD)' : 'var(--bg, #FBF6F1)',
-                        color: e.payment_status === 'paid' ? 'var(--success, #386F52)' : e.payment_status === 'deposit_paid' ? '#E8A838' : 'var(--text-muted, #6B5D54)',
+                        color: e.payment_status === 'paid' ? 'var(--success, #386F52)' : e.payment_status === 'deposit_paid' ? '#82580f' : 'var(--text-muted, #6B5D54)',
                       }}>
                         {e.payment_status === 'paid' ? 'Paid in full' : e.payment_status === 'deposit_paid' ? 'Deposit paid' : 'Unpaid'}
                       </span>
@@ -512,7 +512,7 @@ export default function Courses() {
                   </div>
                   <span style={{ ...s.enrollStatus,
                     background: e.payment_status === 'paid' ? 'var(--success-bg, #E9F0EB)' : e.payment_status === 'deposit_paid' ? 'var(--warning-bg, #F7EEDD)' : 'var(--bg, #FBF6F1)',
-                    color: e.payment_status === 'paid' ? 'var(--success, #386F52)' : e.payment_status === 'deposit_paid' ? '#E8A838' : 'var(--text-muted, #6B5D54)',
+                    color: e.payment_status === 'paid' ? 'var(--success, #386F52)' : e.payment_status === 'deposit_paid' ? '#82580f' : 'var(--text-muted, #6B5D54)',
                   }}>
                     {e.payment_status === 'paid' ? 'Paid in full' : e.payment_status === 'deposit_paid' ? 'Deposit paid' : 'Unpaid'}
                   </span>

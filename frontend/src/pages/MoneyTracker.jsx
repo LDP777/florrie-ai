@@ -2133,7 +2133,7 @@ export default function MoneyTracker() {
                     <div style={{ ...S.breakdownCard, border: '1.5px solid #22c55e30' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                         <h4 style={{ ...S.breakdownTitle, margin: 0 }}>VAT (registered)</h4>
-                        <span style={{ fontSize: 11, fontWeight: 600, color: '#22c55e', background: '#f0fdf4', padding: '2px 8px', borderRadius: 10 }}>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: '#147739', background: '#f0fdf4', padding: '2px 8px', borderRadius: 10 }}>
                           {t.vat.vatNumber || 'No VAT number set'}
                         </span>
                       </div>
@@ -2566,7 +2566,7 @@ const S = {
     width: 36, height: 36, borderRadius: 10,
     background: 'linear-gradient(135deg, #ffd9e2 0%, #ffb1c8 100%)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontSize: 14, fontWeight: 700, color: '#92405e', flexShrink: 0,
+    fontSize: 14, fontWeight: 700, color: '#76344c', flexShrink: 0,
   },
   catBubble: {
     width: 36, height: 36, borderRadius: 10,

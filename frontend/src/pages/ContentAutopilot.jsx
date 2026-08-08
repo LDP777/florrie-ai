@@ -1507,7 +1507,7 @@ const styles = {
   postImage: { width: '100%', height: 200, objectFit: 'cover', display: 'block' },
   caption: { fontSize: 14, lineHeight: 1.6, margin: '0 0 10px', whiteSpace: 'pre-wrap' },
   hashtags: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 },
-  hashtag: { fontSize: 12, color: '#4A90D9', background: '#EEF4FC', padding: '3px 8px', borderRadius: 6 },
+  hashtag: { fontSize: 12, color: '#2467ad', background: '#EEF4FC', padding: '3px 8px', borderRadius: 6 },
   actions: { display: 'flex', gap: 8 },
   discardBtn: {
     padding: '10px 14px',

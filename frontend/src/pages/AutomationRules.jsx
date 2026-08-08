@@ -487,7 +487,7 @@ function SequencesPanel({ beautician }) {
         ))}
         <button className="fl-tap"
           onClick={() => setShowCreate(true)}
-          style={{ padding: '10px 14px', borderRadius: 10, border: 'none', background: 'var(--accent-rose, #C76B8A)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}
+          style={{ padding: '10px 14px', borderRadius: 10, border: 'none', background: 'var(--accent-rose, #b9466d)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}
         >+ New</button>
       </div>
       {/* Sequence cards */}
@@ -516,7 +516,7 @@ function SequencesPanel({ beautician }) {
                 <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #241B17)', marginBottom: 2 }}>{seq.name}</div>
                 <div style={{ fontSize: 12, color: '#8B8580' }}>{seq.steps.length} steps · {trigger?.label}</div>
               </div>
-              <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 10, background: seq.active ? 'var(--success-bg, #E9F0EB)' : '#F0ECE8', color: seq.active ? '#5BA97B' : '#B5AFA8' }}>
+              <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 10, background: seq.active ? 'var(--success-bg, #E9F0EB)' : '#F0ECE8', color: seq.active ? '#3a6e4f' : '#6a635a' }}>
                 {seq.active ? 'Active' : 'Paused'}
               </span>
             </div>
@@ -532,7 +532,7 @@ function SequencesPanel({ beautician }) {
                       </div>
                       <div style={{ flex: 1, paddingBottom: 4 }}>
                         <div style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
-                          <span style={{ fontSize: 10, fontWeight: 700, color: '#C76B8A', background: '#FFF0F3', padding: '2px 7px', borderRadius: 6 }}>{formatSeqDelay(step.delay)}</span>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: '#aa4064', background: '#FFF0F3', padding: '2px 7px', borderRadius: 6 }}>{formatSeqDelay(step.delay)}</span>
                           <span style={{ fontSize: 10, color: '#8B8580' }}>{step.channel === 'whatsapp' ? 'message' : step.channel === 'sms' ? 'phone' : 'mail'} {step.channel}</span>
                         </div>
                         <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary, #574A42)', lineHeight: 1.5 }}>{step.message}</p>
@@ -548,7 +548,7 @@ function SequencesPanel({ beautician }) {
                 </div>
                 <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                   <button className="fl-tap" onClick={() => handleToggle(seq)} style={{ padding: '6px 12px', borderRadius: 10, border: '1px solid var(--border-light, #ede7e3)', background: '#FAF8F5', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#6B6560' }}>{seq.active ? 'Pause' : 'Activate'}</button>
-                  <button className="fl-tap" onClick={() => handleDelete(seq.id)} style={{ padding: '6px 12px', borderRadius: 10, border: '1px solid var(--border-light, #ede7e3)', background: '#FAF8F5', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#E85D75' }}>Delete</button>
+                  <button className="fl-tap" onClick={() => handleDelete(seq.id)} style={{ padding: '6px 12px', borderRadius: 10, border: '1px solid var(--border-light, #ede7e3)', background: '#FAF8F5', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#cc1d3b' }}>Delete</button>
                 </div>
               </div>
             )}
@@ -567,7 +567,7 @@ function SequencesPanel({ beautician }) {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
               {SEQ_TRIGGERS.map(t => (
                 <button className="fl-tap" key={t.value} onClick={() => setCreateForm(f => ({ ...f, trigger: t.value }))}
-                  style={{ padding: '6px 10px', borderRadius: 10, border: '1px solid var(--border-light, #ede7e3)', background: createForm.trigger === t.value ? '#FFF0F3' : '#FAF8F5', color: createForm.trigger === t.value ? '#C76B8A' : '#4A4540', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  style={{ padding: '6px 10px', borderRadius: 10, border: '1px solid var(--border-light, #ede7e3)', background: createForm.trigger === t.value ? '#FFF0F3' : '#FAF8F5', color: createForm.trigger === t.value ? '#aa4064' : '#4A4540', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
                   <Icon name={iconName(t.icon)} inline /> {t.label}
                 </button>
               ))}
@@ -586,7 +586,7 @@ function SequencesPanel({ beautician }) {
                   </select>
                   {createForm.steps.length > 1 && (
                     <button className="fl-tap" onClick={() => setCreateForm(f => ({ ...f, steps: f.steps.filter((_, j) => j !== i) }))}
-                      style={{ padding: '6px 10px', borderRadius: 10, border: '1px solid var(--border-light, #ede7e3)', background: 'var(--bg-card, #FFFCF9)', fontSize: 12, cursor: 'pointer', color: '#E85D75', fontFamily: 'inherit' }}><Icon name="x" size={15} /></button>
+                      style={{ padding: '6px 10px', borderRadius: 10, border: '1px solid var(--border-light, #ede7e3)', background: 'var(--bg-card, #FFFCF9)', fontSize: 12, cursor: 'pointer', color: '#d51e3e', fontFamily: 'inherit' }}><Icon name="x" size={15} /></button>
                   )}
                 </div>
                 <textarea value={step.message} onChange={e => setCreateForm(f => ({ ...f, steps: f.steps.map((s, j) => j === i ? { ...s, message: e.target.value } : s) }))}
@@ -599,7 +599,7 @@ function SequencesPanel({ beautician }) {
               + Add step
             </button>
             <button onClick={handleCreate} disabled={saving || !createForm.name.trim()}
-              style={{ width: '100%', padding: 14, borderRadius: 10, border: 'none', background: 'var(--accent-rose, #C76B8A)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', opacity: saving || !createForm.name.trim() ? 0.6 : 1 }}>
+              style={{ width: '100%', padding: 14, borderRadius: 10, border: 'none', background: 'var(--accent-rose, #b9466d)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', opacity: saving || !createForm.name.trim() ? 0.6 : 1 }}>
               {saving ? 'Saving…' : 'Create Sequence'}
             </button>
           </div>

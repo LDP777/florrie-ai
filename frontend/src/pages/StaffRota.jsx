@@ -373,7 +373,7 @@ export default function StaffRota() {
                     <span style={S.exName}>Salon closed</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ ...S.exTypeBadge, background: ex.type === 'time-off' ? '#FFF5E6' : '#E3F2FD', color: ex.type === 'time-off' ? '#B8860B' : '#2196F3' }}>
+                    <span style={{ ...S.exTypeBadge, background: ex.type === 'time-off' ? '#FFF5E6' : '#E3F2FD', color: ex.type === 'time-off' ? '#886308' : '#0966af' }}>
                       {ex.type === 'time-off' ? 'Time Off' : 'Swap'}
                     </span>
                     <button style={S.deleteBtn} onClick={() => handleDeleteException(ex.id)}>×</button>

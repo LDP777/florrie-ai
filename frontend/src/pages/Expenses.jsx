@@ -511,7 +511,7 @@ const S = {
   expenseDesc: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #6B5D54))' },
   expenseTags: { display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' },
   tagDate: { fontSize: 10, color: 'var(--text-secondary, #574A42)', padding: '2px 6px', borderRadius: 6, background: 'var(--border, var(--border, #E8DDD4))' },
-  tagRecurring: { fontSize: 10, color: '#7B6B8F', padding: '2px 6px', borderRadius: 6, background: '#F0E6F4' },
+  tagRecurring: { fontSize: 10, color: '#675a78', padding: '2px 6px', borderRadius: 6, background: '#F0E6F4' },
   tagTax: { fontSize: 10, color: 'var(--success, #386F52)', padding: '2px 6px', borderRadius: 6, background: 'var(--success-bg, #E9F0EB)' },
   expenseAmount: { fontSize: 15, fontWeight: 700, color: 'var(--accent, #92405e)', whiteSpace: 'nowrap' },
 

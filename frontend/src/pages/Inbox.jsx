@@ -1780,7 +1780,7 @@ const S = {
   sectionQuietNote: { fontSize: 11.5, color: 'var(--text-muted, #6B5D54)', fontStyle: 'italic', marginLeft: 'auto' },
   waitChip: {
     fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 999,
-    background: '#fdf0e3', color: '#b3602f', letterSpacing: '0.02em',
+    background: '#fdf0e3', color: '#9b5329', letterSpacing: '0.02em',
   },
   petalNote: { fontSize: 11, color: 'var(--accent, #92405e)', fontWeight: 600 },
   metaLine: {
@@ -1791,7 +1791,7 @@ const S = {
   bookChip: {
     display: 'inline-flex', alignItems: 'center', gap: 5,
     padding: '5px 12px', minHeight: 28, borderRadius: 999, border: 'none',
-    background: '#f0e3cf', color: '#8a6d3b', fontSize: 11.5, fontWeight: 700,
+    background: '#f0e3cf', color: '#6d562f', fontSize: 11.5, fontWeight: 700,
     cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent',
   },
   controlsWrap: { marginTop: 2 },
@@ -1902,7 +1902,7 @@ const S = {
   avatar: {
     width: 44, height: 44, borderRadius: 22,
     background: 'linear-gradient(135deg, #ffe0e7 0%, #ffbecd 100%)',
-    color: '#92405e', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    color: '#7d3750', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     fontSize: 16.5, fontWeight: 700, fontFamily: "'Playfair Display', Georgia, serif",
     boxShadow: 'inset 0 0 0 1px rgba(146,64,94,0.05)',
   },

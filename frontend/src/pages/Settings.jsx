@@ -1067,7 +1067,7 @@ export default function Settings({ onLogout }) {
                   onClick={() => saveProfile({ calendar_settings: { ...calSettings, buffer_minutes: opt.mins } })}
                   style={{ ...styles.bufferChip,
                     background: (calSettings.buffer_minutes ?? 10) === opt.mins ? 'var(--accent-rose)' : '#F5F2EF',
-                    color: (calSettings.buffer_minutes ?? 10) === opt.mins ? '#fff' : '#8A8580',
+                    color: (calSettings.buffer_minutes ?? 10) === opt.mins ? '#fff' : '#6b6662',
                   }}
                 >
                   {opt.label}
@@ -1299,7 +1299,7 @@ export default function Settings({ onLogout }) {
                     }}
                     style={{ ...styles.channelChip,
                       background: (beautician.client_reminder_prefs?.channel || 'whatsapp') === ch ? 'var(--accent-rose)' : '#F5F2EF',
-                      color: (beautician.client_reminder_prefs?.channel || 'whatsapp') === ch ? '#fff' : '#8A8580'
+                      color: (beautician.client_reminder_prefs?.channel || 'whatsapp') === ch ? '#fff' : '#6b6662'
                     }}
                   >
                     {ch === 'whatsapp' ? 'WhatsApp' : ch === 'email' ? 'Email' : 'SMS'}

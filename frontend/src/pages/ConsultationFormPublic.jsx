@@ -567,7 +567,7 @@ const styles = {
     margin: '12px 20px',
     padding: '10px 14px',
     background: '#fdf2f2',
-    color: '#e74c3c',
+    color: '#c42818',
     borderRadius: 10,
     fontSize: 14,
     fontWeight: 500,

@@ -328,7 +328,7 @@ export default function Aftercare() {
                     </div>
                     <div style={{ ...styles.autoSendBadge,
                       background: card.auto_send ? 'var(--success-bg, #E9F0EB)' : 'var(--bg-hover, #f3ede9)',
-                      color: card.auto_send ? '#388E3C' : '#AAA5A0',
+                      color: card.auto_send ? '#2c7130' : '#68635d',
                     }}>
                       {card.auto_send ? 'Auto' : 'Off'}
                     </div>

@@ -2871,7 +2871,7 @@ const styles = {
   appointmentCardTreatment: { fontSize: 10, fontWeight: 500, textTransform: 'uppercase', color: COLORS.stone400, letterSpacing: '0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
   appointmentCardMeta: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, flexShrink: 0 },
   appointmentCardTime: { fontWeight: 600, color: COLORS.stone400, textTransform: 'uppercase' },
-  aiTag: { display: 'inline-block', padding: '2px 6px', borderRadius: 6, fontSize: 9, fontWeight: 600, background: '#EEF4FC', color: '#4A90D9', letterSpacing: '0.03em' },
+  aiTag: { display: 'inline-block', padding: '2px 6px', borderRadius: 6, fontSize: 9, fontWeight: 600, background: '#EEF4FC', color: '#2467ad', letterSpacing: '0.03em' },
   // Open Slot Cards
   openSlotCard: { position: 'absolute', left: 4, right: 4, borderRadius: 16, border: `2px dashed ${COLORS.outlineVariant}80`, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 'calc(100% - 8px)' },
   openSlotText: { fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: COLORS.stone400 },
@@ -2910,7 +2910,7 @@ const styles = {
   detailLabel: { fontSize: 13, color: COLORS.stone400, fontWeight: 500 },
   detailValue: { fontSize: 13, fontWeight: 600, textAlign: 'right' },
   statusBadge: { padding: '3px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600, textTransform: 'capitalize' },
-  completeBtn: { width: '100%', padding: '12px 0', borderRadius: 10, border: 'none', background: '#5BA67F', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 14 },
+  completeBtn: { width: '100%', padding: '12px 0', borderRadius: 10, border: 'none', background: '#41785c', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 14 },
   completionFlow: { display: 'flex', flexDirection: 'column', gap: 16 },
   completionSection: { display: 'flex', flexDirection: 'column', gap: 6 },
   completionLabel: { fontSize: 11, fontWeight: 700, color: COLORS.stone400, textTransform: 'uppercase', letterSpacing: '0.05em' },
@@ -2922,7 +2922,7 @@ const styles = {
   photoPreview: { position: 'relative', borderRadius: 10, overflow: 'hidden' },
   photoImg: { width: '100%', borderRadius: 10, maxHeight: 200, objectFit: 'cover' },
   photoRemove: { position: 'absolute', top: 8, right: 8, width: 44, height: 44, borderRadius: '50%', background: 'rgba(0,0,0,0.5)', color: '#fff', border: 'none', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  confirmCompleteBtn: { width: '100%', padding: '14px 0', borderRadius: 10, border: 'none', background: '#5BA67F', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  confirmCompleteBtn: { width: '100%', padding: '14px 0', borderRadius: 10, border: 'none', background: '#41785c', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   doneScreen: { textAlign: 'center', padding: '20px 0' },
   rebookSection: { background: COLORS.surfaceContainerLow, borderRadius: 10, padding: 16, textAlign: 'left', marginBottom: 12 },
   rebookOptions: { display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 },
@@ -3138,7 +3138,7 @@ function BlockDetailSheet({ block, onDelete, onClose }) {
               <button className="fl-tap" onClick={() => setConfirming(false)} style={{ flex: 1, padding: '12px 0', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, background: 'var(--bg-card)', color: COLORS.onSurface, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                 Cancel
               </button>
-              <button className="fl-tap" onClick={onDelete} style={{ flex: 1, padding: '12px 0', borderRadius: 10, border: 'none', background: '#E57373', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+              <button className="fl-tap" onClick={onDelete} style={{ flex: 1, padding: '12px 0', borderRadius: 10, border: 'none', background: '#d52828', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                 Remove
               </button>
             </div>

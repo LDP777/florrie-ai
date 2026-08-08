@@ -318,7 +318,7 @@ export default function Team() {
                 onClick={() => handleToggleActive(selectedMember)}
                 style={{ ...styles.actionBtn,
                   background: selectedMember.is_active ? '#FFF3E0' : 'var(--success-bg, #E9F0EB)',
-                  color: selectedMember.is_active ? '#F57C00' : 'var(--success, #386F52)',
+                  color: selectedMember.is_active ? '#a35300' : 'var(--success, #386F52)',
                   borderColor: selectedMember.is_active ? '#FFCC80' : '#A5D6A7'
                 }}
               >
@@ -326,7 +326,7 @@ export default function Team() {
               </button>
               <button
                 onClick={() => handleRemove(selectedMember)}
-                style={{ ...styles.actionBtn, background: 'var(--danger-bg, #F7E4E4)', color: '#E57373', borderColor: '#FFCDD2' }}
+                style={{ ...styles.actionBtn, background: 'var(--danger-bg, #F7E4E4)', color: '#bb2323', borderColor: '#FFCDD2' }}
               >
                 Remove from team
               </button>
@@ -381,7 +381,7 @@ const styles = {
   // Member list
   memberList: { display: 'flex', flexDirection: 'column', gap: 8 },
   memberCard: { display: 'flex', alignItems: 'center', gap: 12, padding: 14, borderRadius: 16, background: 'var(--bg-card, #FFFCF9)', border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', boxShadow: 'var(--elev-1)', width: '100%' },
-  memberAvatar: { width: 42, height: 42, borderRadius: 22, background: 'linear-gradient(135deg, var(--accent, #92405e) 0%, #D4899F 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 16, flexShrink: 0 },
+  memberAvatar: { width: 42, height: 42, borderRadius: 22, background: 'linear-gradient(135deg, var(--accent, #92405e) 0%, #bb4668 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 16, flexShrink: 0 },
   memberInfo: { flex: 1, display: 'flex', flexDirection: 'column', gap: 2 },
   memberName: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #241B17)' },
   memberRole: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #6B5D54))' },

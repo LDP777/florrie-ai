@@ -25,8 +25,8 @@ import Money from '../components/ui/Money';
 
 const FILLABILITY = {
   high: { label: 'Easy fill', color: '#306F33', bg: '#E8F5E9' },
-  medium: { label: 'Possible', color: '#FF9800', bg: '#FFF3E0' },
-  low: { label: 'Tough', color: '#E57373', bg: '#FEF2F2' },
+  medium: { label: 'Possible', color: '#8f5500', bg: '#FFF3E0' },
+  low: { label: 'Tough', color: '#c32424', bg: '#FEF2F2' },
 };
 
 const DEAD_STATUSES = ['cancelled', 'cancelled_by_client', 'cancelled_by_beautician', 'no_show'];
@@ -527,7 +527,7 @@ export default function SmartSchedule() {
                 const fit = gap.fitTotal > 0 && gap.fitCount === gap.fitTotal
                   ? { label: 'Any treatment fits', color: '#306F33', bg: '#E8F5E9' }
                   : gap.fitCount > 0
-                  ? { label: `${gap.fitCount} treatment${gap.fitCount === 1 ? '' : 's'} fit${gap.fitCount === 1 ? 's' : ''}`, color: '#FF9800', bg: '#FFF3E0' }
+                  ? { label: `${gap.fitCount} treatment${gap.fitCount === 1 ? '' : 's'} fit${gap.fitCount === 1 ? 's' : ''}`, color: '#8f5500', bg: '#FFF3E0' }
                   : { label: 'Too short to book', color: 'var(--text-muted, #6B5D54)', bg: 'var(--bg-subtle, #ede7e3)' };
                 const fgs = fillGapState[gap.id] || {};
                 return (
@@ -928,7 +928,7 @@ const styles = {
   suggReasonText: { fontSize: 12, color: '#6b6560', margin: '8px 0', lineHeight: 1.4 },
   overdueBadge: {
     padding: '3px 8px', borderRadius: 6, fontSize: 10, fontWeight: 600,
-    background: '#FEF2F2', color: '#E57373', flexShrink: 0,
+    background: '#FEF2F2', color: '#c32424', flexShrink: 0,
   },
 
   // Insights

@@ -217,7 +217,7 @@ const S = {
   pendingBadge: {
     position: 'absolute', top: 14, right: 14,
     fontSize: 11, fontWeight: 700, color: '#fff',
-    background: '#E85D75', padding: '4px 10px', borderRadius: 22,
+    background: '#d51e3e', padding: '4px 10px', borderRadius: 22,
   },
 
   explainerCard: {

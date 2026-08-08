@@ -357,7 +357,7 @@ export default function EndOfDay() {
                 {cashDiff !== null && (
                   <div style={{ ...styles.diffBadge,
                     background: parseFloat(cashDiff) === 0 ? 'var(--success-bg, #E9F0EB)' : 'var(--warning-bg, #F7EEDD)',
-                    color: parseFloat(cashDiff) === 0 ? '#2E7D32' : '#B33F00',
+                    color: parseFloat(cashDiff) === 0 ? '#296e2c' : '#B33F00',
                   }}>
                     {parseFloat(cashDiff) === 0
                       ? '\u2705 Exact match'
@@ -473,10 +473,10 @@ const styles = {
   timelineTreatment: { fontSize: 12, color: 'var(--text-muted, #6B5D54)' },
   timelineAmount: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #241B17)' },
   timelineMethod: { fontSize: 11, color: 'var(--text-muted, #6B5D54)' },
-  badgeNoShow: { fontSize: 11, color: '#E85D75', background: 'var(--danger-bg, #F7E4E4)', padding: '3px 8px', borderRadius: 10, fontWeight: 600 },
-  badgeCancelled: { fontSize: 11, color: '#F57C00', background: 'var(--warning-bg, #F7EEDD)', padding: '3px 8px', borderRadius: 10, fontWeight: 600 },
-  badgePending: { fontSize: 11, color: '#757575', background: 'var(--bg-hover, #f3ede9)', padding: '3px 8px', borderRadius: 10, fontWeight: 600 },
-  badgeConfirmed: { fontSize: 11, color: '#2E7D32', background: 'var(--success-bg, #E9F0EB)', padding: '3px 8px', borderRadius: 10, fontWeight: 600 },
+  badgeNoShow: { fontSize: 11, color: '#ba1a36', background: 'var(--danger-bg, #F7E4E4)', padding: '3px 8px', borderRadius: 10, fontWeight: 600 },
+  badgeCancelled: { fontSize: 11, color: '#994e00', background: 'var(--warning-bg, #F7EEDD)', padding: '3px 8px', borderRadius: 10, fontWeight: 600 },
+  badgePending: { fontSize: 11, color: '#616161', background: 'var(--bg-hover, #f3ede9)', padding: '3px 8px', borderRadius: 10, fontWeight: 600 },
+  badgeConfirmed: { fontSize: 11, color: '#296e2c', background: 'var(--success-bg, #E9F0EB)', padding: '3px 8px', borderRadius: 10, fontWeight: 600 },
 
   optionalBanner: { display: 'flex', gap: 8, alignItems: 'flex-start', background: '#FFF8F0', border: '1px solid #FFE8CC', borderRadius: 10, padding: '10px 12px', marginBottom: 12 },
   cashupCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: 16, border: '1px solid var(--border-light, #ede7e3)', marginBottom: 16 },

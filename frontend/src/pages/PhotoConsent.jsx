@@ -24,7 +24,7 @@ const SCOPE_OPTIONS = [
 const STATUS_CONFIG = {
   granted: { label: 'Granted', bg: '#E8F5E9', color: '#306F33' },
   pending: { label: 'Pending', bg: '#FFF5E6', color: 'var(--gold, #79581C)' },
-  declined: { label: 'Declined', bg: '#FFEBEE', color: '#F44336' },
+  declined: { label: 'Declined', bg: '#FFEBEE', color: '#c4170b' },
   expired: { label: 'Expired', bg: '#F0ECE8', color: 'var(--text-muted, #6B5D54)' },
 };
 

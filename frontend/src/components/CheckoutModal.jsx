@@ -378,7 +378,7 @@ const S = {
   errorBig: { fontSize: 14, color: '#ba1a1a', lineHeight: 1.5, maxWidth: 320 },
   successIcon: {
     width: 52, height: 52, borderRadius: '50%',
-    background: 'linear-gradient(135deg, #5BA97B, #3d8a5e)',
+    background: 'linear-gradient(135deg, #3d7554, #377c54)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     color: '#fff', fontSize: 22, fontWeight: 700,
   },
