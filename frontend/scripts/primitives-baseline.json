@@ -1,6 +1,6 @@
 {
   "note": "Hand-styled <button> count per file. May only ever decrease. See scripts/check-primitives.mjs.",
-  "total": 843,
+  "total": 837,
   "files": {
     "App.jsx": 4,
     "components/ActivityFeed.jsx": 3,
@@ -12,7 +12,6 @@
     "components/FloatingMic.jsx": 4,
     "components/InstallPrompt.jsx": 2,
     "components/MorningCatchup.jsx": 1,
-    "components/PageScaffold.jsx": 1,
     "components/PlanGate.jsx": 3,
     "components/SetupNudge.jsx": 1,
     "components/SuggestionCards.jsx": 3,
@@ -83,9 +82,8 @@
     "pages/Support.jsx": 1,
     "pages/Team.jsx": 9,
     "pages/TrainingBooking.jsx": 1,
-    "pages/Treatments.jsx": 17,
+    "pages/Treatments.jsx": 13,
     "pages/UpdatePassword.jsx": 2,
-    "pages/ValueBreakdown.jsx": 1,
     "pages/VoiceCommander.jsx": 7,
     "pages/WaitlistPro.jsx": 10,
     "pages/WeekReview.jsx": 1,
