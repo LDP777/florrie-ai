@@ -37,8 +37,21 @@ if (!existsSync(join(DIST, 'index.html'))) {
 // SSR pass ever looked at it and the SSR pass sees a spinner.
 const ROUTES = process.argv.slice(2).filter(a => !a.startsWith('--'));
 if (!ROUTES.length) ROUTES.push(
-  '/book/ellindigo', '/terms',
-  '/', '/money', '/inbox', '/clients', '/content',
+  // Public
+  '/book/ellindigo', '/terms', '/privacy',
+  // The five tabs, then everything reachable from More that holds real data.
+  // Routes are cheap here — about two seconds each — and the whole point is
+  // that a screen nobody has looked at closely is exactly where an unreadable
+  // colour survives.
+  '/', '/inbox', '/content', '/money', '/more',
+  '/calendar', '/calendar/week', '/clients', '/treatments', '/price-list',
+  '/expenses', '/deposits', '/analytics', '/end-of-day', '/checklist',
+  '/campaigns', '/automations', '/aftercare', '/loyalty', '/packages',
+  '/promos', '/memberships', '/milestones', '/referrals', '/reviews',
+  '/outbox', '/escalations', '/notifications', '/messaging', '/comms',
+  '/hours', '/policies', '/business', '/integrations', '/inventory',
+  '/patch-tests', '/compliance', '/portfolio', '/knowledge', '/import',
+  '/rebook', '/waitlist', '/team', '/notes', '/cancellations',
 );
 
 const MIME = { '.js':'text/javascript', '.css':'text/css', '.html':'text/html', '.svg':'image/svg+xml',
@@ -114,7 +127,7 @@ for (const r of ROUTES) if (r.startsWith('/book/')) PUBLIC.add(r);
 const findings = [];
 for (const route of ROUTES) {
   await page.goto(`http://127.0.0.1:${port}${route}`, { waitUntil: 'domcontentloaded' });
-  await page.waitForTimeout(1500);
+  await page.waitForTimeout(Number(process.env.LIVE_SETTLE || 700));
 
   // A signed-in route that quietly renders the LOGIN page is the worst possible
   // outcome here: every assertion below passes, on a screen nobody asked about,

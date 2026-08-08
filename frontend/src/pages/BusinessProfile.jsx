@@ -19,6 +19,7 @@ import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import { bookingUrl as publicBookingUrl } from '../lib/booking.js';
 import Icon, { iconName } from '../components/ui/Icon';
+import { onBrand } from '../lib/brand-colour.js';
 const BRAND_COLOURS = [
   'var(--accent, #92405e)', '#E8A0BF', '#C4A882', '#8B7355',
   '#7B9E89', '#5B8F6F', '#6B8EC4', '#4A6FA5',
@@ -159,7 +160,7 @@ export default function BusinessProfile() {
       </div>
 
       {/* Hero card */}
-      <div style={{ ...s.heroCard, background: `linear-gradient(135deg, ${brandColor}, ${brandColor}CC)` }}>
+      <div style={{ ...s.heroCard, background: `linear-gradient(135deg, ${brandColor}, ${brandColor}CC)`, color: onBrand(brandColor) }}>
         <div style={s.heroLogo}>
           {logoPreview ? (
             <img src={logoPreview} alt="Logo" style={{ width: 48, height: 48, borderRadius: 22, objectFit: 'cover' }} />
@@ -350,7 +351,7 @@ export default function BusinessProfile() {
           <div style={s.card}>
             <span style={s.cardLabel}>Booking page preview</span>
             <div style={s.bookingPreview}>
-              <div style={{ ...s.bpHeader, background: `linear-gradient(135deg, ${brandColor}, ${brandColor}CC)` }}>
+              <div style={{ ...s.bpHeader, background: `linear-gradient(135deg, ${brandColor}, ${brandColor}CC)`, color: onBrand(brandColor) }}>
                 <span style={s.bpName}>{businessName}</span>
                 {tagline && <span style={s.bpTagline}>{tagline}</span>}
               </div>
@@ -428,20 +429,23 @@ const s = {
     margin: '0 auto 10px',
   },
   heroInitial: {
+    // Inherits the hero's onBrand() colour. It hardcoded var(--bg-card), which
+    // is near-white, and a pale brand made the monogram 2.45:1 against it.
     fontSize: 24,
     fontWeight: 700,
-    color: 'var(--bg-card, #FFFCF9)',
+    color: 'inherit',
   },
   heroName: {
     display: 'block',
     fontSize: 18,
     fontWeight: 700,
-    color: 'var(--bg-card, #FFFCF9)',
+    color: 'inherit',   // the hero sets onBrand(brandColor); a pale brand made
+                        // this near-white name 3.48:1 against its own card
   },
   heroTagline: {
     display: 'block',
     fontSize: 12,
-    color: '#ffffffCC',
+    color: 'inherit', opacity: 0.85,
     marginTop: 4,
   },
   tabBar: {

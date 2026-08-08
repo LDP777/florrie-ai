@@ -27,7 +27,7 @@ const STATUS_CONFIG = {
   held: { label: 'Held', bg: '#FFF5E6', color: 'var(--gold, #8A6420)', icon: '⏳' },
   awaiting: { label: 'Awaiting payment', bg: '#FDF8EE', color: '#8A7245', icon: '·' },
   applied: { label: 'Applied', bg: 'var(--success-bg, #E9F0EB)', color: 'var(--success, #3F7D5C)', icon: 'check' },
-  refunded: { label: 'Refunded', bg: '#E3F2FD', color: '#2196F3', icon: '↩' },
+  refunded: { label: 'Refunded', bg: '#E3F2FD', color: 'var(--info, #2E6DA4)', icon: '↩' },
   forfeited: { label: 'Kept (policy)', bg: 'var(--danger-bg, #F7E4E4)', color: '#F44336', icon: 'x' },
   lapsed: { label: 'Lapsed', bg: 'var(--bg-subtle, #ede7e3)', color: 'var(--text-muted, #6B5D54)', icon: '—' },
 };
@@ -120,8 +120,9 @@ export default function DepositTracker() {
         <div style={S.summaryBreakdown}>
           {[
             { label: 'Applied', value: totalApplied, colour: 'var(--success, #3F7D5C)' },
-            { label: 'Refunded', value: totalRefunded, colour: '#2196F3' },
-            { label: 'Kept', value: totalForfeited, colour: '#F44336' },
+            // #2196F3 measured 3.06:1 on the card; #F44336 is the same Material palette.
+            { label: 'Refunded', value: totalRefunded, colour: 'var(--info, #2E6DA4)' },
+            { label: 'Kept', value: totalForfeited, colour: 'var(--danger, #9E2B32)' },
           ].map(s => (
             <div key={s.label} style={S.summaryItem}>
               <span style={{ ...S.summaryItemVal, color: s.colour }}>{fmt(s.value)}</span>

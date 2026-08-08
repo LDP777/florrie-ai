@@ -18,7 +18,7 @@ const TYPE_CONFIG = {
   // Not the client's doing, so it does not wear the client's badge.
   unpaid: { label: 'Deposit unpaid', icon: '\u{1F4B3}', bg: 'var(--bg-hover, #f3ede9)', color: 'var(--text-secondary, #574A42)' },
   'no-show': { label: 'No Show', bg: '#FFEBEE', color: '#F44336', icon: 'x' },
-  'late-cancel': { label: 'Late Cancel', bg: '#FFF5E6', color: '#B8860B', icon: '⏰' },
+  'late-cancel': { label: 'Late Cancel', bg: '#FFF5E6', color: 'var(--gold, #8A6420)', icon: '⏰' },
   'cancelled': { label: 'Cancelled', bg: '#F0ECE8', color: '#8B6F5E', icon: '↩' },
 };
 

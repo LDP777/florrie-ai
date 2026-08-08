@@ -127,7 +127,7 @@ export default function Reviews() {
             onClick={() => setTab(t.key)}
             style={{ ...styles.tab,
               borderBottomColor: tab === t.key ? 'var(--accent)' : 'transparent',
-              color: tab === t.key ? 'var(--accent)' : '#AAA5A0',
+              color: tab === t.key ? 'var(--accent)' : 'var(--text-muted, #6B5D54)',   // #AAA5A0 was 2.27:1
             }}
           >
             {t.label}

@@ -781,7 +781,7 @@ const s = {
     width: 38,
     height: 38,
     borderRadius: 22,
-    background: 'linear-gradient(135deg, #ffd9e2 0%, #ffb8c8 100%)',
+    background: 'linear-gradient(135deg, #FDEEF2 0%, #FBDCE4 100%)',   // the initial ON this is maroon, so the pill goes LIGHTER; #ffb8c8 gave 4.15:1 and darkening it made that worse, not better
     color: '#92405e',
     display: 'inline-flex',
     alignItems: 'center',

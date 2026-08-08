@@ -386,7 +386,7 @@ const s = {
   statCard: { flex: 1, background: 'var(--card-bg, #FFFCF9)', borderRadius: 10, padding: '12px 10px', textAlign: 'center', border: '1px solid var(--border, #E8DDD4)' },
   statValue: { display: 'block', fontSize: 20, fontWeight: 700, color: 'var(--text, #241B17)' },
   statLabel: { display: 'block', fontSize: 10, color: 'var(--text-muted, #6B5D54)', textTransform: 'uppercase', letterSpacing: '0.03em' },
-  shareCard: { background: 'linear-gradient(135deg, var(--accent, #92405e), #B55A79)', borderRadius: 16, padding: 16, marginBottom: 16, color: '#fff' },
+  shareCard: { background: 'linear-gradient(135deg, var(--accent, #92405e), #8B3A55)'   /* white on the light end must clear 4.5:1; #B55A79 was 4.46, #9C4463 still 4.48 through the translucent overlays that sit on it */   /* was #B55A79: white on it measured 4.46:1 */, borderRadius: 16, padding: 16, marginBottom: 16, color: '#fff' },
   shareTitle: { display: 'block', fontSize: 14, fontWeight: 700, marginBottom: 8 },
   urlRow: { display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.2)', borderRadius: 10, padding: '8px 12px', marginBottom: 10 },
   urlText: { flex: 1, fontSize: 13, fontWeight: 500 },

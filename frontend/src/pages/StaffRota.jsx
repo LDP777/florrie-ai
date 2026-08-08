@@ -226,7 +226,7 @@ export default function StaffRota() {
           <span style={S.statLabel}>Team</span>
         </div>
         <div style={S.statCard}>
-          <span style={{ ...S.statValue, color: '#6B8F7B' }}>{totalWeekHours.toFixed(0)}h</span>
+          <span style={{ ...S.statValue, color: 'var(--success, #3F7D5C)' }}>{totalWeekHours.toFixed(0)}h</span>
           <span style={S.statLabel}>Weekly Hours</span>
         </div>
         <div style={S.statCard}>

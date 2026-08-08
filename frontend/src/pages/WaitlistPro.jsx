@@ -20,12 +20,12 @@ import Money from '../components/ui/Money';
 const PRIORITY_CONFIG = {
   vip: { label: 'VIP', bg: '#F0E6ED', color: 'var(--accent, #92405e)', icon: 'star' },
   regular: { label: 'Regular', bg: '#F0ECE8', color: '#8B6F5E', icon: 'person' },
-  flexible: { label: 'Flexible', bg: '#E8F5E9', color: '#6B8F7B', icon: 'autorenew' },
+  flexible: { label: 'Flexible', bg: '#E8F5E9', color: 'var(--success, #3F7D5C)', icon: 'autorenew' },
 };
 const STATUS_CONFIG = {
-  waiting: { label: 'Waiting', bg: '#FFF5E6', color: '#B8860B' },
-  active: { label: 'Waiting', bg: '#FFF5E6', color: '#B8860B' },
-  notified: { label: 'Notified', bg: '#E3F2FD', color: '#2196F3' },
+  waiting: { label: 'Waiting', bg: '#FFF5E6', color: 'var(--gold, #8A6420)' },
+  active: { label: 'Waiting', bg: '#FFF5E6', color: 'var(--gold, #8A6420)' },
+  notified: { label: 'Notified', bg: '#E3F2FD', color: 'var(--info, #2E6DA4)' },
   offered: { label: 'Slot offered', bg: '#E8F5E9', color: '#4CAF50' },
   booked: { label: 'Booked', bg: '#E8F5E9', color: '#4CAF50' },
   expired: { label: 'Expired', bg: '#F0ECE8', color: 'var(--text-muted, #6B5D54)' },
@@ -227,8 +227,8 @@ export default function WaitlistPro() {
       <div style={S.statsRow}>
         {[
           { label: 'Active', value: stats.active, colour: 'var(--accent, #92405e)' },
-          { label: 'VIP', value: stats.vip, colour: '#B8860B' },
-          { label: 'Deposits', value: `£${(stats.deposits / 100).toFixed(0)}`, colour: '#6B8F7B' },
+          { label: 'VIP', value: stats.vip, colour: 'var(--gold, #8A6420)' },   // #B8860B was 3.18:1
+          { label: 'Deposits', value: `£${(stats.deposits / 100).toFixed(0)}`, colour: 'var(--success, #3F7D5C)' },   // #6B8F7B was 3.52:1
           { label: 'Avg wait', value: `${stats.avgWait}d`, colour: '#8B6F5E' },
         ].map(s => (
           <div key={s.label} style={S.statCard}>
@@ -319,7 +319,7 @@ export default function WaitlistPro() {
                       {w.deposit_held && (
                         <div style={S.detailItem}>
                           <span style={S.detailLabel}>Deposit</span>
-                          <span style={{ ...S.detailValue, color: '#6B8F7B' }}><Money pence={(w.deposit_amount_cents || 0)} round /> held</span>
+                          <span style={{ ...S.detailValue, color: 'var(--success, #3F7D5C)' }}><Money pence={(w.deposit_amount_cents || 0)} round /> held</span>
                         </div>
                       )}
                     </div>

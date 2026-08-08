@@ -348,6 +348,6 @@ const S = {
   eventPreview: { fontSize: 12, color: 'var(--text-secondary, #574A42)', margin: '4px 0 0', lineHeight: 1.3 },
   eventDetail: { fontSize: 13, color: 'var(--text-secondary, #574A42)', margin: '6px 0 0', lineHeight: 1.5 },
   eventStatus: { display: 'inline-block', padding: '2px 8px', borderRadius: 6, fontSize: 10, fontWeight: 600, marginTop: 6, textTransform: 'capitalize' },
-  channelTag: { display: 'inline-block', padding: '2px 8px', borderRadius: 6, background: '#E3F2FD', color: '#2196F3', fontSize: 10, fontWeight: 500, marginTop: 6 },
+  channelTag: { display: 'inline-block', padding: '2px 8px', borderRadius: 6, background: '#E3F2FD', color: 'var(--info, #2E6DA4)', fontSize: 10, fontWeight: 500, marginTop: 6 },
   empty: { textAlign: 'center', color: 'var(--text-muted, #6B5D54)', fontSize: 14, padding: 32 },
 };
