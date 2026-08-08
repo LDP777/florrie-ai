@@ -43,9 +43,11 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      # The build is the test here. A broken import or a syntax error in any of
-      # the 64 pages fails the bundle, which is exactly the class of mistake
-      # that used to reach TestFlight.
+      # The build catches broken imports and syntax errors. It does NOT catch an
+      # undefined identifier: that is valid syntax and only fails when the line
+      # runs, which is how `FROM_EMOJI is not defined` reached production with a
+      # green build. `npm run build` now runs scripts/check-icons.mjs first,
+      # which evaluates the module and actually calls it.
       - run: npm run build --workspace frontend
         env:
           # Vite inlines these at build time. Real values live in Vercel; CI

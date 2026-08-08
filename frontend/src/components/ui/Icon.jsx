@@ -196,6 +196,57 @@ export default function Icon({
 }
 
 /**
+ * Legacy emoji bridge.
+ *
+ * Some icon values arrive from the server ("Florrie thinks" cards) or from rows
+ * stored before the icon set existed, so they are still emoji. This maps the
+ * ones actually in use onto icon names and falls back to the brand bloom, which
+ * means no call site has to care which era its data came from.
+ */
+const FROM_EMOJI = {
+  '\u{1F4C5}': 'calendar', '\u{1F5D3}\u{FE0F}': 'calendar', '\u{1F5D3}': 'calendar',
+  '\u{1F4AC}': 'message', '\u{1F4E8}': 'send', '\u{1F4E3}': 'send', '\u{1F4E7}': 'mail',
+  '\u{2709}\u{FE0F}': 'mail', '\u{2709}': 'mail', '\u{1F48C}': 'mail', '\u{1F4F1}': 'phone',
+  '\u{1F4DE}': 'phone', '\u{1F4EC}': 'inbox', '\u{1F4ED}': 'inbox',
+  '\u{26A0}\u{FE0F}': 'alert-triangle', '\u{26A0}': 'alert-triangle', '\u{1F6A8}': 'alert-triangle',
+  '\u{1F915}': 'alert-triangle', '\u{1F912}': 'alert-triangle', '\u{1FA7A}': 'syringe',
+  '\u{2705}': 'check-circle', '\u{2611}\u{FE0F}': 'check-circle', '\u{2713}': 'check', '\u{2714}': 'check',
+  '\u{274C}': 'x', '\u{2715}': 'x', '\u{2717}': 'x', '\u{1F6AB}': 'x',
+  '\u{1F504}': 'refresh', '\u{21BB}': 'refresh',
+  '\u{2728}': 'sparkles', '\u{26A1}': 'sparkles', '\u{1F4A1}': 'info', '\u{2139}\u{FE0F}': 'info',
+  '\u{2753}': 'info', '\u{1F916}': 'sparkles', '\u{1F48E}': 'sparkles', '\u{1F485}': 'sparkles',
+  '\u{1F484}': 'sparkles', '\u{1F9F9}': 'sparkles',
+  '\u{1F39F}\u{FE0F}': 'tag', '\u{1F3F7}\u{FE0F}': 'tag', '\u{1F3AB}': 'tag', '\u{1F6CD}': 'shopping-bag',
+  '\u{1F495}': 'heart', '\u{2665}': 'heart', '\u{1F49C}': 'heart', '\u{1F44B}': 'hand', '\u{1F48B}': 'heart',
+  '\u{270D}\u{FE0F}': 'edit', '\u{1F4DD}': 'edit', '\u{270F}\u{FE0F}': 'edit', '\u{270E}': 'edit',
+  '\u{1F58A}\u{FE0F}': 'edit', '\u{1F9FE}': 'receipt', '\u{1F4C4}': 'file', '\u{1F4DA}': 'book',
+  '\u{1F4D2}': 'file', '\u{1F4D6}': 'book', '\u{1F4DC}': 'file', '\u{1F393}': 'book', '\u{1F5D2}\u{FE0F}': 'file',
+  '\u{2B50}': 'star', '\u{2605}': 'star', '\u{2606}': 'star', '\u{1F3C6}': 'badge', '\u{1F3C5}': 'badge',
+  '\u{1F31F}': 'star',
+  '\u{1F4B7}': 'pound', '\u{1F4B5}': 'pound', '\u{1FA99}': 'pound', '\u{1F4B0}': 'wallet',
+  '\u{1F3E6}': 'wallet', '\u{1F4B3}': 'card',
+  '\u{1F399}\u{FE0F}': 'mic', '\u{1F464}': 'user', '\u{1F465}': 'users', '\u{1F91D}': 'users',
+  '\u{1F9D6}': 'users', '\u{1F440}': 'eye', '\u{1F441}\u{FE0F}': 'eye',
+  '\u{1F319}': 'moon', '\u{1F4A4}': 'moon', '\u{2600}\u{FE0F}': 'sun', '\u{1F3D6}\u{FE0F}': 'sun',
+  '\u{23F1}\u{FE0F}': 'clock', '\u{23F3}': 'clock', '\u{23F0}': 'clock', '\u{1F550}': 'clock', '\u{23F1}': 'clock',
+  '\u{1F381}': 'gift', '\u{1F389}': 'sparkles', '\u{1F382}': 'gift', '\u{1F384}': 'gift',
+  '\u{1F337}': 'flower', '\u{1F338}': 'flower', '\u{1F486}': 'flower', '\u{1F9F4}': 'flower',
+  '\u{1F331}': 'flower', '\u{1F36F}': 'flower',
+  '\u{1F4CA}': 'chart', '\u{1F4C8}': 'trending-up', '\u{1F525}': 'flame', '\u{1F4C9}': 'trending-down',
+  '\u{1F4F8}': 'camera', '\u{1F4F7}': 'camera', '\u{1F3A8}': 'palette', '\u{1F58C}\u{FE0F}': 'palette',
+  '\u{1F517}': 'link', '\u{1F310}': 'link', '\u{1F4BB}': 'link', '\u{1F50C}': 'link', '\u{1FA9D}': 'link',
+  '\u{1F4CB}': 'list', '\u{1F4E5}': 'download', '\u{1F4E4}': 'share', '\u{1F4E6}': 'box',
+  '\u{1F4CD}': 'map-pin', '\u{1F4CC}': 'map-pin', '\u{1F3E0}': 'map-pin', '\u{1F3E2}': 'map-pin', '\u{1F697}': 'map-pin',
+  '\u{1F527}': 'sliders', '\u{1F6E0}\u{FE0F}': 'sliders', '\u{1F9F0}': 'sliders',
+  '\u{1F6E1}\u{FE0F}': 'shield', '\u{1FA79}': 'shield', '\u{1F512}': 'lock', '\u{1F510}': 'lock',
+  '\u{1F514}': 'bell', '\u{1F515}': 'bell', '\u{1F50D}': 'search', '\u{2699}\u{FE0F}': 'settings',
+  '\u{1F5D1}\u{FE0F}': 'trash', '\u{25B6}\u{FE0F}': 'play', '\u{270B}': 'pause', '\u{21A9}': 'undo',
+  '\u{1F37D}\u{FE0F}': 'coffee', '\u{1F37D}': 'coffee', '\u{2615}': 'coffee',
+  '\u{2691}': 'flag', '\u{1F3AF}': 'target', '\u{1FAAE}': 'scissors', '\u{1F487}': 'scissors',
+  '\u{1F7E2}': 'dot', '\u{1F534}': 'dot', '\u{25CF}': 'dot',
+};
+
+/**
  * Material Symbols bridge.
  *
  * The app carried a second icon system: Google's Material Symbols Outlined, a
