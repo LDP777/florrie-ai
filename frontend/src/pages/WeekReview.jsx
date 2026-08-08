@@ -161,8 +161,7 @@ const S = {
   },
   statNum: {
     fontSize: 22, fontWeight: 800, fontVariantNumeric: 'tabular-nums',
-    minWidth: 64, textAlign: 'right',
-  },
+    minWidth: 64, textAlign: 'right', fontFamily: '"Plus Jakarta Sans", -apple-system, sans-serif' },
   statLabel: { fontSize: 13.5, color: 'rgba(255,255,255,0.85)' },
   cardFooter: {
     marginTop: 16, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.14)',

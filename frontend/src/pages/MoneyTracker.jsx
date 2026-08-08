@@ -1035,7 +1035,7 @@ export default function MoneyTracker() {
       }}>
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', opacity: 0.85 }}>Revenue today</div>
-          <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 38, fontWeight: 600, lineHeight: 1.05, marginTop: 2, fontVariantNumeric: 'tabular-nums', fontFeatureSettings: '"tnum" 1', letterSpacing: '-0.03em' }}>{fmt(Math.round(animatedToday))}</div>
+          <div style={{ fontFamily: '"Plus Jakarta Sans", -apple-system, sans-serif', fontSize: 38, fontWeight: 700, lineHeight: 1.05, marginTop: 2, fontVariantNumeric: 'tabular-nums', fontFeatureSettings: '"tnum" 1', letterSpacing: '-0.03em' }}>{fmt(Math.round(animatedToday))}</div>
           {todayRevenue === 0 && (
             <div style={{ fontSize: 11.5, opacity: 0.85, marginTop: 4, maxWidth: 220 }}>
               Tap a client and Mark complete to log their takings here.
@@ -2440,7 +2440,7 @@ const S = {
   },
   reportsRow: { display: 'flex', gap: 12, justifyContent: 'space-between' },
   reportStat: { display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 0 },
-  reportValue: { fontSize: 24, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' },
+  reportValue: { fontSize: 24, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums', fontFamily: '"Plus Jakarta Sans", -apple-system, sans-serif' },
   reportLabel: { fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
   reportInsight: {
     marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border-light)',
@@ -2480,8 +2480,8 @@ const S = {
     fontWeight: 700, opacity: 0.8,
   },
   heroValue: {
-    fontFamily: "'Playfair Display', Georgia, serif",
-    fontSize: 44, fontStyle: 'normal', fontWeight: 600,
+    fontFamily: '"Plus Jakarta Sans", -apple-system, sans-serif',
+    fontSize: 44, fontStyle: 'normal', fontWeight: 700,
     lineHeight: 1.05, margin: '0 0 8px', letterSpacing: '-0.03em',
     fontVariantNumeric: 'tabular-nums',
     fontFeatureSettings: '"tnum" 1, "lnum" 1',
@@ -2658,8 +2658,8 @@ const S = {
     color: 'var(--text-muted)', fontWeight: 600,
   },
   ytdValue: {
-    fontFamily: "'Playfair Display', Georgia, serif",
-    fontSize: 22, fontWeight: 600, color: 'var(--text-primary)',
+    fontFamily: '"Plus Jakarta Sans", -apple-system, sans-serif',
+    fontSize: 22, fontWeight: 700, color: 'var(--text-primary)',
     fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em',
   },
   ytdCompare: {
@@ -2690,8 +2690,7 @@ const S = {
   },
   ledgerTotalValue: {
     fontSize: 28, fontWeight: 800, letterSpacing: '-0.02em',
-    fontVariantNumeric: 'tabular-nums',
-  },
+    fontVariantNumeric: 'tabular-nums', fontFamily: '"Plus Jakarta Sans", -apple-system, sans-serif' },
   ledgerTotalSub: { fontSize: 11.5, color: 'var(--text-muted)', lineHeight: 1.45 },
   ledgerPager: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',

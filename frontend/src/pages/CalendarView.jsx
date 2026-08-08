@@ -2846,7 +2846,7 @@ const styles = {
   // every day clears the 44px thumb minimum on its own.
   weeklyStripDay: { minHeight: 56, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '7px 2px', borderRadius: 16, border: 'none', cursor: 'pointer', fontFamily: 'inherit', transition: 'background 0.18s ease, color 0.18s ease, opacity 0.18s ease', WebkitTapHighlightColor: 'transparent' },
   weeklyStripDayName: { fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', opacity: 0.7 },
-  weeklyStripDayNumber: { fontSize: 16, fontWeight: 700, marginTop: 1, fontVariantNumeric: 'tabular-nums' },
+  weeklyStripDayNumber: { fontSize: 16, fontWeight: 700, marginTop: 1, fontVariantNumeric: 'tabular-nums', fontFamily: '"Plus Jakarta Sans", -apple-system, sans-serif' },
   weeklyStripDots: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, height: 4, marginTop: 5 },
   weeklyStripDot: { width: 4, height: 4, borderRadius: '50%' },
   // Day View Timeline. The grid scrolls inside its own container so the

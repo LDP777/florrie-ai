@@ -2344,8 +2344,8 @@ const styles = {
   treatmentDuration: { fontSize: 12, color: 'var(--text-muted)' },
   treatmentPrice: {
     fontSize: 19,
-    fontWeight: 600,
-    fontFamily: "'Playfair Display', Georgia, serif",
+    fontWeight: 700,
+    fontFamily: '"Plus Jakarta Sans", -apple-system, sans-serif',
     fontVariantNumeric: 'tabular-nums',
     letterSpacing: '-0.01em',
     color: 'var(--text-primary)',

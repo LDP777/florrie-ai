@@ -728,9 +728,9 @@ const TS = {
     letterSpacing: '0.08em',
   },
   statValue: {
-    fontFamily: "'Playfair Display', Georgia, serif",
+    fontFamily: '"Plus Jakarta Sans", -apple-system, sans-serif',
     fontSize: 27,
-    fontWeight: 600,
+    fontWeight: 700,
     color: '#fff',
     lineHeight: 1.05,
     letterSpacing: '-0.02em',

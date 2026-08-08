@@ -1,10 +1,13 @@
 /**
  * Money — the one way a money figure is set.
  *
- * Playfair numerals on cream is the whole editorial argument of the brand, and
- * none of the 111 money sites in the app were using it. The Money hero even
- * opted out into sans weight 800, which is not a loaded weight, so the most
- * important number in the product rendered as a synthetic faux-bold.
+ * Plus Jakarta Sans 700 with tabular figures. It was Playfair, on the argument
+ * that editorial numerals are the brand — and Levi overruled that looking at a
+ * real screen: "I still want all the numbers on the app everywhere to be in
+ * this font regardless of what colour it is or what page, just easier to read."
+ * He is right. Playfair's digits are lighter and narrower, and legibility on a
+ * phone in a salon beats the typographic argument. Every number in the app now
+ * reads the same whatever page it is on and whatever colour it happens to be.
  *
  * Tabular figures are not decoration here: MoneyTracker animates its headline
  * with a count-up, and proportional digits change width as they tick, so the
@@ -36,7 +39,7 @@ export default function Money({
   pence,
   amount,
   size = 20,
-  weight = 600,
+  weight = 700,
   round = false,
   signed = false,
   currency = '£',
@@ -50,7 +53,7 @@ export default function Money({
   return (
     <Tag
       className={className}
-      style={{ fontFamily: "'Playfair Display', Georgia, serif",
+      style={{ fontFamily: '"Plus Jakarta Sans", -apple-system, sans-serif',
         fontWeight: weight,
         fontSize: size,
         // Digits keep a fixed advance width, so a ticking figure does not shuffle
