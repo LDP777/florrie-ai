@@ -7,6 +7,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
+import Icon, { iconName } from './Icon';
 
 // Toast context for managing multiple toasts
 let toastQueue = [];
@@ -123,7 +124,7 @@ const Toast = ({ id, message, variant = 'info', duration = 3000, onDismiss }) =>
         }
       `}</style>
       <div style={toastStyle}>
-        <span style={{ fontSize: 18, lineHeight: 1 }}>{style.icon}</span>
+        <span style={{ fontSize: 18, lineHeight: 1 }}><Icon name={iconName(style.icon)} inline /></span>
         <span>{message}</span>
       </div>
     </>

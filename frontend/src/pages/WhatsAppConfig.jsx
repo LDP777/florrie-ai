@@ -6,8 +6,7 @@ import { supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
-import Icon from '../components/ui/Icon';
-
+import Icon, { iconName } from '../components/ui/Icon';
 /**
  * apiFetch attaches the full response body to thrown errors so callers can
  * read structured diagnostic fields (diagnostic.code, meta_code, fbtrace_id…)
@@ -316,7 +315,7 @@ function DiagnosticError({ error, errBody, onRetry, onReset, phone }) {
       marginBottom: 14,
     }}>
       <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-        <span style={{ fontSize: 22, lineHeight: 1, flexShrink: 0 }}>{meta.icon}</span>
+        <span style={{ fontSize: 22, lineHeight: 1, flexShrink: 0 }}><Icon name={iconName(meta.icon)} inline /></span>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 6, lineHeight: 1.3 }}>
             {meta.title}
@@ -362,7 +361,7 @@ function DiagnosticError({ error, errBody, onRetry, onReset, phone }) {
 
       <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
         {onRetry && (
-          <button
+          <button className="fl-tap"
             type="button"
             onClick={onRetry}
             style={{ padding: '7px 12px',
@@ -385,7 +384,7 @@ function DiagnosticError({ error, errBody, onRetry, onReset, phone }) {
           </ResetButton>
         )}
         {hasTechDetails && (
-          <button
+          <button className="fl-tap"
             type="button"
             onClick={() => setShowDetails(v => !v)}
             style={{ padding: '7px 12px',
@@ -1183,7 +1182,7 @@ export default function WhatsAppConfig() {
               and we will escalate it.
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <a
+              <a className="fl-tap"
                 href="mailto:hello@florrie.ai?subject=WhatsApp%20connection%20help"
                 style={{ padding: '7px 12px',
                   borderRadius: 10,
@@ -1198,7 +1197,7 @@ export default function WhatsAppConfig() {
               >
                 Contact support
               </a>
-              <button
+              <button className="fl-tap"
                 onClick={handleReset}
                 style={{ padding: '7px 12px',
                   borderRadius: 10,

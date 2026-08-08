@@ -11,8 +11,7 @@ import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
-import Icon from '../components/ui/Icon';
-
+import Icon, { iconName } from '../components/ui/Icon';
 const DEV_TAGS = [
   { id: 't1', name: 'VIP', colour: 'var(--accent, #92405e)', icon: 'star', auto: false, clients: ['Shauna', 'Daisy S', 'Holly B'] },
   { id: 't2', name: 'Patch Test Due', colour: '#FF9800', icon: 'alert-triangle', auto: true, rule: 'Last patch test > 6 months ago', clients: ['Amy R', 'Beth K'] },
@@ -123,7 +122,7 @@ export default function ClientTags() {
               <div key={tag.id} style={S.card} onClick={() => setExpanded(isExp ? null : tag.id)}>
                 <div style={S.cardHeader}>
                   <div style={S.cardLeft}>
-                    <span style={{ ...S.tagDot, background: tag.colour }}>{tag.icon}</span>
+                    <span style={{ ...S.tagDot, background: tag.colour }}><Icon name={iconName(tag.icon)} inline /></span>
                     <div style={S.cardInfo}>
                       <span style={S.cardName}>{tag.name}</span>
                       <span style={S.cardMeta}>{tag.clients.length} client{tag.clients.length !== 1 ? 's' : ''}</span>
@@ -297,7 +296,7 @@ export default function ClientTags() {
                       ...f,
                       selectedTags: f.selectedTags.includes(t.name) ? f.selectedTags.filter(x => x !== t.name) : [...f.selectedTags, t.name],
                     }))} style={{ ...S.segTagChip, background: segForm.selectedTags.includes(t.name) ? t.colour : t.colour + '20', color: segForm.selectedTags.includes(t.name) ? 'var(--bg-card, #FFFCF9)' : t.colour, cursor: 'pointer' }}>
-                      {t.icon} {t.name}
+                      <Icon name={iconName(t.icon)} inline /> {t.name}
                     </span>
                   ))}
                 </div>

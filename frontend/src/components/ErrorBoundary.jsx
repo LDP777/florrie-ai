@@ -49,7 +49,7 @@ export default class ErrorBoundary extends Component {
             }}>
               We hit an unexpected error. Try refreshing the page.
             </p>
-            <button
+            <button className="fl-tap"
               onClick={() => window.location.reload()}
               style={{ background: 'var(--accent, #92405e)',
                 color: '#fff',

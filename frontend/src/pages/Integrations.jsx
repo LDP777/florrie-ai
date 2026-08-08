@@ -14,8 +14,7 @@ function getToken() {
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import logger from '../lib/logger.js';
-import Icon from '../components/ui/Icon';
-
+import Icon, { iconName } from '../components/ui/Icon';
 // Static integration catalog - connection status is computed dynamically from real data
 const CATALOG = [
   {
@@ -292,7 +291,7 @@ export default function Integrations() {
             <div key={i.id} style={{ width: 36, height: 36, borderRadius: 10,
               background: 'rgba(255,255,255,0.2)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
-            }} title={i.name}>{i.icon}</div>
+            }} title={i.name}><Icon name={iconName(i.icon)} inline /></div>
           ))}
           {connectedCount === 0 && (
             <div style={{ fontSize: 12, opacity: 0.75, marginTop: 4 }}>
@@ -305,7 +304,7 @@ export default function Integrations() {
       {/* Category filter */}
       <div style={{ display: 'flex', gap: 6, overflowX: 'auto', marginBottom: 16, paddingBottom: 4 }}>
         {categories.map(c => (
-          <button key={c} onClick={() => setFilter(c)} style={{ ...ds.btnGhost, fontSize: 11, padding: '6px 12px', whiteSpace: 'nowrap',
+          <button className="fl-tap" key={c} onClick={() => setFilter(c)} style={{ ...ds.btnGhost, fontSize: 11, padding: '6px 12px', whiteSpace: 'nowrap',
             background: filter === c ? 'var(--accent)' : 'var(--bg-subtle)',
             color: filter === c ? 'var(--bg-card, #FFFCF9)' : 'var(--text-secondary)',
           }}>{c}</button>
@@ -327,7 +326,7 @@ export default function Integrations() {
                 <div style={{ width: 44, height: 44, borderRadius: 10,
                   background: integ.status === 'connected' ? 'var(--success-bg)' : 'var(--bg-subtle)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0,
-                }}>{integ.icon}</div>
+                }}><Icon name={iconName(integ.icon)} inline /></div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={type.heading}>{integ.name}</span>
@@ -365,7 +364,7 @@ export default function Integrations() {
                   )}
 
                   {integ.status === 'available' && integ.connectPath && (
-                    <button
+                    <button className="fl-tap"
                       style={{ ...ds.btnPrimary, padding: '10px 0', fontSize: 13 }}
                       onClick={e => { e.stopPropagation(); handleConnect(integ.id); }}
                       disabled={connecting === integ.id}
@@ -381,7 +380,7 @@ export default function Integrations() {
                         or post for you. Messages still arrive, but nothing goes back out.
                         Reconnecting takes a few seconds and fixes it.
                       </p>
-                      <button
+                      <button className="fl-tap"
                         style={{ ...ds.btnPrimary, padding: '10px 0', fontSize: 13 }}
                         onClick={e => { e.stopPropagation(); handleConnect(integ.id); }}
                         disabled={connecting === integ.id}

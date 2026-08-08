@@ -432,7 +432,7 @@ export default function Settings({ onLogout }) {
               ].map(opt => {
                 const active = (beautician.business_type || 'sole_trader') === opt.key;
                 return (
-                  <button
+                  <button className="fl-tap"
                     key={opt.key}
                     onClick={() => saveProfile({ business_type: opt.key })}
                     style={{ padding: '6px 12px', borderRadius: 10, border: 'none',
@@ -597,7 +597,7 @@ export default function Settings({ onLogout }) {
                 ].map(opt => {
                   const active = (policy.max_advance_days ?? 0) === opt.days;
                   return (
-                    <button
+                    <button className="fl-tap"
                       key={opt.days}
                       onClick={() => savePolicy({ max_advance_days: opt.days })}
                       style={{ flex: 1, padding: '9px 4px', borderRadius: 10, fontSize: 12.5, fontWeight: 600,
@@ -771,7 +771,7 @@ export default function Settings({ onLogout }) {
                 onBlur={e => savePolicy({ cancellation_message: e.target.value.trim() })}
                 placeholder="e.g. Please give as much notice as you can if you need to rearrange, my slots book up fast 🌸"
                 rows={3}
-                style={{ width: '100%', marginTop: 8, padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border)', fontSize: 14, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box', background: 'var(--bg-card)', color: 'var(--text-primary)' }}
+                style={{ minHeight: 44, width: '100%', marginTop: 8, padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border)', fontSize: 14, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box', background: 'var(--bg-card)', color: 'var(--text-primary)' }}
               />
             </div>
 
@@ -870,7 +870,7 @@ export default function Settings({ onLogout }) {
               const canToggle = !method.requiresStripe || beautician.stripe_onboarding_complete;
               return (
                 <div key={method.key} style={styles.paymentMethodRow}>
-                  <span style={{ fontSize: 18 }}>{method.icon}</span>
+                  <span style={{ fontSize: 18 }}><Icon name={iconName(method.icon)} inline /></span>
                   <div style={{ flex: 1 }}>
                     <span style={styles.methodLabel}>{method.label}</span>
                     <span style={styles.methodDesc}>
@@ -951,7 +951,7 @@ export default function Settings({ onLogout }) {
               booking page shows them, so clients can transfer the balance straight to you.
             </p>
             {beautician.stripe_onboarding_complete && (
-              <a
+              <a className="fl-tap"
                 href="https://dashboard.stripe.com/express/login"
                 target="_blank"
                 rel="noopener noreferrer"
@@ -1169,7 +1169,7 @@ export default function Settings({ onLogout }) {
             </p>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0' }}>
               <span style={{ fontSize: 14, color: 'var(--text-primary)' }}>Hold pushes overnight</span>
-              <button
+              <button className="fl-tap"
                 onClick={() => {
                   const qh = beautician.notification_prefs?.quiet_hours || {};
                   const np = { ...(beautician.notification_prefs || {}), quiet_hours: { ...qh, enabled: qh.enabled !== true } };
@@ -1199,7 +1199,7 @@ export default function Settings({ onLogout }) {
                     const np = { ...(beautician.notification_prefs || {}), quiet_hours: { ...qh, enabled: true, start: e.target.value } };
                     saveProfile({ notification_prefs: np });
                   }}
-                  style={{ padding: '6px 10px', borderRadius: 10, border: '1px solid var(--border, #E8DDD4)', fontFamily: 'inherit', fontSize: 13 }}
+                  style={{ minHeight: 44, padding: '6px 10px', borderRadius: 10, border: '1px solid var(--border, #E8DDD4)', fontFamily: 'inherit', fontSize: 13 }}
                 />
                 <label style={{ fontSize: 13, color: 'var(--text-secondary)' }}>to</label>
                 <input
@@ -1210,7 +1210,7 @@ export default function Settings({ onLogout }) {
                     const np = { ...(beautician.notification_prefs || {}), quiet_hours: { ...qh, enabled: true, end: e.target.value } };
                     saveProfile({ notification_prefs: np });
                   }}
-                  style={{ padding: '6px 10px', borderRadius: 10, border: '1px solid var(--border, #E8DDD4)', fontFamily: 'inherit', fontSize: 13 }}
+                  style={{ minHeight: 44, padding: '6px 10px', borderRadius: 10, border: '1px solid var(--border, #E8DDD4)', fontFamily: 'inherit', fontSize: 13 }}
                 />
               </div>
             )}
@@ -1235,7 +1235,7 @@ export default function Settings({ onLogout }) {
                         : 'Pause every automatic message to clients in one tap.'}
                     </div>
                   </div>
-                  <button
+                  <button className="fl-tap"
                     onClick={() => {
                       const rp = { ...(beautician.client_reminder_prefs || {}), paused: !paused };
                       saveProfile({ client_reminder_prefs: rp });
@@ -1459,7 +1459,7 @@ export default function Settings({ onLogout }) {
                         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{item.label}</span>
                         <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
                           {MODES.map(opt => (
-                            <button
+                            <button className="fl-tap"
                               key={opt.value}
                               onClick={() => setMode(item.key, opt.value)}
                               style={{ padding: '4px 9px', borderRadius: 6, border: 'none', fontSize: 11, fontWeight: 600,
@@ -1500,7 +1500,7 @@ export default function Settings({ onLogout }) {
                         setPendingAutonomy(next);
                         saveProfile({ autonomy: next }).finally(() => setPendingAutonomy(null));
                       }}
-                      style={{ width: '100%', padding: '10px 12px', borderRadius: 10,
+                      style={{ minHeight: 44, width: '100%', padding: '10px 12px', borderRadius: 10,
                         border: '1.5px solid var(--border)', background: 'var(--bg-card)',
                         color: 'var(--text-primary)', fontSize: 13, fontWeight: 600,
                         fontFamily: 'inherit', cursor: 'pointer',
@@ -1524,7 +1524,7 @@ export default function Settings({ onLogout }) {
                         When you have a promo code running, Florrie can add it to a last-minute gap offer, like "use FLASH10 for 10% off". Off by default.
                       </p>
                     </div>
-                    <button
+                    <button className="fl-tap"
                       onClick={() => {
                         const next = { ...auto, promos_in_offers: !auto.promos_in_offers };
                         setPendingAutonomy(next);
@@ -1541,7 +1541,7 @@ export default function Settings({ onLogout }) {
                   </div>
                 </div>
 
-                <button
+                <button className="fl-tap"
                   onClick={() => navigate('/outbox')}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 14, background: 'none', border: 'none', padding: 0, fontSize: 13, fontWeight: 600, color: 'var(--accent)', cursor: 'pointer', fontFamily: 'inherit' }}
                 >
@@ -1813,7 +1813,7 @@ export default function Settings({ onLogout }) {
                 const mode = ['ai', 'redirect'].includes(beautician.instagram_dm_mode) ? 'redirect' : (beautician.instagram_dm_mode || 'redirect');
                 const active = mode === opt.key;
                 return (
-                  <button
+                  <button className="fl-tap"
                     key={opt.key}
                     onClick={() => saveProfile({ instagram_dm_mode: opt.key })}
                     style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px',
@@ -1822,7 +1822,7 @@ export default function Settings({ onLogout }) {
                       cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', width: '100%',
                     }}
                   >
-                    <span style={{ fontSize: 20, flexShrink: 0 }}>{opt.icon}</span>
+                    <span style={{ fontSize: 20, flexShrink: 0 }}><Icon name={iconName(opt.icon)} inline /></span>
                     <div style={{ flex: 1 }}>
                       <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: active ? 'var(--accent)' : 'var(--text-primary)' }}>{opt.label}</span>
                       <span style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{opt.desc}</span>
@@ -1854,7 +1854,7 @@ export default function Settings({ onLogout }) {
                     onChange={e => saveProfile({ instagram_redirect_message: e.target.value })}
                     placeholder={defaultMsg}
                     rows={3}
-                    style={{ width: '100%', marginTop: 6, padding: '10px 12px', borderRadius: 10,
+                    style={{ minHeight: 44, width: '100%', marginTop: 6, padding: '10px 12px', borderRadius: 10,
                       border: '1.5px solid var(--border)', background: 'var(--bg)', color: 'var(--text-primary)',
                       fontSize: 13, fontFamily: 'inherit', resize: 'none', outline: 'none', boxSizing: 'border-box',
                       lineHeight: 1.5,
@@ -2082,7 +2082,7 @@ function ClientReminderRow({ label, enabled, onChange }) {
   return (
     <div style={styles.reminderRow}>
       <span style={styles.reminderLabel}>{label}</span>
-      <button
+      <button className="fl-tap"
         onClick={handleToggle}
         style={{ ...styles.toggle, background: local ? 'var(--accent)' : 'var(--border)', width: 44, height: 24 }}
       >

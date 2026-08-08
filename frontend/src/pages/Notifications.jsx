@@ -204,7 +204,7 @@ export default function Notifications() {
               borderColor: filter === key ? cat.textColor : 'var(--border, var(--border, var(--border, #E8DDD4)))',
             }}
           >
-            {cat.icon} {cat.label}
+            <Icon name={iconName(cat.icon)} inline /> {cat.label}
           </button>
         ))}
       </div>
@@ -231,7 +231,7 @@ export default function Notifications() {
                     onClick={() => markRead(n.id)}
                   >
                     <div style={{ ...styles.notifIcon, background: cat.color }}>
-                      <span style={{ fontSize: 14 }}>{cat.icon}</span>
+                      <span style={{ fontSize: 14 }}><Icon name={iconName(cat.icon)} inline /></span>
                     </div>
                     <div style={styles.notifBody}>
                       <div style={styles.notifHeaderRow}>

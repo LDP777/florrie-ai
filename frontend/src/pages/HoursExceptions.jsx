@@ -2,8 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useBeautician, supabase, insertRow, deleteRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import { todayLocal } from '../lib/dates.js';
-import Icon from '../components/ui/Icon';
-
+import Icon, { iconName } from '../components/ui/Icon';
 /**
  * Availability Planner - forward-looking calendar for blocking days / changing hours.
  *
@@ -420,7 +419,7 @@ export default function HoursExceptions() {
                   color: blockReason === r.value ? '#fff' : '#5A5550',
                 }}
               >
-                {r.emoji} {r.label}
+                <Icon name={iconName(r.emoji)} inline /> {r.label}
               </button>
             ))}
           </div>

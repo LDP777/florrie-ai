@@ -10,8 +10,7 @@ import { useCoach } from '../contexts/CoachContext.jsx';
 import PageLoader from '../components/PageLoader.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import { bookingUrl as publicBookingUrl } from '../lib/booking.js';
-import Icon from '../components/ui/Icon';
-
+import Icon, { iconName } from '../components/ui/Icon';
 const fmt = (cents) => `£${(cents / 100).toFixed(0)}`;
 
 const CATEGORIES = [
@@ -205,7 +204,7 @@ export default function PriceList() {
                 <button onClick={() => setSelectedCat('all')} style={{ ...S.catChip, ...(selectedCat === 'all' ? { background: currentTheme.accent, color: '#fff' } : { color: currentTheme.muted, borderColor: currentTheme.border }) }}>All</button>
                 {CATEGORIES.filter(c => visibleItems.some(i => i.category === c.key)).map(c => (
                   <button key={c.key} onClick={() => setSelectedCat(c.key)} style={{ ...S.catChip, ...(selectedCat === c.key ? { background: currentTheme.accent, color: '#fff' } : { color: currentTheme.muted, borderColor: currentTheme.border }) }}>
-                    {c.icon} {c.label}
+                    <Icon name={iconName(c.icon)} inline /> {c.label}
                   </button>
                 ))}
               </div>
@@ -213,7 +212,7 @@ export default function PriceList() {
               {/* Grouped items */}
               {grouped.map(group => (
                 <div key={group.key} style={S.previewGroup}>
-                  <h3 style={{ ...S.groupTitle, color: currentTheme.accent }}>{group.icon} {group.label}</h3>
+                  <h3 style={{ ...S.groupTitle, color: currentTheme.accent }}><Icon name={iconName(group.icon)} inline /> {group.label}</h3>
                   {group.items.map(item => (
                     <div key={item.id} style={{ ...S.priceRow, borderBottom: `1px solid ${currentTheme.border}` }}>
                       <div style={S.priceLeft}>

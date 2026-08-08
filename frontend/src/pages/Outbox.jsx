@@ -487,7 +487,7 @@ function BatchCard({ batch, onSendAll, onSkipAll, onSkipOne }) {
       {expanded && live.map(item => (
         <div key={item.id} style={s.batchRow}>
           <span style={{ fontSize: 13, fontWeight: 600 }}>{item.displayName}</span>
-          <button
+          <button className="fl-tap"
             onClick={() => { setSkipped(prev => [...prev, item.id]); onSkipOne(item.id); }}
             style={{ ...s.skipBtn, minHeight: 34, padding: '0 14px', fontSize: 12.5 }}
           >

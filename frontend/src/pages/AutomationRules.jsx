@@ -4,7 +4,7 @@ import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
-import Icon from '../components/ui/Icon';
+import Icon, { iconName } from '../components/ui/Icon';
 const triggerOptions = [
   { id: 'appointment_booked', label: 'Appointment booked', icon: 'calendar' },
   { id: 'appointment_completed', label: 'Appointment completed', icon: 'check-circle' },
@@ -187,7 +187,7 @@ export default function AutomationRules() {
                   ...(newRule.trigger === t.id ? styles.chipSelected : {})
                 }}
               >
-                <span>{t.icon}</span> {t.label}
+                <span><Icon name={iconName(t.icon)} inline /></span> {t.label}
               </button>
             ))}
           </div>
@@ -222,7 +222,7 @@ export default function AutomationRules() {
                   ...(newRule.actions.includes(a.id) ? styles.chipSelected : {})
                 }}
               >
-                <span>{a.icon}</span> {a.label}
+                <span><Icon name={iconName(a.icon)} inline /></span> {a.label}
               </button>
             ))}
           </div>
@@ -490,7 +490,7 @@ function SequencesPanel({ beautician }) {
             <div style={{ fontSize: 10, color: 'var(--text-muted, #6B5D54)', marginTop: 2 }}>{s.label}</div>
           </div>
         ))}
-        <button
+        <button className="fl-tap"
           onClick={() => setShowCreate(true)}
           style={{ padding: '10px 14px', borderRadius: 10, border: 'none', background: 'var(--accent-rose, #C76B8A)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}
         >+ New</button>
@@ -552,8 +552,8 @@ function SequencesPanel({ beautician }) {
                   <span>{seq.stats?.replied || 0} replied</span>
                 </div>
                 <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                  <button onClick={() => handleToggle(seq)} style={{ padding: '6px 12px', borderRadius: 10, border: '1px solid var(--border-light, #ede7e3)', background: '#FAF8F5', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#6B6560' }}>{seq.active ? 'Pause' : 'Activate'}</button>
-                  <button onClick={() => handleDelete(seq.id)} style={{ padding: '6px 12px', borderRadius: 10, border: '1px solid var(--border-light, #ede7e3)', background: '#FAF8F5', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#E85D75' }}>Delete</button>
+                  <button className="fl-tap" onClick={() => handleToggle(seq)} style={{ padding: '6px 12px', borderRadius: 10, border: '1px solid var(--border-light, #ede7e3)', background: '#FAF8F5', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#6B6560' }}>{seq.active ? 'Pause' : 'Activate'}</button>
+                  <button className="fl-tap" onClick={() => handleDelete(seq.id)} style={{ padding: '6px 12px', borderRadius: 10, border: '1px solid var(--border-light, #ede7e3)', background: '#FAF8F5', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#E85D75' }}>Delete</button>
                 </div>
               </div>
             )}
@@ -566,14 +566,14 @@ function SequencesPanel({ beautician }) {
           <div style={{ background: 'var(--bg-card, #FFFCF9)', borderRadius: '20px 20px 0 0', padding: '20px 16px 40px', width: '100%', maxHeight: '85vh', overflowY: 'auto', boxSizing: 'border-box' }} onClick={e => e.stopPropagation()}>
             <h2 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 16px' }}>New Sequence</h2>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#8B8580', marginBottom: 6 }}>Name</div>
-            <input style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border-light, #ede7e3)', fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 14, boxSizing: 'border-box' }}
+            <input style={{ minHeight: 44, width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border-light, #ede7e3)', fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 14, boxSizing: 'border-box' }}
               placeholder="e.g. Post Lamination Care" value={createForm.name} onChange={e => setCreateForm(f => ({ ...f, name: e.target.value }))} />
             <div style={{ fontSize: 12, fontWeight: 700, color: '#8B8580', marginBottom: 6 }}>Trigger</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
               {SEQ_TRIGGERS.map(t => (
-                <button key={t.value} onClick={() => setCreateForm(f => ({ ...f, trigger: t.value }))}
+                <button className="fl-tap" key={t.value} onClick={() => setCreateForm(f => ({ ...f, trigger: t.value }))}
                   style={{ padding: '6px 10px', borderRadius: 10, border: '1px solid var(--border-light, #ede7e3)', background: createForm.trigger === t.value ? '#FFF0F3' : '#FAF8F5', color: createForm.trigger === t.value ? '#C76B8A' : '#4A4540', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  {t.icon} {t.label}
+                  <Icon name={iconName(t.icon)} inline /> {t.label}
                 </button>
               ))}
             </div>
@@ -582,15 +582,15 @@ function SequencesPanel({ beautician }) {
               <div key={i} style={{ background: '#FAF8F5', borderRadius: 10, padding: 10, marginBottom: 8 }}>
                 <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
                   <select value={step.delay} onChange={e => setCreateForm(f => ({ ...f, steps: f.steps.map((s, j) => j === i ? { ...s, delay: e.target.value } : s) }))}
-                    style={{ flex: 1, padding: '6px 8px', borderRadius: 10, border: '1px solid var(--border-light, #ede7e3)', fontSize: 12, fontFamily: 'inherit', background: 'var(--bg-card, #FFFCF9)' }}>
+                    style={{ minHeight: 44, flex: 1, padding: '6px 8px', borderRadius: 10, border: '1px solid var(--border-light, #ede7e3)', fontSize: 12, fontFamily: 'inherit', background: 'var(--bg-card, #FFFCF9)' }}>
                     {SEQ_DELAYS.map(d => <option key={d} value={d}>{formatSeqDelay(d)}</option>)}
                   </select>
                   <select value={step.channel} onChange={e => setCreateForm(f => ({ ...f, steps: f.steps.map((s, j) => j === i ? { ...s, channel: e.target.value } : s) }))}
-                    style={{ flex: 1, padding: '6px 8px', borderRadius: 10, border: '1px solid var(--border-light, #ede7e3)', fontSize: 12, fontFamily: 'inherit', background: 'var(--bg-card, #FFFCF9)' }}>
+                    style={{ minHeight: 44, flex: 1, padding: '6px 8px', borderRadius: 10, border: '1px solid var(--border-light, #ede7e3)', fontSize: 12, fontFamily: 'inherit', background: 'var(--bg-card, #FFFCF9)' }}>
                     {SEQ_CHANNELS.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                   {createForm.steps.length > 1 && (
-                    <button onClick={() => setCreateForm(f => ({ ...f, steps: f.steps.filter((_, j) => j !== i) }))}
+                    <button className="fl-tap" onClick={() => setCreateForm(f => ({ ...f, steps: f.steps.filter((_, j) => j !== i) }))}
                       style={{ padding: '6px 10px', borderRadius: 10, border: '1px solid var(--border-light, #ede7e3)', background: 'var(--bg-card, #FFFCF9)', fontSize: 12, cursor: 'pointer', color: '#E85D75', fontFamily: 'inherit' }}><Icon name="x" size={15} /></button>
                   )}
                 </div>
@@ -599,7 +599,7 @@ function SequencesPanel({ beautician }) {
                   style={{ width: '100%', padding: '8px 10px', borderRadius: 10, border: '1px solid var(--border-light, #ede7e3)', fontSize: 12, fontFamily: 'inherit', resize: 'vertical', minHeight: 72, boxSizing: 'border-box', background: 'var(--bg-card, #FFFCF9)' }} />
               </div>
             ))}
-            <button onClick={() => setCreateForm(f => ({ ...f, steps: [...f.steps, { delay: '24h', channel: 'whatsapp', message: '' }] }))}
+            <button className="fl-tap" onClick={() => setCreateForm(f => ({ ...f, steps: [...f.steps, { delay: '24h', channel: 'whatsapp', message: '' }] }))}
               style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: '1px dashed var(--accent-rose, #C76B8A)', background: 'none', color: 'var(--accent-rose, #C76B8A)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', marginBottom: 14 }}>
               + Add step
             </button>

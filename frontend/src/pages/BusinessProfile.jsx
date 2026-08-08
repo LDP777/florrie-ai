@@ -18,8 +18,7 @@ import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import { bookingUrl as publicBookingUrl } from '../lib/booking.js';
-import Icon from '../components/ui/Icon';
-
+import Icon, { iconName } from '../components/ui/Icon';
 const BRAND_COLOURS = [
   'var(--accent, #92405e)', '#E8A0BF', '#C4A882', '#8B7355',
   '#7B9E89', '#5B8F6F', '#6B8EC4', '#4A6FA5',
@@ -305,7 +304,7 @@ export default function BusinessProfile() {
         <div style={s.section}>
           {SOCIAL_PLATFORMS.map(p => (
             <div key={p.key} style={s.socialRow}>
-              <span style={s.socialIcon}>{p.icon}</span>
+              <span style={s.socialIcon}><Icon name={iconName(p.icon)} inline /></span>
               <div style={{ flex: 1 }}>
                 <span style={s.socialLabel}>{p.label}</span>
                 <input

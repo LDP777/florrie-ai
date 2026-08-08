@@ -6,8 +6,7 @@ import { type as t } from '../lib/designSystem.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
-import Icon from '../components/ui/Icon';
-
+import Icon, { iconName } from '../components/ui/Icon';
 /**
  * ConsultationFormBuilder - create and edit consultation/consent forms.
  * Beautician can add fields: text, yes_no, multi_select, single_select, checkbox, text_block, signature.
@@ -295,7 +294,7 @@ function FormEditor() {
                 style={styles.fieldTypeBtn}
                 onClick={() => addField(ft.value)}
               >
-                <span style={styles.fieldTypeIcon}>{ft.icon}</span>
+                <span style={styles.fieldTypeIcon}><Icon name={iconName(ft.icon)} inline /></span>
                 <div>
                   <div style={styles.fieldTypeName}>{ft.label}</div>
                   <div style={styles.fieldTypeDesc}>{ft.desc}</div>

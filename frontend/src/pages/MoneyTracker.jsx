@@ -1249,7 +1249,7 @@ export default function MoneyTracker() {
                       style={{ ...S.formInput, flex: 1 }}
                       autoFocus
                     />
-                    <button onClick={handleLogTip} style={{ ...S.btnPrimary, flex: 'none', padding: '11px 20px', background: 'var(--success, #3F7D5C)' }}>
+                    <button className="fl-tap" onClick={handleLogTip} style={{ ...S.btnPrimary, flex: 'none', padding: '11px 20px', background: 'var(--success, #3F7D5C)' }}>
                       Save
                     </button>
                     <button onClick={() => { setShowLogTip(false); setTipAmount(''); }} style={{ ...S.btnGhost, flex: 'none' }}>
@@ -1282,7 +1282,7 @@ export default function MoneyTracker() {
                       onChange={e => setSaleDesc(e.target.value)}
                       style={{ ...S.formInput, flex: 1 }}
                     />
-                    <button onClick={handleLogSale} style={{ ...S.btnPrimary, flex: 'none', padding: '11px 20px', background: 'var(--gold)' }}>
+                    <button className="fl-tap" onClick={handleLogSale} style={{ ...S.btnPrimary, flex: 'none', padding: '11px 20px', background: 'var(--gold)' }}>
                       Save
                     </button>
                     <button onClick={() => { setShowLogSale(false); setSaleAmount(''); setSaleDesc(''); }} style={{ ...S.btnGhost, flex: 'none' }}>
@@ -1340,7 +1340,7 @@ export default function MoneyTracker() {
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
                               {clientId ? (
-                                <button
+                                <button className="fl-tap"
                                   onClick={() => navigate('/clients', { state: { clientId } })}
                                   style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit', fontWeight: 'inherit', color: 'inherit', textDecoration: 'underline', textDecorationColor: 'rgba(146,64,94,0.25)', textUnderlineOffset: 2 }}
                                 >
@@ -1351,7 +1351,7 @@ export default function MoneyTracker() {
                             <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>
                               {treatment}{treatment ? ' · ' : ''}
                               {apptDate ? (
-                                <button
+                                <button className="fl-tap"
                                   onClick={() => navigate('/calendar', { state: { date: apptDate } })}
                                   style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit', color: 'var(--accent, #92405e)', fontWeight: 600 }}
                                 >
@@ -1442,7 +1442,7 @@ export default function MoneyTracker() {
                 <label style={S.formLabel}>Category</label>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {CATEGORIES.map(c => (
-                    <button
+                    <button className="fl-tap"
                       key={c.value}
                       type="button"
                       onClick={() => setNewExpense(p => ({ ...p, category: c.value }))}
@@ -1476,14 +1476,14 @@ export default function MoneyTracker() {
                   {receiptPreview ? (
                     <div style={{ position: 'relative', display: 'inline-block' }}>
                       <img src={receiptPreview} alt="Receipt" style={{ width: 64, height: 64, borderRadius: 10, objectFit: 'cover', border: '1.5px solid var(--border-light)' }} />
-                      <button onClick={() => setReceiptPreview(null)} style={{ position: 'absolute', top: -6, right: -6,
+                      <button className="fl-tap" onClick={() => setReceiptPreview(null)} style={{ position: 'absolute', top: -6, right: -6,
                         width: 20, height: 20, borderRadius: 10, border: 'none',
                         background: 'var(--danger)', color: '#fff', fontSize: 12,
                         cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
                       }}>×</button>
                     </div>
                   ) : (
-                    <button
+                    <button className="fl-tap"
                       type="button"
                       onClick={() => receiptInputRef.current?.click()}
                       style={{ padding: '10px 16px', borderRadius: 10, border: '1.5px dashed var(--border)',
@@ -2150,7 +2150,7 @@ export default function MoneyTracker() {
                           Set aside ~{fmt(vatOwedPerQuarter)} per quarter for VAT
                         </span>
                       </div>
-                      <button
+                      <button className="fl-tap"
                         onClick={() => { window.location.href = '/settings?section=tax'; }}
                         style={{ marginTop: 8, padding: '6px 12px', borderRadius: 10, border: '1px solid var(--border)', background: 'none', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'inherit' }}
                       >
@@ -2182,7 +2182,7 @@ export default function MoneyTracker() {
                         </span>
                       </div>
                     )}
-                    <button
+                    <button className="fl-tap"
                       onClick={() => { window.location.href = '/settings'; }}
                       style={{ marginTop: 8, padding: '6px 12px', borderRadius: 10, border: '1px solid var(--border)', background: 'none', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'inherit' }}
                     >

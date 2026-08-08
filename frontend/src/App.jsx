@@ -232,7 +232,7 @@ function TrialExpiredScreen({ onSignOut }) {
             </a>
           </>
         )}
-        <button
+        <button className="fl-tap"
           onClick={onSignOut}
           style={{ background: 'none', border: 'none', color: 'var(--text-muted, #6B5D54)', fontSize: 13, cursor: 'pointer', padding: 8 }}
         >
@@ -415,6 +415,12 @@ export default function App() {
 
   // Authenticated app
   const showNav = !isAuthRoute && !location.pathname.startsWith('/onboarding');
+  // One source of truth for the Back pill: it decides both whether the pill
+  // renders AND whether the scroll region reserves the 56px band it sits in.
+  // Two separate conditions is how the band got forgotten in the first place.
+  const showBackPill = showNav
+    && location.pathname !== '/calendar/full'
+    && !ROOT_PATHS.has(location.pathname);
 
   const trialEndsAt = resolveTrialEndsAt(beautician);
   const now = new Date();
@@ -455,6 +461,26 @@ export default function App() {
             under the composer. */}
         <div
           style={{ ...styles.pageContainer,
+            // The Back pill is position:fixed at safe-top + 12px and is 44px
+            // tall, so it occupies the first 56px of every secondary screen.
+            // Nothing reserved that band, so every page title in the app was
+            // rendered underneath it — "Settings" and "How Florrie helped" were
+            // both half-hidden behind the word Back.
+            //
+            // PageHeader padded 60px to dodge it, but only nine screens use
+            // PageHeader and PageScaffold, which was written to solve exactly
+            // this, has zero imports. Sixty-odd screens roll their own header
+            // and none of them knew about the pill. Reserving it once here
+            // fixes all of them and cannot drift, because the same condition
+            // that renders the pill reserves its space.
+            //
+            // Root paths are excluded deliberately: they show only the More
+            // pill, top-RIGHT, and their headers are left-aligned, so there is
+            // nothing to clear and 60px there would just be a band of dead
+            // cream above the Hub greeting.
+            paddingTop: showBackPill
+              ? 'calc(var(--shell-top) + 60px)'
+              : 'var(--shell-top)',
             paddingBottom: (location.pathname === '/inbox' && /[?&]client=/.test(location.search || ''))
               ? 'var(--shell-bottom-nav)'
               : 'var(--shell-bottom)',
@@ -569,7 +595,7 @@ export default function App() {
       </div>
 
       {showNav && <BottomNav current={location.pathname} session={session} />}
-      {showNav && location.pathname !== '/calendar/full' && <FloatingBack current={location.pathname} />}
+      {showBackPill && <FloatingBack current={location.pathname} />}
       {showNav && location.pathname !== '/calendar/full'
         && !(location.pathname === '/inbox' && location.search.includes('client='))
         && <FloatingMore current={location.pathname} />}

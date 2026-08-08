@@ -148,7 +148,7 @@ export default function APISettings() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
                 <span style={type.heading}>{item.label}</span>
                 {item.value !== '-' && (
-                  <button
+                  <button className="fl-tap"
                     onClick={() => copyToClipboard(item.value, item.key)}
                     style={{ ...ds.btnGhost, fontSize: 11, padding: '4px 10px' }}
                   >

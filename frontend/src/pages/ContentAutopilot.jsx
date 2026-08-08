@@ -656,7 +656,7 @@ export default function ContentAutopilot() {
             One tap and Florrie drafts a week of posts in your voice, from your real work,
             reviews and openings. Nothing goes out until you say so.
           </p>
-          <button
+          <button className="fl-tap"
             onClick={handlePlanWeek}
             disabled={planning}
             style={{ padding: '12px 22px', borderRadius: 10, border: 'none',
@@ -670,7 +670,7 @@ export default function ContentAutopilot() {
             <p style={{ fontSize: 12.5, color: 'var(--text-secondary, #574A42)', margin: '10px 0 0' }}>{planNote}</p>
           )}
           {planBlocked && (
-            <button
+            <button className="fl-tap"
               onClick={() => { setTab('drafts'); setPlanNote(null); setPlanBlocked(false); }}
               style={{ marginTop: 8, padding: '8px 16px', borderRadius: 10, border: '1.5px solid var(--accent, #92405E)', background: 'transparent', color: 'var(--accent, #92405E)', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
             >
@@ -693,7 +693,7 @@ export default function ContentAutopilot() {
                 ? (post.scheduled_for ? new Date(post.scheduled_for).toLocaleDateString('en-GB', { weekday: 'short' }) : 'Soon')
                 : post.status === 'draft' ? 'Draft' : null;
               return (
-                <button
+                <button className="fl-tap"
                   key={post.id}
                   onClick={() => { setEditingId(post.id); setEditCaption(post.caption || ''); setTab(post.status === 'posted' ? 'posted' : 'drafts'); }}
                   style={{ position: 'relative', aspectRatio: '1', border: 'none', padding: 0, cursor: 'pointer', overflow: 'hidden', background: post.image_url ? '#efe7df' : 'rgba(146,64,94,0.05)', WebkitTapHighlightColor: 'transparent' }}
@@ -920,7 +920,7 @@ export default function ContentAutopilot() {
             ))}
           </div>
           {/* Photo control (the live preview above shows the image) */}
-          <button
+          <button className="fl-tap"
             type="button"
             onClick={() => fileRef.current?.click()}
             style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: '11px 14px', marginBottom: 10, borderRadius: 10, border: `1.5px dashed ${composeImagePreview ? 'var(--accent, #92405E)' : 'var(--border-light, #ede7e3)'}`, background: composeImagePreview ? 'rgba(146,64,94,0.05)' : 'transparent', color: composeImagePreview ? 'var(--accent, #92405E)' : 'var(--text-secondary, #574A42)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
@@ -938,7 +938,7 @@ export default function ContentAutopilot() {
           {/* Feed vs Story */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
             {[['feed', 'Feed post'], ['story', 'Story (24h)']].map(([k, label]) => (
-              <button
+              <button className="fl-tap"
                 key={k}
                 type="button"
                 onClick={() => setComposeMediaKind(k)}
@@ -1024,7 +1024,7 @@ export default function ContentAutopilot() {
                     {sp.caption}
                   </span>
                   {!sp.image_url && <span style={{ fontSize: 10.5, color: '#B45309', whiteSpace: 'nowrap' }}>needs photo</span>}
-                  <button
+                  <button className="fl-tap"
                     onClick={() => handleUnschedule(sp.id)}
                     style={{ background: 'none', border: 'none', color: 'var(--text-muted, #6B5D54)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', padding: '2px 4px' }}
                   >
@@ -1035,7 +1035,7 @@ export default function ContentAutopilot() {
             </div>
           )}
           {drafts.length > 1 && deckIndex === null && (
-            <button
+            <button className="fl-tap"
               onClick={() => setDeckIndex(0)}
               style={{ padding: '11px 0', borderRadius: 10, border: '1.5px solid var(--accent, #92405e)', background: 'transparent', color: 'var(--accent, #92405e)', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
             >
@@ -1072,7 +1072,7 @@ export default function ContentAutopilot() {
                   {POST_TYPE_LABELS[post.post_type] || 'Post'}
                 </div>
                 {post.scheduled_for && (
-                  <button
+                  <button className="fl-tap"
                     onClick={() => handleApproveSchedule(post)}
                     style={{ padding: '4px 12px', borderRadius: 10, border: '1px solid var(--accent, #92405e)',
                       background: 'transparent', color: 'var(--accent, #92405e)',

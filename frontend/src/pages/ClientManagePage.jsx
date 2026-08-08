@@ -369,7 +369,7 @@ export default function ClientManagePage() {
             {paymentResent ? (
               <span style={{ color: 'var(--success-text)', fontWeight: 600 }}><Icon name="check" size={14} inline /> Payment link sent to your email.</span>
             ) : (
-              <button
+              <button className="fl-tap"
                 onClick={handleResendPayment}
                 disabled={resendingPayment}
                 style={{ background: 'none', border: 'none', color: 'var(--warning-text)', fontWeight: 700, fontSize: 13, cursor: 'pointer', textDecoration: 'underline', padding: 0, fontFamily: 'inherit' }}
@@ -438,7 +438,7 @@ export default function ClientManagePage() {
                     </p>
                   )}
                   {(treatmentList || []).filter(t => t.id !== appointment.treatment?.id).map(t => (
-                    <button
+                    <button className="fl-tap"
                       key={t.id}
                       onClick={() => changeTreatment(t.id)}
                       disabled={treatmentSaving}
@@ -810,7 +810,7 @@ export default function ClientManagePage() {
                     ) : rescheduleSlots && rescheduleSlots.length > 0 ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
                         {rescheduleSlots.map((slot) => (
-                          <button
+                          <button className="fl-tap"
                             key={slot}
                             onClick={() => handleReschedule(slot)}
                             disabled={rescheduling}
@@ -1065,7 +1065,7 @@ function PatchTestPicker({ slots, duration, onPick, confirming, error, onBack, b
             {times.map(t => {
               const on = t === selectedTime;
               return (
-                <button
+                <button className="fl-tap"
                   key={t}
                   type="button"
                   disabled={confirming}

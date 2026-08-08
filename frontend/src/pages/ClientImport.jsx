@@ -2,8 +2,7 @@ import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBeautician } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
-import Icon from '../components/ui/Icon';
-
+import Icon, { iconName } from '../components/ui/Icon';
 /**
  * Client Import: one-click migration from Fresha, Timely, Vagaro, or any CSV/XLSX.
  *
@@ -318,7 +317,7 @@ export default function ClientImport() {
                   borderColor: selectedPlatform === p.id ? 'var(--accent, #92405e)' : 'var(--border, #E8DDD4)',
                 }}
               >
-                <span style={styles.platformIcon}>{p.icon}</span>
+                <span style={styles.platformIcon}><Icon name={iconName(p.icon)} inline /></span>
                 <div>
                   <div style={styles.platformName}>{p.name}</div>
                   <div style={styles.platformDesc}>{p.desc}</div>

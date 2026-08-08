@@ -736,7 +736,7 @@ export default function DailyChecklist() {
               <Icon name={iconName('bookmark')} size={15} inline style={{ color: '#fff', marginRight: 4 }} />
               {templateSaving ? 'Saving...' : 'Save as My Default'}
             </button>
-            <button onClick={handleResetToFactory} style={{ ...S.cancelBtn, flex: 'none', padding: '10px 14px' }}>
+            <button className="fl-tap" onClick={handleResetToFactory} style={{ ...S.cancelBtn, flex: 'none', padding: '10px 14px' }}>
               <Icon name={iconName('restart_alt')} size={15} inline style={{ color: 'var(--text-secondary, #574A42)', marginRight: 4 }} />
               Reset
             </button>

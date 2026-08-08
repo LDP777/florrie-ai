@@ -77,10 +77,11 @@ export default function ValueBreakdown() {
 
   return (
     <div style={S.page}>
+      {/* No back button here. The shell already floats one top-left on every
+          secondary screen, and this page rendered a second one right beside it
+          — two identical affordances 14px apart, with the title squeezed
+          between them and running underneath the floating pill. */}
       <header style={S.header}>
-        <button onClick={() => navigate(-1)} aria-label="Back" style={S.back}>
-          <Icon name={iconName('arrow_back')} size={22} inline />
-        </button>
         <h1 style={S.title}>How Florrie helped</h1>
       </header>
 

@@ -7,8 +7,7 @@ import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import { todayLocal } from '../lib/dates.js';
-import Icon from '../components/ui/Icon';
-
+import Icon, { iconName } from '../components/ui/Icon';
 function getToken() {
   const key = Object.keys(localStorage).find(k => /^sb-.+-auth-token$/.test(k));
   if (!key) return null;
@@ -1194,7 +1193,7 @@ function ClientDetailPanel({ detail, onClose, onNavigate, onChanged }) {
               <div style={styles.historySection}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <h4 style={styles.sectionLabel}>Recent messages</h4>
-                  <button
+                  <button className="fl-tap"
                     onClick={() => setDetailTab('messages')}
                     style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}
                   >
@@ -1355,7 +1354,7 @@ function ClientDetailPanel({ detail, onClose, onNavigate, onChanged }) {
                             borderColor: active ? 'var(--accent)' : 'var(--border)',
                           }}
                         >
-                          <span aria-hidden>{icon}</span>
+                          <span aria-hidden><Icon name={iconName(icon)} inline /></span>
                           <span style={{ textTransform: 'capitalize' }}>{ch}</span>
                         </button>
                       );
@@ -1602,7 +1601,7 @@ function ClientBubble({ msg }) {
           gap: 5,
           alignItems: 'center',
         }}>
-          <span aria-hidden>{icon}</span>
+          <span aria-hidden><Icon name={iconName(icon)} inline /></span>
           <span>{time}</span>
         </div>
       </div>

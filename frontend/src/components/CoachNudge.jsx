@@ -119,7 +119,7 @@ export default function CoachNudge() {
           </div>
 
           {/* Dismiss */}
-          <button
+          <button className="fl-tap"
             onClick={dismiss}
             style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 10,
               width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -139,7 +139,7 @@ export default function CoachNudge() {
             {nudge.body}
           </p>
           {nudge.cta_label && nudge.cta_path && (
-            <button
+            <button className="fl-tap"
               onClick={handleCta}
               style={{ width: '100%', padding: '10px 16px', borderRadius: 10, border: 'none',
                 background: colours.bg, color: '#fff',

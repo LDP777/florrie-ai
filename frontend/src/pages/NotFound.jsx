@@ -35,7 +35,7 @@ export default function NotFound() {
         }}>
           The page you're looking for doesn't exist or has been moved.
         </p>
-        <button
+        <button className="fl-tap"
           onClick={() => navigate('/')}
           style={{ background: 'var(--accent, #92405e)',
             color: '#fff',

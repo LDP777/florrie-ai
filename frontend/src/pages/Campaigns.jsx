@@ -6,8 +6,7 @@ import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
-import Icon from '../components/ui/Icon';
-
+import Icon, { iconName } from '../components/ui/Icon';
 /**
  * Campaigns, AI-powered client outreach.
  *
@@ -336,7 +335,7 @@ export default function Campaigns() {
                 onClick={() => startCreate(type)}
                 style={styles.typeCard}
               >
-                <span style={{ fontSize: 22 }}>{cfg.icon}</span>
+                <span style={{ fontSize: 22 }}><Icon name={iconName(cfg.icon)} inline /></span>
                 <span style={styles.typeLabel}>{cfg.label}</span>
               </button>
             ))}
@@ -508,7 +507,7 @@ function CampaignCard({ campaign, sending, onApprove, onSend, onCancel, onView }
     <div style={styles.campaignCard} onClick={onView}>
       <div style={styles.campaignCardTop}>
         <div style={styles.campaignCardLeft}>
-          <span style={{ fontSize: 18 }}>{cfg.icon}</span>
+          <span style={{ fontSize: 18 }}><Icon name={iconName(cfg.icon)} inline /></span>
           <div>
             <span style={styles.campaignName}>{campaign.name}</span>
             <span style={styles.campaignMeta}>

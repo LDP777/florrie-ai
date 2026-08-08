@@ -48,6 +48,7 @@ function previewMessage(body) {
 }
 
 import MessagePreview from '../components/MessagePreview.jsx';
+import Icon, { iconName } from '../components/ui/Icon';
 
 export default function MessageTemplates() {
   const { dark } = useTheme();
@@ -162,7 +163,7 @@ export default function MessageTemplates() {
                   color: newCategory === c.key ? c.color : 'var(--text, var(--text-primary, #241B17))',
                 }}
               >
-                {c.icon} {c.label}
+                <Icon name={iconName(c.icon)} inline /> {c.label}
               </button>
             ))}
           </div>
@@ -242,7 +243,7 @@ export default function MessageTemplates() {
             onClick={() => setFilter(c.key)}
             style={{ ...s.filterChip, background: filter === c.key ? c.color + '18' : 'var(--card-bg, #FFFCF9)', color: filter === c.key ? c.color : 'var(--text, var(--text-primary, #241B17))', border: filter === c.key ? `1px solid ${c.color}` : '1px solid var(--border, var(--border, var(--border, var(--border, #E8DDD4))))' }}
           >
-            {c.icon}
+            <Icon name={iconName(c.icon)} inline />
           </button>
         ))}
       </div>

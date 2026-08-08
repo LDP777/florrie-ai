@@ -11,8 +11,7 @@ import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
-import Icon from '../components/ui/Icon';
-
+import Icon, { iconName } from '../components/ui/Icon';
 const fmt = (cents) => `£${(cents / 100).toFixed(2)}`;
 
 const TYPE_CONFIG = {
@@ -201,7 +200,7 @@ export default function CancellationLog() {
                       </div>
                     </div>
                     <div style={S.logRight}>
-                      <span style={{ ...S.typeBadge, background: cfg.bg, color: cfg.color }}>{cfg.icon} {cfg.label}</span>
+                      <span style={{ ...S.typeBadge, background: cfg.bg, color: cfg.color }}><Icon name={iconName(cfg.icon)} inline /> {cfg.label}</span>
                       <span style={S.logDate}>{formatDate(c.date)} · {c.time}</span>
                     </div>
                   </div>

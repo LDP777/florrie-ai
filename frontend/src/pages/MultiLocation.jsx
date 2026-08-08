@@ -124,8 +124,8 @@ export default function MultiLocation() {
             style={{ ...inputStyle, marginTop: 8 }}
           />
           <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-            <button onClick={handleAddLocation} disabled={saving || !form.name.trim()} style={{ ...ds.btnPrimary, flex: 1, padding: '10px 0', fontSize: 13, opacity: saving || !form.name.trim() ? 0.5 : 1 }}>{saving ? 'Saving...' : 'Add location'}</button>
-            <button onClick={() => setAdding(false)} style={{ ...ds.btnSecondary, flex: 1, padding: '10px 0', fontSize: 13 }}>Cancel</button>
+            <button className="fl-tap" onClick={handleAddLocation} disabled={saving || !form.name.trim()} style={{ ...ds.btnPrimary, flex: 1, padding: '10px 0', fontSize: 13, opacity: saving || !form.name.trim() ? 0.5 : 1 }}>{saving ? 'Saving...' : 'Add location'}</button>
+            <button className="fl-tap" onClick={() => setAdding(false)} style={{ ...ds.btnSecondary, flex: 1, padding: '10px 0', fontSize: 13 }}>Cancel</button>
           </div>
         </div>
       )}

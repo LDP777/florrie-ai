@@ -3,8 +3,7 @@ import { supabase } from '../lib/supabase.js'
 import { useParams, useLocation } from 'react-router-dom';
 import PhoneField from '../components/PhoneField.jsx';
 import { API_BASE } from '../lib/config.js';
-import Icon from '../components/ui/Icon';
-
+import Icon, { iconName } from '../components/ui/Icon';
 // Cloudflare Turnstile (bot protection). Renders ONLY when VITE_TURNSTILE_SITE_KEY
 // is set, so environments without keys behave exactly as before.
 const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || '';
@@ -998,7 +997,7 @@ export default function BookingPage() {
               <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 10px', lineHeight: 1.5 }}>
                 This treatment needs a quick patch test at least 24 hours before your appointment. It only takes a few minutes, tap below to pick a time.
               </p>
-              <a href={`${success.manageUrl}?book=patch`} style={{ display: 'block', width: '100%', boxSizing: 'border-box', padding: '12px 0', borderRadius: 10, textAlign: 'center', background: brand, color: '#fff', fontWeight: 600, fontSize: 14, textDecoration: 'none' }}>
+              <a className="fl-tap" href={`${success.manageUrl}?book=patch`} style={{ display: 'block', width: '100%', boxSizing: 'border-box', padding: '12px 0', borderRadius: 10, textAlign: 'center', background: brand, color: '#fff', fontWeight: 600, fontSize: 14, textDecoration: 'none' }}>
                 Book my patch test →
               </a>
             </div>
@@ -1210,7 +1209,7 @@ export default function BookingPage() {
                       <span style={styles.treatmentName}>
                         {isSelected ? '✓ ' : ''}{t.name}
                         {t.description && (
-                          <span
+                          <span className="fl-tap"
                             role="button"
                             aria-label={descOpenId === t.id ? 'Hide description' : 'Show description'}
                             aria-expanded={descOpenId === t.id}
@@ -1336,7 +1335,7 @@ export default function BookingPage() {
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           {qty > 0 && (
-                            <button
+                            <button className="fl-tap"
                               onClick={() => updateCart(product.id, -1)}
                               style={{ width: 28, height: 28, borderRadius: '50%', border: `1px solid ${brand}`,
                                 background: 'var(--bg-card)', color: brand, fontSize: 16, fontWeight: 700,
@@ -1348,7 +1347,7 @@ export default function BookingPage() {
                           {qty > 0 && (
                             <span style={{ fontSize: 14, fontWeight: 600, minWidth: 16, textAlign: 'center' }}>{qty}</span>
                           )}
-                          <button
+                          <button className="fl-tap"
                             onClick={() => updateCart(product.id, 1)}
                             style={{ width: 28, height: 28, borderRadius: '50%', border: 'none',
                               background: qty > 0 ? brand : '#E8E4DF', color: qty > 0 ? '#fff' : 'var(--text-secondary)',
@@ -1473,7 +1472,7 @@ export default function BookingPage() {
                   <p style={{ ...styles.noSlots, padding: 0, marginBottom: 10 }}>
                     Couldn't load this month just now, so these dates may not be right. Try again in a moment.
                   </p>
-                  <button
+                  <button className="fl-tap"
                     onClick={() => setMonthRetryNonce(n => n + 1)}
                     style={{ padding: '10px 22px', borderRadius: 10, border: `1.5px solid ${brand}`, background: 'var(--bg-card)', color: brand, fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}
                   >
@@ -1496,7 +1495,7 @@ export default function BookingPage() {
                 <p style={{ ...styles.noSlots, padding: 0, marginBottom: 10 }}>
                   Having trouble loading times for this day. Nothing is lost, just try again in a moment.
                 </p>
-                <button
+                <button className="fl-tap"
                   onClick={() => setAvailRetryNonce(n => n + 1)}
                   style={{ padding: '10px 22px', borderRadius: 10, border: `1.5px solid ${brand}`, background: 'var(--bg-card)', color: brand, fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}
                 >
@@ -1538,7 +1537,7 @@ export default function BookingPage() {
             {needsPatchTest && !recognisedClient?.found && selectedSlot &&
               ((new Date(selectedSlot.starts_at).getTime() - Date.now()) / 3600000) < 24 && (
               <div style={{ margin: '0 0 12px', padding: '11px 13px', borderRadius: 10, background: '#FEF3C7', border: '1px solid #F5D67E', fontSize: 12.5, lineHeight: 1.5, color: '#8A5A00' }}>
-                That time is under 24 hours away. As a new client you'll need a quick patch test first, so please <button type="button" onClick={() => setStep(1)} style={{ background: 'none', border: 'none', padding: 0, color: '#8A5A00', fontWeight: 700, textDecoration: 'underline', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5 }}>pick a time from tomorrow onwards</button>.
+                That time is under 24 hours away. As a new client you'll need a quick patch test first, so please <button className="fl-tap" type="button" onClick={() => setStep(1)} style={{ background: 'none', border: 'none', padding: 0, color: '#8A5A00', fontWeight: 700, textDecoration: 'underline', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5 }}>pick a time from tomorrow onwards</button>.
               </div>
             )}
             <div style={styles.form}>
@@ -1688,7 +1687,7 @@ export default function BookingPage() {
                   {q.type === 'yes_no' && (
                     <div style={{ display: 'flex', gap: 8 }}>
                       {['Yes', 'No'].map(opt => (
-                        <button key={opt} onClick={() => setConsultationAnswers(p => ({ ...p, [q.key]: opt }))}
+                        <button className="fl-tap" key={opt} onClick={() => setConsultationAnswers(p => ({ ...p, [q.key]: opt }))}
                           style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
                             background: consultationAnswers[q.key] === opt ? brand : '#F0ECE8',
                             color: consultationAnswers[q.key] === opt ? '#fff' : 'var(--text-secondary)'
@@ -1702,7 +1701,7 @@ export default function BookingPage() {
                   {q.type === 'single_select' && q.options?.length > 0 && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                       {q.options.map(opt => (
-                        <button key={opt} onClick={() => setConsultationAnswers(p => ({ ...p, [q.key]: opt }))}
+                        <button className="fl-tap" key={opt} onClick={() => setConsultationAnswers(p => ({ ...p, [q.key]: opt }))}
                           style={{ padding: '8px 14px', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 500,
                             cursor: 'pointer', fontFamily: 'inherit',
                             background: consultationAnswers[q.key] === opt ? brand : '#F0ECE8',
@@ -1719,7 +1718,7 @@ export default function BookingPage() {
                       {q.options.map(opt => {
                         const selected = (consultationAnswers[q.key] || []).includes(opt);
                         return (
-                          <button key={opt} onClick={() => {
+                          <button className="fl-tap" key={opt} onClick={() => {
                             setConsultationAnswers(p => {
                               const current = p[q.key] || [];
                               return { ...p, [q.key]: selected ? current.filter(v => v !== opt) : [...current, opt] };
@@ -1920,7 +1919,7 @@ export default function BookingPage() {
                       : `Deposit of £${(depositCents / 100).toFixed(2)} to confirm${selectedTreatments.length > 1 ? ` (${selectedTreatments.length} treatments)` : ''}`}
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button
+                    <button className="fl-tap"
                       onClick={() => setPaymentType('deposit')}
                       style={{ flex: 1, padding: '10px 0', borderRadius: 10, fontSize: 13, fontWeight: 500,
                         cursor: 'pointer', fontFamily: 'inherit', border: 'none',
@@ -1930,7 +1929,7 @@ export default function BookingPage() {
                     >
                       Pay deposit (£{(depositCents / 100).toFixed(2)})
                     </button>
-                    <button
+                    <button className="fl-tap"
                       onClick={() => setPaymentType('full')}
                       style={{ flex: 1, padding: '10px 0', borderRadius: 10, fontSize: 13, fontWeight: 500,
                         cursor: 'pointer', fontFamily: 'inherit', border: 'none',
@@ -1962,7 +1961,7 @@ export default function BookingPage() {
                   </div>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     {available.map(m => (
-                      <button
+                      <button className="fl-tap"
                         key={m.key}
                         onClick={() => setPaymentMethod(m.key)}
                         style={{ flex: 1, minWidth: 100, padding: '10px 12px', borderRadius: 10,
@@ -1973,7 +1972,7 @@ export default function BookingPage() {
                           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                         }}
                       >
-                        <span>{m.icon}</span> {m.label}
+                        <span><Icon name={iconName(m.icon)} inline /></span> {m.label}
                       </button>
                     ))}
                   </div>
@@ -2044,13 +2043,13 @@ export default function BookingPage() {
                   <span style={{ color: 'var(--success, #3F7D5C)', fontWeight: 600 }}>
                     ✓ {appliedDiscount.code}, saving £{(discountCents / 100).toFixed(2)}
                   </span>
-                  <button onClick={removeDiscount} style={{ background: 'none', border: 'none', fontSize: 16, color: 'var(--text-muted)',
+                  <button className="fl-tap" onClick={removeDiscount} style={{ background: 'none', border: 'none', fontSize: 16, color: 'var(--text-muted)',
                     cursor: 'pointer', padding: '0 4px', fontFamily: 'inherit',
                   }}>×</button>
                 </div>
               ) : (
                 <>
-                  <button
+                  <button className="fl-tap"
                     onClick={() => setDiscountOpen(!discountOpen)}
                     style={{ background: 'none', border: 'none', fontSize: 13, color: brand,
                       cursor: 'pointer', padding: 0, fontFamily: 'inherit', fontWeight: 500,
@@ -2066,11 +2065,11 @@ export default function BookingPage() {
                         value={discountInput}
                         onChange={e => { setDiscountInput(e.target.value); setDiscountError(null); }}
                         onKeyDown={e => e.key === 'Enter' && validateDiscountCode()}
-                        style={{ ...styles.input, flex: 1, padding: '10px 12px', fontSize: 14,
+                        style={{ minHeight: 44, ...styles.input, flex: 1, padding: '10px 12px', fontSize: 14,
                           borderColor: discountError ? 'var(--danger, #9E2B32)' : 'var(--border, #E8DDD4)',
                         }}
                       />
-                      <button
+                      <button className="fl-tap"
                         onClick={validateDiscountCode}
                         disabled={discountLoading || !discountInput.trim()}
                         style={{ ...styles.primaryBtn, background: brand, padding: '10px 16px',

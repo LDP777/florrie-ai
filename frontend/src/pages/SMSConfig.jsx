@@ -51,7 +51,11 @@ export default function SMSConfig() {
   // Test SMS state
   const [testPhone, setTestPhone] = useState('');
   const [testing, setTesting] = useState(false);
-  const [testMsg, setTestMsg] = useState('');
+  // Shape, not a sentinel. This used to be a bare string whose first character
+  // decided the colour: `testMsg.startsWith('✓') ? success : danger`. That made
+  // a tick in a template literal load-bearing, so the emoji sweep would have
+  // turned every successful test SMS red without touching the colour logic.
+  const [testMsg, setTestMsg] = useState(null); // { ok: boolean, text: string }
 
   // Reminder prefs from beauticians table
   const [prefs, setPrefs] = useState({});
@@ -141,9 +145,9 @@ export default function SMSConfig() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Send failed');
-      setTestMsg(`✓ Test SMS sent, check ${testPhone}`);
+      setTestMsg({ ok: true, text: `Test SMS sent, check ${testPhone}` });
     } catch (err) {
-      setTestMsg(`✗ ${err.message}`);
+      setTestMsg({ ok: false, text: err.message });
     } finally {
       setTesting(false);
     }
@@ -342,7 +346,7 @@ export default function SMSConfig() {
                       setOriginatorInput(raw.replace(/[^a-zA-Z0-9 ]/g, '').substring(0, 11));
                     }
                   }}
-                  style={{ flex: 1, padding: '8px 12px', borderRadius: 10,
+                  style={{ minHeight: 44, flex: 1, padding: '8px 12px', borderRadius: 10,
                     border: '1px solid var(--border)', background: 'var(--bg-card)',
                     color: 'var(--text-primary)', fontSize: 14,
                   }}
@@ -380,7 +384,7 @@ export default function SMSConfig() {
                   value={testPhone}
                   onChange={e => setTestPhone(e.target.value)}
                   placeholder="+447700900000"
-                  style={{ flex: 1, padding: '8px 12px', borderRadius: 10,
+                  style={{ minHeight: 44, flex: 1, padding: '8px 12px', borderRadius: 10,
                     border: '1px solid var(--border)', background: 'var(--bg-card)',
                     color: 'var(--text-primary)', fontSize: 14,
                   }}
@@ -395,8 +399,12 @@ export default function SMSConfig() {
               </div>
               {testMsg && (
                 <div style={{ marginTop: 10, fontSize: 13,
-                  color: testMsg.startsWith('✓') ? 'var(--success)' : 'var(--danger)',
-                }}>{testMsg}</div>
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  color: testMsg.ok ? 'var(--success)' : 'var(--danger)',
+                }}>
+                  <Icon name={testMsg.ok ? 'check' : 'x'} size={14} inline />
+                  {testMsg.text}
+                </div>
               )}
             </div>
           )}

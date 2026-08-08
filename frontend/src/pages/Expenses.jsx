@@ -301,8 +301,8 @@ export default function Expenses() {
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
                   <span style={S.expenseAmount}>{fmt(e.amount_cents)}</span>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={() => handleEditExpense(e)} style={{ background: 'none', border: 'none', fontSize: 11, color: 'var(--success, #3F7D5C)', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>Edit</button>
-                    <button onClick={() => handleDeleteExpense(e.id)} style={{ background: 'none', border: 'none', fontSize: 11, color: 'var(--text-muted, var(--text-muted, #6B5D54))', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>Delete</button>
+                    <button className="fl-tap" onClick={() => handleEditExpense(e)} style={{ background: 'none', border: 'none', fontSize: 11, color: 'var(--success, #3F7D5C)', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>Edit</button>
+                    <button className="fl-tap" onClick={() => handleDeleteExpense(e.id)} style={{ background: 'none', border: 'none', fontSize: 11, color: 'var(--text-muted, var(--text-muted, #6B5D54))', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>Delete</button>
                   </div>
                 </div>
               </div>

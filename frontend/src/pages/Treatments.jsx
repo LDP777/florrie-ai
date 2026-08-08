@@ -384,7 +384,7 @@ export default function Treatments() {
                 style={styles.formSelect}
               >
                 {CATEGORIES.map(c => (
-                  <option key={c.value} value={c.value}>{c.emoji} {c.label}</option>
+                  <option key={c.value} value={c.value}>{c.label}</option>
                 ))}
               </select>
             </div>

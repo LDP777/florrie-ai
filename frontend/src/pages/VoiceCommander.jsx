@@ -90,7 +90,7 @@ function ProposalCard({ prop, onDone }) {
       <p style={{ margin: 0, fontSize: 11, fontWeight: 800, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--accent, #92405e)' }}>Confirm to make it happen</p>
       <p style={{ margin: '6px 0 10px', fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #241B17)', lineHeight: 1.45 }}>{proposalSummary(prop.tool, prop.input)}</p>
       <div style={{ display: 'flex', gap: 8 }}>
-        <button
+        <button className="fl-tap"
           onClick={confirm}
           disabled={state === 'running'}
           style={{ flex: 1, minHeight: 42, borderRadius: 10, border: 'none', background: 'var(--accent, #92405e)', color: '#fff', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: state === 'running' ? 0.6 : 1 }}
@@ -98,7 +98,7 @@ function ProposalCard({ prop, onDone }) {
           {state === 'running' ? 'Doing it…' : 'Yes, do it'}
         </button>
         {state === 'idle' && (
-          <button
+          <button className="fl-tap"
             onClick={() => setState('dismissed')}
             style={{ minHeight: 42, padding: '0 16px', borderRadius: 10, border: 'none', background: 'var(--tone-2, #f6e7dd)', color: 'var(--text-secondary, #574A42)', fontSize: 13.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
           >
@@ -878,7 +878,7 @@ export default function VoiceCommander() {
         {!isProcessing && !isRecording && (
           <div style={{ display: 'flex', gap: 6, overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 8, scrollbarWidth: 'none' }}>
             {['How was my week?', "Who's gone quiet lately?", 'What does tomorrow look like?', 'Who are my top clients?', 'Which days are busiest?'].map(q => (
-              <button
+              <button className="fl-tap"
                 key={q}
                 onClick={() => processMessage(q, false)}
                 style={{ flex: 'none', padding: '8px 14px', minHeight: 36, borderRadius: 999, border: 'none', background: 'var(--tone-2, #f6e7dd)', color: 'var(--accent, #92405e)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', WebkitTapHighlightColor: 'transparent' }}

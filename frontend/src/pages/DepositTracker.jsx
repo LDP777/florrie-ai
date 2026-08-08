@@ -20,8 +20,7 @@ import { useBeautician, supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
-import Icon from '../components/ui/Icon';
-
+import Icon, { iconName } from '../components/ui/Icon';
 const fmt = (cents) => `£${(Math.abs(cents) / 100).toFixed(2)}`;
 
 const STATUS_CONFIG = {
@@ -166,7 +165,7 @@ export default function DepositTracker() {
                 </div>
                 <div style={S.depositRight}>
                   <span style={S.depositAmount}>{fmt(d.amount)}</span>
-                  <span style={{ ...S.statusBadge, background: st.bg, color: st.color }}>{st.icon} {st.label}</span>
+                  <span style={{ ...S.statusBadge, background: st.bg, color: st.color }}><Icon name={iconName(st.icon)} inline /> {st.label}</span>
                 </div>
               </div>
 

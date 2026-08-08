@@ -738,7 +738,7 @@ export default function Onboarding({ onComplete }) {
               takes bookings, and posts for you. WhatsApp can come later, no phone
               number wrangling needed today.
             </p>
-            <button
+            <button className="fl-tap"
               type="button"
               onClick={connectInstagram}
               style={{ padding: '10px 18px', borderRadius: 10, border: 'none', background: 'var(--accent, #92405E)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
@@ -762,10 +762,10 @@ export default function Onboarding({ onComplete }) {
                 <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', opacity: 0.85, marginBottom: 6 }}>Your booking link is live</div>
                 <div style={{ fontSize: 15, fontWeight: 700, wordBreak: 'break-all', marginBottom: 12 }}>florrie.ai/book/{bookingSlug}</div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={copy} style={{ flex: 1, padding: '11px 0', borderRadius: 10, border: 'none', background: 'rgba(255,255,255,0.18)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  <button className="fl-tap" onClick={copy} style={{ flex: 1, padding: '11px 0', borderRadius: 10, border: 'none', background: 'rgba(255,255,255,0.18)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                     {linkCopied ? 'Copied' : 'Copy link'}
                   </button>
-                  <button onClick={share} style={{ flex: 1, padding: '11px 0', borderRadius: 10, border: 'none', background: '#fff', color: 'var(--accent)', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  <button className="fl-tap" onClick={share} style={{ flex: 1, padding: '11px 0', borderRadius: 10, border: 'none', background: '#fff', color: 'var(--accent)', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                     Share
                   </button>
                 </div>

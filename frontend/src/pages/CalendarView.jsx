@@ -900,7 +900,7 @@ export default function CalendarView({ initialView } = {}) {
           <button onClick={() => setView('day')} aria-pressed={view === 'day'} style={{ ...styles.toggleBtn, background: view === 'day' ? COLORS.primary : 'transparent', color: view === 'day' ? '#fff' : COLORS.stone400 }}>Day</button>
           <button onClick={() => setView('week')} aria-pressed={view === 'week'} style={{ ...styles.toggleBtn, background: view === 'week' ? COLORS.primary : 'transparent', color: view === 'week' ? '#fff' : COLORS.stone400 }}>Week</button>
         </div>
-        <button
+        <button className="fl-tap"
           onClick={() => navigate('/calendar/full')}
           title="Open full calendar"
           aria-label="Open full calendar"
@@ -908,7 +908,7 @@ export default function CalendarView({ initialView } = {}) {
         >
           <Icon name={iconName('open_in_full')} size={18} inline style={{ }} />
         </button>
-        <button
+        <button className="fl-tap"
           onClick={() => setShowBlockModal(true)}
           title="Block time"
           style={{ height: 36, padding: '0 12px', borderRadius: 10, border: `1px solid ${COLORS.outlineVariant}`, background: 'var(--card-bg, #FFFCF9)', color: COLORS.stone400, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, flexShrink: 0, fontSize: 12, fontWeight: 600, fontFamily: 'inherit' }}
@@ -917,7 +917,7 @@ export default function CalendarView({ initialView } = {}) {
           Block
         </button>
         {view === 'day' && (
-          <button
+          <button className="fl-tap"
             onClick={handleMarkAllDone}
             disabled={markingAllDone}
             title="Mark all done"
@@ -1126,7 +1126,7 @@ export default function CalendarView({ initialView } = {}) {
                       pointerEvents: 'none',
                     }}
                   >
-                    <button
+                    <button className="fl-tap"
                       onClick={() => setSelectedBlock(block)}
                       style={{ pointerEvents: 'auto',
                         position: 'absolute', top: 4, left: 8,
@@ -1198,7 +1198,7 @@ export default function CalendarView({ initialView } = {}) {
             )}
             {!loading && loadError && (
               <div style={{ position: 'absolute', top: (8 - START_HOUR) * HOUR_HEIGHT + 60, left: 0, right: 0, textAlign: 'center', padding: '0 16px' }}>
-                <button
+                <button className="fl-tap"
                   onClick={() => loadAppointments()}
                   style={{ padding: '12px 18px', borderRadius: 10, border: `1px solid ${COLORS.outlineVariant}`, background: 'var(--bg-card)', color: COLORS.primary, fontSize: 13, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}
                 >
@@ -2115,7 +2115,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
         <div style={{ flex: 1, minWidth: 0 }}>
           <h3 style={styles.detailTitle}>{appointment.clients?.first_name} {appointment.clients?.last_name || ''}</h3>
           {appointment.client_id && onViewClient && (
-            <button
+            <button className="fl-tap"
               onClick={() => { onClose(); onViewClient(appointment.client_id); }}
               style={{ fontSize: 11, color: 'var(--accent, #92405e)', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, opacity: 0.8 }}
             >
@@ -2224,13 +2224,13 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                       type="datetime-local" autoFocus
                       value={timeInput}
                       onChange={e => setTimeInput(e.target.value)}
-                      style={{ padding: '5px 8px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 12.5, fontFamily: 'inherit', outline: 'none' }}
+                      style={{ minHeight: 44, padding: '5px 8px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 12.5, fontFamily: 'inherit', outline: 'none' }}
                     />
-                    <button onClick={handleSaveTime} disabled={timeSaving}
+                    <button className="fl-tap" onClick={handleSaveTime} disabled={timeSaving}
                       style={{ padding: '5px 10px', borderRadius: 10, border: 'none', background: COLORS.primary, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                       {timeSaving ? '…' : 'Move'}
                     </button>
-                    <button onClick={() => setTimeEditing(false)} disabled={timeSaving}
+                    <button className="fl-tap" onClick={() => setTimeEditing(false)} disabled={timeSaving}
                       style={{ background: 'none', border: 'none', fontSize: 12, fontWeight: 600, color: COLORS.stone400, cursor: 'pointer', fontFamily: 'inherit', padding: '5px 4px' }}>
                       Cancel
                     </button>
@@ -2240,7 +2240,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               ) : (
                 <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={styles.detailValue}>{formatWallTime(appointment.starts_at)}{appointment.ends_at ? ` - ${formatWallTime(appointment.ends_at)}` : ''}</span>
-                  <button onClick={openTimeEdit}
+                  <button className="fl-tap" onClick={openTimeEdit}
                     style={{ background: 'none', border: `1.5px dashed ${COLORS.outlineVariant}`, borderRadius: 10, padding: '3px 9px', fontSize: 11, fontWeight: 600, color: COLORS.primary, cursor: 'pointer', fontFamily: 'inherit' }}>
                     Move
                   </button>
@@ -2255,7 +2255,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                     defaultValue={appointment.duration_minutes || ''}
                     onChange={e => e.target.value && handleChangeDuration(e.target.value)}
                     disabled={durSaving}
-                    style={{ padding: '8px 10px', borderRadius: 10, border: `1px solid ${COLORS.outlineVariant}`, fontFamily: 'inherit', fontSize: 13, background: 'var(--bg-card)', maxWidth: '100%' }}
+                    style={{ minHeight: 44, padding: '8px 10px', borderRadius: 10, border: `1px solid ${COLORS.outlineVariant}`, fontFamily: 'inherit', fontSize: 13, background: 'var(--bg-card)', maxWidth: '100%' }}
                   >
                     <option value="" disabled>Choose a length...</option>
                     {/* Keep an off-step current length selectable so the menu never lies about what is set */}
@@ -2266,12 +2266,12 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                       <option key={m} value={m}>{durationLabel(m)}</option>
                     ))}
                   </select>
-                  <button onClick={() => setDurEditing(false)} style={{ background: 'none', border: 'none', color: COLORS.stone400, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>Cancel</button>
+                  <button className="fl-tap" onClick={() => setDurEditing(false)} style={{ background: 'none', border: 'none', color: COLORS.stone400, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>Cancel</button>
                 </span>
               ) : (
                 <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={styles.detailValue}>{appointment.duration_minutes ? durationLabel(appointment.duration_minutes) : 'Not set'}</span>
-                  <button onClick={() => setDurEditing(true)} style={{ background: 'none', border: `1px dashed ${COLORS.outlineVariant}`, borderRadius: 10, padding: '3px 8px', color: COLORS.primary, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Change</button>
+                  <button className="fl-tap" onClick={() => setDurEditing(true)} style={{ background: 'none', border: `1px dashed ${COLORS.outlineVariant}`, borderRadius: 10, padding: '3px 8px', color: COLORS.primary, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Change</button>
                 </span>
               )}
             </div>
@@ -2286,9 +2286,9 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                     onChange={e => setPriceInput(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter') handleSavePrice(); }}
                     placeholder="0.00"
-                    style={{ width: 72, padding: '5px 8px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 13, fontFamily: 'inherit', outline: 'none', textAlign: 'right' }}
+                    style={{ minHeight: 44, width: 72, padding: '5px 8px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 13, fontFamily: 'inherit', outline: 'none', textAlign: 'right' }}
                   />
-                  <button onClick={handleSavePrice} disabled={priceSaving}
+                  <button className="fl-tap" onClick={handleSavePrice} disabled={priceSaving}
                     style={{ padding: '5px 10px', borderRadius: 10, border: 'none', background: COLORS.primary, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                     {priceSaving ? '…' : 'Save'}
                   </button>
@@ -2299,7 +2299,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                   {appointment.price_cents > 0 && (
                     <span style={styles.detailValue}>£{(appointment.price_cents / 100).toFixed(2)}</span>
                   )}
-                  <button
+                  <button className="fl-tap"
                     onClick={() => { setPriceInput(appointment.price_cents > 0 ? (appointment.price_cents / 100).toFixed(2) : ''); setPriceEditing(true); }}
                     style={{ background: 'none', border: `1.5px dashed ${COLORS.outlineVariant}`, borderRadius: 10, padding: '4px 10px', fontSize: 12, fontWeight: 600, color: COLORS.primary, cursor: 'pointer', fontFamily: 'inherit' }}>
                     {appointment.price_cents > 0 ? 'Edit' : 'Set price'}
@@ -2350,7 +2350,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
 
               {consultation.response ? (
                 <>
-                  <button
+                  <button className="fl-tap"
                     onClick={() => { hapticTap(); setConsultOpen(v => !v); }}
                     aria-expanded={consultOpen}
                     style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, width: '100%', minHeight: TAP, padding: 0, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}
@@ -2410,7 +2410,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                     This treatment needs a consultation form and there is nothing on file for {appointment.clients?.first_name || 'this client'}.
                   </p>
                   {consultation.form_available && appointment.client_id && (
-                    <button
+                    <button className="fl-tap"
                       onClick={() => { hapticTap(); handleSendConsultationForm(); }}
                       disabled={consultSending}
                       style={{ width: '100%', minHeight: TAP, marginTop: 8, padding: '10px 12px', borderRadius: 10, border: 'none', background: '#92405e', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', opacity: consultSending ? 0.6 : 1 }}
@@ -2481,7 +2481,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
               <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #574A42)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Notes</span>
               {notes !== (appointment.beautician_notes || '') && (
-                <button onClick={handleSaveNote}
+                <button className="fl-tap" onClick={handleSaveNote}
                   style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, border: 'none', background: noteSaved ? 'var(--success-bg, #E9F0EB)' : 'var(--accent)', color: noteSaved ? 'var(--success, #3F7D5C)' : '#fff', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, transition: 'all 0.15s' }}>
                   {noteSaved ? 'Saved' : 'Save'}
                 </button>
@@ -2495,7 +2495,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               onChange={e => setNotes(e.target.value)}
               placeholder="Colour mix, skin notes, preferences, anything worth remembering..."
               rows={3}
-              style={{ width: '100%', padding: '9px 11px', borderRadius: 10, border: '1.5px solid var(--border, #E8DDD4)', fontSize: 13, fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box', color: 'var(--text, #241B17)', background: 'var(--bg-input, #F4EDE6)' }}
+              style={{ minHeight: 44, width: '100%', padding: '9px 11px', borderRadius: 10, border: '1.5px solid var(--border, #E8DDD4)', fontSize: 13, fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box', color: 'var(--text, #241B17)', background: 'var(--bg-input, #F4EDE6)' }}
               onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); handleSaveNote(); } }}
             />
             <p style={{ fontSize: 11, color: 'var(--text-muted, #6B5D54)', margin: '4px 0 0' }}>⌘S to save · notes shown next time this client books</p>
@@ -2506,18 +2506,18 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                 {saving ? 'Saving…' : 'Mark as complete'}
               </button>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={() => { hapticTap(); handleMarkNoShow(); }} disabled={saving}
+                <button className="fl-tap" onClick={() => { hapticTap(); handleMarkNoShow(); }} disabled={saving}
                   style={{ ...styles.completeBtn, flex: 1, background: 'var(--danger)', fontSize: 12, padding: '8px 0' }}>
                   No-show
                 </button>
-                <button onClick={() => { hapticTap(); handleSendPaymentLink(); }} disabled={linkLoading}
+                <button className="fl-tap" onClick={() => { hapticTap(); handleSendPaymentLink(); }} disabled={linkLoading}
                   style={{ ...styles.completeBtn, flex: 1, background: 'var(--accent)', fontSize: 12, padding: '8px 0' }}>
                   {linkLoading ? 'Creating...' : 'Send payment link'}
                 </button>
               </div>
               {/* Reschedule: move the client to another day/time instead of
                   marking them a no-show (traffic, swapped to Friday, etc.). */}
-              <button onClick={openTimeEdit} disabled={saving}
+              <button className="fl-tap" onClick={openTimeEdit} disabled={saving}
                 style={{ ...styles.completeBtn, marginTop: 0, background: 'var(--bg-input, #F4EDE6)', color: COLORS.primary, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 13, padding: '10px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                 <Icon name={iconName('event_repeat')} size={16} inline />
                 Reschedule
@@ -2531,7 +2531,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                   the button existing at all. */}
               {appointment.payment_type !== 'full'
                 && (((appointment.price_cents || 0) - (appointment.deposit_paid ? (appointment.deposit_cents || 0) : 0)) >= 30) && (
-                <button onClick={() => { hapticTap(); handleChargeBalance(); }} disabled={chargingBalance}
+                <button className="fl-tap" onClick={() => { hapticTap(); handleChargeBalance(); }} disabled={chargingBalance}
                   style={{ ...styles.completeBtn, marginTop: 0, background: 'var(--bg-input, #F4EDE6)', color: COLORS.primary, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 13, padding: '10px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                   <Icon name={iconName('credit_card')} size={16} inline />
                   {chargingBalance ? 'Charging...' : `Charge £${(((appointment.price_cents || 0) - (appointment.deposit_paid ? (appointment.deposit_cents || 0) : 0)) / 100).toFixed(2)} balance to card`}
@@ -2540,7 +2540,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               {/* Charge any amount to the saved card. Shows the card so she knows
                   it will work, or says plainly why it won't. */}
               {cardInfo?.hasCard && !chargeOpen && (
-                <button onClick={() => { hapticTap(); setChargeOpen(true); }}
+                <button className="fl-tap" onClick={() => { hapticTap(); setChargeOpen(true); }}
                   style={{ ...styles.completeBtn, marginTop: 0, background: 'var(--bg-input, #F4EDE6)', color: COLORS.primary, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 13, padding: '10px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                   <Icon name={iconName('payments')} size={16} inline />
                   Charge their card{cardInfo.last4 ? ` \u00b7\u00b7\u00b7\u00b7 ${cardInfo.last4}` : ''}
@@ -2558,7 +2558,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                       value={chargeAmount}
                       onChange={e => setChargeAmount(e.target.value)}
                       placeholder="Amount, e.g. 15.00"
-                      style={{ flex: 1, minWidth: 0, padding: '10px', borderRadius: 10, border: `1px solid ${COLORS.outlineVariant}`, fontFamily: 'inherit', fontSize: 14 }}
+                      style={{ minHeight: 44, flex: 1, minWidth: 0, padding: '10px', borderRadius: 10, border: `1px solid ${COLORS.outlineVariant}`, fontFamily: 'inherit', fontSize: 14 }}
                     />
                   </div>
                   {/* Live "what reaches you" as she types. Mirrors the server's
@@ -2580,14 +2580,14 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                     value={chargeReason}
                     onChange={e => setChargeReason(e.target.value)}
                     placeholder="What's it for? (shows on her receipt)"
-                    style={{ width: '100%', boxSizing: 'border-box', padding: '10px', borderRadius: 10, border: `1px solid ${COLORS.outlineVariant}`, fontFamily: 'inherit', fontSize: 13, marginBottom: 10 }}
+                    style={{ minHeight: 44, width: '100%', boxSizing: 'border-box', padding: '10px', borderRadius: 10, border: `1px solid ${COLORS.outlineVariant}`, fontFamily: 'inherit', fontSize: 13, marginBottom: 10 }}
                   />
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={handleChargeCard} disabled={chargingCard}
+                    <button className="fl-tap" onClick={handleChargeCard} disabled={chargingCard}
                       style={{ flex: 1, padding: '10px', borderRadius: 10, border: 'none', background: COLORS.primary, color: '#fff', fontSize: 13, fontWeight: 700, cursor: chargingCard ? 'wait' : 'pointer', fontFamily: 'inherit' }}>
                       {chargingCard ? 'Charging...' : 'Take payment'}
                     </button>
-                    <button onClick={() => { setChargeOpen(false); setChargeAmount(''); setChargeReason(''); }} disabled={chargingCard}
+                    <button className="fl-tap" onClick={() => { setChargeOpen(false); setChargeAmount(''); setChargeReason(''); }} disabled={chargingCard}
                       style={{ flex: 1, padding: '10px', borderRadius: 10, border: `1px solid ${COLORS.outlineVariant}`, background: 'var(--bg-card)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
                       Cancel
                     </button>
@@ -2600,18 +2600,18 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                     No card on file for this client, so there's nothing to charge if they don't turn up.
                     Send them a link to add one. It saves the card, it doesn't take any money.
                   </p>
-                  <button onClick={() => { hapticTap(); handleGetCardLink(); }} disabled={cardLinkBusy}
+                  <button className="fl-tap" onClick={() => { hapticTap(); handleGetCardLink(); }} disabled={cardLinkBusy}
                     style={{ width: '100%', minHeight: 40, padding: '9px 12px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, background: 'var(--bg-card)', color: COLORS.primary, fontSize: 13, fontWeight: 600, cursor: cardLinkBusy ? 'wait' : 'pointer', fontFamily: 'inherit' }}>
                     {cardLinkBusy ? '\u2026' : (cardLink ? '\u2713 Link copied, paste it to them' : 'Get a card-on-file link')}
                   </button>
                   {cardLink && (
                     <input readOnly value={cardLink}
                       onClick={e => { e.target.select(); navigator.clipboard?.writeText?.(cardLink); }}
-                      style={{ width: '100%', marginTop: 8, padding: '8px', borderRadius: 6, border: `1px solid ${COLORS.outlineVariant}`, fontSize: 11, boxSizing: 'border-box', fontFamily: 'inherit', background: 'var(--bg-card)' }} />
+                      style={{ minHeight: 44, width: '100%', marginTop: 8, padding: '8px', borderRadius: 6, border: `1px solid ${COLORS.outlineVariant}`, fontSize: 11, boxSizing: 'border-box', fontFamily: 'inherit', background: 'var(--bg-card)' }} />
                   )}
                 </div>
               )}
-              <button onClick={() => setMode('completing')}
+              <button className="fl-tap" onClick={() => setMode('completing')}
                 style={{ background: 'none', border: 'none', color: 'var(--text-muted, #6B5D54)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: '2px 0' }}>
                 Add payment method or photo
               </button>
@@ -2620,7 +2620,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
           {/* Delete a mistaken booking. Destructive, confirmed, and the backend
               refuses (409) if a deposit/fee is attached. */}
           <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${COLORS.outlineVariant}33` }}>
-            <button onClick={() => { hapticTap(); handleDeleteAppointment(); }} disabled={deleting}
+            <button className="fl-tap" onClick={() => { hapticTap(); handleDeleteAppointment(); }} disabled={deleting}
               style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: '1px solid #FECACA', background: '#FEF2F2', color: '#B91C1C', fontSize: 13, fontWeight: 600, cursor: deleting ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: deleting ? 0.6 : 1 }}>
               <Icon name={iconName('delete')} size={16} inline />
               {deleting ? 'Deleting…' : 'Delete appointment'}
@@ -2633,11 +2633,11 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                 <>
                   <p style={{ fontSize: 13, color: 'var(--danger-text)', margin: '0 0 8px' }}>Charge {appointment.clients?.first_name || 'this client'} a no-show fee?</p>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={handleChargeNoShow} disabled={saving}
+                    <button className="fl-tap" onClick={handleChargeNoShow} disabled={saving}
                       style={{ flex: 1, padding: '8px', borderRadius: 10, border: 'none', background: 'var(--danger)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                       {saving ? 'Charging...' : `Charge £${((noShowFeeInfo.amount_cents || 0) / 100).toFixed(2)}`}
                     </button>
-                    <button onClick={() => setNoShowCharging(false)}
+                    <button className="fl-tap" onClick={() => setNoShowCharging(false)}
                       style={{ flex: 1, padding: '8px', borderRadius: 10, border: '1px solid var(--border-light)', background: 'var(--bg-card)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
                       Not this time
                     </button>
@@ -2651,7 +2651,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                       ? 'There\u2019s no card saved for this client, so there\u2019s nothing to charge. To protect yourself against no-shows, turn on deposits (card required at booking) in Settings.'
                       : 'Your cancellation policy has no no-show fee set, so there\u2019s nothing to charge. You can set one in Settings > Policy.'}
                   </p>
-                  <button onClick={() => setNoShowCharging(false)}
+                  <button className="fl-tap" onClick={() => setNoShowCharging(false)}
                     style={{ width: '100%', padding: '8px', borderRadius: 10, border: '1px solid var(--border-light)', background: 'var(--bg-card)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
                     Got it
                   </button>
@@ -2690,7 +2690,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
             {manageLink && (
               <input readOnly value={manageLink}
                 onClick={e => { e.target.select(); navigator.clipboard?.writeText?.(manageLink); setManageCopied(true); setTimeout(() => setManageCopied(false), 2000); }}
-                style={{ width: '100%', marginTop: 8, padding: '8px', borderRadius: 6, border: `1px solid ${COLORS.outlineVariant}`, fontSize: 12, boxSizing: 'border-box', fontFamily: 'inherit', background: 'var(--bg-card)' }} />
+                style={{ minHeight: 44, width: '100%', marginTop: 8, padding: '8px', borderRadius: 6, border: `1px solid ${COLORS.outlineVariant}`, fontSize: 12, boxSizing: 'border-box', fontFamily: 'inherit', background: 'var(--bg-card)' }} />
             )}
             <p style={{ fontSize: 11, color: COLORS.stone400, margin: '6px 0 0' }}>
               {needsPatchTest
@@ -2702,7 +2702,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
           {paymentLinkUrl && (
             <div style={{ marginTop: 12, padding: 12, borderRadius: 10, background: 'var(--success-bg)', border: '1px solid #C6F6D5' }}>
               <p style={{ fontSize: 13, color: 'var(--success-text)', margin: '0 0 8px', fontWeight: 600 }}>Payment link ready</p>
-              <input readOnly value={paymentLinkUrl} style={{ width: '100%', padding: '8px', borderRadius: 6, border: '1px solid #C6F6D5', fontSize: 12, boxSizing: 'border-box' }}
+              <input readOnly value={paymentLinkUrl} style={{ minHeight: 44, width: '100%', padding: '8px', borderRadius: 6, border: '1px solid #C6F6D5', fontSize: 12, boxSizing: 'border-box' }}
                 onClick={e => { e.target.select(); navigator.clipboard?.writeText?.(paymentLinkUrl); }} />
               <p style={{ fontSize: 11, color: 'var(--success-text)', margin: '6px 0 0' }}>Tap to copy. Send to client via WhatsApp or SMS.</p>
             </div>
@@ -2712,7 +2712,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
             <div style={{ marginTop: 12, padding: 10, borderRadius: 10, background: 'var(--danger-bg)', textAlign: 'center' }}>
               <span style={{ fontSize: 13, color: 'var(--danger-text)', fontWeight: 600 }}>Marked as no-show</span>
               {!appointment.no_show_fee_charged && (
-                <button onClick={handleSendPaymentLink} disabled={linkLoading}
+                <button className="fl-tap" onClick={handleSendPaymentLink} disabled={linkLoading}
                   style={{ ...styles.completeBtn, marginTop: 8, background: 'var(--danger)', fontSize: 12, padding: '8px 0' }}>
                   {linkLoading ? 'Creating...' : 'Send no-show fee link'}
                 </button>
@@ -2727,7 +2727,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               <span style={{ fontSize: 13, color: 'var(--success-text, #3F7D5C)', fontWeight: 600 }}>
                 {appointment.payment_method ? 'Completed' : 'Done (assumed)'}
               </span>
-              <button onClick={() => { hapticTap(); handleMarkNoShow(); }} disabled={saving}
+              <button className="fl-tap" onClick={() => { hapticTap(); handleMarkNoShow(); }} disabled={saving}
                 style={{ ...styles.completeBtn, marginTop: 8, background: 'var(--bg-input, #F4EDE6)', color: COLORS.primary, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 12, padding: '8px 0' }}>
                 Actually a no-show
               </button>
@@ -3007,7 +3007,7 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
         {/* Quick presets */}
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
           {PRESETS.map(p => (
-            <button
+            <button className="fl-tap"
               key={p.label}
               onClick={p.apply}
               style={{ padding: '7px 12px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, background: 'var(--bg-card)', color: COLORS.onSurface, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
@@ -3022,12 +3022,12 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
           type="date"
           value={date}
           onChange={e => setDate(e.target.value)}
-          style={{ display: 'block', width: '100%', marginTop: 4, marginBottom: 14, padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+          style={{ minHeight: 44, display: 'block', width: '100%', marginTop: 4, marginBottom: 14, padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
         />
         {/* All day toggle */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
           <span style={{ fontSize: 14, fontWeight: 500, color: COLORS.onSurface }}>All day</span>
-          <button
+          <button className="fl-tap"
             onClick={() => setType(type === 'closed' ? 'amended' : 'closed')}
             style={{ width: 44, height: 24, borderRadius: 10, border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', padding: 0, background: type === 'closed' ? COLORS.primary : COLORS.outlineVariant }}
           >
@@ -3043,7 +3043,7 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
                 type="time"
                 value={startTime}
                 onChange={e => setStartTime(e.target.value)}
-                style={{ display: 'block', width: '100%', marginTop: 4, padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                style={{ minHeight: 44, display: 'block', width: '100%', marginTop: 4, padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
               />
             </div>
             <span style={{ fontSize: 14, color: COLORS.stone400, marginTop: 16 }}>→</span>
@@ -3053,7 +3053,7 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
                 type="time"
                 value={endTime}
                 onChange={e => setEndTime(e.target.value)}
-                style={{ display: 'block', width: '100%', marginTop: 4, padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                style={{ minHeight: 44, display: 'block', width: '100%', marginTop: 4, padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
               />
             </div>
           </div>
@@ -3062,7 +3062,7 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
         <label style={{ fontSize: 12, fontWeight: 600, color: COLORS.stone400, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 8 }}>Reason</label>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
           {BLOCK_REASONS.map(r => (
-            <button
+            <button className="fl-tap"
               key={r.key}
               onClick={() => setReason(r.key)}
               style={{ padding: '7px 12px', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
@@ -3081,7 +3081,7 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
           value={note}
           onChange={e => setNote(e.target.value)}
           placeholder="e.g. School pickup, dentist..."
-          style={{ display: 'block', width: '100%', marginTop: 4, marginBottom: 20, padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+          style={{ minHeight: 44, display: 'block', width: '100%', marginTop: 4, marginBottom: 20, padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
         />
         <button
           onClick={handleSave}
@@ -3134,10 +3134,10 @@ function BlockDetailSheet({ block, onDelete, onClose }) {
           <div>
             <p style={{ fontSize: 14, color: COLORS.onSurface, marginBottom: 12, textAlign: 'center' }}>Remove this block?</p>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => setConfirming(false)} style={{ flex: 1, padding: '12px 0', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, background: 'var(--bg-card)', color: COLORS.onSurface, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+              <button className="fl-tap" onClick={() => setConfirming(false)} style={{ flex: 1, padding: '12px 0', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, background: 'var(--bg-card)', color: COLORS.onSurface, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                 Cancel
               </button>
-              <button onClick={onDelete} style={{ flex: 1, padding: '12px 0', borderRadius: 10, border: 'none', background: '#E57373', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+              <button className="fl-tap" onClick={onDelete} style={{ flex: 1, padding: '12px 0', borderRadius: 10, border: 'none', background: '#E57373', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                 Remove
               </button>
             </div>
@@ -3329,13 +3329,13 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], initialCl
             <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: COLORS.onSurface }}>
               {selectedClient.first_name} {selectedClient.last_name || ''}
             </span>
-            <button onClick={() => { setSelectedClient(null); setQuery(''); }} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: COLORS.stone400, padding: 0 }}>×</button>
+            <button className="fl-tap" onClick={() => { setSelectedClient(null); setQuery(''); }} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: COLORS.stone400, padding: 0 }}>×</button>
           </div>
         ) : (
           <>
             <div style={{ display: 'flex', gap: 6, marginTop: 6, marginBottom: 8 }}>
               {[{ key: 'search', label: 'Existing' }, { key: 'new', label: 'New client' }].map(opt => (
-                <button
+                <button className="fl-tap"
                   key={opt.key}
                   onClick={() => { setClientMode(opt.key); setError(null); }}
                   style={{ padding: '7px 12px', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
@@ -3360,7 +3360,7 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], initialCl
                 {!searching && results.length > 0 && (
                   <div style={{ marginTop: 6, borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, overflow: 'hidden' }}>
                     {results.map(c => (
-                      <button
+                      <button className="fl-tap"
                         key={c.id}
                         onClick={() => { setSelectedClient(c); setResults([]); }}
                         style={{ display: 'block', width: '100%', padding: '10px 12px', border: 'none', borderBottom: `1px solid ${COLORS.outlineVariant}33`, background: 'var(--bg-card)', textAlign: 'left', fontSize: 14, fontFamily: 'inherit', cursor: 'pointer', color: COLORS.onSurface }}
@@ -3403,7 +3403,7 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], initialCl
           {treatments.map(t => {
             const on = selectedIds.includes(t.id);
             return (
-              <button
+              <button className="fl-tap"
                 key={t.id}
                 type="button"
                 onClick={() => toggleTreatment(t.id)}
@@ -3474,7 +3474,7 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], initialCl
         {/* Send confirmation toggle, OFF by default */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
           <span style={{ fontSize: 14, fontWeight: 500, color: COLORS.onSurface }}>Send confirmation message</span>
-          <button
+          <button className="fl-tap"
             onClick={() => setSendConfirmation(v => !v)}
             aria-pressed={sendConfirmation}
             style={{ width: 44, height: 24, borderRadius: 10, border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', padding: 0, background: sendConfirmation ? COLORS.primary : COLORS.outlineVariant }}

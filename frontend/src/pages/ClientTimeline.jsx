@@ -11,6 +11,7 @@ import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
+import Icon, { iconName } from '../components/ui/Icon';
 const DEV_CLIENTS_FULL = [
   { id: 'c1', name: 'Shauna', visits: 8, totalSpent: 32000, since: '2025-09-15', tags: ['VIP', 'Regular'] },
   { id: 'c2', name: 'Daisy S', visits: 12, totalSpent: 54000, since: '2025-06-22', tags: ['VIP', 'Semi-perm client'] },
@@ -268,7 +269,7 @@ export default function ClientTimeline() {
                       </div>
                       <div style={{ ...S.eventCard, borderLeft: `3px solid ${cfg.colour}` }}>
                         <div style={S.eventHeader}>
-                          <span style={S.eventIcon}>{cfg.icon}</span>
+                          <span style={S.eventIcon}><Icon name={iconName(cfg.icon)} inline /></span>
                           <span style={S.eventTitle}>{evt.title}</span>
                           {evt.amount && <span style={{ ...S.eventAmount, color: cfg.colour }}>{fmt(evt.amount)}</span>}
                         </div>

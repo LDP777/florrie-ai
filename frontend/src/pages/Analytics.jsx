@@ -4,8 +4,7 @@ import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
-import Icon from '../components/ui/Icon';
-
+import Icon, { iconName } from '../components/ui/Icon';
 /**
  * Analytics - unified historical analytics hub.
  *
@@ -404,7 +403,7 @@ export default function Analytics() {
               <div style={styles.insightsList}>
                 {getInsights(stats).map((insight, i) => (
                   <div key={i} style={styles.aiInsight}>
-                    <span style={styles.aiInsightIcon}>{insight.icon}</span>
+                    <span style={styles.aiInsightIcon}><Icon name={iconName(insight.icon)} inline /></span>
                     <span style={styles.aiInsightText}>{insight.text}</span>
                   </div>
                 ))}
@@ -592,7 +591,7 @@ function ExportCard({ icon, title, desc, onExport, loading }) {
   return (
     <div style={styles.exportCard}>
       <div style={styles.exportCardLeft}>
-        <span style={{ fontSize: 24 }}>{icon}</span>
+        <span style={{ fontSize: 24 }}><Icon name={iconName(icon)} inline /></span>
         <div>
           <span style={styles.exportCardTitle}>{title}</span>
           <span style={styles.exportCardDesc}>{loading ? 'Loading…' : desc}</span>

@@ -6,8 +6,7 @@ import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import { todayLocal } from '../lib/dates.js';
-import Icon from '../components/ui/Icon';
-
+import Icon, { iconName } from '../components/ui/Icon';
 /**
  * Patch Test Tracker - Regulatory compliance for brow & lash treatments.
  *
@@ -346,7 +345,7 @@ export default function PatchTests() {
                     borderColor: form.result === r.value ? (r.value === 'pass' ? 'var(--success)' : r.value === 'fail' ? 'var(--danger)' : 'var(--warning)') : 'var(--border)',
                   }}
                 >
-                  <span>{r.icon}</span>
+                  <span><Icon name={iconName(r.icon)} inline /></span>
                   <span style={{ fontSize: 11 }}>{r.label}</span>
                 </button>
               ))}
@@ -411,7 +410,7 @@ export default function PatchTests() {
                         </span>
                       </div>
                       <div style={{ ...styles.alertBadge, background: status.bg, color: status.color }}>
-                        {status.icon} {status.label}
+                        <Icon name={iconName(status.icon)} inline /> {status.label}
                       </div>
                     </div>
                     {reminded[alert.client_name] ? (
@@ -466,7 +465,7 @@ export default function PatchTests() {
                   <div key={t.id} style={styles.testCard}>
                     <div style={styles.testCardTop}>
                       <div style={{ ...styles.testStatusIcon, background: status.bg }}>
-                        <span>{status.icon}</span>
+                        <span><Icon name={iconName(status.icon)} inline /></span>
                       </div>
                       <div style={styles.testCardInfo}>
                         <span style={styles.testCardName}>{t.client_name}</span>

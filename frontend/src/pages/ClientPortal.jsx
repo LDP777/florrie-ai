@@ -3,8 +3,7 @@ import { useBeautician, supabase, fetchRows, updateRow } from '../lib/supabase.j
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
-import Icon from '../components/ui/Icon';
-
+import Icon, { iconName } from '../components/ui/Icon';
 /**
  * ClientPortal - Booking page settings + share tools.
  *
@@ -291,7 +290,7 @@ export default function ClientPortal() {
           </p>
           {FEATURE_LIST.map(f => (
             <div key={f.key} style={s.featureRow}>
-              <span style={{ fontSize: 18 }}>{f.icon}</span>
+              <span style={{ fontSize: 18 }}><Icon name={iconName(f.icon)} inline /></span>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)' }}>{f.label}</div>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{f.desc}</div>

@@ -4,8 +4,7 @@ import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
-import Icon from '../components/ui/Icon';
-
+import Icon, { iconName } from '../components/ui/Icon';
 /**
  * Aftercare - Post-treatment care cards.
  *
@@ -211,7 +210,7 @@ export default function Aftercare() {
                         borderColor: newCard.icon === icon ? 'var(--accent, #92405e)' : 'var(--border-light, #ede7e3)',
                       }}
                     >
-                      {icon}
+                      <Icon name={iconName(icon)} inline />
                     </button>
                   ))}
                 </div>
@@ -320,7 +319,7 @@ export default function Aftercare() {
               {cards.map(card => (
                 <div key={card.id} style={styles.aftercareCard}>
                   <div style={styles.cardHeader}>
-                    <span style={styles.cardIcon}>{card.icon}</span>
+                    <span style={styles.cardIcon}><Icon name={iconName(card.icon)} inline /></span>
                     <div style={styles.cardHeaderText}>
                       <span style={styles.cardName}>{card.treatment_name}</span>
                       <span style={styles.cardMeta}>
@@ -390,12 +389,12 @@ export default function Aftercare() {
                   </div>
 
                   <p style={styles.phoneText}>
-                    Hey lovely! Here's your aftercare guide for today's {selectedCard.treatment_name} {selectedCard.icon}
+                    Hey lovely! Here's your aftercare guide for today's {selectedCard.treatment_name} <Icon name={iconName(selectedCard.icon)} inline />
                   </p>
 
                   <div style={styles.phoneCard}>
                     <div style={styles.phoneCardTitle}>
-                      {selectedCard.icon} {selectedCard.treatment_name} - Aftercare
+                      <Icon name={iconName(selectedCard.icon)} inline /> {selectedCard.treatment_name} - Aftercare
                     </div>
                     {selectedCard.instructions.map((inst, i) => (
                       <div key={i} style={styles.phoneStep}>

@@ -1,3 +1,4 @@
+import Icon, { iconName } from '../components/ui/Icon';
 /**
  * Where a client lands after saving a card or paying a link.
  *
@@ -46,7 +47,7 @@ export default function StatusPage({ kind = 'card_saved' }) {
           background: `${COPY.tone}1A`, color: COPY.tone,
           display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24,
         }}>
-          {COPY.icon}
+          <Icon name={iconName(COPY.icon)} inline />
         </div>
         <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 22,
           color: '#2D1B1B', margin: '0 0 10px', fontWeight: 600,

@@ -7,6 +7,7 @@
 
 import React from 'react';
 import Button from './Button';
+import Icon, { iconName } from './Icon';
 
 const EmptyState = ({
   emoji,
@@ -49,7 +50,7 @@ const EmptyState = ({
 
   return (
     <div style={containerStyle}>
-      {emoji && <div style={emojiStyle}>{emoji}</div>}
+      {emoji && <div style={emojiStyle}><Icon name={iconName(emoji)} inline /></div>}
       {title && <h2 style={titleStyle}>{title}</h2>}
       {description && <p style={descriptionStyle}>{description}</p>}
       {actionLabel && onAction && (
