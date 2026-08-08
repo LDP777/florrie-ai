@@ -18,6 +18,7 @@ import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import { bookingUrl as publicBookingUrl } from '../lib/booking.js';
+import Icon from '../components/ui/Icon';
 
 const BRAND_COLOURS = [
   'var(--accent, #92405e)', '#E8A0BF', '#C4A882', '#8B7355',
@@ -245,7 +246,7 @@ export default function BusinessProfile() {
                 {logoPreview ? (
                   <img src={logoPreview} alt="Logo" style={{ width: 64, height: 64, borderRadius: 12, objectFit: 'cover' }} />
                 ) : (
-                  <span style={s.logoIcon}>📷</span>
+                  <span style={s.logoIcon}><Icon name="camera" size={15} /></span>
                 )}
               </div>
               <input
@@ -331,7 +332,7 @@ export default function BusinessProfile() {
             <div style={s.urlRow}>
               <span style={s.urlText}>{bookingUrl.replace('https://', '')}</span>
               <button onClick={handleCopy} style={s.copyBtn}>
-                {linkCopied ? '✓ Copied' : 'Copy'}
+                {linkCopied ? 'Copied' : 'Copy'}
               </button>
             </div>
           </div>
@@ -339,10 +340,10 @@ export default function BusinessProfile() {
           <div style={s.card}>
             <span style={s.cardLabel}>Share your booking page</span>
             <div style={s.shareGrid}>
-              <button style={s.shareBtn} onClick={shareWhatsApp}>📱 WhatsApp</button>
-              <button style={s.shareBtn} onClick={shareInstagram}>📷 Instagram</button>
+              <button style={s.shareBtn} onClick={shareWhatsApp}><Icon name="phone" size={14} inline /> WhatsApp</button>
+              <button style={s.shareBtn} onClick={shareInstagram}><Icon name="camera" size={14} inline /> Instagram</button>
               <button style={s.shareBtn} onClick={shareFacebook}>📘 Facebook</button>
-              <button style={s.shareBtn} onClick={handleCopy}>{linkCopied ? '✓ Copied' : '🔗 Copy link'}</button>
+              <button style={s.shareBtn} onClick={handleCopy}>{linkCopied ? 'Copied' : 'Copy link'}</button>
             </div>
           </div>
 
@@ -371,7 +372,7 @@ export default function BusinessProfile() {
       )}
 
       <button onClick={handleSave} disabled={saving} style={s.saveBtn}>
-        {saving ? 'Saving...' : saved ? '✓ Saved' : 'Save changes'}
+        {saving ? 'Saving...' : saved ? 'Saved' : 'Save changes'}
       </button>
     </div>
   );

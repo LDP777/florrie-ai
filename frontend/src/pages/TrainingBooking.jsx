@@ -8,15 +8,16 @@
 import { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { API_BASE } from '../lib/config.js';
+import Icon from '../components/ui/Icon';
 
 const INCLUDES_LABELS = {
-  certificate: '🏆 Certificate',
-  kit: '🧰 Starter kit',
-  manual: '📖 Course manual',
-  lunch: '🍽 Lunch',
-  refreshments: '☕ Refreshments',
-  models: '🧖 Live models',
-  aftercare: '📋 Aftercare pack',
+  certificate: 'Certificate',
+  kit: 'Starter kit',
+  manual: 'Course manual',
+  lunch: 'Lunch',
+  refreshments: 'Refreshments',
+  models: 'Live models',
+  aftercare: 'Aftercare pack',
 };
 
 export default function TrainingBooking() {
@@ -195,13 +196,13 @@ export default function TrainingBooking() {
         <div style={styles.detailsGrid}>
           {course.date && (
             <div style={styles.detailItem}>
-              <span style={styles.detailIcon}>📅</span>
+              <span style={styles.detailIcon}><Icon name="calendar" size={15} /></span>
               <span style={styles.detailText}>{formatDate(course.date)}</span>
             </div>
           )}
           {course.location && (
             <div style={styles.detailItem}>
-              <span style={styles.detailIcon}>📍</span>
+              <span style={styles.detailIcon}><Icon name="map-pin" size={15} /></span>
               <span style={styles.detailText}>{course.location}</span>
             </div>
           )}
@@ -212,7 +213,7 @@ export default function TrainingBooking() {
             </div>
           )}
           <div style={styles.detailItem}>
-            <span style={styles.detailIcon}>👥</span>
+            <span style={styles.detailIcon}><Icon name="users" size={15} /></span>
             <span style={styles.detailText}>
               {course.is_full
                 ? 'Fully booked'

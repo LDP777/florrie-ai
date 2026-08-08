@@ -4,6 +4,7 @@ import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
+import Icon from '../components/ui/Icon';
 
 /**
  * Aftercare - Post-treatment care cards.
@@ -49,7 +50,7 @@ export default function Aftercare() {
 
   // New card form state
   const [newCard, setNewCard] = useState({
-    treatment_name: '', icon: '✨', instructions: [{ title: '', text: '' }],
+    treatment_name: '', icon: 'sparkles', instructions: [{ title: '', text: '' }],
     products: [''], personal_note: '', send_after_hours: 1, auto_send: true,
     rebook_nudge_days: 28,
   });
@@ -133,7 +134,7 @@ export default function Aftercare() {
 
     setCards(prev => [card, ...prev]);
     setNewCard({
-      treatment_name: '', icon: '✨', instructions: [{ title: '', text: '' }],
+      treatment_name: '', icon: 'sparkles', instructions: [{ title: '', text: '' }],
       products: [''], personal_note: '', send_after_hours: 1, auto_send: true,
       rebook_nudge_days: 28,
     });
@@ -310,7 +311,7 @@ export default function Aftercare() {
             <p style={styles.loadingText}>Loading care cards...</p>
           ) : cards.length === 0 ? (
             <div style={styles.emptyState}>
-              <span style={{ fontSize: 32, display: 'block', marginBottom: 8 }}>💆</span>
+              <span style={{ fontSize: 32, display: 'block', marginBottom: 8 }}><Icon name="flower" size={32} /></span>
               <p style={styles.emptyTitle}>No care cards yet</p>
               <p style={styles.emptyDesc}>Create an aftercare card for each treatment. florrie.ai sends them automatically after appointments.</p>
             </div>
@@ -418,8 +419,7 @@ export default function Aftercare() {
                   )}
 
                   {settings.include_rebook_link && (
-                    <div style={styles.phoneRebook}>
-                      📅 Ready to rebook? → florrie.ai/book/{beautician?.booking_slug || 'your-link'}
+                    <div style={styles.phoneRebook}><Icon name="calendar" size={14} inline /> Ready to rebook? → florrie.ai/book/{beautician?.booking_slug || 'your-link'}
                     </div>
                   )}
                 </div>

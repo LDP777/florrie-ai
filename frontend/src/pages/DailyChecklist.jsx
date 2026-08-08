@@ -611,7 +611,7 @@ export default function DailyChecklist() {
         {currentList.length === 0 && (
           <EmptyState
             message={editing ? 'No items yet - tap the button below to add one' : 'No checklist items'}
-            icon="📋"
+            icon="list"
           />
         )}
         {currentList.map((item, index) => (

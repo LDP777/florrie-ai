@@ -20,15 +20,16 @@ import { useBeautician, supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
+import Icon from '../components/ui/Icon';
 
 const fmt = (cents) => `£${(Math.abs(cents) / 100).toFixed(2)}`;
 
 const STATUS_CONFIG = {
   held: { label: 'Held', bg: '#FFF5E6', color: 'var(--gold, #8A6420)', icon: '⏳' },
   awaiting: { label: 'Awaiting payment', bg: '#FDF8EE', color: '#8A7245', icon: '·' },
-  applied: { label: 'Applied', bg: 'var(--success-bg, #E9F0EB)', color: 'var(--success, #3F7D5C)', icon: '✓' },
+  applied: { label: 'Applied', bg: 'var(--success-bg, #E9F0EB)', color: 'var(--success, #3F7D5C)', icon: 'check' },
   refunded: { label: 'Refunded', bg: '#E3F2FD', color: '#2196F3', icon: '↩' },
-  forfeited: { label: 'Kept (policy)', bg: 'var(--danger-bg, #F7E4E4)', color: '#F44336', icon: '✗' },
+  forfeited: { label: 'Kept (policy)', bg: 'var(--danger-bg, #F7E4E4)', color: '#F44336', icon: 'x' },
   lapsed: { label: 'Lapsed', bg: 'var(--bg-subtle, #ede7e3)', color: 'var(--text-muted, #6B5D54)', icon: '—' },
 };
 
@@ -106,7 +107,7 @@ export default function DepositTracker() {
       {error && (
         <div style={S.errorBanner}>
           <span>{error}</span>
-          <button style={S.errorClose} onClick={() => setError(null)}>✕</button>
+          <button style={S.errorClose} onClick={() => setError(null)}><Icon name="x" size={15} /></button>
         </div>
       )}
 
@@ -178,7 +179,7 @@ export default function DepositTracker() {
                     </div>
                     <div style={S.detailItem}>
                       <span style={S.detailLabel}>Method</span>
-                      <span style={S.detailValue}>{d.method === 'card' ? '💳 Card' : d.method === 'bank_transfer' ? '🏦 Transfer' : `💵 ${d.method}`}</span>
+                      <span style={S.detailValue}>{d.method === 'card' ? '💳 Card' : d.method === 'bank_transfer' ? 'Transfer' : `💵 ${d.method}`}</span>
                     </div>
                     {d.appointmentDate && (
                       <div style={S.detailItem}>
@@ -206,7 +207,7 @@ export default function DepositTracker() {
 
       {/* Policy reminder */}
       <div style={S.policyCard}>
-        <span style={S.policyTitle}>📌 Your booking policy</span>
+        <span style={S.policyTitle}><Icon name="map-pin" size={14} inline /> Your booking policy</span>
         <p style={S.policyText}>
           {policyLines.join(' ')}
           {hasCustomNote && ' Your full policy note is shown to clients on the booking page and their manage link.'}

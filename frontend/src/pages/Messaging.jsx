@@ -4,6 +4,7 @@ import { useBeautician } from '../lib/supabase.js';
 import { ds, type } from '../lib/designSystem.js';
 import WhatsAppConfig from './WhatsAppConfig.jsx';
 import SMSConfig from './SMSConfig.jsx';
+import Icon from '../components/ui/Icon';
 
 /**
  * Messaging, single entry point for WhatsApp + SMS setup.
@@ -120,7 +121,7 @@ function Overview({ waConnected, smsOn, beautician, onPickWA, onPickSMS }) {
       {/* WhatsApp card */}
       <div style={{ ...styles.channelCard, ...styles.waCard }}>
         <div style={styles.channelHead}>
-          <span style={styles.channelEmoji} aria-hidden>💬</span>
+          <span style={styles.channelEmoji} aria-hidden><Icon name="message" size={15} /></span>
           <div style={styles.channelHeadCopy}>
             <div style={styles.channelTitle}>WhatsApp</div>
             <div style={styles.channelSub}>Recommended. Clients already use it.</div>
@@ -153,7 +154,7 @@ function Overview({ waConnected, smsOn, beautician, onPickWA, onPickSMS }) {
       {/* SMS card */}
       <div style={{ ...styles.channelCard, ...styles.smsCard }}>
         <div style={styles.channelHead}>
-          <span style={styles.channelEmoji} aria-hidden>📱</span>
+          <span style={styles.channelEmoji} aria-hidden><Icon name="phone" size={15} /></span>
           <div style={styles.channelHeadCopy}>
             <div style={styles.channelTitle}>SMS</div>
             <div style={styles.channelSub}>Works with any mobile. Two-way from our UK number.</div>

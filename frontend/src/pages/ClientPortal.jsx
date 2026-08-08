@@ -3,6 +3,7 @@ import { useBeautician, supabase, fetchRows, updateRow } from '../lib/supabase.j
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
+import Icon from '../components/ui/Icon';
 
 /**
  * ClientPortal - Booking page settings + share tools.
@@ -13,12 +14,12 @@ import ErrorCard from '../components/ErrorCard.jsx';
  */
 
 const FEATURE_LIST = [
-  { key: 'bookOnline', label: 'Online booking', icon: '🗓️', desc: 'Clients can book appointments from your page' },
-  { key: 'cancelReschedule', label: 'Cancel / reschedule', icon: '🔄', desc: 'Clients can manage bookings via their confirmation link' },
-  { key: 'viewLoyalty', label: 'Loyalty & rewards', icon: '🏆', desc: 'Loyalty points and tier shown on booking confirmation' },
+  { key: 'bookOnline', label: 'Online booking', icon: 'calendar', desc: 'Clients can book appointments from your page' },
+  { key: 'cancelReschedule', label: 'Cancel / reschedule', icon: 'refresh', desc: 'Clients can manage bookings via their confirmation link' },
+  { key: 'viewLoyalty', label: 'Loyalty & rewards', icon: 'badge', desc: 'Loyalty points and tier shown on booking confirmation' },
   { key: 'referFriend', label: 'Refer a friend', icon: '🤝', desc: 'Clients can share your referral link to earn rewards' },
-  { key: 'leaveReview', label: 'Leave a review', icon: '⭐', desc: 'Post-appointment review request sent automatically' },
-  { key: 'viewAftercare', label: 'Aftercare instructions', icon: '💆', desc: 'Aftercare docs sent after treatment' },
+  { key: 'leaveReview', label: 'Leave a review', icon: 'star', desc: 'Post-appointment review request sent automatically' },
+  { key: 'viewAftercare', label: 'Aftercare instructions', icon: 'flower', desc: 'Aftercare docs sent after treatment' },
 ];
 
 const ACCENT_COLOURS = [
@@ -162,12 +163,12 @@ export default function ClientPortal() {
         <div style={s.linkLabel}>Your booking page</div>
         <div style={s.linkRow}>
           <div style={s.linkUrl}>{bookingUrl}</div>
-          <button onClick={handleCopy} style={s.copyBtn}>{copied ? '✓ Copied' : '📋 Copy'}</button>
+          <button onClick={handleCopy} style={s.copyBtn}>{copied ? 'Copied' : '📋 Copy'}</button>
         </div>
         <div style={s.shareRow}>
-          <button onClick={handleWhatsApp} style={s.shareBtn}>💬 WhatsApp</button>
-          <button onClick={handleEmail} style={s.shareBtn}>📧 Email</button>
-          <button onClick={handleQR} style={s.shareBtn}>🔗 QR Code</button>
+          <button onClick={handleWhatsApp} style={s.shareBtn}><Icon name="message" size={14} inline /> WhatsApp</button>
+          <button onClick={handleEmail} style={s.shareBtn}><Icon name="mail" size={14} inline /> Email</button>
+          <button onClick={handleQR} style={s.shareBtn}><Icon name="link" size={14} inline /> QR Code</button>
         </div>
       </div>
 

@@ -806,7 +806,7 @@ export default function ContentAutopilot() {
       {/* Cancelled appointment prompt */}
       {cancelledPrompt && (
         <div style={styles.cancelledPromptBanner}>
-          <span style={{ fontSize: 16 }}>📅</span>
+          <span style={{ fontSize: 16 }}><Icon name="calendar" size={15} /></span>
           <div style={{ flex: 1 }}>
             <span style={{ fontSize: 13, fontWeight: 600 }}>A slot opened up</span>
             <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--text-secondary, #574A42)' }}>
@@ -814,7 +814,7 @@ export default function ContentAutopilot() {
             </p>
           </div>
           <button onClick={handleGenerateAvailabilityPost} disabled={generatingAI} style={styles.promptActionBtn}>
-            {generatingAI ? 'Generating...' : '✨ Generate post'}
+            {generatingAI ? 'Generating...' : 'Generate post'}
           </button>
         </div>
       )}
@@ -840,7 +840,7 @@ export default function ContentAutopilot() {
           {(loadingSuggestions || suggestions.length > 0) && (
             <div style={styles.aiSuggestionsSection}>
               <div style={styles.aiSuggestionsHeader}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent, #92405e)' }}>✨ From your recent clients</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent, #92405e)' }}><Icon name="sparkles" size={14} inline /> From your recent clients</span>
                 <button onClick={loadSuggestions} style={styles.refreshBtn} disabled={loadingSuggestions}>
                   {loadingSuggestions ? '...' : '↻'}
                 </button>
@@ -980,7 +980,7 @@ export default function ContentAutopilot() {
                 opacity: generatingAI ? 0.7 : 1,
               }}
             >
-              {generatingAI ? 'Writing...' : '✨ Write with AI'}
+              {generatingAI ? 'Writing...' : 'Write with AI'}
             </button>
           </div>
           {/* Hashtags */}
@@ -1044,7 +1044,7 @@ export default function ContentAutopilot() {
           )}
           {drafts.length === 0 && !loading && (
             <EmptyState
-              icon="📸"
+              icon="camera"
               title="No drafts waiting"
               subtitle="Head to Ideas to pick a template, or tap + New Post to start from scratch."
             />
@@ -1148,7 +1148,7 @@ export default function ContentAutopilot() {
         <div style={styles.postList}>
           {posted.length === 0 && (
             <EmptyState
-              icon="🎉"
+              icon="sparkles"
               title="Nothing posted yet"
               subtitle="Approved posts will appear here with engagement stats once Instagram is connected."
             />
@@ -1256,7 +1256,7 @@ export default function ContentAutopilot() {
                     <img src={galleryBeforePreview} alt="Before" style={styles.galleryThumb} />
                   ) : (
                     <div style={styles.galleryPlaceholder}>
-                      <span style={{ fontSize: 20 }}>📷</span>
+                      <span style={{ fontSize: 20 }}><Icon name="camera" size={15} /></span>
                       <span style={styles.galleryPlaceholderText}>Before</span>
                     </div>
                   )}
@@ -1268,7 +1268,7 @@ export default function ContentAutopilot() {
                     <img src={galleryAfterPreview} alt="After" style={styles.galleryThumb} />
                   ) : (
                     <div style={styles.galleryPlaceholder}>
-                      <span style={{ fontSize: 20 }}>✨</span>
+                      <span style={{ fontSize: 20 }}><Icon name="sparkles" size={15} /></span>
                       <span style={styles.galleryPlaceholderText}>After</span>
                     </div>
                   )}
@@ -1316,7 +1316,7 @@ export default function ContentAutopilot() {
           {/* Gallery grid */}
           {gallery.length === 0 && !showGalleryAdd && (
             <EmptyState
-              icon="📸"
+              icon="camera"
               title="No before/after photos yet"
               subtitle="Add your best transformations. These build trust and help clients see what you can do."
             />

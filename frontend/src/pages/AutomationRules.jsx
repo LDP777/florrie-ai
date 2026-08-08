@@ -4,33 +4,34 @@ import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
+import Icon from '../components/ui/Icon';
 const triggerOptions = [
-  { id: 'appointment_booked', label: 'Appointment booked', icon: '📅' },
-  { id: 'appointment_completed', label: 'Appointment completed', icon: '✅' },
-  { id: 'no_show', label: 'Client no-shows', icon: '🚫' },
-  { id: 'cancellation', label: 'Cancellation received', icon: '❌' },
-  { id: 'new_client', label: 'New client created', icon: '👤' },
-  { id: 'dormant_client', label: 'Client goes dormant', icon: '💤' },
-  { id: 'birthday', label: 'Client birthday', icon: '🎂' },
-  { id: 'review_received', label: 'Review received', icon: '⭐' },
-  { id: 'payment_received', label: 'Payment received', icon: '💰' },
+  { id: 'appointment_booked', label: 'Appointment booked', icon: 'calendar' },
+  { id: 'appointment_completed', label: 'Appointment completed', icon: 'check-circle' },
+  { id: 'no_show', label: 'Client no-shows', icon: 'x' },
+  { id: 'cancellation', label: 'Cancellation received', icon: 'x' },
+  { id: 'new_client', label: 'New client created', icon: 'user' },
+  { id: 'dormant_client', label: 'Client goes dormant', icon: 'moon' },
+  { id: 'birthday', label: 'Client birthday', icon: 'gift' },
+  { id: 'review_received', label: 'Review received', icon: 'star' },
+  { id: 'payment_received', label: 'Payment received', icon: 'wallet' },
   { id: 'waitlist_match', label: 'Waitlist slot opens', icon: '⏳' },
-  { id: 'loyalty_milestone', label: 'Loyalty tier reached', icon: '🏆' },
-  { id: 'patch_test_expiry', label: 'Patch test expiring', icon: '🩹' },
+  { id: 'loyalty_milestone', label: 'Loyalty tier reached', icon: 'badge' },
+  { id: 'patch_test_expiry', label: 'Patch test expiring', icon: 'shield' },
 ];
 const actionOptions = [
   { id: 'send_whatsapp', label: 'Send WhatsApp message', icon: '💬' },
-  { id: 'send_email', label: 'Send email', icon: '📧' },
+  { id: 'send_email', label: 'Send email', icon: 'mail' },
   { id: 'send_sms', label: 'Send SMS', icon: '📱' },
-  { id: 'add_tag', label: 'Add client tag', icon: '🏷️' },
-  { id: 'remove_tag', label: 'Remove client tag', icon: '🏷️' },
-  { id: 'add_loyalty', label: 'Award loyalty points', icon: '⭐' },
-  { id: 'create_task', label: 'Create task', icon: '☑️' },
-  { id: 'apply_discount', label: 'Apply discount code', icon: '🎟️' },
-  { id: 'block_booking', label: 'Block booking ability', icon: '🔒' },
-  { id: 'notify_staff', label: 'Notify team member', icon: '🔔' },
-  { id: 'move_to_waitlist', label: 'Add to waitlist', icon: '📋' },
-  { id: 'schedule_followup', label: 'Schedule follow-up', icon: '🔄' },
+  { id: 'add_tag', label: 'Add client tag', icon: 'tag' },
+  { id: 'remove_tag', label: 'Remove client tag', icon: 'tag' },
+  { id: 'add_loyalty', label: 'Award loyalty points', icon: 'star' },
+  { id: 'create_task', label: 'Create task', icon: 'check-circle' },
+  { id: 'apply_discount', label: 'Apply discount code', icon: 'tag' },
+  { id: 'block_booking', label: 'Block booking ability', icon: 'lock' },
+  { id: 'notify_staff', label: 'Notify team member', icon: 'bell' },
+  { id: 'move_to_waitlist', label: 'Add to waitlist', icon: 'list' },
+  { id: 'schedule_followup', label: 'Schedule follow-up', icon: 'refresh' },
 ];
 const conditionOptions = [
   { id: 'visit_count', label: 'Visit count', options: ['is more than', 'is less than', 'equals'] },
@@ -176,7 +177,7 @@ export default function AutomationRules() {
             style={styles.ruleInput}
           />
           {/* When (trigger) */}
-          <div style={styles.stepLabel}>⚡ WHEN this happens...</div>
+          <div style={styles.stepLabel}><Icon name="sparkles" size={14} inline /> WHEN this happens...</div>
           <div style={styles.chipGrid}>
             {triggerOptions.map(t => (
               <button
@@ -206,7 +207,7 @@ export default function AutomationRules() {
             ))}
           </div>
           {/* Then (actions) */}
-          <div style={styles.stepLabel}>🎯 THEN do this...</div>
+          <div style={styles.stepLabel}><Icon name="target" size={14} inline /> THEN do this...</div>
           <div style={styles.chipGrid}>
             {actionOptions.map(a => (
               <button
@@ -226,7 +227,7 @@ export default function AutomationRules() {
             ))}
           </div>
           {/* Only if (conditions) */}
-          <div style={styles.stepLabel}>🔍 ONLY IF... <span style={{ fontSize: 11, color: 'var(--text-muted, var(--text-muted, #6B5D54))', fontWeight: 400 }}>(optional)</span></div>
+          <div style={styles.stepLabel}><Icon name="search" size={14} inline /> ONLY IF... <span style={{ fontSize: 11, color: 'var(--text-muted, var(--text-muted, #6B5D54))', fontWeight: 400 }}>(optional)</span></div>
           <div style={styles.conditionsList}>
             {conditionOptions.map(c => (
               <div key={c.id} style={styles.conditionRow}>
@@ -282,7 +283,7 @@ export default function AutomationRules() {
       {/* Rules list */}
       {activeTab === 'rules' && rules.length === 0 && !creating && (
         <EmptyState
-          icon="⚡"
+          icon="sparkles"
           title="No automations yet"
           subtitle="Create a rule to handle the busywork automatically, or start from a template."
           actionLabel="+ New rule"
@@ -327,8 +328,8 @@ export default function AutomationRules() {
                     </div>
                   </div>
                   <div style={styles.ruleActions}>
-                    <button onClick={() => duplicateRule(rule)} style={styles.ruleActionBtn}>📋 Duplicate</button>
-                    <button onClick={() => deleteRule(rule.id)} style={{ ...styles.ruleActionBtn, color: '#E85D75' }}>🗑️ Delete</button>
+                    <button onClick={() => duplicateRule(rule)} style={styles.ruleActionBtn}><Icon name="list" size={14} inline /> Duplicate</button>
+                    <button onClick={() => deleteRule(rule.id)} style={{ ...styles.ruleActionBtn, color: '#E85D75' }}><Icon name="trash" size={14} inline /> Delete</button>
                   </div>
                 </div>
               )}
@@ -403,9 +404,9 @@ const styles = {
   logDot: { width: 6, height: 6, borderRadius: 3, flexShrink: 0 },
 };
 const SEQ_TRIGGERS = [
-  { value: 'after-appointment', label: 'After Appointment', icon: '✅' },
-  { value: 'on-birthday',       label: 'On Birthday',       icon: '🎂' },
-  { value: 'no-visit-30-days',  label: 'No Visit 30 Days',  icon: '📅' },
+  { value: 'after-appointment', label: 'After Appointment', icon: 'check-circle' },
+  { value: 'on-birthday',       label: 'On Birthday',       icon: 'gift' },
+  { value: 'no-visit-30-days',  label: 'No Visit 30 Days',  icon: 'calendar' },
   { value: 'no-visit-60-days',  label: 'No Visit 60 Days',  icon: '⏰' },
   { value: 'manual',            label: 'Manual Start',       icon: '▶️' },
 ];
@@ -497,7 +498,7 @@ function SequencesPanel({ beautician }) {
       {/* Sequence cards */}
       {seqLoaded && sequences.length === 0 && !showCreate && (
         <EmptyState
-          icon="📨"
+          icon="send"
           title="No sequences yet"
           subtitle="Build a follow-up flow to keep clients warm after their appointment."
           actionLabel="+ New sequence"
@@ -590,7 +591,7 @@ function SequencesPanel({ beautician }) {
                   </select>
                   {createForm.steps.length > 1 && (
                     <button onClick={() => setCreateForm(f => ({ ...f, steps: f.steps.filter((_, j) => j !== i) }))}
-                      style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border-light, #ede7e3)', background: 'var(--bg-card, #FFFCF9)', fontSize: 12, cursor: 'pointer', color: '#E85D75', fontFamily: 'inherit' }}>✕</button>
+                      style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border-light, #ede7e3)', background: 'var(--bg-card, #FFFCF9)', fontSize: 12, cursor: 'pointer', color: '#E85D75', fontFamily: 'inherit' }}><Icon name="x" size={15} /></button>
                   )}
                 </div>
                 <textarea value={step.message} onChange={e => setCreateForm(f => ({ ...f, steps: f.steps.map((s, j) => j === i ? { ...s, message: e.target.value } : s) }))}
@@ -627,7 +628,7 @@ function ActivityPanel({ beautician }) {
   if (actions.length === 0) {
     return (
       <EmptyState
-        icon="📜"
+        icon="file"
         title="No automation activity yet"
         subtitle="Once your automations start firing, what they do will show up here."
       />

@@ -6,6 +6,7 @@ import { type as t } from '../lib/designSystem.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
+import Icon from '../components/ui/Icon';
 
 /**
  * ConsultationFormBuilder - create and edit consultation/consent forms.
@@ -19,13 +20,13 @@ import ErrorCard from '../components/ErrorCard.jsx';
  */
 
 const FIELD_TYPES = [
-  { value: 'text', label: 'Short Answer', icon: '✏️', desc: 'Free text input' },
+  { value: 'text', label: 'Short Answer', icon: 'edit', desc: 'Free text input' },
   { value: 'yes_no', label: 'Yes / No', icon: '✓✗', desc: 'Single yes or no answer' },
-  { value: 'checkbox', label: 'Checkbox', icon: '☑️', desc: 'Tick to confirm (e.g. consent)' },
+  { value: 'checkbox', label: 'Checkbox', icon: 'check-circle', desc: 'Tick to confirm (e.g. consent)' },
   { value: 'single_select', label: 'Choose One', icon: '◉', desc: 'Pick one from a list' },
   { value: 'multi_select', label: 'Choose Multiple', icon: '☐☐', desc: 'Tick all that apply' },
-  { value: 'text_block', label: 'Text Block', icon: '📄', desc: 'Static info or consent paragraph' },
-  { value: 'signature', label: 'Signature', icon: '🖊️', desc: 'Ask for a digital signature' },
+  { value: 'text_block', label: 'Text Block', icon: 'file', desc: 'Static info or consent paragraph' },
+  { value: 'signature', label: 'Signature', icon: 'edit', desc: 'Ask for a digital signature' },
 ];
 
 // Always take the token from the live Supabase session, the same way every
@@ -69,7 +70,7 @@ function FormList() {
         <PageLoader message="Loading forms..." />
       ) : forms.length === 0 ? (
         <EmptyState
-          icon="📋"
+          icon="list"
           title="No forms yet"
           subtitle="Create a consultation form to collect client info, medical history, and consent before appointments."
           actionLabel="Create Your First Form"
@@ -282,7 +283,7 @@ function FormEditor() {
 
         {/* Add element button */}
         <button style={styles.addElementBtn} onClick={() => setShowAddField(!showAddField)}>
-          {showAddField ? '✕ Cancel' : '+ Add element'}
+          {showAddField ? 'Cancel' : '+ Add element'}
         </button>
 
         {/* Element type picker */}
@@ -381,9 +382,7 @@ function FieldCard({ field, index, isEditing, onEdit, onUpdate, onRemove, onMove
                   <button
                     style={styles.optionRemoveBtn}
                     onClick={() => onUpdate({ options: field.options.filter((_, i) => i !== oi) })}
-                  >
-                    ✕
-                  </button>
+                  ><Icon name="x" size={15} /></button>
                 </div>
               ))}
               <button

@@ -10,6 +10,7 @@ import { useBeautician, supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
+import Icon from '../components/ui/Icon';
 
 const fmtGbp = pence => {
   const pounds = pence / 100;
@@ -78,7 +79,7 @@ export default function WeekReview() {
       {stats && (
         <div style={S.card}>
           <div style={S.bloomRow}>
-            <span style={S.bloom}>🌸</span>
+            <span style={S.bloom}><Icon name="flower" size={15} /></span>
             <span style={S.cardBrand}>Florrie</span>
           </div>
           <p style={S.cardKicker}>WEEK WITH FLORRIE · {stats.from.slice(8)}–{stats.to.slice(8, 10)}</p>

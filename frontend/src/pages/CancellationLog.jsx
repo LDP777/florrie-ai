@@ -11,13 +11,14 @@ import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
+import Icon from '../components/ui/Icon';
 
 const fmt = (cents) => `£${(cents / 100).toFixed(2)}`;
 
 const TYPE_CONFIG = {
   // Not the client's doing, so it does not wear the client's badge.
   unpaid: { label: 'Deposit unpaid', icon: '\u{1F4B3}', bg: 'var(--bg-hover, #f3ede9)', color: 'var(--text-secondary, #574A42)' },
-  'no-show': { label: 'No Show', bg: '#FFEBEE', color: '#F44336', icon: '✗' },
+  'no-show': { label: 'No Show', bg: '#FFEBEE', color: '#F44336', icon: 'x' },
   'late-cancel': { label: 'Late Cancel', bg: '#FFF5E6', color: '#B8860B', icon: '⏰' },
   'cancelled': { label: 'Cancelled', bg: '#F0ECE8', color: '#8B6F5E', icon: '↩' },
 };
@@ -210,7 +211,7 @@ export default function CancellationLog() {
                     {c.deposit > 0 && <span style={S.depositTag}>Deposit kept: {fmt(c.deposit)}</span>}
                     {c.notice && <span style={S.noticeTag}>{c.notice} notice</span>}
                     {c.rebooked ? (
-                      <span style={S.rebookedTag}>✓ Rebooked</span>
+                      <span style={S.rebookedTag}><Icon name="check" size={14} inline /> Rebooked</span>
                     ) : (
                       <button
                         onClick={() => handleRebook(c.id, c.client)}
@@ -294,7 +295,7 @@ export default function CancellationLog() {
 
           {topNoShow && (
             <div style={S.tipCard}>
-              <span style={S.tipTitle}>💡 Insight</span>
+              <span style={S.tipTitle}><Icon name="info" size={14} inline /> Insight</span>
               <p style={S.tipText}>
                 {topNoShow[0]} has {topNoShow[1].noShows} no-show{topNoShow[1].noShows !== 1 ? 's' : ''}. Consider requiring a deposit for future bookings, or enabling the auto-block policy after repeat strikes.
               </p>

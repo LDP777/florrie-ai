@@ -17,6 +17,7 @@ import { useTheme } from '../lib/theme.jsx';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
+import Icon from '../components/ui/Icon';
 
 const pence = v => `£${(v / 100).toFixed(2)}`;
 const fmt = v => `£${Number(v || 0).toFixed(0)}`;
@@ -24,13 +25,13 @@ const fmt = v => `£${Number(v || 0).toFixed(0)}`;
 const DURATIONS = ['1 hour', '2 hours', '3 hours', 'Half day (4hrs)', 'Full day (7hrs)', '2 days'];
 const MAX_SPOTS = [1, 2, 3, 4, 6, 8, 10, 12];
 const INCLUDES_OPTIONS = [
-  { key: 'certificate', label: '🏆 Certificate' },
-  { key: 'kit',         label: '🧰 Starter kit' },
-  { key: 'manual',      label: '📖 Course manual' },
-  { key: 'lunch',       label: '🍽 Lunch' },
-  { key: 'refreshments',label: '☕ Refreshments' },
-  { key: 'models',      label: '🧖 Live models' },
-  { key: 'aftercare',   label: '📋 Aftercare pack' },
+  { key: 'certificate', label: 'Certificate' },
+  { key: 'kit',         label: 'Starter kit' },
+  { key: 'manual',      label: 'Course manual' },
+  { key: 'lunch',       label: 'Lunch' },
+  { key: 'refreshments',label: 'Refreshments' },
+  { key: 'models',      label: 'Live models' },
+  { key: 'aftercare',   label: 'Aftercare pack' },
 ];
 
 export default function Courses() {
@@ -205,7 +206,7 @@ export default function Courses() {
         <div style={s.formCard}>
           <div style={s.formHeader}>
             <span style={s.formTitle}>{editingItem ? 'Edit course' : 'Build a course'}</span>
-            <button onClick={() => { setShowCreate(false); resetForm(); }} style={s.closeBtn}>✕</button>
+            <button onClick={() => { setShowCreate(false); resetForm(); }} style={s.closeBtn}><Icon name="x" size={15} /></button>
           </div>
           {errorMsg && <ErrorCard message={errorMsg} onDismiss={() => setErrorMsg('')} />}
 
@@ -368,7 +369,7 @@ export default function Courses() {
         <div style={s.list}>
           {courses.length === 0 && (
             <div style={s.empty}>
-              <div style={s.emptyIcon}>🎓</div>
+              <div style={s.emptyIcon}><Icon name="book" size={32} /></div>
               <p style={s.emptyTitle}>No courses yet</p>
               <p style={s.emptyText}>Create your first training course above. You'll get a shareable link to send to anyone interested.</p>
             </div>
@@ -442,7 +443,7 @@ export default function Courses() {
                   onClick={() => copyLink(course)}
                   style={{ ...s.copyBtn, background: copiedId === course.id ? 'var(--success, #3F7D5C)' : 'var(--accent, #92405e)' }}
                 >
-                  {copiedId === course.id ? '✓ Copied' : 'Copy link'}
+                  {copiedId === course.id ? 'Copied' : 'Copy link'}
                 </button>
               </div>
 

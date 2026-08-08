@@ -7,6 +7,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
+import Icon from '../components/ui/Icon';
 
 const fmt = (cents) => `£${(Math.abs(cents) / 100).toFixed(2)}`;
 
@@ -308,7 +309,7 @@ export default function PromoCodes() {
           <div style={S.modal} onClick={e => e.stopPropagation()}>
             <div style={S.modalHeader}>
               <h2 style={S.modalTitle}>Create Promo Code</h2>
-              <button style={S.closeBtn} onClick={() => setShowCreate(false)}>✕</button>
+              <button style={S.closeBtn} onClick={() => setShowCreate(false)}><Icon name="x" size={15} /></button>
             </div>
 
             <div style={S.formBody}>

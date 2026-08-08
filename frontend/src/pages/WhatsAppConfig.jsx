@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
+import Icon from '../components/ui/Icon';
 
 /**
  * apiFetch attaches the full response body to thrown errors so callers can
@@ -76,7 +77,7 @@ function UsageBar({ usage }) {
  */
 const DIAGNOSTIC_META = {
   on_consumer_whatsapp: {
-    icon: '📱',
+    icon: 'phone',
     title: 'Delete WhatsApp on this number first',
     tone: 'warning',
     steps: [
@@ -88,7 +89,7 @@ const DIAGNOSTIC_META = {
     ],
   },
   on_other_waba: {
-    icon: '🔗',
+    icon: 'link',
     title: 'Number is tied to another WhatsApp provider',
     tone: 'blocked',
     steps: [
@@ -99,7 +100,7 @@ const DIAGNOSTIC_META = {
     ],
   },
   verified_name_collision: {
-    icon: '⚠️',
+    icon: 'alert-triangle',
     title: 'Business display name clash',
     tone: 'warning',
     steps: [
@@ -119,7 +120,7 @@ const DIAGNOSTIC_META = {
     ],
   },
   invalid_number: {
-    icon: '❌',
+    icon: 'x',
     title: "Meta didn't recognise that number",
     tone: 'error',
     steps: [
@@ -129,7 +130,7 @@ const DIAGNOSTIC_META = {
     ],
   },
   invalid_format: {
-    icon: '❌',
+    icon: 'x',
     title: 'Number format looks off',
     tone: 'error',
     steps: [
@@ -156,7 +157,7 @@ const DIAGNOSTIC_META = {
     ],
   },
   pin_error: {
-    icon: '⚠️',
+    icon: 'alert-triangle',
     title: 'Cloud API registration failed',
     tone: 'error',
     steps: [
@@ -166,7 +167,7 @@ const DIAGNOSTIC_META = {
     ],
   },
   waba_not_approved: {
-    icon: '🛠️',
+    icon: 'sliders',
     title: 'Configuration issue on our side',
     tone: 'error',
     steps: [
@@ -176,7 +177,7 @@ const DIAGNOSTIC_META = {
     ],
   },
   waba_capacity: {
-    icon: '🛠️',
+    icon: 'sliders',
     title: "We're at WhatsApp capacity right now",
     tone: 'blocked',
     steps: [
@@ -187,7 +188,7 @@ const DIAGNOSTIC_META = {
     ],
   },
   unknown: {
-    icon: '⚠️',
+    icon: 'alert-triangle',
     title: "We couldn't connect this number",
     tone: 'error',
     steps: [
@@ -688,21 +689,20 @@ function ConnectFlow({ onConnected, onPending, onReset }) {
 
       <ul style={styles.outcomeList}>
         <li style={styles.outcomeItem}>
-          <span style={styles.outcomeTick}>✓</span>
+          <span style={styles.outcomeTick}><Icon name="check" size={15} /></span>
           Replies to every DM, even at 11pm on a Sunday
         </li>
         <li style={styles.outcomeItem}>
-          <span style={styles.outcomeTick}>✓</span>
+          <span style={styles.outcomeTick}><Icon name="check" size={15} /></span>
           Takes the booking, holds the deposit, adds it to your calendar
         </li>
         <li style={styles.outcomeItem}>
-          <span style={styles.outcomeTick}>✓</span>
+          <span style={styles.outcomeTick}><Icon name="check" size={15} /></span>
           Sends 24h reminders so no-shows stop hurting your week
         </li>
       </ul>
 
-      <div style={styles.connectNote}>
-        ⚠️ The number must not already be active on personal WhatsApp. Use a business
+      <div style={styles.connectNote}><Icon name="alert-triangle" size={14} inline /> The number must not already be active on personal WhatsApp. Use a business
         number or second SIM. If it is on WhatsApp, delete that account first (you can
         export your chat history beforehand).
       </div>
@@ -735,7 +735,7 @@ function ConnectFlow({ onConnected, onPending, onReset }) {
               borderColor: checkResult.ready ? '#C8E6C9' : '#FFE082',
               color: checkResult.ready ? '#2E7D32' : '#7B5E00',
             }}>
-              <b>{checkResult.ready ? '✅ Ready to connect' : '⏳ Not ready yet'}</b>
+              <b>{checkResult.ready ? 'Ready to connect' : '⏳ Not ready yet'}</b>
               <div style={{ marginTop: 4 }}>{checkResult.userMessage}</div>
             </div>
           )}
@@ -1150,7 +1150,7 @@ export default function WhatsAppConfig() {
             ? 'var(--success, #3F7D5C)'
             : pendingActivation ? '#2E4A6B' : '#E65100',
         }}>
-          {connected ? '🟢 Connected' : pendingActivation ? '⏳ Activating' : '🔴 Not connected'}
+          {connected ? 'Connected' : pendingActivation ? '⏳ Activating' : 'Not connected'}
         </div>
       </div>
 
@@ -1165,7 +1165,7 @@ export default function WhatsAppConfig() {
           gap: 12,
           alignItems: 'flex-start',
         }}>
-          <span style={{ fontSize: 20, flexShrink: 0 }}>❌</span>
+          <span style={{ fontSize: 20, flexShrink: 0 }}><Icon name="x" size={15} /></span>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: '#8A2A1C', marginBottom: 6 }}>
               We've tried 8 times. Time to get support involved.
@@ -1307,7 +1307,7 @@ export default function WhatsAppConfig() {
               </div>
 
               <div style={styles.insightCard}>
-                <span style={{ fontSize: 16 }}>💡</span>
+                <span style={{ fontSize: 16 }}><Icon name="info" size={15} /></span>
                 <div style={{ fontSize: 13, color: 'var(--text-secondary, #574A42)', lineHeight: 1.5 }}>
                   120 messages/month included in your plan across SMS and WhatsApp combined.
                   Extra messages are billed at 5p (WhatsApp) or 6p (SMS) each.

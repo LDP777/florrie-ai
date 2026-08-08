@@ -1331,7 +1331,7 @@ export default function CalendarView({ initialView } = {}) {
       {/* Floating Insights Pill (day view only) */}
       {showInsightsPill && (
         <div style={styles.insightsPill}>
-          <span style={styles.insightsPillIcon}>⚡</span>
+          <span style={styles.insightsPillIcon}><Icon name="sparkles" size={15} /></span>
           <span style={styles.insightsPillText}>
             {gapsToday} gap{gapsToday !== 1 ? 's' : ''} today {waitlistMatches > 0 ? `· ${waitlistMatches} waitlist match${waitlistMatches !== 1 ? 'es' : ''}` : ''}
           </span>
@@ -2483,11 +2483,11 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               {notes !== (appointment.beautician_notes || '') && (
                 <button onClick={handleSaveNote}
                   style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, border: 'none', background: noteSaved ? 'var(--success-bg, #E9F0EB)' : 'var(--accent)', color: noteSaved ? 'var(--success, #3F7D5C)' : '#fff', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, transition: 'all 0.15s' }}>
-                  {noteSaved ? '✓ Saved' : 'Save'}
+                  {noteSaved ? 'Saved' : 'Save'}
                 </button>
               )}
               {noteSaved && notes === (appointment.beautician_notes || '') && (
-                <span style={{ fontSize: 11, color: 'var(--success, #3F7D5C)', fontWeight: 600 }}>✓ Saved</span>
+                <span style={{ fontSize: 11, color: 'var(--success, #3F7D5C)', fontWeight: 600 }}><Icon name="check" size={14} inline /> Saved</span>
               )}
             </div>
             <textarea
@@ -2669,7 +2669,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                 background: '#FDF3E7', border: '1px solid #E9D3B4', borderRadius: 10,
                 padding: '9px 11px', marginBottom: 9,
               }}>
-                <span style={{ fontSize: 15, lineHeight: 1.2 }}>🩺</span>
+                <span style={{ fontSize: 15, lineHeight: 1.2 }}><Icon name="syringe" size={15} /></span>
                 <p style={{ margin: 0, fontSize: 12, lineHeight: 1.45, color: '#6B4E2E' }}>
                   <strong>This client still needs a patch test.</strong> Sending this link opens straight
                   on the patch test picker, so they can book it themselves. It has to be at least 24 hours
@@ -2783,7 +2783,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
       )}
       {mode === 'done' && (
         <div style={styles.doneScreen}>
-          <span style={{ fontSize: 40 }}>✅</span>
+          <span style={{ fontSize: 40 }}><Icon name="check-circle" size={40} /></span>
           <h3 style={{ fontSize: 18, fontWeight: 700, margin: '12px 0 4px' }}>Done!</h3>
           <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 16 }}>
             £{(appointment.price_cents / 100).toFixed(2)} logged via {paymentMethod}
@@ -2803,7 +2803,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               style={{ ...styles.rebookSendBtn, opacity: rebookSaving || rebookSent ? 0.7 : 1 }}
               disabled={rebookSaving || rebookSent}
               onClick={handleSendRebook}>
-              {rebookSent ? '✓ Reminder scheduled' : rebookSaving ? 'Scheduling…' : `Send rebook reminder in ${rebookWeeks} weeks`}
+              {rebookSent ? 'Reminder scheduled' : rebookSaving ? 'Scheduling…' : `Send rebook reminder in ${rebookWeeks} weeks`}
             </button>
           </div>
           <button onClick={handleDone} style={styles.doneCloseBtn}>Close</button>
@@ -2931,12 +2931,12 @@ const styles = {
 };
 // BlockTimeModal - create a new time block
 const BLOCK_REASONS = [
-  { key: 'lunch', label: '🍽️ Lunch' },
-  { key: 'holiday', label: '🏖️ Holiday' },
-  { key: 'personal', label: '🏠 Personal' },
+  { key: 'lunch', label: 'Lunch' },
+  { key: 'holiday', label: 'Holiday' },
+  { key: 'personal', label: 'Personal' },
   { key: 'sick', label: '🤒 Sick' },
-  { key: 'training', label: '📚 Training' },
-  { key: 'other', label: '✏️ Other' },
+  { key: 'training', label: 'Training' },
+  { key: 'other', label: 'Other' },
 ];
 function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
   const now = new Date();

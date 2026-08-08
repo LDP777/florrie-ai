@@ -13,6 +13,7 @@ import { useState } from 'react';
 import { useBeautician } from '../lib/supabase.js';
 import { ds, type } from '../lib/designSystem.js';
 import PageLoader from '../components/PageLoader.jsx';
+import Icon from '../components/ui/Icon';
 
 const tabs = ['API Reference', 'Your Account', 'Webhooks'];
 
@@ -80,7 +81,7 @@ export default function APISettings() {
             <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.02em' }}>v1.0</div>
             <div style={{ fontSize: 13, opacity: 0.9, marginTop: 4 }}>REST · JSON · Bearer auth</div>
           </div>
-          <div style={{ fontSize: 40 }}>⚡</div>
+          <div style={{ fontSize: 40 }}><Icon name="sparkles" size={40} /></div>
         </div>
         <div style={{ display: 'flex', gap: 16, marginTop: 16 }}>
           {[
@@ -124,7 +125,7 @@ export default function APISettings() {
             );
           })}
           <div style={{ ...ds.insightCard, marginTop: 16 }}>
-            <span style={{ fontSize: 18 }}>🔐</span>
+            <span style={{ fontSize: 18 }}><Icon name="lock" size={15} /></span>
             <div style={{ ...type.bodySmall, fontSize: 12, lineHeight: 1.5 }}>
               All authenticated endpoints require a <code style={{ fontFamily: 'var(--font-mono)', background: 'var(--bg-subtle)', padding: '1px 4px', borderRadius: 4 }}>Bearer</code> token
               from your Supabase session. Pass it as the <code style={{ fontFamily: 'var(--font-mono)', background: 'var(--bg-subtle)', padding: '1px 4px', borderRadius: 4 }}>Authorization</code> header.
@@ -151,7 +152,7 @@ export default function APISettings() {
                     onClick={() => copyToClipboard(item.value, item.key)}
                     style={{ ...ds.btnGhost, fontSize: 11, padding: '4px 10px' }}
                   >
-                    {copied === item.key ? '✓ Copied' : 'Copy'}
+                    {copied === item.key ? 'Copied' : 'Copy'}
                   </button>
                 )}
               </div>
@@ -184,7 +185,7 @@ export default function APISettings() {
       {tab === 2 && (
         <div>
           <div style={{ ...ds.heroCard, textAlign: 'center', marginBottom: 16, background: 'linear-gradient(135deg, var(--bg-card) 0%, var(--bg-subtle) 100%)', border: '1px solid var(--border)' }}>
-            <div style={{ fontSize: 36, marginBottom: 12 }}>🪝</div>
+            <div style={{ fontSize: 36, marginBottom: 12 }}><Icon name="link" size={36} /></div>
             <div style={{ ...type.heading, marginBottom: 6, fontSize: 16 }}>Webhooks coming soon</div>
             <div style={{ ...type.bodySmall, fontSize: 13, lineHeight: 1.6 }}>
               Configure outbound webhooks to receive real-time events - booking created, appointment completed, new client, and more. We'll send a POST request to your URL when these events fire.

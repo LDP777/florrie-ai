@@ -5,6 +5,7 @@ import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
+import Icon from '../components/ui/Icon';
 
 const tabs = ['Overview', 'Locations'];
 
@@ -94,7 +95,7 @@ export default function MultiLocation() {
             <div style={{ fontSize: 36, fontWeight: 700 }}>{locs.length} {locs.length === 1 ? 'location' : 'locations'}</div>
             <div style={{ fontSize: 13, opacity: 0.9, marginTop: 4 }}>{activeLocations.length} active · {settingUp.length} setting up</div>
           </div>
-          <div style={{ fontSize: 40 }}>🏢</div>
+          <div style={{ fontSize: 40 }}><Icon name="map-pin" size={40} /></div>
         </div>
       </div>
 
@@ -134,7 +135,7 @@ export default function MultiLocation() {
         <div>
           {locs.length === 0 && !adding && (
             <EmptyState
-              icon="🏢"
+              icon="map-pin"
               title="No locations yet"
               subtitle="Add a branch to manage more than one place from one account."
               actionLabel="+ Add location"
@@ -166,7 +167,7 @@ export default function MultiLocation() {
         <div>
           {locs.length === 0 && !adding && (
             <EmptyState
-              icon="📍"
+              icon="map-pin"
               title="No locations yet"
               subtitle="Once you add a location, its details will show here."
               actionLabel="+ Add location"

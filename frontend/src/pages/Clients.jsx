@@ -7,6 +7,7 @@ import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import { todayLocal } from '../lib/dates.js';
+import Icon from '../components/ui/Icon';
 
 function getToken() {
   const key = Object.keys(localStorage).find(k => /^sb-.+-auth-token$/.test(k));
@@ -699,7 +700,7 @@ export default function Clients() {
         <PageLoader message="Loading clients..." />
       ) : clients.length === 0 ? (
         <EmptyState
-          icon="👥"
+          icon="users"
           title={search ? 'No matches' : 'No clients yet'}
           subtitle={search ? 'Try a different search.' : 'Add clients manually or import from your old scheduler.'}
           actionLabel={search ? null : 'Import clients'}
@@ -707,7 +708,7 @@ export default function Clients() {
         />
       ) : filtered.length === 0 ? (
         <EmptyState
-          icon="🔍"
+          icon="search"
           title="No clients in this view"
           subtitle={`Nothing matches ${FILTERS.find(f => f.id === filter)?.label || filter}${search ? ' and the current search' : ''}. Try a different filter.`}
           actionLabel="Show all"
@@ -728,7 +729,7 @@ export default function Clients() {
               >
                 {selectMode && (
                   <div style={{ ...styles.checkbox, background: isChecked ? 'var(--accent)' : 'transparent', borderColor: isChecked ? 'var(--accent)' : 'var(--border)' }}>
-                    {isChecked && <span style={styles.checkmark}>✓</span>}
+                    {isChecked && <span style={styles.checkmark}><Icon name="check" size={15} /></span>}
                   </div>
                 )}
                 <div style={styles.clientAvatar}>
@@ -1034,15 +1035,15 @@ function ClientDetailPanel({ detail, onClose, onNavigate, onChanged }) {
         {/* Quick actions */}
         <div style={styles.quickActions}>
           <button style={styles.quickActionBtn} onClick={() => setDetailTab('messages')}>
-            <span style={{ fontSize: 16 }}>💬</span>
+            <span style={{ fontSize: 16 }}><Icon name="message" size={15} /></span>
             <span>Message</span>
           </button>
           <button style={styles.quickActionBtn} onClick={() => { onClose(); onNavigate && onNavigate('/calendar'); }}>
-            <span style={{ fontSize: 16 }}>📅</span>
+            <span style={{ fontSize: 16 }}><Icon name="calendar" size={15} /></span>
             <span>Rebook</span>
           </button>
           <button style={styles.quickActionBtn} onClick={() => { onClose(); onNavigate && onNavigate('/promos'); }}>
-            <span style={{ fontSize: 16 }}>🎁</span>
+            <span style={{ fontSize: 16 }}><Icon name="gift" size={15} /></span>
             <span>Send Offer</span>
           </button>
         </div>
@@ -1178,7 +1179,7 @@ function ClientDetailPanel({ detail, onClose, onNavigate, onChanged }) {
 
             {/* AI insight */}
             <div style={styles.aiInsight}>
-              <span style={{ fontSize: 14 }}>🤖</span>
+              <span style={{ fontSize: 14 }}><Icon name="sparkles" size={15} /></span>
               <span style={styles.aiInsightText}>
                 {healthLabel === 'Dormant' ? `${client?.first_name} hasn't been in for ${daysSinceVisit} days. Send a comeback message?`
                   : healthLabel === 'Cooling' ? `${client?.first_name}'s visits are slowing down. A rebook nudge might help.`
@@ -1290,19 +1291,19 @@ function ClientDetailPanel({ detail, onClose, onNavigate, onChanged }) {
             <div style={styles.prefsSection}>
               <h4 style={styles.sectionLabel}>Preferences</h4>
               <div style={styles.prefRow}>
-                <span style={styles.prefIcon}>🕐</span>
+                <span style={styles.prefIcon}><Icon name="clock" size={15} /></span>
                 <span style={styles.prefText}>
                   {client?.preferred_time ? `Prefers ${client.preferred_time}` : 'No time preference set'}
                 </span>
               </div>
               <div style={styles.prefRow}>
-                <span style={styles.prefIcon}>💅</span>
+                <span style={styles.prefIcon}><Icon name="sparkles" size={15} /></span>
                 <span style={styles.prefText}>
                   {client?.preferred_treatment ? client.preferred_treatment : 'No favourite treatment yet'}
                 </span>
               </div>
               <div style={styles.prefRow}>
-                <span style={styles.prefIcon}>⚠️</span>
+                <span style={styles.prefIcon}><Icon name="alert-triangle" size={15} /></span>
                 <span style={styles.prefText}>
                   {client?.allergies ? client.allergies : 'No allergies or sensitivities noted'}
                 </span>

@@ -21,6 +21,7 @@
  *   onSuccess   - called after successful payment
  */
 import { useState, useEffect, useRef } from 'react';
+import Icon from './ui/Icon';
 
 const STRIPE_PK = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
 const API = import.meta.env.VITE_API_URL || '';
@@ -258,7 +259,7 @@ export default function CheckoutModal({ plan, interval, authToken, onClose, onSu
             </div>
           </div>
           {canClose && (
-            <button onClick={onClose} style={S.closeBtn} aria-label="Close">✕</button>
+            <button onClick={onClose} style={S.closeBtn} aria-label="Close"><Icon name="x" size={15} /></button>
           )}
         </div>
 
@@ -273,7 +274,7 @@ export default function CheckoutModal({ plan, interval, authToken, onClose, onSu
         {/* Error */}
         {stage === 'error' && (
           <div style={S.centreWrap}>
-            <div style={S.errorIcon}>⚠</div>
+            <div style={S.errorIcon}><Icon name="alert-triangle" size={15} /></div>
             <div style={S.errorBig}>{errorMsg}</div>
             <button onClick={onClose} style={S.ghostBtn}>Close</button>
           </div>
@@ -282,7 +283,7 @@ export default function CheckoutModal({ plan, interval, authToken, onClose, onSu
         {/* Success */}
         {stage === 'success' && (
           <div style={S.centreWrap}>
-            <div style={S.successIcon}>✓</div>
+            <div style={S.successIcon}><Icon name="check" size={32} /></div>
             <div style={S.successText}>You're subscribed!</div>
             <div style={S.dimText}>Setting up your account…</div>
           </div>
@@ -317,8 +318,7 @@ export default function CheckoutModal({ plan, interval, authToken, onClose, onSu
             )}
           </button>
 
-          <p style={S.secureNote}>
-            🔒 Secured by Stripe. Your card details never touch our servers.
+          <p style={S.secureNote}><Icon name="lock" size={14} inline /> Secured by Stripe. Your card details never touch our servers.
           </p>
         </form>
 

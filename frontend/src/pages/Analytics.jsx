@@ -4,6 +4,7 @@ import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
+import Icon from '../components/ui/Icon';
 
 /**
  * Analytics - unified historical analytics hub.
@@ -367,7 +368,7 @@ export default function Analytics() {
 
             {stats.busiestDay && stats.busiestDay.count > 0 && (
               <div style={styles.insightCard}>
-                <span style={styles.insightIcon}>📊</span>
+                <span style={styles.insightIcon}><Icon name="chart" size={15} /></span>
                 <div style={styles.insightContent}>
                   <span style={styles.insightTitle}>Busiest day</span>
                   <span style={styles.insightText}>
@@ -411,7 +412,7 @@ export default function Analytics() {
             </div>
           </>
         ) : (
-          <EmptyState icon="📊" title="No data yet" desc="Analytics appear once you start booking appointments." />
+          <EmptyState icon="chart" title="No data yet" desc="Analytics appear once you start booking appointments." />
         )
       )}
 
@@ -459,7 +460,7 @@ export default function Analytics() {
             )}
 
             {filteredTreatments.length === 0 ? (
-              <EmptyState icon="💅" title="No treatment data yet" desc="Data appears after clients start booking." />
+              <EmptyState icon="sparkles" title="No treatment data yet" desc="Data appears after clients start booking." />
             ) : (
               filteredTreatments.map((t, i) => (
                 <div key={t.id} style={styles.treatmentCard}>
@@ -508,21 +509,21 @@ export default function Analytics() {
           <p style={styles.exportDesc}>Download your Florrie data as CSV files ready to open in Excel or Numbers.</p>
 
           <ExportCard
-            icon="📅"
+            icon="calendar"
             title="Appointments"
             desc={`${allAppointments.length} records - date, client, treatment, status, revenue`}
             onExport={exportAppointments}
             loading={exportLoading}
           />
           <ExportCard
-            icon="👥"
+            icon="users"
             title="Clients"
             desc={`${allClients.length} clients - name, email, phone, joined date`}
             onExport={exportClients}
             loading={exportLoading}
           />
           <ExportCard
-            icon="💅"
+            icon="sparkles"
             title="Treatments"
             desc={`${treatmentStats.length} treatments - bookings, revenue, duration (last 90 days)`}
             onExport={exportTreatments}
@@ -653,13 +654,13 @@ function computeUtilisation(workingHours, completed, start, end) {
 // Insights logic
 function getInsights(stats) {
   const insights = [];
-  if (stats.noShowRate > 10) insights.push({ icon: '⚠️', text: `No-show rate is ${stats.noShowRate}%. Deposits reduce this significantly.` });
-  if (stats.noShowRate <= 5) insights.push({ icon: '🎉', text: 'Your no-show rate is excellent. Your clients are reliable.' });
-  if (stats.utilizationRate !== null && stats.utilizationRate < 60) insights.push({ icon: '💡', text: 'You have room to fill. A last-minute deals campaign could help.' });
-  if (stats.utilizationRate !== null && stats.utilizationRate > 85) insights.push({ icon: '🔥', text: "You're nearly fully booked. Consider raising prices or opening a waitlist." });
-  if (stats.newClients > 0) insights.push({ icon: '👋', text: `${stats.newClients} new client${stats.newClients > 1 ? 's' : ''} this period. Keep your booking link visible.` });
-  if (stats.topClients.length > 0 && stats.topClients[0].visits >= 3) insights.push({ icon: '💎', text: `${stats.topClients[0].name} is your top client with ${stats.topClients[0].visits} visits. A loyalty perk could lock them in.` });
-  if (insights.length === 0) insights.push({ icon: '📈', text: 'Keep booking and trends will surface here automatically.' });
+  if (stats.noShowRate > 10) insights.push({ icon: 'alert-triangle', text: `No-show rate is ${stats.noShowRate}%. Deposits reduce this significantly.` });
+  if (stats.noShowRate <= 5) insights.push({ icon: 'sparkles', text: 'Your no-show rate is excellent. Your clients are reliable.' });
+  if (stats.utilizationRate !== null && stats.utilizationRate < 60) insights.push({ icon: 'info', text: 'You have room to fill. A last-minute deals campaign could help.' });
+  if (stats.utilizationRate !== null && stats.utilizationRate > 85) insights.push({ icon: 'flame', text: "You're nearly fully booked. Consider raising prices or opening a waitlist." });
+  if (stats.newClients > 0) insights.push({ icon: 'hand', text: `${stats.newClients} new client${stats.newClients > 1 ? 's' : ''} this period. Keep your booking link visible.` });
+  if (stats.topClients.length > 0 && stats.topClients[0].visits >= 3) insights.push({ icon: 'sparkles', text: `${stats.topClients[0].name} is your top client with ${stats.topClients[0].visits} visits. A loyalty perk could lock them in.` });
+  if (insights.length === 0) insights.push({ icon: 'trending-up', text: 'Keep booking and trends will surface here automatically.' });
   return insights;
 }
 

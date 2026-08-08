@@ -4,6 +4,7 @@ import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
+import Icon from '../components/ui/Icon';
 
 /**
  * Gift Vouchers - Create, send & redeem digital gift vouchers.
@@ -164,8 +165,7 @@ export default function GiftVouchers() {
         <button onClick={() => { setShowCreate(true); setTab('create'); }} style={styles.createBtn}>
           + Create Voucher
         </button>
-        <button onClick={() => setShowRedeem(true)} style={styles.redeemBtn}>
-          🎫 Redeem
+        <button onClick={() => setShowRedeem(true)} style={styles.redeemBtn}><Icon name="tag" size={14} inline /> Redeem
         </button>
       </div>
 
@@ -192,7 +192,7 @@ export default function GiftVouchers() {
             <p style={styles.loadingText}>Loading vouchers...</p>
           ) : active.length === 0 ? (
             <div style={styles.emptyState}>
-              <span style={{ fontSize: 32, display: 'block', marginBottom: 8 }}>🎁</span>
+              <span style={{ fontSize: 32, display: 'block', marginBottom: 8 }}><Icon name="gift" size={32} /></span>
               <p style={styles.emptyTitle}>No active vouchers</p>
               <p style={styles.emptyDesc}>Create your first gift voucher and start earning.</p>
             </div>
@@ -219,7 +219,7 @@ export default function GiftVouchers() {
                   borderColor: form.type === 'amount' ? 'var(--accent, #92405e)' : 'var(--border, #E8DDD4)',
                 }}
               >
-                <span style={{ fontSize: 20 }}>💷</span>
+                <span style={{ fontSize: 20 }}><Icon name="pound" size={15} /></span>
                 <span style={styles.typeBtnLabel}>Amount</span>
               </button>
               <button
@@ -229,7 +229,7 @@ export default function GiftVouchers() {
                   borderColor: form.type === 'treatment' ? 'var(--accent, #92405e)' : 'var(--border, #E8DDD4)',
                 }}
               >
-                <span style={{ fontSize: 20 }}>💅</span>
+                <span style={{ fontSize: 20 }}><Icon name="sparkles" size={15} /></span>
                 <span style={styles.typeBtnLabel}>Treatment</span>
               </button>
             </div>

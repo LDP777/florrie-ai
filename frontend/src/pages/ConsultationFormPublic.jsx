@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { API_BASE } from '../lib/config.js';
+import Icon from '../components/ui/Icon';
 
 /**
  * ConsultationFormPublic - the client-facing form page.
@@ -147,7 +148,7 @@ export default function ConsultationFormPublic() {
     return (
       <div style={styles.page}>
         <div style={{ ...styles.successCard, borderTopColor: brandColor }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>✓</div>
+          <div style={{ fontSize: 40, marginBottom: 12 }}><Icon name="check" size={40} /></div>
           <h2 style={styles.successTitle}>All done!</h2>
           <p style={styles.successText}>
             Thanks{clientName ? `, ${clientName}` : ''}. Your form has been submitted to {beautician?.name || 'your beautician'}.

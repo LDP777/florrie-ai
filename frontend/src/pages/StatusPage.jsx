@@ -8,7 +8,7 @@
 export default function StatusPage({ kind = 'card_saved' }) {
   const COPY = {
     card_saved: {
-      icon: '✓',
+      icon: 'check',
       title: 'Card saved',
       body: 'Thank you. Your card is safely stored with our payment provider and nothing has been charged. You are all set for your appointment.',
       tone: '#5BA67F',
@@ -20,7 +20,7 @@ export default function StatusPage({ kind = 'card_saved' }) {
       tone: '#8A8580',
     },
     pay_success: {
-      icon: '✓',
+      icon: 'check',
       title: 'Payment received',
       body: 'Thank you. Your payment has gone through and a receipt is on its way to you by email.',
       tone: '#5BA67F',

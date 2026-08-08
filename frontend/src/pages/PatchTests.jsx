@@ -6,6 +6,7 @@ import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import { todayLocal } from '../lib/dates.js';
+import Icon from '../components/ui/Icon';
 
 /**
  * Patch Test Tracker - Regulatory compliance for brow & lash treatments.
@@ -24,10 +25,10 @@ import { todayLocal } from '../lib/dates.js';
  */
 
 const PATCH_STATUS = {
-  valid: { label: 'Valid', color: 'var(--success)', bg: 'var(--success-bg)', icon: '✅' },
-  expiring: { label: 'Expiring soon', color: 'var(--warning)', bg: 'var(--warning-bg)', icon: '⚠️' },
-  expired: { label: 'Expired', color: 'var(--danger)', bg: 'var(--danger-bg)', icon: '❌' },
-  none: { label: 'No test', color: 'var(--text-muted)', bg: 'var(--bg-subtle)', icon: '❓' },
+  valid: { label: 'Valid', color: 'var(--success)', bg: 'var(--success-bg)', icon: 'check-circle' },
+  expiring: { label: 'Expiring soon', color: 'var(--warning)', bg: 'var(--warning-bg)', icon: 'alert-triangle' },
+  expired: { label: 'Expired', color: 'var(--danger)', bg: 'var(--danger-bg)', icon: 'x' },
+  none: { label: 'No test', color: 'var(--text-muted)', bg: 'var(--bg-subtle)', icon: 'info' },
 };
 
 function getStatus(testDate, expiryMonths) {
@@ -333,8 +334,8 @@ export default function PatchTests() {
             <label style={styles.formLabel}>Result</label>
             <div style={styles.resultRow}>
               {[
-                { value: 'pass', label: 'Pass - no reaction', icon: '✅' },
-                { value: 'fail', label: 'Fail - reaction', icon: '❌' },
+                { value: 'pass', label: 'Pass - no reaction', icon: 'check-circle' },
+                { value: 'fail', label: 'Fail - reaction', icon: 'x' },
                 { value: 'pending', label: 'Pending (24h)', icon: '⏳' },
               ].map(r => (
                 <button
@@ -390,7 +391,7 @@ export default function PatchTests() {
         <div>
           {alertCount === 0 ? (
             <div style={styles.emptyState}>
-              <span style={{ fontSize: 32, display: 'block', marginBottom: 8 }}>✅</span>
+              <span style={{ fontSize: 32, display: 'block', marginBottom: 8 }}><Icon name="check-circle" size={32} /></span>
               <p style={styles.emptyTitle}>All clear!</p>
               <p style={styles.emptyDesc}>Every upcoming appointment has a valid patch test on file.</p>
             </div>

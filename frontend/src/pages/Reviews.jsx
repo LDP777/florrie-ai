@@ -5,6 +5,7 @@ import PageLoader from '../components/PageLoader.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
+import Icon from '../components/ui/Icon';
 
 /**
  * Reviews & Reputation - track, respond to, and request client reviews.
@@ -84,7 +85,7 @@ export default function Reviews() {
           <span style={styles.heroRating}>{avgRating}</span>
           <div style={styles.heroStars}>
             {[1, 2, 3, 4, 5].map(i => (
-              <span key={i} style={{ fontSize: 16, color: i <= Math.round(parseFloat(avgRating)) ? 'var(--warning, #8A6420)' : 'var(--text-muted, #6B5D54)' }}>★</span>
+              <span key={i} style={{ fontSize: 16, color: i <= Math.round(parseFloat(avgRating)) ? 'var(--warning, #8A6420)' : 'var(--text-muted, #6B5D54)' }}><Icon name="star" size={15} /></span>
             ))}
           </div>
           <span style={styles.heroCount}>{reviews.length} review{reviews.length !== 1 ? 's' : ''}</span>
@@ -139,7 +140,7 @@ export default function Reviews() {
         <div style={styles.body}>
           {reviews.length === 0 ? (
             <div style={styles.emptyState}>
-              <span style={{ fontSize: 36, display: 'block', marginBottom: 12 }}>⭐</span>
+              <span style={{ fontSize: 36, display: 'block', marginBottom: 12 }}><Icon name="star" size={36} /></span>
               <p style={styles.emptyTitle}>No reviews yet</p>
               <p style={styles.emptyDesc}>
                 Connect your Google Business profile to pull in reviews, or start requesting them from clients.
@@ -162,7 +163,7 @@ export default function Reviews() {
                   </div>
                   <div style={styles.reviewStars}>
                     {[1, 2, 3, 4, 5].map(i => (
-                      <span key={i} style={{ fontSize: 13, color: i <= review.rating ? 'var(--warning, #8A6420)' : 'var(--text-muted, #6B5D54)' }}>★</span>
+                      <span key={i} style={{ fontSize: 13, color: i <= review.rating ? 'var(--warning, #8A6420)' : 'var(--text-muted, #6B5D54)' }}><Icon name="star" size={15} /></span>
                     ))}
                   </div>
                 </div>
@@ -181,7 +182,7 @@ export default function Reviews() {
                   </div>
                 ) : replyingTo === review.id ? (
                   <div style={styles.replyForm}>
-                    <span style={styles.replyDraftLabel}>🤖 AI-drafted reply</span>
+                    <span style={styles.replyDraftLabel}><Icon name="sparkles" size={14} inline /> AI-drafted reply</span>
                     <textarea
                       value={replyText}
                       onChange={e => setReplyText(e.target.value)}
@@ -230,7 +231,7 @@ export default function Reviews() {
       {tab === 'request' && (
         <div style={styles.body}>
           <div style={styles.requestCard}>
-            <span style={{ fontSize: 28, display: 'block', marginBottom: 8 }}>📱</span>
+            <span style={{ fontSize: 28, display: 'block', marginBottom: 8 }}><Icon name="phone" size={28} /></span>
             <h3 style={styles.requestTitle}>Review requests are automatic</h3>
             <p style={styles.requestDesc}>
               florrie.ai sends a friendly review request 2 hours after each completed appointment, written in your voice. You don't need to do a thing.

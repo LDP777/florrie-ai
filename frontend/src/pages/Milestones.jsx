@@ -11,6 +11,7 @@ import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import { bloom } from '../lib/bloom.js';
+import Icon from '../components/ui/Icon';
 
 function describe(m) {
   const key = m.key || '';
@@ -93,7 +94,7 @@ export default function Milestones() {
         return (
           <div key={`${m.key}-${i}`} style={S.card}>
             <div style={S.bloomRow}>
-              <span style={{ fontSize: 18 }}>🌸</span>
+              <span style={{ fontSize: 18 }}><Icon name="flower" size={15} /></span>
               <span style={S.cardBrand}>Florrie</span>
               <span style={S.cardDate}>
                 {new Date(m.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}

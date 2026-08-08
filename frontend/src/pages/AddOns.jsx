@@ -11,6 +11,7 @@ import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
+import Icon from '../components/ui/Icon';
 
 const fmt = (cents) => `£${(cents / 100).toFixed(2)}`;
 
@@ -268,7 +269,7 @@ export default function AddOns() {
           </div>
 
           <div style={S.tipCard}>
-            <span style={S.tipTitle}>💡 Upsell Tip</span>
+            <span style={S.tipTitle}><Icon name="info" size={14} inline /> Upsell Tip</span>
             <p style={S.tipText}>
               Add-ons with "auto-suggest" enabled will appear on your booking page when a client selects a matching treatment.
             </p>

@@ -11,16 +11,17 @@ import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
+import Icon from '../components/ui/Icon';
 
 const DEV_TAGS = [
-  { id: 't1', name: 'VIP', colour: 'var(--accent, #92405e)', icon: '⭐', auto: false, clients: ['Shauna', 'Daisy S', 'Holly B'] },
-  { id: 't2', name: 'Patch Test Due', colour: '#FF9800', icon: '⚠️', auto: true, rule: 'Last patch test > 6 months ago', clients: ['Amy R', 'Beth K'] },
-  { id: 't3', name: 'Semi-Perm Client', colour: '#9C27B0', icon: '💎', auto: true, rule: 'Has booked any semi-permanent treatment', clients: ['Shauna', 'Daisy S', 'Holly B', 'Amy R', 'Beth K'] },
-  { id: 't4', name: 'New Client', colour: '#4CAF50', icon: '🌱', auto: true, rule: 'First appointment within last 30 days', clients: ['Megan S'] },
-  { id: 't5', name: 'Dormant', colour: '#9E9E9E', icon: '💤', auto: true, rule: 'No visit in 60+ days', clients: ['Natalie W', 'Lucy P'] },
-  { id: 't6', name: 'Always Late', colour: '#F44336', icon: '🕐', auto: false, clients: ['Jasmin'] },
-  { id: 't7', name: 'Loyalty Gold', colour: '#FFC107', icon: '🏅', auto: true, rule: '10+ appointments completed', clients: ['Shauna'] },
-  { id: 't8', name: 'Referred a Friend', colour: '#03A9F4', icon: '🤝', auto: true, rule: 'Has at least 1 referral', clients: ['Daisy S', 'Shauna'] },
+  { id: 't1', name: 'VIP', colour: 'var(--accent, #92405e)', icon: 'star', auto: false, clients: ['Shauna', 'Daisy S', 'Holly B'] },
+  { id: 't2', name: 'Patch Test Due', colour: '#FF9800', icon: 'alert-triangle', auto: true, rule: 'Last patch test > 6 months ago', clients: ['Amy R', 'Beth K'] },
+  { id: 't3', name: 'Semi-Perm Client', colour: '#9C27B0', icon: 'sparkles', auto: true, rule: 'Has booked any semi-permanent treatment', clients: ['Shauna', 'Daisy S', 'Holly B', 'Amy R', 'Beth K'] },
+  { id: 't4', name: 'New Client', colour: '#4CAF50', icon: 'flower', auto: true, rule: 'First appointment within last 30 days', clients: ['Megan S'] },
+  { id: 't5', name: 'Dormant', colour: '#9E9E9E', icon: 'moon', auto: true, rule: 'No visit in 60+ days', clients: ['Natalie W', 'Lucy P'] },
+  { id: 't6', name: 'Always Late', colour: '#F44336', icon: 'clock', auto: false, clients: ['Jasmin'] },
+  { id: 't7', name: 'Loyalty Gold', colour: '#FFC107', icon: 'badge', auto: true, rule: '10+ appointments completed', clients: ['Shauna'] },
+  { id: 't8', name: 'Referred a Friend', colour: '#03A9F4', icon: 'users', auto: true, rule: 'Has at least 1 referral', clients: ['Daisy S', 'Shauna'] },
 ];
 
 const DEV_SEGMENTS = [
@@ -38,7 +39,7 @@ export default function ClientTags() {
   const [createType, setCreateType] = useState('tag'); // tag | segment
   const [tags, setTags] = useState([]);
   const [segments, setSegments] = useState([]);
-  const [tagForm, setTagForm] = useState({ name: '', colour: 'var(--accent, #92405e)', icon: '🏷️' });
+  const [tagForm, setTagForm] = useState({ name: '', colour: 'var(--accent, #92405e)', icon: 'tag' });
   const [segForm, setSegForm] = useState({ name: '', description: '', selectedTags: [], match: 'all' });
   const [saving, setSaving] = useState(false);
   const [editingTag, setEditingTag] = useState(null);
@@ -129,7 +130,7 @@ export default function ClientTags() {
                     </div>
                   </div>
                   <div style={S.cardRight}>
-                    {tag.auto && <span style={S.autoBadge}>⚡ Auto</span>}
+                    {tag.auto && <span style={S.autoBadge}><Icon name="sparkles" size={14} inline /> Auto</span>}
                     <span style={S.chevron}>{isExp ? '▲' : '▼'}</span>
                   </div>
                 </div>
@@ -185,7 +186,7 @@ export default function ClientTags() {
               <div key={seg.id} style={S.card} onClick={() => setExpanded(isExp ? null : seg.id)}>
                 <div style={S.cardHeader}>
                   <div style={S.cardLeft}>
-                    <span style={S.segIcon}>📊</span>
+                    <span style={S.segIcon}><Icon name="chart" size={15} /></span>
                     <div style={S.cardInfo}>
                       <span style={S.cardName}>{seg.name}</span>
                       <span style={S.cardMeta}>{seg.count} client{seg.count !== 1 ? 's' : ''} · Match {seg.match}</span>
@@ -237,7 +238,7 @@ export default function ClientTags() {
           setShowCreate(false);
           setEditingTag(null);
           setEditingSegment(null);
-          setTagForm({ name: '', colour: 'var(--accent, #92405e)', icon: '🏷️' });
+          setTagForm({ name: '', colour: 'var(--accent, #92405e)', icon: 'tag' });
           setSegForm({ name: '', description: '', selectedTags: [], match: 'all' });
           setError('');
         }}>
@@ -248,17 +249,17 @@ export default function ClientTags() {
                 setShowCreate(false);
                 setEditingTag(null);
                 setEditingSegment(null);
-                setTagForm({ name: '', colour: 'var(--accent, #92405e)', icon: '🏷️' });
+                setTagForm({ name: '', colour: 'var(--accent, #92405e)', icon: 'tag' });
                 setSegForm({ name: '', description: '', selectedTags: [], match: 'all' });
                 setError('');
-              }}>✕</button>
+              }}><Icon name="x" size={15} /></button>
             </div>
 
             {/* Type toggle */}
             <div style={S.typeToggle}>
               {['tag', 'segment'].map(t => (
                 <button key={t} onClick={() => setCreateType(t)} style={{ ...S.typeBtn, ...(createType === t ? S.typeBtnActive : {}) }}>
-                  {t === 'tag' ? '🏷️ Tag' : '📊 Segment'}
+                  {t === 'tag' ? '🏷️ Tag' : 'Segment'}
                 </button>
               ))}
             </div>
@@ -340,7 +341,7 @@ export default function ClientTags() {
                     setTags(prev => [...prev, { ...created, auto: false, rule: '', clients: [] }]);
                   }
 
-                  setTagForm({ name: '', colour: 'var(--accent, #92405e)', icon: '🏷️' });
+                  setTagForm({ name: '', colour: 'var(--accent, #92405e)', icon: 'tag' });
                 } else {
                   if (!segForm.name.trim()) {
                     setError('Segment name is required');

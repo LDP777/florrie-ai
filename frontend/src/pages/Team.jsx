@@ -4,6 +4,7 @@ import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import { isIOSNative } from '../lib/platform.js';
+import Icon from '../components/ui/Icon';
 
 const ROLES = [
   { key: 'stylist', label: 'Stylist', desc: 'Books & manages their own clients' },
@@ -111,7 +112,7 @@ export default function Team() {
       {/* Team list */}
       {members.length === 0 ? (
         <div style={styles.emptyState}>
-          <div style={styles.emptyIcon}>👥</div>
+          <div style={styles.emptyIcon}><Icon name="users" size={32} /></div>
           <p style={styles.emptyTitle}>No team members yet</p>
           <p style={styles.emptyDesc}>
             Add stylists or assistants who work with you. They get their own calendar, client list, and bookings.{!isIOSNative() && ' Each seat is £15/mo.'}
@@ -154,7 +155,7 @@ export default function Team() {
           <div style={styles.modal} onClick={e => e.stopPropagation()}>
             <div style={styles.modalHeader}>
               <h2 style={styles.modalTitle}>Add team member</h2>
-              <button onClick={() => setShowAdd(false)} style={styles.closeBtn}>✕</button>
+              <button onClick={() => setShowAdd(false)} style={styles.closeBtn}><Icon name="x" size={15} /></button>
             </div>
 
             <div style={styles.formGroup}>
@@ -246,7 +247,7 @@ export default function Team() {
               <h2 style={styles.modalTitle}>
                 {selectedMember.first_name} {selectedMember.last_name || ''}
               </h2>
-              <button onClick={() => setSelectedMember(null)} style={styles.closeBtn}>✕</button>
+              <button onClick={() => setSelectedMember(null)} style={styles.closeBtn}><Icon name="x" size={15} /></button>
             </div>
 
             <div style={styles.detailSection}>

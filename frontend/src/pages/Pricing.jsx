@@ -10,6 +10,7 @@ import { PLAN, TEAM_ADDON, getPlanName, isPaidPlan } from '../lib/subscription.j
 import { ds, type } from '../lib/designSystem.js';
 import CheckoutModal from '../components/CheckoutModal.jsx';
 import { isIOSNative } from '../lib/platform.js';
+import Icon from '../components/ui/Icon';
 
 const API = import.meta.env.VITE_API_URL || '';
 
@@ -169,7 +170,7 @@ export default function Pricing() {
         <div style={S.featureList}>
           {PLAN.features.map(f => (
             <div key={f} style={S.feature}>
-              <span style={S.featureCheck}>✓</span>
+              <span style={S.featureCheck}><Icon name="check" size={15} /></span>
               <span style={S.featureText}>{f}</span>
             </div>
           ))}
@@ -201,7 +202,7 @@ export default function Pricing() {
         <div style={S.featureList}>
           {TEAM_ADDON.extras.map(f => (
             <div key={f} style={S.feature}>
-              <span style={S.featureCheck}>✓</span>
+              <span style={S.featureCheck}><Icon name="check" size={15} /></span>
               <span style={S.featureText}>{f}</span>
             </div>
           ))}

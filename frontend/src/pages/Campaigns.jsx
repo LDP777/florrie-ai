@@ -6,6 +6,7 @@ import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
+import Icon from '../components/ui/Icon';
 
 /**
  * Campaigns, AI-powered client outreach.
@@ -22,12 +23,12 @@ import ErrorCard from '../components/ErrorCard.jsx';
  */
 
 const TYPE_CONFIG = {
-  reactivation: { label: 'Comeback', icon: '💌', color: 'var(--accent, #92405e)', desc: 'Win back clients who haven\'t visited in a while' },
+  reactivation: { label: 'Comeback', icon: 'mail', color: 'var(--accent, #92405e)', desc: 'Win back clients who haven\'t visited in a while' },
   rescue: { label: 'Rescue', icon: '🆘', color: 'var(--danger, #9E2B32)', desc: 'Save a cancellation with a quick rebook offer' },
   weather: { label: 'Weather', icon: '🌧️', color: 'var(--info, #4A6C82)', desc: 'Bad weather = pamper day. Triggered by forecast' },
-  bank_holiday: { label: 'Bank Holiday', icon: '🎉', color: 'var(--warning, #8A6420)', desc: 'Promo blast before long weekends' },
-  event: { label: 'Seasonal', icon: '🎄', color: 'var(--success, #3F7D5C)', desc: 'Christmas, Valentine\'s, Mother\'s Day specials' },
-  custom: { label: 'Custom', icon: '✏️', color: 'var(--text-secondary, #574A42)', desc: 'Write your own campaign from scratch' },
+  bank_holiday: { label: 'Bank Holiday', icon: 'sparkles', color: 'var(--warning, #8A6420)', desc: 'Promo blast before long weekends' },
+  event: { label: 'Seasonal', icon: 'gift', color: 'var(--success, #3F7D5C)', desc: 'Christmas, Valentine\'s, Mother\'s Day specials' },
+  custom: { label: 'Custom', icon: 'edit', color: 'var(--text-secondary, #574A42)', desc: 'Write your own campaign from scratch' },
 };
 
 const STATUS_LABELS = {
@@ -295,7 +296,7 @@ export default function Campaigns() {
 
           {/* Target count */}
           <div style={styles.targetCard}>
-            <span style={styles.targetIcon}>👥</span>
+            <span style={styles.targetIcon}><Icon name="users" size={15} /></span>
             <div>
               <span style={styles.targetLabel}>
                 {form.targetCount == null
@@ -344,7 +345,7 @@ export default function Campaigns() {
           {/* AI suggestion card */}
           <div style={styles.aiCard}>
             <div style={styles.aiCardHeader}>
-              <span style={{ fontSize: 16 }}>🤖</span>
+              <span style={{ fontSize: 16 }}><Icon name="sparkles" size={15} /></span>
               <span style={styles.aiCardTitle}>AI Suggestion</span>
             </div>
             <p style={styles.aiCardText}>{aiSuggestion.text}</p>
@@ -387,7 +388,7 @@ export default function Campaigns() {
         <div style={styles.body}>
           {history.length === 0 ? (
             <div style={styles.emptyState}>
-              <span style={{ fontSize: 36, display: 'block', marginBottom: 12 }}>📬</span>
+              <span style={{ fontSize: 36, display: 'block', marginBottom: 12 }}><Icon name="inbox" size={36} /></span>
               <p style={styles.emptyTitle}>No campaign history yet</p>
               <p style={styles.emptyDesc}>Sent and cancelled campaigns will appear here with performance stats.</p>
             </div>
@@ -460,7 +461,7 @@ export default function Campaigns() {
             ) : (
               <>
                 <div style={styles.resultHeader}>
-                  <span style={{ fontSize: 30 }}>✨</span>
+                  <span style={{ fontSize: 30 }}><Icon name="sparkles" size={30} /></span>
                   <h2 style={styles.detailName}>
                     {sendResult.sent > 0
                       ? `${sendResult.sent} message${sendResult.sent !== 1 ? 's' : ''} on the way`

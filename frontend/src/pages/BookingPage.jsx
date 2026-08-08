@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase.js'
 import { useParams, useLocation } from 'react-router-dom';
 import PhoneField from '../components/PhoneField.jsx';
 import { API_BASE } from '../lib/config.js';
+import Icon from '../components/ui/Icon';
 
 // Cloudflare Turnstile (bot protection). Renders ONLY when VITE_TURNSTILE_SITE_KEY
 // is set, so environments without keys behave exactly as before.
@@ -926,7 +927,7 @@ export default function BookingPage() {
     return (
       <div style={styles.page}>
         <div style={styles.card}>
-          <div style={{ ...styles.successIcon, background: brandLight, color: brand }}>✓</div>
+          <div style={{ ...styles.successIcon, background: brandLight, color: brand }}><Icon name="check" size={15} /></div>
           <h2 style={styles.successTitle}>
             {success.depositPaid ? (receipt?.paidInFull ? "You're booked, paid in full" : "You're booked, deposit paid") : success.depositPending ? "Almost there, deposit needed" : "You're booked"}
           </h2>
@@ -1566,8 +1567,7 @@ export default function BookingPage() {
                     padding: '6px 10px', borderRadius: 8, background: 'var(--gold-bg, #FFF8E1)',
                     border: '1px solid var(--gold, #8A6420)', fontSize: 12, fontWeight: 500,
                     color: 'var(--gold, #8A6420)',
-                  }}>
-                    ★ Member, {memberInfo.plan_name}
+                  }}><Icon name="star" size={14} inline /> Member, {memberInfo.plan_name}
                   </div>
                 )}
                 <p style={{ fontSize: 11, color: '#9C9690', marginTop: 6, marginBottom: 0, lineHeight: 1.4,
@@ -1599,13 +1599,11 @@ export default function BookingPage() {
                     </span>
                     <span style={{ color: 'var(--text-secondary)' }}> We've filled in your details.</span>
                     {recognisedClient.hasPendingPatchTest && needsPatchTest && (
-                      <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--warning)', fontWeight: 500 }}>
-                        ⚠️ You have a patch test pending, your beautician will be in touch.
+                      <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--warning)', fontWeight: 500 }}><Icon name="alert-triangle" size={14} inline /> You have a patch test pending, your beautician will be in touch.
                       </p>
                     )}
                     {recognisedClient.hasPendingForm && (
-                      <p style={{ margin: '4px 0 0', fontSize: 12, color: '#7B6BA8', fontWeight: 500 }}>
-                        📋 You have a consultation form to complete.
+                      <p style={{ margin: '4px 0 0', fontSize: 12, color: '#7B6BA8', fontWeight: 500 }}><Icon name="list" size={14} inline /> You have a consultation form to complete.
                       </p>
                     )}
                   </div>
@@ -1952,9 +1950,9 @@ export default function BookingPage() {
               const accepted = paySettings.accepted_methods || ['cash'];
               const stripeActive = beautician?.stripe_onboarding_complete === true;
               const available = [
-                stripeActive && accepted.includes('card_online') && { key: 'card', label: 'Card online', icon: '💳' },
-                accepted.includes('cash') && { key: 'cash', label: 'Cash on the day', icon: '💵' },
-                accepted.includes('bank_transfer') && { key: 'bank_transfer', label: 'Bank transfer', icon: '🏦' },
+                stripeActive && accepted.includes('card_online') && { key: 'card', label: 'Card online', icon: 'card' },
+                accepted.includes('cash') && { key: 'cash', label: 'Cash on the day', icon: 'pound' },
+                accepted.includes('bank_transfer') && { key: 'bank_transfer', label: 'Bank transfer', icon: 'wallet' },
               ].filter(Boolean);
               if (available.length <= 1) return null;
               return (

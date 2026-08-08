@@ -3,6 +3,7 @@ import { useBeautician, fetchRows, insertRow, updateRow } from '../lib/supabase.
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
+import Icon from '../components/ui/Icon';
 
 const STATUS_COLORS = {
   active: { bg: 'var(--success-bg, #E9F0EB)', color: 'var(--success, #3F7D5C)' },
@@ -142,7 +143,7 @@ export default function ClientMemberships() {
         <div style={s.planList}>
           {plans.length === 0 && !showCreate && (
             <EmptyState
-              icon="💳"
+              icon="card"
               title="No membership plans yet"
               subtitle="Create a plan to offer clients recurring monthly perks and steady income."
               actionLabel="+ Create a plan"
@@ -165,7 +166,7 @@ export default function ClientMemberships() {
                 <div style={s.perkList}>
                   {plan.perks.map((perk, i) => (
                     <div key={i} style={s.perkItem}>
-                      <span style={{ color: plan.color }}>✓</span>
+                      <span style={{ color: plan.color }}><Icon name="check" size={15} /></span>
                       <span style={{ fontSize: 13, color: 'var(--text, #241B17)' }}>{perk}</span>
                     </div>
                   ))}
@@ -203,7 +204,7 @@ export default function ClientMemberships() {
         <div style={s.memberList}>
           {members.length === 0 && (
             <EmptyState
-              icon="👥"
+              icon="users"
               title="No members yet"
               subtitle="When clients subscribe to one of your plans, they'll appear here."
             />
@@ -244,7 +245,7 @@ export default function ClientMemberships() {
       {tab === 'settings' && (
         <div style={s.settingsList}>
           <EmptyState
-            icon="⚙️"
+            icon="settings"
             title="Membership settings coming soon"
             subtitle="Auto-renewal, payment reminders and retry rules will live here. For now, plans bill monthly by default."
           />

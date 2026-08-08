@@ -6,6 +6,7 @@ import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
+import Icon from '../components/ui/Icon';
 
 /**
  * Smart Schedule, Gap Finder & Fill Assistant.
@@ -516,7 +517,7 @@ export default function SmartSchedule() {
           {loading ? (
             <PageLoader />
           ) : gaps.length === 0 ? (
-            <EmptyState icon="🎉" title="Fully booked!" subtitle="No gaps this week. You're crushing it." />
+            <EmptyState icon="sparkles" title="Fully booked!" subtitle="No gaps this week. You're crushing it." />
           ) : (
             <div style={styles.gapList}>
               {gaps.map(gap => {
@@ -653,7 +654,7 @@ export default function SmartSchedule() {
             </div>
           )}
           <div style={styles.suggSection}>
-            <h3 style={styles.suggSectionTitle}>🔄 Rebook due</h3>
+            <h3 style={styles.suggSectionTitle}><Icon name="refresh" size={14} inline /> Rebook due</h3>
             <p style={styles.suggSectionDesc}>Clients overdue for their regular appointment</p>
             {suggestions.rebook_due.map((s, i) => (
               <div key={`rb-${i}`} style={styles.suggFullCard}>
@@ -680,7 +681,7 @@ export default function SmartSchedule() {
           </div>
 
           <div style={styles.suggSection}>
-            <h3 style={styles.suggSectionTitle}>💤 Dormant rescue</h3>
+            <h3 style={styles.suggSectionTitle}><Icon name="moon" size={14} inline /> Dormant rescue</h3>
             <p style={styles.suggSectionDesc}>Clients going cold, win them back</p>
             {suggestions.dormant_rescue.map((s, i) => (
               <div key={`dr-${i}`} style={styles.suggFullCard}>
@@ -709,7 +710,7 @@ export default function SmartSchedule() {
           </div>
 
           <div style={styles.suggSection}>
-            <h3 style={styles.suggSectionTitle}>📋 Waitlist ready</h3>
+            <h3 style={styles.suggSectionTitle}><Icon name="list" size={14} inline /> Waitlist ready</h3>
             <p style={styles.suggSectionDesc}>Clients waiting for a slot that matches</p>
             {suggestions.waitlist_match.map((s, i) => (
               <div key={`wl-${i}`} style={styles.suggFullCard}>
@@ -787,7 +788,7 @@ export default function SmartSchedule() {
 
           {tip && (
             <div style={styles.tipCard}>
-              <span style={{ fontSize: 16, marginRight: 8 }}>💡</span>
+              <span style={{ fontSize: 16, marginRight: 8 }}><Icon name="info" size={15} /></span>
               <div>
                 <span style={styles.tipTitle}>Florrie's suggestion</span>
                 <span style={styles.tipText}>{tip}</span>

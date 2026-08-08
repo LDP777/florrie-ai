@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ds, type } from '../lib/designSystem.js';
 import { supabase } from '../lib/supabase.js';
+import Icon from '../components/ui/Icon';
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -196,7 +197,7 @@ export default function SMSConfig() {
               {twoWay ? '2-way, clients can reply' : 'One-way, alphanumeric sender, no replies'}
             </div>
           </div>
-          <div style={{ fontSize: 40 }}>📱</div>
+          <div style={{ fontSize: 40 }}><Icon name="phone" size={40} /></div>
         </div>
 
         {usage && (

@@ -271,7 +271,7 @@ export default function ClientManagePage() {
   if (error) return (
     <div style={S.page}>
       <div style={S.card}>
-        <div style={{ fontSize: 40, textAlign: 'center', marginBottom: 12 }}>🔍</div>
+        <div style={{ fontSize: 40, textAlign: 'center', marginBottom: 12 }}><Icon name="search" size={40} /></div>
         <h2 style={S.cardTitle}>Booking not found</h2>
         <p style={S.cardBody}>
           {error === 'Booking not found'
@@ -321,7 +321,7 @@ export default function ClientManagePage() {
               background: brandLight, border: `1.5px solid ${brand}`,
             }}
           >
-            <span style={{ fontSize: 20, lineHeight: 1.1 }}>🩺</span>
+            <span style={{ fontSize: 20, lineHeight: 1.1 }}><Icon name="syringe" size={15} /></span>
             <span style={{ flex: 1 }}>
               <span style={{ display: 'block', fontSize: 15, fontWeight: 700, color: brand, marginBottom: 3 }}>
                 Book your patch test
@@ -367,7 +367,7 @@ export default function ClientManagePage() {
             <strong>Payment required</strong> - your slot is held but not confirmed until payment is received.
             {' '}
             {paymentResent ? (
-              <span style={{ color: 'var(--success-text)', fontWeight: 600 }}>✓ Payment link sent to your email.</span>
+              <span style={{ color: 'var(--success-text)', fontWeight: 600 }}><Icon name="check" size={14} inline /> Payment link sent to your email.</span>
             ) : (
               <button
                 onClick={handleResendPayment}
@@ -578,8 +578,7 @@ export default function ClientManagePage() {
                   </p>
                 )}
                 {policy.withinCancellationWindow && (
-                  <div style={S.warningBanner}>
-                    ⚠️ You are within the {policy.cancellation_notice_hours}-hour notice period.
+                  <div style={S.warningBanner}><Icon name="alert-triangle" size={14} inline /> You are within the {policy.cancellation_notice_hours}-hour notice period.
                     A fee may apply if you cancel now.
                   </div>
                 )}
@@ -622,7 +621,7 @@ export default function ClientManagePage() {
             {needsPatchTest && (
               <div style={S.patchTestBooking}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                  <span style={{ fontSize: 20 }}>🩺</span>
+                  <span style={{ fontSize: 20 }}><Icon name="syringe" size={15} /></span>
                   <div style={{ flex: 1 }}>
                     <p style={{ margin: '0 0 2px', fontSize: 14, fontWeight: 600, color: '#2D1B1B' }}>
                       Patch test required
@@ -669,7 +668,7 @@ export default function ClientManagePage() {
                     {!showSlotPicker ? (
                       <div style={S.patchTestBooking}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                          <span style={{ fontSize: 20 }}>🩺</span>
+                          <span style={{ fontSize: 20 }}><Icon name="syringe" size={15} /></span>
                           <div style={{ flex: 1 }}>
                             <p style={{ margin: '0 0 2px', fontSize: 14, fontWeight: 600, color: '#2D1B1B' }}>
                               Patch test required
@@ -691,7 +690,7 @@ export default function ClientManagePage() {
                                 disabled={confirmingSlot}
                                 style={{ ...S.confirmSlotBtn, background: brand, flex: 1 }}
                               >
-                                {confirmingSlot ? '✓ Confirming…' : '✓ Confirm'}
+                                {confirmingSlot ? 'Confirming…' : 'Confirm'}
                               </button>
                               <button
                                 onClick={loadPatchTestSlots}
@@ -792,8 +791,7 @@ export default function ClientManagePage() {
             ) : (
               <div style={S.rescheduleCard}>
                 {policy.withinCancellationWindow && policy.late_cancel_charge_percent > 0 && (
-                  <div style={{ ...S.warningBanner, marginBottom: 12 }}>
-                    ⚠️ You're within the {policy.cancellation_notice_hours}-hour window. Rescheduling now may result in a {policy.late_cancel_charge_percent}% charge for this appointment, plus you'll need to pay for your new booking.
+                  <div style={{ ...S.warningBanner, marginBottom: 12 }}><Icon name="alert-triangle" size={14} inline /> You're within the {policy.cancellation_notice_hours}-hour window. Rescheduling now may result in a {policy.late_cancel_charge_percent}% charge for this appointment, plus you'll need to pay for your new booking.
                   </div>
                 )}
 

@@ -65,11 +65,11 @@ const Toast = ({ id, message, variant = 'info', duration = 3000, onDismiss }) =>
   const variantStyles = {
     success: {
       background: 'var(--success)',
-      icon: '✓',
+      icon: 'check',
     },
     error: {
       background: 'var(--danger)',
-      icon: '✕',
+      icon: 'x',
     },
     info: {
       background: 'var(--accent)',

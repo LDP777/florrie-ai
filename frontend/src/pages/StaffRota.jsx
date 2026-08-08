@@ -247,7 +247,7 @@ export default function StaffRota() {
       {/* No team yet: rota is a team feature */}
       {staff.length === 0 && tab !== 'exceptions' && (
         <EmptyState
-          icon="🗓️"
+          icon="calendar"
           title="No team to schedule yet"
           subtitle="Add stylists or assistants in Team, and their shifts will show up here. You can still add salon time off using the button above."
         />

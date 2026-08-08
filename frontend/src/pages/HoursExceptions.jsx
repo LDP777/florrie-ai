@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useBeautician, supabase, insertRow, deleteRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import { todayLocal } from '../lib/dates.js';
+import Icon from '../components/ui/Icon';
 
 /**
  * Availability Planner - forward-looking calendar for blocking days / changing hours.
@@ -17,13 +18,13 @@ import { todayLocal } from '../lib/dates.js';
  */
 
 const QUICK_REASONS = [
-  { value: 'holiday',      label: 'Holiday',   emoji: '🏖️' },
-  { value: 'personal',     label: 'Personal',  emoji: '🏠' },
-  { value: 'sick',         label: 'Sick day',  emoji: '🤒' },
-  { value: 'training',     label: 'Training',  emoji: '📚' },
-  { value: 'bank_holiday', label: 'Bank hol',  emoji: '🎉' },
-  { value: 'event',        label: 'Event',     emoji: '✨' },
-  { value: 'other',        label: 'Other',     emoji: '📋' },
+  { value: 'holiday',      label: 'Holiday',   emoji: 'sun' },
+  { value: 'personal',     label: 'Personal',  emoji: 'map-pin' },
+  { value: 'sick',         label: 'Sick day',  emoji: 'alert-triangle' },
+  { value: 'training',     label: 'Training',  emoji: 'book' },
+  { value: 'bank_holiday', label: 'Bank hol',  emoji: 'sparkles' },
+  { value: 'event',        label: 'Event',     emoji: 'sparkles' },
+  { value: 'other',        label: 'Other',     emoji: 'list' },
 ];
 
 const TYPE_CFG = {
@@ -388,7 +389,7 @@ export default function HoursExceptions() {
                 ? `${formatShort(rangeStart)} → ${formatShort(rangeEnd)}`
                 : formatShort(activeDate)}
             </span>
-            <button onClick={resetForm} style={S.closeBtn}>✕</button>
+            <button onClick={resetForm} style={S.closeBtn}><Icon name="x" size={15} /></button>
           </div>
 
           {/* Type picker */}
@@ -501,7 +502,7 @@ export default function HoursExceptions() {
                     <span style={S.notifyTag}>Clients notified ✓</span>
                   )}
                 </div>
-                <button onClick={() => handleDelete(exc.id)} style={S.deleteBtn}>✕</button>
+                <button onClick={() => handleDelete(exc.id)} style={S.deleteBtn}><Icon name="x" size={15} /></button>
               </div>
             );
           })}

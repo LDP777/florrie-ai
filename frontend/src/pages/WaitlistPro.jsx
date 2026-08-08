@@ -345,7 +345,7 @@ export default function WaitlistPro() {
       {tab === 'archived' && (
         <div style={S.list}>
           {archivedList.length === 0 && (
-            <EmptyState icon="📦" title="Nothing archived" subtitle="Booked and expired waitlist entries land here." />
+            <EmptyState icon="box" title="Nothing archived" subtitle="Booked and expired waitlist entries land here." />
           )}
           {archivedList.map(w => {
             const st = STATUS_CONFIG[w.status] || STATUS_CONFIG.expired;

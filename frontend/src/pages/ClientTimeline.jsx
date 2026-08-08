@@ -47,13 +47,13 @@ const DEV_EVENTS = {
   ],
 };
 const TYPE_CONFIG = {
-  appointment: { icon: '📅', colour: 'var(--accent, #92405e)', bg: 'var(--accent-light, #F6E7EC)' },
-  note: { icon: '📝', colour: 'var(--text-secondary, #574A42)', bg: 'var(--border, #E8DDD4)' },
-  feedback: { icon: '⭐', colour: 'var(--gold, #8A6420)', bg: 'var(--gold-light, #ffdea4)' },
-  payment: { icon: '💰', colour: 'var(--success, #3F7D5C)', bg: 'var(--success-bg, #E9F0EB)' },
+  appointment: { icon: 'calendar', colour: 'var(--accent, #92405e)', bg: 'var(--accent-light, #F6E7EC)' },
+  note: { icon: 'edit', colour: 'var(--text-secondary, #574A42)', bg: 'var(--border, #E8DDD4)' },
+  feedback: { icon: 'star', colour: 'var(--gold, #8A6420)', bg: 'var(--gold-light, #ffdea4)' },
+  payment: { icon: 'wallet', colour: 'var(--success, #3F7D5C)', bg: 'var(--success-bg, #E9F0EB)' },
   message: { icon: '💬', colour: '#2196F3', bg: '#E3F2FD' },
-  consent: { icon: '📋', colour: '#7B6B8F', bg: '#F0E6F4' },
-  referral: { icon: '🤝', colour: '#5E8B8B', bg: '#E0F2F1' },
+  consent: { icon: 'list', colour: '#7B6B8F', bg: '#F0E6F4' },
+  referral: { icon: 'users', colour: '#5E8B8B', bg: '#E0F2F1' },
 };
 const fmt = (cents) => `£${(cents / 100).toFixed(2)}`;
 export default function ClientTimeline() {
@@ -210,7 +210,7 @@ export default function ClientTimeline() {
       )}
       {/* Type filter */}
       <div style={S.filterRow}>
-        {[{ v: 'all', l: 'All' }, { v: 'appointment', l: '📅 Appts' }, { v: 'note', l: '📝 Notes' }, { v: 'payment', l: '💰 Payments' }, { v: 'message', l: '💬 Messages' }, { v: 'feedback', l: '⭐ Feedback' }].map(f => (
+        {[{ v: 'all', l: 'All' }, { v: 'appointment', l: 'Appts' }, { v: 'note', l: 'Notes' }, { v: 'payment', l: 'Payments' }, { v: 'message', l: 'Messages' }, { v: 'feedback', l: 'Feedback' }].map(f => (
           <button key={f.v} onClick={() => setFilterType(f.v)} style={{ ...S.filterChip, ...(filterType === f.v ? S.filterActive : {}) }}>
             {f.l}
           </button>
@@ -241,7 +241,7 @@ export default function ClientTimeline() {
       {/* Timeline */}
       <div style={S.timeline}>
         {events.length === 0 ? (
-          <EmptyState icon="📭" title="No events yet" subtitle={filterType === 'all' ? 'Select a client to view their timeline' : `No ${filterType} events for this client`} />
+          <EmptyState icon="inbox" title="No events yet" subtitle={filterType === 'all' ? 'Select a client to view their timeline' : `No ${filterType} events for this client`} />
         ) : (
           Object.entries(grouped).sort(([a], [b]) => b.localeCompare(a)).map(([month, evts]) => {
             const [y, m] = month.split('-').map(Number);
@@ -284,7 +284,7 @@ export default function ClientTimeline() {
                           </span>
                         )}
                         {evt.channel && (
-                          <span style={S.channelTag}>{evt.channel === 'whatsapp' ? '💬 WhatsApp' : evt.channel === 'sms' ? '📱 SMS' : '✉️ Email'}</span>
+                          <span style={S.channelTag}>{evt.channel === 'whatsapp' ? 'WhatsApp' : evt.channel === 'sms' ? '📱 SMS' : 'Email'}</span>
                         )}
                       </div>
                     </div>

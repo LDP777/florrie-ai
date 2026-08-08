@@ -11,6 +11,7 @@ import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import { todayLocal } from '../lib/dates.js';
+import Icon from '../components/ui/Icon';
 
 const fmt = (cents) => `£${(cents / 100).toFixed(2)}`;
 
@@ -166,7 +167,7 @@ export default function ProductInventory() {
           <div style={S.modal} onClick={e => e.stopPropagation()}>
             <div style={S.modalHeader}>
               <h2 style={S.modalTitle}>Add Product</h2>
-              <button style={S.closeBtn} onClick={() => setShowAdd(false)}>✕</button>
+              <button style={S.closeBtn} onClick={() => setShowAdd(false)}><Icon name="x" size={15} /></button>
             </div>
             <div style={S.formBody}>
               <label style={S.fLabel}>Product Name</label>
@@ -239,7 +240,7 @@ export default function ProductInventory() {
       {/* Alerts */}
       {(lowCount > 0 || outCount > 0) && (
         <div style={S.alertCard}>
-          <span style={S.alertIcon}>⚠️</span>
+          <span style={S.alertIcon}><Icon name="alert-triangle" size={15} /></span>
           <div style={S.alertText}>
             {outCount > 0 && <span style={{ color: 'var(--danger, #9E2B32)', fontWeight: 600, fontSize: 13 }}>{outCount} product{outCount !== 1 ? 's' : ''} out of stock. </span>}
             {lowCount > 0 && <span style={{ color: 'var(--warning, #8A6420)', fontWeight: 600, fontSize: 13 }}>{lowCount} running low.</span>}
@@ -353,7 +354,7 @@ export default function ProductInventory() {
           <div style={S.modal} onClick={e => e.stopPropagation()}>
             <div style={S.modalHeader}>
               <h2 style={S.modalTitle}>{editingId ? 'Edit Product' : 'Add Product'}</h2>
-              <button style={S.closeBtn} onClick={() => { setShowAdd(false); setEditingId(null); }}>✕</button>
+              <button style={S.closeBtn} onClick={() => { setShowAdd(false); setEditingId(null); }}><Icon name="x" size={15} /></button>
             </div>
             <div style={S.formBody}>
               <label style={S.fLabel}>Product Name</label>

@@ -805,8 +805,7 @@ export default function Settings({ onLogout }) {
         <div>
           {/* Stripe return banners */}
           {stripeBanner === 'success' && (
-            <div style={{ background: 'var(--success)', color: '#fff', borderRadius: 12, padding: '12px 16px', marginBottom: 12, fontSize: 13, fontWeight: 500 }}>
-              ✓ Stripe connected, you can now accept card payments and deposits.
+            <div style={{ background: 'var(--success)', color: '#fff', borderRadius: 12, padding: '12px 16px', marginBottom: 12, fontSize: 13, fontWeight: 500 }}><Icon name="check" size={14} inline /> Stripe connected, you can now accept card payments and deposits.
             </div>
           )}
           {stripeBanner === 'pending' && (
@@ -1014,7 +1013,7 @@ export default function Settings({ onLogout }) {
               )}
             </div>
             {gcalBanner === 'success' && (
-              <p style={{ fontSize: 12, color: 'var(--success)', marginTop: 8, marginBottom: 0 }}>✓ Google Calendar connected</p>
+              <p style={{ fontSize: 12, color: 'var(--success)', marginTop: 8, marginBottom: 0 }}><Icon name="check" size={14} inline /> Google Calendar connected</p>
             )}
             {gcalBanner === 'error' && (
               <p style={{ fontSize: 12, color: 'var(--danger, #9E2B32)', marginTop: 8, marginBottom: 0 }}>Connection failed, check your Google credentials and try again</p>
@@ -1348,7 +1347,7 @@ export default function Settings({ onLogout }) {
             {/* SMS row */}
             <div style={{ ...styles.msgChannelRow, borderBottom: 'none' }}>
               <div style={styles.msgChannelInfo}>
-                <span style={styles.msgChannelIcon} aria-hidden>📱</span>
+                <span style={styles.msgChannelIcon} aria-hidden><Icon name="phone" size={15} /></span>
                 <div>
                   <div style={styles.msgChannelName}>SMS</div>
                   <div style={{ ...styles.msgChannelStatus,
@@ -1562,7 +1561,7 @@ export default function Settings({ onLogout }) {
           {/* ── Instagram Connect ── */}
           <div style={styles.card}>
             <div style={styles.calendarProviderRow}>
-              <span style={{ fontSize: 22 }}>📸</span>
+              <span style={{ fontSize: 22 }}><Icon name="camera" size={15} /></span>
               <div style={{ flex: 1 }}>
                 <span style={styles.calProviderLabel}>Instagram</span>
                 <span style={{ ...styles.calProviderStatus,
@@ -1660,7 +1659,7 @@ export default function Settings({ onLogout }) {
               </div>
             )}
             {igBanner === 'success' && (
-              <p style={{ fontSize: 12, color: 'var(--success)', marginTop: 8, marginBottom: 0 }}>✓ Instagram connected, Content Studio can now post directly</p>
+              <p style={{ fontSize: 12, color: 'var(--success)', marginTop: 8, marginBottom: 0 }}><Icon name="check" size={14} inline /> Instagram connected, Content Studio can now post directly</p>
             )}
             {igBanner === 'error' && (
               <p style={{ fontSize: 12, color: 'var(--danger, #9E2B32)', marginTop: 8, marginBottom: 0 }}>Connection failed, try again or contact support</p>
@@ -1799,7 +1798,7 @@ export default function Settings({ onLogout }) {
           {/* Instagram DM control */}
           <div style={styles.card}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              <span style={{ fontSize: 18 }}>📸</span>
+              <span style={{ fontSize: 18 }}><Icon name="camera" size={15} /></span>
               <h3 style={{ ...styles.cardTitle, margin: 0 }}>Instagram DMs</h3>
             </div>
             <p style={styles.cardDesc}>Control what happens when clients message you on Instagram.</p>
@@ -1910,7 +1909,7 @@ export default function Settings({ onLogout }) {
           <div style={styles.card}>
             <h3 style={styles.cardTitle}>Appearance</h3>
             <div style={styles.toggleRow}>
-              <span style={styles.toggleLabel}>{isDark ? '🌙 Dark mode' : '☀️ Light mode'}</span>
+              <span style={styles.toggleLabel}>{isDark ? 'Dark mode' : 'Light mode'}</span>
               <button
                 onClick={toggleDark}
                 style={{ ...styles.toggle, background: isDark ? 'var(--accent)' : 'var(--border)' }}
@@ -2056,9 +2055,7 @@ function NotificationToggle({ label, desc, prefs, onChange }) {
             background: local.email ? 'var(--success-bg)' : 'var(--border-light)',
             color: local.email ? 'var(--success)' : 'var(--text-muted)'
           }}
-        >
-          📧
-        </button>
+        ><Icon name="mail" size={15} /></button>
         <button
           onClick={() => toggle('push')}
           title={local.push ? 'Push on' : 'Push off'}
@@ -2066,9 +2063,7 @@ function NotificationToggle({ label, desc, prefs, onChange }) {
             background: local.push ? 'var(--success-bg)' : 'var(--border-light)',
             color: local.push ? 'var(--success)' : 'var(--text-muted)'
           }}
-        >
-          🔔
-        </button>
+        ><Icon name="bell" size={15} /></button>
       </div>
     </div>
   );

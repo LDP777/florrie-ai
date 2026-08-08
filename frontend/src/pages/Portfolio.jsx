@@ -9,6 +9,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useBeautician, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import { todayLocal } from '../lib/dates.js';
+import Icon from '../components/ui/Icon';
 
 const DEV_PHOTOS = [
   { id: 'p1', url: null, treatment: 'Lamination & Hybrid Dye', client: 'Shauna', date: '2026-03-18', type: 'after', tags: ['brows', 'lamination'], pair_id: 'pair1' },
@@ -176,7 +177,7 @@ export default function Portfolio() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={S.photoClient}>{p.client}</span>
                   <div style={{ display: 'flex', gap: 4 }}>
-                    <button onClick={(e) => handleEditPhoto(p, e)} style={{ ...S.deleteBtn, color: 'var(--accent, #92405e)' }}>✎</button>
+                    <button onClick={(e) => handleEditPhoto(p, e)} style={{ ...S.deleteBtn, color: 'var(--accent, #92405e)' }}><Icon name="edit" size={15} /></button>
                     <button onClick={(e) => { e.stopPropagation(); handleDeletePhoto(p.id); }} style={S.deleteBtn}>×</button>
                   </div>
                 </div>
@@ -244,7 +245,7 @@ export default function Portfolio() {
 
             {/* Upload zone */}
             <div style={S.uploadZone}>
-              <span style={{ fontSize: 32 }}>📸</span>
+              <span style={{ fontSize: 32 }}><Icon name="camera" size={32} /></span>
               <span style={S.uploadText}>Tap to select photo</span>
               <span style={S.uploadHint}>From camera roll or gallery</span>
             </div>

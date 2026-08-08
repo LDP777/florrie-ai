@@ -13,6 +13,7 @@ import PageLoader from '../components/PageLoader.jsx';
 import { todayLocal } from '../lib/dates.js';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
+import Icon from '../components/ui/Icon';
 
 export default function AppointmentNotes() {
   const { beautician, loading: bLoading } = useBeautician();
@@ -271,7 +272,7 @@ export default function AppointmentNotes() {
             <div style={S.fieldLabel}>Rating</div>
             <div style={S.ratingRow}>
               {[1, 2, 3, 4, 5].map(r => (
-                <button key={r} onClick={() => setAddForm(f => ({ ...f, rating: r }))} style={{ ...S.starBtn, color: r <= addForm.rating ? 'var(--accent, #92405e)' : 'var(--border, var(--border, #E8DDD4))' }}>★</button>
+                <button key={r} onClick={() => setAddForm(f => ({ ...f, rating: r }))} style={{ ...S.starBtn, color: r <= addForm.rating ? 'var(--accent, #92405e)' : 'var(--border, var(--border, #E8DDD4))' }}><Icon name="star" size={15} /></button>
               ))}
             </div>
 

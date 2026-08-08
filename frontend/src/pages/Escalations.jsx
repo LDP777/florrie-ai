@@ -5,6 +5,7 @@ import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
+import Icon from '../components/ui/Icon';
 
 /**
  * Escalations - the "needs your attention" inbox.
@@ -127,7 +128,7 @@ export default function Escalations() {
 
       {escalations.length === 0 ? (
         <div style={styles.emptyState}>
-          <span style={{ fontSize: 36, marginBottom: 12, display: 'block' }}>✨</span>
+          <span style={{ fontSize: 36, marginBottom: 12, display: 'block' }}><Icon name="sparkles" size={36} /></span>
           <p style={styles.emptyTitle}>All clear</p>
           <p style={styles.emptyDesc}>
             Florrie is handling everything. You'll see messages here when she needs your input.

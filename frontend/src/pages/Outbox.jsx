@@ -462,7 +462,7 @@ function BatchCard({ batch, onSendAll, onSkipAll, onSkipOne }) {
   return (
     <div style={{ ...s.card, borderLeft: '3px solid #c9a96e' }}>
       <div style={s.cardTop}>
-        <span style={{ ...s.avatar, background: '#f6ead6', color: '#8a6d3b' }} aria-hidden>🌷</span>
+        <span style={{ ...s.avatar, background: '#f6ead6', color: '#8a6d3b' }} aria-hidden><Icon name="flower" size={15} /></span>
         <div style={s.cardTopText}>
           <div style={s.nameRow}>
             <span style={s.clientName}>Fill the {batch.slot} gap</span>

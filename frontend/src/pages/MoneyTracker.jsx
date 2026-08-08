@@ -2178,8 +2178,7 @@ export default function MoneyTracker() {
                     </div>
                     {t.vat.vatPct >= 75 && (
                       <div style={{ marginTop: 10, padding: '8px 10px', borderRadius: 8, background: '#fef3c7', border: '1px solid #fcd34d' }}>
-                        <span style={{ fontSize: 12, color: '#92400e', fontWeight: 500 }}>
-                          ⚠️ You're {t.vat.vatPct}% of the way to the VAT threshold. HMRC requires registration within 30 days of exceeding £90,000.
+                        <span style={{ fontSize: 12, color: '#92400e', fontWeight: 500 }}><Icon name="alert-triangle" size={14} inline /> You're {t.vat.vatPct}% of the way to the VAT threshold. HMRC requires registration within 30 days of exceeding £90,000.
                         </span>
                       </div>
                     )}

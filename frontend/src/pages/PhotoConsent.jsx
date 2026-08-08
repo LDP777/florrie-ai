@@ -10,6 +10,7 @@ import { supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
+import Icon from '../components/ui/Icon';
 
 const SCOPE_OPTIONS = [
   { value: 'portfolio', label: 'Portfolio', desc: 'Visible in your florrie.ai portfolio' },
@@ -276,7 +277,7 @@ export default function PhotoConsent() {
 
       {/* Consent list */}
       <div style={S.list}>
-        {filtered.length === 0 && <EmptyState icon="📸" title="No photo consents yet" subtitle={tab === 'all' ? 'Tap + Request to ask a client for permission to share their photos.' : 'No consents in this category.'} />}
+        {filtered.length === 0 && <EmptyState icon="camera" title="No photo consents yet" subtitle={tab === 'all' ? 'Tap + Request to ask a client for permission to share their photos.' : 'No consents in this category.'} />}
         {filtered.map(c => {
           const st = STATUS_CONFIG[c.status];
           const isExpanded = expanded === c.id;
@@ -343,7 +344,7 @@ export default function PhotoConsent() {
 
       {/* GDPR notice */}
       <div style={S.gdprCard}>
-        <span style={S.gdprTitle}>📋 GDPR Compliance</span>
+        <span style={S.gdprTitle}><Icon name="list" size={14} inline /> GDPR Compliance</span>
         <p style={S.gdprText}>
           Photo consent is stored securely and clients can withdraw at any time. Consent is specific to the uses listed - using photos beyond the agreed scope requires additional consent.
         </p>
@@ -372,7 +373,7 @@ export default function PhotoConsent() {
                   }));
                 }}>
                   <div style={{ ...S.checkbox, background: active ? 'var(--accent, #92405e)' : 'var(--bg-card, #FFFCF9)', borderColor: active ? 'var(--accent, #92405e)' : '#E0DCD8' }}>
-                    {active && <span style={S.checkmark}>✓</span>}
+                    {active && <span style={S.checkmark}><Icon name="check" size={15} /></span>}
                   </div>
                   <div style={S.scopeOptionInfo}>
                     <span style={S.scopeOptionLabel}>{opt.label}</span>
@@ -386,7 +387,7 @@ export default function PhotoConsent() {
             <div style={S.chipRow}>
               {['digital', 'paper'].map(m => (
                 <button key={m} onClick={() => setRequestForm(f => ({ ...f, method: m }))} style={{ ...S.chip, ...(requestForm.method === m ? S.chipActive : {}) }}>
-                  {m === 'digital' ? '📱 Digital' : '📄 Paper'}
+                  {m === 'digital' ? 'Digital' : 'Paper'}
                 </button>
               ))}
             </div>

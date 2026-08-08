@@ -351,7 +351,7 @@ export default function Loyalty() {
       {tab === 'members' && (
         members.length === 0 ? (
           <EmptyState
-            icon="🪙"
+            icon="pound"
             title="No points on the books yet"
             subtitle={isActive
               ? 'Balances appear here as appointments complete. Nothing for you to do.'
@@ -412,7 +412,7 @@ export default function Loyalty() {
       {tab === 'activity' && (
         recent.length === 0 ? (
           <EmptyState
-            icon="🗒️"
+            icon="file"
             title="Nothing yet"
             subtitle="Every point earned or reward used shows up here."
           />

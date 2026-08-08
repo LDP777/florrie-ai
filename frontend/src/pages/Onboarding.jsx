@@ -5,6 +5,7 @@ import { PLAN } from '../lib/subscription.js';
 import { registerPush, getPushStatus } from '../lib/push.js';
 import logger from '../lib/logger.js';
 import { isIOSNative } from '../lib/platform.js';
+import Icon from '../components/ui/Icon';
 
 const API = import.meta.env.VITE_API_URL;
 async function getAuthToken() {
@@ -677,7 +678,7 @@ export default function Onboarding({ onComplete }) {
           {/* Import from Fresha */}
           <div style={{ ...styles.importGuide, borderColor: '#E8E4E0' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-              <span style={{ fontSize: 20 }}>🟢</span>
+              <span style={{ fontSize: 20 }}><Icon name="dot" size={15} /></span>
               <span style={{ fontSize: 15, fontWeight: 600 }}>Import from Fresha</span>
             </div>
             <ol style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.8 }}>
@@ -762,7 +763,7 @@ export default function Onboarding({ onComplete }) {
                 <div style={{ fontSize: 15, fontWeight: 700, wordBreak: 'break-all', marginBottom: 12 }}>florrie.ai/book/{bookingSlug}</div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button onClick={copy} style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: 'none', background: 'rgba(255,255,255,0.18)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                    {linkCopied ? '✓ Copied' : 'Copy link'}
+                    {linkCopied ? 'Copied' : 'Copy link'}
                   </button>
                   <button onClick={share} style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: 'none', background: '#fff', color: 'var(--accent)', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                     Share
@@ -785,7 +786,7 @@ export default function Onboarding({ onComplete }) {
             <ul style={styles.planFeatures}>
               {PLAN.features.map((f, i) => (
                 <li key={i} style={styles.planFeature}>
-                  <span style={{ color: 'var(--success, #3F7D5C)' }}>✓</span> {f}
+                  <span style={{ color: 'var(--success, #3F7D5C)' }}><Icon name="check" size={15} /></span> {f}
                 </li>
               ))}
             </ul>
@@ -823,7 +824,7 @@ export default function Onboarding({ onComplete }) {
           {/* WhatsApp-first connect card. SMS is already live so it sits below as reassurance. */}
           <div style={styles.messagingCard}>
             <div style={styles.channelRow}>
-              <span style={styles.waIcon}>💬</span>
+              <span style={styles.waIcon}><Icon name="message" size={15} /></span>
               <div style={styles.channelCopy}>
                 <div style={styles.waTitleRow}>
                   <span style={styles.channelTitle}>WhatsApp: your AI receptionist</span>
@@ -848,7 +849,7 @@ export default function Onboarding({ onComplete }) {
                 onClick={() => setSmsForkOpen(true)}
                 style={styles.smsForkToggle}
               >
-                <span style={styles.smsForkToggleIcon}>✉</span>
+                <span style={styles.smsForkToggleIcon}><Icon name="mail" size={18} /></span>
                 <span style={styles.smsForkToggleText}>
                   <span style={styles.smsForkToggleTitle}>No WhatsApp? Use SMS instead</span>
                   <span style={styles.smsForkToggleHint}>Text only. Works on any UK number.</span>
@@ -950,7 +951,7 @@ export default function Onboarding({ onComplete }) {
           {/* Push notification opt-in */}
           <div style={styles.pushCard}>
             <div style={styles.pushCardTop}>
-              <span style={styles.pushIcon}>🔔</span>
+              <span style={styles.pushIcon}><Icon name="bell" size={15} /></span>
               <div>
                 <div style={styles.pushTitle}>
                   {pushGranted ? 'Notifications active' : 'Get notified when your AI acts'}
@@ -964,7 +965,7 @@ export default function Onboarding({ onComplete }) {
             </div>
             {pushGranted ? (
               <div style={styles.pushGrantedRow}>
-                <span style={{ color: 'var(--success, #3F7D5C)', fontSize: 16 }}>✓</span>
+                <span style={{ color: 'var(--success, #3F7D5C)', fontSize: 16 }}><Icon name="check" size={15} /></span>
                 <span style={{ fontSize: 13, color: 'var(--success, #3F7D5C)', fontWeight: 600 }}>Notifications on</span>
               </div>
             ) : (

@@ -10,15 +10,16 @@ import { useCoach } from '../contexts/CoachContext.jsx';
 import PageLoader from '../components/PageLoader.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import { bookingUrl as publicBookingUrl } from '../lib/booking.js';
+import Icon from '../components/ui/Icon';
 
 const fmt = (cents) => `£${(cents / 100).toFixed(0)}`;
 
 const CATEGORIES = [
-  { key: 'brows', label: 'Brows', icon: '✨' },
-  { key: 'lashes', label: 'Lashes', icon: '👁️' },
-  { key: 'semi', label: 'Semi-Permanent', icon: '💎' },
-  { key: 'waxing', label: 'Waxing', icon: '🍯' },
-  { key: 'other', label: 'Other', icon: '💆' },
+  { key: 'brows', label: 'Brows', icon: 'sparkles' },
+  { key: 'lashes', label: 'Lashes', icon: 'eye' },
+  { key: 'semi', label: 'Semi-Permanent', icon: 'sparkles' },
+  { key: 'waxing', label: 'Waxing', icon: 'flower' },
+  { key: 'other', label: 'Other', icon: 'flower' },
 ];
 
 const THEMES = [
@@ -166,7 +167,7 @@ export default function PriceList() {
       {/* Toast notification */}
       {toast && (
         <div style={S.toast}>
-          <span style={S.toastIcon}>✓</span>
+          <span style={S.toastIcon}><Icon name="check" size={15} /></span>
           <span style={S.toastText}>{toast}</span>
         </div>
       )}
@@ -175,7 +176,7 @@ export default function PriceList() {
 
       {items.length === 0 && !loading && (
         <div style={S.emptyWrap}>
-          <span style={{ fontSize: 32 }}>💅</span>
+          <span style={{ fontSize: 32 }}><Icon name="sparkles" size={32} /></span>
           <p style={S.emptyText}>No treatments yet. Add some in the Treatments page and they'll appear here automatically.</p>
         </div>
       )}
@@ -301,7 +302,7 @@ export default function PriceList() {
               <h3 style={S.sectionTitle}>Share Your Price List</h3>
 
               <div style={S.shareCard}>
-                <span style={S.shareIcon}>🔗</span>
+                <span style={S.shareIcon}><Icon name="link" size={18} /></span>
                 <div style={S.shareInfo}>
                   <span style={S.shareLabel}>Shareable Link</span>
                   <span style={S.shareLink}>{shareUrl.replace(/https?:\/\//, '')}</span>
@@ -310,7 +311,7 @@ export default function PriceList() {
               </div>
 
               <div style={S.shareCard}>
-                <span style={S.shareIcon}>📱</span>
+                <span style={S.shareIcon}><Icon name="phone" size={18} /></span>
                 <div style={S.shareInfo}>
                   <span style={S.shareLabel}>WhatsApp</span>
                   <span style={S.shareSub}>Send to a client or group</span>
@@ -328,7 +329,7 @@ export default function PriceList() {
               </div>
 
               <div style={S.shareCard}>
-                <span style={S.shareIcon}>🌐</span>
+                <span style={S.shareIcon}><Icon name="link" size={18} /></span>
                 <div style={S.shareInfo}>
                   <span style={S.shareLabel}>Embed on Website</span>
                   <span style={S.shareSub}>Copy embed code</span>
@@ -337,7 +338,7 @@ export default function PriceList() {
               </div>
 
               <div style={S.tipCard}>
-                <span style={S.tipIcon}>💡</span>
+                <span style={S.tipIcon}><Icon name="info" size={15} /></span>
                 <span style={S.tipText}>Your price list auto-updates when you edit treatments or prices. No need to reshare.</span>
               </div>
             </div>

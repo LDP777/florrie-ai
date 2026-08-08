@@ -22,6 +22,7 @@ import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
+import Icon from '../components/ui/Icon';
 
 async function getToken() {
   const { data } = await supabase.auth.getSession();
@@ -211,15 +212,15 @@ export default function Referrals() {
         <div style={s.urlRow}>
           <span style={s.urlText}>{referralLink}</span>
           <button onClick={handleCopyLink} style={s.copyBtn}>
-            {linkCopied ? '✓ Copied' : 'Copy'}
+            {linkCopied ? 'Copied' : 'Copy'}
           </button>
         </div>
         <div style={s.shareActions}>
-          <button onClick={handleWhatsAppShare} style={s.shareBtn} disabled={!programEnabled}>📱 WhatsApp</button>
+          <button onClick={handleWhatsAppShare} style={s.shareBtn} disabled={!programEnabled}><Icon name="phone" size={14} inline /> WhatsApp</button>
           <button onClick={handleCopyMessage} style={s.shareBtn} disabled={!programEnabled}>
-            {msgCopied ? '✓ Copied' : '💬 Copy message'}
+            {msgCopied ? 'Copied' : 'Copy message'}
           </button>
-          <button onClick={handleCopyLink} style={s.shareBtn} disabled={!programEnabled}>🔗 Link</button>
+          <button onClick={handleCopyLink} style={s.shareBtn} disabled={!programEnabled}><Icon name="link" size={14} inline /> Link</button>
         </div>
       </div>
 
@@ -245,13 +246,13 @@ export default function Referrals() {
         <div style={s.section}>
           <div style={s.rewardSummary}>
             <div style={s.rewardBox}>
-              <span style={s.rewardIcon}>🎁</span>
+              <span style={s.rewardIcon}><Icon name="gift" size={15} /></span>
               <span style={s.rewardLabel}>Referrer gets</span>
               <span style={s.rewardValue}>£{referrerReward} off</span>
             </div>
             <div style={s.rewardArrow}>→</div>
             <div style={s.rewardBox}>
-              <span style={s.rewardIcon}>🌟</span>
+              <span style={s.rewardIcon}><Icon name="star" size={15} /></span>
               <span style={s.rewardLabel}>Friend gets</span>
               <span style={s.rewardValue}>£{referrerReward} off</span>
             </div>
@@ -260,7 +261,7 @@ export default function Referrals() {
           <span style={s.sectionTitle}>Top referrers</span>
           {leaderboard.length === 0 && (
             <div style={s.tipCard}>
-              <span style={s.tipIcon}>🌱</span>
+              <span style={s.tipIcon}><Icon name="flower" size={15} /></span>
               <span style={s.tipText}>No referrals yet. Share your link and get your regulars to spread the word.</span>
             </div>
           )}
@@ -283,7 +284,7 @@ export default function Referrals() {
           ))}
 
           <div style={s.tipCard}>
-            <span style={s.tipIcon}>💡</span>
+            <span style={s.tipIcon}><Icon name="info" size={15} /></span>
             <span style={s.tipText}>Word-of-mouth clients tend to stick around and trust you faster. Encourage your regulars to share their code!</span>
           </div>
         </div>

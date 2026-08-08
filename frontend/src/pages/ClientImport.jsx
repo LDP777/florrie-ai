@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBeautician } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
+import Icon from '../components/ui/Icon';
 
 /**
  * Client Import: one-click migration from Fresha, Timely, Vagaro, or any CSV/XLSX.
@@ -19,10 +20,10 @@ import { API_BASE } from '../lib/config.js';
  */
 
 const PLATFORMS = [
-  { id: 'fresha', name: 'Fresha', icon: '💜', desc: 'Export, Clients, Download CSV' },
+  { id: 'fresha', name: 'Fresha', icon: 'heart', desc: 'Export, Clients, Download CSV' },
   { id: 'timely', name: 'GetTimely', icon: '⏱️', desc: 'Reports, Clients, Export' },
-  { id: 'vagaro', name: 'Vagaro', icon: '💅', desc: 'Customers, Export List' },
-  { id: 'other', name: 'Other / CSV', icon: '📄', desc: 'Any spreadsheet or CSV file' },
+  { id: 'vagaro', name: 'Vagaro', icon: 'sparkles', desc: 'Customers, Export List' },
+  { id: 'other', name: 'Other / CSV', icon: 'file', desc: 'Any spreadsheet or CSV file' },
 ];
 
 function getToken() {
@@ -296,7 +297,7 @@ export default function ClientImport() {
       {/* Error banner */}
       {error && (
         <div style={styles.errorBanner}>
-          <span style={{ fontSize: 14 }}>⚠️</span>
+          <span style={{ fontSize: 14 }}><Icon name="alert-triangle" size={15} /></span>
           <span style={styles.errorText}>{error}</span>
         </div>
       )}
@@ -386,21 +387,21 @@ export default function ClientImport() {
           <div style={styles.summaryGrid}>
             {liveClientCount > 0 && (
               <div style={styles.summaryCard}>
-                <span style={styles.summaryIcon}>👤</span>
+                <span style={styles.summaryIcon}><Icon name="user" size={15} /></span>
                 <span style={styles.summaryNum}>{liveClientCount}</span>
                 <span style={styles.summaryLabel}>Clients</span>
               </div>
             )}
             {preview.summary.treatments > 0 && (
               <div style={styles.summaryCard}>
-                <span style={styles.summaryIcon}>💆</span>
+                <span style={styles.summaryIcon}><Icon name="flower" size={15} /></span>
                 <span style={styles.summaryNum}>{preview.summary.treatments}</span>
                 <span style={styles.summaryLabel}>Treatments</span>
               </div>
             )}
             {preview.summary.appointments > 0 && (
               <div style={styles.summaryCard}>
-                <span style={styles.summaryIcon}>📅</span>
+                <span style={styles.summaryIcon}><Icon name="calendar" size={15} /></span>
                 <span style={styles.summaryNum}>{preview.summary.appointments}</span>
                 <span style={styles.summaryLabel}>Appointments</span>
               </div>
@@ -467,7 +468,7 @@ export default function ClientImport() {
                             <div style={styles.clientName}>{c.first_name} {c.last_name}</div>
                             <div style={styles.clientMeta}>{c.phone || c.email || 'No contact info'}</div>
                           </div>
-                          <span style={styles.pencil} aria-hidden>✎</span>
+                          <span style={styles.pencil} aria-hidden><Icon name="edit" size={15} /></span>
                         </button>
                       )}
                     </div>
@@ -526,7 +527,7 @@ export default function ClientImport() {
       {/* STEP 5: Done (fallback path when there's no batch_id, e.g. manual paste) */}
       {step === 'done' && importResult && (
         <div style={styles.doneCard}>
-          <span style={styles.doneEmoji}>🎉</span>
+          <span style={styles.doneEmoji}><Icon name="sparkles" size={32} /></span>
           <h2 style={styles.doneTitle}>You're on Florrie now</h2>
 
           <div style={styles.doneStats}>
@@ -907,7 +908,7 @@ function TimelyAppointmentsImport() {
 
       {error && (
         <div style={styles.errorBanner}>
-          <span style={{ fontSize: 14 }}>⚠️</span>
+          <span style={{ fontSize: 14 }}><Icon name="alert-triangle" size={15} /></span>
           <span style={styles.errorText}>{error}</span>
         </div>
       )}

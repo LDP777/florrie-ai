@@ -14,13 +14,14 @@ function getToken() {
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import logger from '../lib/logger.js';
+import Icon from '../components/ui/Icon';
 
 // Static integration catalog - connection status is computed dynamically from real data
 const CATALOG = [
   {
     id: 'stripe',
     name: 'Stripe',
-    icon: '💳',
+    icon: 'card',
     category: 'Payments',
     description: 'Accept card payments, deposits, and tap-to-pay',
     features: ['Card payments', 'Deposit collection', 'Automatic payouts', 'No-show charges'],
@@ -30,7 +31,7 @@ const CATALOG = [
   {
     id: 'google-cal',
     name: 'Google Calendar',
-    icon: '📅',
+    icon: 'calendar',
     category: 'Calendar',
     description: 'Two-way sync between florrie.ai and Google Calendar',
     features: ['Two-way sync', 'Block personal events', 'Real-time availability', 'No double-bookings'],
@@ -40,7 +41,7 @@ const CATALOG = [
   {
     id: 'instagram',
     name: 'Instagram',
-    icon: '📸',
+    icon: 'camera',
     category: 'Social',
     description: 'Auto-post content and monitor DM booking requests',
     features: ['Auto-post content', 'DM monitoring', 'Booking link in bio', 'AI draft replies'],
@@ -50,7 +51,7 @@ const CATALOG = [
   {
     id: 'xero',
     name: 'Xero',
-    icon: '📊',
+    icon: 'chart',
     category: 'Accounting',
     description: 'Push income and expenses to Xero for self-assessment',
     features: ['Auto-push invoices', 'Expense sync', 'Tax report export', 'Bank reconciliation'],
@@ -61,7 +62,7 @@ const CATALOG = [
   {
     id: 'quickbooks',
     name: 'QuickBooks',
-    icon: '📒',
+    icon: 'file',
     category: 'Accounting',
     description: 'Sync financials to QuickBooks for your accountant',
     features: ['Invoice sync', 'Expense categories', 'P&L reports', 'VAT tracking'],
@@ -72,7 +73,7 @@ const CATALOG = [
   {
     id: 'google-reviews',
     name: 'Google Reviews',
-    icon: '⭐',
+    icon: 'star',
     category: 'Reviews',
     description: 'Monitor and respond to Google Business reviews',
     features: ['Review monitoring', 'AI-drafted responses', 'Review request automation', 'Rating tracker'],
@@ -264,7 +265,7 @@ export default function Integrations() {
           marginBottom: 16,
         }}
       >
-        <span style={{ fontSize: 20, flexShrink: 0 }} aria-hidden>💬</span>
+        <span style={{ fontSize: 20, flexShrink: 0 }} aria-hidden><Icon name="message" size={15} /></span>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 2 }}>
             Looking for WhatsApp or SMS?
@@ -284,7 +285,7 @@ export default function Integrations() {
             <div style={{ fontSize: 36, fontWeight: 700 }}>{connectedCount}/{integrations.length}</div>
             <div style={{ fontSize: 13, opacity: 0.9, marginTop: 4 }}>connected</div>
           </div>
-          <div style={{ fontSize: 40 }}>🔌</div>
+          <div style={{ fontSize: 40 }}><Icon name="link" size={40} /></div>
         </div>
         <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
           {connectedItems.map(i => (

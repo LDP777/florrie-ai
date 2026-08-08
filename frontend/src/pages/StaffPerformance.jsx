@@ -3,6 +3,7 @@ import { useBeautician, fetchRows } from '../lib/supabase.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
+import Icon from '../components/ui/Icon';
 
 const PERIODS = ['This Week', 'This Month', 'Last 30 Days', 'This Quarter'];
 
@@ -64,7 +65,7 @@ export default function StaffPerformance() {
           <p style={s.subtitle}>Track individual KPIs and team output</p>
         </div>
         <EmptyState
-          icon="👥"
+          icon="users"
           title="No team members yet"
           subtitle="Add your team in Team settings to track their performance here."
           actionLabel="Go to Team"
@@ -116,7 +117,7 @@ export default function StaffPerformance() {
               <div style={s.staffTop}>
                 {m.avatar_url
                   ? <img src={m.avatar_url} alt="" style={{ width: 32, height: 32, borderRadius: 16, objectFit: 'cover' }} />
-                  : <span style={{ fontSize: 28 }}>👤</span>}
+                  : <span style={{ fontSize: 28 }}><Icon name="user" size={28} /></span>}
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--text, #241B17)' }}>{memberName(m)}</div>
                   <div style={{ fontSize: 12, color: 'var(--text-muted, #6B5D54)' }}>{memberRole(m)}</div>
@@ -138,7 +139,7 @@ export default function StaffPerformance() {
           <div style={s.detailHeader}>
             {detail.avatar_url
               ? <img src={detail.avatar_url} alt="" style={{ width: 44, height: 44, borderRadius: 22, objectFit: 'cover' }} />
-              : <span style={{ fontSize: 40 }}>👤</span>}
+              : <span style={{ fontSize: 40 }}><Icon name="user" size={40} /></span>}
             <div>
               <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text, #241B17)' }}>{memberName(detail)}</h2>
               <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted, #6B5D54)' }}>{memberRole(detail)}</p>
@@ -178,7 +179,7 @@ export default function StaffPerformance() {
               <span style={{ ...s.rank, background: 'var(--card-border, #E8DDD4)', color: 'var(--text, #241B17)' }}>{i + 1}</span>
               {m.avatar_url
                 ? <img src={m.avatar_url} alt="" style={{ width: 24, height: 24, borderRadius: 12, objectFit: 'cover' }} />
-                : <span style={{ fontSize: 22 }}>👤</span>}
+                : <span style={{ fontSize: 22 }}><Icon name="user" size={15} /></span>}
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 600, fontSize: 14 }}>{memberName(m)}</div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted, #6B5D54)' }}>{memberRole(m)}</div>
@@ -199,7 +200,7 @@ export default function StaffPerformance() {
               <div key={m.id} style={{ flex: 1, textAlign: 'center' }}>
                 {m.avatar_url
                   ? <img src={m.avatar_url} alt="" style={{ width: 24, height: 24, borderRadius: 12, objectFit: 'cover' }} />
-                  : <span style={{ fontSize: 24 }}>👤</span>}
+                  : <span style={{ fontSize: 24 }}><Icon name="user" size={24} /></span>}
                 <div style={{ fontSize: 12, fontWeight: 600, marginTop: 4 }}>{memberName(m)}</div>
               </div>
             ))}

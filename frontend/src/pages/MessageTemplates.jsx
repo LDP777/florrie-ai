@@ -19,10 +19,10 @@ import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 
 const CATEGORIES = [
-  { key: 'booking', label: 'Booking', icon: '📅', color: '#4A90D9' },
-  { key: 'marketing', label: 'Marketing', icon: '💌', color: 'var(--accent, #92405e)' },
-  { key: 'care', label: 'Care', icon: '💆', color: '#7B9E89' },
-  { key: 'custom', label: 'Custom', icon: '✏️', color: '#F5A623' },
+  { key: 'booking', label: 'Booking', icon: 'calendar', color: '#4A90D9' },
+  { key: 'marketing', label: 'Marketing', icon: 'mail', color: 'var(--accent, #92405e)' },
+  { key: 'care', label: 'Care', icon: 'flower', color: '#7B9E89' },
+  { key: 'custom', label: 'Custom', icon: 'edit', color: '#F5A623' },
 ];
 
 const VARIABLES = ['{name}', '{treatment}', '{date}', '{time}', '{link}'];
