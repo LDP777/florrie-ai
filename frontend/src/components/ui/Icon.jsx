@@ -120,6 +120,10 @@ const PATHS = {
   spray: 'M9 8.4h5.2a1.8 1.8 0 011.8 1.8v8.4a1.8 1.8 0 01-1.8 1.8H9a1.8 1.8 0 01-1.8-1.8v-8.4A1.8 1.8 0 019 8.4zM9.6 8.4V5.2h4M14.2 3.6h2.4M18 5.4h.01M18 8.4h.01M20.4 6.9h.01',
   broom: 'M13.4 3.6l4.4 4.4M15.6 5.8l-8.2 8.2 3.6 3.6 8.2-8.2M7.4 14l-4 6.4 6.4-4M9.6 16.2l2-2',
   thermometer: 'M12.6 4.8a2.2 2.2 0 014.4 0v8.1a4 4 0 11-4.4 0zM8.6 7.6H4.4M8.6 12H5.8M8.6 16.4H4.4',
+  // Weather. The Campaigns screen has a "rain brings people in" campaign type
+  // and there was no cloud in the set, so it was wearing a thermometer.
+  cloud: 'M7 18.2h10.2a3.8 3.8 0 00.4-7.6 5.6 5.6 0 00-10.8-1.2A3.9 3.9 0 007 18.2z',
+  'cloud-rain': 'M7.4 15.2h9.8a3.6 3.6 0 00.4-7.2 5.4 5.4 0 00-10.4-1.1 3.7 3.7 0 00.2 8.3M8.6 18.4l-.8 2.2M12.4 18.4l-.8 2.2M16.2 18.4l-.8 2.2',
   box: 'M3.6 8.2l8.4-4.6 8.4 4.6v7.6L12 20.4l-8.4-4.6zM3.6 8.2L12 12.8l8.4-4.6M12 12.8v7.6',
   receipt: 'M5.6 3.6h12.8v16.8l-2.6-1.6-2.6 1.6-2.6-1.6-2.4 1.6-2.6-1.6zM9 8h6M9 12h6',
   book: 'M4.2 5.4a1.8 1.8 0 011.8-1.8H11v15.6H6a1.8 1.8 0 00-1.8 1.8zM19.8 5.4a1.8 1.8 0 00-1.8-1.8H13v15.6h5a1.8 1.8 0 011.8 1.8z',
@@ -205,6 +209,9 @@ export default function Icon({
  * means no call site has to care which era its data came from.
  */
 const FROM_EMOJI = {
+  '\u{1F327}': 'cloud-rain', '\u2614': 'cloud-rain', '\u{1F326}': 'cloud-rain',
+  '\u2601': 'cloud', '\u{1F328}': 'cloud',
+
   '\u{1F4C5}': 'calendar', '\u{1F5D3}\u{FE0F}': 'calendar', '\u{1F5D3}': 'calendar',
   '\u{1F4AC}': 'message', '\u{1F4E8}': 'send', '\u{1F4E3}': 'send', '\u{1F4E7}': 'mail',
   '\u{2709}\u{FE0F}': 'mail', '\u{2709}': 'mail', '\u{1F48C}': 'mail', '\u{1F4F1}': 'phone',
