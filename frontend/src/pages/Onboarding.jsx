@@ -4,7 +4,7 @@ import { useBeautician, updateRow, insertRow, supabase } from '../lib/supabase.j
 import { PLAN } from '../lib/subscription.js';
 import { registerPush, getPushStatus } from '../lib/push.js';
 import logger from '../lib/logger.js';
-import { isIOSNative } from '../lib/platform.js';
+import { isIOSNative, isNativeApp } from '../lib/platform.js';
 import Icon from '../components/ui/Icon';
 import Button from '../components/ui/Button';
 
@@ -370,13 +370,24 @@ export default function Onboarding({ onComplete }) {
   async function connectInstagram() {
     try {
       try { track('onboarding_instagram_connect_tapped', { step }); } catch { /* noop */ }
+      // Instagram will not render its login inside the app's WKWebView — it
+      // hangs on a half-drawn page with no way back. On native the url has to
+      // leave the app, and the backend needs ?platform=native so the callback
+      // ends on its own "go back to Florrie" page rather than a redirect into
+      // a browser tab with no session.
+      const native = isNativeApp();
       const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(`${API}/api/instagram/connect`, {
+      const res = await fetch(`${API}/api/instagram/connect${native ? '?platform=native' : ''}`, {
         headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
       });
       const d = await res.json().catch(() => ({}));
       if (res.ok && d.url) {
-        window.location.href = d.url;
+        if (native) {
+          window.open(d.url, '_blank');
+          setIgNote('Finish in the browser, then come back here — we will pick it up.');
+        } else {
+          window.location.href = d.url;
+        }
         return;
       }
       setIgNote('Instagram connect is switching on very soon. You can finish setup now and connect from Settings when it is ready.');

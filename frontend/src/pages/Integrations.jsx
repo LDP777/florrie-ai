@@ -4,13 +4,7 @@ import { useBeautician, supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import { ds, type } from '../lib/designSystem.js';
 
-function getToken() {
-  const key = Object.keys(localStorage).find(k => /^sb-.+-auth-token$/.test(k));
-  if (!key) return null;
-  const raw = localStorage.getItem(key);
-  try { const parsed = JSON.parse(raw); return parsed?.access_token || parsed?.session?.access_token || null; }
-  catch { return null; }
-}
+import { isNativeApp } from '../lib/platform.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import logger from '../lib/logger.js';
@@ -192,24 +186,49 @@ export default function Integrations() {
   }
 
   const [connecting, setConnecting] = useState(null);
+  // A failed connect used to write to console.error and nothing else, so the
+  // button just went back to "Connect" and the screen said nothing at all.
+  // That is the whole of "connecting Instagram doesn't work" from her side.
+  const [igError, setIgError] = useState(null);
 
   async function handleConnect(integId) {
     if (integId === 'instagram') {
+      // Instagram refuses to render its login inside an embedded WKWebView:
+      // the page half draws and hangs for ever. Settings.jsx already learned
+      // this (see handleConnectInstagram there); this copy had not. On native
+      // the url has to go to the system browser, and the backend has to know
+      // to end the callback with its own "go back to the app" page instead of
+      // a redirect into a browser tab that has no Florrie session.
+      const native = isNativeApp();
       setConnecting('instagram');
+      setIgError(null);
       try {
-        const token = getToken();
-        const res = await fetch(`${API_BASE}/api/instagram/connect`, {
+        // getSession() rather than reading the stored token straight out of
+        // localStorage: it refreshes an expired access token, and a stale one
+        // here means a 401 and no url, which looked exactly like "nothing
+        // happened". The rest of this file already uses getSession.
+        const token = (await supabase.auth.getSession())?.data?.session?.access_token;
+        const res = await fetch(`${API_BASE}/api/instagram/connect${native ? '?platform=native' : ''}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
-        const data = await res.json();
-        if (data.url) {
-          window.location.href = data.url; // Redirect to Meta OAuth
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.url) {
+          if (native) {
+            // Opened before anything else awaits, so iOS still counts this as
+            // a user gesture and does not swallow it as a popup.
+            window.open(data.url, '_blank');
+            setConnecting(null);
+          } else {
+            window.location.href = data.url; // Redirect to Instagram OAuth
+          }
         } else {
           logger.error('Instagram connect: no URL returned', data);
+          setIgError(data.error || 'Instagram could not be reached just now. Try again in a minute.');
           setConnecting(null);
         }
       } catch (err) {
         logger.error('Instagram connect failed:', err);
+        setIgError('Could not reach Florrie just now. Check your connection and try again.');
         setConnecting(null);
       }
       return;
@@ -386,6 +405,13 @@ export default function Integrations() {
                         disabled={connecting === integ.id}
                       >{connecting === integ.id ? 'Reconnecting…' : `Reconnect ${integ.name} →`}</button>
                     </>
+                  )}
+
+                  {/* Say it out loud when the connect could not even start. */}
+                  {integ.id === 'instagram' && igError && (
+                    <p style={{ ...type.bodySmall, fontSize: 12, lineHeight: 1.5, color: 'var(--danger)', margin: '10px 0 0' }}>
+                      {igError}
+                    </p>
                   )}
 
                   {integ.status === 'coming_soon' && (

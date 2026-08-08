@@ -39,11 +39,21 @@ export async function hasColumn(supabase, table, column) {
 
   let present = false;
   try {
-    // limit(1) with head:true asks PostgREST to plan the query without
-    // returning rows. An unknown column fails here in exactly the same way it
-    // would fail in the real query, which is what makes this a valid probe
-    // rather than a guess.
-    const { error } = await supabase.from(table).select(column, { head: true, count: undefined }).limit(1);
+    // One column, one row. An unknown column fails here in exactly the same
+    // way it would fail in the real query, which is what makes this a valid
+    // probe rather than a guess.
+    //
+    // A GET, deliberately, not the { head: true } this used to pass.
+    // head:true makes supabase-js send HTTP HEAD
+    // (@supabase/postgrest-js PostgrestQueryBuilder: `const method = head ?
+    // 'HEAD' : 'GET'`), and a HEAD response has NO BODY — so postgrest-js
+    // falls into its `catch` and hands back `{ message: '' }` for a 400 that
+    // really did say "column expenses.hmrc_category does not exist". An empty
+    // message matches none of the patterns below, so a genuinely missing
+    // column was being logged as an unrelated failure and returned uncached:
+    // the right answer, reached the wrong way, re-probed on every single
+    // request instead of once per five minutes.
+    const { error } = await supabase.from(table).select(column).limit(1);
     present = !error;
     if (error && !/column|does not exist|schema cache/i.test(error.message || '')) {
       // Something other than a missing column — a network blip, a policy. Do

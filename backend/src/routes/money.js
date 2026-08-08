@@ -7,8 +7,12 @@ import { requireOwned } from '../lib/ownership.js';
 import Anthropic from '@anthropic-ai/sdk';
 import logger from '../lib/logger.js';
 import { expenseSchema } from '../lib/schemas.js';
-import {
+// Kept on its own line, above the multi-line ledger import. It was once landed
+// INSIDE that import's brace list, which is a SyntaxError, so index.js could
+// not import this router at all and every /api/money route — the ledger loudest
+// among them — died at boot. A broken import reads like a broken feature.
 import { selectable, writable } from '../lib/schema-probe.js';
+import {
   buildLedger,
   currentTaxYear,
   paginate,

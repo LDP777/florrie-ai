@@ -20,9 +20,9 @@ function fakeSupabase({ missing = [], failWith = null } = {}) {
     calls,
     from(table) {
       return {
-        select(cols) {
+        select(cols, options) {
           const asked = String(cols).split(',').map(s => s.trim());
-          calls.push({ table, cols: asked });
+          calls.push({ table, cols: asked, options });
           const bad = asked.find(c => missing.includes(c));
           const result = failWith
             ? { error: { message: failWith } }
@@ -64,6 +64,18 @@ describe('hasColumn', () => {
     expect(await hasColumn(db, 'expenses', 'hmrc_category')).toBe(false);
     await hasColumn(db, 'expenses', 'hmrc_category');
     expect(db.calls).toHaveLength(2);
+  });
+
+  it('probes with a GET, so the 400 actually carries a message to read', async () => {
+    // head:true makes supabase-js send HTTP HEAD, and a HEAD response has no
+    // body — postgrest-js then reports the 400 as { message: '' }. An empty
+    // message matches none of the "is this a missing column" patterns, so a
+    // column that really was missing got classified as an unrelated failure
+    // and re-probed on every request instead of once per five minutes. The
+    // classification is only as good as the message, and only a GET has one.
+    const db = fakeSupabase({ missing: ['hmrc_category'] });
+    await hasColumn(db, 'expenses', 'hmrc_category');
+    expect(db.calls[0].options?.head).toBeFalsy();
   });
 
   it('never throws, whatever the client does', async () => {

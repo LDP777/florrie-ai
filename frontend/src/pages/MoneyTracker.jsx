@@ -2448,8 +2448,13 @@ const S = {
     background: 'var(--tone-1, #fbf1ea)', borderRadius: 22, padding: '18px 16px', marginBottom: 16,
   },
   reportsTitle: {
+    // Was #b08a98, which is 2.72:1 on this card's own #fbf1ea — a heading at
+    // just over half the 4.5 AA needs. Nothing had ever measured it: the
+    // /api/money/reports fixture was the wrong shape, so this whole card threw
+    // and check-live graded the ErrorBoundary instead. Same plum as ytdTitle
+    // right above it, which is the card title this one is a sibling of.
     fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
-    color: '#b08a98', marginBottom: 14,
+    color: '#92405e', marginBottom: 14,
   },
   reportsRow: { display: 'flex', gap: 12, justifyContent: 'space-between' },
   reportStat: { display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 0 },
