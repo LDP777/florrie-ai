@@ -1075,6 +1075,19 @@ export default function MoneyTracker() {
               }}>{fmtNeat(ytd.current.profit_cents)}</span>
             </div>
           </div>
+          {/* ^ Income / Expenses / Profit are stacked rows, not three side-by-side
+              columns. Three flex:1 thirds of a 390px card (~106px each after the
+              card padding and gaps) is narrower than a four-figure tabular value
+              at this weight and size ("£10,009.60" alone runs to ~135px) — the
+              figure has nowhere to wrap (it is one unbroken token) and no clip is
+              applied, so it spills out of its own column and lands directly on
+              its neighbour, gap and all. That is what "£10,009.60£65.71" was: the
+              Income figure had already overflowed onto the Expenses column
+              before Expenses' text even started. A stacked row gives every value
+              the full card width to itself (~300px), which holds even
+              "-£100,000.00" comfortably, at any combination of income/expenses/
+              profit magnitude — not just a wider gap that happens to survive
+              today's numbers. */}
           {/* Cut off at the same calendar point last year on purpose. Four
               months against twelve always looks like a collapse. */}
           <div style={S.ytdCompare}>
@@ -2651,16 +2664,25 @@ const S = {
     letterSpacing: '0.06em', color: '#92405e',
   },
   ytdDates: { fontSize: 11, color: 'var(--text-muted)' },
-  ytdRow: { display: 'flex', justifyContent: 'space-between', gap: 10 },
-  ytdStat: { display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 },
+  // Stacked rows, not three side-by-side columns — see the comment above the
+  // JSX that renders these. Each row pins its own label to the left and its
+  // own value to the right, so the label-figure pairing is unambiguous no
+  // matter how wide any one figure gets, and no figure ever shares a column
+  // with another figure.
+  ytdRow: { display: 'flex', flexDirection: 'column', gap: 8 },
+  ytdStat: {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+    gap: 12, minWidth: 0,
+  },
   ytdLabel: {
     fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em',
-    color: 'var(--text-muted)', fontWeight: 600,
+    color: 'var(--text-muted)', fontWeight: 600, flexShrink: 0,
   },
   ytdValue: {
     fontFamily: '"Plus Jakarta Sans", -apple-system, sans-serif',
     fontSize: 22, fontWeight: 700, color: 'var(--text-primary)',
     fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em',
+    textAlign: 'right', whiteSpace: 'nowrap', minWidth: 0,
   },
   ytdCompare: {
     marginTop: 12, paddingTop: 10, borderTop: '1px solid rgba(146, 64, 94, 0.08)',

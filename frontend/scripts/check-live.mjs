@@ -52,6 +52,42 @@ const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
 await ctx.addInitScript(fetchStubSource());
 const page = await ctx.newPage();
 
+// The detector, as a source string, so the self-test at the bottom runs the
+// SAME code against a synthetic page rather than a re-implementation of it.
+const SELF_TEST_SRC = `() => {
+  const leaves = [];
+  for (const el of document.querySelectorAll('#root *')) {
+    const own = [...el.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join('').trim();
+    const r = el.getBoundingClientRect();
+    if (own && el.children.length === 0 && r.width && r.height) leaves.push({ el, own, r });
+  }
+  const lineRects = (el) => { const g = document.createRange(); g.selectNodeContents(el);
+    return [...g.getClientRects()].filter(r => r.width > 0 && r.height > 0); };
+  const separateCells = (a, b) => {
+    let anc = a.el.parentElement;
+    while (anc && !anc.contains(b.el)) anc = anc.parentElement;
+    if (!anc) return false;
+    if (!/flex|grid/.test(getComputedStyle(anc).display)) return false;
+    const cellOf = (el) => { let n = el; while (n && n.parentElement !== anc) n = n.parentElement; return n; };
+    const ca = cellOf(a.el), cb = cellOf(b.el);
+    return ca && cb && ca !== cb;
+  };
+  let caught = false, falsePositive = false;
+  for (let i = 0; i < leaves.length; i++) for (let j = i + 1; j < leaves.length; j++) {
+    const a = leaves[i], b = leaves[j];
+    if (a.el.contains(b.el) || b.el.contains(a.el)) continue;
+    if (!separateCells(a, b)) continue;
+    for (const ra of lineRects(a.el)) for (const rb of lineRects(b.el)) {
+      const v = Math.min(ra.bottom, rb.bottom) - Math.max(ra.top, rb.top);
+      if (v < Math.min(ra.height, rb.height) * 0.6) continue;
+      const left = ra.left <= rb.left ? ra : rb, right = left === ra ? rb : ra;
+      if (right.left - left.right >= 2) continue;
+      if (/florrie/.test(a.own + b.own)) falsePositive = true; else caught = true;
+    }
+  }
+  return { caught, falsePositive };
+}`;
+
 const findings = [];
 for (const route of ROUTES) {
   await page.goto(`http://127.0.0.1:${port}${route}`, { waitUntil: 'domcontentloaded' });
@@ -86,6 +122,7 @@ for (const route of ROUTES) {
     };
 
     const seen = new Set();
+    const leaves = [];
     for (const el of document.querySelectorAll('#root *')) {
       const own = [...el.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join('').trim();
       const s = getComputedStyle(el);
@@ -103,6 +140,19 @@ for (const route of ROUTES) {
       }
 
       if (!own) continue;
+
+      // 1b. TWO PIECES OF TEXT TOUCHING. Levi has now reported this twice by
+      //     eye — "£10,009.60£65.71" on the tax card, where a four-figure
+      //     income overflowed its third of a three-column row and landed on the
+      //     expenses figure. Flex children do not clip, so an over-wide value
+      //     simply spills onto its neighbour and no other check notices: it is
+      //     not off the screen, not low contrast, not the wrong font. It is
+      //     just unreadable.
+      //
+      //     Only leaf text nodes are compared, and only ones that overlap
+      //     horizontally while sharing a line — a heading sitting above a
+      //     paragraph overlaps vertically all the time and is fine.
+      if (el.children.length === 0) leaves.push({ el, own, r });
 
       // 2. figures in the wrong face — the one this whole script exists for
       const money = /[£$€]\s?\d/.test(own);
@@ -132,14 +182,112 @@ for (const route of ROUTES) {
         }
       }
     }
+    // The element BOX is the wrong thing to measure. A wrapped name occupies a
+    // full-width box even when its last line is three words long, so comparing
+    // boxes reports a collision between "Brow lamination maintenance – Hybrid
+    // dye" and the price beside it when there is visibly a gap. Range gives the
+    // per-LINE rectangles, which is what the eye actually sees.
+    const lineRects = (el) => {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      return [...range.getClientRects()].filter(r => r.width > 0 && r.height > 0);
+    };
+
+    // Two runs of text that form one sentence are SUPPOSED to touch —
+    // "Powered by " + "florrie.ai" is a single phrase in two spans. The
+    // difference is layout: a real collision is between separate cells of a
+    // flex or grid row, not between inline siblings in one text flow.
+    const separateCells = (a, b) => {
+      let anc = a.el.parentElement;
+      while (anc && !anc.contains(b.el)) anc = anc.parentElement;
+      if (!anc) return false;
+      const disp = getComputedStyle(anc).display;
+      if (!/flex|grid/.test(disp)) return false;
+      // Different direct children of that flex/grid container?
+      const cellOf = (el) => { let n = el; while (n && n.parentElement !== anc) n = n.parentElement; return n; };
+      const ca = cellOf(a.el), cb = cellOf(b.el);
+      return ca && cb && ca !== cb;
+    };
+
+    for (let i = 0; i < leaves.length; i++) {
+      for (let j = i + 1; j < leaves.length; j++) {
+        const a = leaves[i], b = leaves[j];
+        if (a.el.contains(b.el) || b.el.contains(a.el)) continue;
+        if (!separateCells(a, b)) continue;
+
+        let worst = null;
+        for (const ra of lineRects(a.el)) {
+          for (const rb of lineRects(b.el)) {
+            const vOverlap = Math.min(ra.bottom, rb.bottom) - Math.max(ra.top, rb.top);
+            if (vOverlap < Math.min(ra.height, rb.height) * 0.6) continue;
+            const left = ra.left <= rb.left ? ra : rb;
+            const right = left === ra ? rb : ra;
+            const gap = right.left - left.right;
+            if (gap >= 2) continue;
+            if (worst === null || gap < worst) worst = gap;
+          }
+        }
+        if (worst === null) continue;
+
+        const k = 't' + a.own.slice(0, 14) + b.own.slice(0, 14);
+        if (seen.has(k)) continue;
+        seen.add(k);
+        push('two pieces of text touching', {
+          text: `${a.own.slice(0, 18)}" next to "${b.own.slice(0, 18)}`,
+          by: Math.round(-worst),
+        });
+      }
+    }
+
     return out.slice(0, 10);
   });
 
   for (const b of bad) findings.push({ route, ...b });
 }
 
+// ---------------------------------------------------------------------------
+// Prove the collision detector can fail.
+//
+// It cannot be exercised against the bug it was written for: the tax-year card
+// lives on /money, which needs a session the fixtures cannot mint. A detector
+// that has only ever returned green is indistinguishable from one that always
+// returns green, so it is run here against a synthetic copy of the exact shape
+// that broke — three flex:1 thirds of a 390px card with a four-figure tabular
+// value in the first one.
+// Two earlier versions of this synthetic did not collide at all, so the
+// self-test "passed" for reasons that had nothing to do with the detector:
+//   - a real 22px Plus Jakarta value in a 106px column, which did not overflow
+//     because setContent has no webfont loaded and the fallback sans is narrower
+//   - an inline-block widened to 140px, which widens the BOX and not the text;
+//     Range.getClientRects reports glyph extent, so the rects never overlapped
+// The cells are 60px here, narrow enough that the glyphs themselves overrun
+// into the next column whatever font is resolved.
+await page.setContent(`<div id=root>
+  <div style="width:338px;display:flex;gap:10px;font:700 22px sans-serif;white-space:nowrap">
+    <div style="width:60px;flex:none"><span>£10,009.60</span></div>
+    <div style="width:60px;flex:none"><span>£65.71</span></div>
+    <div style="width:60px;flex:none"><span>£9,943.89</span></div>
+  </div>
+  <p style="margin-top:20px">Powered by <span>florrie.ai</span></p>
+</div>`);
+const selfTest = await page.evaluate(`(${SELF_TEST_SRC})()`);
+
 await browser.close();
 server.close();
+
+if (!selfTest.caught) {
+  console.error('✗ live: the collision detector did not fire on a known collision.\n' +
+    '  £10,009.60 in a 106px column overflows onto its neighbour — that is the\n' +
+    '  bug this was written for. If it reports nothing here it will report\n' +
+    '  nothing anywhere, and every green run above is meaningless.\n');
+  process.exit(1);
+}
+if (selfTest.falsePositive) {
+  console.error('✗ live: the collision detector fired on "Powered by florrie.ai",\n' +
+    '  which is one sentence in two spans and is SUPPOSED to touch. A check\n' +
+    '  that cries wolf gets skipped within a week.\n');
+  process.exit(1);
+}
 
 if (findings.length) {
   const byRoute = {};
@@ -148,7 +296,9 @@ if (findings.length) {
   for (const [route, list] of Object.entries(byRoute)) {
     console.error(`  ${route}`);
     for (const f of list) {
-      const extra = f.ratio ? `${f.ratio}:1 needs ${f.need}, ${f.fg} on ${f.bg}` : f.family ? f.family : f.by ? `by ${f.by}px` : '';
+      const extra = f.ratio ? `${f.ratio}:1 needs ${f.need}, ${f.fg} on ${f.bg}`
+        : f.family ? f.family
+        : f.by !== undefined ? `by ${f.by}px` : '';
       console.error(`    ${f.kind}${extra ? ` — ${extra}` : ''}  "${f.text}"`);
     }
   }

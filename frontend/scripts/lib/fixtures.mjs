@@ -67,6 +67,15 @@ const ROUTES = [
   [/\/api\/outbound\/pending/, () => ({ pending: [{ id: 'p1', body: 'Hi Sarah, fancy your usual Thursday?' }] })],
   [/\/api\/escalations/, () => ({ escalations: [] })],
   [/\/api\/florrie-thinks/, () => ({ cards: [] })],
+  // The tax-year card. Deliberately wide values: a four-figure income against a
+  // two-figure expense is the exact pair that collided on Ellie's screen, and a
+  // six-figure income is what a fixed gap tuned to today's numbers would fail on.
+  [/\/api\/money\/year-to-date/, () => ({
+    income_cents: 1000960, expenses_cents: 6571, profit_cents: 994389,
+    prior: { income_cents: 0, expenses_cents: 0, profit_cents: 0 },
+    tax_year: '2026-27', from: '2026-04-06', to: '2026-08-08',
+  })],
+  [/\/api\/money\/reports/, () => ({ rows: [], totals: { income_cents: 1000960, expenses_cents: 6571 } })],
   [/\/api\/money\/ledger/, () => ({ rows: [
     { id: 'l1', date: '2026-08-07', kind: 'income', amount_cents: 3000, vendor: null, description: 'Signature brows' },
     { id: 'l2', date: '2026-08-06', kind: 'expense', amount_cents: 1899, vendor: 'Salon Supplies Ltd', category: 'products' },
@@ -78,8 +87,18 @@ const ROUTES = [
 
 export function bodyFor(url) {
   for (const [re, make] of ROUTES) if (re.test(url)) return make();
-  return {};
+  return FALLBACK;
 }
+
+/**
+ * The catch-all used to be `{}`, and that is worse than useless: a page that
+ * does `data.rows.filter(...)` on it dies with "C.filter is not a function"
+ * before it renders a pixel, so a missing fixture looks exactly like a broken
+ * screen. Supabase REST returns an ARRAY, and most of this app's own routes
+ * return { data } or { rows }. Answering with all three shapes at once means an
+ * unmatched call renders empty rather than throwing.
+ */
+const FALLBACK = Object.assign([], { data: [], rows: [], items: [], count: 0 });
 
 /** Installed inside the page, so the app's own fetch calls resolve. */
 export function fetchStubSource() {
@@ -88,7 +107,9 @@ export function fetchStubSource() {
     const BODIES = ${JSON.stringify(ROUTES.map(([, make]) => make()))};
     window.fetch = (input) => {
       const url = typeof input === 'string' ? input : (input && input.url) || '';
-      let body = {};
+      // Same reasoning as FALLBACK above: an unmatched call must render empty,
+      // not throw, or a missing fixture is indistinguishable from a bug.
+      let body = { data: [], rows: [], items: [], count: 0 };
       for (let i = 0; i < ROUTES.length; i++) {
         if (new RegExp(ROUTES[i]).test(url)) { body = BODIES[i]; break; }
       }
