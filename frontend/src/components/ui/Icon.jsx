@@ -107,6 +107,7 @@ const PATHS = {
   'arrow-up': 'M12 19.6V4.4M5.8 10.6L12 4.4l6.2 6.2',
   'arrow-down': 'M12 4.4v15.2M5.8 13.4L12 19.6l6.2-6.2',
   'arrow-up-right': 'M6.6 17.4L17.4 6.6M8.2 6.6h9.2v9.2',
+  grip: 'M9 6h.01M9 12h.01M9 18h.01M15 6h.01M15 12h.01M15 18h.01',
   'arrow-down-left': 'M17.4 6.6L6.6 17.4M15.8 17.4H6.6V8.2',
 
   // Added for the Material Symbols retirement: shapes that set had and this

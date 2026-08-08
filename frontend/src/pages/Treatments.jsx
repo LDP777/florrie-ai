@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { useBeautician, fetchRows, insertRow, updateRow, supabase } from '../lib/supabase.js';
 import { formatCurrency, formatDuration } from '../lib/formatting.js';
 import logger from '../lib/logger.js';
@@ -9,6 +9,7 @@ import { TREATMENT_PALETTE, treatmentColor } from '../lib/treatmentColors.js';
 import ErrorCard from '../components/ErrorCard.jsx';
 import { API_BASE } from '../lib/config.js';
 import Icon, { iconName } from '../components/ui/Icon';
+import DragList, { DragHandle } from '../components/ui/DragList.jsx';
 
 /**
  * Treatments - manage treatment menu.
@@ -176,33 +177,25 @@ export default function Treatments() {
   }
 
   /**
-   * Move one treatment up or down within its category.
+   * Commit a reordered category.
    *
    * treatments.sort_order has existed since the initial schema, and both this
    * list and the public booking page already order by it. Nothing had ever
    * written it, so every row sat at the default 0 and the order was whatever
-   * Postgres returned. Writing the whole category's indexes on each move keeps
-   * them contiguous rather than accumulating gaps.
+   * Postgres returned.
    *
-   * Applied to local state first so the row moves under her thumb straight
-   * away; a failed write reloads from the server rather than leaving the screen
-   * disagreeing with the database.
+   * Called once on release rather than on every row the finger passes, and it
+   * rewrites the whole category so the indexes stay contiguous instead of
+   * accumulating gaps. Local state is already showing the new order, so a
+   * failed write reloads rather than leaving the screen disagreeing with the
+   * database.
    */
-  async function moveTreatment(cat, index, direction) {
-    const list = treatments
-      .filter(t => t.is_active !== false && (t.category || 'other') === cat);
-    const target = index + direction;
-    if (target < 0 || target >= list.length) return;
-
-    const reordered = [...list];
-    [reordered[index], reordered[target]] = [reordered[target], reordered[index]];
-
+  async function persistOrder(reordered) {
     const orderById = new Map(reordered.map((t, i) => [t.id, i]));
     setTreatments(prev => {
       const next = prev.map(t => orderById.has(t.id) ? { ...t, sort_order: orderById.get(t.id) } : t);
       return [...next].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
     });
-
     setReorderBusy(true);
     try {
       await Promise.all(reordered.map((t, i) => updateRow('treatments', t.id, { sort_order: i })));
@@ -251,6 +244,41 @@ export default function Treatments() {
     const bi = CATEGORIES.findIndex(c => c.value === b);
     return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
   });
+
+  // One row definition, rendered either inside the drag list or on its own, so
+  // the two can never drift apart.
+  const renderRow = (t, handleProps) => (
+    <div style={styles.treatmentCard}>
+      {handleProps && <DragHandle handleProps={handleProps} label={`Reorder ${t.name}`} />}
+      <div style={styles.treatmentInfo}>
+        <span style={styles.treatmentNameRow}>
+          <span style={{ ...styles.colorDot, background: treatmentColor(t) }} />
+          <span style={styles.treatmentName}>{t.name}</span>
+        </span>
+        <span style={styles.treatmentMeta}>
+          {t.duration_minutes} min{t.buffer_minutes > 0 && ` + ${t.buffer_minutes} buffer`} · {formatCurrency(t.price_cents)}
+          {t.deposit_percent > 0 ? ` · ${t.deposit_percent}% deposit` : t.deposit_cents > 0 ? ` · ${formatCurrency(t.deposit_cents)} deposit` : ''}
+        </span>
+        {t.requires_consultation && (
+          <span style={styles.consultBadge}>
+            <Icon name="file" size={12} /> Consultation required
+          </span>
+        )}
+        {t.requires_patch_test && (
+          <span style={{ ...styles.consultBadge, background: 'rgba(201,169,110,0.12)', color: 'var(--gold, #8A6420)' }}>
+            <Icon name="syringe" size={12} /> Patch test required
+          </span>
+        )}
+        {t.description && <span style={styles.treatmentDesc}>{t.description}</span>}
+      </div>
+      {!handleProps && (
+        <div style={styles.treatmentActions}>
+          <button onClick={() => startEdit(t)} style={styles.editBtn}>Edit</button>
+          <button onClick={() => handleToggleActive(t.id, true)} style={styles.deactivateBtn}>Hide</button>
+        </div>
+      )}
+    </div>
+  );
 
   if (bLoading || loading) return <p style={styles.loadingText}>Loading treatments...</p>;
 
@@ -525,65 +553,15 @@ export default function Treatments() {
                 <Icon name={catIcon(cat)} size={15} />
                 {catLabel(cat)}
               </h3>
-              {grouped[cat].map((t, i) => (
-                <div key={t.id} style={styles.treatmentCard}>
-                  <div style={styles.treatmentInfo}>
-                    <span style={styles.treatmentNameRow}>
-                      <span style={{ ...styles.colorDot, background: treatmentColor(t) }} />
-                      <span style={styles.treatmentName}>{t.name}</span>
-                    </span>
-                    <span style={styles.treatmentMeta}>
-                      {t.duration_minutes} min{t.buffer_minutes > 0 && ` + ${t.buffer_minutes} buffer`} · {formatCurrency(t.price_cents)}
-                      {t.deposit_percent > 0 ? ` · ${t.deposit_percent}% deposit` : t.deposit_cents > 0 ? ` · ${formatCurrency(t.deposit_cents)} deposit` : ''}
-                    </span>
-                    {t.requires_consultation && (
-                      <span style={styles.consultBadge}>
-                        <Icon name="file" size={12} /> Consultation required
-                      </span>
-                    )}
-                    {t.requires_patch_test && (
-                      <span style={{ ...styles.consultBadge, background: 'rgba(201,169,110,0.12)', color: 'var(--gold, #8A6420)' }}>
-                        <Icon name="syringe" size={12} /> Patch test required
-                      </span>
-                    )}
-                    {t.description && (
-                      <span style={styles.treatmentDesc}>{t.description}</span>
-                    )}
-                  </div>
-                  <div style={styles.treatmentActions}>
-                    {reordering ? (
-                      <>
-                        <button
-                          onClick={() => moveTreatment(cat, i, -1)}
-                          disabled={i === 0 || reorderBusy}
-                          aria-label={`Move ${t.name} up`}
-                          style={{ ...styles.moveBtn, opacity: i === 0 ? 0.3 : 1 }}
-                        >
-                          <Icon name="chevron-up" size={18} />
-                        </button>
-                        <button
-                          onClick={() => moveTreatment(cat, i, 1)}
-                          disabled={i === grouped[cat].length - 1 || reorderBusy}
-                          aria-label={`Move ${t.name} down`}
-                          style={{ ...styles.moveBtn, opacity: i === grouped[cat].length - 1 ? 0.3 : 1 }}
-                        >
-                          <Icon name="chevron-down" size={18} />
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button onClick={() => startEdit(t)} style={styles.editBtn}>Edit</button>
-                        <button
-                          onClick={() => handleToggleActive(t.id, true)}
-                          style={styles.deactivateBtn}
-                        >
-                          Hide
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              ))}
+              {reordering ? (
+                <DragList
+                  items={grouped[cat]}
+                  getKey={t => t.id}
+                  gap={8}
+                  onReorder={persistOrder}
+                  renderItem={(t, { handleProps }) => renderRow(t, handleProps)}
+                />
+              ) : grouped[cat].map(t => <Fragment key={t.id}>{renderRow(t)}</Fragment>)}
             </div>
           ))}
 
@@ -813,13 +791,6 @@ const styles = {
     border: '1px solid var(--accent)', background: 'var(--accent)',
     color: '#fff', fontSize: 13, fontWeight: 600,
     fontFamily: 'inherit', cursor: 'pointer',
-  },
-  moveBtn: {
-    width: 44, height: 44, borderRadius: 12,
-    border: '1px solid var(--border)', background: 'var(--bg-card)',
-    color: 'var(--accent)', cursor: 'pointer',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontFamily: 'inherit',
   },
   treatmentCard: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',

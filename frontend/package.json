@@ -15,7 +15,8 @@
     "cap:ios": "npx cap open ios",
     "cap:android": "npx cap open android",
     "native:build": "vite build && npx cap sync",
-    "check:icons": "node scripts/check-icons.mjs"
+    "check:icons": "node scripts/check-icons.mjs",
+    "check:drag": "node scripts/check-drag.mjs"
   },
   "dependencies": {
     "@capacitor-community/apple-sign-in": "^6.0.0",

@@ -56,3 +56,12 @@ jobs:
           VITE_API_URL: https://api.florrie.ai
           VITE_SUPABASE_URL: https://placeholder.supabase.co
           VITE_SUPABASE_ANON_KEY: placeholder
+
+      # Reordering is a GESTURE, and no amount of "the page rendered without
+      # errors" proves a gesture works. Three separate DragList bugs all built,
+      # parsed and rendered fine, and failed the moment a finger moved. This
+      # drives real touch PointerEvents. Needs a browser, so it lives here
+      # rather than in `npm run build` (Xcode Cloud has no chromium).
+      - run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      - run: npm run check:drag --workspace frontend
