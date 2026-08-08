@@ -468,11 +468,15 @@ export default function App() {
             // both half-hidden behind the word Back.
             //
             // PageHeader padded 60px to dodge it, but only nine screens use
-            // PageHeader and PageScaffold, which was written to solve exactly
-            // this, has zero imports. Sixty-odd screens roll their own header
-            // and none of them knew about the pill. Reserving it once here
-            // fixes all of them and cannot drift, because the same condition
-            // that renders the pill reserves its space.
+            // PageHeader. There was also a PageScaffold component written to
+            // solve exactly this, whose docblock claimed App.jsx cooperated
+            // with it; nothing imported it and App.jsx did no such thing, so it
+            // was deleted rather than left to read like documentation of an
+            // architecture that never existed.
+            //
+            // Reserving the band once here fixes all sixty-odd screens and
+            // cannot drift, because the same condition that renders the pill
+            // reserves its space. check-chrome.mjs holds the two together.
             //
             // Root paths are excluded deliberately: they show only the More
             // pill, top-RIGHT, and their headers are left-aligned, so there is
