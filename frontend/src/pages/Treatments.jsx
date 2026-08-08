@@ -16,17 +16,17 @@ import Icon, { iconName } from '../components/ui/Icon';
  */
 
 const CATEGORIES = [
-  { value: 'brows', label: 'Brows', emoji: '🪮' },
-  { value: 'lashes', label: 'Lashes', emoji: '👁️' },
-  { value: 'nails', label: 'Nails', emoji: '💅' },
-  { value: 'skin', label: 'Skin', emoji: '✨' },
-  { value: 'waxing', label: 'Waxing', emoji: '🍯' },
-  { value: 'makeup', label: 'Makeup', emoji: '💄' },
-  { value: 'hair', label: 'Hair', emoji: '💇' },
-  { value: 'other', label: 'Other', emoji: '🌸' }
+  { value: 'brows', label: 'Brows', icon: 'scissors' },
+  { value: 'lashes', label: 'Lashes', icon: 'eye' },
+  { value: 'nails', label: 'Nails', icon: 'sparkles' },
+  { value: 'skin', label: 'Skin', icon: 'sparkle' },
+  { value: 'waxing', label: 'Waxing', icon: 'flower' },
+  { value: 'makeup', label: 'Makeup', icon: 'palette' },
+  { value: 'hair', label: 'Hair', icon: 'scissors' },
+  { value: 'other', label: 'Other', icon: 'flower' }
 ];
 
-const catEmoji = (cat) => CATEGORIES.find(c => c.value === cat)?.emoji || '🌸';
+const catIcon = (cat) => CATEGORIES.find(c => c.value === cat)?.icon || 'flower';
 const catLabel = (cat) => CATEGORIES.find(c => c.value === cat)?.label || cat;
 
 export default function Treatments() {
@@ -38,6 +38,8 @@ export default function Treatments() {
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
+  const [reordering, setReordering] = useState(false);
+  const [reorderBusy, setReorderBusy] = useState(false);
   const [forms, setForms] = useState([]); // Ellie's built consultation forms
 
   const blank = {
@@ -173,6 +175,45 @@ export default function Treatments() {
     }
   }
 
+  /**
+   * Move one treatment up or down within its category.
+   *
+   * treatments.sort_order has existed since the initial schema, and both this
+   * list and the public booking page already order by it. Nothing had ever
+   * written it, so every row sat at the default 0 and the order was whatever
+   * Postgres returned. Writing the whole category's indexes on each move keeps
+   * them contiguous rather than accumulating gaps.
+   *
+   * Applied to local state first so the row moves under her thumb straight
+   * away; a failed write reloads from the server rather than leaving the screen
+   * disagreeing with the database.
+   */
+  async function moveTreatment(cat, index, direction) {
+    const list = treatments
+      .filter(t => t.is_active !== false && (t.category || 'other') === cat);
+    const target = index + direction;
+    if (target < 0 || target >= list.length) return;
+
+    const reordered = [...list];
+    [reordered[index], reordered[target]] = [reordered[target], reordered[index]];
+
+    const orderById = new Map(reordered.map((t, i) => [t.id, i]));
+    setTreatments(prev => {
+      const next = prev.map(t => orderById.has(t.id) ? { ...t, sort_order: orderById.get(t.id) } : t);
+      return [...next].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+    });
+
+    setReorderBusy(true);
+    try {
+      await Promise.all(reordered.map((t, i) => updateRow('treatments', t.id, { sort_order: i })));
+    } catch (err) {
+      logger.error('Reorder error:', err);
+      loadTreatments();
+    } finally {
+      setReorderBusy(false);
+    }
+  }
+
   function startEdit(t) {
     setForm({
       name: t.name,
@@ -218,9 +259,17 @@ export default function Treatments() {
       <PageHeader
         title="Treatments"
         action={(
-          <button onClick={() => { setShowAdd(!showAdd); setEditing(null); setForm(blank); }} style={styles.addBtn}>
+          <>
+          <button
+            onClick={() => { setReordering(r => !r); setShowAdd(false); setEditing(null); }}
+            style={reordering ? styles.reorderBtnOn : styles.reorderBtn}
+          >
+            {reordering ? 'Done' : 'Reorder'}
+          </button>
+          <button onClick={() => { setShowAdd(!showAdd); setEditing(null); setForm(blank); setReordering(false); }} style={styles.addBtn}>
             + Add
           </button>
+          </>
         )}
       />
 
@@ -473,9 +522,10 @@ export default function Treatments() {
           {sortedCategories.map(cat => (
             <div key={cat} style={styles.categorySection}>
               <h3 style={styles.categoryTitle}>
-                {catEmoji(cat)} {catLabel(cat)}
+                <Icon name={catIcon(cat)} size={15} />
+                {catLabel(cat)}
               </h3>
-              {grouped[cat].map(t => (
+              {grouped[cat].map((t, i) => (
                 <div key={t.id} style={styles.treatmentCard}>
                   <div style={styles.treatmentInfo}>
                     <span style={styles.treatmentNameRow}>
@@ -487,23 +537,50 @@ export default function Treatments() {
                       {t.deposit_percent > 0 ? ` · ${t.deposit_percent}% deposit` : t.deposit_cents > 0 ? ` · ${formatCurrency(t.deposit_cents)} deposit` : ''}
                     </span>
                     {t.requires_consultation && (
-                      <span style={styles.consultBadge}>📋 Consultation required</span>
+                      <span style={styles.consultBadge}>
+                        <Icon name="file" size={12} /> Consultation required
+                      </span>
                     )}
                     {t.requires_patch_test && (
-                      <span style={{ ...styles.consultBadge, background: 'rgba(201,169,110,0.12)', color: 'var(--gold, #8A6420)' }}>⚗️ Patch test required</span>
+                      <span style={{ ...styles.consultBadge, background: 'rgba(201,169,110,0.12)', color: 'var(--gold, #8A6420)' }}>
+                        <Icon name="syringe" size={12} /> Patch test required
+                      </span>
                     )}
                     {t.description && (
                       <span style={styles.treatmentDesc}>{t.description}</span>
                     )}
                   </div>
                   <div style={styles.treatmentActions}>
-                    <button onClick={() => startEdit(t)} style={styles.editBtn}>Edit</button>
-                    <button
-                      onClick={() => handleToggleActive(t.id, true)}
-                      style={styles.deactivateBtn}
-                    >
-                      Hide
-                    </button>
+                    {reordering ? (
+                      <>
+                        <button
+                          onClick={() => moveTreatment(cat, i, -1)}
+                          disabled={i === 0 || reorderBusy}
+                          aria-label={`Move ${t.name} up`}
+                          style={{ ...styles.moveBtn, opacity: i === 0 ? 0.3 : 1 }}
+                        >
+                          <Icon name="chevron-up" size={18} />
+                        </button>
+                        <button
+                          onClick={() => moveTreatment(cat, i, 1)}
+                          disabled={i === grouped[cat].length - 1 || reorderBusy}
+                          aria-label={`Move ${t.name} down`}
+                          style={{ ...styles.moveBtn, opacity: i === grouped[cat].length - 1 ? 0.3 : 1 }}
+                        >
+                          <Icon name="chevron-down" size={18} />
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button onClick={() => startEdit(t)} style={styles.editBtn}>Edit</button>
+                        <button
+                          onClick={() => handleToggleActive(t.id, true)}
+                          style={styles.deactivateBtn}
+                        >
+                          Hide
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               ))}
@@ -721,7 +798,29 @@ const styles = {
     cursor: 'pointer', fontFamily: 'inherit'
   },
   categorySection: { marginBottom: 16 },
-  categoryTitle: { fontSize: 14, fontWeight: 600, margin: '0 0 8px', color: 'var(--text-secondary)' },
+  categoryTitle: {
+    display: 'flex', alignItems: 'center', gap: 7,
+    fontSize: 14, fontWeight: 600, margin: '0 0 8px', color: 'var(--text-secondary)',
+  },
+  reorderBtn: {
+    minHeight: 36, padding: '0 14px', marginRight: 8, borderRadius: 999,
+    border: '1px solid var(--border)', background: 'var(--bg-card)',
+    color: 'var(--accent)', fontSize: 13, fontWeight: 600,
+    fontFamily: 'inherit', cursor: 'pointer',
+  },
+  reorderBtnOn: {
+    minHeight: 36, padding: '0 14px', marginRight: 8, borderRadius: 999,
+    border: '1px solid var(--accent)', background: 'var(--accent)',
+    color: '#fff', fontSize: 13, fontWeight: 600,
+    fontFamily: 'inherit', cursor: 'pointer',
+  },
+  moveBtn: {
+    width: 44, height: 44, borderRadius: 12,
+    border: '1px solid var(--border)', background: 'var(--bg-card)',
+    color: 'var(--accent)', cursor: 'pointer',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontFamily: 'inherit',
+  },
   treatmentCard: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
     background: 'var(--bg-card)', borderRadius: 12, padding: '12px 14px', marginBottom: 6,
