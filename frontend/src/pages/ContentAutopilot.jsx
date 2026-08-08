@@ -20,6 +20,7 @@ import EmptyState from '../components/EmptyState.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import Icon, { iconName } from '../components/ui/Icon';
+import Button from '../components/ui/Button.jsx';
 /**
  * Content Autopilot, Ellie's #1 pain point.
  *
@@ -637,9 +638,9 @@ export default function ContentAutopilot() {
         title="Content"
         subtitle="Florrie writes your captions and posts"
         action={(
-          <button onClick={() => startCompose('before_after', '')} style={styles.uploadBtn}>
+          <Button onClick={() => startCompose('before_after', '')}>
             + New Post
-          </button>
+          </Button>
         )}
       />
       {/* Plan my week — the lead action (Levi, 9 Jul: planner-first) */}
@@ -656,26 +657,21 @@ export default function ContentAutopilot() {
             One tap and Florrie drafts a week of posts in your voice, from your real work,
             reviews and openings. Nothing goes out until you say so.
           </p>
-          <button className="fl-tap"
-            onClick={handlePlanWeek}
-            disabled={planning}
-            style={{ padding: '12px 22px', borderRadius: 10, border: 'none',
-              background: 'var(--accent, #92405E)', color: '#fff', fontSize: 14, fontWeight: 700,
-              cursor: 'pointer', fontFamily: 'inherit', opacity: planning ? 0.6 : 1,
-            }}
-          >
+          <Button onClick={handlePlanWeek} disabled={planning}>
             {planning ? 'Drafting your week...' : 'Draft my week'}
-          </button>
+          </Button>
           {planNote && (
             <p style={{ fontSize: 12.5, color: 'var(--text-secondary, #574A42)', margin: '10px 0 0' }}>{planNote}</p>
           )}
           {planBlocked && (
-            <button className="fl-tap"
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() => { setTab('drafts'); setPlanNote(null); setPlanBlocked(false); }}
-              style={{ marginTop: 8, padding: '8px 16px', borderRadius: 10, border: '1.5px solid var(--accent, #92405E)', background: 'transparent', color: 'var(--accent, #92405E)', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+              style={{ marginTop: 8 }}
             >
               Review my drafts
-            </button>
+            </Button>
           )}
         </div>
       )}
@@ -712,37 +708,35 @@ export default function ContentAutopilot() {
 
       {/* Stream selector pills */}
       <div style={styles.streamSelector}>
-        <button
+        <Button
+          variant="chip"
+          size="md"
+          aria-pressed={selectedStreamId === null}
           onClick={() => setSelectedStreamId(null)}
-          style={{ ...styles.streamPill,
-            background: selectedStreamId === null ? 'var(--accent, #92405e)' : 'var(--bg-subtle, #ede7e3)',
-            color: selectedStreamId === null ? 'white' : 'var(--text-secondary, #574A42)',
-          }}
+          style={styles.streamPill}
         >
           All
-        </button>
+        </Button>
         {streams.map(s => (
-          <button
+          <Button
             key={s.id}
+            variant="chip"
+            size="md"
+            aria-pressed={selectedStreamId === s.id}
             onClick={() => setSelectedStreamId(s.id)}
-            style={{ ...styles.streamPill,
-              background: selectedStreamId === s.id ? 'var(--accent, #92405e)' : 'var(--bg-subtle, #ede7e3)',
-              color: selectedStreamId === s.id ? 'white' : 'var(--text-secondary, #574A42)',
-            }}
+            style={styles.streamPill}
           >
             {s.name} {s.monthly_target ? `●${s.monthly_target}/mo` : ''}
-          </button>
+          </Button>
         ))}
-        <button
+        <Button
+          variant="secondary"
+          size="md"
           onClick={() => setShowStreamForm(!showStreamForm)}
-          style={{ ...styles.streamPill,
-            background: 'transparent',
-            color: 'var(--accent, #92405e)',
-            border: '1px solid var(--accent, #92405e)',
-          }}
+          style={styles.streamPill}
         >
           + Add stream
-        </button>
+        </Button>
       </div>
       {/* New stream form */}
       {showStreamForm && (
@@ -777,9 +771,9 @@ export default function ContentAutopilot() {
             style={{ ...styles.streamFormInput, minHeight: 60, resize: 'vertical' }}
           />
           <div style={styles.streamFormActions}>
-            <button onClick={handleCreateStream} disabled={savingStream} style={styles.primaryBtn}>
+            <Button size="lg" onClick={handleCreateStream} disabled={savingStream} style={{ flex: 1 }}>
               {savingStream ? 'Creating...' : 'Create'}
-            </button>
+            </Button>
             <button onClick={() => setShowStreamForm(false)} style={styles.cancelBtn}>Cancel</button>
           </div>
         </div>
@@ -906,17 +900,14 @@ export default function ContentAutopilot() {
           </div>
           <div style={styles.composeTypeRow}>
             {Object.entries(POST_TYPE_LABELS).map(([type, label]) => (
-              <button
+              <Button
                 key={type}
+                variant={composeType === type ? 'tonal' : 'chip'}
+                size="sm"
                 onClick={() => setComposeType(type)}
-                style={{ ...styles.composeTypeBtn,
-                  background: composeType === type ? '#FBF0F3' : 'var(--bg-subtle, var(--bg-subtle, #ede7e3))',
-                  color: composeType === type ? 'var(--accent, #92405e)' : '#6b6560',
-                  fontWeight: composeType === type ? 600 : 400,
-                }}
               >
                 {label}
-              </button>
+              </Button>
             ))}
           </div>
           {/* Photo control (the live preview above shows the image) */}
@@ -992,15 +983,14 @@ export default function ContentAutopilot() {
           />
           {/* Actions */}
           <div style={styles.composeActions}>
-            <button
+            <Button
+              size="lg"
               onClick={handleSaveDraft}
               disabled={!composeCaption.trim() || saving}
-              style={{ ...styles.primaryBtn,
-                opacity: !composeCaption.trim() ? 0.5 : 1,
-              }}
+              style={{ flex: 1 }}
             >
               {saving ? 'Saving...' : 'Save as Draft'}
-            </button>
+            </Button>
             <button onClick={() => { setComposing(false); setTab('ideas'); }} style={styles.cancelBtn}>
               Cancel
             </button>
@@ -1035,12 +1025,9 @@ export default function ContentAutopilot() {
             </div>
           )}
           {drafts.length > 1 && deckIndex === null && (
-            <button className="fl-tap"
-              onClick={() => setDeckIndex(0)}
-              style={{ padding: '11px 0', borderRadius: 10, border: '1.5px solid var(--accent, #92405e)', background: 'transparent', color: 'var(--accent, #92405e)', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
-            >
+            <Button variant="secondary" onClick={() => setDeckIndex(0)}>
               Review one by one ({drafts.length})
-            </button>
+            </Button>
           )}
           {drafts.length === 0 && !loading && (
             <EmptyState
@@ -1055,8 +1042,8 @@ export default function ContentAutopilot() {
                 {Math.min(deckIndex + 1, drafts.length)} of {drafts.length}
               </span>
               <div style={{ display: 'flex', gap: 10 }}>
-                <button onClick={() => setDeckIndex(i => Math.max(0, i - 1))} disabled={deckIndex === 0} style={{ background: 'none', border: 'none', color: deckIndex === 0 ? 'var(--text-muted, #6B5D54)' : 'var(--accent, #92405e)', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>‹ Back</button>
-                <button onClick={() => setDeckIndex(i => (i + 1 < drafts.length ? i + 1 : i))} disabled={deckIndex + 1 >= drafts.length} style={{ background: 'none', border: 'none', color: deckIndex + 1 >= drafts.length ? 'var(--text-muted, #6B5D54)' : 'var(--accent, #92405e)', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Skip ›</button>
+                <Button variant="quiet" size="sm" onClick={() => setDeckIndex(i => Math.max(0, i - 1))} disabled={deckIndex === 0}>‹ Back</Button>
+                <Button variant="quiet" size="sm" onClick={() => setDeckIndex(i => (i + 1 < drafts.length ? i + 1 : i))} disabled={deckIndex + 1 >= drafts.length}>Skip ›</Button>
                 <button onClick={() => setDeckIndex(null)} style={{ background: 'none', border: 'none', color: 'var(--text-muted, #6B5D54)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>List</button>
               </div>
             </div>
@@ -1072,15 +1059,9 @@ export default function ContentAutopilot() {
                   {POST_TYPE_LABELS[post.post_type] || 'Post'}
                 </div>
                 {post.scheduled_for && (
-                  <button className="fl-tap"
-                    onClick={() => handleApproveSchedule(post)}
-                    style={{ padding: '4px 12px', borderRadius: 10, border: '1px solid var(--accent, #92405e)',
-                      background: 'transparent', color: 'var(--accent, #92405e)',
-                      fontSize: 11.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-                    }}
-                  >
+                  <Button variant="secondary" size="xs" onClick={() => handleApproveSchedule(post)}>
                     Approve for {new Date(post.scheduled_for).toLocaleDateString('en-GB', { weekday: 'short' })} {new Date(post.scheduled_for).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
-                  </button>
+                  </Button>
                 )}
               </div>
               {/* Image */}
@@ -1100,7 +1081,7 @@ export default function ContentAutopilot() {
                     autoFocus
                   />
                   <div style={styles.editActions}>
-                    <button onClick={() => handleEditSave(post.id)} style={styles.saveEditBtn}>Save</button>
+                    <Button size="sm" onClick={() => handleEditSave(post.id)}>Save</Button>
                     <button onClick={() => setEditingId(null)} style={styles.cancelEditBtn}>Cancel</button>
                   </div>
                 </div>
@@ -1118,19 +1099,21 @@ export default function ContentAutopilot() {
               {/* Actions */}
               {editingId !== post.id && (
                 <div style={styles.actions}>
-                  <button
+                  <Button
+                    size="sm"
                     onClick={() => handleApprove(post.id)}
                     disabled={publishing === post.id}
-                    style={styles.publishBtn}
+                    style={{ flex: 1 }}
                   >
                     {publishing === post.id ? 'Posting...' : 'Approve & Post'}
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="tonal"
+                    size="sm"
                     onClick={() => { setEditingId(post.id); setEditCaption(post.caption || ''); }}
-                    style={styles.editBtn}
                   >
                     Edit
-                  </button>
+                  </Button>
                   <button
                     onClick={() => handleDiscard(post.id)}
                     style={styles.discardBtn}
@@ -1245,7 +1228,7 @@ export default function ContentAutopilot() {
             <p style={styles.ideaIntro}>
               Before & after photos. Your best portfolio, clients love seeing results.
             </p>
-            <button onClick={() => setShowGalleryAdd(true)} style={styles.galleryAddBtn}>+ Add</button>
+            <Button size="sm" onClick={() => setShowGalleryAdd(true)} style={{ flexShrink: 0 }}>+ Add</Button>
           </div>
           {/* Add form */}
           {showGalleryAdd && (
@@ -1292,15 +1275,14 @@ export default function ContentAutopilot() {
                 style={styles.galleryNotesInput}
               />
               <div style={styles.galleryFormActions}>
-                <button
+                <Button
+                  size="lg"
                   onClick={handleSaveGalleryItem}
                   disabled={!galleryBefore || !galleryAfter || savingGallery}
-                  style={{ ...styles.primaryBtn,
-                    opacity: (!galleryBefore || !galleryAfter) ? 0.5 : 1,
-                  }}
+                  style={{ flex: 1 }}
                 >
                   {savingGallery ? 'Saving...' : 'Save to Gallery'}
-                </button>
+                </Button>
                 <button onClick={() => {
                   setShowGalleryAdd(false);
                   setGalleryBefore(null);
@@ -1404,18 +1386,6 @@ const styles = {
   },
   title: { fontSize: 22, fontWeight: 700, margin: '0 0 2px' },
   subtitle: { fontSize: 13, color: 'var(--accent, #92405e)', margin: 0, fontWeight: 500 },
-  uploadBtn: {
-    minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-    padding: '10px 18px',
-    borderRadius: 10,
-    border: 'none',
-    background: 'var(--accent, #92405e)',
-    color: 'var(--bg-card, #FFFCF9)',
-    fontSize: 14,
-    fontWeight: 600,
-    cursor: 'pointer',
-    fontFamily: 'inherit'
-  },
   tabs: {
     display: 'flex',
     gap: 4,
@@ -1459,15 +1429,6 @@ const styles = {
   // Compose
   composeArea: { display: 'flex', flexDirection: 'column', gap: 12 },
   composeTypeRow: { display: 'flex', flexWrap: 'wrap', gap: 6 },
-  composeTypeBtn: {
-    minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-    padding: '6px 12px',
-    borderRadius: 10,
-    border: 'none',
-    fontSize: 12,
-    cursor: 'pointer',
-    fontFamily: 'inherit',
-  },
   photoArea: {
     borderRadius: 10,
     border: '1.5px dashed var(--border, var(--border, #E8DDD4))',
@@ -1517,18 +1478,6 @@ const styles = {
     boxSizing: 'border-box',
   },
   composeActions: { display: 'flex', gap: 8, marginTop: 4 },
-  primaryBtn: {
-    flex: 1,
-    padding: '14px 0',
-    borderRadius: 10,
-    border: 'none',
-    background: 'var(--accent, #92405e)',
-    color: 'var(--bg-card, #FFFCF9)',
-    fontSize: 15,
-    fontWeight: 600,
-    cursor: 'pointer',
-    fontFamily: 'inherit',
-  },
   cancelBtn: {
     padding: '14px 20px',
     borderRadius: 10,
@@ -1560,29 +1509,6 @@ const styles = {
   hashtags: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 },
   hashtag: { fontSize: 12, color: '#4A90D9', background: '#EEF4FC', padding: '3px 8px', borderRadius: 6 },
   actions: { display: 'flex', gap: 8 },
-  publishBtn: {
-    flex: 1,
-    padding: '10px 0',
-    borderRadius: 10,
-    border: 'none',
-    background: 'var(--accent, #92405e)',
-    color: 'var(--bg-card, #FFFCF9)',
-    fontSize: 13,
-    fontWeight: 600,
-    cursor: 'pointer',
-    fontFamily: 'inherit'
-  },
-  editBtn: {
-    padding: '10px 16px',
-    borderRadius: 10,
-    border: 'none',
-    background: 'var(--accent-light, #F6E7EC)',
-    color: 'var(--accent, #92405e)',
-    fontSize: 13,
-    fontWeight: 600,
-    cursor: 'pointer',
-    fontFamily: 'inherit'
-  },
   discardBtn: {
     padding: '10px 14px',
     borderRadius: 10,
@@ -1607,11 +1533,6 @@ const styles = {
     boxSizing: 'border-box'
   },
   editActions: { display: 'flex', gap: 8, marginTop: 8 },
-  saveEditBtn: {
-    padding: '8px 16px', borderRadius: 10, border: 'none',
-    background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', fontSize: 13, fontWeight: 600,
-    cursor: 'pointer', fontFamily: 'inherit'
-  },
   cancelEditBtn: {
     padding: '8px 16px', borderRadius: 10, border: 'none',
     background: 'var(--bg-hover, var(--bg-subtle, #ede7e3))', color: 'var(--text-secondary, #574A42)', fontSize: 13,
@@ -1633,12 +1554,6 @@ const styles = {
   emptyDesc: { fontSize: 13, color: 'var(--text-muted, #6B5D54)', margin: 0, lineHeight: 1.5 },
   // Gallery
   galleryHeaderRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 },
-  galleryAddBtn: {
-    minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-    padding: '8px 14px', borderRadius: 10, border: 'none',
-    background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', fontSize: 12, fontWeight: 600,
-    cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
-  },
   galleryAddCard: {
     background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: 16,
     boxShadow: 'var(--elev-1)', marginBottom: 8,
@@ -1699,18 +1614,11 @@ const styles = {
   aiSuggestionCaption: { margin: '0 0 6px', fontSize: 13, lineHeight: 1.55, color: 'var(--text-primary, #241B17)' },
   // Streams
   streamSelector: { display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 12, marginBottom: 8, scrollBehavior: 'smooth' },
-  streamPill: {
-    minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-    padding: '6px 12px',
-    borderRadius: 16,
-    border: 'none',
-    fontSize: 12,
-    fontWeight: 500,
-    cursor: 'pointer',
-    fontFamily: 'inherit',
-    whiteSpace: 'nowrap',
-    flexShrink: 0,
-  },
+  // <Button variant="chip" size="md"> owns the fill, radius, type scale and the
+  // pressed colours now — md because this row is an overflow-x scroller, which
+  // would clip a smaller size's ::after tap overhang. All this adds is "don't
+  // let the scroller squash me".
+  streamPill: { flexShrink: 0 },
   streamFormCard: {
     background: 'var(--bg-card, #FFFCF9)',
     borderRadius: 16,

@@ -122,7 +122,18 @@ const S = {
     fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
     marginBottom: 8,
   },
-  amount: { color: 'var(--accent, #92405e)', fontWeight: 700 },
+  // The figure sits inside a Playfair headline and inherited it, so "£345"
+  // rendered in the serif with old-style figures while every other number in
+  // the app is Plus Jakarta 700. A number must not change face because of the
+  // sentence it happens to be in.
+  amount: {
+    color: 'var(--accent, #92405e)',
+    fontFamily: '"Plus Jakarta Sans", -apple-system, sans-serif',
+    fontWeight: 700,
+    fontVariantNumeric: 'tabular-nums',
+    fontFeatureSettings: '"tnum" 1, "lnum" 1',
+    letterSpacing: '-0.01em',
+  },
   lines: { display: 'flex', flexDirection: 'column', gap: 5 },
   line: {
     display: 'flex',

@@ -12,6 +12,7 @@ import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import Icon, { iconName } from '../components/ui/Icon';
+import Button from '../components/ui/Button';
 const DEV_TAGS = [
   { id: 't1', name: 'VIP', colour: 'var(--accent, #92405e)', icon: 'star', auto: false, clients: ['Shauna', 'Daisy S', 'Holly B'] },
   { id: 't2', name: 'Patch Test Due', colour: '#FF9800', icon: 'alert-triangle', auto: true, rule: 'Last patch test > 6 months ago', clients: ['Amy R', 'Beth K'] },
@@ -107,9 +108,9 @@ export default function ClientTags() {
       {/* Tabs */}
       <div style={S.tabs}>
         {['tags', 'segments'].map(t => (
-          <button key={t} onClick={() => setTab(t)} style={{ ...S.tab, ...(tab === t ? S.tabActive : {}) }}>
+          <Button key={t} variant="chip" size="sm" aria-pressed={tab === t} onClick={() => setTab(t)} style={{ flex: 1 }}>
             {t === 'tags' ? `Tags (${tags.length})` : `Segments (${segments.length})`}
-          </button>
+          </Button>
         ))}
       </div>
 
@@ -148,15 +149,15 @@ export default function ClientTags() {
                       ))}
                     </div>
                     <div style={S.actionRow}>
-                      <button style={S.actionBtn}>Use in Campaign</button>
-                      <button style={S.actionBtn} onClick={(e) => {
+                      <Button variant="secondary" size="sm" style={{ flex: 1 }}>Use in Campaign</Button>
+                      <Button variant="secondary" size="sm" style={{ flex: 1 }} onClick={(e) => {
                         e.stopPropagation();
                         setEditingTag(tag);
                         setTagForm({ name: tag.name, colour: tag.colour, icon: tag.icon });
                         setShowCreate(true);
                         setCreateType('tag');
-                      }}>Edit Tag</button>
-                      {!tag.auto && <button style={{ ...S.actionBtn, color: '#F44336' }} onClick={async (e) => {
+                      }}>Edit Tag</Button>
+                      {!tag.auto && <Button variant="secondary" size="sm" style={{ flex: 1, color: '#F44336' }} onClick={async (e) => {
                         e.stopPropagation();
                         if (!window.confirm(`Delete "${tag.name}" tag?`)) return;
                         try {
@@ -166,7 +167,7 @@ export default function ClientTags() {
                           logger.error('Failed to delete tag:', err);
                           setError('Failed to delete tag');
                         }
-                      }}>Delete</button>}
+                      }}>Delete</Button>}
                     </div>
                   </div>
                 )}
@@ -209,14 +210,14 @@ export default function ClientTags() {
                       <span style={S.matchLabel}>{seg.match === 'all' ? 'All tags match' : 'Any tag matches'}</span>
                     </div>
                     <div style={S.actionRow}>
-                      <button style={{ ...S.actionBtn, background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)' }}>Send Campaign</button>
-                      <button style={S.actionBtn} onClick={(e) => {
+                      <Button variant="primary" size="sm" style={{ flex: 1 }}>Send Campaign</Button>
+                      <Button variant="secondary" size="sm" style={{ flex: 1 }} onClick={(e) => {
                         e.stopPropagation();
                         setEditingSegment(seg);
                         setSegForm({ name: seg.name, description: seg.description, selectedTags: seg.tags, match: seg.match });
                         setShowCreate(true);
                         setCreateType('segment');
-                      }}>Edit Segment</button>
+                      }}>Edit Segment</Button>
                     </div>
                   </div>
                 )}
@@ -228,7 +229,7 @@ export default function ClientTags() {
 
       {/* Create FAB */}
       {!showCreate && (
-        <button style={S.fab} onClick={() => setShowCreate(true)}>+</button>
+        <Button variant="primary" icon style={S.fab} onClick={() => setShowCreate(true)}>+</Button>
       )}
 
       {/* Create Modal */}
@@ -244,22 +245,22 @@ export default function ClientTags() {
           <div style={S.modal} onClick={e => e.stopPropagation()}>
             <div style={S.modalHeader}>
               <h2 style={S.modalTitle}>{editingTag || editingSegment ? 'Edit' : 'Create'} {createType === 'tag' ? 'Tag' : 'Segment'}</h2>
-              <button style={S.closeBtn} onClick={() => {
+              <Button variant="quiet" icon aria-label="Close" style={{ color: 'var(--text-muted, #6B5D54)' }} onClick={() => {
                 setShowCreate(false);
                 setEditingTag(null);
                 setEditingSegment(null);
                 setTagForm({ name: '', colour: 'var(--accent, #92405e)', icon: 'tag' });
                 setSegForm({ name: '', description: '', selectedTags: [], match: 'all' });
                 setError('');
-              }}><Icon name="x" size={15} /></button>
+              }}><Icon name="x" size={15} /></Button>
             </div>
 
             {/* Type toggle */}
             <div style={S.typeToggle}>
               {['tag', 'segment'].map(t => (
-                <button key={t} onClick={() => setCreateType(t)} style={{ ...S.typeBtn, ...(createType === t ? S.typeBtnActive : {}) }}>
+                <Button key={t} variant={createType === t ? 'primary' : 'secondary'} size="sm" onClick={() => setCreateType(t)} style={{ flex: 1 }}>
                   {t === 'tag' ? '🏷️ Tag' : 'Segment'}
-                </button>
+                </Button>
               ))}
             </div>
 
@@ -277,8 +278,8 @@ export default function ClientTags() {
 
                 <label style={S.label}>Type</label>
                 <div style={S.typeToggle}>
-                  <button style={{ ...S.typeBtn, ...S.typeBtnActive }}>Manual</button>
-                  <button style={S.typeBtn}>Auto-rule</button>
+                  <Button variant="primary" size="sm" style={{ flex: 1 }}>Manual</Button>
+                  <Button variant="secondary" size="sm" style={{ flex: 1 }}>Auto-rule</Button>
                 </div>
               </div>
             ) : (
@@ -303,13 +304,13 @@ export default function ClientTags() {
 
                 <label style={S.label}>Match Rule</label>
                 <div style={S.typeToggle}>
-                  <button onClick={() => setSegForm(f => ({ ...f, match: 'all' }))} style={{ ...S.typeBtn, ...(segForm.match === 'all' ? S.typeBtnActive : {}) }}>All tags</button>
-                  <button onClick={() => setSegForm(f => ({ ...f, match: 'any' }))} style={{ ...S.typeBtn, ...(segForm.match === 'any' ? S.typeBtnActive : {}) }}>Any tag</button>
+                  <Button variant={segForm.match === 'all' ? 'primary' : 'secondary'} size="sm" onClick={() => setSegForm(f => ({ ...f, match: 'all' }))} style={{ flex: 1 }}>All tags</Button>
+                  <Button variant={segForm.match === 'any' ? 'primary' : 'secondary'} size="sm" onClick={() => setSegForm(f => ({ ...f, match: 'any' }))} style={{ flex: 1 }}>Any tag</Button>
                 </div>
               </div>
             )}
 
-            <button style={{ ...S.saveBtn, opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={async () => {
+            <Button variant="primary" size="lg" fullWidth style={{ marginTop: 16, opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={async () => {
               setSaving(true);
               setError('');
               try {
@@ -383,7 +384,7 @@ export default function ClientTags() {
               }
             }}>
               {saving ? `${editingTag || editingSegment ? 'Saving' : 'Creating'}…` : `${editingTag || editingSegment ? 'Update' : 'Create'} ${createType === 'tag' ? 'Tag' : 'Segment'}`}
-            </button>
+            </Button>
 
             {error && <div style={{ marginTop: 10, padding: 10, borderRadius: 10, background: '#F44336', color: 'var(--bg-card, #FFFCF9)', fontSize: 12, textAlign: 'center' }}>{error}</div>}
           </div>
@@ -403,8 +404,6 @@ const S = {
   overviewLabel: { fontSize: 11, color: 'var(--text-muted, #6B5D54)', fontWeight: 500 },
 
   tabs: { display: 'flex', gap: 8, marginBottom: 16 },
-  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #FFFCF9)', color: 'var(--text-muted, #6B5D54)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  tabActive: { background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)' },
 
   list: { display: 'flex', flexDirection: 'column', gap: 10 },
   card: { background: 'var(--card, #FFFCF9)', borderRadius: 16, padding: 14, cursor: 'pointer' },
@@ -427,7 +426,6 @@ const S = {
   clientChip: { padding: '5px 12px', borderRadius: 22, background: 'var(--accent-light, #F6E7EC)', color: 'var(--accent, #92405e)', fontSize: 12, fontWeight: 500 },
   clientChipSelect: { padding: '5px 12px', borderRadius: 22, background: 'var(--border, #E8DDD4)', color: 'var(--text-secondary, #574A42)', fontSize: 12, fontWeight: 500, cursor: 'pointer' },
   actionRow: { display: 'flex', gap: 8, marginTop: 8 },
-  actionBtn: { flex: 1, padding: '9px 0', borderRadius: 10, border: '1px solid var(--border, #E8DDD4)', background: 'var(--card, #FFFCF9)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #241B17)' },
 
   segDesc: { fontSize: 13, color: 'var(--text-secondary, #574A42)', margin: '0 0 10px', lineHeight: 1.4 },
   segTags: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10, alignItems: 'center' },
@@ -440,11 +438,8 @@ const S = {
   modal: { background: 'var(--bg-card, #FFFCF9)', borderRadius: '18px 18px 0 0', width: '100%', maxWidth: 480, maxHeight: '85vh', overflow: 'auto', padding: '20px 16px 32px', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 20px)' },
   modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text, #241B17)', margin: 0 },
-  closeBtn: { background: 'none', border: 'none', fontSize: 18, color: 'var(--text-muted, #6B5D54)', cursor: 'pointer' },
 
   typeToggle: { display: 'flex', gap: 8, marginBottom: 14 },
-  typeBtn: { flex: 1, padding: '8px 0', borderRadius: 10, border: '1px solid var(--border, #E8DDD4)', background: 'var(--card, #FFFCF9)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-muted, #6B5D54)' },
-  typeBtnActive: { background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', border: '1px solid var(--accent, #92405e)' },
 
   formBody: { display: 'flex', flexDirection: 'column', gap: 10 },
   label: { fontSize: 12, fontWeight: 600, color: 'var(--text-muted, #6B5D54)', marginTop: 4 },
@@ -452,5 +447,4 @@ const S = {
   colourRow: { display: 'flex', gap: 10 },
   colourDot: { width: 28, height: 28, borderRadius: 16, cursor: 'pointer', border: '2px solid transparent' },
 
-  saveBtn: { marginTop: 16, width: '100%', padding: '14px 0', borderRadius: 10, border: 'none', background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 };

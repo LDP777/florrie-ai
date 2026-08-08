@@ -10,6 +10,7 @@ import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import { isIOSNative } from '../lib/platform.js';
+import Button from '../components/ui/Button.jsx';
 import { isVoiceEnabled, setVoiceEnabled } from '../lib/voicePref.js';
 import { celebrationsEnabled, setCelebrationsEnabled, bloom } from '../lib/bloom.js';
 
@@ -364,16 +365,16 @@ export default function Settings({ onLogout }) {
           { key: 'ai', label: 'AI' },
           { key: 'account', label: 'Account' }
         ].map(s => (
-          <button
+          <Button
             key={s.key}
+            variant="chip"
+            size="sm"
+            aria-pressed={section === s.key}
             onClick={() => setSection(s.key)}
-            style={{ ...styles.sectionTab,
-              background: section === s.key ? 'var(--accent)' : 'var(--border-light)',
-              color: section === s.key ? 'var(--bg-card)' : 'var(--text-secondary)'
-            }}
+            style={styles.sectionTab}
           >
             {s.label}
-          </button>
+          </Button>
         ))}
       </div>
 
@@ -838,16 +839,13 @@ export default function Settings({ onLogout }) {
               <p style={{ fontSize: 13, color: '#E57373', margin: '0 0 8px' }}>{stripeError}</p>
             )}
             {!beautician.stripe_onboarding_complete && (
-              <button
+              <Button
+                size="sm"
                 onClick={handleConnectStripe}
                 disabled={connectingStripe}
-                style={{ ...styles.connectBtn,
-                  opacity: connectingStripe ? 0.6 : 1,
-                  cursor: connectingStripe ? 'not-allowed' : 'pointer',
-                }}
               >
                 {connectingStripe ? 'Setting up…' : 'Connect Stripe'}
-              </button>
+              </Button>
             )}
           </div>
 
@@ -1003,13 +1001,13 @@ export default function Settings({ onLogout }) {
                   Disconnect
                 </button>
               ) : (
-                <button
+                <Button
+                  size="sm"
                   onClick={handleConnectGoogleCal}
                   disabled={gcalConnecting}
-                  style={{ ...styles.connectBtn, opacity: gcalConnecting ? 0.6 : 1, cursor: gcalConnecting ? 'not-allowed' : 'pointer' }}
                 >
                   {gcalConnecting ? 'Connecting…' : 'Connect'}
-                </button>
+                </Button>
               )}
             </div>
             {gcalBanner === 'success' && (
@@ -1588,13 +1586,13 @@ export default function Settings({ onLogout }) {
                   Disconnect
                 </button>
               ) : (
-                <button
+                <Button
+                  size="sm"
                   onClick={handleConnectInstagram}
                   disabled={igConnecting}
-                  style={{ ...styles.connectBtn, opacity: igConnecting ? 0.6 : 1, cursor: igConnecting ? 'not-allowed' : 'pointer' }}
                 >
                   {igConnecting ? 'Connecting…' : 'Connect'}
-                </button>
+                </Button>
               )}
             </div>
             {/* Expired token. The row above says so; this card explains what
@@ -1613,19 +1611,20 @@ export default function Settings({ onLogout }) {
                 <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 10px', lineHeight: 1.5 }}>
                   Messages still arrive, but replies, posting and client names stopped going out on 21 June. Takes one tap.
                 </p>
-                <button
+                <Button
+                  variant="danger"
+                  size="sm"
+                  fullWidth
                   onClick={handleConnectInstagram}
                   disabled={igConnecting}
-                  style={{ ...styles.connectBtn,
-                    width: '100%',
-                    minHeight: 44, // the button that matters most gets a full thumb target
-                    background: 'var(--danger)',
-                    opacity: igConnecting ? 0.6 : 1,
-                    cursor: igConnecting ? 'not-allowed' : 'pointer',
-                  }}
+                  // sm is the size that matches this card (13px, 10px radius);
+                  // the explicit 44 stays because this is the button that
+                  // matters most and it gets a full thumb target, not the
+                  // 38px sm floor plus an invisible ::after.
+                  style={{ minHeight: 44 }}
                 >
                   {igConnecting ? 'Reconnecting…' : 'Reconnect Instagram'}
-                </button>
+                </Button>
               </div>
             )}
             {/* Hidden while broken: "reads and replies to your DMs" would
@@ -1981,9 +1980,9 @@ function FewShotExamples({ examples, onSave }) {
             style={{ ...styles.exTextarea, borderColor: 'var(--accent)' }}
           />
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={addExample} disabled={!newQ.trim() || !newA.trim()} style={styles.addExSaveBtn}>
+            <Button size="sm" onClick={addExample} disabled={!newQ.trim() || !newA.trim()}>
               Save example
-            </button>
+            </Button>
             <button onClick={() => { setAdding(false); setNewQ(''); setNewA(''); }} style={styles.addExCancelBtn}>
               Cancel
             </button>
@@ -2160,7 +2159,10 @@ const styles = {
   savedBadge: { padding: '4px 10px', borderRadius: 6, background: 'var(--success-bg)', color: 'var(--success)', fontSize: 12, fontWeight: 600 },
   loadingText: { textAlign: 'center', color: 'var(--text-muted)', padding: 60, fontSize: 14, fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)" },
   sectionNav: { display: 'flex', gap: 6, marginBottom: 16, overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none', paddingBottom: 2 },
-  sectionTab: { padding: '8px 12px', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s', whiteSpace: 'nowrap', flexShrink: 0 },
+  // <Button variant="chip" size="sm"> owns the padding, radius, type scale and
+  // the pressed/hover colours now. All this has to add is "don't let the flex
+  // row squash me", which is the one thing the primitive cannot know.
+  sectionTab: { flexShrink: 0 },
   card: { background: 'var(--bg-card)', borderRadius: 16, padding: 16, marginBottom: 12, boxShadow: 'var(--shadow-sm)' },
   cardTitle: { fontSize: 14, fontWeight: 600, margin: '0 0 6px', color: 'var(--text-primary)' },
   cardDesc: { fontSize: 13, color: 'var(--text-muted)', margin: '0 0 16px', lineHeight: 1.5 },
@@ -2285,7 +2287,6 @@ const styles = {
   removeExBtn: { background: 'none', border: 'none', fontSize: 11, color: 'var(--danger)', cursor: 'pointer', padding: '4px 0', fontFamily: 'inherit' },
   addExForm: { display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 },
   exTextarea: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border)', fontSize: 13, fontFamily: 'inherit', resize: 'vertical', outline: 'none', lineHeight: 1.5, boxSizing: 'border-box', background: 'var(--bg-card)' },
-  addExSaveBtn: { padding: '10px 18px', borderRadius: 10, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   addExCancelBtn: { padding: '10px 14px', borderRadius: 10, border: 'none', background: 'var(--bg-hover)', color: 'var(--text-secondary)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' },
   addExBtn: { padding: '10px 0', background: 'none', border: 'none', color: 'var(--accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 };
@@ -2337,16 +2338,13 @@ function SubscriptionManager({ beautician }) {
       <div style={styles.cardTitle}>Manage Subscription</div>
       <p style={styles.cardHint}>Update payment method, billing address, or cancel your subscription.</p>
       {error && <p style={{ ...styles.cardHint, color: '#E57373', marginTop: 8 }}>{error}</p>}
-      <button
+      <Button
+        size="sm"
         onClick={handleManageSubscription}
         disabled={loading}
-        style={{ ...styles.connectBtn,
-          opacity: loading ? 0.6 : 1,
-          cursor: loading ? 'not-allowed' : 'pointer',
-        }}
       >
         {loading ? 'Opening...' : 'Open Stripe Portal'}
-      </button>
+      </Button>
     </div>
   );
 }

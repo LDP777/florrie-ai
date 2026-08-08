@@ -6,6 +6,7 @@ import { registerPush, getPushStatus } from '../lib/push.js';
 import logger from '../lib/logger.js';
 import { isIOSNative } from '../lib/platform.js';
 import Icon from '../components/ui/Icon';
+import Button from '../components/ui/Button';
 
 const API = import.meta.env.VITE_API_URL;
 async function getAuthToken() {
@@ -460,15 +461,16 @@ export default function Onboarding({ onComplete }) {
               style={styles.formInput}
             />
           </div>
-          <button
+          <Button
+            variant="primary"
+            size="lg"
+            fullWidth
             onClick={saveBusinessInfo}
             disabled={!firstName.trim() || saving}
-            style={{ ...styles.primaryBtn,
-              opacity: !firstName.trim() ? 0.5 : 1
-            }}
+            style={{ marginTop: 12, opacity: !firstName.trim() ? 0.5 : 1 }}
           >
             {saving ? 'Saving...' : 'Next'}
-          </button>
+          </Button>
         </div>
       )}
       {/* === STEP 2: Treatments === */}
@@ -546,16 +548,16 @@ export default function Onboarding({ onComplete }) {
           <button onClick={addTreatment} style={styles.secondaryBtn}>
             + Add another treatment
           </button>
-          <button
+          <Button
+            variant="primary"
+            size="lg"
+            fullWidth
             onClick={saveTreatments}
             disabled={!treatments.some(t => t.name.trim()) || saving}
-            style={{ ...styles.primaryBtn,
-              opacity: !treatments.some(t => t.name.trim()) ? 0.5 : 1,
-              marginTop: 8
-            }}
+            style={{ marginTop: 8, opacity: !treatments.some(t => t.name.trim()) ? 0.5 : 1 }}
           >
             {saving ? 'Saving...' : 'Next'}
-          </button>
+          </Button>
           <button onClick={skipStep} style={styles.skipBtn}>
             Skip for now
           </button>
@@ -606,13 +608,16 @@ export default function Onboarding({ onComplete }) {
               )}
             </div>
           ))}
-          <button
+          <Button
+            variant="primary"
+            size="lg"
+            fullWidth
             onClick={saveHours}
             disabled={saving}
-            style={styles.primaryBtn}
+            style={{ marginTop: 12 }}
           >
             {saving ? 'Saving...' : 'Next'}
-          </button>
+          </Button>
           <button onClick={skipStep} style={styles.skipBtn}>
             Skip for now
           </button>
@@ -640,15 +645,16 @@ export default function Onboarding({ onComplete }) {
               style={styles.slugInput}
             />
           </div>
-          <button
+          <Button
+            variant="primary"
+            size="lg"
+            fullWidth
             onClick={saveSlug}
             disabled={!slug.trim() || saving}
-            style={{ ...styles.primaryBtn,
-              opacity: !slug.trim() ? 0.5 : 1
-            }}
+            style={{ marginTop: 12, opacity: !slug.trim() ? 0.5 : 1 }}
           >
             {saving ? 'Saving...' : 'Next'}
-          </button>
+          </Button>
         </div>
       )}
       {/* === STEP 5: Import Clients === */}
@@ -709,12 +715,15 @@ export default function Onboarding({ onComplete }) {
               <p style={styles.importResult}>{importStatus}</p>
             )}
           </div>
-          <button
+          <Button
+            variant="primary"
+            size="lg"
+            fullWidth
             onClick={() => setStep(6)}
-            style={styles.primaryBtn}
+            style={{ marginTop: 12 }}
           >
             {importStatus ? 'Next' : 'Skip for now'}
-          </button>
+          </Button>
           {!importStatus && (
             <button onClick={skipStep} style={styles.skipBtn}>
               Skip this step
@@ -738,13 +747,13 @@ export default function Onboarding({ onComplete }) {
               takes bookings, and posts for you. WhatsApp can come later, no phone
               number wrangling needed today.
             </p>
-            <button className="fl-tap"
-              type="button"
+            <Button
+              variant="primary"
+              size="sm"
               onClick={connectInstagram}
-              style={{ padding: '10px 18px', borderRadius: 10, border: 'none', background: 'var(--accent, #92405E)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
             >
               Connect Instagram
-            </button>
+            </Button>
             {igNote && <p style={{ fontSize: 12, color: 'var(--text-secondary, #574A42)', margin: '8px 0 0' }}>{igNote}</p>}
           </div>
           {(() => {
@@ -809,13 +818,16 @@ export default function Onboarding({ onComplete }) {
             </>
           ) : (
             <>
-              <button
+              <Button
+                variant="primary"
+                size="lg"
+                fullWidth
                 onClick={startCardCapture}
                 disabled={billingLoading}
-                style={{ ...styles.primaryBtn, opacity: billingLoading ? 0.6 : 1 }}
+                style={{ marginTop: 12, opacity: billingLoading ? 0.6 : 1 }}
               >
                 {billingLoading ? 'Opening secure checkout...' : 'Add card and start trial'}
-              </button>
+              </Button>
               <p style={styles.trialNote}>
                 Free for 14 days, then {PLAN.monthlyLabel}. Save with annual billing at {PLAN.annualLabel}. Card details are handled securely by Stripe, we never see them.
               </p>
@@ -863,18 +875,19 @@ export default function Onboarding({ onComplete }) {
                     <div style={styles.smsForkTitle}>Set up SMS</div>
                     <div style={styles.smsForkSub}>Two-way from our UK longcode. Clients can reply.</div>
                   </div>
-                  <button
-                    type="button"
+                  <Button
+                    variant="secondary"
+                    icon
                     onClick={() => {
                       setSmsForkOpen(false);
                       setSmsError(null);
                       setSmsTestMsg('');
                     }}
-                    style={styles.smsForkCloseBtn}
+                    style={{ color: 'var(--text-secondary)', flexShrink: 0 }}
                     aria-label="Close SMS setup"
                   >
                     ×
-                  </button>
+                  </Button>
                 </div>
                 <div style={styles.smsFieldBlock}>
                   <label style={styles.smsFieldLabel}>Sender number</label>
@@ -920,27 +933,26 @@ export default function Onboarding({ onComplete }) {
                   <div style={styles.smsForkError}>{smsError}</div>
                 )}
                 <div style={styles.smsForkActions}>
-                  <button
-                    type="button"
+                  <Button
+                    variant="primary"
+                    size="sm"
                     onClick={useSMSOnly}
                     disabled={smsSaving}
-                    style={{ ...styles.smsForkSaveBtn,
-                      opacity: smsSaving ? 0.6 : 1,
-                    }}
+                    style={{ flex: 1, opacity: smsSaving ? 0.6 : 1 }}
                   >
                     {smsSaving ? 'Saving…' : 'Use SMS only'}
-                  </button>
-                  <button
-                    type="button"
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
                     onClick={() => {
                       setSmsForkOpen(false);
                       setSmsError(null);
                       setSmsTestMsg('');
                     }}
-                    style={styles.smsForkBackBtn}
                   >
                     Back
-                  </button>
+                  </Button>
                 </div>
                 <div style={styles.smsForkFootnote}>
                   You can switch on WhatsApp later from Settings → Messaging channels.
@@ -969,21 +981,27 @@ export default function Onboarding({ onComplete }) {
                 <span style={{ fontSize: 13, color: 'var(--success, #3F7D5C)', fontWeight: 600 }}>Notifications on</span>
               </div>
             ) : (
-              <button
+              <Button
+                variant="secondary"
+                size="sm"
+                fullWidth
                 onClick={enableNotifications}
                 disabled={pushLoading}
-                style={styles.pushBtn}
+                style={{ border: '1.5px solid var(--accent, #92405e)' }}
               >
                 {pushLoading ? 'Enabling…' : 'Turn on notifications'}
-              </button>
+              </Button>
             )}
           </div>
-          <button
+          <Button
+            variant="primary"
+            size="lg"
+            fullWidth
             onClick={() => finishOnboarding('/')}
-            style={styles.primaryBtn}
+            style={{ marginTop: 12 }}
           >
             Go to my dashboard
-          </button>
+          </Button>
           {!pushGranted && (
             <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
               You can enable this later in Settings
@@ -1072,19 +1090,6 @@ const styles = {
     boxSizing: 'border-box'
   },
   // Buttons
-  primaryBtn: {
-    width: '100%',
-    padding: '14px 0',
-    borderRadius: 10,
-    border: 'none',
-    background: 'var(--accent)',
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: 600,
-    cursor: 'pointer',
-    fontFamily: 'inherit',
-    marginTop: 12
-  },
   secondaryBtn: {
     width: '100%',
     padding: '12px 0',
@@ -1304,18 +1309,6 @@ const styles = {
     color: 'var(--text-secondary)',
     lineHeight: 1.5,
   },
-  pushBtn: {
-    width: '100%',
-    padding: '11px 0',
-    borderRadius: 10,
-    border: '1.5px solid var(--accent, #92405e)',
-    background: 'transparent',
-    color: 'var(--accent, #92405e)',
-    fontSize: 13,
-    fontWeight: 600,
-    cursor: 'pointer',
-    fontFamily: 'inherit',
-  },
   pushGrantedRow: {
     display: 'flex',
     alignItems: 'center',
@@ -1506,19 +1499,6 @@ const styles = {
     color: 'var(--text-secondary)',
     lineHeight: 1.45,
   },
-  smsForkCloseBtn: {
-    width: 26,
-    height: 26,
-    borderRadius: 6,
-    border: '1px solid var(--border)',
-    background: 'transparent',
-    color: 'var(--text-secondary)',
-    fontSize: 16,
-    lineHeight: 1,
-    cursor: 'pointer',
-    fontFamily: 'inherit',
-    flexShrink: 0,
-  },
   smsFieldBlock: {
     marginBottom: 12,
   },
@@ -1586,29 +1566,6 @@ const styles = {
     display: 'flex',
     gap: 8,
     marginTop: 4,
-  },
-  smsForkSaveBtn: {
-    flex: 1,
-    padding: '11px 14px',
-    borderRadius: 10,
-    border: 'none',
-    background: 'var(--accent, #92405e)',
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: 700,
-    cursor: 'pointer',
-    fontFamily: 'inherit',
-  },
-  smsForkBackBtn: {
-    padding: '11px 14px',
-    borderRadius: 10,
-    border: '1px solid var(--border)',
-    background: 'transparent',
-    color: 'var(--text-primary)',
-    fontSize: 13,
-    fontWeight: 600,
-    cursor: 'pointer',
-    fontFamily: 'inherit',
   },
   smsForkFootnote: {
     fontSize: 11,

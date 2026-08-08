@@ -94,3 +94,10 @@ jobs:
       # gating on it would block every push for a palette nobody can see.
       # Run `npm run check:contrast:dark` to see the debt.
       - run: npm run check:contrast --workspace frontend
+
+      # check:numerals asks the browser what face each figure is PAINTED in.
+      # Levi has reported the same thing twice from two screens, most recently
+      # a "£345" that sat inside a Playfair headline with a colour and a
+      # weight of its own but no font-family, so it inherited the serif. That
+      # is not findable by reading; it needs measuring.
+      - run: npm run check:numerals --workspace frontend

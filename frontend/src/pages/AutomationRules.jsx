@@ -5,6 +5,7 @@ import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import Icon, { iconName } from '../components/ui/Icon';
+import Button from '../components/ui/Button.jsx';
 const triggerOptions = [
   { id: 'appointment_booked', label: 'Appointment booked', icon: 'calendar' },
   { id: 'appointment_completed', label: 'Appointment completed', icon: 'check-circle' },
@@ -160,9 +161,9 @@ export default function AutomationRules() {
           <h1 style={styles.title}>Automations</h1>
           <div style={styles.subtitle}>{activeCount} active · {totalRuns} total runs</div>
         </div>
-        <button onClick={() => setCreating(!creating)} style={styles.createBtn}>
+        <Button size="sm" onClick={() => setCreating(!creating)}>
           {creating ? '✕' : '+ New'}
-        </button>
+        </Button>
       </div>
       {/* Create new rule */}
       {creating && (
@@ -180,50 +181,47 @@ export default function AutomationRules() {
           <div style={styles.stepLabel}><Icon name="sparkles" size={14} inline /> WHEN this happens...</div>
           <div style={styles.chipGrid}>
             {triggerOptions.map(t => (
-              <button
+              <Button
                 key={t.id}
+                variant={newRule.trigger === t.id ? 'tonal' : 'chip'}
+                size="sm"
                 onClick={() => setNewRule({ ...newRule, trigger: t.id })}
-                style={{ ...styles.chip,
-                  ...(newRule.trigger === t.id ? styles.chipSelected : {})
-                }}
               >
                 <span><Icon name={iconName(t.icon)} inline /></span> {t.label}
-              </button>
+              </Button>
             ))}
           </div>
           {/* Delay */}
           <div style={styles.stepLabel}>{<Icon name="clock" inline />} Wait...</div>
           <div style={styles.delayRow}>
             {['0', '5', '30', '60', '1440'].map(mins => (
-              <button
+              <Button
                 key={mins}
+                variant={newRule.delay === mins ? 'tonal' : 'chip'}
+                size="sm"
                 onClick={() => setNewRule({ ...newRule, delay: mins })}
-                style={{ ...styles.delayChip,
-                  ...(newRule.delay === mins ? styles.chipSelected : {})
-                }}
               >
                 {mins === '0' ? 'Immediately' : mins === '5' ? '5 min' : mins === '30' ? '30 min' : mins === '60' ? '1 hour' : '24 hours'}
-              </button>
+              </Button>
             ))}
           </div>
           {/* Then (actions) */}
           <div style={styles.stepLabel}><Icon name="target" size={14} inline /> THEN do this...</div>
           <div style={styles.chipGrid}>
             {actionOptions.map(a => (
-              <button
+              <Button
                 key={a.id}
+                variant={newRule.actions.includes(a.id) ? 'tonal' : 'chip'}
+                size="sm"
                 onClick={() => {
                   const actions = newRule.actions.includes(a.id)
                     ? newRule.actions.filter(x => x !== a.id)
                     : [...newRule.actions, a.id];
                   setNewRule({ ...newRule, actions });
                 }}
-                style={{ ...styles.chip,
-                  ...(newRule.actions.includes(a.id) ? styles.chipSelected : {})
-                }}
               >
                 <span><Icon name={iconName(a.icon)} inline /></span> {a.label}
-              </button>
+              </Button>
             ))}
           </div>
           {/* Only if (conditions) */}
@@ -239,7 +237,9 @@ export default function AutomationRules() {
               </div>
             ))}
           </div>
-          <button
+          <Button
+            fullWidth
+            size="lg"
             onClick={async () => {
               if (!newRule.name || !newRule.trigger || !newRule.actions.length) return;
               const rule = {
@@ -260,12 +260,12 @@ export default function AutomationRules() {
                 setCreating(false);
               } catch (e) { logger.error('Save rule failed:', e); }
             }}
-            style={{ ...styles.saveRuleBtn,
+            style={{ marginTop: 8,
               opacity: newRule.name && newRule.trigger && newRule.actions.length ? 1 : 0.5
             }}
           >
             Save Automation
-          </button>
+          </Button>
         </div>
       )}
       {/* Tabs */}
@@ -367,21 +367,16 @@ const styles = {
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
   title: { fontSize: 22, fontWeight: 700, color: 'var(--text-primary, #241B17)', margin: 0 },
   subtitle: { fontSize: 13, color: 'var(--text-muted, var(--text-muted, #6B5D54))', marginTop: 2 },
-  createBtn: { padding: '8px 16px', borderRadius: 10, border: 'none', background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   createCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: 16, border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', marginBottom: 16 },
   createTitle: { fontSize: 16, fontWeight: 700, color: 'var(--text-primary, #241B17)', marginBottom: 12 },
   ruleInput: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border, var(--border, var(--border, #E8DDD4)))', fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 16, boxSizing: 'border-box', background: 'var(--bg, var(--bg, #FBF6F1))' },
   stepLabel: { fontSize: 12, fontWeight: 700, color: '#6B6560', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, marginTop: 12 },
   chipGrid: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
-  chip: { display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', borderRadius: 10, border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', background: 'var(--bg, var(--bg, #FBF6F1))', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#4A4540' },
-  chipSelected: { background: 'var(--accent-light, #F6E7EC)', borderColor: 'var(--accent, #92405e)', color: 'var(--accent, #92405e)' },
   delayRow: { display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 },
-  delayChip: { padding: '6px 12px', borderRadius: 10, border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', background: 'var(--bg, var(--bg, #FBF6F1))', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#4A4540' },
   conditionsList: { display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 },
   conditionRow: { display: 'flex', alignItems: 'center', gap: 6 },
   condSelect: { padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', fontSize: 11, fontFamily: 'inherit', background: 'var(--bg, var(--bg, #FBF6F1))', color: '#4A4540' },
   condInput: { width: 60, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', fontSize: 11, fontFamily: 'inherit', background: 'var(--bg, var(--bg, #FBF6F1))' },
-  saveRuleBtn: { width: '100%', padding: '14px 0', borderRadius: 10, border: 'none', background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 8 },
   tabs: { display: 'flex', gap: 4, marginBottom: 16, background: 'var(--border, var(--border, var(--border, #E8DDD4)))', borderRadius: 10, padding: 4 },
   tab: { flex: 1, padding: '8px 0', fontSize: 12, fontWeight: 500, border: 'none', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', background: 'none', color: '#6B6560' },
   tabActive: { background: 'var(--bg-card, #FFFCF9)', color: 'var(--text-primary, #241B17)', boxShadow: 'var(--elev-1)' },

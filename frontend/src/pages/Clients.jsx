@@ -9,6 +9,7 @@ import ErrorCard from '../components/ErrorCard.jsx';
 import { todayLocal } from '../lib/dates.js';
 import Icon, { iconName } from '../components/ui/Icon';
 import Money from '../components/ui/Money';
+import Button from '../components/ui/Button';
 function getToken() {
   const key = Object.keys(localStorage).find(k => /^sb-.+-auth-token$/.test(k));
   if (!key) return null;
@@ -516,17 +517,18 @@ export default function Clients() {
         <div style={styles.headerActions}>
           {!selectMode && (
             <>
-              <button
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => setSelectMode(true)}
-                style={styles.exportBtn}
                 aria-label="Select multiple clients"
-              >Select</button>
-              <button onClick={handleExportCSV} style={styles.exportBtn}>Export</button>
-              <button onClick={() => setShowAdd(!showAdd)} style={styles.addBtn}>+ Add</button>
+              >Select</Button>
+              <Button variant="secondary" size="sm" onClick={handleExportCSV}>Export</Button>
+              <Button size="sm" onClick={() => setShowAdd(!showAdd)}>+ Add</Button>
             </>
           )}
           {selectMode && (
-            <button onClick={exitSelectMode} style={styles.addBtn}>Done</button>
+            <Button size="sm" onClick={exitSelectMode}>Done</Button>
           )}
         </div>
       </div>
@@ -574,7 +576,7 @@ export default function Clients() {
             <div style={styles.reviewCardSub}>Archive them to tidy the list. They come straight back if they ever book or message again.</div>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button onClick={() => setReviewOpen(true)} style={styles.reviewBtn}>Review</button>
+            <Button onClick={() => setReviewOpen(true)}>Review</Button>
             <button onClick={dismissReview} style={styles.reviewGhostBtn}>Not now</button>
           </div>
         </div>
@@ -617,29 +619,28 @@ export default function Clients() {
             const count = f.id === 'all' ? activeClients.length : (counts[f.id] || 0);
             const active = filter === f.id;
             return (
-              <button
+              <Button
                 key={f.id}
+                variant="chip"
+                size="xs"
+                aria-pressed={active}
                 onClick={() => setFilter(f.id)}
-                style={{ ...styles.chip,
-                  background: active ? 'var(--accent)' : 'var(--bg-card)',
-                  color: active ? '#fff' : 'var(--text-secondary)',
-                  borderColor: active ? 'var(--accent)' : 'var(--border)',
-                }}
               >
                 {f.label} <span style={{ opacity: 0.75, fontWeight: 500 }}>{count}</span>
-              </button>
+              </Button>
             );
           })}
         </div>
         <div style={styles.sortWrap}>
-          <button
+          <Button
+            variant="secondary"
+            size="xs"
             onClick={() => setSortOpen(o => !o)}
-            style={styles.sortBtn}
             aria-haspopup="menu"
             aria-expanded={sortOpen}
           >
             Sort: {SORTS.find(s => s.id === sort)?.label || 'Recent'}
-          </button>
+          </Button>
           {sortOpen && (
             <div style={styles.sortMenu} role="menu">
               {SORTS.map(s => (
@@ -687,9 +688,9 @@ export default function Clients() {
             <input type="text" value={newClient.notes} onChange={e => setNewClient(p => ({ ...p, notes: e.target.value }))} placeholder="e.g. Sensitive skin, prefers mornings" style={styles.formInput} />
           </div>
           <div style={styles.formActions}>
-            <button onClick={handleAddClient} disabled={!newClient.first_name.trim() || saving} style={styles.saveBtn}>
+            <Button size="sm" onClick={handleAddClient} disabled={!newClient.first_name.trim() || saving} style={{ flex: 1 }}>
               {saving ? 'Saving...' : 'Add Client'}
-            </button>
+            </Button>
             <button onClick={() => setShowAdd(false)} style={styles.cancelBtn}>Cancel</button>
           </div>
         </div>
@@ -781,7 +782,7 @@ export default function Clients() {
       {selectMode && selectedIds.size > 0 && (
         <div style={styles.actionBar}>
           <span style={styles.actionCount}>{selectedIds.size} selected</span>
-          <button onClick={messageSelected} style={styles.actionBtnPrimary}>Message all</button>
+          <Button size="sm" onClick={messageSelected}>Message all</Button>
         </div>
       )}
 
@@ -795,9 +796,15 @@ export default function Clients() {
               Archiving hides them from your list. Nothing is deleted, and anyone who books or messages again comes straight back.
             </p>
             {(inactiveReview?.candidates || []).length > 1 && (
-              <button onClick={handleReviewArchiveAll} disabled={archivingAll} style={styles.archiveAllBtn}>
+              <Button
+                variant="secondary"
+                fullWidth
+                onClick={handleReviewArchiveAll}
+                disabled={archivingAll}
+                style={{ margin: '12px 0' }}
+              >
                 {archivingAll ? 'Archiving...' : `Archive all ${(inactiveReview?.candidates || []).length}`}
-              </button>
+              </Button>
             )}
             {(inactiveReview?.candidates || []).length === 0 ? (
               <p style={styles.noHistory}>All reviewed. Lovely and tidy.</p>
@@ -813,13 +820,14 @@ export default function Clients() {
                       {c.total_visits > 0 ? ` · ${c.total_visits} visits` : ''}
                     </div>
                   </div>
-                  <button
+                  <Button
+                    variant="secondary"
                     onClick={() => handleReviewArchive(c.id)}
                     disabled={archivingId === c.id || archivingAll}
-                    style={styles.reviewRowBtn}
+                    style={{ flexShrink: 0 }}
                   >
                     {archivingId === c.id ? '...' : 'Archive'}
-                  </button>
+                  </Button>
                 </div>
               ))
             )}
@@ -1345,19 +1353,16 @@ function ClientDetailPanel({ detail, onClose, onNavigate, onChanged }) {
                       const active = replyChannel === ch;
                       const icon = ch === 'whatsapp' ? 'message' : ch === 'sms' ? 'phone' : 'mail';
                       return (
-                        <button
+                        <Button
                           key={ch}
-                          type="button"
+                          variant="chip"
+                          size="xs"
+                          aria-pressed={active}
                           onClick={() => setReplyChannel(ch)}
-                          style={{ ...styles.channelChip,
-                            background: active ? 'var(--accent)' : 'transparent',
-                            color: active ? '#fff' : 'var(--text-muted)',
-                            borderColor: active ? 'var(--accent)' : 'var(--border)',
-                          }}
                         >
                           <span aria-hidden><Icon name={iconName(icon)} inline /></span>
                           <span style={{ textTransform: 'capitalize' }}>{ch}</span>
-                        </button>
+                        </Button>
                       );
                     })}
                   </div>
@@ -1370,16 +1375,13 @@ function ClientDetailPanel({ detail, onClose, onNavigate, onChanged }) {
                       rows={2}
                       style={styles.composerInput}
                     />
-                    <button
-                      type="button"
+                    <Button
+                      size="sm"
                       disabled={!replyText.trim() || sending}
                       onClick={sendReply}
-                      style={{ ...styles.composerSend,
-                        opacity: !replyText.trim() || sending ? 0.5 : 1,
-                      }}
                     >
                       {sending ? '...' : 'Send'}
-                    </button>
+                    </Button>
                   </div>
 
                   <button
@@ -1478,13 +1480,14 @@ function ConsultationSection({ clientId, data }) {
         <p style={{ ...styles.noHistory, marginTop: 8 }}>No consultation form yet</p>
         {data.form_available && (
           <>
-            <button
+            <Button
+              fullWidth
               onClick={handleSend}
               disabled={sending}
-              style={{ ...styles.consultSendBtn, opacity: sending ? 0.6 : 1 }}
+              style={{ marginTop: 10 }}
             >
               {sending ? 'Sending...' : 'Send them a form'}
-            </button>
+            </Button>
             {sendResult && <p style={styles.consultSendResult}>{sendResult}</p>}
           </>
         )}
@@ -1632,8 +1635,6 @@ const styles = {
     lineHeight: 1.2,
   },
   headerActions: { display: 'flex', gap: 8, alignItems: 'center' },
-  exportBtn: { padding: '8px 12px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-secondary)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  addBtn: { padding: '8px 16px', borderRadius: 10, border: 'none', background: 'var(--accent)', color: 'var(--bg-card)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   // Count summary
   countRow: {
     display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
@@ -1648,21 +1649,7 @@ const styles = {
   // Filter chips + sort
   controlsRow: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' },
   chipsWrap: { display: 'flex', gap: 6, flexWrap: 'wrap', flex: 1, minWidth: 0, overflowX: 'auto' },
-  chip: {
-    padding: '6px 12px', borderRadius: 22,
-    border: '1px solid var(--border)',
-    fontSize: 12, fontWeight: 600, cursor: 'pointer',
-    fontFamily: 'inherit', whiteSpace: 'nowrap',
-    display: 'inline-flex', alignItems: 'center', gap: 6,
-    transition: 'background 0.15s, color 0.15s',
-  },
   sortWrap: { position: 'relative', flexShrink: 0 },
-  sortBtn: {
-    padding: '6px 10px', borderRadius: 10,
-    border: '1px solid var(--border)', background: 'var(--bg-card)',
-    color: 'var(--text-secondary)', fontSize: 12, fontWeight: 600,
-    cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
-  },
   sortMenu: {
     position: 'absolute', top: '110%', right: 0, zIndex: 50,
     background: 'var(--bg-card)', borderRadius: 10,
@@ -1696,11 +1683,6 @@ const styles = {
     zIndex: 100,
   },
   actionCount: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' },
-  actionBtnPrimary: {
-    padding: '8px 16px', borderRadius: 10, border: 'none',
-    background: 'var(--accent)', color: '#fff',
-    fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-  },
 
   searchWrap: { position: 'relative', marginBottom: 14 },
   searchInput: { width: '100%', padding: '12px 36px 12px 14px', borderRadius: 10, border: '1.5px solid var(--border)', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: 'var(--bg-card)' },
@@ -1711,7 +1693,6 @@ const styles = {
   formLabel: { display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4, fontWeight: 500 },
   formInput: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border)', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' },
   formActions: { display: 'flex', gap: 8, marginTop: 4 },
-  saveBtn: { flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: 'var(--accent)', color: 'var(--bg-card)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   cancelBtn: { padding: '10px 16px', borderRadius: 10, border: 'none', background: 'var(--border-light)', color: 'var(--text-secondary)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' },
   list: { display: 'flex', flexDirection: 'column', gap: 6 },
   clientCard: { display: 'flex', alignItems: 'center', gap: 12, background: 'var(--bg-card)', borderRadius: 10, padding: '12px 14px', boxShadow: 'var(--shadow-sm)', border: 'none', borderLeft: '3px solid transparent', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', width: '100%' },
@@ -1831,11 +1812,6 @@ const styles = {
   consultLinkBtn: {
     alignSelf: 'flex-start', minHeight: 44, padding: '0 2px', background: 'none', border: 'none',
     color: '#92405e', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-  },
-  consultSendBtn: {
-    display: 'block', width: '100%', minHeight: 44, marginTop: 10, padding: '11px 14px',
-    borderRadius: 10, border: 'none', background: '#92405e', color: '#fff',
-    fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
   },
   consultSendResult: { fontSize: 12, color: 'var(--text-muted)', margin: '8px 0 0', lineHeight: 1.45 },
   consultConsent: { fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6, margin: '10px 0 0' },
@@ -1968,18 +1944,6 @@ const styles = {
     gap: 6,
     flexWrap: 'wrap',
   },
-  channelChip: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 4,
-    padding: '4px 10px',
-    borderRadius: 999,
-    fontSize: 11,
-    fontWeight: 600,
-    border: '1px solid',
-    cursor: 'pointer',
-    fontFamily: 'inherit',
-  },
   composerRow: {
     display: 'flex',
     gap: 8,
@@ -1996,17 +1960,6 @@ const styles = {
     resize: 'vertical',
     background: 'var(--bg-card)',
     color: 'var(--text-primary)',
-  },
-  composerSend: {
-    padding: '8px 14px',
-    background: 'var(--accent, #92405e)',
-    color: '#fff',
-    border: 'none',
-    borderRadius: 10,
-    fontFamily: 'inherit',
-    fontSize: 12,
-    fontWeight: 700,
-    cursor: 'pointer',
   },
   fullThreadLink: {
     alignSelf: 'flex-end',
@@ -2039,21 +1992,10 @@ const styles = {
   },
   reviewCardTitle: { fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary, #241B17)', marginBottom: 2 },
   reviewCardSub: { fontSize: 12.5, color: 'var(--text-secondary, #574A42)', lineHeight: 1.5 },
-  reviewBtn: {
-    background: 'var(--accent, #92405e)', color: '#fff', border: 'none',
-    borderRadius: 10, padding: '0 18px', minHeight: 44, fontSize: 13,
-    fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-  },
   reviewGhostBtn: {
     background: 'none', border: 'none', color: 'var(--text-muted, #6B5D54)',
     fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
     padding: '0 6px', minHeight: 44,
-  },
-  archiveAllBtn: {
-    display: 'block', width: '100%', minHeight: 44, margin: '12px 0',
-    background: 'var(--bg-card, #FFFCF9)', border: '1.5px solid var(--accent, #92405e)',
-    color: 'var(--accent, #92405e)', borderRadius: 10, fontSize: 13,
-    fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
   },
   reviewRow: {
     display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0',
@@ -2061,12 +2003,6 @@ const styles = {
   },
   reviewRowName: { fontSize: 13.5, fontWeight: 600, color: 'var(--text-primary, #241B17)' },
   reviewRowMeta: { fontSize: 12, color: 'var(--text-muted, #6B5D54)', marginTop: 1 },
-  reviewRowBtn: {
-    background: 'none', border: '1.5px solid var(--accent, #92405e)',
-    color: 'var(--accent, #92405e)', borderRadius: 10, padding: '0 14px',
-    minHeight: 44, fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
-    fontFamily: 'inherit', flexShrink: 0,
-  },
   toast: {
     position: 'fixed',
     bottom: 80,

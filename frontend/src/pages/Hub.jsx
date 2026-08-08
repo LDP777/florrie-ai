@@ -244,9 +244,13 @@ function ApprovalCard({ onNav }) {
           handledToday = (d.rows || []).filter(r => new Date(r.created_at) >= start).length;
         }
 
-        setState({ approvals, handledToday });
+        setState({ approvals, handledToday, failed: false });
       } catch {
-        if (!cancelled) setState({ approvals: 0, handledToday: 0 });
+        // Do NOT fall back to zero. Zero is a claim — the card renders
+        // "Nothing needs you right now" — and making that claim because the
+        // network failed is how a screen teaches someone to stop believing it.
+        // Unknown is not the same as none, so say nothing instead.
+        if (!cancelled) setState({ approvals: 0, handledToday: 0, failed: true });
       }
     }
     load();
@@ -255,7 +259,9 @@ function ApprovalCard({ onNav }) {
 
   // Lead with what Florrie DID today; approvals become a quiet secondary ask.
   if (!state) return null;
-  const { approvals, handledToday } = state;
+  const { approvals, handledToday, failed } = state;
+  // Silent when we could not find out, rather than confidently reassuring.
+  if (failed) return null;
   if (!approvals && !handledToday) return null;
 
   return (
@@ -419,7 +425,13 @@ function TodaySummary({ beautician, onNav }) {
   const nextLabel = data.next
     ? `${formatTime(data.next.starts_at)} · ${nextClientName(data.next)}`
     : 'No clients booked';
-  const nextSub = data.next?.treatment?.name || data.next?.treatment_name || (data.next ? 'Booked in' : 'Enjoy the breathing room');
+  // `treatments`, plural. The appointments route selects
+  // `treatments(name, duration_minutes, price_cents)`, so the field is
+  // `treatments.name` — which the chip 30 lines below reads correctly. This
+  // line read `treatment` and `treatment_name`, neither of which exists, so
+  // the next-client card has shown the literal words "Booked in" on every
+  // render since it shipped instead of "Lash lift".
+  const nextSub = data.next?.treatments?.name || data.next?.treatment_name || (data.next ? 'Booked in' : 'Enjoy the breathing room');
 
   return (
     <section style={TS.wrap}>
@@ -459,7 +471,7 @@ function TodaySummary({ beautician, onNav }) {
 
       {data.needsPrice > 0 && (
         <button onClick={() => onNav('/calendar')} style={TS.priceFlag} aria-label={`${data.needsPrice} bookings need a price`}>
-          <Icon name={iconName('sell')} inline style={TS.priceFlagIcon} />
+          <Icon name="tag" inline style={TS.priceFlagIcon} />
           <span style={TS.priceFlagText}>
             {data.needsPrice} booking{data.needsPrice === 1 ? '' : 's'} {data.needsPrice === 1 ? 'has' : 'have'} no price. Your potential is higher than it looks.
           </span>

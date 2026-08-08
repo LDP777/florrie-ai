@@ -4,6 +4,7 @@ import { useBeautician } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import Icon, { iconName } from '../components/ui/Icon';
 import Money from '../components/ui/Money';
+import Button from '../components/ui/Button';
 /**
  * Client Import: one-click migration from Fresha, Timely, Vagaro, or any CSV/XLSX.
  *
@@ -337,9 +338,9 @@ export default function ClientImport() {
           </div>
 
           {/* Manual paste fallback */}
-          <button onClick={() => { setSelectedPlatform('manual'); setStep('manual'); }} style={styles.textBtn}>
+          <Button variant="quiet" size="sm" fullWidth onClick={() => { setSelectedPlatform('manual'); setStep('manual'); }}>
             Or paste names manually
-          </button>
+          </Button>
         </>
       )}
 
@@ -456,7 +457,7 @@ export default function ClientImport() {
                             type="email"
                             style={styles.editInput}
                           />
-                          <button onClick={() => setEditingIndex(null)} style={styles.doneBtn}>Done</button>
+                          <Button variant="tonal" size="sm" fullWidth onClick={() => setEditingIndex(null)}>Done</Button>
                         </div>
                       ) : (
                         <button
@@ -504,14 +505,17 @@ export default function ClientImport() {
           )}
 
           {/* CTA */}
-          <button
+          <Button
+            variant="primary"
+            size="lg"
+            fullWidth
             onClick={executeImport}
             disabled={totalItems === 0}
-            style={{ ...styles.importBtn, opacity: totalItems === 0 ? 0.5 : 1, cursor: totalItems === 0 ? 'not-allowed' : 'pointer' }}
+            style={{ boxShadow: 'var(--elev-2)', opacity: totalItems === 0 ? 0.5 : 1, cursor: totalItems === 0 ? 'not-allowed' : 'pointer' }}
           >
             {totalItems === 0 ? 'Nothing to import' : `Import everything (${totalItems} items)`}
-          </button>
-          <button onClick={reset} style={styles.backBtn}>Start over</button>
+          </Button>
+          <Button variant="chip" size="md" fullWidth onClick={reset}>Start over</Button>
         </div>
       )}
 
@@ -562,8 +566,8 @@ export default function ClientImport() {
           </p>
 
           <div style={styles.doneActions}>
-            <a href="/clients" style={styles.importBtn}>View your clients</a>
-            <button onClick={reset} style={styles.backBtn}>Import more</button>
+            <Button as="a" href="/clients" variant="primary" size="lg" fullWidth style={{ boxShadow: 'var(--elev-2)' }}>View your clients</Button>
+            <Button variant="chip" size="md" fullWidth onClick={reset}>Import more</Button>
           </div>
         </div>
       )}
@@ -636,14 +640,17 @@ function ManualPaste({ beautician, navigate, onDone, onBack }) {
         style={styles.textarea}
         rows={8}
       />
-      <button
+      <Button
+        variant="primary"
+        size="lg"
+        fullWidth
         onClick={handleImport}
         disabled={!text.trim() || importing}
-        style={{ ...styles.importBtn, opacity: text.trim() && !importing ? 1 : 0.5 }}
+        style={{ boxShadow: 'var(--elev-2)', opacity: text.trim() && !importing ? 1 : 0.5 }}
       >
         {importing ? 'Importing...' : `Import ${text.split('\n').filter(l => l.trim()).length} clients`}
-      </button>
-      <button onClick={onBack} style={styles.backBtn}>Back</button>
+      </Button>
+      <Button variant="chip" size="md" fullWidth onClick={onBack}>Back</Button>
     </div>
   );
 }
@@ -914,9 +921,9 @@ function TimelyAppointmentsImport() {
       )}
 
       {phase === 'idle' && (
-        <button onClick={() => fileRef.current?.click()} style={styles.timelyUploadBtn}>
+        <Button variant="quiet" size="lg" fullWidth onClick={() => fileRef.current?.click()} style={{ border: '2px solid var(--accent, #92405e)' }}>
           Upload appointment CSV
-        </button>
+        </Button>
       )}
 
       {phase === 'parsed' && (
@@ -931,16 +938,16 @@ function TimelyAppointmentsImport() {
               <div style={styles.timelyPreviewSub}>
                 First up: {rows[0].client_name}{rows[0].service ? `, ${rows[0].service}` : ''} on {rows[0].date} at {rows[0].start_time}
               </div>
-              <button onClick={runImport} style={styles.importBtn}>
+              <Button variant="primary" size="lg" fullWidth onClick={runImport} style={{ boxShadow: 'var(--elev-2)' }}>
                 Import {rows.length} {rows.length === 1 ? 'appointment' : 'appointments'}
-              </button>
+              </Button>
             </>
           ) : (
             <div style={styles.timelyPreviewSub}>
               Nothing from today onwards in that file. Check the date range on the Timely report.
             </div>
           )}
-          <button onClick={resetTimely} style={styles.backBtn}>Choose a different file</button>
+          <Button variant="chip" size="md" fullWidth onClick={resetTimely}>Choose a different file</Button>
         </div>
       )}
 
@@ -986,8 +993,8 @@ function TimelyAppointmentsImport() {
               No messages were sent. Imported appointments never trigger confirmations, reminders, deposits, or charges.
             </div>
           </div>
-          <a href="/calendar" style={styles.importBtn}>View your calendar</a>
-          <button onClick={resetTimely} style={styles.backBtn}>Import another file</button>
+          <Button as="a" href="/calendar" variant="primary" size="lg" fullWidth style={{ boxShadow: 'var(--elev-2)' }}>View your calendar</Button>
+          <Button variant="chip" size="md" fullWidth onClick={resetTimely}>Import another file</Button>
         </div>
       )}
     </div>
@@ -1054,13 +1061,6 @@ const styles = {
   },
   helpTitle: { fontSize: 12, fontWeight: 700, color: 'var(--gold-text, #795f2b)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' },
   helpStep: { fontSize: 12, color: 'var(--gold-text, #795f2b)', lineHeight: 1.6 },
-
-  textBtn: {
-    display: 'block', width: '100%', textAlign: 'center',
-    padding: 12, background: 'transparent', border: 'none',
-    color: 'var(--accent, #92405e)', fontSize: 13, fontWeight: 500,
-    cursor: 'pointer', fontFamily: 'inherit',
-  },
 
   // Centre card (uploading / importing)
   centreCard: {
@@ -1141,11 +1141,6 @@ const styles = {
     background: 'var(--danger-bg, #F7E4E4)', color: 'var(--danger, #9E2B32)',
     fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
   },
-  doneBtn: {
-    padding: '8px 0', borderRadius: 10, border: 'none',
-    background: 'var(--accent-light, #F6E7EC)', color: 'var(--accent, #92405e)',
-    fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-  },
 
   chipGrid: { display: 'flex', flexWrap: 'wrap', gap: 6 },
   chip: {
@@ -1159,19 +1154,6 @@ const styles = {
   skippedFooter: {
     fontSize: 11, color: 'var(--text-muted, #6B5D54)',
     padding: '4px 4px 0', lineHeight: 1.5,
-  },
-
-  importBtn: {
-    display: 'block', width: '100%', padding: '16px 0', borderRadius: 16,
-    border: 'none', background: 'var(--accent, #92405e)', color: '#fff',
-    fontSize: 16, fontWeight: 600, cursor: 'pointer',
-    fontFamily: 'inherit', textAlign: 'center', textDecoration: 'none',
-    boxShadow: 'var(--elev-2)',
-  },
-  backBtn: {
-    display: 'block', width: '100%', padding: '14px 0', borderRadius: 10,
-    border: 'none', background: 'var(--bg-hover, #f3ede9)', color: 'var(--text-muted, #6B5D54)',
-    fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center',
   },
 
   // Done
@@ -1213,12 +1195,6 @@ const styles = {
   timelyTitle: {
     fontSize: 19, fontWeight: 700, margin: 0,
     fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
-  },
-  timelyUploadBtn: {
-    display: 'block', width: '100%', padding: '14px 0', borderRadius: 16,
-    border: '2px solid var(--accent, #92405e)', background: 'transparent',
-    color: 'var(--accent, #92405e)', fontSize: 15, fontWeight: 600,
-    cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center',
   },
   timelyPreviewCard: {
     background: 'var(--bg-card, #FFFCF9)', borderRadius: 16,

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { API_BASE } from '../lib/config.js';
 import Icon, { iconName } from '../components/ui/Icon';
 import Money from '../components/ui/Money';
+import Button from '../components/ui/Button';
 
 /**
  * ClientManagePage - public client self-service portal.
@@ -908,9 +909,9 @@ export default function ClientManagePage() {
                   <button onClick={() => setCancelConfirm(false)} style={S.keepBtn}>
                     Keep booking
                   </button>
-                  <button onClick={handleCancel} disabled={cancelling} style={S.confirmCancelBtn}>
+                  <Button variant="danger" onClick={handleCancel} disabled={cancelling} style={{ flex: 1 }}>
                     {cancelling ? 'Cancelling…' : 'Yes, cancel'}
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}
