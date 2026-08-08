@@ -688,7 +688,7 @@ const styles = {
   detailPanel: {
     background: 'var(--bg, #FBF6F1)', borderRadius: '20px 20px 0 0', width: '100%',
     maxWidth: 480, maxHeight: '85vh', overflowY: 'auto',
-    padding: '20px 16px 40px', position: 'relative',
+    padding: '20px 16px 40px', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 20px)', position: 'relative',
   },
   closeBtn: { position: 'absolute', top: 12, right: 16, background: 'none', border: 'none', fontSize: 24, color: 'var(--text-muted, #6B5D54)', cursor: 'pointer' },
   detailHeader: { textAlign: 'center', paddingTop: 8, paddingBottom: 16 },

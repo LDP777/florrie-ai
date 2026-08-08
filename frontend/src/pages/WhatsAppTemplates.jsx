@@ -696,8 +696,7 @@ const styles = {
     maxWidth: 560,
     maxHeight: '92vh',
     overflowY: 'auto',
-    boxShadow: 'var(--elev-3)',
-  },
+    boxShadow: 'var(--elev-3)', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 20px)' },
   modalHeader: {
     display: 'flex',
     justifyContent: 'space-between',

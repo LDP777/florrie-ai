@@ -366,7 +366,7 @@ const S = {
 
   // Upload modal
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 960, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
-  modal: { background: 'var(--bg-card, #FFFCF9)', borderRadius: '16px 16px 0 0', padding: '20px 20px 32px', width: '100%', maxWidth: 480 },
+  modal: { background: 'var(--bg-card, #FFFCF9)', borderRadius: '16px 16px 0 0', padding: '20px 20px 32px', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 20px)', width: '100%', maxWidth: 480 },
   modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text-primary, #241B17)', margin: '0 0 16px' },
   uploadZone: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: 32, border: '2px dashed var(--border, var(--border, #E8DDD4))', borderRadius: 10, marginBottom: 16, cursor: 'pointer' },
   uploadText: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #241B17)' },

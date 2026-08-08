@@ -601,8 +601,7 @@ const styles = {
   },
   previewModal: {
     background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, width: '100%', maxWidth: 380,
-    maxHeight: '85vh', overflowY: 'auto',
-  },
+    maxHeight: '85vh', overflowY: 'auto', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 20px)' },
   previewHeader: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
     padding: '14px 16px', borderBottom: '1px solid var(--border, #E8DDD4)',

@@ -856,8 +856,7 @@ const styles = {
     background: 'var(--bg, #FBF6F1)', borderTopLeftRadius: 20, borderTopRightRadius: 20,
     display: 'flex', flexDirection: 'column', overflow: 'hidden',
     boxShadow: 'var(--elev-3)',
-    fontFamily: "var(--font-body, 'Plus Jakarta Sans', -apple-system, sans-serif)"
-  },
+    fontFamily: "var(--font-body, 'Plus Jakarta Sans', -apple-system, sans-serif)", paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 20px)' },
   previewHeader: {
     display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
     gap: 12, padding: '18px 18px 14px', borderBottom: '1px solid var(--border-light)'

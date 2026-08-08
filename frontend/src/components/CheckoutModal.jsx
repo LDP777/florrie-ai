@@ -342,8 +342,7 @@ const S = {
     width: '100%', maxWidth: 480,
     maxHeight: '92vh', overflowY: 'auto',
     boxShadow: 'var(--elev-3)',
-    animation: 'scaleIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)',
-  },
+    animation: 'scaleIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 20px)' },
   header: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
     padding: '18px 20px 16px',

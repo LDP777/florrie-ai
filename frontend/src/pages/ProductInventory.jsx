@@ -430,7 +430,7 @@ const S = {
   actionBtn: { flex: 1, padding: '9px 0', borderRadius: 10, border: '1px solid var(--border, var(--border, #E8DDD4))', background: 'var(--card, #FFFCF9)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #241B17)' },
   fab: { position: 'fixed', bottom: 'calc(env(safe-area-inset-bottom, 0px) + 80px)', left: 20, width: 52, height: 52, borderRadius: 22, background: 'var(--accent, #92405e)', color: '#fff', fontSize: 26, border: 'none', cursor: 'pointer', boxShadow: 'var(--elev-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit', zIndex: 50 },
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
-  modal: { background: 'var(--bg, var(--bg, #FBF6F1))', borderRadius: '18px 18px 0 0', width: '100%', maxWidth: 480, maxHeight: '85vh', overflow: 'auto', padding: '20px 16px 32px' },
+  modal: { background: 'var(--bg, var(--bg, #FBF6F1))', borderRadius: '18px 18px 0 0', width: '100%', maxWidth: 480, maxHeight: '85vh', overflow: 'auto', padding: '20px 16px 32px', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 20px)' },
   modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text, var(--text-primary, #241B17))', margin: 0 },
   closeBtn: { background: 'none', border: 'none', fontSize: 18, color: 'var(--text-muted, var(--text-muted, #6B5D54))', cursor: 'pointer' },

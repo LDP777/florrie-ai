@@ -571,7 +571,7 @@ const S = {
 
   // Sync sheet
   overlay: { position: 'fixed', inset: 0, background: 'rgba(40, 20, 28, 0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, zIndex: 1000 },
-  sheet: { width: '100%', maxWidth: 460, maxHeight: '90vh', overflowY: 'auto', background: C.card, borderRadius: 22, padding: 22, boxShadow: 'var(--elev-3)' },
+  sheet: { width: '100%', maxWidth: 460, maxHeight: '90vh', overflowY: 'auto', background: C.card, borderRadius: 22, padding: 22, boxShadow: 'var(--elev-3)', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 20px)' },
   sheetHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
   sheetTitle: { fontSize: 20, fontWeight: 700, margin: 0, fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" },
   sheetClose: { background: 'none', border: 'none', fontSize: 26, lineHeight: 1, color: C.muted, cursor: 'pointer' },
