@@ -438,9 +438,42 @@ router.get('/for-appointment/:appointmentId', requireAuth, async (req, res) => {
     if ((rows || []).length > 0) response = shapeResponse(rows[0]);
   }
 
+  // A form that has been SENT and not yet filled in was invisible here: the
+  // lookup above only asks for status 'completed'. So the card said "there is
+  // nothing on file for Shauna" and offered a primary "Send them the form"
+  // button an hour after one had gone out.
+  //
+  // That is the other half of Ellie sending Shauna two. The first half was a
+  // TypeError reporting a 500 for a text that had already arrived; even with
+  // that fixed, nothing on this screen would have told her a form was already
+  // waiting. She would have had no reason not to tap it again.
+  let pending = null;
+  if (!response && appt.client_id) {
+    const { data: pendingRows, error: pErr } = await supabase
+      .from('consultation_responses')
+      .select('id, created_at, expires_at')
+      .eq('beautician_id', req.beautician.id)
+      .eq('client_id', appt.client_id)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+      .limit(1);
+    if (handleQueryError(pErr, res, 'fetch pending consultation for appointment')) return;
+    const row = (pendingRows || [])[0];
+    if (row) {
+      // No token. It is the only credential guarding special-category health
+      // data, and this endpoint's answer ends up in a client-side state object.
+      pending = {
+        sent_at: row.created_at,
+        expires_at: row.expires_at,
+        expired: row.expires_at ? new Date(row.expires_at).getTime() < Date.now() : false,
+      };
+    }
+  }
+
   res.json({
     requires_consultation: requiresConsultation,
     response,
+    pending,
     form_available: response ? false : await hasSendableForm(req.beautician.id, treatmentIds),
   });
 });
@@ -708,15 +741,30 @@ export async function sendConsultationFormSMS({
 
   await sendSMS({ to: clientPhone, body: smsBody, beauticianId });
 
-  // Log message
-  await supabase.from('messages').insert({
+  // Log message.
+  //
+  // This line used to end `.catch(() => {}); // non-fatal`, and it was the
+  // most fatal line in the function. A Supabase query builder implements
+  // then() and nothing else — no catch, no finally — so `.catch` is undefined
+  // and calling it throws a TypeError, HERE, after the response row is written
+  // and after the SMS has gone. The route turned that into a 500 and the sheet
+  // said "Could not send the form just now."
+  //
+  // Ellie read that, and sent Shauna the form a second time. The text had
+  // already arrived; she found it in the message history afterwards.
+  //
+  // Genuinely non-fatal now: PostgREST reports failure by RESOLVING with an
+  // error rather than rejecting, so the way to not care about a write is to
+  // read the error and decline to act on it, which is what this does.
+  const { error: logErr } = await supabase.from('messages').insert({
     beautician_id: beauticianId,
     client_id: clientId,
     direction: 'outbound',
     channel: 'sms',
     content: smsBody,
     ...authorship('template'),
-  }).catch(() => {}); // non-fatal
+  });
+  if (logErr) logger.warn({ err: logErr, clientId }, 'Consultation form SMS sent but not logged to the thread');
 
   // Do not log the token: it is the only credential guarding the public
   // consultation form (special-category health data).

@@ -72,8 +72,11 @@ router.post('/send-reminder', requireAuth, async (req, res) => {
     if (client?.phone) {
       const result = await sendSMS({ to: client.phone, body, beauticianId: req.beautician.id });
 
-      // Log the message
-      await supabase.from('messages').insert({
+      // Log the message. Read the error rather than reaching for .catch —
+      // a Supabase query builder has none, so `.catch(() => {})` threw a
+      // TypeError right here, AFTER the reminder text had gone, and the route
+      // then reported a failure for a message the client had received.
+      const { error: logErr } = await supabase.from('messages').insert({
         beautician_id: req.beautician.id,
         client_id: client.id,
         direction: 'outbound',
@@ -82,7 +85,8 @@ router.post('/send-reminder', requireAuth, async (req, res) => {
         // Reminder copy is assembled from a fixed shape a few lines above,
         // not typed by her.
         ...authorship('template'),
-      }).catch(() => {});
+      });
+      if (logErr) logger.warn({ err: logErr, clientId: client.id }, 'Reminder sent but not logged to the thread');
 
       return res.json({ success: !!result, channel: 'sms' });
     }

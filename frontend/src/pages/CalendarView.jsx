@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useBeautician, supabase, updateRow, insertRow } from '../lib/supabase.js'
@@ -1754,23 +1754,31 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
   const [consultOpen, setConsultOpen] = useState(false);
   const [consultSending, setConsultSending] = useState(false);
   const [consultSendResult, setConsultSendResult] = useState(null);
+  // Pulled out of the effect so the send handler can call it too. After a
+  // send, the card was still showing the state from before — "nothing on
+  // file", with a primary button inviting another go — which is a large part
+  // of how the same form went to Shauna twice.
+  const loadConsultation = useCallback(async () => {
+    try {
+      const token = (await supabase.auth.getSession())?.data?.session?.access_token;
+      const res = await fetch(`${API_BASE}/api/consultation-forms/for-appointment/${appointment.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch { return null; }   // the consultation panel just does not appear
+  }, [appointment.id]);
+
   useEffect(() => {
     let cancelled = false;
     setConsultation(null);
     setConsultOpen(false);
     (async () => {
-      try {
-        const token = (await supabase.auth.getSession())?.data?.session?.access_token;
-        const res = await fetch(`${API_BASE}/api/consultation-forms/for-appointment/${appointment.id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) return;
-        const d = await res.json();
-        if (!cancelled) setConsultation(d);
-      } catch { /* the consultation panel just does not appear */ }
+      const d = await loadConsultation();
+      if (!cancelled && d) setConsultation(d);
     })();
     return () => { cancelled = true; };
-  }, [appointment.id]);
+  }, [appointment.id, loadConsultation]);
 
   async function handleSendConsultationForm() {
     setConsultSending(true);
@@ -1784,8 +1792,15 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
       });
       const body = await res.json().catch(() => ({}));
       setConsultSendResult(res.ok ? 'Sent. They get a text with the link.' : (body.error || 'Could not send it just now.'));
+      // Re-read either way. On success this flips the card to "sent, not
+      // filled in yet"; on failure it is the only way to find out whether the
+      // form went anyway, which is exactly what happened to Shauna's.
+      const fresh = await loadConsultation();
+      if (fresh) setConsultation(fresh);
     } catch {
       setConsultSendResult('Could not send it just now.');
+      const fresh = await loadConsultation();
+      if (fresh) setConsultation(fresh);
     } finally {
       setConsultSending(false);
     }
@@ -2454,16 +2469,31 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                 </>
               ) : (
                 <>
+                  {/* A form already sent and not yet filled in is its own
+                      state, and it used to be invisible: this card only ever
+                      asked about COMPLETED forms, so it said "nothing on file"
+                      an hour after one had gone and offered a primary button
+                      to send another. Ellie sent Shauna two. */}
                   <p style={{ fontSize: 13, color: COLORS.primary, fontWeight: 600, margin: 0, lineHeight: 1.45 }}>
-                    This treatment needs a consultation form and there is nothing on file for {appointment.clients?.first_name || 'this client'}.
+                    {consultation.pending
+                      ? `Form sent ${new Date(consultation.pending.sent_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} at ${new Date(consultation.pending.sent_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}. ${appointment.clients?.first_name || 'They'} ${consultation.pending.expired ? 'did not fill it in before the link expired.' : "hasn't filled it in yet."}`
+                      : `This treatment needs a consultation form and there is nothing on file for ${appointment.clients?.first_name || 'this client'}.`}
                   </p>
                   {consultation.form_available && appointment.client_id && (
                     <button className="fl-tap"
                       onClick={() => { hapticTap(); handleSendConsultationForm(); }}
                       disabled={consultSending}
-                      style={{ width: '100%', minHeight: TAP, marginTop: 8, padding: '10px 12px', borderRadius: 10, border: 'none', background: '#92405e', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', opacity: consultSending ? 0.6 : 1 }}
+                      style={{ width: '100%', minHeight: TAP, marginTop: 8, padding: '10px 12px', borderRadius: 10,
+                        // Sending a second copy is a quieter action than
+                        // sending the first, and should look like one.
+                        border: consultation.pending ? `1px solid ${COLORS.primary}` : 'none',
+                        background: consultation.pending ? 'transparent' : '#92405e',
+                        color: consultation.pending ? COLORS.primary : '#fff',
+                        fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', opacity: consultSending ? 0.6 : 1 }}
                     >
-                      {consultSending ? 'Sending...' : 'Send them the form'}
+                      {consultSending
+                        ? 'Sending...'
+                        : consultation.pending ? 'Send it again' : 'Send them the form'}
                     </button>
                   )}
                   {consultSendResult && (

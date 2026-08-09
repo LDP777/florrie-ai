@@ -1372,11 +1372,15 @@ router.post('/:slug/manage/:token/reschedule', async (req, res) => {
       // as awaiting one. deposit_paid is left intact so the late-fee calc still
       // credits the original deposit.
       if (!newDepositCollected) {
-        await supabase
+        // Same trap as the one in consultation-forms.js: a query builder has
+        // no .catch, so this threw a TypeError mid-reschedule rather than
+        // swallowing anything. It sat on the branch where a deposit was NOT
+        // re-collected, which is the quieter half of the reschedule flow.
+        const { error: pendErr } = await supabase
           .from('appointments')
           .update({ deposit_status: 'pending' })
-          .eq('id', appt.id)
-          .catch(() => {});
+          .eq('id', appt.id);
+        if (pendErr) logger.warn({ err: pendErr, appointmentId: appt.id }, 'Could not mark the new slot deposit pending');
       }
     }
 

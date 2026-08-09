@@ -1037,7 +1037,11 @@ async function toolSendPaymentLink({ client_name, amount_pence, description }, b
     metadata: { beautician_id: beautician.id, client_id: client.id },
   });
 
-  await supabase.from('payment_links').insert({
+  // The Stripe session exists by this point — the customer can already pay.
+  // `.catch(() => {})` on a query builder is a TypeError, so a payment link
+  // that HAD been created was reported to her as a failure, and the row that
+  // lets the app recognise the payment later was never written.
+  const { error: linkErr } = await supabase.from('payment_links').insert({
     beautician_id: beautician.id,
     client_id: client.id,
     amount_cents: amount_pence,
@@ -1045,7 +1049,8 @@ async function toolSendPaymentLink({ client_name, amount_pence, description }, b
     stripe_session_id: session.id,
     url: session.url,
     status: 'pending',
-  }).catch(() => {});
+  });
+  if (linkErr) logger.warn({ err: linkErr, sessionId: session.id }, 'Payment link created in Stripe but not recorded');
 
   const amountStr = `£${(amount_pence / 100).toFixed(2)}`;
 

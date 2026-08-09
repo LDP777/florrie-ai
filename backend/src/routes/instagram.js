@@ -50,6 +50,44 @@ const IG_APP_SECRET = process.env.INSTAGRAM_APP_SECRET || process.env.META_APP_S
 const REDIRECT_URI  = process.env.INSTAGRAM_REDIRECT_URI || 'http://localhost:3001/api/instagram/callback';
 const FRONTEND_URL  = process.env.FRONTEND_URL;
 
+/**
+ * The two ways this is misconfigured while LOOKING configured.
+ *
+ * `igConfigured()` only asks whether an id and a secret exist, so both of
+ * these pass it and then fail at Instagram, on Instagram's own error page,
+ * with nothing in our logs at all:
+ *
+ *  - META_APP_ID picked up as the fallback. The Meta App ID at the top of the
+ *    dashboard is NOT the Instagram app id, and instagram.com/oauth/authorize
+ *    rejects it. The fallback was meant as a convenience and instead turns a
+ *    missing variable into a wrong one.
+ *  - REDIRECT_URI still on the localhost default. Instagram compares it
+ *    character for character against the registered list, so this fails before
+ *    the login form is even drawn — which is exactly "it won't connect and it
+ *    won't log her in".
+ *
+ * Both are invisible from the outside. So they are reported: at boot, and on
+ * demand from /connect-check, without ever printing the secret.
+ */
+export function igConfigProblems() {
+  const problems = [];
+  if (!IG_APP_ID) problems.push('INSTAGRAM_APP_ID is not set.');
+  else if (!process.env.INSTAGRAM_APP_ID && process.env.META_APP_ID) {
+    problems.push('INSTAGRAM_APP_ID is not set and META_APP_ID is being used instead. The Meta App ID is not the Instagram app id — Instagram will reject it. Copy the id from Meta > Instagram > API setup with Instagram login.');
+  }
+  if (!IG_APP_SECRET) problems.push('INSTAGRAM_APP_SECRET is not set.');
+  if (!process.env.INSTAGRAM_REDIRECT_URI) {
+    problems.push(`INSTAGRAM_REDIRECT_URI is not set, so it defaults to ${REDIRECT_URI} — Instagram will reject that. Set it to https://<this-api-host>/api/instagram/callback and register the identical string in the Meta dashboard.`);
+  } else if (/^http:\/\/(localhost|127\.)/.test(REDIRECT_URI)) {
+    problems.push(`INSTAGRAM_REDIRECT_URI points at ${REDIRECT_URI}, which only works on a developer machine.`);
+  }
+  return problems;
+}
+
+// Said once, at boot, so it is in the deploy log rather than waiting to be
+// discovered by a beautician tapping a button that does nothing.
+for (const p of igConfigProblems()) logger.warn({ integration: 'instagram' }, p);
+
 // Instagram Login scopes. Comma-separated per Meta's docs.
 const SCOPES = [
   'instagram_business_basic',
@@ -62,9 +100,41 @@ function igConfigured() {
 
 // GET /api/instagram/connect
 // Returns the Instagram OAuth URL the frontend should open.
+/**
+ * GET /api/instagram/connect-check
+ *
+ * What is actually wrong, in words, without leaking a secret. Ellie tried this
+ * on her phone and in a browser and it failed both times, and from the outside
+ * every one of the failure modes above looks identical: a button, then an
+ * Instagram error page. Guessing at it across three dashboards is not a
+ * debugging strategy.
+ *
+ * Auth required, and the response carries no id and no secret — only whether
+ * each is present, where the id came from, and the redirect uri, which is
+ * public by definition because it travels in the OAuth url.
+ */
+router.get('/connect-check', requireAuth, (req, res) => {
+  const problems = igConfigProblems();
+  res.json({
+    ready: problems.length === 0,
+    problems,
+    app_id_source: process.env.INSTAGRAM_APP_ID ? 'INSTAGRAM_APP_ID'
+      : process.env.META_APP_ID ? 'META_APP_ID (wrong one)' : 'not set',
+    app_secret_set: !!IG_APP_SECRET,
+    redirect_uri: REDIRECT_URI,
+    register_this_exact_uri_in_meta: REDIRECT_URI,
+    scopes: SCOPES.split(','),
+  });
+});
+
 router.get('/connect', requireAuth, (req, res) => {
-  if (!igConfigured()) {
-    return res.status(503).json({ error: 'Instagram integration not configured, contact support' });
+  // Report the actual problem rather than "contact support". She IS support.
+  const problems = igConfigProblems();
+  if (!igConfigured() || problems.length) {
+    return res.status(503).json({
+      error: problems[0] || 'Instagram is not set up on the server yet.',
+      problems,
+    });
   }
 
   // The app has to tell us where it is running, because the two cases need
