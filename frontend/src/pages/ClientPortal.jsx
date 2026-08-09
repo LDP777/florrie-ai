@@ -319,10 +319,17 @@ const s = {
   linkCard: { background: 'linear-gradient(135deg, #B9466D 0%, #A85575 100%)', borderRadius: 16, padding: 16, marginBottom: 16, color: '#fff' },
   linkLabel: { fontSize: 11, opacity: 0.8, marginBottom: 6 },
   linkRow: { display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 },
-  linkUrl: { flex: 1, fontSize: 12, background: 'rgba(255,255,255,0.15)', borderRadius: 10, padding: '8px 10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  copyBtn: { padding: '8px 12px', borderRadius: 10, border: 'none', background: 'rgba(255,255,255,0.25)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 },
+  // Every chip on this card lifted itself off the gradient with a white wash,
+  // which is the one direction that cannot work under white text: the wash
+  // lightens the ground the text has to beat. The booking URL read 3.76:1,
+  // Copy 3.14:1 and the three share buttons 4.13:1 — the whole card, including
+  // the link Ellie is meant to send her clients. Washing the same amounts in
+  // black instead keeps each chip's relative weight and takes them to 6.41:1,
+  // 7.60:1 and 5.86:1 on the pale end of the gradient.
+  linkUrl: { flex: 1, fontSize: 12, background: 'rgba(0,0,0,0.15)', borderRadius: 10, padding: '8px 10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  copyBtn: { padding: '8px 12px', borderRadius: 10, border: 'none', background: 'rgba(0,0,0,0.25)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 },
   shareRow: { display: 'flex', gap: 8 },
-  shareBtn: { flex: 1, padding: '8px 0', borderRadius: 10, border: '1px solid rgba(255,255,255,0.3)', background: 'rgba(255,255,255,0.1)', color: '#fff', fontSize: 11, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
+  shareBtn: { flex: 1, padding: '8px 0', borderRadius: 10, border: '1px solid rgba(255,255,255,0.3)', background: 'rgba(0,0,0,0.1)', color: '#fff', fontSize: 11, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
 
   tabs: { display: 'flex', gap: 4, marginBottom: 16, background: '#F0ECE8', borderRadius: 10, padding: 4 },
   tab: { flex: 1, padding: '8px 0', fontSize: 12, fontWeight: 500, border: 'none', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', background: 'none', color: '#6B6560' },

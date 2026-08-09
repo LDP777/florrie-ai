@@ -378,7 +378,12 @@ const styles = {
   condSelect: { padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', fontSize: 11, fontFamily: 'inherit', background: 'var(--bg, var(--bg, #FBF6F1))', color: '#4A4540' },
   condInput: { width: 60, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', fontSize: 11, fontFamily: 'inherit', background: 'var(--bg, var(--bg, #FBF6F1))' },
   tabs: { display: 'flex', gap: 4, marginBottom: 16, background: 'var(--border, var(--border, var(--border, #E8DDD4)))', borderRadius: 10, padding: 4 },
-  tab: { flex: 1, padding: '8px 0', fontSize: 12, fontWeight: 500, border: 'none', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', background: 'none', color: '#6B6560' },
+  // The two unselected tab labels sat at #6B6560 on the --border tab bar and
+  // measured 4.30:1 — a grey picked against cream, then dropped onto a strip
+  // that is a shade darker than cream. --text-secondary is 6.38:1 on the same
+  // ground, is what ds.tab already uses, and inverts in dark mode where the
+  // hardcoded grey did not.
+  tab: { flex: 1, padding: '8px 0', fontSize: 12, fontWeight: 500, border: 'none', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', background: 'none', color: 'var(--text-secondary, #574A42)' },
   tabActive: { background: 'var(--bg-card, #FFFCF9)', color: 'var(--text-primary, #241B17)', boxShadow: 'var(--elev-1)' },
   ruleCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', marginBottom: 10, overflow: 'hidden' },
   ruleHeader: { display: 'flex', alignItems: 'center', gap: 12, padding: 14, cursor: 'pointer' },

@@ -23,7 +23,7 @@ import http from 'node:http';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 import { launch } from './lib/browser.mjs';
-import { fetchStubSource, sessionSeedSource } from './lib/fixtures.mjs';
+import { fetchStubSource, sessionSeedSource, WRONG_SCREEN_PROBE } from './lib/fixtures.mjs';
 
 const DIST = new URL('../dist', import.meta.url).pathname;
 if (!existsSync(join(DIST, 'index.html'))) {
@@ -208,6 +208,7 @@ const PUBLIC = new Set(['/terms', '/privacy', '/login', '/support', '/data-delet
 for (const r of ROUTES) if (r.startsWith('/book/')) PUBLIC.add(r);
 
 const findings = [];
+const crashed = [];
 for (const route of ROUTES) {
   await page.goto(`http://127.0.0.1:${port}${route}`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(Number(process.env.LIVE_SETTLE || 700));
@@ -217,19 +218,27 @@ for (const route of ROUTES) {
   // and the report says green. That is exactly what happened the first time
   // this reached for /money — the session seed did not take and five of seven
   // "passing" screens were the sign-in form.
-  const wrongScreen = await page.evaluate(() => {
-    const t = document.body.innerText || '';
-    if (/Welcome back|Continue with Apple|Forgot password/.test(t)) return 'the LOGIN page';
-    // Onboarding is the second way to pass vacuously: the session works, but
-    // with no beautician profile the app decides the account is not set up.
-    if (/Welcome to florrie\.ai|Step 1 of 6|Let's get your business set up/.test(t)) return 'the ONBOARDING wizard';
-    return null;
-  });
+  // Shared with shoot-live.mjs, so a screenshot and a check can never disagree
+  // about whether they are looking at the right screen.
+  const wrongScreen = await page.evaluate(`(${WRONG_SCREEN_PROBE})()`);
+  // A crash is per-route, so collect them and report the whole list at the
+  // end — finding out about them one build at a time is its own kind of waste.
+  // Login/onboarding stays fatal-fast: that means the HARNESS is broken and
+  // every route after it is meaningless.
+  if (wrongScreen && !PUBLIC.has(route) && wrongScreen.startsWith('the ERROR')) {
+    crashed.push(route);
+    continue;
+  }
   if (wrongScreen && !PUBLIC.has(route)) {
     console.error(`✗ live: ${route} rendered ${wrongScreen}, not the screen.\n` +
-      `  Every check below it would have passed on a form nobody is testing.\n` +
-      `  The session seed is not being read — most likely the storage key ref\n` +
-      `  does not match the VITE_SUPABASE_URL this dist was built with.\n`);
+      `  Every assertion below it would have passed, on a page nobody asked\n` +
+      `  about, and the run would have reported green.\n` +
+      `  Login/onboarding: the session seed is not being read — most likely the\n` +
+      `  storage key ref does not match the VITE_SUPABASE_URL this dist was\n` +
+      `  built with.\n` +
+      `  Error boundary: the page threw. Open the route with shoot-live.mjs and\n` +
+      `  read the page errors it prints; it is usually a fixture whose shape\n` +
+      `  does not match the route it stands in for.\n`);
     await browser.close(); server.close();
     process.exit(1);
   }
@@ -550,6 +559,16 @@ for (const [name, want] of [['over', 'over'], ['escaped', 'over'], ['clipped', '
       `  rule was rewritten to stop reporting.\n`);
     process.exit(1);
   }
+}
+
+if (crashed.length) {
+  console.error(`✗ live: ${crashed.length} route(s) threw and rendered the error card:\n`);
+  for (const r of crashed) console.error(`    ${r}`);
+  console.error('\n  Every assertion on these passed, on a crash screen. Run\n' +
+    `    node scripts/shoot-live.mjs ${crashed[0]}\n` +
+    '  and read the page errors it prints — it is usually a fixture whose\n' +
+    '  shape does not match the route it stands in for.\n');
+  process.exit(1);
 }
 
 if (findings.length) {

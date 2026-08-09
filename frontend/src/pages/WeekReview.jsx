@@ -82,7 +82,13 @@ export default function WeekReview() {
             <span style={S.bloom}><Icon name="flower" size={15} /></span>
             <span style={S.cardBrand}>Florrie</span>
           </div>
-          <p style={S.cardKicker}>WEEK WITH FLORRIE · {stats.from.slice(8)}–{stats.to.slice(8, 10)}</p>
+          {/* `stats.from.slice(...)` on a response missing `from` throws, and
+              a throw here takes the whole page to the error card — for a date
+              range in a kicker line. The dates are decoration; the numbers
+              below are the point. */}
+          {stats.from && stats.to && (
+            <p style={S.cardKicker}>WEEK WITH FLORRIE · {String(stats.from).slice(8)}–{String(stats.to).slice(8, 10)}</p>
+          )}
           <h2 style={S.cardHeadline}>
             {stats.total_handled > 0
               ? `${stats.total_handled} things handled while you did the brows`
@@ -163,9 +169,13 @@ const S = {
     fontSize: 22, fontWeight: 800, fontVariantNumeric: 'tabular-nums',
     minWidth: 64, textAlign: 'right', fontFamily: '"Plus Jakarta Sans", -apple-system, sans-serif' },
   statLabel: { fontSize: 13.5, color: 'rgba(255,255,255,0.85)' },
+  // The share card is the one screen that leaves the app, and its footer — the
+  // only place the brand name appears on it — sat at white 0.6, which flattens
+  // to #cbadb9 over the middle of this gradient: 4.18:1. 0.7 is 5.11:1 and
+  // still reads as a footer rather than as another stat row.
   cardFooter: {
     marginTop: 16, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.14)',
-    fontSize: 11, color: 'rgba(255,255,255,0.6)', textAlign: 'center', letterSpacing: '0.04em',
+    fontSize: 11, color: 'rgba(255,255,255,0.7)', textAlign: 'center', letterSpacing: '0.04em',
   },
   shareBtn: {
     width: '100%', marginTop: 16, padding: '15px 0', borderRadius: 16, border: 'none',

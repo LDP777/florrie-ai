@@ -105,6 +105,14 @@ const ROUTES = [
   [/\/api\/agents\/counts/, () => ({ approvals: 2, inbox: 1, handledToday: 4 })],
   [/\/api\/activity\/feed/, () => ({ rows: ROWS })],
   [/\/api\/activity\/stats/, () => ({ handled_total: 128, hours_saved: 9 })],
+  // /week-review reads stats.from.slice(8) straight out of the response, so
+  // the generic fallback took the page to the ErrorBoundary. It was the last
+  // of the eighteen.
+  [/\/api\/activity\/week-review/, () => ({
+    from: '2026-08-02', to: '2026-08-08', total_handled: 37,
+    messages_answered: 22, gaps_filled: 4, brought_back: 3, bookings_taken: 8,
+    takings_pence: 122530, hours_saved: 6,
+  })],
   [/\/api\/outbound\/pending/, () => ({ pending: [{ id: 'p1', body: 'Hi Sarah, fancy your usual Thursday?' }] })],
   [/\/api\/escalations/, () => ({ escalations: [] })],
   [/\/api\/florrie-thinks/, () => ({ cards: [] })],
@@ -195,21 +203,27 @@ export function fetchStubSource() {
     const BODIES = ${JSON.stringify(ROUTES.map(([, make]) => make()))};
     window.fetch = (input) => {
       const url = typeof input === 'string' ? input : (input && input.url) || '';
-      // Same reasoning as FALLBACK above: an unmatched call must render empty,
-      // not throw, or a missing fixture is indistinguishable from a bug.
+      // An unmatched call must render empty, not throw, or a missing fixture
+      // is indistinguishable from a broken screen.
       //
-      // KNOWN HOLE, deliberately left: this cannot be the one object FALLBACK
-      // is. FALLBACK is an ARRAY carrying { data, rows, items } as properties,
-      // and that trick only survives in-process — this body goes over a
-      // Response as JSON, and JSON.stringify drops properties hung off an
-      // array. So a PostgREST call (/rest/v1/) with no fixture gets an object
-      // where supabase-js will hand back an array, and any page that filters
-      // its own table read dies before it paints. Tables the checked screens
-      // read are listed in ROUTES above for that reason. Making the fallback
-      // itself URL-aware is the real fix and is not a fixture change: it
-      // un-blinds around twenty screens at once, each with its own backlog of
-      // contrast failures, which is a piece of work rather than a line.
-      let body = { data: [], rows: [], items: [], count: 0 };
+      // It cannot be the one object FALLBACK is. FALLBACK is an ARRAY carrying
+      // { data, rows, items } as properties, and that trick only survives
+      // in-process: this body goes over a Response as JSON, and JSON.stringify
+      // drops properties hung off an array. So the fallback here was a plain
+      // OBJECT, a PostgREST call with no fixture got an object where
+      // supabase-js hands back an array, and any page that filters its own
+      // table read died before it painted.
+      //
+      // EIGHTEEN of eighty-one routes were rendering the ErrorBoundary that
+      // way while check-live called them clean — a crash card is text on a
+      // page, so nothing is low-contrast, nothing is past the edge and no
+      // figure is in the wrong face. Every assertion sails through.
+      //
+      // The url says which convention the caller expects: PostgREST answers a
+      // list read with an array, this app's own routes answer with { data } or
+      // { rows }. That is the whole fix.
+      const isRest = url.indexOf('/rest/v1/') !== -1;
+      let body = isRest ? [] : { data: [], rows: [], items: [], count: 0 };
       for (let i = 0; i < ROUTES.length; i++) {
         if (new RegExp(ROUTES[i]).test(url)) { body = BODIES[i]; break; }
       }
@@ -272,6 +286,13 @@ export const WRONG_SCREEN_PROBE = `() => {
   const t = document.body.innerText || '';
   if (/Welcome back|Continue with Apple|Forgot password/.test(t)) return 'the LOGIN page';
   if (/Welcome to florrie\\.ai|Step 1 of 6|Let's get your business set up/.test(t)) return 'the ONBOARDING wizard';
+  // The third way to pass vacuously, and the one that hid the longest: the
+  // page threw and React swapped in the ErrorBoundary. A crash card has no
+  // low-contrast text, nothing past the edge and no figures in the wrong
+  // face, so every assertion sails through and the route reports clean.
+  // /clients was doing exactly this — "n.map is not a function" — while the
+  // sweep counted it among 81 populated screens.
+  if (/We hit an unexpected error|Something went wrong/.test(t)) return 'the ERROR BOUNDARY (the page threw)';
   return null;
 }`;
 

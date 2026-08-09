@@ -347,7 +347,13 @@ export default function Analytics() {
                 </div>
                 <div style={styles.heroDivider} />
                 <div style={styles.heroStat}>
-                  <span style={{ ...styles.heroStatValue, color: stats.profit >= 0 ? 'rgba(255,255,255,0.9)' : '#FFCDD2' }}>
+                  {/* A loss was tinted #FFCDD2, which measures 3.56:1 on this
+                      hero gradient — the one figure on the card Ellie could not
+                      read, and the one she most needs to. No pink pale enough
+                      to still read as "loss" gets there: white is the ceiling
+                      on this fill at 5.01:1. The minus sign carries the meaning
+                      the tint was doing. */}
+                  <span style={{ ...styles.heroStatValue, color: stats.profit >= 0 ? 'rgba(255,255,255,0.9)' : '#fff' }}>
                     <Money pence={stats.profit} round />
                   </span>
                   <span style={styles.heroStatLabel}>profit</span>
