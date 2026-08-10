@@ -1180,7 +1180,7 @@ export default function MoneyTracker() {
                   {changePct != null && (
                     <span style={{ ...S.changeBadge,
                       background: changePct >= 0 ? 'rgba(91,169,123,0.2)' : 'rgba(186,26,26,0.2)',
-                      color: changePct >= 0 ? '#8EE0AE' : '#F08080',
+                      color: changePct >= 0 ? '#8EE0AE' : '#FFCDD2',
                     }}>
                       {changeArrow} {Math.abs(changePct)}% vs {periodStats.compareLabel}
                     </span>
