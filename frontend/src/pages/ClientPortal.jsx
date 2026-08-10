@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useBeautician, supabase, fetchRows, updateRow } from '../lib/supabase.js';
+import { bookingUrl as makeBookingUrl } from '../lib/booking.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
@@ -108,7 +109,7 @@ export default function ClientPortal() {
     savePortal({ features: { ...portal.features, [key]: !portal.features[key] } });
   }
 
-  const bookingUrl = `https://florrie.ai/book/${beautician?.booking_slug || ''}`;
+  const bookingUrl = makeBookingUrl(beautician?.booking_slug || '');
 
   function handleCopy() {
     navigator.clipboard?.writeText(bookingUrl);
