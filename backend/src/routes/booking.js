@@ -21,7 +21,8 @@ import { getOutstandingBalanceCents } from '../services/outstanding-balance.js';
 import { autoUnarchiveClient } from '../lib/client-archive.js';
 import { BOOKING_MONEY_LOGGED_TYPES } from '../lib/money-guards.js';
 import { combineTreatments, resolveDepositCents } from '../lib/booking-rules.js';
-import { appointmentIcs, DEAD_STATUSES } from '../lib/ical.js';
+import { appointmentIcs, googleCalendarUrl, DEAD_STATUSES } from '../lib/ical.js';
+import { calendarLandingPage } from '../lib/calendar-page.js';
 
 const router = Router();
 const FRONTEND_URL = process.env.FRONTEND_URL;
@@ -85,16 +86,58 @@ router.get('/:slug/manage/:token/resend-confirmation', async (req, res) => {
  * carry a link, and the link already goes to the manage page, so the manage
  * page gets an "Add to my calendar" button that points here.
  */
+/**
+ * GET /api/booking/:slug/manage/:token/calendar
+ *
+ * The HTML landing page. This is what the SMS and the WhatsApp message link
+ * to, NOT the .ics itself — see lib/calendar-page.js for why a bare file link
+ * silently does nothing inside WhatsApp's browser.
+ */
+router.get('/:slug/manage/:token/calendar', async (req, res) => {
+  try {
+    const appt = await loadForCalendar(req.params.token, req.params.slug);
+    if (!appt) return res.status(404).type('html').send('<p>Booking not found.</p>');
+
+    const base = `${req.protocol}://${req.get('host')}/api/booking/${encodeURIComponent(req.params.slug)}/manage/${encodeURIComponent(req.params.token)}`;
+    const manageUrl = FRONTEND_URL ? `${FRONTEND_URL}/book/${req.params.slug}/manage/${req.params.token}` : null;
+    const whenLabel = `${new Date(appt.starts_at).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })} at ${new Date(appt.starts_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}`;
+
+    res.status(200).type('html').set('Cache-Control', 'no-store').send(calendarLandingPage({
+      treatmentName: appt.treatments?.name,
+      businessName: appt.beauticians?.business_name || appt.beauticians?.first_name,
+      whenLabel,
+      icsUrl: `${base}/calendar.ics`,
+      googleUrl: googleCalendarUrl({
+        startsAt: appt.starts_at, endsAt: appt.ends_at,
+        treatmentName: appt.treatments?.name,
+        businessName: appt.beauticians?.business_name || appt.beauticians?.first_name,
+        location: appt.beauticians?.address || null,
+        manageUrl,
+      }),
+      manageUrl,
+      brand: appt.beauticians?.brand_color || '#92405E',
+    }));
+  } catch (err) {
+    logger.error({ err }, 'calendar landing page failed');
+    return res.status(500).type('html').send('<p>Something went wrong. Ask your beautician to resend your confirmation.</p>');
+  }
+});
+
+/** The one read both calendar endpoints do, so they cannot disagree. */
+async function loadForCalendar(token, slug) {
+  const { data: appt } = await supabase
+    .from('appointments')
+    .select('id, starts_at, ends_at, status, reschedule_count, treatments(name), beauticians(business_name, first_name, booking_slug, address, brand_color)')
+    .eq('management_token', token)
+    .maybeSingle();
+  if (!appt || appt.beauticians?.booking_slug !== slug) return null;
+  return appt;
+}
+
 router.get('/:slug/manage/:token/calendar.ics', async (req, res) => {
   try {
-    const { data: appt } = await supabase
-      .from('appointments')
-      .select('id, starts_at, ends_at, status, reschedule_count, treatments(name), beauticians(business_name, first_name, booking_slug, address)')
-      .eq('management_token', req.params.token)
-      .maybeSingle();
-    if (!appt || appt.beauticians?.booking_slug !== req.params.slug) {
-      return res.status(404).json({ error: 'not_found' });
-    }
+    const appt = await loadForCalendar(req.params.token, req.params.slug);
+    if (!appt) return res.status(404).json({ error: 'not_found' });
     const manageUrl = FRONTEND_URL
       ? `${FRONTEND_URL}/book/${req.params.slug}/manage/${req.params.token}`
       : null;

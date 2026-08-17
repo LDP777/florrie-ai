@@ -18,19 +18,14 @@ import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
 import { esc, toICalLocal, utcStamp, fold, VTIMEZONE_LONDON, DEAD_STATUSES } from '../lib/ical.js';
+import { publicBaseFor } from '../lib/public-url.js';
 
 const router = Router();
 
 // Statuses we do not surface in her personal calendar (dead bookings).
 
 /** Public base for building absolute subscribe URLs. */
-function publicBase(req) {
-  const env = process.env.PUBLIC_API_URL || process.env.API_BASE_URL || process.env.BACKEND_URL;
-  if (env) return env.replace(/\/$/, '');
-  const proto = (req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0];
-  const host = req.headers['x-forwarded-host'] || req.get('host');
-  return `${proto}://${host}`;
-}
+const publicBase = publicBaseFor;
 
 /** Fresh, URL-safe, unguessable token (hex, 32 bytes). */
 function newToken() {

@@ -20,6 +20,7 @@ import {
 } from '../lib/whatsapp-templates.js';
 import { authorship } from '../lib/authorship.js';
 import { appointmentIcs, googleCalendarUrl } from '../lib/ical.js';
+import { apiPublicBase } from '../lib/public-url.js';
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const FROM_EMAIL = process.env.FROM_EMAIL || 'Florrie <noreply@florrie.ai>';
@@ -1060,6 +1061,14 @@ export async function notifyBookingConfirmed(appointmentId) {
   };
   const ics = appointmentIcs(icsPayload);
   const gcalUrl = googleCalendarUrl(icsPayload);
+  // ONE link that does both. It lands on a page that offers Apple Calendar,
+  // Google Calendar and "change or cancel", so a text message does not have to
+  // carry two urls — and, crucially, it is an HTML page rather than a file, so
+  // it still renders when WhatsApp opens it in its own webview.
+  const apiBase = apiPublicBase();
+  const calendarUrl = (appt.management_token && biz?.booking_slug && apiBase)
+    ? `${apiBase}/api/booking/${biz.booking_slug}/manage/${appt.management_token}/calendar`
+    : null;
 
   // Receipt line: exactly what was paid and what remains, stated on every
   // confirmation. Clients kept thinking the deposit was the full amount (or
@@ -1110,7 +1119,14 @@ export async function notifyBookingConfirmed(appointmentId) {
     logger.warn({ err, appointmentId }, 'Receipt line build failed (non-fatal)');
   }
 
-  const textMsg = `Hi ${client.first_name}, your ${treatment.name} with ${bizName} is confirmed for ${shortDate} at ${timeStr}.${receiptLine ? ` ${receiptLine}` : ''}${manageUrl ? ` Manage or reschedule: ${manageUrl}` : ''}`;
+  // One link, and it leads with the calendar rather than with "manage".
+  // "Manage or reschedule" does not sound like the place you go to save the
+  // date, so nobody tapped it for that — they searched their inbox instead,
+  // and then messaged Ellie. The landing page carries change-or-cancel too.
+  const linkLine = calendarUrl
+    ? ` Add it to your calendar: ${calendarUrl}`
+    : (manageUrl ? ` Manage or reschedule: ${manageUrl}` : '');
+  const textMsg = `Hi ${client.first_name}, your ${treatment.name} with ${bizName} is confirmed for ${shortDate} at ${timeStr}.${receiptLine ? ` ${receiptLine}` : ''}${linkLine}`;
 
   // SMS/WhatsApp — only if beautician has opted in
   if (prefs.booking_confirmation !== false) {
@@ -1118,6 +1134,29 @@ export async function notifyBookingConfirmed(appointmentId) {
     if (channel === 'whatsapp' && client.phone) {
       const waResult = await sendWhatsApp({ to: client.phone, templateName: 'booking_confirmation_v2', templateParams: [client.first_name, shortDate, timeStr], beauticianId: appt.beautician_id });
       if (waResult) channels.push('whatsapp');
+      // A second, short message carrying the calendar link.
+      //
+      // It has to be separate. booking_confirmation_v2 is an APPROVED Meta
+      // template with three fixed parameters and no url button, and its body
+      // cannot be changed from here — that is a template edit and a
+      // resubmission in the Meta dashboard. generic_message_v2 is the only
+      // template with a free-text body, which is why every other link in this
+      // app travels in one.
+      //
+      // Marked transactional: a client's own booking link is a service
+      // message, not marketing, and without this the PECR quiet-hours gate
+      // silently binned it after 21:00 — which is precisely when somebody
+      // books an evening appointment.
+      if (waResult && calendarUrl) {
+        await sendWhatsApp({
+          to: client.phone,
+          templateName: 'generic_message_v2',
+          templateParams: [client.first_name, `Add your appointment to your calendar so you don't lose it: ${calendarUrl}`],
+          beauticianId: appt.beautician_id,
+          clientId: appt.client_id,
+          transactional: true,
+        });
+      }
       // Fall through to SMS if WhatsApp not available
       if (!waResult && client.phone && BIRD_API_KEY) {
         if (await sendSMS({ to: client.phone, body: textMsg, beauticianId: appt.beautician_id, messageType: 'booking_confirmation' })) channels.push('sms');
@@ -1169,7 +1208,7 @@ export async function notifyBookingConfirmed(appointmentId) {
           </table>
         </div>
         <div style="padding:18px 32px 4px;text-align:center">
-          <a href="${gcalUrl}" style="display:inline-block;background:${accent};color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:13px 30px;border-radius:999px;letter-spacing:0.2px">Add to my calendar</a>
+          <a href="${calendarUrl || gcalUrl}" style="display:inline-block;background:${accent};color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:13px 30px;border-radius:999px;letter-spacing:0.2px">Add to my calendar</a>
         </div>
         <div style="padding:8px 32px 0;text-align:center">
           <p style="margin:0;font-size:12px;line-height:1.6;color:#9c9388">On an iPhone, tap the <strong>booking.ics</strong> file attached to this email and it will drop straight into your calendar with a reminder.</p>
