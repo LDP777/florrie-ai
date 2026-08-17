@@ -19,11 +19,17 @@ import {
   specFor,
 } from '../lib/whatsapp-templates.js';
 import { authorship } from '../lib/authorship.js';
+import { appointmentIcs, googleCalendarUrl } from '../lib/ical.js';
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const FROM_EMAIL = process.env.FROM_EMAIL || 'Florrie <noreply@florrie.ai>';
 
-export async function sendEmail({ to, subject, html, text }) {
+/**
+ * `attachments`: [{ filename, content }] where content is a utf-8 string.
+ * Resend has always taken them; this function simply never passed any, which
+ * is why a booking confirmation could not carry a calendar invite.
+ */
+export async function sendEmail({ to, subject, html, text, attachments }) {
   if (!RESEND_API_KEY) {
     logger.debug('Resend not configured, skipping email');
     return null;
@@ -46,6 +52,15 @@ export async function sendEmail({ to, subject, html, text }) {
           subject,
           html,
           text,
+          ...(attachments?.length ? {
+            attachments: attachments.map(a => ({
+              filename: a.filename,
+              // Resend wants base64. An .ics is plain text, so this is the
+              // only encoding step between here and her calendar.
+              content: Buffer.from(a.content, 'utf8').toString('base64'),
+              ...(a.contentType ? { content_type: a.contentType } : {}),
+            })),
+          } : {}),
         }),
       });
 
@@ -1019,6 +1034,33 @@ export async function notifyBookingConfirmed(appointmentId) {
     ? `${process.env.FRONTEND_URL}/book/${biz.booking_slug}/manage/${appt.management_token}`
     : null;
 
+  // A calendar invite, because a text message is not a record of anything.
+  //
+  // A client messaged Ellie the day before her appointment: "I have an
+  // appointment with you tomorrow at 6pm correct? I can't seem to find all my
+  // bookings on the florrie app." Ellie's answer — "type florrie into WhatsApp
+  // or your emails" — was true, and is the whole problem. She then said "all
+  // my other booking dates show up but not tomorrow's", which is a second
+  // thing entirely, but the first is fixable here.
+  //
+  // The .ics puts it in the calendar app she was going to check anyway, with
+  // its own reminders. The Google link covers Android and webmail, where an
+  // attachment is a download rather than a banner.
+  const icsPayload = {
+    id: appt.id,
+    startsAt: appt.starts_at,
+    endsAt: appt.ends_at,
+    treatmentName: treatment?.name,
+    businessName: bizName,
+    location: biz?.address || null,
+    manageUrl,
+    // Bumped when the appointment moves, so a reschedule updates the event in
+    // her calendar instead of leaving the old time sitting there beside it.
+    sequence: appt.reschedule_count || 0,
+  };
+  const ics = appointmentIcs(icsPayload);
+  const gcalUrl = googleCalendarUrl(icsPayload);
+
   // Receipt line: exactly what was paid and what remains, stated on every
   // confirmation. Clients kept thinking the deposit was the full amount (or
   // the other way round), so the confirmation now says it in one plain line.
@@ -1126,8 +1168,14 @@ export async function notifyBookingConfirmed(appointmentId) {
             ${receiptRow}
           </table>
         </div>
-        ${manageUrl ? `<div style="padding:18px 32px 4px;text-align:center">
-          <a href="${manageUrl}" style="display:inline-block;background:${accent};color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:13px 30px;border-radius:999px;letter-spacing:0.2px">Manage or reschedule</a>
+        <div style="padding:18px 32px 4px;text-align:center">
+          <a href="${gcalUrl}" style="display:inline-block;background:${accent};color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:13px 30px;border-radius:999px;letter-spacing:0.2px">Add to my calendar</a>
+        </div>
+        <div style="padding:8px 32px 0;text-align:center">
+          <p style="margin:0;font-size:12px;line-height:1.6;color:#9c9388">On an iPhone, tap the <strong>booking.ics</strong> file attached to this email and it will drop straight into your calendar with a reminder.</p>
+        </div>
+        ${manageUrl ? `<div style="padding:14px 32px 4px;text-align:center">
+          <a href="${manageUrl}" style="display:inline-block;color:${accent};text-decoration:underline;font-size:13px;font-weight:600">Change or cancel this booking</a>
         </div>` : ''}
         <div style="padding:14px 32px 28px;text-align:center">
           <p style="margin:0;font-size:13px;line-height:1.6;color:#9c9388">Need to change something? Just reply to this email and ${biz.first_name || bizName} will sort it.</p>
@@ -1140,6 +1188,11 @@ export async function notifyBookingConfirmed(appointmentId) {
       subject: `Confirmed: ${treatment.name} — ${shortDate} at ${timeStr}`,
       text: textMsg,
       html,
+      // The whole point of this change. iOS Mail and Gmail both surface an
+      // .ics attachment as a one-tap "add to calendar" banner, so the booking
+      // ends up where she was going to look for it anyway — instead of being
+      // a text message she has to go and search her inbox for.
+      attachments: [{ filename: 'booking.ics', content: ics, contentType: 'text/calendar; charset=utf-8; method=PUBLISH' }],
     });
     channels.push('email');
     logOutboundToThread({ beauticianId: appt.beautician_id, clientId: appt.client_id, channel: 'email', body: textMsg });

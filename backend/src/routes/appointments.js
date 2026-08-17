@@ -473,6 +473,51 @@ router.post('/manual', requireAuth, validate(manualAppointmentSchema), async (re
 });
 
 /**
+ * POST /api/appointments/:id/resend-confirmation
+ *
+ * Ellie's side of "did she get it?". A client messaged her the evening before
+ * her appointment — "I have an appointment with you tomorrow at 6pm correct?
+ * all my other booking dates show up but not tomorrow's" — and there was
+ * nothing Ellie could do about it from inside the app except retype the
+ * details by hand.
+ *
+ * There is already a client-facing resend behind the management token, which
+ * is no use here: the client is the one who cannot find the message that
+ * carries that token.
+ *
+ * Returns what actually happened rather than ok:true, so the sheet can say
+ * "no phone or email on file" instead of pretending.
+ */
+router.post('/:id/resend-confirmation', requireAuth, async (req, res) => {
+  if (!await requireOwned(req, res, [{ table: 'appointments', id: req.params.id }])) return;
+
+  const { data: appt, error } = await supabase
+    .from('appointments')
+    .select('id, status, confirmation_sent_at')
+    .eq('id', req.params.id)
+    .eq('beautician_id', req.beautician.id)
+    .maybeSingle();
+  if (error) {
+    logger.error({ err: error }, 'resend-confirmation lookup failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
+  if (!appt) return res.status(404).json({ error: 'Not found' });
+
+  try {
+    const result = await notifyBookingConfirmed(appt.id);
+    logger.info({ appointmentId: appt.id, sent: !!result?.sent, reason: result?.reason }, 'Confirmation re-sent from the app');
+    return res.json({
+      sent: !!result?.sent,
+      channels: result?.channels || [],
+      reason: result?.reason || null,
+    });
+  } catch (err) {
+    logger.error({ err, appointmentId: appt.id }, 'resend-confirmation failed');
+    return res.status(500).json({ sent: false, reason: 'delivery_failed' });
+  }
+});
+
+/**
  * HER APPOINTMENT MOVED AND NOBODY TOLD HER.
  *
  * Dragging a card to a new time on the calendar comes through PATCH, and it

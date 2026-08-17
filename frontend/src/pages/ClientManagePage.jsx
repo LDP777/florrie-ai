@@ -337,6 +337,28 @@ export default function ClientManagePage() {
           </button>
         )}
 
+        {/* Add to calendar, above everything except the patch-test warning.
+            This page is where the confirmation text and WhatsApp message land,
+            and until now the only record a client had of her booking was that
+            message — which is why one messaged Ellie the evening before hers
+            asking "I have an appointment with you tomorrow at 6pm correct? I
+            can't seem to find all my bookings on the florrie app."
+
+            The .ics carries its own reminders, so the next one does not have
+            to find anything. */}
+        {!isCancelled && !isPast && (
+          <a
+            href={`${API_BASE}/api/booking/${slug}/manage/${token}/calendar.ics`}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              width: '100%', boxSizing: 'border-box', minHeight: 48, padding: '13px 16px',
+              borderRadius: 14, marginBottom: 16, textDecoration: 'none',
+              background: brand, color: '#fff', fontSize: 15, fontWeight: 700 }}
+          >
+            <Icon name="calendar" size={16} inline />
+            Add to my calendar
+          </a>
+        )}
+
         {/* Cancellation result banner */}
         {cancelResult && (
           <div style={{ padding: '12px 16px', borderRadius: 10, marginBottom: 16,

@@ -17,11 +17,11 @@ import crypto from 'crypto';
 import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
+import { esc, toICalLocal, utcStamp, fold, VTIMEZONE_LONDON, DEAD_STATUSES } from '../lib/ical.js';
 
 const router = Router();
 
 // Statuses we do not surface in her personal calendar (dead bookings).
-const DEAD_STATUSES = ['cancelled', 'cancelled_by_client', 'cancelled_by_beautician', 'no_show'];
 
 /** Public base for building absolute subscribe URLs. */
 function publicBase(req) {
@@ -99,66 +99,9 @@ router.post('/sync/rotate', requireAuth, async (req, res) => {
 });
 
 // ----------------------------- iCal helpers ------------------------------
-
-/** Escape a value for an iCal text field (RFC 5545 3.3.11). */
-function esc(v) {
-  return String(v == null ? '' : v)
-    .replace(/\\/g, '\\\\')
-    .replace(/;/g, '\\;')
-    .replace(/,/g, '\\,')
-    .replace(/\r?\n/g, '\\n');
-}
-
-/** "2026-06-12T14:00:00..." -> "20260612T140000" (local, no Z). Wall-clock kept. */
-function toICalLocal(isoish) {
-  const s = String(isoish || '');
-  const date = s.slice(0, 10).replace(/-/g, '');
-  const time = s.slice(11, 19).replace(/:/g, '') || '000000';
-  return `${date}T${time.padEnd(6, '0')}`;
-}
-
-/** UTC stamp for DTSTAMP / last-modified (this one IS a real instant). */
-function utcStamp(d = new Date()) {
-  return d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
-}
-
-/** Fold long lines to 75 octets per RFC 5545 (simple char-based fold). */
-function fold(line) {
-  if (line.length <= 73) return line;
-  const out = [];
-  let s = line;
-  out.push(s.slice(0, 73));
-  s = s.slice(73);
-  while (s.length > 72) {
-    out.push(' ' + s.slice(0, 72));
-    s = s.slice(72);
-  }
-  if (s.length) out.push(' ' + s);
-  return out.join('\r\n');
-}
-
-// A static VTIMEZONE for Europe/London so clients render GMT/BST correctly
-// without us doing any offset maths. Standard DST rules for the UK.
-const VTIMEZONE_LONDON = [
-  'BEGIN:VTIMEZONE',
-  'TZID:Europe/London',
-  'X-LIC-LOCATION:Europe/London',
-  'BEGIN:DAYLIGHT',
-  'TZOFFSETFROM:+0000',
-  'TZOFFSETTO:+0100',
-  'TZNAME:BST',
-  'DTSTART:19700329T010000',
-  'RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU',
-  'END:DAYLIGHT',
-  'BEGIN:STANDARD',
-  'TZOFFSETFROM:+0100',
-  'TZOFFSETTO:+0000',
-  'TZNAME:GMT',
-  'DTSTART:19701025T020000',
-  'RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU',
-  'END:STANDARD',
-  'END:VTIMEZONE',
-];
+// Moved to lib/ical.js so a client's single-appointment .ics uses the same
+// escaping, folding and VTIMEZONE this feed does, rather than a second copy
+// that drifts.
 
 /** Map an appointment status to an iCal STATUS. */
 function icalStatus(status) {

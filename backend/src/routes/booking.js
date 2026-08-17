@@ -21,6 +21,7 @@ import { getOutstandingBalanceCents } from '../services/outstanding-balance.js';
 import { autoUnarchiveClient } from '../lib/client-archive.js';
 import { BOOKING_MONEY_LOGGED_TYPES } from '../lib/money-guards.js';
 import { combineTreatments, resolveDepositCents } from '../lib/booking-rules.js';
+import { appointmentIcs, DEAD_STATUSES } from '../lib/ical.js';
 
 const router = Router();
 const FRONTEND_URL = process.env.FRONTEND_URL;
@@ -59,11 +60,63 @@ router.get('/:slug/manage/:token/resend-confirmation', async (req, res) => {
       return res.status(404).json({ error: 'not_found' });
     }
     const { notifyBookingConfirmed } = await import('../services/notifications.js');
-    await notifyBookingConfirmed(appt.id);
-    logger.info({ appointmentId: appt.id }, 'Booking confirmation re-sent manually');
-    return res.json({ ok: true, sent: true });
+    // Report what actually happened. This used to answer `sent: true`
+    // unconditionally, without reading the return value — which was fair
+    // enough when there was no return value to read, and is exactly the class
+    // of untrue reassurance that put two consultation forms on one client's
+    // phone.
+    const result = await notifyBookingConfirmed(appt.id);
+    logger.info({ appointmentId: appt.id, sent: !!result?.sent, reason: result?.reason }, 'Booking confirmation re-sent');
+    return res.json({ ok: true, sent: !!result?.sent, channels: result?.channels || [], reason: result?.reason || null });
   } catch (err) {
     logger.error({ err }, 'resend-confirmation failed');
+    return res.status(500).json({ error: 'failed' });
+  }
+});
+
+/**
+ * GET /api/booking/:slug/manage/:token/calendar.ics
+ *
+ * The booking as a calendar file. Authed by the same unguessable per-
+ * appointment token the manage page uses, so a client can add it from the link
+ * in her text without signing in to anything.
+ *
+ * This is the SMS and WhatsApp half of the answer: those messages can only
+ * carry a link, and the link already goes to the manage page, so the manage
+ * page gets an "Add to my calendar" button that points here.
+ */
+router.get('/:slug/manage/:token/calendar.ics', async (req, res) => {
+  try {
+    const { data: appt } = await supabase
+      .from('appointments')
+      .select('id, starts_at, ends_at, status, reschedule_count, treatments(name), beauticians(business_name, first_name, booking_slug, address)')
+      .eq('management_token', req.params.token)
+      .maybeSingle();
+    if (!appt || appt.beauticians?.booking_slug !== req.params.slug) {
+      return res.status(404).json({ error: 'not_found' });
+    }
+    const manageUrl = FRONTEND_URL
+      ? `${FRONTEND_URL}/book/${req.params.slug}/manage/${req.params.token}`
+      : null;
+    const body = appointmentIcs({
+      id: appt.id,
+      startsAt: appt.starts_at,
+      endsAt: appt.ends_at,
+      treatmentName: appt.treatments?.name,
+      businessName: appt.beauticians?.business_name || appt.beauticians?.first_name,
+      location: appt.beauticians?.address || null,
+      manageUrl,
+      cancelled: DEAD_STATUSES.includes(appt.status),
+      sequence: appt.reschedule_count || 0,
+    });
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    // `attachment` so iOS hands it to Calendar rather than rendering it as
+    // text in Safari, which is what happens with inline.
+    res.setHeader('Content-Disposition', 'attachment; filename="booking.ics"');
+    res.setHeader('Cache-Control', 'no-store');
+    return res.send(body);
+  } catch (err) {
+    logger.error({ err }, 'calendar.ics failed');
     return res.status(500).json({ error: 'failed' });
   }
 });

@@ -1780,6 +1780,40 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
     return () => { cancelled = true; };
   }, [appointment.id, loadConsultation]);
 
+  const [resending, setResending] = useState(false);
+  const [resendResult, setResendResult] = useState(null);
+
+  async function resendConfirmation() {
+    setResending(true);
+    setResendResult(null);
+    try {
+      const token = (await supabase.auth.getSession())?.data?.session?.access_token;
+      const res = await fetch(`${API_BASE}/api/appointments/${appointment.id}/resend-confirmation`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      });
+      const body = await res.json().catch(() => ({}));
+      if (res.ok && body.sent) {
+        const where = (body.channels || []).join(' and ');
+        setResendResult({ ok: true, text: where ? `Sent by ${where}. It includes a calendar invite.` : 'Sent.' });
+      } else {
+        // Name the reason. "Could not send" tells her nothing she can act on;
+        // "no phone or email on file" tells her exactly what to do next.
+        const why = {
+          no_contact_details: 'No phone or email on file for this client, so there is nowhere to send it. Add one on their profile.',
+          paused: 'Your messages are paused in settings, so nothing went out.',
+          all_channels_disabled: 'Confirmations are switched off in your message settings.',
+          delivery_failed: 'The message did not go. Worth messaging them yourself.',
+        }[body.reason] || 'Could not send it just now. Try again in a moment.';
+        setResendResult({ ok: false, text: why });
+      }
+    } catch {
+      setResendResult({ ok: false, text: 'Could not reach Florrie just now. Check your connection.' });
+    } finally {
+      setResending(false);
+    }
+  }
+
   async function handleSendConsultationForm() {
     setConsultSending(true);
     setConsultSendResult(null);
@@ -2395,13 +2429,37 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                 </span>
               </div>
             )}
-            {appointment.confirmation_sent_at && (
-              <div style={styles.detailRow}>
-                <span style={styles.detailLabel}>Confirmation sent</span>
-                <span style={styles.detailValue}>
-                  {new Date(appointment.confirmation_sent_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                </span>
-              </div>
+            {/* Sent, or NOT sent — and either way she can do something about
+                it from here. A client messaged Ellie the evening before her
+                appointment ("all my other booking dates show up but not
+                tomorrow's") and there was nothing on this sheet but silence:
+                no row when nothing had gone, and no way to send it. */}
+            <div style={styles.detailRow}>
+              <span style={styles.detailLabel}>Confirmation</span>
+              <span style={styles.detailValue}>
+                {appointment.confirmation_sent_at
+                  ? `Sent ${new Date(appointment.confirmation_sent_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`
+                  : 'Never sent'}
+              </span>
+            </div>
+          </div>
+
+          <div style={{ marginTop: 8 }}>
+            <Button
+              variant={appointment.confirmation_sent_at ? 'secondary' : 'primary'}
+              size="sm"
+              disabled={resending}
+              onClick={() => { hapticTap(); resendConfirmation(); }}
+              style={{ width: '100%' }}
+            >
+              {resending ? 'Sending…'
+                : appointment.confirmation_sent_at ? 'Send the confirmation again' : 'Send the confirmation now'}
+            </Button>
+            {resendResult && (
+              <p style={{ fontSize: 11.5, lineHeight: 1.5, margin: '6px 2px 0',
+                color: resendResult.ok ? 'var(--success, #386F52)' : 'var(--danger, #9E2B32)' }}>
+                {resendResult.text}
+              </p>
             )}
           </div>
           {/* Consultation form. Two states worth a line on this sheet: there
