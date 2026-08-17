@@ -221,6 +221,59 @@ function NeededList({ needed = [], label }) {
 }
 
 /** Human line for a proposed tool call on the confirm card. */
+/**
+ * The settings a voice command can change, phrased for the confirm card.
+ *
+ * Kept in step with backend/src/lib/app-settings.js by id. Anything not listed
+ * still renders — as its id, tidied — so a new backend setting degrades to
+ * something readable rather than to nothing.
+ */
+const SETTING_LABELS = {
+  florrie_answers_easy_ones: {
+    on: 'Let Florrie answer the easy questions herself, signed as Florrie',
+    off: 'Send every client message to you first, before anything goes out',
+  },
+  pause_all_messages: {
+    on: 'Pause everything Florrie sends, including reminders',
+    off: 'Start sending again',
+  },
+  booking_confirmations: {
+    on: 'Send a confirmation when someone books',
+    off: 'Stop sending booking confirmation texts',
+  },
+  confirmation_emails: {
+    on: 'Send confirmation emails, with the calendar invite attached',
+    off: 'Stop sending confirmation emails (this is what carries the calendar invite)',
+  },
+  promos_in_offers: {
+    on: 'Let Florrie add a live promo code to gap offers',
+    off: 'Keep promo codes out of gap offers',
+  },
+  auto_reply: {
+    on: 'Let Florrie answer people who have never booked with you',
+    off: 'Send new enquiries to you instead',
+  },
+};
+
+function settingSummary(input = {}) {
+  const id = String(input.setting_id || '');
+  const raw = input.value;
+  const on = raw === true || raw === 'true' || raw === 'on' || raw === 'yes';
+  const off = raw === false || raw === 'false' || raw === 'off' || raw === 'no';
+
+  const known = SETTING_LABELS[id];
+  if (known && (on || off)) return known[on ? 'on' : 'off'];
+
+  if (id === 'message_channel') {
+    return raw === 'sms' ? 'Message clients by text instead of WhatsApp' : 'Message clients on WhatsApp';
+  }
+  if (id === 'known_client_min_visits') {
+    return `Treat somebody as your own client after ${raw} visit${Number(raw) === 1 ? '' : 's'}`;
+  }
+  const pretty = id.replace(/_/g, ' ') || 'a setting';
+  return `Change ${pretty} to ${String(raw)}`;
+}
+
 function proposalSummary(tool, input = {}) {
   const when = [input.date, input.time].filter(Boolean).join(' at ');
   switch (tool) {
@@ -236,6 +289,11 @@ function proposalSummary(tool, input = {}) {
     case 'send_rebook_reminder': return `Send ${input.client_name || 'a client'} a rebook nudge`;
     case 'create_expense': return `Log a £${input.amount || '?'} expense${input.description ? ` (${input.description})` : ''}`;
     case 'send_consultation_form': return `Text ${input.client_name || 'a client'} her consultation form`;
+    // A setting card has to read as the thing it does, not as its id. "Change
+    // florrie_answers_easy_ones to false" is not something anybody can confirm
+    // with any confidence, and this card is the ONLY thing standing between a
+    // misheard word and Florrie going silent on every client.
+    case 'change_setting': return settingSummary(input);
     default: return tool.replace(/_/g, ' ');
   }
 }
@@ -268,6 +326,8 @@ const TOOL_TO_AGENT = {
   check_patch_test: 'clients',
   get_patch_tests_needed: 'clients',
   send_consultation_form: 'clients',
+  get_settings: 'general',
+  change_setting: 'general',
 };
 // Map tool names → a quick-action button to show after the response
 const TOOL_TO_ACTION = {
@@ -300,6 +360,7 @@ const FALLBACK_PROMPTS = [
   "Show me my top clients",
   "Does anyone this week still need a consultation form?",
   "Who needs a patch test this week?",
+  "How are you set up at the moment?",
 ];
 
 // Build contextual suggestions from live data
@@ -363,6 +424,14 @@ function buildLiveSuggestions({ todayAppts, upcomingAppts, recentClients, dorman
   pool.push(`What's my busiest day this week?`);
   pool.push(`Block ${tomorrowName} afternoon off`);
   pool.push(`Show me my top 5 clients by spend`);
+
+  // Setting the app up by talking to it. Here rather than buried, because a
+  // feature nobody is told about does not exist — and the setting this is
+  // mostly for (whether Florrie answers clients herself) is the one Ellie
+  // would otherwise have to go four taps deep into Settings to find, which is
+  // the whole thing she was complaining about.
+  pool.push(`How are you set up at the moment?`);
+  pool.push(`Stop answering my clients yourself`);
 
   // Deduplicate and pick 6
   const unique = [...new Set(pool)];

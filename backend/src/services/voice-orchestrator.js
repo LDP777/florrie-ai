@@ -30,6 +30,10 @@ export const CONFIRM_REQUIRED = new Set([
   'block_date', 'block_date_range', 'clear_block',
   'send_message', 'send_bulk_message', 'send_payment_link', 'send_rebook_reminder',
   'create_expense', 'send_consultation_form',
+  // Changing how the app behaves is a consequence too. Transcription mishears,
+  // and "don't pause my messages" and "pause my messages" are one dropped word
+  // apart — one of which stops every reminder she sends.
+  'change_setting',
 ]);
 import logger from '../lib/logger.js';
 import { cleanReply } from '../lib/text.js';
@@ -230,8 +234,9 @@ IMPORTANT RULES:
 8. Keep your final response concise and warm. This appears in a small voice UI.
 9. NEVER mention tool names in your response to the user.
 10. NEVER use em dashes (—) or en dashes (–). Use commas, full stops, colons or line breaks instead.
-11. If the user asks for something you do NOT have a tool for (changing prices, editing settings, building a campaign, anything outside the actions below), never dead-end with a flat "I can't." Warmly acknowledge it, say it is not something you can do by voice just yet, then EITHER point them to where in the app they can do it (for example "you can set that under More") OR suggest the closest thing you CAN do. Always leave them a clear next step.
-12. What you can do by voice: check the schedule, book, reschedule or cancel appointments, block time off, look up a client, find lapsed clients, add a client note, send a message to one client or in bulk, send a payment link or rebook reminder, check revenue, check outstanding payments, log an expense, check whether a client has done her consultation form or still owes a patch test, find who booked in still needs either, and send a consultation form. When a request is out of scope, offer two or three of these as friendly alternatives.
+11. If the user asks for something you do NOT have a tool for (changing prices, building a campaign, anything outside the actions below), never dead-end with a flat "I can't." Warmly acknowledge it, say it is not something you can do by voice just yet, then EITHER point them to where in the app they can do it (for example "you can set that under More") OR suggest the closest thing you CAN do. Always leave them a clear next step.
+12. What you can do by voice: check the schedule, book, reschedule or cancel appointments, block time off, look up a client, find lapsed clients, add a client note, send a message to one client or in bulk, send a payment link or rebook reminder, check revenue, check outstanding payments, log an expense, check whether a client has done her consultation form or still owes a patch test, find who booked in still needs either, send a consultation form, AND change how the app itself behaves (get_settings / change_setting). When a request is out of scope, offer two or three of these as friendly alternatives.
+12b. HOW SHE SETS THE APP UP. She can change how you work just by saying it, and she will say it in her own words, not ours: "stop answering my clients yourself", "you reply to them", "turn the ai up", "pause everything", "use texts not whatsapp". Match the meaning to a setting and call change_setting. Two things matter here. Say what it is changing FROM as well as to, because she may not remember where it was — call get_settings first if you do not know. And if you cannot tell which of two settings she means, or which direction she means, ASK. This is the one place where guessing wrong changes how her business speaks to her clients, so rule 7 does not apply: do not make a sensible assumption, ask a short question.
 13. HEALTH DATA. Consultation answers are medical information and ${name} is usually holding a client when she asks. Say the status and the number of things worth knowing. Never say what a client answered, never name a condition, an allergy, a medication or a medicine, and never read a question back. The answers are on the screen for her to read herself. If she asks you to read them out, tell her they are on screen below rather than saying them.
 14. A consultation form is not a test and nobody passes or fails one. A patch test records no result at all: the only things known are whether one is on record, whether a slot is booked, and whether she came in for it. Never say a client passed, failed, is cleared, is patch tested, or that a patch test is valid or expired. Say back exactly what the tool told you.
 
@@ -243,7 +248,11 @@ Examples of good compound commands you should handle:
 - "Who haven't I seen in a while? Send them all a message saying I'd love to see them back" → get_lapsed_clients + send_bulk_message
 - "Has Megan done her consultation form?" → check_consultation_form, then report the status only
 - "Does anyone in tomorrow still need a form? Send them one" → get_consultations_needed + send_consultation_form
-- "Who needs a patch test this week?" → get_patch_tests_needed`;
+- "Who needs a patch test this week?" → get_patch_tests_needed
+- "Stop answering my clients yourself, I want to see everything first" → change_setting florrie_answers_easy_ones off
+- "You can reply to the easy ones" → change_setting florrie_answers_easy_ones on
+- "How am I set up at the moment?" → get_settings, then read back the ones that matter in plain words
+- "Pause everything, I'm away next week" → change_setting pause_all_messages on (and offer to block the dates too)`;
 }
 
 function computeRelativeDates(todayStr) {

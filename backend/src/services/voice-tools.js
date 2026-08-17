@@ -26,6 +26,7 @@ import {
 } from './voice-consultation.js';
 import { totalApplicationFee } from '../lib/platform-fees.js';
 import logger from '../lib/logger.js';
+import { SETTINGS, byId, readSetting, coerceValue, describeValue, renderCatalogue, buildUpdate } from '../lib/app-settings.js';
 
 const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY)
@@ -378,6 +379,36 @@ export const TOOL_DEFINITIONS = [
       required: [],
     },
   },
+  {
+    name: 'get_settings',
+    description: 'Read back how Florrie is set up right now — whether she answers clients herself, whether confirmations go out, which channel she uses, and so on. Read-only, answers instantly. Use this when she asks what something is set to, or before changing anything so you can tell her what it is changing FROM.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        setting_id: { type: 'string', description: 'One setting id to read. Omit to get all of them.' },
+      },
+      required: [],
+    },
+  },
+  {
+    name: 'change_setting',
+    description: `Change how the app behaves for her. She can say things in her own words and you match them to a setting.
+
+Settings:
+${renderCatalogue()}
+
+Match on meaning, not wording. "stop answering my clients yourself" is florrie_answers_easy_ones off. "turn the ai up" is it on. If you genuinely cannot tell which she means, ask rather than guessing — this changes how her business talks to her clients.
+
+Nothing happens on your say-so: this comes back as a card she confirms.`,
+    input_schema: {
+      type: 'object',
+      properties: {
+        setting_id: { type: 'string', description: 'The id from the list above.' },
+        value: { description: 'The new value. true/false for on-off settings.' },
+      },
+      required: ['setting_id', 'value'],
+    },
+  },
 ];
 
 /**
@@ -391,6 +422,8 @@ export const TOOL_DEFINITIONS = [
 export async function executeTool(toolName, toolInput, beautician, supabase) {
   try {
     switch (toolName) {
+      case 'get_settings':          return await toolGetSettings(toolInput, beautician);
+      case 'change_setting':        return await toolChangeSetting(toolInput, beautician, supabase);
       case 'check_schedule':        return await toolCheckSchedule(toolInput, beautician, supabase);
       case 'get_upcoming_appointments': return await toolGetUpcoming(toolInput, beautician, supabase);
       case 'book_appointment':      return await toolBookAppointment(toolInput, beautician, supabase);
@@ -425,6 +458,76 @@ export async function executeTool(toolName, toolInput, beautician, supabase) {
     logger.error({ err, toolName }, 'Tool execution failed');
     return { result: `Something went wrong running ${toolName}.` };
   }
+}
+
+/**
+ * Read back how she is set up, in her words.
+ *
+ * Deliberately answers with the LABEL and the plain-English meaning rather
+ * than the column name. She is asking a question about her business, not
+ * inspecting a row.
+ */
+async function toolGetSettings({ setting_id }, beautician) {
+  const list = setting_id ? [byId(setting_id)].filter(Boolean) : SETTINGS;
+  if (!list.length) return { result: `I do not have a setting called "${setting_id}".` };
+
+  const lines = list.map(s => {
+    const v = readSetting(s, beautician);
+    const state = s.type === 'boolean' ? (v ? 'on' : 'off') : String(v);
+    return `${s.label}: ${state}`;
+  });
+  return {
+    result: lines.join('\n'),
+    data: {
+      settings: list.map(s => ({
+        id: s.id, label: s.label, value: readSetting(s, beautician), means: s.means,
+      })),
+    },
+  };
+}
+
+/**
+ * Apply a setting change.
+ *
+ * This only runs AFTER she has confirmed the card — voice-orchestrator holds
+ * change_setting in CONFIRM_REQUIRED, so speech alone never reaches here.
+ * Transcription mishears, and "don't pause my messages" and "pause my
+ * messages" are one dropped word apart.
+ */
+async function toolChangeSetting({ setting_id, value }, beautician, supabase) {
+  const setting = byId(setting_id);
+  if (!setting) {
+    return { result: `I do not have a setting called "${setting_id}". Ask me what you can change and I'll list them.` };
+  }
+
+  const coerced = coerceValue(setting, value);
+  if (!coerced.ok) return { result: coerced.why };
+
+  const before = readSetting(setting, beautician);
+  if (before === coerced.value) {
+    return { result: `${setting.label} is already ${setting.type === 'boolean' ? (before ? 'on' : 'off') : before}. Nothing to change.` };
+  }
+
+  const patch = buildUpdate(setting, coerced.value, beautician);
+  const { error } = await supabase
+    .from('beauticians')
+    .update(patch)
+    .eq('id', beautician.id);
+
+  if (error) {
+    logger.error({ err: error, settingId: setting_id }, 'Voice setting change failed');
+    return { result: `I could not save that just now. Try again in a moment.` };
+  }
+
+  // Keep the in-memory record honest for the rest of this turn, so a follow-up
+  // question in the same breath reads the new value rather than the old one.
+  Object.assign(beautician, patch);
+
+  logger.info({ beauticianId: beautician.id, settingId: setting.id, from: before, to: coerced.value }, 'Setting changed by voice');
+  return {
+    result: describeValue(setting, coerced.value),
+    data: { setting_id: setting.id, label: setting.label, from: before, to: coerced.value },
+  };
 }
 
 async function toolCheckSchedule({ date }, beautician, supabase) {
