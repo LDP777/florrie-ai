@@ -56,6 +56,57 @@ const SORTS = [
   { id: 'added', label: 'Recently added' },
 ];
 
+/**
+ * The one line under a client's name.
+ *
+ * The row used to read "3 visits · Last: 12 Jul". Neither number answers
+ * either of the two questions this page gets opened for — find this person, or
+ * notice someone slipping away. "3 visits" is trivia; "Last: 12 Jul" is the
+ * raw fact underneath the real question rather than the answer to it.
+ *
+ * So it says the thing she would say. A booking coming up is what she needs if
+ * she is looking someone up; how long it has been is what she needs if she is
+ * scanning. Every branch is a fact already on the row, so none of it can be
+ * wrong unless the diary is.
+ */
+function clientStateLine(c, nextAppt) {
+  if (nextAppt?.starts_at) {
+    const d = new Date(nextAppt.starts_at);
+    // Wall clock: starts_at parks salon time in the UTC slot.
+    const time = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
+    const dayKey = String(nextAppt.starts_at).slice(0, 10);
+    const todayKey = new Date().toISOString().slice(0, 10);
+    const days = Math.round((new Date(`${dayKey}T12:00:00Z`) - new Date(`${todayKey}T12:00:00Z`)) / 86400000);
+    const when = days <= 0 ? `Today at ${time}`
+      : days === 1 ? `Tomorrow at ${time}`
+      : days < 7 ? `${d.toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'UTC' })} at ${time}`
+      : `In ${Math.round(days / 7)} week${Math.round(days / 7) === 1 ? '' : 's'}`;
+    const t = nextAppt.treatments?.name;
+    return { text: t ? `${when} · ${t}` : when, tone: 'booked' };
+  }
+
+  if (!c.last_visit_at) return { text: 'New, no visits yet', tone: 'new' };
+
+  const d = new Date(c.last_visit_at);
+  const days = Math.floor((Date.now() - d.getTime()) / 86400000);
+  const month = d.toLocaleDateString('en-GB', { month: 'long' });
+  // Past sixty days she is the reason to open this page at all, so she gets
+  // the sentence rather than the date.
+  if (days >= 60) return { text: `Not been in since ${month}`, tone: 'dormant' };
+  if (days >= 30) return { text: `Last in ${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}, nothing booked`, tone: 'cooling' };
+  return { text: `Last in ${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`, tone: 'active' };
+}
+
+/**
+ * The state line's colour carries the same meaning as its words, so a scan
+ * down the list finds the people who need chasing without reading any of it.
+ * Only two states earn a colour; the rest stay muted, or everything shouts.
+ */
+const STATE_TONE = {
+  booked: { color: 'var(--accent, #92405e)', fontWeight: 600 },
+  dormant: { color: 'var(--warning-text, #79581C)', fontWeight: 600 },
+};
+
 // Compute the bucket a client falls into based on last visit date.
 function bucketFor(c) {
   if (!c.last_visit_at) return 'new';
@@ -64,6 +115,36 @@ function bucketFor(c) {
   if (days < 60) return 'cooling';
   return 'dormant';
 }
+
+/**
+ * A row in one of this page's little dropdown menus.
+ *
+ * Extracted rather than copied a third time. The sort menu already had this
+ * shape; the header overflow needed two more of it, and the hand-styled-button
+ * ratchet in scripts/check-primitives.mjs refused them — correctly, and
+ * one-way. Sharing it is what pays for the new ones.
+ */
+function MenuItem({ children, onClick, selected = false }) {
+  return (
+    <button
+      role="menuitem"
+      onClick={onClick}
+      style={{ ...MENU_ITEM,
+        background: selected ? 'var(--accent-light)' : 'transparent',
+        color: selected ? 'var(--accent)' : 'var(--text-primary)',
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+const MENU_ITEM = {
+  display: 'block', width: '100%', textAlign: 'left',
+  padding: '10px 12px', minHeight: 44, borderRadius: 8,
+  border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+  fontSize: 13, fontWeight: 500,
+};
 
 export default function Clients() {
   const navigate = useNavigate();
@@ -78,6 +159,8 @@ export default function Clients() {
   const [filter, setFilter] = useState('all');
   const [sort, setSort] = useState('recent');
   const [sortOpen, setSortOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [nextApptMap, setNextApptMap] = useState({});
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [loading, setLoading] = useState(true);
@@ -220,6 +303,7 @@ export default function Clients() {
         setClients(data || []);
         // Day 5: pull tags for these clients. Single roundtrip, joined.
         loadTagsFor(data || []);
+        loadNextAppointmentsFor(data || []);
       }
     } catch (err) {
       logger.error('Load clients error:', err);
@@ -495,6 +579,43 @@ export default function Clients() {
     }
   }
 
+  /**
+   * The next booking for everyone on screen, in ONE query.
+   *
+   * The row used to say "3 visits · Last: 12 Jul", which answers neither of
+   * the two questions this page gets opened for — find this person, or notice
+   * someone slipping away. "3 visits" is trivia and "Last: 12 Jul" is the raw
+   * fact underneath the real question, which is whether she should be chasing
+   * them.
+   *
+   * Keyed by client_id and fetched for the whole list at once. One round trip
+   * for the page, not one per row.
+   */
+  async function loadNextAppointmentsFor(rows) {
+    const ids = (rows || []).map(r => r.id).filter(Boolean);
+    if (!ids.length) { setNextApptMap({}); return; }
+    try {
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('client_id, starts_at, treatments(name)')
+        .eq('beautician_id', beautician.id)
+        .in('client_id', ids)
+        .gte('starts_at', new Date(Date.now() - 6 * 3600 * 1000).toISOString())
+        .in('status', ['confirmed', 'pending'])
+        .order('starts_at', { ascending: true });
+      if (error) throw error;
+      const next = {};
+      // Ordered ascending, so the first one seen per client is the soonest.
+      for (const a of data || []) if (a.client_id && !next[a.client_id]) next[a.client_id] = a;
+      setNextApptMap(next);
+    } catch (err) {
+      // The row falls back to its last-visit line. A missing nicety must never
+      // take out the list itself.
+      logger.warn('Could not load next appointments', err);
+      setNextApptMap({});
+    }
+  }
+
   const visitCount = (c) => c.total_visits || 0;
   const lastVisit = (c) => {
     if (!c.last_visit_at) return 'No visits yet';
@@ -514,17 +635,30 @@ export default function Clients() {
       {error && <ErrorCard message={error} onDismiss={() => setError(null)} />}
       <div style={styles.header}>
         <h1 style={styles.title}>Clients</h1>
+        {/* Select and Export are rare and were sitting in the best real
+            estate on the page, next to the one button that is not rare. They
+            go behind a menu; Add stays where the thumb goes. */}
         <div style={styles.headerActions}>
           {!selectMode && (
             <>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setSelectMode(true)}
-                aria-label="Select multiple clients"
-              >Select</Button>
-              <Button variant="secondary" size="sm" onClick={handleExportCSV}>Export</Button>
               <Button size="sm" onClick={() => setShowAdd(!showAdd)}>+ Add</Button>
+              <div style={{ position: 'relative', flexShrink: 0 }}>
+                <Button
+                  variant="quiet" icon size="icon"
+                  aria-label="More client actions"
+                  aria-haspopup="menu"
+                  aria-expanded={moreOpen}
+                  onClick={() => setMoreOpen(o => !o)}
+                >
+                  <Icon name={iconName('expand_more')} size={18} inline />
+                </Button>
+                {moreOpen && (
+                  <div style={styles.sortMenu} role="menu">
+                    <MenuItem onClick={() => { setMoreOpen(false); setSelectMode(true); }}>Select several</MenuItem>
+                    <MenuItem onClick={() => { setMoreOpen(false); handleExportCSV(); }}>Export to a spreadsheet</MenuItem>
+                  </div>
+                )}
+              </div>
             </>
           )}
           {selectMode && (
@@ -582,18 +716,12 @@ export default function Clients() {
         </div>
       )}
 
-      {/* Count summary across the full active list */}
-      {activeClients.length > 0 && !justImportedBatchId && !showArchived && (
-        <div style={styles.countRow}>
-          <span style={styles.countTotal}>{activeClients.length} total</span>
-          <span style={styles.countSep}>·</span>
-          <span style={styles.countActive}>{counts.active || 0} active</span>
-          <span style={styles.countSep}>·</span>
-          <span style={styles.countCooling}>{counts.cooling || 0} cooling</span>
-          <span style={styles.countSep}>·</span>
-          <span style={styles.countDormant}>{counts.dormant || 0} dormant</span>
-        </div>
-      )}
+      {/* The count summary used to live here — "12 total · 8 active · 3
+          cooling · 1 dormant" — directly above a row of chips reading All 12,
+          Active 8, Cooling 3, Dormant 1. The same four numbers twice, and a
+          whole row of a screen that only gets 55% of the phone for the list
+          itself. The chips won: they are the same information and you can tap
+          them. */}
 
       {/* Search */}
       {!showArchived && (
@@ -618,43 +746,52 @@ export default function Clients() {
           {FILTERS.map(f => {
             const count = f.id === 'all' ? activeClients.length : (counts[f.id] || 0);
             const active = filter === f.id;
+            // A chip reading "Dormant 4" is information. "Dormant 0" is
+            // furniture, and "All 12" is the number already implied by every
+            // other chip. Neither earns the width.
+            const showCount = f.id !== 'all' && count > 0;
             return (
               <Button
                 key={f.id}
                 variant="chip"
                 size="xs"
                 aria-pressed={active}
+                aria-label={count ? `${f.label}, ${count} clients` : f.label}
                 onClick={() => setFilter(f.id)}
               >
-                {f.label} <span style={{ opacity: 0.75, fontWeight: 500 }}>{count}</span>
+                {f.label}{showCount && <span style={{ opacity: 0.75, fontWeight: 500 }}> {count}</span>}
               </Button>
             );
           })}
         </div>
+        {/* Out of the scrolling rail. Sitting inside it, the sort pill was
+            pinned to the right and the chips slid underneath, so "Dormant"
+            rendered as "Do" cut off mid-word against its edge — which reads as
+            a broken layout, not as something you can swipe. Now it sits after
+            the rail with a divider, and the rail fades under it. */}
+        <div style={styles.sortDivider} />
         <div style={styles.sortWrap}>
           <Button
-            variant="secondary"
+            variant="quiet"
             size="xs"
             onClick={() => setSortOpen(o => !o)}
             aria-haspopup="menu"
             aria-expanded={sortOpen}
+            aria-label={`Sort by ${SORTS.find(s => s.id === sort)?.label || 'recent'}`}
           >
-            Sort: {SORTS.find(s => s.id === sort)?.label || 'Recent'}
+            <Icon name={iconName('filter')} size={14} inline style={{ marginRight: 4 }} />
+            Sort
           </Button>
           {sortOpen && (
             <div style={styles.sortMenu} role="menu">
               {SORTS.map(s => (
-                <button
+                <MenuItem
                   key={s.id}
+                  selected={sort === s.id}
                   onClick={() => { setSort(s.id); setSortOpen(false); }}
-                  style={{ ...styles.sortItem,
-                    background: sort === s.id ? 'var(--accent-light)' : 'transparent',
-                    color: sort === s.id ? 'var(--accent)' : 'var(--text-primary)',
-                  }}
-                  role="menuitem"
                 >
                   {s.label}
-                </button>
+                </MenuItem>
               ))}
             </div>
           )}
@@ -741,24 +878,49 @@ export default function Clients() {
                     {c.first_name} {c.last_name || ''}
                     {c.imported_from && <span style={styles.importedChip}>imported</span>}
                   </span>
-                  <span style={styles.clientMeta}>{visitCount(c)} visits · Last: {lastVisit(c)}</span>
+                  {(() => {
+                    const line = clientStateLine(c, nextApptMap[c.id]);
+                    return (
+                      <span style={{ ...styles.clientMeta, ...(STATE_TONE[line.tone] || {}) }}>
+                        {line.text}
+                      </span>
+                    );
+                  })()}
                   {(tagMap[c.id]?.length || 0) > 0 && (
                     <span style={styles.tagChipRow}>
+                      {/* A dot in the tag's colour, and the name in ordinary
+                          ink. It used to paint the NAME in the tag's own colour
+                          on a 16% wash of that same colour, which is a contrast
+                          ratio that depends entirely on which colour she
+                          picked. Measured against the eight the picker offers,
+                          six fail AA — #FFC107 lands at 1.48:1, which is
+                          invisible. And no check could catch it: the colour
+                          arrives from the database at runtime, so it is not a
+                          literal anywhere in the source for check-swatches to
+                          grade.
+                          The dot still identifies the tag at a glance. Nothing
+                          readable depends on the colour any more, so no colour
+                          she picks next can break it. */}
                       {tagMap[c.id].slice(0, 2).map(tag => (
-                        <span
-                          key={tag.id}
-                          style={{ ...styles.tagChip,
-                            background: hexWithAlpha(tag.color || '#C76B8A', 0.16),
-                            color: tag.color || 'var(--accent)',
-                            borderColor: hexWithAlpha(tag.color || '#C76B8A', 0.32),
-                          }}
-                        >
+                        <span key={tag.id} style={styles.tagChip}>
+                          <span
+                            aria-hidden="true"
+                            style={{ ...styles.tagDot, background: tag.color || 'var(--accent, #92405e)' }}
+                          />
                           {tag.name}
                         </span>
                       ))}
                     </span>
                   )}
                 </div>
+                {/* What they are worth, right-aligned and tabular like every
+                    other figure in the app. It is the number she actually
+                    weighs a client by, and it was nowhere on this page. */}
+                {(c.total_spend_cents || 0) > 0 && (
+                  <span style={styles.clientSpend}>
+                    <Money pence={c.total_spend_cents} round />
+                  </span>
+                )}
                 {!selectMode && <span style={styles.chevron}>›</span>}
               </button>
             );
@@ -1647,8 +1809,28 @@ const styles = {
   countSep: { color: 'var(--text-muted)' },
 
   // Filter chips + sort
-  controlsRow: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' },
-  chipsWrap: { display: 'flex', gap: 6, flexWrap: 'wrap', flex: 1, minWidth: 0, overflowX: 'auto' },
+  controlsRow: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'nowrap' },
+  // ONE ROW, that scrolls sideways. It had flexWrap: 'wrap' AND overflowX:
+  // 'auto', and wrap wins, so five chips became three ragged lines.
+  //
+  // This is the tap-target fix as much as the height fix. The chips are 32px
+  // tall at a 38px pitch, so their 44px accessible bands overlapped by 6px
+  // across up to 61px — measured, on a real phone viewport: tapping the top of
+  // "Cooling" landed on "All". A single row has no vertical neighbours, so the
+  // overlap cannot exist.
+  chipsWrap: {
+    display: 'flex', gap: 6, flexWrap: 'nowrap', flex: 1, minWidth: 0,
+    overflowX: 'auto', paddingBottom: 2,
+    scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch',
+    // Fade the last few pixels, so a chip that runs off the edge looks like
+    // more to swipe to rather than like something clipped by accident.
+    maskImage: 'linear-gradient(to right, #000 calc(100% - 20px), transparent)',
+    WebkitMaskImage: 'linear-gradient(to right, #000 calc(100% - 20px), transparent)',
+  },
+  sortDivider: {
+    width: 1, alignSelf: 'stretch', flexShrink: 0,
+    background: 'var(--border-light, #ede7e3)', margin: '2px 2px',
+  },
   sortWrap: { position: 'relative', flexShrink: 0 },
   sortMenu: {
     position: 'absolute', top: '110%', right: 0, zIndex: 50,
@@ -1896,9 +2078,27 @@ const styles = {
     gap: 4,
     marginTop: 4,
   },
-  tagChip: {
+  clientSpend: {
+    fontSize: 13, fontWeight: 700, flexShrink: 0,
+    color: 'var(--text-primary, #241B17)',
+    fontFamily: '"Plus Jakarta Sans", -apple-system, sans-serif',
+    fontVariantNumeric: 'tabular-nums',
+    marginLeft: 8,
+  },
+  tagDot: {
     display: 'inline-block',
-    padding: '2px 7px',
+    width: 7, height: 7, borderRadius: '50%',
+    marginRight: 5, flexShrink: 0,
+    // A ring, so a pale tag colour is still a visible dot on a pale card.
+    boxShadow: 'inset 0 0 0 1px rgba(36, 27, 23, 0.18)',
+  },
+  tagChip: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    color: 'var(--text-secondary, #574A42)',
+    background: 'transparent',
+    borderColor: 'transparent',
+    padding: '2px 7px 2px 0',
     borderRadius: 999,
     fontSize: 10,
     fontWeight: 600,

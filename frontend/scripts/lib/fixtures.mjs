@@ -88,6 +88,29 @@ const ROUTES = [
   //
   // Arrays, therefore, and shaped like the columns the page reads. One expense
   // and one payment is enough for every tab to have something in it.
+  // The Clients page reads its list straight off Supabase, not through /api,
+  // so without this it renders the empty state and the row design goes
+  // unreviewed. Deliberately spread across all four buckets — booked, active,
+  // cooling, dormant — because the row says something different in each, and
+  // one with no spend at all, because that branch hides the money column.
+  [/\/rest\/v1\/clients/, () => ([
+    { id: 'c1', beautician_id: 'b1', first_name: 'Priya', last_name: 'K', phone: '07700900002',
+      total_visits: 9, total_spend_cents: 36000, last_visit_at: at(9, 0), archived: false },
+    { id: 'c2', beautician_id: 'b1', first_name: 'Sarah', last_name: 'M', phone: '07700900001',
+      total_visits: 4, total_spend_cents: 12800, last_visit_at: '2026-07-28T10:00:00Z', archived: false },
+    { id: 'c3', beautician_id: 'b1', first_name: 'Jo', last_name: 'Whitfield-Barrowman', phone: '07700900003',
+      total_visits: 21, total_spend_cents: 94000, last_visit_at: '2026-03-02T10:00:00Z', archived: false },
+    { id: 'c4', beautician_id: 'b1', first_name: 'Megan', last_name: 'S', phone: '07700900004',
+      total_visits: 0, total_spend_cents: 0, last_visit_at: null, archived: false },
+  ])],
+  // Upcoming bookings keyed by client, for the Clients row's "booked" branch.
+  // Without it that branch renders on nobody and the design goes out unseen —
+  // which is the same blind spot that let eighteen error screens pass as
+  // populated.
+  [/\/rest\/v1\/appointments/, () => ([
+    { id: 'a2', client_id: 'c1', beautician_id: 'b1', starts_at: at(11, 0),
+      status: 'confirmed', treatments: { name: 'Lash lift & tint' } },
+  ])],
   [/\/rest\/v1\/expenses/, () => ([
     { id: 'e1', beautician_id: 'b1', amount_cents: 1899, vendor: 'Salon Supplies Ltd',
       description: null, category: 'products', date: '2026-08-06', tax_deductible: true,
