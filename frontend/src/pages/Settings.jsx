@@ -22,6 +22,33 @@ import { celebrationsEnabled, setCelebrationsEnabled, bloom } from '../lib/bloom
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 
+/**
+ * The on/off state pill used by the autonomy switches.
+ *
+ * It is not a <Button>: it reports a state rather than offering an action, and
+ * its whole job is to be green when on and grey when off. It was copied
+ * verbatim for each new switch, which is how a settings page ends up with four
+ * subtly different toggles — and how the hand-styled-button ratchet in
+ * scripts/check-primitives.mjs (correctly, and one-way) refused the next one.
+ */
+function AutonomyToggle({ on, onToggle, label }) {
+  return (
+    <button className="fl-tap"
+      onClick={onToggle}
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      style={{ flexShrink: 0, padding: '5px 12px', borderRadius: 6, border: 'none', fontSize: 11, fontWeight: 600,
+        cursor: 'pointer', fontFamily: 'inherit',
+        background: on ? 'var(--success)' : 'var(--border-light)',
+        color: on ? '#fff' : 'var(--text-muted)',
+      }}
+    >
+      {on ? 'On' : 'Off'}
+    </button>
+  );
+}
+
 export default function Settings({ onLogout }) {
   const { beautician, loading, refresh } = useBeautician();
   const { isDark, toggle: toggleDark } = useTheme();
@@ -1511,6 +1538,34 @@ export default function Settings({ onLogout }) {
                   </div>
                 </div>
 
+                {/* The dial Ellie actually noticed.
+                    Every message from a client she has ever booked was drafted
+                    and queued for her approval, so her admin never went away,
+                    it changed shape: she stopped writing messages and started
+                    approving them. Florrie now answers the ones whose answer
+                    is already a fact in her diary — when am I booked in, what
+                    does it cost, the aftercare — and still asks about anything
+                    that needs a judgement. On by default; this puts it back. */}
+                <div style={{ marginTop: 20, paddingTop: 18, borderTop: '1px solid var(--border-light)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <div>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Let Florrie answer the easy ones</span>
+                      <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0', lineHeight: 1.4 }}>
+                        Questions she can answer from your diary and price list, like "when am I booked in?" or "how much is a lash lift?", go out straight away signed as Florrie, with a way for the client to ask for you instead. Anything about availability, moving a booking, or a complaint still comes to you.
+                      </p>
+                    </div>
+                    <AutonomyToggle
+                      label="Let Florrie answer the easy ones"
+                      on={auto.grounded_replies !== false}
+                      onToggle={() => {
+                        const next = { ...auto, grounded_replies: auto.grounded_replies === false };
+                        setPendingAutonomy(next);
+                        saveProfile({ autonomy: next }).finally(() => setPendingAutonomy(null));
+                      }}
+                    />
+                  </div>
+                </div>
+
                 {/* Wire 5: add a live promo code to gap-fill offers. Off by
                     default. Writes autonomy.promos_in_offers, merged into the
                     same autonomy object so per-type modes are kept. */}
@@ -1522,20 +1577,15 @@ export default function Settings({ onLogout }) {
                         When you have a promo code running, Florrie can add it to a last-minute gap offer, like "use FLASH10 for 10% off". Off by default.
                       </p>
                     </div>
-                    <button className="fl-tap"
-                      onClick={() => {
+                    <AutonomyToggle
+                      label="Add a promo to gap offers"
+                      on={!!auto.promos_in_offers}
+                      onToggle={() => {
                         const next = { ...auto, promos_in_offers: !auto.promos_in_offers };
                         setPendingAutonomy(next);
                         saveProfile({ autonomy: next }).finally(() => setPendingAutonomy(null));
                       }}
-                      style={{ flexShrink: 0, padding: '5px 12px', borderRadius: 6, border: 'none', fontSize: 11, fontWeight: 600,
-                        cursor: 'pointer', fontFamily: 'inherit',
-                        background: auto.promos_in_offers ? 'var(--success)' : 'var(--border-light)',
-                        color: auto.promos_in_offers ? '#fff' : 'var(--text-muted)',
-                      }}
-                    >
-                      {auto.promos_in_offers ? 'On' : 'Off'}
-                    </button>
+                    />
                   </div>
                 </div>
 

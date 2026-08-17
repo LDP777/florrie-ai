@@ -22,6 +22,7 @@ import { getLoyaltyConfig, getClientPoints, loyaltyProximity } from './loyalty.j
 import { getActivePromos, describePromo } from '../lib/promos.js';
 import { advanceBookingConversation } from './conversational-booking.js';
 import { authorship } from '../lib/authorship.js';
+import { isGroundedReply, asksForHuman, signAsFlorrie } from '../lib/grounded-reply.js';
 
 /**
  * AI Front Desk — The core agentic service.
@@ -48,6 +49,13 @@ const INTENTS = {
   RESCHEDULE: 'reschedule',                 // "Can I move my appointment to next week?"
   CANCELLATION: 'cancellation',             // "I need to cancel tomorrow"
   GENERAL_QUESTION: 'general_question',     // "Do you do patch tests?"
+  // "I have an appointment with you tomorrow at 6pm correct?" — a client asked
+  // Ellie exactly that the evening before hers, and there was no intent for it,
+  // so it landed in `unknown` and queued for approval. It is a database
+  // lookup: Florrie knows the answer with certainty and can answer in two
+  // seconds. Distinct from availability_check, which is a claim about the
+  // future and stays gated.
+  BOOKING_LOOKUP: 'booking_lookup',         // "when am I booked in?"
   GREETING: 'greeting',                     // "Hi!", "Hey"
   REVIEW_THANKS: 'review_thanks',           // "Thanks so much, loved it!"
   COMPLAINT: 'complaint',                   // "I'm not happy with..."
@@ -60,6 +68,7 @@ const AUTONOMOUS_INTENTS = [
   INTENTS.PRICE_ENQUIRY,
   INTENTS.AVAILABILITY_CHECK,
   INTENTS.RESCHEDULE,
+  INTENTS.BOOKING_LOOKUP,
   INTENTS.GREETING,
   INTENTS.REVIEW_THANKS
 ];
@@ -190,14 +199,52 @@ export async function processInboundMessage(messageId, beautician, client, messa
       shouldAct = false;
     }
 
-    // Clients Ellie already knows are relationships she manages personally. Never
-    // auto-reply to them: draft the response and escalate so she gives the yes/no.
-    // This is the main guard against a regular getting an out of context message,
-    // which is most likely on Instagram where we may be missing the earlier chat.
-    // Skipped when she explicitly set this client to 'Florrie handles'.
+    // Clients Ellie already knows are relationships she manages personally, so
+    // this used to be an outright no: draft it, escalate it, wait for her
+    // yes/no. It is what stopped a regular getting an out-of-context message
+    // after Florrie told a client 4.30 Thursday was free when it was not.
+    //
+    // It also meant Florrie auto-replied to strangers and to NOBODY ELSE,
+    // because isKnownClient is "any appointment ever, in any status". Ellie's
+    // verdict after a month was that she still had just as much admin, and she
+    // was right — it never went away, it changed shape. She stopped writing
+    // messages and started approving them.
+    //
+    // So the line moves from WHO is asking to WHETHER THE ANSWER IS A FACT WE
+    // HOLD. "When am I booked in?" is a lookup and Florrie answers it. "Can
+    // you fit me in Saturday?" is a claim about the future and still goes to
+    // Ellie — which is what the 28 July incident actually was.
+    //
+    // lib/grounded-reply.js owns the boundary and explains every case.
+    let groundedDecision = null;
     if (shouldAct && autonomyOverride !== 'florrie'
         && await isKnownClient(beautician.id, client?.id, client)) {
+      // One switch, so this is reversible without a deploy. Default ON — Levi
+      // asked for the dial turned back up — but if Ellie decides she wants
+      // eyes on everything again, `autonomy.grounded_replies = false` puts it
+      // back exactly as it was.
+      const groundedRepliesOn = beautician.autonomy?.grounded_replies !== false;
+      groundedDecision = groundedRepliesOn
+        ? isGroundedReply({ intent: classification.intent, message: messageContent, context })
+        : { grounded: false, reason: 'grounded_replies_switched_off' };
+      if (!groundedDecision.grounded) shouldAct = false;
+    }
+
+    // Asking for a human is answered by a human, full stop — and the thread is
+    // marked so Florrie stays out of it from now on rather than making her ask
+    // twice. This runs regardless of intent: a client who says "is this a bot?"
+    // has said the only thing that matters in the message.
+    if (client?.id && asksForHuman(messageContent)) {
       shouldAct = false;
+      try {
+        await supabase.from('clients')
+          .update({ messaging_autonomy: 'just_me' })
+          .eq('id', client.id)
+          .eq('beautician_id', beautician.id);
+        logger.info({ beauticianId: beautician.id, clientId: client.id }, 'Client asked for a human; thread handed to the beautician');
+      } catch (err) {
+        logger.warn({ err, clientId: client.id }, 'Could not mark thread as human-only');
+      }
     }
 
     // 3b. THE BOOKING CONVERSATION, and it runs HERE for a reason.
@@ -240,11 +287,46 @@ export async function processInboundMessage(messageId, beautician, client, messa
           messageContent, classification, context, beautician, client
         );
 
+      // The SECOND grounding check, and it is on the text rather than the
+      // intent. A message classified as a lookup can still come back promising
+      // "I'll get Ellie to call you" or offering a time — at which point it is
+      // no longer a lookup, whatever the classifier said. Cheap, and it is the
+      // only check that sees what is actually about to be sent.
+      if (groundedDecision?.grounded) {
+        const onText = isGroundedReply({
+          intent: classification.intent, message: messageContent, context, reply: result.response,
+        });
+        if (!onText.grounded) {
+          logger.info({ beauticianId: beautician.id, clientId: client?.id, reason: onText.reason },
+            'Reply held after generation: the text was not grounded');
+          groundedDecision = onText;
+          shouldAct = false;
+        }
+      }
+
+      if (!shouldAct) {
+        // Fall through to the draft path with the reply we already generated,
+        // rather than generating a second one.
+        return await escalateWithDraft({
+          beautician, client, messageContent, classification, context, messageId,
+          draft: result.response, reason: groundedDecision?.reason || 'held_after_generation',
+        });
+      }
+
+      // Signed, whenever Florrie is speaking for herself.
+      //
+      // Two things at once, and the second is the one that matters most: it
+      // says a machine wrote this so nobody thinks Ellie typed it, and it
+      // gives a one-word way out. A client cannot be expected to guess that
+      // "ELLIE" works — it has to be on the message. Nothing Ellie approves
+      // herself gets signed, because she wrote it.
+      const outgoing = signAsFlorrie(result.response, beautician.first_name || 'Ellie');
+
       // 5a. Try to deliver. Returns true ONLY if the message was actually sent.
       // Florrie never silently auto-sends a phantom message; if delivery does not
       // happen the reply is surfaced as a one-tap draft (the "every send is one
       // human tap" thesis), and we never record it as sent.
-      const sent = await sendResponse(beautician, client, result.response, classification, messageId);
+      const sent = await sendResponse(beautician, client, outgoing, classification, messageId);
 
       // 6a. Update message record honestly based on whether it actually sent.
       await supabase.from('messages').update({
@@ -259,7 +341,10 @@ export async function processInboundMessage(messageId, beautician, client, messa
 
       // 7a. Only log it as a completed action if it was genuinely delivered.
       if (sent) {
-        await logAiAction(beautician.id, client?.id, messageId, classification, result);
+        // Carry WHY Florrie was allowed to answer this one, so "What Florrie
+        // did" can say it and a decision can be explained after the fact
+        // rather than reconstructed from the intent.
+        await logAiAction(beautician.id, client?.id, messageId, classification, result, groundedDecision?.reason || null);
       }
 
       logger.info({ handled: sent, drafted: !sent, intent: classification.intent }, sent ? 'AI Front Desk sent reply' : 'AI Front Desk drafted reply for one-tap send');
@@ -282,54 +367,15 @@ export async function processInboundMessage(messageId, beautician, client, messa
       return { handled: false, drafted: false, quiet: true, intent: classification.intent };
 
     } else {
-      // 4b. Escalate, still generating a suggested response. When the booking
-      // conversation produced one it wins outright: it is the only text in
-      // this file backed by a real diary read and, once a slot is held, a real
-      // appointment row.
-      const suggestion = convo
-        ? convo.reply
-        : await generateSuggestedResponse(
-          messageContent, classification, context, beautician
-        );
-
-      // 5b. Mark as escalated
-      await supabase.from('messages').update({
-        ai_handled: false,
-        ai_confidence: classification.confidence,
-        ai_intent: classification.intent,
-        ai_response: suggestion,
-        escalated: true,
-        escalated_reason: getEscalationReason(classification),
-        digital_employee: 'front_desk'
-      }).eq('id', messageId);
-
-      // 6b. Log escalation
-      await supabase.from('ai_actions').insert({
-        beautician_id: beautician.id,
-        action_type: 'message_escalated',
-        digital_employee: 'front_desk',
-        summary: `Escalated message from ${client?.first_name || 'unknown'}: "${truncate(messageContent, 50)}"`,
-        details: {
-          intent: classification.intent,
-          confidence: classification.confidence,
-          reason: getEscalationReason(classification),
-          suggested_response: suggestion
-        },
-        client_id: client?.id,
-        message_id: messageId,
-        confidence: classification.confidence,
-        autonomous: false,
-        outcome: 'escalated',
-        notification_sent: true,
-        notification_text: `New message from ${client?.first_name || 'someone'} needs your attention`
+      // 4b. Escalate, still giving her a suggested response to approve. When
+      // the booking conversation produced one it wins outright: it is the only
+      // text in this file backed by a real diary read and, once a slot is
+      // held, a real appointment row.
+      return await escalateWithDraft({
+        beautician, client, messageContent, classification, context, messageId,
+        draft: convo?.reply || null,
+        reason: groundedDecision && !groundedDecision.grounded ? groundedDecision.reason : null,
       });
-
-      // Push notification for escalation — beautician needs to act
-      pushEscalation(beautician.id, client?.first_name || 'Someone', messageContent).catch(() => {});
-    refreshLiveActivity(beautician.id).catch(() => {});
-
-      logger.info({ handled: false, intent: classification.intent, escalated: true }, 'AI Front Desk escalated message');
-      return { handled: false, intent: classification.intent, escalated: true, suggestion };
     }
 
   } catch (err) {
@@ -352,7 +398,7 @@ async function gatherContext(beautician, client, messageContent = '') {
   const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
   // Parallel fetches for speed
-  const [treatments, upcomingAppointments, clientHistory, clientIntelligence, conversation, loyaltyConfig, clientPoints, patchTests, activePromos, freeSlots, knowledge] = await Promise.all([
+  const [treatments, upcomingAppointments, clientUpcoming, clientHistory, clientIntelligence, conversation, loyaltyConfig, clientPoints, patchTests, activePromos, freeSlots, knowledge] = await Promise.all([
     // Treatment menu
     // deposit_percent, buffer_minutes and requires_consultation are here
     // because lib/booking-rules.js needs them to price and length a booking
@@ -375,6 +421,26 @@ async function gatherContext(beautician, client, messageContent = '') {
       .lte('starts_at', weekFromNow.toISOString())
       .in('status', ['confirmed', 'pending'])
       .order('starts_at'),
+
+    // THIS client's own bookings still to come.
+    //
+    // upcomingAppointments above is the whole diary for seven days, which
+    // answers "how busy is she" and cannot answer "am I booked in?" — the
+    // question a client actually asked the evening before hers. It also stops
+    // at seven days, so a booking three weeks out was invisible.
+    //
+    // Ninety days, and every live status, because confirming a booking back to
+    // somebody is only safe if we are looking at all of them.
+    client?.id ? supabase
+      .from('appointments')
+      .select('id, starts_at, ends_at, status, treatments(name)')
+      .eq('beautician_id', beautician.id)
+      .eq('client_id', client.id)
+      .gte('starts_at', new Date(now.getTime() - 12 * 60 * 60 * 1000).toISOString())
+      .lte('starts_at', new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000).toISOString())
+      .in('status', ['confirmed', 'pending'])
+      .order('starts_at')
+      : Promise.resolve({ data: [] }),
 
     // Client's appointment history (if known)
     client?.id ? supabase
@@ -495,6 +561,7 @@ async function gatherContext(beautician, client, messageContent = '') {
     // "I could not read her treatments". Those need different replies.
     treatmentsError: treatments.error || null,
     upcomingAppointments: upcomingAppointments.data || [],
+    clientUpcoming: clientUpcoming?.data || [],
     clientHistory: clientHistory.data || [],
     clientIntelligence: clientIntelligence.data,
     conversation: conversationThread,
@@ -554,6 +621,7 @@ Intents:
 - reschedule: wants to move an existing appointment
 - cancellation: wants to cancel an appointment
 - general_question: question about treatments, products, patch tests, etc.
+- booking_lookup: asking about an appointment they ALREADY have — when is it, is it still booked, confirming a date or time back to you ("I have an appointment tomorrow at 6pm correct?", "when am I booked in?", "am I still in for Tuesday?"). NOT wanting to change it and NOT asking when you are free.
 - greeting: just saying hi or hello
 - review_thanks: thanking or praising after an appointment
 - complaint: unhappy about something
@@ -574,7 +642,7 @@ Only include extracted fields if they're mentioned in the message. Confidence is
     const classificationSchema = z.object({
       intent: z.enum([
         'booking_request', 'price_enquiry', 'availability_check',
-        'reschedule', 'cancellation', 'general_question',
+        'reschedule', 'cancellation', 'general_question', 'booking_lookup',
         'greeting', 'review_thanks', 'complaint', 'unknown'
       ]).default('unknown'),
       confidence: z.number().min(0).max(1).default(0),
@@ -595,6 +663,82 @@ Only include extracted fields if they're mentioned in the message. Confidence is
     logger.error({ err }, 'Classification parse error');
     return { intent: INTENTS.UNKNOWN, confidence: 0.0, extracted: {} };
   }
+}
+
+/**
+ * Hand the message to Ellie with a reply already written for her.
+ *
+ * Pulled out of the inline else-branch so the two paths that reach it cannot
+ * drift: the ordinary "Florrie may not answer this" case, and the later one
+ * where a reply was generated, read, and judged ungrounded on its text. The
+ * second must produce exactly the escalation the first does, or a held reply
+ * would land in a different queue from a gated one.
+ *
+ * `draft` is a reply we already have; when it is null one is generated.
+ * `reason` is the grounding verdict, recorded so a decision can be explained
+ * after the fact rather than guessed at from the intent.
+ */
+async function escalateWithDraft({ beautician, client, messageContent, classification, context, messageId, draft = null, reason = null }) {
+  const suggestion = draft || await generateSuggestedResponse(
+    messageContent, classification, context, beautician
+  );
+  const escalationReason = reason || getEscalationReason(classification);
+
+  await supabase.from('messages').update({
+    ai_handled: false,
+    ai_confidence: classification.confidence,
+    ai_intent: classification.intent,
+    ai_response: suggestion,
+    escalated: true,
+    escalated_reason: escalationReason,
+    digital_employee: 'front_desk',
+  }).eq('id', messageId);
+
+  await supabase.from('ai_actions').insert({
+    beautician_id: beautician.id,
+    action_type: 'message_escalated',
+    digital_employee: 'front_desk',
+    summary: `Escalated message from ${client?.first_name || 'unknown'}: "${truncate(messageContent, 50)}"`,
+    details: {
+      intent: classification.intent,
+      confidence: classification.confidence,
+      reason: escalationReason,
+      suggested_response: suggestion,
+    },
+    client_id: client?.id,
+    message_id: messageId,
+    confidence: classification.confidence,
+    autonomous: false,
+    outcome: 'escalated',
+    notification_sent: true,
+    notification_text: `New message from ${client?.first_name || 'someone'} needs your attention`,
+  });
+
+  pushEscalation(beautician.id, client?.first_name || 'Someone', messageContent).catch(() => {});
+  refreshLiveActivity(beautician.id).catch(() => {});
+
+  logger.info({ handled: false, intent: classification.intent, escalated: true, reason: escalationReason }, 'AI Front Desk escalated message');
+  return { handled: false, intent: classification.intent, escalated: true, suggestion };
+}
+
+/**
+ * This client's own bookings, for the prompt.
+ *
+ * Without it, "I have an appointment with you tomorrow at 6pm correct?" has no
+ * answer in front of the model and it either hedges or invents. The whole
+ * point of treating that question as grounded is that the fact is right here.
+ *
+ * Wall clock, not local conversion: starts_at parks salon time in the UTC slot.
+ */
+function renderClientBookings(rows) {
+  if (!rows?.length) return 'This client has nothing booked in right now. Do NOT tell them they are booked; if they think they are, say you will get it checked.';
+  const fmt = (r) => {
+    const d = new Date(r.starts_at);
+    const day = d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+    const time = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
+    return `${day} at ${time}${r.treatments?.name ? ` for ${r.treatments.name}` : ''}`;
+  };
+  return `This client's booked appointments (these are FACTS from the diary, state them plainly and never contradict them): ${rows.map(fmt).join('; ')}.`;
 }
 
 // STEP 3: DECIDE
@@ -839,6 +983,7 @@ Hard rules:
 Never use em dashes (—) or en dashes (–). Use commas, full stops, colons or line breaks instead.
 
 Treatments: ${context.treatments.map(t => `${t.name} (£${(t.price_cents/100).toFixed(2)})`).join(', ')}
+${renderClientBookings(context.clientUpcoming)}
 ${renderFreeSlots(context.freeSlots)}
 ${context.loyalty ? `Loyalty: ${context.loyalty.summary} If it fits, you may mention it once, warmly, never pushy. Never invent points or rewards beyond this.` : ''}
 ${context.patchTest ? `Patch test: these treatments need one at least 24h before the first visit: ${context.patchTest.treatmentsNeedingTest.join(', ')}. This client's status: ${context.patchTest.status}. If they want one of these and status is none or pending, offer to book the quick patch test first at a real time; if completed, book as normal. Never invent a result.` : ''}
@@ -884,6 +1029,7 @@ ${extracted?.treatment ? `They mentioned: "${extracted.treatment}"` : 'They have
 ${extracted?.date ? `Preferred date: ${extracted.date}` : ''}
 ${extracted?.time ? `Preferred time: ${extracted.time}` : ''}
 
+${renderClientBookings(context.clientUpcoming)}
 ${renderFreeSlots(context.freeSlots)}
 
 If they've specified enough details, confirm and direct them to the booking link.
@@ -1164,7 +1310,7 @@ async function sendResponse(beautician, client, responseText, classification, me
   return sent;
 }
 
-async function logAiAction(beauticianId, clientId, messageId, classification, result) {
+async function logAiAction(beauticianId, clientId, messageId, classification, result, groundedReason = null) {
   const actionTypeMap = {
     // NOT 'booking_created'. This path replies to a booking enquiry; it does
     // not create a booking. Only conversational-booking.js writes an
@@ -1174,6 +1320,7 @@ async function logAiAction(beauticianId, clientId, messageId, classification, re
     booking_request: 'message_replied',
     price_enquiry: 'message_replied',
     availability_check: 'message_replied',
+    booking_lookup: 'message_replied',
     // NOT 'booking_rescheduled'. Nothing in this path moves a booking, so
     // logging one told Ellie a second time that a change had happened. Only
     // code that actually writes the row may claim that.
@@ -1187,6 +1334,7 @@ async function logAiAction(beauticianId, clientId, messageId, classification, re
     price_enquiry: `Answered a price enquiry`,
     availability_check: `Checked availability for a client`,
     reschedule: `Replied about a reschedule request`,
+    booking_lookup: `Confirmed a client's booking back to them`,
     greeting: `Greeted a client`,
     review_thanks: `Thanked a client for their feedback`
   };
@@ -1199,7 +1347,12 @@ async function logAiAction(beauticianId, clientId, messageId, classification, re
     details: {
       intent: classification.intent,
       confidence: classification.confidence,
-      response_preview: truncate(result.response, 80)
+      response_preview: truncate(result.response, 80),
+      // Why Florrie was allowed to send this one herself. Recorded so a
+      // decision can be read back rather than reconstructed from the intent —
+      // and so that if she ever answers something she should not have, the
+      // reason is right there next to it.
+      grounded_reason: groundedReason,
     },
     client_id: clientId,
     message_id: messageId,
