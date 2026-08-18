@@ -4,6 +4,7 @@ import { useBeautician, updateRow, insertRow, supabase } from '../lib/supabase.j
 import { PLAN } from '../lib/subscription.js';
 import { registerPush, getPushStatus } from '../lib/push.js';
 import logger from '../lib/logger.js';
+import { bookingUrl as makeBookingUrl } from '../lib/booking.js';
 import { isIOSNative, isNativeApp } from '../lib/platform.js';
 import Icon from '../components/ui/Icon';
 import Button from '../components/ui/Button';
@@ -769,7 +770,7 @@ export default function Onboarding({ onComplete }) {
           </div>
           {(() => {
             const bookingSlug = (slug || '').toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-            const bookingUrl = `https://florrie.ai/book/${bookingSlug}`;
+            const bookingUrl = makeBookingUrl(bookingSlug);
             const copy = async () => {
               try { await navigator.clipboard?.writeText?.(bookingUrl); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 1800); } catch {}
             };
