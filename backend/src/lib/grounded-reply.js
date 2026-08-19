@@ -132,6 +132,11 @@ export function isGroundedReply({ intent, message, context, reply }) {
   if (/\b(free|available|open|got a slot|squeeze you|fit you)\b/i.test(t) && !/\bnot\b/i.test(t)) {
     return { grounded: false, reason: 'reply_claims_availability' };
   }
+  // And the one that got Leanne: a reply that names a DAY has to name the
+  // right one. See dateClaimCheck below for what went wrong and why neither
+  // guard above caught it.
+  const dates = dateClaimCheck(t, context?.clientUpcoming);
+  if (!dates.ok) return { grounded: false, reason: dates.reason };
 
   return { grounded: true, reason: `grounded:${key}` };
 }
@@ -156,4 +161,85 @@ export function signAsFlorrie(reply, beauticianFirstName) {
   const body = String(reply || '').trimEnd();
   if (/—\s*Florrie[,.]/i.test(body)) return body;
   return `${body}\n\n${florrieSignature(beauticianFirstName)}`;
+}
+
+/**
+ * Does this reply claim WHEN an appointment is, and is that claim true?
+ *
+ * Leanne Hill said "Haha hello you". Florrie replied "Hi Leanne, hey! How are
+ * you doing, all set for tomorrow!" — signed as Florrie, sent on its own, on
+ * Wednesday 19 August. Leanne's appointment is Wednesday 26 August. Leanne
+ * then wrote back "For my appointment NEXT WEEK, if possible, could you order
+ * me a tube of the nourish conditioner?", correcting a machine that had just
+ * told her the wrong day.
+ *
+ * The intent was `greeting`, which is grounded — answering "hello" needs no
+ * evidence. The failure was that the reply did not stay a greeting: the model
+ * added "all set for tomorrow!" as ordinary warmth, the way a person would,
+ * without that being a fact it had checked. The two text guards above catch a
+ * reply that offers a time or promises a callback; neither catches one that
+ * asserts a date.
+ *
+ * So: if a reply names a day, the day has to match the diary. Not "is there a
+ * booking" — the actual day. A wrong date is worse than no date, because the
+ * client acts on it.
+ */
+const RELATIVE_DAYS = /\b(today|tonight|tomorrow|this evening|this afternoon|this morning)\b/i;
+const WEEKDAYS = /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i;
+const VAGUE_WHEN = /\b(next week|this week|next month)\b/i;
+
+const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+/**
+ * Whole days between two instants, by CALENDAR day rather than by 24-hour
+ * blocks — "tomorrow" at 23:00 tonight is one day away, not zero.
+ * Wall clock throughout: starts_at parks salon time in the UTC slot.
+ */
+function daysBetween(fromIso, toIso) {
+  const a = new Date(`${String(fromIso).slice(0, 10)}T12:00:00Z`);
+  const b = new Date(`${String(toIso).slice(0, 10)}T12:00:00Z`);
+  return Math.round((b - a) / 86400000);
+}
+
+export function dateClaimCheck(reply, clientUpcoming = [], now = new Date()) {
+  const t = String(reply || '');
+  const saysRelative = RELATIVE_DAYS.test(t);
+  const saysWeekday = WEEKDAYS.test(t);
+  const saysVague = VAGUE_WHEN.test(t);
+  if (!saysRelative && !saysWeekday && !saysVague) return { ok: true };
+
+  const next = (clientUpcoming || [])[0];
+  // Naming a day for somebody with nothing booked is the worst version of
+  // this: it invents an appointment out of nothing.
+  if (!next?.starts_at) return { ok: false, reason: 'reply_names_a_day_with_nothing_booked' };
+
+  const todayIso = now.toISOString().slice(0, 10);
+  const away = daysBetween(todayIso, next.starts_at);
+
+  if (saysRelative) {
+    const saidToday = /\b(today|tonight|this evening|this afternoon|this morning)\b/i.test(t);
+    const saidTomorrow = /\btomorrow\b/i.test(t);
+    if (saidToday && away !== 0) return { ok: false, reason: `reply_said_today_but_booking_is_${away}_days_away` };
+    if (saidTomorrow && away !== 1) return { ok: false, reason: `reply_said_tomorrow_but_booking_is_${away}_days_away` };
+  }
+
+  if (saysWeekday) {
+    const claimed = DAY_NAMES.findIndex(d => new RegExp(`\\b${d}\\b`, 'i').test(t));
+    const actual = new Date(`${String(next.starts_at).slice(0, 10)}T12:00:00Z`).getUTCDay();
+    if (claimed >= 0 && claimed !== actual) {
+      return { ok: false, reason: `reply_said_${DAY_NAMES[claimed]}_but_booking_is_${DAY_NAMES[actual]}` };
+    }
+    // Right weekday, but more than a week out — "see you Wednesday" for a
+    // booking three Wednesdays away is still misleading.
+    if (claimed >= 0 && away > 7) return { ok: false, reason: 'reply_named_a_weekday_more_than_a_week_out' };
+  }
+
+  if (saysVague) {
+    const saidNextWeek = /\bnext week\b/i.test(t);
+    const saidThisWeek = /\bthis week\b/i.test(t);
+    if (saidThisWeek && away > 7) return { ok: false, reason: 'reply_said_this_week_but_booking_is_further_out' };
+    if (saidNextWeek && (away < 2 || away > 14)) return { ok: false, reason: 'reply_said_next_week_but_booking_is_not' };
+  }
+
+  return { ok: true };
 }

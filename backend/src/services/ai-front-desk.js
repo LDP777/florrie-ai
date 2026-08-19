@@ -738,7 +738,8 @@ function renderClientBookings(rows) {
     const time = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
     return `${day} at ${time}${r.treatments?.name ? ` for ${r.treatments.name}` : ''}`;
   };
-  return `This client's booked appointments (these are FACTS from the diary, state them plainly and never contradict them): ${rows.map(fmt).join('; ')}.`;
+  return `This client's booked appointments (these are FACTS from the diary, state them plainly and never contradict them): ${rows.map(fmt).join('; ')}.
+NEVER say when an appointment is unless it is in that list, and say the day that is actually written there. Do not say "tomorrow", "today" or a weekday as a friendly aside — a client asked "hello" and got "all set for tomorrow!" when her appointment was the following Wednesday, and she had to correct it. If you are not naming a date from the list above, do not name one at all.`;
 }
 
 // STEP 3: DECIDE
