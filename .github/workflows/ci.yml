@@ -30,6 +30,16 @@ jobs:
         with:
           node-version: 20
           cache: npm
+
+      # BEFORE npm ci, because npm ci passing here proves nothing about the
+      # machine that matters. A lockfile regenerated inside a Linux container
+      # loses every darwin binary, and both this job and Vercel stay green
+      # while `npm ci` on Levi's Mac dies on @rollup/rollup-darwin-arm64 —
+      # which is his local build, so his iOS build, so TestFlight. That
+      # shipped on 19 August and the only thing that caught it was him.
+      # Costs milliseconds: it reads the JSON, resolves nothing, hits nothing.
+      - run: npm run check:lockfile
+
       - run: npm ci
       - run: npm test --workspace backend
 
