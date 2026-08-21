@@ -21,6 +21,7 @@ import { getOutstandingBalanceCents } from '../services/outstanding-balance.js';
 import { autoUnarchiveClient } from '../lib/client-archive.js';
 import { BOOKING_MONEY_LOGGED_TYPES } from '../lib/money-guards.js';
 import { combineTreatments, resolveDepositCents } from '../lib/booking-rules.js';
+import { recomputeTotals, endsAtWall } from '../lib/appointment-treatments.js';
 import { appointmentIcs, googleCalendarUrl, DEAD_STATUSES } from '../lib/ical.js';
 import { calendarLandingPage } from '../lib/calendar-page.js';
 
@@ -1048,7 +1049,7 @@ router.get('/:slug/manage/:token/treatments', async (req, res) => {
   try {
     const { data: appt } = await supabase
       .from('appointments')
-      .select('id, starts_at, client_id, treatment_id, treatments(requires_patch_test), beauticians(id, booking_slug)')
+      .select('id, starts_at, client_id, treatment_id, extra_treatment_ids, treatments(requires_patch_test), beauticians(id, booking_slug)')
       .eq('management_token', req.params.token)
       .single();
     if (!appt || appt.beauticians?.booking_slug !== req.params.slug) {
@@ -1082,6 +1083,10 @@ router.get('/:slug/manage/:token/treatments', async (req, res) => {
 
     res.json({
       current_treatment_id: appt.treatment_id,
+      // What is already on the booking, so the page can offer "add" without
+      // offering something they have already got. Added alongside the existing
+      // fields rather than replacing any, so the swap picker is untouched.
+      extra_treatment_ids: Array.isArray(appt.extra_treatment_ids) ? appt.extra_treatment_ids : [],
       treatments: (treatments || [])
         .filter(t => !t.requires_patch_test || patchTestOk)
         .map(t => ({ id: t.id, name: t.name, duration_minutes: t.duration_minutes, price_cents: t.price_cents })),
@@ -1223,6 +1228,205 @@ router.post('/:slug/manage/:token/change-treatment', async (req, res) => {
     });
   } catch (err) {
     logger.error({ err }, 'change-treatment failed');
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
+/**
+ * POST /api/booking/:slug/manage/:token/add-treatment  { treatment_id }
+ *
+ * Let the CLIENT add a treatment to a booking they already have.
+ *
+ * THE MESSAGE THAT ASKED FOR THIS. Lucy Walker, 21 August, 06:50: "Hi - so
+ * sorry I just realised I need to add lash lift to this booking! Should have
+ * been lash lift + brow lamination, tint." Ellie: "You should be able to add
+ * and adjust your booking. Did you receive a link at all?" Lucy: "No I didn't
+ * :/". Ellie then spent an hour and a half of her morning on it by hand.
+ *
+ * Ellie was half right, and the half she was wrong about is this route. The
+ * manage page could SWAP a treatment for a different one and nothing else, so
+ * even with the link in her hand Lucy could have turned her brow lamination
+ * into a lash lift, but not had both. Swapping is not adding, and adding is
+ * the thing people actually message about — it is more money for Ellie and a
+ * better appointment for the client, and it was the one direction the page
+ * refused to go.
+ *
+ * ADD ONLY, DELIBERATELY. A client may lengthen and enrich their own booking;
+ * they may not shorten it. Taking a treatment off drops the price below what
+ * may already have been paid, which is a refund Ellie has to chase, and it
+ * frees diary time she may have already filled around. Removing stays with
+ * her, in the app, where it already works.
+ *
+ * The deposit does not move here either, exactly as in change-treatment: what
+ * they paid carries over and the balance recomputes itself.
+ */
+router.post('/:slug/manage/:token/add-treatment', async (req, res) => {
+  try {
+    const { treatment_id } = req.body || {};
+    if (!treatment_id) return res.status(400).json({ error: 'Please choose a treatment to add.' });
+
+    const { data: appt } = await supabase
+      .from('appointments')
+      .select(`
+        id, starts_at, ends_at, status, client_id, treatment_id, extra_treatment_ids,
+        duration_minutes, price_cents, deposit_cents, deposit_paid,
+        buffer_minutes, extra_padding_minutes,
+        clients(first_name),
+        treatments(id, name, duration_minutes, price_cents, requires_patch_test),
+        beauticians(id, booking_slug, working_hours, timezone)
+      `)
+      .eq('management_token', req.params.token)
+      .single();
+    if (!appt || appt.beauticians?.booking_slug !== req.params.slug) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    if (['cancelled', 'completed', 'no_show'].includes(appt.status)) {
+      return res.status(409).json({ error: 'This booking can no longer be changed.' });
+    }
+    if (new Date(`${String(appt.starts_at).slice(0, 19)}Z`) < nowInSalonWall(appt.beauticians.timezone)) {
+      return res.status(409).json({ error: 'This appointment has already passed.' });
+    }
+
+    const currentExtraIds = Array.isArray(appt.extra_treatment_ids) ? appt.extra_treatment_ids : [];
+    // Same cap as the app's own path: the list feeds a clash check and a
+    // treatments query, and neither wants to be unbounded.
+    if (currentExtraIds.length >= 10) {
+      return res.status(409).json({ error: 'That is as many treatments as one appointment can hold. Message me and we will sort it.' });
+    }
+    // A second tap on a slow connection must not book the same thing twice.
+    if (treatment_id === appt.treatment_id || currentExtraIds.includes(treatment_id)) {
+      return res.status(409).json({ error: 'That treatment is already on this booking.' });
+    }
+
+    const { data: treat } = await supabase
+      .from('treatments')
+      .select('id, name, duration_minutes, price_cents, requires_patch_test')
+      .eq('id', treatment_id)
+      .eq('beautician_id', appt.beauticians.id)
+      .eq('is_active', true)
+      .maybeSingle();
+    if (!treat) return res.status(400).json({ error: 'That treatment is not available.' });
+
+    // Same patch-test rule as a swap: already being booked into a patch-test
+    // treatment means they are in that lane and adding another needs no new
+    // test. Otherwise a valid one has to be on file.
+    if (treat.requires_patch_test && appt.treatments?.requires_patch_test !== true) {
+      const sixMonthsAgo = new Date(Date.now() - 182 * 24 * 60 * 60 * 1000);
+      const { data: pts } = await supabase
+        .from('patch_tests')
+        .select('status, test_date')
+        .eq('client_id', appt.client_id)
+        .eq('beautician_id', appt.beauticians.id);
+      const ok = (pts || []).some(pt => pt.status === 'passed' && pt.test_date && new Date(pt.test_date) > sixMonthsAgo);
+      if (!ok) {
+        return res.status(409).json({ error: 'That treatment needs a patch test first. Please message me and we will sort it.' });
+      }
+    }
+
+    // Every treatment on the booking after this request, priced together.
+    // recomputeTotals is the same function the app uses, so a client adding a
+    // treatment and Ellie adding one land on identical numbers.
+    const nextExtraIds = [...currentExtraIds, treat.id];
+    const wanted = [...new Set([appt.treatment_id, ...nextExtraIds].filter(Boolean))];
+    const { data: rows, error: tErr } = await supabase
+      .from('treatments')
+      .select('id, name, duration_minutes, price_cents')
+      .eq('beautician_id', appt.beauticians.id)
+      .in('id', wanted);
+    if (tErr) {
+      logger.error({ err: tErr, appointmentId: appt.id }, 'add-treatment: could not load treatments');
+      return res.status(500).json({ error: 'Could not check that just then. Nothing has been changed, please try again.' });
+    }
+    const byId = Object.fromEntries((rows || []).map(t => [t.id, t]));
+    const totals = recomputeTotals({
+      baseTreatment: appt.treatment_id ? byId[appt.treatment_id] : null,
+      extraTreatments: nextExtraIds.map(id => byId[id]).filter(Boolean),
+      existing: appt,
+      currentExtras: currentExtraIds.map(id => byId[id]).filter(Boolean),
+    });
+
+    const newEnds = endsAtWall(appt.starts_at, totals.blockMinutes);
+    if (!newEnds) return res.status(400).json({ error: 'This appointment has no usable start time.' });
+
+    // Adding always makes the booking longer, so all three overrun checks
+    // apply, every time. Same three as change-treatment, and the wording is
+    // the same too: the client cannot fix a diary clash, so every one of them
+    // ends by pointing at Ellie.
+    const startD = new Date(`${String(appt.starts_at).slice(0, 19)}Z`);
+    const endD = new Date(`${newEnds}Z`);
+    const { data: clash, error: clashErr } = await supabase
+      .from('appointments')
+      .select('id')
+      .eq('beautician_id', appt.beauticians.id)
+      .neq('id', appt.id)
+      .in('status', ['confirmed', 'pending', 'in_progress'])
+      .lt('starts_at', endD.toISOString())
+      .gt('ends_at', startD.toISOString());
+    // An unchecked error here would let the longer booking run over the next
+    // client, which is the failure change-treatment already had once.
+    if (clashErr) {
+      logger.error({ err: clashErr, appointmentId: appt.id }, 'add-treatment: overrun check failed');
+      return res.status(500).json({ error: 'Could not check that just then. Nothing has been changed, please try again.' });
+    }
+    if (clash && clash.length) {
+      return res.status(409).json({ error: `There is not enough time after your appointment for ${treat.name} as well. Message me and we will find a time that fits both.` });
+    }
+    const blocks = await loadBlocks(appt.beauticians.id, startD, endD);
+    if (hitsBlock(startD, endD, blocks)) {
+      return res.status(409).json({ error: `There is not enough time left in that slot for ${treat.name} as well. Message me and we will find a time that fits both.` });
+    }
+    const dh = wallDayHours(appt.beauticians.working_hours || {}, startD);
+    if (dh) {
+      const [eh, em] = dh.end.split(':').map(Number);
+      const dayEnd = new Date(startD); dayEnd.setUTCHours(eh, em, 0, 0);
+      if (endD > dayEnd) {
+        return res.status(409).json({ error: `Both treatments together would run past closing time. Message me and we will find a time that fits.` });
+      }
+    }
+
+    // THE DEPOSIT IS DELIBERATELY UNTOUCHED, as in change-treatment. Only the
+    // price, the length and the finish time move.
+    const { error: upErr } = await supabase
+      .from('appointments')
+      .update({
+        extra_treatment_ids: nextExtraIds,
+        duration_minutes: totals.durationMinutes,
+        price_cents: totals.priceCents,
+        ends_at: newEnds,
+      })
+      .eq('id', appt.id);
+    if (upErr) {
+      logger.error({ err: upErr, appointmentId: appt.id }, 'add-treatment update failed');
+      return res.status(500).json({ error: 'Something went wrong' });
+    }
+
+    const depositPaid = appt.deposit_paid ? (appt.deposit_cents || 0) : 0;
+    const remaining = Math.max(0, (totals.priceCents || 0) - depositPaid);
+    const endLabel = newEnds.slice(11, 16);
+
+    // Tell Ellie, because her diary just got longer without her touching it.
+    // This is the notification that means she does not have to be told twice —
+    // once by the app and once by the client in a message.
+    const dLabel = new Date(`${String(appt.starts_at).slice(0, 10)}T00:00:00Z`)
+      .toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+    pushTeamUpdate(appt.beauticians.id, 'booking_rescheduled',
+      `${appt.clients?.first_name || 'A client'} added ${treat.name} to their ${dLabel} booking. It now finishes at ${endLabel}.`,
+      { url: '/calendar/week', clientName: appt.clients?.first_name }
+    ).catch(err => logger.error({ err, appointmentId: appt.id }, 'add-treatment push failed'));
+
+    res.json({
+      success: true,
+      added: { id: treat.id, name: treat.name, duration_minutes: treat.duration_minutes, price_cents: treat.price_cents },
+      extra_treatment_ids: nextExtraIds,
+      duration_minutes: totals.durationMinutes,
+      price_cents: totals.priceCents,
+      ends_at: newEnds,
+      depositPaidCents: depositPaid,
+      remainingCents: remaining,
+      message: `${treat.name} added. Your appointment now finishes at ${endLabel}${remaining > 0 ? `, with £${(remaining / 100).toFixed(2)} to pay on the day` : ''}.`,
+    });
+  } catch (err) {
+    logger.error({ err }, 'add-treatment failed');
     res.status(500).json({ error: 'Something went wrong' });
   }
 });
