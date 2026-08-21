@@ -123,6 +123,39 @@ const ROUTES = [
         clients: { first_name: 'Sarah', last_name: 'M' }, treatments: { name: 'Signature brows' } } },
   ])],
   [/\/api\/booking\/[^/]+\/page/, () => ({ salon: SALON, treatments: TREATMENTS, addOns: [] })],
+  // The client's own booking page — where Lucy Walker would have added her
+  // lash lift if she had been sent the link. Never graded before: it is behind
+  // a management token, so the sweep could not reach it and every other check
+  // renders it as a spinner. It is also the only screen in this app that a
+  // paying client sees after they have paid.
+  //
+  // The treatments list has to come BEFORE the bare /manage/ pattern, or the
+  // more general one swallows it.
+  [/\/api\/booking\/[^/]+\/manage\/[^/]+\/treatments/, () => ({
+    current_treatment_id: 't1',
+    extra_treatment_ids: [],
+    treatments: TREATMENTS,
+  })],
+  [/\/api\/booking\/[^/]+\/manage\/[^/]+$/, () => ({
+    appointment: {
+      id: 'a1',
+      startsAt: at(24 * 14 + 10, 0),
+      endsAt: at(24 * 14 + 11, 0),
+      status: 'confirmed',
+      depositPaid: true,
+      treatment: TREATMENTS[0],
+      treatments: [TREATMENTS[0]],
+      totalDurationMinutes: 30,
+      totalPriceCents: 3000,
+      client: { name: 'Lucy Walker', email: 'lucy@example.com', phone: '07700 900123' },
+      beautician: { name: SALON.business_name || 'Ellindigo', brandColor: '#C76B8A' },
+    },
+    policy: { cancellation_notice_hours: 48 },
+    patchTests: [],
+    needsPatchTest: false,
+    pendingForms: [],
+    payment: { depositPaidCents: 1000, remainingCents: 2000, bankDetails: null },
+  })],
   [/\/api\/products\/public/, () => ({ products: [] })],
   [/\/api\/appointments/, () => ({ data: APPOINTMENTS, count: APPOINTMENTS.length })],
   [/\/api\/agents\/counts/, () => ({ approvals: 2, inbox: 1, handledToday: 4 })],

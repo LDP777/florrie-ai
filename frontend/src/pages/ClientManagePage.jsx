@@ -4,6 +4,10 @@ import { API_BASE } from '../lib/config.js';
 import Icon, { iconName } from '../components/ui/Icon';
 import Money from '../components/ui/Money';
 import Button from '../components/ui/Button';
+import { readableOnAll, onBrand, mixOver } from '../lib/brand-colour.js';
+
+/** --accent-rose, darkened just enough to be legible on its own #FFF0F4 tint. */
+const ROSE_INK = readableOnAll('#C76B8A', ['#FFF0F4']);
 
 /**
  * ClientManagePage - public client self-service portal.
@@ -12,6 +16,34 @@ import Button from '../components/ui/Button';
  * Lets clients view, cancel, and check related requirements for their booking.
  * No login required - accessed via the management_token UUID from their confirmation.
  */
+
+/**
+ * One treatment in a picker.
+ *
+ * The swap list and the add list render the same row: name on the left, price
+ * and length on the right. They were duplicated the moment the add list
+ * existed, so they are one component. `prefix` is the only difference — adding
+ * shows "+ £50" because it is money ON TOP, swapping shows "£50" because it is
+ * money INSTEAD.
+ */
+function TreatmentOption({ treatment, onPick, busy, prefix = '' }) {
+  return (
+    <button className="fl-tap"
+      onClick={() => onPick(treatment.id)}
+      disabled={busy}
+      style={{ width: '100%', textAlign: 'left', marginBottom: 6, padding: '10px 12px',
+        borderRadius: 10, border: '1px solid #E8E4DF', background: 'var(--bg-card)',
+        cursor: busy ? 'wait' : 'pointer', fontFamily: 'inherit',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10,
+      }}
+    >
+      <span style={{ fontSize: 13, fontWeight: 600, color: '#2D1B1B' }}>{treatment.name}</span>
+      <span style={{ fontSize: 12, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+        {prefix}<Money pence={(treatment.price_cents || 0)} /> · {treatment.duration_minutes}m
+      </span>
+    </button>
+  );
+}
 
 export default function ClientManagePage() {
   const { slug, token } = useParams();
@@ -66,6 +98,62 @@ export default function ClientManagePage() {
     }
   }
 
+  // Add a treatment, rather than swap one.
+  //
+  // Lucy Walker, 21 August: "so sorry I just realised I need to add lash lift
+  // to this booking! Should have been lash lift + brow lamination, tint."
+  // Ellie: "You should be able to add and adjust your booking. Did you receive
+  // a link at all?" Lucy: "No I didn't :/"
+  //
+  // Two separate failures in that exchange. Lucy had no link, which was a
+  // backend bug. And this page could not have done it anyway — it could only
+  // trade her brow lamination FOR a lash lift, never have both, which is not
+  // what anyone means by "add". So Ellie did it by hand, hit a rate limit
+  // doing it, and ended up blocking out 30 minutes instead.
+  //
+  // Add only. Taking a treatment off would drop the price below a deposit
+  // already paid; that stays with Ellie in the app.
+  const [showAdd, setShowAdd] = useState(false);
+  const [addSaving, setAddSaving] = useState(false);
+  const [addError, setAddError] = useState(null);
+  async function openAdd() {
+    setShowAdd(true);
+    setAddError(null);
+    if (treatmentList) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/booking/${slug}/manage/${token}/treatments`);
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || 'Could not load treatments');
+      setTreatmentList(d.treatments || []);
+    } catch (err) {
+      setAddError(err.message);
+      setTreatmentList([]);
+    }
+  }
+  async function addTreatment(treatmentId) {
+    setAddSaving(true);
+    setAddError(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/booking/${slug}/manage/${token}/add-treatment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ treatment_id: treatmentId }),
+      });
+      const d = await res.json();
+      // Every refusal from this endpoint is written to be shown to a client as
+      // it is — "there is not enough time after your appointment for X as
+      // well" — so there is nothing to translate here.
+      if (!res.ok) throw new Error(d.error || 'Could not add that treatment');
+      setTreatmentResult(d.message);
+      setShowAdd(false);
+      await load();
+    } catch (err) {
+      setAddError(err.message);
+    } finally {
+      setAddSaving(false);
+    }
+  }
+
   // Reschedule state
   const [showReschedule, setShowReschedule] = useState(false);
   const [rescheduleDate, setRescheduleDate] = useState('');
@@ -94,6 +182,18 @@ export default function ClientManagePage() {
 
   const brand = data?.appointment?.beautician?.brandColor || '#C76B8A';
   const brandLight = brand + '15';
+  // A brand colour a salon picked is not a text colour. Ellindigo's #c76b8a
+  // measures 3.48:1 on the card and 3.22:1 on its own tint, so the balance
+  // owed, the reschedule link and the footer were all under AA on the page her
+  // clients land on after paying. Nothing had ever looked: the page needs a
+  // management token, so the visual sweep could not reach it.
+  //
+  // Same treatment as the booking page — keep the hue, move the lightness only
+  // as far as it has to go, and grade against every ground it sits on
+  // including the flattened tint.
+  const brandTint = mixOver(brand, '#FFFCF9', 0x15 / 255);
+  const brandInk = readableOnAll(brand, ['#FFFCF9', '#FBF6F1', brandTint]);
+  const onBrandColour = onBrand(brand);
 
   useEffect(() => {
     load();
@@ -289,18 +389,31 @@ export default function ClientManagePage() {
   const isCancelled = appointment.status === 'cancelled';
   const isCompleted = appointment.status === 'completed';
   const isPast = apptDate < new Date() && !isCancelled;
+  // Everything already on this booking, so the add picker never offers
+  // something they have got. The backend refuses a duplicate anyway; this is
+  // so they never see the option and wonder why it failed.
+  const bookedIds = new Set(
+    [appointment.treatment?.id, ...(appointment.treatments || []).map(t => t?.id)].filter(Boolean),
+  );
 
-  const statusColour = {
+  // The chip paints itself on a 12.5% tint of itself, which is exactly the
+  // pairing check-swatches exists to catch: #5ba67f on #ebf1ea is 2.54:1, so
+  // the word "confirmed" — the one thing on this page a client scans for —
+  // was the least readable thing on it. Darkened against its own flattened
+  // tint, not against white.
+  const rawStatusColour = {
     confirmed: '#5BA67F', pending: 'var(--warning)', cancelled: 'var(--danger)',
     completed: '#8A8580', no_show: 'var(--danger)',
   }[appointment.status] || '#8A8580';
+  const statusTint = mixOver(rawStatusColour, '#FFFCF9', 0x20 / 255);
+  const statusColour = readableOnAll(rawStatusColour, [statusTint]);
 
   return (
     <div style={S.page}>
       {/* Header */}
       <div style={{ ...S.header, borderBottom: `3px solid ${brand}` }}>
         <div style={S.headerInner}>
-          <h1 style={{ ...S.businessName, color: brand }}>
+          <h1 style={{ ...S.businessName, color: brandInk }}>
             {appointment.beautician.name}
           </h1>
           <p style={S.headerSub}>Your booking</p>
@@ -325,7 +438,7 @@ export default function ClientManagePage() {
           >
             <span style={{ fontSize: 20, lineHeight: 1.1 }}><Icon name="syringe" size={15} /></span>
             <span style={{ flex: 1 }}>
-              <span style={{ display: 'block', fontSize: 15, fontWeight: 700, color: brand, marginBottom: 3 }}>
+              <span style={{ display: 'block', fontSize: 15, fontWeight: 700, color: brandInk, marginBottom: 3 }}>
                 Book your patch test
               </span>
               <span style={{ display: 'block', fontSize: 13, lineHeight: 1.5, color: '#2D1B1B' }}>
@@ -333,7 +446,7 @@ export default function ClientManagePage() {
                 It only takes {patchTestDuration} minutes. Tap to pick a time.
               </span>
             </span>
-            <span style={{ fontSize: 18, color: brand, alignSelf: 'center' }}>{'\u203A'}</span>
+            <span style={{ fontSize: 18, color: brandInk, alignSelf: 'center' }}>{'\u203A'}</span>
           </button>
         )}
 
@@ -352,7 +465,7 @@ export default function ClientManagePage() {
             style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
               width: '100%', boxSizing: 'border-box', minHeight: 48, padding: '13px 16px',
               borderRadius: 14, marginBottom: 16, textDecoration: 'none',
-              background: brand, color: '#fff', fontSize: 15, fontWeight: 700 }}
+              background: brand, color: onBrandColour, fontSize: 15, fontWeight: 700 }}
           >
             <Icon name="calendar" size={16} inline />
             Add to my calendar
@@ -407,7 +520,7 @@ export default function ClientManagePage() {
         {/* Booking card */}
         <div style={S.card}>
           <div style={S.bookingStatus}>
-            <span style={{ ...S.statusChip, background: statusColour + '20', color: statusColour }}>
+            <span style={{ ...S.statusChip, background: rawStatusColour + '20', color: statusColour }}>
               {appointment.status.replace(/_/g, ' ')}
             </span>
           </div>
@@ -437,14 +550,51 @@ export default function ClientManagePage() {
           {!isCancelled && !isCompleted && !isPast && (
             <div style={{ marginTop: 14 }}>
               {treatmentResult && (
-                <p style={{ fontSize: 13, lineHeight: 1.5, color: brand, background: brandLight, border: `1px solid ${brand}55`, borderRadius: 10, padding: '10px 12px', margin: '0 0 10px' }}>
+                <p style={{ fontSize: 13, lineHeight: 1.5, color: brandInk, background: brandLight, border: `1px solid ${brand}55`, borderRadius: 10, padding: '10px 12px', margin: '0 0 10px' }}>
                   {treatmentResult}
                 </p>
               )}
+              {/* ADD comes first, because adding is what people message
+                  about. Lucy did; so did the two before her. */}
+              {!showAdd && !showTreatments && (
+                <Button variant="secondary" onClick={openAdd} style={{ ...S.keepBtn, width: '100%', marginBottom: 8 }}>
+                  Add another treatment
+                </Button>
+              )}
+              {showAdd && (
+                <div style={{ border: `1px solid ${brand}33`, borderRadius: 10, padding: 12, background: brandLight, marginBottom: 8 }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: '#2D1B1B', margin: '0 0 4px' }}>
+                    Add to this appointment
+                  </p>
+                  <p style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--text-secondary)', margin: '0 0 10px' }}>
+                    Your appointment gets longer and you pay the extra on the day. Your deposit stays exactly as it is.
+                  </p>
+                  {treatmentList === null && (
+                    <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0 }}>Loading…</p>
+                  )}
+                  {(treatmentList || []).filter(t => !bookedIds.has(t.id)).length === 0 && treatmentList !== null && (
+                    <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0 }}>
+                      Nothing else to add here. Message me and I'll sort it.
+                    </p>
+                  )}
+                  {(treatmentList || []).filter(t => !bookedIds.has(t.id)).map(t => (
+                    <TreatmentOption key={t.id} treatment={t} onPick={addTreatment} busy={addSaving} prefix="+ " />
+                  ))}
+                  {addError && (
+                    <p style={{ fontSize: 13, color: 'var(--danger)', margin: '8px 0 0', lineHeight: 1.45 }}>{addError}</p>
+                  )}
+                  <Button variant="secondary" onClick={() => { setShowAdd(false); setAddError(null); }} disabled={addSaving}
+                    style={{ ...S.keepBtn, width: '100%', marginTop: 6 }}>
+                    Not now
+                  </Button>
+                </div>
+              )}
               {!showTreatments ? (
-                <button onClick={openTreatments} style={{ ...S.keepBtn, width: '100%' }}>
-                  Change my treatment
-                </button>
+                !showAdd && (
+                  <button onClick={openTreatments} style={{ ...S.keepBtn, width: '100%' }}>
+                    Change my treatment
+                  </button>
+                )
               ) : (
                 <div style={{ border: `1px solid ${brand}33`, borderRadius: 10, padding: 12, background: brandLight }}>
                   <p style={{ fontSize: 13, fontWeight: 700, color: '#2D1B1B', margin: '0 0 4px' }}>
@@ -462,21 +612,7 @@ export default function ClientManagePage() {
                     </p>
                   )}
                   {(treatmentList || []).filter(t => t.id !== appointment.treatment?.id).map(t => (
-                    <button className="fl-tap"
-                      key={t.id}
-                      onClick={() => changeTreatment(t.id)}
-                      disabled={treatmentSaving}
-                      style={{ width: '100%', textAlign: 'left', marginBottom: 6, padding: '10px 12px',
-                        borderRadius: 10, border: '1px solid #E8E4DF', background: 'var(--bg-card)',
-                        cursor: treatmentSaving ? 'wait' : 'pointer', fontFamily: 'inherit',
-                        display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10,
-                      }}
-                    >
-                      <span style={{ fontSize: 13, fontWeight: 600, color: '#2D1B1B' }}>{t.name}</span>
-                      <span style={{ fontSize: 12, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-                        <Money pence={(t.price_cents || 0)} /> · {t.duration_minutes}m
-                      </span>
-                    </button>
+                    <TreatmentOption key={t.id} treatment={t} onPick={changeTreatment} busy={treatmentSaving} />
                   ))}
                   {treatmentError && (
                     <p style={{ fontSize: 13, color: 'var(--danger)', margin: '8px 0 0', lineHeight: 1.45 }}>{treatmentError}</p>
@@ -522,11 +658,11 @@ export default function ClientManagePage() {
             )}
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0 0', marginTop: 4, borderTop: '1px solid rgba(0,0,0,0.08)', fontSize: 15 }}>
               {payment.paidInFull || payment.remainingCents === 0 ? (
-                <span style={{ fontWeight: 700, color: brand }}>Paid in full</span>
+                <span style={{ fontWeight: 700, color: brandInk }}>Paid in full</span>
               ) : (
                 <>
-                  <span style={{ fontWeight: 700, color: brand }}>Outstanding</span>
-                  <span style={{ fontWeight: 700, color: brand, fontVariantNumeric: 'tabular-nums' }}><Money pence={payment.remainingCents} /></span>
+                  <span style={{ fontWeight: 700, color: brandInk }}>Outstanding</span>
+                  <span style={{ fontWeight: 700, color: brandInk, fontVariantNumeric: 'tabular-nums' }}><Money pence={payment.remainingCents} /></span>
                 </>
               )}
             </div>
@@ -632,7 +768,7 @@ export default function ClientManagePage() {
               <div style={{ background: brandLight, border: `1.5px solid ${brand}`, borderRadius: 10,
                 padding: '12px 14px', marginBottom: 12,
               }}>
-                <p style={{ margin: '0 0 2px', fontSize: 14, fontWeight: 700, color: brand }}>
+                <p style={{ margin: '0 0 2px', fontSize: 14, fontWeight: 700, color: brandInk }}>
                   Patch test booked
                 </p>
                 <p style={{ margin: 0, fontSize: 13, color: '#2D1B1B' }}>
@@ -660,7 +796,7 @@ export default function ClientManagePage() {
                     <button
                       onClick={loadPatchTestSlots}
                       disabled={loadingSlots}
-                      style={{ ...S.confirmSlotBtn, background: brand, width: '100%' }}
+                      style={{ ...S.confirmSlotBtn, background: brand, color: onBrandColour, width: '100%' }}
                     >
                       {loadingSlots ? 'Loading slots…' : 'Book your patch test'}
                     </button>
@@ -712,7 +848,7 @@ export default function ClientManagePage() {
                               <button
                                 onClick={() => confirmPatchTestSlot(pt.suggested_slot)}
                                 disabled={confirmingSlot}
-                                style={{ ...S.confirmSlotBtn, background: brand, flex: 1 }}
+                                style={{ ...S.confirmSlotBtn, background: brand, color: onBrandColour, flex: 1 }}
                               >
                                 {confirmingSlot ? 'Confirming…' : 'Confirm'}
                               </button>
@@ -729,7 +865,7 @@ export default function ClientManagePage() {
                           <button
                             onClick={loadPatchTestSlots}
                             disabled={loadingSlots}
-                            style={{ ...S.confirmSlotBtn, background: brand, width: '100%' }}
+                            style={{ ...S.confirmSlotBtn, background: brand, color: onBrandColour, width: '100%' }}
                           >
                             {loadingSlots ? 'Loading slots…' : 'Find available slots'}
                           </button>
@@ -892,7 +1028,7 @@ export default function ClientManagePage() {
                       <button
                         onClick={() => handleReschedule()}
                         disabled={rescheduling || !rescheduleDate || !rescheduleTime}
-                        style={{ ...S.confirmCancelBtn, background: brand, opacity: (!rescheduleDate || !rescheduleTime) ? 0.5 : 1 }}
+                        style={{ ...S.confirmCancelBtn, background: brand, color: onBrandColour, opacity: (!rescheduleDate || !rescheduleTime) ? 0.5 : 1 }}
                       >
                         {rescheduling ? 'Moving…' : 'Confirm reschedule'}
                       </button>
@@ -943,7 +1079,7 @@ export default function ClientManagePage() {
         {isCancelled && (
           <div style={S.cancelledBanner}>
             This appointment has been cancelled.{' '}
-            <a href={`/book/${slug}`} style={{ color: brand, fontWeight: 600 }}>Book again →</a>
+            <a href={`/book/${slug}`} style={{ color: brandInk, fontWeight: 600 }}>Book again →</a>
           </div>
         )}
       </div>
@@ -951,7 +1087,7 @@ export default function ClientManagePage() {
       {/* Footer */}
       <div style={S.footer}>
         <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>Powered by </span>
-        <span style={{ color: brand, fontSize: 13, fontWeight: 700, fontFamily: "'Playfair Display', Georgia, serif", fontStyle: 'italic' }}>florrie.ai</span>
+        <span style={{ color: brandInk, fontSize: 13, fontWeight: 700, fontFamily: "'Playfair Display', Georgia, serif", fontStyle: 'italic' }}>florrie.ai</span>
       </div>
     </div>
   );
@@ -1297,7 +1433,11 @@ const S = {
   rescheduleBtn: {
     width: '100%', padding: '13px 0', borderRadius: 10,
     border: '1.5px solid #C76B8A33', background: '#FFF0F4',
-    color: 'var(--accent-rose)', fontSize: 14, fontWeight: 600,
+    // NOT var(--accent-rose). The token is #c76b8a and this button paints it
+    // on #FFF0F4, its own tint, which is 3.22:1 — under AA on the control a
+    // client taps to move their appointment. Same rose, one shade deeper, so
+    // it still reads as the same button.
+    color: ROSE_INK, fontSize: 14, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
   rescheduleCard: {

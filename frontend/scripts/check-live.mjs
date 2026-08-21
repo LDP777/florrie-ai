@@ -39,6 +39,10 @@ const ROUTES = process.argv.slice(2).filter(a => !a.startsWith('--'));
 if (!ROUTES.length) ROUTES.push(
   // Public
   '/book/ellindigo', '/terms', '/privacy',
+  // The page a client lands on from her confirmation. It has never been
+  // graded: it needs a management token, so it sat in the excluded list
+  // below until fixtures existed for it.
+  '/book/ellindigo/manage/c2765cc8-16f6-4d96-96ea-20b9822d6a3d',
   // The five tabs, then everything reachable from More that holds real data.
   // Routes are cheap here — about two seconds each — and the whole point is
   // that a screen nobody has looked at closely is exactly where an unreadable

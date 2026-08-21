@@ -105,3 +105,41 @@ export function readableOn(brand, bg = '#FBF6F1', min = 4.5) {
 export function onBrand(brand, ink = '#241B17', cream = '#FFFFFF') {
   return contrast(ink, brand) >= contrast(cream, brand) ? ink : cream;
 }
+
+/**
+ * What a translucent colour actually PAINTS as, once it is over its ground.
+ *
+ * `brand + '15'` is the app's shorthand for a brand tint — the colour at 8%
+ * over whatever is behind it. Contrast has to be measured against the flattened
+ * result, not against the ground and not against the brand: text on a tint is
+ * on neither of them.
+ *
+ * @param {string} fg the hex being laid over
+ * @param {string} bg the hex underneath
+ * @param {number} alpha 0-1
+ */
+export function mixOver(fg, bg, alpha) {
+  const f = parse(fg), b = parse(bg);
+  if (!f || !b) return bg;
+  const a = clamp(Number(alpha) || 0, 0, 1);
+  return toHex({
+    r: f.r * a + b.r * (1 - a),
+    g: f.g * a + b.g * (1 - a),
+    b: f.b * a + b.b * (1 - a),
+  });
+}
+
+/**
+ * One ink that is readable on EVERY ground it will be used on.
+ *
+ * A page does not have a background, it has several — a card, a slightly
+ * darker page, and a brand tint over both. Darkening for one of them and
+ * checking that one is how five of the six failures on the client's manage
+ * page survived. Take the darkest answer and use it everywhere.
+ */
+export function readableOnAll(brand, grounds, min = 4.5) {
+  const inks = (grounds || []).map(g => readableOn(brand, g, min));
+  if (!inks.length) return brand;
+  // Darkest wins: highest contrast against white.
+  return inks.reduce((a, b) => (contrast(a, '#ffffff') > contrast(b, '#ffffff') ? a : b));
+}
