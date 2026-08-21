@@ -379,7 +379,7 @@ async function logSendFailure({ beauticianId, to, channel, detail }) {
  * nudges) are written into the messages table so the client's thread shows
  * the whole conversation, not just the chatty parts. Fail-soft.
  */
-async function logOutboundToThread({ beauticianId, to, clientId, channel, templateName, templateParams, body }) {
+async function logOutboundToThread({ beauticianId, to, clientId, channel, templateName, templateParams, body, providerMessageId = null }) {
   try {
     if (!beauticianId) return;
     // The email/SMS callers can hand us the client id directly; otherwise match on phone.
@@ -429,6 +429,14 @@ async function logOutboundToThread({ beauticianId, to, clientId, channel, templa
       channel,
       content,
       ai_handled: true,
+      // The provider's id for this message, which is the ONLY thing a delivery
+      // receipt can be matched against. Without it every automated send was
+      // recorded with send_status null and delivered_at null for ever, so the
+      // app could never tell a delivered confirmation from one Meta dropped —
+      // which is precisely the question nobody could answer when Lucy Walker
+      // said she had never received a link.
+      ...(channel === 'whatsapp' && providerMessageId ? { whatsapp_message_id: providerMessageId } : {}),
+      send_status: 'sent',
       // An approved WhatsApp template when we sent one, otherwise product
       // prose. Either way it is not her writing and must never train her voice.
       ...authorship(templateName ? 'template' : 'system'),
@@ -485,7 +493,11 @@ async function sendWhatsAppTemplateViaTwilio({ to, templateName, templateParams,
   if (result) {
     logger.info({ to, templateName: sentAs, provider: 'twilio', contentSid: contentSid || null }, 'WhatsApp template sent');
     if (beauticianId) await trackWhatsAppMessage(beauticianId);
-    if (!skipThreadLog) logOutboundToThread({ beauticianId, to, clientId, channel: 'whatsapp', templateName: sentAs, templateParams: params });
+    if (!skipThreadLog) logOutboundToThread({
+      beauticianId, to, clientId, channel: 'whatsapp', templateName: sentAs, templateParams: params,
+      // Twilio calls it sid; it is the same thing to a receipt.
+      providerMessageId: result?.sid || null,
+    });
     return result;
   }
   await logSendFailure({ beauticianId, to, channel: 'WhatsApp', detail: `Twilio send failed (${sentAs})` });
@@ -610,7 +622,10 @@ export async function sendWhatsApp({ to, templateName, templateParams, beauticia
       if (res.ok) {
         logger.info({ to, templateName, lang }, 'WhatsApp template sent');
         if (beauticianId) await trackWhatsAppMessage(beauticianId);
-        if (!skipThreadLog) logOutboundToThread({ beauticianId, to, clientId, channel: 'whatsapp', templateName, templateParams });
+        if (!skipThreadLog) logOutboundToThread({
+          beauticianId, to, clientId, channel: 'whatsapp', templateName, templateParams,
+          providerMessageId: data?.messages?.[0]?.id || null,
+        });
         return data;
       }
       lastErr = data?.error || data;

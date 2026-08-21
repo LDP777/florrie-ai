@@ -2,6 +2,7 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import { supabase } from '../config.js';
 import { processInboundMessage } from '../services/ai-front-desk.js';
+import { applyWhatsAppStatuses } from '../services/delivery-receipts.js';
 import { pushMessagesWaiting } from '../services/push-notifications.js';
 import { classifyInboundMessage, looksLikeKnownClient } from '../lib/junk-classifier.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -181,8 +182,20 @@ router.post('/whatsapp', async (req, res) => {
   try {
     const body = req.body;
 
+    // Delivery receipts. Meta sends one for every message — sent, delivered,
+    // read, failed — and this line used to throw all of them away, which is
+    // why send_status, delivered_at and read_at have been columns with no
+    // values in them since the schema was written. "Was the confirmation
+    // actually delivered?" was unanswerable, and it is the question that
+    // matters most: a client who never gets one turns up on the wrong day.
+    const statuses = body.entry?.[0]?.changes?.[0]?.value?.statuses;
+    if (Array.isArray(statuses) && statuses.length) {
+      await applyWhatsAppStatuses(statuses);
+      return;
+    }
+
     if (!body.entry?.[0]?.changes?.[0]?.value?.messages) {
-      return; // Not a message event (could be status update)
+      return; // Neither a message nor a receipt
     }
 
     const change = body.entry[0].changes[0].value;
