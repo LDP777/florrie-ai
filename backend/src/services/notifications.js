@@ -1125,7 +1125,7 @@ export async function notifyBookingConfirmed(appointmentId) {
   // and then messaged Ellie. The landing page carries change-or-cancel too.
   const linkLine = calendarUrl
     ? ` Add it to your calendar: ${calendarUrl}`
-    : (manageUrl ? ` Manage or reschedule: ${manageUrl}` : '');
+    : (manageUrl ? ` Change it, add a treatment or cancel: ${manageUrl}` : '');
   const textMsg = `Hi ${client.first_name}, your ${treatment.name} with ${bizName} is confirmed for ${shortDate} at ${timeStr}.${receiptLine ? ` ${receiptLine}` : ''}${linkLine}`;
 
   // SMS/WhatsApp — only if beautician has opted in
@@ -1147,11 +1147,36 @@ export async function notifyBookingConfirmed(appointmentId) {
       // message, not marketing, and without this the PECR quiet-hours gate
       // silently binned it after 21:00 — which is precisely when somebody
       // books an evening appointment.
-      if (waResult && calendarUrl) {
+      //
+      // IT MUST NOT BE GATED ON THE NICE-TO-HAVE ONE. This said
+      // `if (waResult && calendarUrl)`, and calendarUrl needs PUBLIC_API_URL,
+      // which is not set. So on WhatsApp — the default channel, so nearly
+      // every client — the second message never went at all and the client
+      // got the approved template on its own, which carries no link.
+      //
+      // On 21 August Lucy Walker asked to add a lash lift to her booking.
+      // Ellie replied "You should be able to add and adjust your booking. Did
+      // you receive a link at all?" and Lucy said "No I didn't :/". She was
+      // right: her confirmation had no link in it, and neither did anyone
+      // else's on WhatsApp. Meanwhile the SMS path, which almost nobody is on,
+      // had been carrying the manage link the whole time.
+      //
+      // So: prefer the calendar page, fall back to the manage page, and only
+      // send nothing if there is genuinely nothing to send. An unset
+      // environment variable may cost a nicety. It may not cost the link.
+      const waLink = calendarUrl || manageUrl;
+      if (waResult && waLink) {
+        // Say what the page DOES. "Manage or reschedule" is the wording that
+        // nobody tapped — the note above linkLine says so — and it does not
+        // hint that adding a treatment is possible at all, which is the exact
+        // thing Lucy wanted and messaged about instead.
+        const blurb = calendarUrl
+          ? `Add your appointment to your calendar so you don't lose it, or change it if you need to: ${calendarUrl}`
+          : `Need to change your appointment, add another treatment, or cancel? You can do it all here: ${manageUrl}`;
         await sendWhatsApp({
           to: client.phone,
           templateName: 'generic_message_v2',
-          templateParams: [client.first_name, `Add your appointment to your calendar so you don't lose it: ${calendarUrl}`],
+          templateParams: [client.first_name, blurb],
           beauticianId: appt.beautician_id,
           clientId: appt.client_id,
           transactional: true,
