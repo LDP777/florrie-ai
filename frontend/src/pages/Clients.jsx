@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useVisibleSlice } from '../lib/use-visible-slice.js';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useBeautician, insertRow, supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
@@ -414,6 +415,12 @@ export default function Clients() {
   const filtered = showArchived
     ? [...archivedClients].sort((a, b) => `${a.first_name} ${a.last_name || ''}`.localeCompare(`${b.first_name} ${b.last_name || ''}`))
     : applyFilterSort(activeClients);
+
+  // She has 868 of these and can see six. Rendering all of them cost 7,028 DOM
+  // nodes on open and paid the same price again on every keystroke in the
+  // search box, because filtering re-renders the list. A page at a time, with
+  // the next one mounted just before she reaches it.
+  const { slice: visible, hasMore, shown, sentinelRef } = useVisibleSlice(filtered, 40);
 
   async function loadClientDetail(id) {
     try {
@@ -854,7 +861,7 @@ export default function Clients() {
         />
       ) : (
         <div style={{ ...styles.list, paddingBottom: selectMode && selectedIds.size > 0 ? 80 : 0 }}>
-          {filtered.map(c => {
+          {visible.map(c => {
             const isChecked = selectedIds.has(c.id);
             return (
               <button
@@ -925,6 +932,15 @@ export default function Clients() {
               </button>
             );
           })}
+          {/* The next page mounts when this comes near the viewport. It also
+              says where she is in the list, because a list that grows under
+              your thumb with no end in sight is unsettling — "40 of 868" is
+              the difference between loading and broken. */}
+          {hasMore && (
+            <div ref={sentinelRef} style={styles.moreRow} aria-live="polite">
+              {shown} of {filtered.length}
+            </div>
+          )}
         </div>
       )}
 
@@ -2077,6 +2093,11 @@ const styles = {
     flexWrap: 'wrap',
     gap: 4,
     marginTop: 4,
+  },
+  moreRow: {
+    padding: '14px 0 4px', textAlign: 'center',
+    fontSize: 12, color: 'var(--text-muted)',
+    fontVariantNumeric: 'tabular-nums',
   },
   clientSpend: {
     fontSize: 13, fontWeight: 700, flexShrink: 0,
