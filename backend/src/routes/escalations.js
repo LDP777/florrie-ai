@@ -9,6 +9,7 @@ import logger from '../lib/logger.js';
 import { isSocialLead, clientsEverBooked, hasContactIdentity } from '../lib/inbox-space.js';
 import { heldBookingClaimContext } from '../services/conversational-booking.js';
 import { authorship } from '../lib/authorship.js';
+import { escalationCutoff } from '../services/escalation-expiry.js';
 
 const router = Router();
 
@@ -30,6 +31,15 @@ router.get('/', requireAuth, async (req, res) => {
     .eq('beautician_id', req.beautician.id)
     .eq('escalated', true)
     .eq('resolved', false)
+    // Nothing older than the window, EVEN IF the sweep has not run yet.
+    //
+    // Every row in this list carries a draft and an approve button, and the
+    // list had no date bound at all: on 21 August it was serving drafts for
+    // messages up to five weeks old. One tap would have sent a client an
+    // answer to something she asked in July. services/escalation-expiry.js
+    // closes them properly on a schedule; this makes sure a stale one is never
+    // offered in the gap between sweeps.
+    .gte('created_at', escalationCutoff())
     .order('created_at', { ascending: false })
     .limit(30);
 
@@ -218,7 +228,10 @@ router.get('/count', requireAuth, async (req, res) => {
     .select('id', { count: 'exact', head: true })
     .eq('beautician_id', req.beautician.id)
     .eq('escalated', true)
-    .eq('resolved', false);
+    .eq('resolved', false)
+    // Same window as the list above, or the badge promises work the queue
+    // will not show her.
+    .gte('created_at', escalationCutoff());
 
   if (error) {
     logger.error({ err: error }, 'Failed to count escalations');

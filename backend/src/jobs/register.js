@@ -39,6 +39,7 @@ import { processReminders } from '../services/notifications.js';
 import { cleanupStaleBookings } from '../services/cleanup.js';
 import { refreshInstagramTokens } from '../services/instagram-token-refresh.js';
 import { expireStaleOutboundSends } from '../services/outbound-expiry.js';
+import { expireStaleEscalations } from '../services/escalation-expiry.js';
 import { runMoneyMoments } from '../services/money-moments.js';
 import { runWeekInReview } from '../services/week-in-review.js';
 import { publishScheduledPosts } from '../services/content-scheduler.js';
@@ -89,6 +90,15 @@ export const JOBS = [
     description: 'expire proactive sends nobody ever answered',
     intervalMs: 6 * HOUR,
     handler: expireStaleOutboundSends,
+  },
+  {
+    // The same sweep, for the other queue that had never had one. Her inbox
+    // escalations had reached 237 open, 107 of them over a month old, each
+    // still carrying a draft and an approve button.
+    name: 'escalation-expiry',
+    description: 'close escalations the conversation has moved past',
+    intervalMs: 6 * HOUR,
+    handler: expireStaleEscalations,
   },
   {
     name: 'content-scheduler',
