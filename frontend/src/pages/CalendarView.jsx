@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useBeautician, supabase, updateRow, insertRow } from '../lib/supabase.js'
 import { API_BASE } from '../lib/config.js';
+import { apiFetch, apiErrorMessage } from '../lib/api-fetch.js';
 import logger from '../lib/logger.js';
 import { hapticTap, hapticSuccess } from '../lib/native.js';
 import { treatmentColor, tint } from '../lib/treatmentColors.js';
@@ -358,7 +359,7 @@ export default function CalendarView({ initialView } = {}) {
     if (!confirm(`Delete ${who}? This can't be undone.`)) return;
     try {
       const token = (await supabase.auth.getSession())?.data?.session?.access_token;
-      const del = (force) => fetch(`${API_BASE}/api/appointments/${appt.id}${force ? '?force=true' : ''}`, {
+      const del = (force) => apiFetch(`${API_BASE}/api/appointments/${appt.id}${force ? '?force=true' : ''}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -515,7 +516,7 @@ export default function CalendarView({ initialView } = {}) {
     }));
     try {
       const token = (await supabase.auth.getSession())?.data?.session?.access_token;
-      const res = await fetch(`${API_BASE}/api/appointments/${appt.id}`, {
+      const res = await apiFetch(`${API_BASE}/api/appointments/${appt.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ starts_at: startsAt }),
@@ -648,7 +649,7 @@ export default function CalendarView({ initialView } = {}) {
     setMarkingAllDone(true);
     try {
       const token = (await supabase.auth.getSession())?.data?.session?.access_token;
-      const res = await fetch(`${API_BASE}/api/appointments/complete-day`, {
+      const res = await apiFetch(`${API_BASE}/api/appointments/complete-day`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ date: formatDate(currentDate) }),
@@ -671,7 +672,7 @@ export default function CalendarView({ initialView } = {}) {
   async function loadTimeBlocks() {
     try {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const res = await fetch(`${API_BASE}/api/hours-exceptions`, {
+      const res = await apiFetch(`${API_BASE}/api/hours-exceptions`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       const data = await res.json();
@@ -684,7 +685,7 @@ export default function CalendarView({ initialView } = {}) {
     setSavingBlock(true);
     try {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const res = await fetch(`${API_BASE}/api/hours-exceptions`, {
+      const res = await apiFetch(`${API_BASE}/api/hours-exceptions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ date, type, reason, note, start_time, end_time, notify_clients: false }),
@@ -702,7 +703,7 @@ export default function CalendarView({ initialView } = {}) {
   async function deleteTimeBlock(blockId) {
     try {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
-      await fetch(`${API_BASE}/api/hours-exceptions/${blockId}`, {
+      await apiFetch(`${API_BASE}/api/hours-exceptions/${blockId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` },
       });
@@ -1475,7 +1476,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
     (async () => {
       try {
         const token = (await supabase.auth.getSession())?.data?.session?.access_token;
-        const res = await fetch(`${API_BASE}/api/appointments/${appointment.id}/manage-link`, { headers: { Authorization: `Bearer ${token}` } });
+        const res = await apiFetch(`${API_BASE}/api/appointments/${appointment.id}/manage-link`, { headers: { Authorization: `Bearer ${token}` } });
         if (!res.ok) return;
         const d = await res.json();
         if (!cancelled) setNeedsPatchTest(!!d.needs_patch_test);
@@ -1488,7 +1489,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
     setManageBusy(true); setManageSent(false);
     try {
       const token = (await supabase.auth.getSession())?.data?.session?.access_token;
-      const res = await fetch(`${API_BASE}/api/appointments/${appointment.id}/manage-link`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await apiFetch(`${API_BASE}/api/appointments/${appointment.id}/manage-link`, { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.url) {
         setManageLink(data.url);
@@ -1502,7 +1503,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
     setManageBusy(true);
     try {
       const token = (await supabase.auth.getSession())?.data?.session?.access_token;
-      const res = await fetch(`${API_BASE}/api/appointments/${appointment.id}/send-manage-link`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+      const res = await apiFetch(`${API_BASE}/api/appointments/${appointment.id}/send-manage-link`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
       const d = await res.json().catch(() => ({}));
       if (res.ok) {
         // Say what actually happened, on which channel. A silent tick told her
@@ -1528,7 +1529,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
     (async () => {
       try {
         const token = (await supabase.auth.getSession())?.data?.session?.access_token;
-        const res = await fetch(`${API_BASE}/api/appointments/${appointment.id}/card`, { headers: { Authorization: `Bearer ${token}` } });
+        const res = await apiFetch(`${API_BASE}/api/appointments/${appointment.id}/card`, { headers: { Authorization: `Bearer ${token}` } });
         if (!res.ok) return;
         const d = await res.json();
         if (!off) setCardInfo(d);
@@ -1545,7 +1546,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
     setCardLinkBusy(true);
     try {
       const token = (await supabase.auth.getSession())?.data?.session?.access_token;
-      const res = await fetch(`${API_BASE}/api/stripe/save-card-link`, {
+      const res = await apiFetch(`${API_BASE}/api/stripe/save-card-link`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ appointment_id: appointment.id }),
@@ -1570,7 +1571,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
     setChargingCard(true);
     try {
       const token = (await supabase.auth.getSession())?.data?.session?.access_token;
-      const res = await fetch(`${API_BASE}/api/appointments/${appointment.id}/charge-card`, {
+      const res = await apiFetch(`${API_BASE}/api/appointments/${appointment.id}/charge-card`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ amount_cents: cents, reason: chargeReason || 'Charge' }),
@@ -1653,14 +1654,14 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
     setTreatSaving(true);
     try {
       const token = (await supabase.auth.getSession())?.data?.session?.access_token;
-      const res = await fetch(`${API_BASE}/api/appointments/${appointment.id}`, {
+      const res = await apiFetch(`${API_BASE}/api/appointments/${appointment.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ treatment_id: treatmentId }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.status === 409) { alert('That change clashes with another booking. Move the time first.'); return; }
-      if (!res.ok) throw new Error(data.error || 'Could not change the treatment');
+      if (!res.ok) throw new Error(apiErrorMessage(res, data, 'Could not change the treatment'));
       hapticSuccess();
       setTreatEditing(false);
       onUpdate();
@@ -1682,7 +1683,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
     setTreatSaving(true);
     try {
       const token = (await supabase.auth.getSession())?.data?.session?.access_token;
-      const res = await fetch(`${API_BASE}/api/appointments/${appointment.id}`, {
+      const res = await apiFetch(`${API_BASE}/api/appointments/${appointment.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ extra_treatment_ids: nextIds }),
@@ -1693,7 +1694,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
         alert(data.error || 'That runs into the next booking. Move the time first, or take something off.');
         return;
       }
-      if (!res.ok) throw new Error(data.error || (label ? `Could not add ${label}` : 'Could not update the treatments'));
+      if (!res.ok) throw new Error(apiErrorMessage(res, data, label ? `Could not add ${label}` : 'Could not update the treatments'));
       hapticSuccess();
       setAddingTreat(false);
       const updated = data.appointment || data;
@@ -1724,13 +1725,14 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
     setDurSaving(true);
     try {
       const token = (await supabase.auth.getSession())?.data?.session?.access_token;
-      const res = await fetch(`${API_BASE}/api/appointments/${appointment.id}`, {
+      const res = await apiFetch(`${API_BASE}/api/appointments/${appointment.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ duration_minutes: Number(minutes) }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.status === 409) { alert(data.error || 'That length runs into the next booking. Move the time first.'); return; }
+      if (res.status === 429) { alert(apiErrorMessage(res, data)); return; }
       if (!res.ok) throw new Error(data.error || 'Could not change the length');
       hapticSuccess();
       setDurEditing(false);
@@ -1761,7 +1763,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
   const loadConsultation = useCallback(async () => {
     try {
       const token = (await supabase.auth.getSession())?.data?.session?.access_token;
-      const res = await fetch(`${API_BASE}/api/consultation-forms/for-appointment/${appointment.id}`, {
+      const res = await apiFetch(`${API_BASE}/api/consultation-forms/for-appointment/${appointment.id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) return null;
@@ -1788,7 +1790,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
     setResendResult(null);
     try {
       const token = (await supabase.auth.getSession())?.data?.session?.access_token;
-      const res = await fetch(`${API_BASE}/api/appointments/${appointment.id}/resend-confirmation`, {
+      const res = await apiFetch(`${API_BASE}/api/appointments/${appointment.id}/resend-confirmation`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       });
@@ -1819,7 +1821,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
     setConsultSendResult(null);
     try {
       const token = (await supabase.auth.getSession())?.data?.session?.access_token;
-      const res = await fetch(`${API_BASE}/api/consultation-forms/send`, {
+      const res = await apiFetch(`${API_BASE}/api/consultation-forms/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ client_id: appointment.client_id, appointment_id: appointment.id }),
@@ -1851,7 +1853,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
     (async () => {
       try {
         const token = (await supabase.auth.getSession())?.data?.session?.access_token;
-        const res = await fetch(`${API_BASE}/api/clients/${appointment.client_id}/outstanding-balance`, {
+        const res = await apiFetch(`${API_BASE}/api/clients/${appointment.client_id}/outstanding-balance`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!res.ok) return;
@@ -1886,7 +1888,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
     setTimeSaving(true);
     try {
       const token = (await supabase.auth.getSession())?.data?.session?.access_token;
-      const res = await fetch(`${API_BASE}/api/appointments/${appointment.id}`, {
+      const res = await apiFetch(`${API_BASE}/api/appointments/${appointment.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ starts_at: startsAt }),
@@ -1926,7 +1928,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
     setDeleting(true);
     try {
       const token = (await supabase.auth.getSession())?.data?.session?.access_token;
-      const del = (force) => fetch(`${API_BASE}/api/appointments/${appointment.id}${force ? '?force=true' : ''}`, {
+      const del = (force) => apiFetch(`${API_BASE}/api/appointments/${appointment.id}${force ? '?force=true' : ''}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -1987,7 +1989,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
     setSaving(true);
     try {
       const token = (await supabase.auth.getSession())?.data?.session?.access_token;
-      const res = await fetch(`${API_BASE}/api/booking/appointments/${appointment.id}/status`, {
+      const res = await apiFetch(`${API_BASE}/api/booking/appointments/${appointment.id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ status: 'no_show' }),
@@ -2012,7 +2014,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
     setSaving(true);
     try {
       const token = (await supabase.auth.getSession())?.data?.session?.access_token;
-      const res = await fetch(`${API_BASE}/api/stripe/charge-no-show`, {
+      const res = await apiFetch(`${API_BASE}/api/stripe/charge-no-show`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ appointment_id: appointment.id }),
@@ -2047,7 +2049,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
         return;
       }
       const amount = remaining;
-      const res = await fetch(`${API_BASE}/api/stripe/payment-link`, {
+      const res = await apiFetch(`${API_BASE}/api/stripe/payment-link`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
@@ -2077,7 +2079,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
     setChargingBalance(true);
     try {
       const token = (await supabase.auth.getSession())?.data?.session?.access_token;
-      const res = await fetch(`${API_BASE}/api/appointments/${appointment.id}/charge-balance`, {
+      const res = await apiFetch(`${API_BASE}/api/appointments/${appointment.id}/charge-balance`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -2101,7 +2103,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
     // insert could fail silently client-side, leaving appointments completed
     // with NO income row - Money read £0 for the day.
     const token = (await supabase.auth.getSession()).data.session?.access_token;
-    const res = await fetch(`${API_BASE}/api/appointments/${appointment.id}`, {
+    const res = await apiFetch(`${API_BASE}/api/appointments/${appointment.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       body: JSON.stringify({ status: 'completed', beautician_notes: notes || null }),
@@ -2184,7 +2186,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
       d.setDate(d.getDate() + rebookWeeks * 7);
       const reminderDate = formatDate(d); // local date, avoids the BST day-shift
       const token = (await supabase.auth.getSession())?.data?.session?.access_token;
-      const res = await fetch(`${API_BASE}/api/features/rebook-reminders`, {
+      const res = await apiFetch(`${API_BASE}/api/features/rebook-reminders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
@@ -3370,7 +3372,7 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], initialCl
   }, []);
   async function authedFetch(path, opts = {}) {
     const token = (await supabase.auth.getSession()).data.session?.access_token;
-    return fetch(`${API_BASE}${path}`, {
+    return apiFetch(`${API_BASE}${path}`, {
       ...opts,
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, ...(opts.headers || {}) },
     });
