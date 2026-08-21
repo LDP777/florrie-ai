@@ -188,47 +188,59 @@ export async function processInboundMessage(messageId, beautician, client, messa
     const classification = await classifyIntent(messageContent, context);
 
     // 3. Decide: act or escalate?
-    let shouldAct = canActAutonomously(classification, beautician.confidence_threshold);
+    //
+    // TWO GATES, AND FOR MONTHS ONLY ONE OF THEM EVER RAN.
+    //
+    // canActAutonomously is the original: is the intent on a list, and is the
+    // classifier's confidence over her threshold (0.9). isGroundedReply is the
+    // one built to answer Ellie's actual complaint: is the ANSWER a fact we
+    // already hold?
+    //
+    // The grounded check used to sit INSIDE `if (shouldAct)`, so it could only
+    // ever narrow what the confidence gate had already allowed. And the
+    // confidence gate almost never allows anything, because 0.9 is a number
+    // this classifier does not return: it says 0.85 when it is sure. Thirty
+    // days of her inbox, measured:
+    //
+    //   177 messages in. Florrie wrote a reply to 147 of them. She sent 5.
+    //   142 escalated — 43 of those at exactly 85% confidence.
+    //
+    // One of the held ones was a client saying "So don't rush xx" and Florrie
+    // wanting to answer "no worries! take your time". That went to Ellie for
+    // approval. Twenty-one greetings and six thank-yous did the same. About
+    // twelve of the hundred and forty-two genuinely needed her.
+    //
+    // So the guards decide now, rather than a number nobody can reach. The
+    // grounded check runs FIRST and on its own terms, and everything it
+    // refuses — availability, reschedules, cancellations, complaints, anything
+    // it cannot evidence — escalates exactly as it does today. The 28 July
+    // incident ("4.30 Thursday is free" when it was not) was an availability
+    // claim, and availability is still ungrounded, still gated, unchanged.
+    //
+    // One switch, so this is reversible without a deploy: autonomy.grounded_replies.
+    const groundedRepliesOn = beautician.autonomy?.grounded_replies !== false;
+    let groundedDecision = groundedRepliesOn
+      ? isGroundedReply({ intent: classification.intent, message: messageContent, context })
+      : { grounded: false, reason: 'grounded_replies_switched_off' };
 
-    // Per-client driver setting comes FIRST. 'just_me' / 'drafts' means she
-    // asked Florrie not to speak in this thread: always draft + escalate,
-    // never auto-send. 'florrie' is an explicit whitelist that also skips the
-    // known-client hold below.
+    // A client Ellie already knows is a relationship she manages personally, so
+    // the grounded check is the ONLY way Florrie speaks in that thread — the
+    // confidence gate cannot let a booking request through on a 0.95. For
+    // somebody who has never booked, either gate will do: a stranger asking
+    // what a lash lift costs is answered from the price list, and a stranger
+    // asking for a slot still goes down the old path with its threshold intact.
+    const known = await isKnownClient(beautician.id, client?.id, client);
+    // Per-client driver setting. 'just_me' / 'drafts' means she asked Florrie
+    // not to speak in this thread. 'florrie' is an explicit whitelist.
     const autonomyOverride = await clientAutonomyOverride(beautician.id, client?.id, client);
-    if (autonomyOverride === 'just_me' || autonomyOverride === 'drafts') {
-      shouldAct = false;
-    }
 
-    // Clients Ellie already knows are relationships she manages personally, so
-    // this used to be an outright no: draft it, escalate it, wait for her
-    // yes/no. It is what stopped a regular getting an out-of-context message
-    // after Florrie told a client 4.30 Thursday was free when it was not.
-    //
-    // It also meant Florrie auto-replied to strangers and to NOBODY ELSE,
-    // because isKnownClient is "any appointment ever, in any status". Ellie's
-    // verdict after a month was that she still had just as much admin, and she
-    // was right — it never went away, it changed shape. She stopped writing
-    // messages and started approving them.
-    //
-    // So the line moves from WHO is asking to WHETHER THE ANSWER IS A FACT WE
-    // HOLD. "When am I booked in?" is a lookup and Florrie answers it. "Can
-    // you fit me in Saturday?" is a claim about the future and still goes to
-    // Ellie — which is what the 28 July incident actually was.
-    //
-    // lib/grounded-reply.js owns the boundary and explains every case.
-    let groundedDecision = null;
-    if (shouldAct && autonomyOverride !== 'florrie'
-        && await isKnownClient(beautician.id, client?.id, client)) {
-      // One switch, so this is reversible without a deploy. Default ON — Levi
-      // asked for the dial turned back up — but if Ellie decides she wants
-      // eyes on everything again, `autonomy.grounded_replies = false` puts it
-      // back exactly as it was.
-      const groundedRepliesOn = beautician.autonomy?.grounded_replies !== false;
-      groundedDecision = groundedRepliesOn
-        ? isGroundedReply({ intent: classification.intent, message: messageContent, context })
-        : { grounded: false, reason: 'grounded_replies_switched_off' };
-      if (!groundedDecision.grounded) shouldAct = false;
-    }
+    let shouldAct = mayFlorrieSend({
+      classification,
+      groundedDecision,
+      known,
+      autonomyOverride,
+      threshold: beautician.confidence_threshold,
+    });
 
     // Asking for a human is answered by a human, full stop — and the thread is
     // marked so Florrie stays out of it from now on rather than making her ask
@@ -374,7 +386,14 @@ export async function processInboundMessage(messageId, beautician, client, messa
       return await escalateWithDraft({
         beautician, client, messageContent, classification, context, messageId,
         draft: convo?.reply || null,
-        reason: groundedDecision && !groundedDecision.grounded ? groundedDecision.reason : null,
+        // Say the real reason. An escalation logged as "Low confidence (85%)"
+        // when the truth is "she set this thread to just me" is a reason that
+        // sends whoever reads it looking in the wrong place — and for months
+        // that string was on 43 messages whose confidence had nothing to do
+        // with why they were held.
+        reason: (autonomyOverride === 'just_me' || autonomyOverride === 'drafts')
+          ? `client_set_to:${autonomyOverride}`
+          : (groundedDecision && !groundedDecision.grounded ? groundedDecision.reason : null),
       });
     }
 
@@ -744,6 +763,46 @@ NEVER say when an appointment is unless it is in that list, and say the day that
 
 // STEP 3: DECIDE
 
+/**
+ * May Florrie send this one herself?
+ *
+ * Pulled out as a pure function because it is the single most consequential
+ * `if` in the product — it decides whether a machine speaks to Ellie's clients
+ * — and for months nobody could test it without an LLM and a database. The
+ * version it replaces was three assignments scattered across forty lines of
+ * the handler, and the bug in it (the grounded check could only ever narrow
+ * what the confidence gate allowed, and the confidence gate allowed almost
+ * nothing) was invisible for exactly that reason.
+ *
+ * @param {object} a
+ * @param {{intent: string, confidence: number}} a.classification
+ * @param {{grounded: boolean, reason: string}} a.groundedDecision from isGroundedReply
+ * @param {boolean} a.known has this client ever booked
+ * @param {string|null} a.autonomyOverride 'just_me' | 'drafts' | 'florrie' | null
+ * @param {number} a.threshold her confidence threshold, for the old path
+ */
+export function mayFlorrieSend({ classification, groundedDecision, known, autonomyOverride, threshold }) {
+  // She said not in this thread. Nothing else matters.
+  if (autonomyOverride === 'just_me' || autonomyOverride === 'drafts') return false;
+
+  const grounded = !!groundedDecision?.grounded;
+  const classic = canActAutonomously(classification, threshold);
+
+  // A client she has explicitly whitelisted is one she has said Florrie may
+  // speak to, so the known-client narrowing below does not apply.
+  if (autonomyOverride === 'florrie') return grounded || classic;
+
+  // A client she already knows is a relationship she manages personally: the
+  // grounded check is the ONLY way in. A booking request at 0.95 confidence
+  // still waits for her, which is what the 28 July availability incident was.
+  if (known) return grounded;
+
+  // A stranger: either gate will do. Answering "what does a lash lift cost"
+  // from the price list needs no permission, and asking for a Saturday slot
+  // still goes down the old path with its threshold intact.
+  return grounded || classic;
+}
+
 function canActAutonomously(classification, threshold) {
   // Always escalate certain intents regardless of confidence
   if (ALWAYS_ESCALATE.includes(classification.intent)) {
@@ -755,14 +814,25 @@ function canActAutonomously(classification, threshold) {
     && classification.confidence >= threshold;
 }
 
-function getEscalationReason(classification) {
+/**
+ * Why this one is going to Ellie, when nothing more specific was passed.
+ *
+ * The grounded check now supplies the reason in almost every case, so this is
+ * the fallback for a message held by something else. It used to blame
+ * confidence for everything below 0.9, which was both the commonest string in
+ * her queue and usually not the cause.
+ */
+function getEscalationReason(classification, threshold = 0.9) {
   if (ALWAYS_ESCALATE.includes(classification.intent)) {
     return `Intent "${classification.intent}" requires human judgment`;
   }
-  if (classification.confidence < 0.9) {
-    return `Low confidence (${(classification.confidence * 100).toFixed(0)}%), not sure enough to respond autonomously`;
+  if (!AUTONOMOUS_INTENTS.includes(classification.intent)) {
+    return `Intent "${classification.intent}" is not in the autonomous action list`;
   }
-  return `Intent "${classification.intent}" is not in the autonomous action list`;
+  if (classification.confidence < threshold) {
+    return `Not sure enough what "${classification.intent}" meant here (${(classification.confidence * 100).toFixed(0)}%)`;
+  }
+  return `Held for you to check`;
 }
 
 // STEP 4a: GENERATE RESPONSE + TAKE ACTION
