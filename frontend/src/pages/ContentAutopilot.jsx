@@ -245,7 +245,15 @@ export default function ContentAutopilot() {
       if (!res.ok) throw new Error('Failed to fetch posts');
       const data = await res.json();
       const allPosts = data.posts || [];
-      setDrafts(allPosts.filter(p => p.status === 'draft').sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
+      // 'failed' and 'approved' sit with the drafts on purpose. There are only
+      // three tabs (drafts, scheduled, posted), so a post in either of those
+      // states used to disappear from every screen in the app: a post
+      // Instagram rejected, and a post that was approved while Instagram was
+      // disconnected, both silently vanished. They keep their Publish button
+      // here, so fixing the photo or reconnecting and tapping again is the
+      // whole recovery.
+      const PENDING = ['draft', 'failed', 'approved'];
+      setDrafts(allPosts.filter(p => PENDING.includes(p.status)).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
       setPosted(allPosts.filter(p => p.status === 'posted').sort((a, b) => new Date(b.posted_at) - new Date(a.posted_at)));
       setScheduled(allPosts.filter(p => p.status === 'scheduled').sort((a, b) => new Date(a.scheduled_for || 0) - new Date(b.scheduled_for || 0)));
     } catch (err) {
@@ -570,6 +578,7 @@ export default function ContentAutopilot() {
   }
   async function handleApprove(postId) {
     setPublishing(postId);
+    setError(null);
     try {
       // Call backend publish endpoint, handles Instagram Graph API if connected
       const token = getToken();
@@ -582,17 +591,32 @@ export default function ContentAutopilot() {
       });
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || 'Publish failed');
+
+      // The endpoint answers 200 whether or not the post reached Instagram,
+      // so `published` is the only thing that says what happened. This used to
+      // ignore it: the draft was removed from the list and the Posted tab was
+      // reloaded either way, so a post that Instagram had rejected vanished
+      // from the screen and never appeared on the profile. Tapping Publish and
+      // watching the card disappear is exactly what "published" looks like,
+      // which is why nobody noticed.
+      if (!result.published) {
+        throw new Error(result.reason || 'Instagram did not accept this post.');
+      }
+
       setDrafts(prev => prev.filter(p => p.id !== postId));
       // Reload posted
       const p = await fetchRows('content_posts', beautician.id, { eq: { status: 'posted' }, order: 'posted_at', ascending: false });
       setPosted(p);
-      if (result.published) {
-        logger.info('Post published to Instagram', result.instagramId);
-      } else {
-        logger.info('Post approved (Instagram not connected)', result.reason);
-      }
+      logger.info('Post published to Instagram', result.instagramId);
     } catch (err) {
       logger.error('Approve error:', err);
+      // Reload FIRST, then set the message. loadAll clears the error on entry,
+      // so setting it before the reload would wipe the only explanation she
+      // gets. The post comes back as 'failed' and stays in the drafts list
+      // with its Publish button, so fixing the photo and tapping again is the
+      // whole recovery.
+      await loadAll();
+      setError(err.message || 'Could not publish this post.');
     } finally {
       setPublishing(null);
     }

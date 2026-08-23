@@ -124,6 +124,76 @@ router.post('/', async (req, res) => {
 });
 
 /**
+ * Every id in a delivery that could name the receiving account.
+ *
+ * entry.id is the one everybody reaches for, and it is the one that was wrong
+ * in production. Meta's own webhook reference calls entry.id only "the object's
+ * ID" while telling you to verify a test delivery by looking at recipient.id,
+ * which it describes as the professional account's Instagram-scoped ID. Those
+ * are two documented names for the thing we are trying to match, so match on
+ * both rather than betting the routing on which one Meta means today.
+ *
+ * sender.id is deliberately NOT here. On an inbound DM that is the client.
+ */
+export function receivingAccountIds(event, entryId) {
+  const out = [];
+  const add = (v) => {
+    const s = v == null ? '' : String(v).trim();
+    if (s && !out.includes(s)) out.push(s);
+  };
+  add(entryId);
+  add(event?.recipient?.id);
+  return out;
+}
+
+/**
+ * Find the beautician this delivery belongs to, matching on ANY id we hold.
+ *
+ * Two lookups, in order:
+ *   1. instagram_page_id, the primary. This is what every existing row has.
+ *   2. instagram_account_ids, the full set the connect flow learned, which
+ *      covers the case that put us here: /me returns both `id` and `user_id`
+ *      and they are not the same number, so the one we stored was not the one
+ *      Meta sends.
+ *
+ * The second lookup is fail-soft. If that column has not been added yet the
+ * query errors, and an errored query must not read as "no such beautician" and
+ * silently bin a DM. It is logged and we fall back to lookup 1's answer.
+ */
+export async function findBeauticianForIds(candidateIds) {
+  if (!candidateIds?.length) return { beautician: null, matchedOn: null };
+
+  const { data: primary, error: primaryErr } = await supabase
+    .from('beauticians')
+    .select('*')
+    .in('instagram_page_id', candidateIds)
+    .limit(1);
+
+  if (primaryErr) {
+    // A failed query and an unknown account look identical at the call site
+    // unless the error is read. Say which one this was.
+    logger.error({ err: primaryErr, candidateIds }, 'Instagram DM: beautician lookup by instagram_page_id failed');
+  } else if (primary?.length) {
+    return { beautician: primary[0], matchedOn: 'instagram_page_id' };
+  }
+
+  const { data: alt, error: altErr } = await supabase
+    .from('beauticians')
+    .select('*')
+    .overlaps('instagram_account_ids', candidateIds)
+    .limit(1);
+
+  if (altErr) {
+    logger.warn({ err: altErr, candidateIds },
+      'Instagram DM: could not search instagram_account_ids (is the column there?); matched on instagram_page_id only');
+    return { beautician: null, matchedOn: null };
+  }
+  if (alt?.length) return { beautician: alt[0], matchedOn: 'instagram_account_ids' };
+
+  return { beautician: null, matchedOn: null };
+}
+
+/**
  * Process a single Instagram messaging event.
  */
 async function handleInstagramMessage(event, pageId) {
@@ -136,24 +206,29 @@ async function handleInstagramMessage(event, pageId) {
   const senderId = event.sender?.id;
   const messageText = event.message.text;
   const messageId = event.message.mid;
-  const timestamp = event.timestamp;
 
   if (!senderId || !messageText) return;
 
-  // Find beautician by Instagram page ID
-  const { data: beautician } = await supabase
-    .from('beauticians')
-    .select('*')
-    .eq('instagram_page_id', pageId)
-    .single();
+  const candidateIds = receivingAccountIds(event, pageId);
+  const { beautician, matchedOn } = await findBeauticianForIds(candidateIds);
 
   if (!beautician) {
     // NO fallback. Never attribute a DM to a random tenant: the old
     // ".limit(1).single()" hack could hand one salon's Instagram DMs to a
-    // different salon. Log the pageId so a mis-stored instagram_page_id can be
-    // corrected, and drop.
-    logger.warn({ pageId, senderId }, 'Instagram DM: no beautician matches this instagram_page_id (entry.id); dropping. Set beauticians.instagram_page_id to this pageId to route it.');
+    // different salon. Log every id Meta sent so a mis-stored id can be
+    // corrected without guessing, and drop.
+    logger.warn(
+      { candidateIds, entryId: pageId, recipientId: event?.recipient?.id, senderId },
+      'Instagram DM: no beautician matches any id on this delivery; dropping. Add one of candidateIds to beauticians.instagram_account_ids (or instagram_page_id) to route it.',
+    );
     return;
+  }
+
+  if (matchedOn === 'instagram_account_ids') {
+    // Worth knowing: the primary id on the row is not the one Meta uses, so
+    // publishing and DM routing are keyed off different numbers.
+    logger.info({ beauticianId: beautician.id, candidateIds, stored: beautician.instagram_page_id },
+      'Instagram DM: routed on a secondary account id, not instagram_page_id');
   }
 
   await processInstagramDM(beautician, senderId, messageText, messageId);

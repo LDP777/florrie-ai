@@ -214,6 +214,145 @@ function nativeReturnPage(ok, detail) {
 </div></body></html>`;
 }
 
+/** Bare handle, no leading @, so stored handles and looked-up ones agree. */
+export function normaliseHandle(raw) {
+  const h = String(raw || '').trim().replace(/^@+/, '');
+  return h || null;
+}
+
+/**
+ * A stored instagram_page_name that is not actually a handle.
+ *
+ * "Instagram" is the literal string the old connect code wrote whenever the
+ * username came back empty, so it is on real rows today and has to be treated
+ * as "we never learned the handle", not as her account name.
+ */
+export function isPlaceholderPageName(name) {
+  const n = String(name || '').trim().toLowerCase();
+  return !n || n === 'instagram' || n === 'instagram user';
+}
+
+/**
+ * Ask graph.instagram.com who this token belongs to.
+ *
+ * Returns { accountId, username, allIds }.
+ *
+ * Two things are deliberate here.
+ *
+ * 1. `allIds` collects every distinct id the flow saw: the user_id the token
+ *    exchange returned, and both `user_id` and `id` from /me. Instagram
+ *    returns these as separate fields and they are NOT always the same value,
+ *    which is exactly how a stored id and a webhook entry.id came to disagree
+ *    in production.
+ * 2. The username is chased across more than one field list. Asking for
+ *    `username` together with other fields can fail as a whole on some
+ *    accounts, and the old code read one response and gave up, which is how
+ *    the handle ended up missing and "Instagram" ended up on the card. `name`
+ *    is a display name, never a handle, so it is only ever a last resort and
+ *    is normalised the same way.
+ */
+export async function readInstagramAccount(userToken, tokenUserId) {
+  const ids = [];
+  const addId = (v) => {
+    const s = v == null ? '' : String(v).trim();
+    if (s && !ids.includes(s)) ids.push(s);
+  };
+  addId(tokenUserId);
+
+  let username = null;
+  let primary = null;
+
+  const attempts = ['user_id,username,name', 'user_id,username', 'username', 'user_id', 'id'];
+  for (const fields of attempts) {
+    try {
+      const meRes = await fetch(
+        `https://graph.instagram.com/v21.0/me` +
+        `?fields=${encodeURIComponent(fields)}` +
+        `&access_token=${encodeURIComponent(userToken)}`
+      );
+      const meData = await meRes.json().catch(() => ({}));
+      if (!meRes.ok) {
+        logger.warn({ fields, err: meData?.error || meRes.status }, 'Instagram: /me lookup rejected, trying fewer fields');
+        continue;
+      }
+      addId(meData.user_id);
+      addId(meData.id);
+      if (!primary) primary = meData.user_id || meData.id || null;
+      // ONLY `username`. `name` is a display name ("Ellindigo Beauty"), and
+      // the Settings card prints this with an @ in front of it, so borrowing
+      // the display name produces "@Ellindigo Beauty", which is not an account
+      // anybody can look up. No handle is honest; a fake handle is not.
+      if (!username) username = normaliseHandle(meData.username);
+      if (primary && username) break;
+    } catch (err) {
+      logger.warn({ err, fields }, 'Instagram: /me lookup threw, trying fewer fields');
+    }
+  }
+
+  // The id we route and publish on. Prefer what /me called user_id, fall back
+  // to whatever else we have, but every candidate is kept in allIds either way.
+  const accountId = primary || ids[0] || null;
+  if (accountId) addId(accountId);
+
+  return { accountId, username, allIds: ids };
+}
+
+/**
+ * One column, written on its own, allowed to fail.
+ *
+ * Every caller below is writing something that improves the connection but is
+ * not the connection. PostgREST rejects an entire write if a single column in
+ * it is unknown, so folding any of these into the main patch would let a
+ * migration nobody has run yet turn a successful login into a row with no
+ * token at all. Separate write, logged, never fatal.
+ */
+async function bestEffort(beauticianId, patch, note) {
+  const { error } = await supabase
+    .from('beauticians')
+    .update(patch)
+    .eq('id', beauticianId);
+  if (error) {
+    logger.warn({ err: error, beauticianId, patch }, note);
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Best-effort write of every candidate id.
+ *
+ * Without the column this is a no-op and routing falls back to
+ * instagram_page_id, which is what happens today. With it, an entry.id that
+ * disagrees with our primary id routes anyway.
+ */
+export async function saveAccountIdCandidates(beauticianId, allIds) {
+  const ids = (allIds || []).map(String).filter(Boolean);
+  if (!beauticianId || !ids.length) return false;
+  const saved = await bestEffort(beauticianId, { instagram_account_ids: ids },
+    'Instagram: could not save instagram_account_ids (is the column there?). Routing falls back to instagram_page_id alone.');
+  if (saved) logger.info({ beauticianId, ids }, 'Instagram: saved every account id this login reported');
+  return saved;
+}
+
+/**
+ * When this token dies, written down at the only moment we are told.
+ *
+ * lib/health.js already reads beauticians.instagram_token_expires_at and warns
+ * on anything close to expiry, and already falls back quietly when the column
+ * is missing. Nothing has ever written it, so that warning has never once
+ * fired. The long-lived exchange returns expires_in (about 60 days) and this
+ * is the only place it is ever visible, so it is recorded here. The daily
+ * refresh keeps the token alive; this is what notices when the refresh has
+ * stopped working, which is the failure that went five weeks unseen.
+ */
+export async function saveTokenExpiry(beauticianId, expiresInSeconds) {
+  const secs = Number(expiresInSeconds);
+  if (!beauticianId || !Number.isFinite(secs) || secs <= 0) return false;
+  const at = new Date(Date.now() + secs * 1000).toISOString();
+  return bestEffort(beauticianId, { instagram_token_expires_at: at },
+    'Instagram: could not save instagram_token_expires_at (is the column there?). The health check cannot warn before this token expires.');
+}
+
 // GET /api/instagram/callback
 // Instagram redirects here after the user approves.
 router.get('/callback', async (req, res) => {
@@ -300,23 +439,22 @@ router.get('/callback', async (req, res) => {
     const longData = await longRes.json();
     const userToken = longData.access_token || shortToken;
 
-    // Step 3 — read the account id + username. In the Instagram Login flow the
-    // /me "user_id" is the same id Meta sends as webhook entry.id, so we store it
-    // for inbound DM routing.
-    let accountId = shortUserId || null;
-    let username  = null;
-    try {
-      const meRes = await fetch(
-        `https://graph.instagram.com/v21.0/me` +
-        `?fields=user_id,username,name` +
-        `&access_token=${encodeURIComponent(userToken)}`
-      );
-      const meData = await meRes.json();
-      accountId = meData.user_id || meData.id || accountId;
-      username  = meData.username || meData.name || null;
-    } catch (err) {
-      logger.warn({ err }, 'Instagram: /me lookup failed, using token user_id');
-    }
+    // Step 3: read every id this login can tell us about, and the @handle.
+    //
+    // The comment that used to sit here said the /me "user_id" is the same id
+    // Meta sends as webhook entry.id. That was a guess, and it was wrong in
+    // production: a stored instagram_page_id did not match entry.id and DMs
+    // did not route until somebody edited the row by hand.
+    //
+    // Instagram's own docs describe entry.id only as "the object's ID" and
+    // describe the account elsewhere as an "Instagram-scoped ID", while
+    // /me can hand back BOTH an `id` and a `user_id` that are different
+    // numbers, and the token exchange hands back a third. Picking one and
+    // hoping is the bug. So: learn all of them, keep all of them, and let the
+    // webhook match on any. Routing then cannot be wrong unless Meta sends an
+    // id we were never told about at all, which is a case we log rather than
+    // guess at.
+    const { accountId, username, allIds } = await readInstagramAccount(userToken, shortUserId);
 
     if (!accountId) {
       logger.error({ beauticianId }, 'Instagram: could not determine account id');
@@ -324,20 +462,38 @@ router.get('/callback', async (req, res) => {
     }
 
     // Step 4 — store on the beautician row.
+    //
+    // instagram_page_name is only written when we actually learned a handle.
+    // It used to be written as the literal string "Instagram" whenever the
+    // lookup came back empty, and the Settings card then read "Connected,
+    // Instagram", which to a Meta reviewer looks like no account is attached.
+    // A reconnect that fails to read the handle must also not wipe a good one
+    // that an earlier connect captured.
+    const patch = {
+      instagram_page_id:    String(accountId),
+      instagram_page_token: userToken,
+      instagram_dm_mode:    'ai', // connecting = Florrie answers DMs (changeable later)
+    };
+    if (username) patch.instagram_page_name = username;
+
     const { error: updateErr } = await supabase
       .from('beauticians')
-      .update({
-        instagram_page_id:    String(accountId),
-        instagram_page_token: userToken,
-        instagram_page_name:  username || 'Instagram',
-        instagram_dm_mode:    'ai', // connecting = Florrie answers DMs (changeable later)
-      })
+      .update(patch)
       .eq('id', beauticianId);
 
     if (updateErr) {
       logger.error({ err: updateErr }, 'Instagram: failed to save credentials');
       return finish(false, 'we could not save the connection');
     }
+
+    // Every other id this login mentioned, so the webhook can match on any of
+    // them. Deliberately a SECOND write: instagram_account_ids arrives in a
+    // migration that is applied by hand, and PostgREST rejects the whole
+    // update if one column is unknown. Folding it into the patch above would
+    // turn a missing migration into a connect flow that saves nothing at all,
+    // which is a far worse failure than routing on one id.
+    await saveAccountIdCandidates(beauticianId, allIds);
+    await saveTokenExpiry(beauticianId, longData.expires_in);
 
     // Step 5 — subscribe this account to the app's message webhooks so inbound
     // DMs reach POST /api/webhooks/instagram. Non-fatal: connection still counts
@@ -397,14 +553,19 @@ router.get('/status', requireAuth, async (req, res) => {
     // looked wrong. Actually ask Instagram whether the token still works.
     let tokenValid = null;   // null = could not check
     let tokenError = null;
+    let liveHandle = null;
     if (data.instagram_page_token) {
       try {
-        const r = await fetch('https://graph.instagram.com/v21.0/me?fields=id', {
+        // Ask for the handle in the same breath as the liveness check. It is
+        // the same request either way, and it is the one thing a Meta reviewer
+        // reads off this card to decide whether a real account is attached.
+        const r = await fetch('https://graph.instagram.com/v21.0/me?fields=user_id,username', {
           headers: { Authorization: `Bearer ${data.instagram_page_token}` },
         });
         const body = await r.json().catch(() => ({}));
         tokenValid = r.ok;
         if (!r.ok) tokenError = body?.error?.message || `HTTP ${r.status}`;
+        else liveHandle = normaliseHandle(body?.username);
       } catch (err) {
         tokenError = 'Could not reach Instagram';
       }
@@ -413,9 +574,54 @@ router.get('/status', requireAuth, async (req, res) => {
       tokenError = 'No access token stored';
     }
 
+    // Self-heal the handle. Rows connected before this existed carry the
+    // literal string "Instagram", which reads as an unconnected account. One
+    // load of the Settings card now repairs it permanently, with no reconnect
+    // and no hand-edited row.
+    let pageName = isPlaceholderPageName(data.instagram_page_name) ? null : data.instagram_page_name;
+    if (liveHandle && liveHandle !== pageName) {
+      pageName = liveHandle;
+      const { error: nameErr } = await supabase
+        .from('beauticians')
+        .update({ instagram_page_name: liveHandle })
+        .eq('id', req.beautician.id);
+      if (nameErr) logger.warn({ err: nameErr }, 'Instagram: could not save the repaired handle');
+    }
+
+    // Is this account actually subscribed to message webhooks?
+    //
+    // Connecting does two separate things: it stores a token, and it POSTs
+    // /me/subscribed_apps so Meta starts delivering DMs here. The second one
+    // is non-fatal at connect time, by design, because a connection is still
+    // worth having without it. The cost of that choice is a card that says
+    // Connected while no DM will ever arrive, which is indistinguishable from
+    // a working setup right up until somebody sends a message and waits.
+    // Asked here so it can be checked before it matters.
+    let webhookSubscribed = null;   // null = could not check
+    if (tokenValid) {
+      try {
+        const s = await fetch('https://graph.instagram.com/v21.0/me/subscribed_apps', {
+          headers: { Authorization: `Bearer ${data.instagram_page_token}` },
+        });
+        const sBody = await s.json().catch(() => ({}));
+        if (s.ok) {
+          const apps = Array.isArray(sBody?.data) ? sBody.data : [];
+          webhookSubscribed = apps.some(a =>
+            (a?.subscribed_fields || []).some(f => String(f?.name || f) === 'messages'));
+        }
+      } catch (err) {
+        // Leave it null. "We could not check" is not "it is broken".
+      }
+    }
+
     res.json({
       connected: true,
-      page_name: data.instagram_page_name || 'Instagram',
+      // No more inventing "Instagram" as a name. Null means we genuinely do
+      // not know the handle, and the card can say so instead of lying quietly.
+      page_name: pageName,
+      // true / false / null. Only ever false when Instagram positively said
+      // this account is not subscribed to the messages field.
+      webhook_subscribed: webhookSubscribed,
       account_id: data.instagram_page_id,
       token_valid: tokenValid,
       // The app should surface a reconnect prompt on this, not on `connected`.
@@ -439,6 +645,16 @@ router.post('/disconnect', requireAuth, async (req, res) => {
         instagram_page_name:  null,
       })
       .eq('id', req.beautician.id);
+
+    // Separate and fail-soft for the same reason as the connect path: a column
+    // that may not be there yet must not take the disconnect down with it.
+    // Leaving stale ids behind would let a later webhook route a DM to an
+    // account she has explicitly unhooked.
+    const { error: idsErr } = await supabase
+      .from('beauticians')
+      .update({ instagram_account_ids: null })
+      .eq('id', req.beautician.id);
+    if (idsErr) logger.warn({ err: idsErr }, 'Instagram disconnect: could not clear instagram_account_ids');
 
     res.json({ success: true });
   } catch (err) {

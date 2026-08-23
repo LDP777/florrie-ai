@@ -11,7 +11,7 @@
  */
 import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
-import { publishPost } from './content-autopilot.js';
+import { publishPost, markPostFailed } from './content-autopilot.js';
 
 export async function publishScheduledPosts() {
   const now = new Date().toISOString();
@@ -57,15 +57,22 @@ export async function publishScheduledPosts() {
       if (result?.published) {
         published++;
       } else {
-        // publishPost marks 'approved' when Instagram is not connected and
-        // 'failed' on API errors; both are honest end states. Log the why.
+        // She scheduled this for a time and it did not go out at that time.
+        // publishPost already marks a real API failure 'failed'; the one case
+        // it leaves as 'approved' is a disconnected Instagram, and for a
+        // SCHEDULED post that is not a resting state, it is a post that
+        // quietly never happened. Mark it failed so it shows up as something
+        // to deal with rather than sitting in approved forever.
         logger.warn({ postId: post.id, reason: result?.reason }, 'content scheduler: post did not publish');
+        if (result?.not_connected) {
+          await markPostFailed(post.id, result.reason || 'Instagram is not connected');
+        }
         failed++;
       }
     } catch (err) {
       failed++;
       logger.warn({ err, postId: post.id }, 'content scheduler: publish threw');
-      await supabase.from('content_posts').update({ status: 'failed' }).eq('id', post.id);
+      await markPostFailed(post.id, err?.message || 'Publishing threw');
     }
   }
 

@@ -356,6 +356,15 @@ export default function Settings({ onLogout }) {
   const igChecking = !!beautician.instagram_page_id && igStatus === null;
   const igNeedsReconnect = !!beautician.instagram_page_id && igStatus?.needs_reconnect === true;
   const igTokenValid = igStatus?.token_valid === true;
+  // The handle, from the live check first. /api/instagram/status asks
+  // Instagram for the username in the same request that proves the token
+  // works, and repairs the stored one, so it is right on the first load after
+  // a reconnect while the profile row is still whatever was cached. Rows
+  // connected before that existed carry the literal string "Instagram", which
+  // a Meta reviewer reads as no account being attached, so it is never shown.
+  const igStoredName = String(beautician.instagram_page_name || '').trim();
+  const igHandle = igStatus?.page_name
+    || (/^instagram$/i.test(igStoredName) ? '' : igStoredName);
 
   return (
     <div style={{ ...styles.page, animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)' }}>
@@ -1629,7 +1638,7 @@ export default function Settings({ onLogout }) {
                   {!beautician.instagram_page_id ? 'Not connected'
                     : igChecking ? 'Checking…'
                     : igNeedsReconnect ? '● Needs reconnecting'
-                    : igTokenValid ? `● Connected${beautician.instagram_page_name ? `, ${beautician.instagram_page_name}` : ''}`
+                    : igTokenValid ? `● Connected${igHandle ? `, @${igHandle.replace(/^@+/, '')}` : ''}`
                     : 'Could not check just now'}
                 </span>
               </div>
@@ -1678,6 +1687,23 @@ export default function Settings({ onLogout }) {
                   // 38px sm floor plus an invisible ::after.
                   style={{ minHeight: 44 }}
                 >
+                  {igConnecting ? 'Reconnecting…' : 'Reconnect Instagram'}
+                </Button>
+              </div>
+            )}
+            {/* Connected, token alive, and Instagram still will not deliver a
+                single DM. Subscribing the account to the messages webhook is a
+                separate call at connect time and it is deliberately non-fatal,
+                so this is the state that looks perfect and is not. Only shown
+                when Instagram positively said no, never on a failed check. */}
+            {igTokenValid && igStatus?.webhook_subscribed === false && (
+              <div style={{ marginTop: 12, padding: '12px 14px', borderRadius: 10,
+                background: 'var(--warning-bg, #FAF0DC)',
+              }}>
+                <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', margin: '0 0 10px', lineHeight: 1.5 }}>
+                  Your account is connected, but Instagram is not sending your DMs here yet. Tap Reconnect to finish it off.
+                </p>
+                <Button size="sm" fullWidth onClick={handleConnectInstagram} disabled={igConnecting} style={{ minHeight: 44 }}>
                   {igConnecting ? 'Reconnecting…' : 'Reconnect Instagram'}
                 </Button>
               </div>
