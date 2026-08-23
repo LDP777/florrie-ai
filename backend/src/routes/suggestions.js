@@ -540,13 +540,46 @@ router.patch('/appointments/:id/price', requireAuth, async (req, res) => {
 
 async function fromUpcomingBankHoliday(beauticianId) {
   try {
-    const { data: b } = await supabase
+    // The postcode lives on locations, not beauticians
+    // (supabase/migrations/027_multi_location.sql adds it there and nowhere
+    // else). Selecting beauticians.postcode made PostgREST reject the whole
+    // select, `b` came back undefined, postcodeToDivision(undefined) fell back
+    // to England and Wales, and a Scottish salon was never told about 2 January
+    // while being prompted about bank holidays she does not have.
+    //
+    // Prefer the beautician's default location, then her primary one, then the
+    // oldest. A salon with no location row still falls back to England and
+    // Wales, which is what postcodeToDivision does with nothing.
+    const { data: beautician, error: bErr } = await supabase
       .from('beauticians')
-      .select('postcode')
+      .select('default_location_id')
       .eq('id', beauticianId)
-      .single();
+      .maybeSingle();
+    if (bErr) logger.warn({ err: bErr }, 'Bank holiday: could not read the default location');
 
-    const division = postcodeToDivision(b?.postcode);
+    let postcode = null;
+    if (beautician?.default_location_id) {
+      const { data: loc } = await supabase
+        .from('locations')
+        .select('postcode')
+        .eq('id', beautician.default_location_id)
+        .eq('beautician_id', beauticianId)
+        .maybeSingle();
+      postcode = loc?.postcode || null;
+    }
+    if (!postcode) {
+      const { data: locs, error: lErr } = await supabase
+        .from('locations')
+        .select('postcode, is_primary, created_at')
+        .eq('beautician_id', beauticianId)
+        .not('postcode', 'is', null)
+        .order('created_at', { ascending: true });
+      if (lErr) logger.warn({ err: lErr }, 'Bank holiday: could not read locations');
+      const rows = locs || [];
+      postcode = (rows.find(l => l.is_primary) || rows[0])?.postcode || null;
+    }
+
+    const division = postcodeToDivision(postcode);
     const next = nextBankHoliday(division);
     if (!next) return [];
 

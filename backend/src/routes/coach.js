@@ -120,18 +120,54 @@ router.post('/nudge', requireAuth, async (req, res) => {
       const { treatment_name, price_cents, category } = context;
       const currentPrice = (price_cents || 0) / 100;
 
-      // Bookings for this treatment last 60 days
+      // Bookings for this treatment last 60 days.
+      //
+      // appointments has no treatment_name. The link between an appointment and
+      // a treatment is the treatment_id foreign key (001_initial_schema.sql), so
+      // the name has to be resolved through the treatments table first.
+      // Filtering on the phantom column made PostgREST reject the whole select,
+      // `bookings` came back null, and the prompt then told Claude "Bookings
+      // last 60 days: 0 | Revenue last 60 days: 0" for a treatment she does
+      // twice a week. Advice priced off a zero she can see is wrong is worse
+      // than no advice, so a failure here says so instead.
       const since = new Date(); since.setDate(since.getDate() - 60);
-      const { data: bookings } = await supabase
-        .from('appointments')
-        .select('price_cents, starts_at')
-        .eq('beautician_id', beauticianId)
-        .ilike('treatment_name', `%${treatment_name}%`)
-        .gte('starts_at', since.toISOString())
-        .neq('status', 'cancelled');
 
-      const count60 = bookings?.length || 0;
-      const revenue60 = (bookings || []).reduce((s, b) => s + (b.price_cents || 0), 0) / 100;
+      const { data: matchingTreatments, error: treatmentErr } = await supabase
+        .from('treatments')
+        .select('id')
+        .eq('beautician_id', beauticianId)
+        .ilike('name', `%${treatment_name}%`);
+
+      let bookings = [];
+      let bookingsKnown = !treatmentErr;
+      const treatmentIds = (matchingTreatments || []).map(t => t.id);
+
+      if (bookingsKnown && treatmentIds.length) {
+        // Only the PRIMARY treatment counts. On a multi-treatment booking
+        // price_cents is the COMBINED total (043_multi_treatment.sql), so
+        // counting an appointment where this treatment was only an extra would
+        // credit it with someone else's money.
+        const { data, error } = await supabase
+          .from('appointments')
+          .select('price_cents, starts_at')
+          .eq('beautician_id', beauticianId)
+          .in('treatment_id', treatmentIds)
+          .gte('starts_at', since.toISOString())
+          .neq('status', 'cancelled');
+        if (error) bookingsKnown = false;
+        else bookings = data || [];
+      }
+
+      if (!bookingsKnown) {
+        logger.warn(
+          { err: treatmentErr, treatment_name, beauticianId },
+          'Coach: could not count bookings for this treatment, refusing to advise from zero',
+        );
+        return res.status(503).json({ error: 'We could not work that out just now.' });
+      }
+
+      const count60 = bookings.length;
+      const revenue60 = bookings.reduce((s, b) => s + (b.price_cents || 0), 0) / 100;
       const benchmark = findBenchmark(treatment_name);
 
       if (!benchmark) {

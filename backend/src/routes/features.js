@@ -316,6 +316,21 @@ router.delete('/patch-tests/:id', requireAuth, async (req, res) => {
 // AFTERCARE MESSAGES
 
 /**
+ * aftercare_messages is `name` + `message` + `send_after_hours`
+ * (supabase/migrations/007_all_features.sql). The API's field names were
+ * `message_text` and `timing_days`, and neither has ever been a column, so
+ * PostgREST rejected the whole insert and no aftercare message could be
+ * created. Both spellings are still accepted on the way in and both are
+ * echoed on the way out, and DAYS are converted to HOURS rather than dropped:
+ * the name change is also a unit change.
+ */
+const aftercareOut = (row) => (row ? {
+  ...row,
+  message_text: row.message,
+  timing_days: row.send_after_hours == null ? null : row.send_after_hours / 24,
+} : row);
+
+/**
  * GET /api/features/aftercare-messages
  */
 router.get('/aftercare-messages', requireAuth, async (req, res) => {
@@ -329,17 +344,28 @@ router.get('/aftercare-messages', requireAuth, async (req, res) => {
     logger.error({ err: error }, 'Database operation failed');
     return res.status(500).json({ error: 'Something went wrong' });
   }
-  res.json({ aftercareMessages: data });
+  res.json({ aftercareMessages: (data || []).map(aftercareOut) });
 });
 
 /**
  * POST /api/features/aftercare-messages
  */
 router.post('/aftercare-messages', requireAuth, async (req, res) => {
-  const { treatment_id, message_text, timing_days } = req.body;
+  const {
+    treatment_id, name, message, message_text,
+    timing_days, send_after_hours, channel, is_active,
+  } = req.body;
 
-  if (!treatment_id || !message_text) {
-    return res.status(400).json({ error: 'treatment_id and message_text are required' });
+  const text = message ?? message_text;
+  if (!treatment_id || !text) {
+    return res.status(400).json({ error: 'treatment_id and message are required' });
+  }
+
+  let hours = 24;
+  if (send_after_hours !== undefined && send_after_hours !== null) hours = Number(send_after_hours);
+  else if (timing_days !== undefined && timing_days !== null) hours = Number(timing_days) * 24;
+  if (!Number.isFinite(hours) || hours < 0) {
+    return res.status(400).json({ error: 'send_after_hours / timing_days must be a non-negative number' });
   }
 
   // The backend uses the service key, so RLS is bypassed and this check is
@@ -348,14 +374,33 @@ router.post('/aftercare-messages', requireAuth, async (req, res) => {
     { table: 'treatments', id: treatment_id },
   ])) return;
 
+  // aftercare_messages.name is NOT NULL with no default, so the handler has to
+  // supply one. The treatment this card belongs to is the only label we
+  // already have, and it is what the list needs to read as.
+  let label = typeof name === 'string' && name.trim() ? name.trim() : '';
+  if (!label) {
+    const { data: treatment } = await supabase
+      .from('treatments')
+      .select('name')
+      .eq('id', treatment_id)
+      .eq('beautician_id', req.beautician.id)
+      .maybeSingle();
+    label = treatment?.name ? `${treatment.name} aftercare` : 'Aftercare message';
+  }
+
+  const row = {
+    beautician_id: req.beautician.id,
+    treatment_id,
+    name: label,
+    message: text,
+    send_after_hours: Math.round(hours),
+  };
+  if (channel !== undefined) row.channel = channel;
+  if (is_active !== undefined) row.is_active = is_active;
+
   const { data, error } = await supabase
     .from('aftercare_messages')
-    .insert({
-      beautician_id: req.beautician.id,
-      treatment_id,
-      message_text,
-      timing_days: timing_days || 0
-    })
+    .insert(row)
     .select()
     .single();
 
@@ -363,18 +408,29 @@ router.post('/aftercare-messages', requireAuth, async (req, res) => {
     logger.error({ err: error }, 'Database operation failed');
     return res.status(500).json({ error: 'Something went wrong' });
   }
-  res.status(201).json({ aftercareMessage: data });
+  res.status(201).json({ aftercareMessage: aftercareOut(data) });
 });
 
 /**
  * PATCH /api/features/aftercare-messages/:id
  */
 router.patch('/aftercare-messages/:id', requireAuth, async (req, res) => {
-  const { message_text, timing_days } = req.body;
+  const { name, message, message_text, timing_days, send_after_hours, channel, is_active } = req.body;
   const updates = {};
 
-  if (message_text !== undefined) updates.message_text = message_text;
-  if (timing_days !== undefined) updates.timing_days = timing_days;
+  if (message !== undefined) updates.message = message;
+  else if (message_text !== undefined) updates.message = message_text;
+
+  if (send_after_hours !== undefined) updates.send_after_hours = Math.round(Number(send_after_hours));
+  else if (timing_days !== undefined) updates.send_after_hours = Math.round(Number(timing_days) * 24);
+  if (updates.send_after_hours !== undefined
+      && (!Number.isFinite(updates.send_after_hours) || updates.send_after_hours < 0)) {
+    return res.status(400).json({ error: 'send_after_hours / timing_days must be a non-negative number' });
+  }
+
+  if (name !== undefined) updates.name = name;
+  if (channel !== undefined) updates.channel = channel;
+  if (is_active !== undefined) updates.is_active = is_active;
 
   const { data, error } = await supabase
     .from('aftercare_messages')
@@ -388,7 +444,7 @@ router.patch('/aftercare-messages/:id', requireAuth, async (req, res) => {
     logger.error({ err: error }, 'Database operation failed');
     return res.status(500).json({ error: 'Something went wrong' });
   }
-  res.json({ aftercareMessage: data });
+  res.json({ aftercareMessage: aftercareOut(data) });
 });
 
 /**
@@ -411,6 +467,18 @@ router.delete('/aftercare-messages/:id', requireAuth, async (req, res) => {
 // PACKAGES
 
 /**
+ * packages is `price_cents` + `treatment_ids`
+ * (supabase/migrations/007_all_features.sql). `price` and `treatments` are not
+ * columns, so every create and every edit was rejected whole. Both spellings
+ * are accepted in and echoed out so an existing caller keeps working.
+ */
+const packageOut = (row) => (row ? {
+  ...row,
+  price: row.price_cents,
+  treatments: row.treatment_ids,
+} : row);
+
+/**
  * GET /api/features/packages
  */
 router.get('/packages', requireAuth, async (req, res) => {
@@ -424,28 +492,41 @@ router.get('/packages', requireAuth, async (req, res) => {
     logger.error({ err: error }, 'Database operation failed');
     return res.status(500).json({ error: 'Something went wrong' });
   }
-  res.json({ packages: data });
+  res.json({ packages: (data || []).map(packageOut) });
 });
 
 /**
  * POST /api/features/packages
  */
 router.post('/packages', requireAuth, async (req, res) => {
-  const { name, description, price, treatments } = req.body;
+  const {
+    name, description, price, price_cents, treatments, treatment_ids,
+    sessions_total, saving_cents, validity_days, is_active,
+  } = req.body;
 
-  if (!name || !price) {
+  const cents = price_cents ?? price;
+  if (!name || !cents) {
     return res.status(400).json({ error: 'name and price are required' });
   }
+  if (!Number.isFinite(Number(cents))) {
+    return res.status(400).json({ error: 'price must be a number of pence' });
+  }
+
+  const row = {
+    beautician_id: req.beautician.id,
+    name,
+    description: description || null,
+    price_cents: Math.round(Number(cents)),
+    treatment_ids: treatment_ids ?? treatments ?? [],
+  };
+  if (sessions_total !== undefined) row.sessions_total = sessions_total;
+  if (saving_cents !== undefined) row.saving_cents = saving_cents;
+  if (validity_days !== undefined) row.validity_days = validity_days;
+  if (is_active !== undefined) row.is_active = is_active;
 
   const { data, error } = await supabase
     .from('packages')
-    .insert({
-      beautician_id: req.beautician.id,
-      name,
-      description: description || null,
-      price,
-      treatments: treatments || []
-    })
+    .insert(row)
     .select()
     .single();
 
@@ -453,20 +534,32 @@ router.post('/packages', requireAuth, async (req, res) => {
     logger.error({ err: error }, 'Database operation failed');
     return res.status(500).json({ error: 'Something went wrong' });
   }
-  res.status(201).json({ package: data });
+  res.status(201).json({ package: packageOut(data) });
 });
 
 /**
  * PATCH /api/features/packages/:id
  */
 router.patch('/packages/:id', requireAuth, async (req, res) => {
-  const { name, description, price, treatments } = req.body;
+  const {
+    name, description, price, price_cents, treatments, treatment_ids,
+    sessions_total, saving_cents, validity_days, is_active,
+  } = req.body;
   const updates = {};
 
   if (name !== undefined) updates.name = name;
   if (description !== undefined) updates.description = description;
-  if (price !== undefined) updates.price = price;
-  if (treatments !== undefined) updates.treatments = treatments;
+  if (price_cents !== undefined) updates.price_cents = Math.round(Number(price_cents));
+  else if (price !== undefined) updates.price_cents = Math.round(Number(price));
+  if (updates.price_cents !== undefined && !Number.isFinite(updates.price_cents)) {
+    return res.status(400).json({ error: 'price must be a number of pence' });
+  }
+  if (treatment_ids !== undefined) updates.treatment_ids = treatment_ids;
+  else if (treatments !== undefined) updates.treatment_ids = treatments;
+  if (sessions_total !== undefined) updates.sessions_total = sessions_total;
+  if (saving_cents !== undefined) updates.saving_cents = saving_cents;
+  if (validity_days !== undefined) updates.validity_days = validity_days;
+  if (is_active !== undefined) updates.is_active = is_active;
 
   const { data, error } = await supabase
     .from('packages')
@@ -480,7 +573,7 @@ router.patch('/packages/:id', requireAuth, async (req, res) => {
     logger.error({ err: error }, 'Database operation failed');
     return res.status(500).json({ error: 'Something went wrong' });
   }
-  res.json({ package: data });
+  res.json({ package: packageOut(data) });
 });
 
 /**
@@ -508,7 +601,7 @@ router.delete('/packages/:id', requireAuth, async (req, res) => {
 router.get('/client-packages', requireAuth, async (req, res) => {
   const { data, error } = await supabase
     .from('client_packages')
-    .select('*, clients(first_name, last_name, email), packages(name, price)')
+    .select('*, clients(first_name, last_name, email), packages(name, price_cents)')
     .eq('beautician_id', req.beautician.id)
     .order('created_at', { ascending: false });
 
@@ -544,7 +637,7 @@ router.post('/client-packages', requireAuth, async (req, res) => {
       package_id,
       purchased_at: purchased_at || new Date().toISOString()
     })
-    .select('*, clients(first_name, last_name, email), packages(name, price)')
+    .select('*, clients(first_name, last_name, email), packages(name, price_cents)')
     .single();
 
   if (error) {
@@ -569,7 +662,7 @@ router.patch('/client-packages/:id', requireAuth, async (req, res) => {
     .update(updates)
     .eq('id', req.params.id)
     .eq('beautician_id', req.beautician.id)
-    .select('*, clients(first_name, last_name, email), packages(name, price)')
+    .select('*, clients(first_name, last_name, email), packages(name, price_cents)')
     .single();
 
   if (error) {
@@ -614,8 +707,12 @@ router.post('/add-ons', requireAuth, async (req, res) => {
     .insert({
       beautician_id: req.beautician.id,
       name,
+      // `price` is not a column: 007_all_features.sql creates add_ons with
+      // price_cents only. Sending both meant PostgREST rejected the whole row,
+      // so no add-on could ever be created. The API still ACCEPTS `price` in
+      // the body (see `cents` above); it just no longer writes a column that
+      // does not exist.
       description: description || null,
-      price: cents,
       price_cents: cents,
       category: category || 'treatment',
       duration_minutes: duration_minutes || 0,
@@ -642,8 +739,9 @@ router.patch('/add-ons/:id', requireAuth, async (req, res) => {
 
   if (name !== undefined) updates.name = name;
   if (description !== undefined) updates.description = description;
-  if (price_cents !== undefined) { updates.price_cents = price_cents; updates.price = price_cents; }
-  else if (price !== undefined) { updates.price = price; updates.price_cents = price; }
+  // price_cents only. See the note on the insert above.
+  if (price_cents !== undefined) updates.price_cents = price_cents;
+  else if (price !== undefined) updates.price_cents = price;
   if (category !== undefined) updates.category = category;
   if (duration_minutes !== undefined) updates.duration_minutes = duration_minutes;
   if (suggest_with !== undefined) updates.suggest_with = suggest_with;
@@ -810,30 +908,48 @@ router.get('/client-memberships', requireAuth, async (req, res) => {
 
 /**
  * POST /api/features/client-memberships
+ *
+ * client_memberships holds the PLANS she offers: name, description,
+ * price_cents, benefits, is_active. It is not the enrolments table, however
+ * much the name suggests otherwise, and both
+ * supabase/migrations/007_all_features.sql and the catch-up
+ * 20260712_backend013_memberships_catchup.sql say so in as many words.
+ *
+ * This handler used to insert client_id / membership_id / status / starts_at
+ * here. None of the four is a column on this table, so the row was rejected
+ * whole and no membership could be created or joined. Those fields describe an
+ * ENROLMENT, which is membership_subscriptions, so rather than drop them
+ * silently the handler now says where they belong.
  */
 router.post('/client-memberships', requireAuth, async (req, res) => {
-  const { client_id, membership_id, starts_at } = req.body;
+  const { name, description, price, price_cents, benefits, is_active, client_id, membership_id } = req.body;
 
-  if (!client_id || !membership_id) {
-    return res.status(400).json({ error: 'client_id and membership_id are required' });
+  if (client_id !== undefined || membership_id !== undefined) {
+    return res.status(400).json({
+      error: 'client_memberships holds the plans you offer. To sign a client up to a plan, POST /api/features/membership-subscriptions with client_id and membership_id.',
+    });
   }
 
-  // The backend uses the service key, so RLS is bypassed and this check is
-  // the only thing stopping a foreign id from being accepted. 404, not 403.
-  if (!await requireOwned(req, res, [
-    { table: 'clients', id: client_id },
-    { table: 'client_memberships', id: membership_id },
-  ])) return;
+  const cents = price_cents ?? price;
+  if (!name || cents === undefined || cents === null) {
+    return res.status(400).json({ error: 'name and price_cents are required' });
+  }
+  if (!Number.isFinite(Number(cents))) {
+    return res.status(400).json({ error: 'price_cents must be a number of pence' });
+  }
+
+  const row = {
+    beautician_id: req.beautician.id,
+    name,
+    description: description || null,
+    price_cents: Math.round(Number(cents)),
+  };
+  if (benefits !== undefined) row.benefits = benefits;
+  if (is_active !== undefined) row.is_active = is_active;
 
   const { data, error } = await supabase
     .from('client_memberships')
-    .insert({
-      beautician_id: req.beautician.id,
-      client_id,
-      membership_id,
-      status: 'active',
-      starts_at: starts_at || new Date().toISOString()
-    })
+    .insert(row)
     .select()
     .single();
 
@@ -846,13 +962,29 @@ router.post('/client-memberships', requireAuth, async (req, res) => {
 
 /**
  * PATCH /api/features/client-memberships/:id
+ *
+ * Edits a PLAN. See the note on the POST: status and ends_at belong to an
+ * enrolment, which lives in membership_subscriptions.
  */
 router.patch('/client-memberships/:id', requireAuth, async (req, res) => {
-  const { status, ends_at } = req.body;
+  const { name, description, price, price_cents, benefits, is_active, status, ends_at } = req.body;
   const updates = {};
 
-  if (status !== undefined) updates.status = status;
-  if (ends_at !== undefined) updates.ends_at = ends_at;
+  if (status !== undefined || ends_at !== undefined) {
+    return res.status(400).json({
+      error: 'client_memberships holds the plans you offer. To change a client\'s membership, PATCH /api/features/membership-subscriptions/:id.',
+    });
+  }
+
+  if (name !== undefined) updates.name = name;
+  if (description !== undefined) updates.description = description;
+  if (price_cents !== undefined) updates.price_cents = Math.round(Number(price_cents));
+  else if (price !== undefined) updates.price_cents = Math.round(Number(price));
+  if (updates.price_cents !== undefined && !Number.isFinite(updates.price_cents)) {
+    return res.status(400).json({ error: 'price_cents must be a number of pence' });
+  }
+  if (benefits !== undefined) updates.benefits = benefits;
+  if (is_active !== undefined) updates.is_active = is_active;
 
   const { data, error } = await supabase
     .from('client_memberships')
@@ -889,6 +1021,20 @@ router.delete('/client-memberships/:id', requireAuth, async (req, res) => {
 // MEMBERSHIP SUBSCRIPTIONS
 
 /**
+ * membership_subscriptions is `membership_id` + `status` + `next_billing_at`
+ * (007_all_features.sql, restated in 20260712_backend013_memberships_catchup).
+ * The API called them client_membership_id / subscription_status /
+ * next_billing_date, none of which is a column, and never sent client_id at
+ * all even though it is NOT NULL. Old spellings are accepted in and echoed out.
+ */
+const subscriptionOut = (row) => (row ? {
+  ...row,
+  client_membership_id: row.membership_id,
+  subscription_status: row.status,
+  next_billing_date: row.next_billing_at,
+} : row);
+
+/**
  * GET /api/features/membership-subscriptions
  */
 router.get('/membership-subscriptions', requireAuth, async (req, res) => {
@@ -902,32 +1048,39 @@ router.get('/membership-subscriptions', requireAuth, async (req, res) => {
     logger.error({ err: error }, 'Database operation failed');
     return res.status(500).json({ error: 'Something went wrong' });
   }
-  res.json({ membershipSubscriptions: data });
+  res.json({ membershipSubscriptions: (data || []).map(subscriptionOut) });
 });
 
 /**
  * POST /api/features/membership-subscriptions
  */
 router.post('/membership-subscriptions', requireAuth, async (req, res) => {
-  const { client_membership_id, subscription_status, next_billing_date } = req.body;
+  const {
+    client_id, membership_id, client_membership_id,
+    status, subscription_status, next_billing_at, next_billing_date, started_at,
+  } = req.body;
 
-  if (!client_membership_id) {
-    return res.status(400).json({ error: 'client_membership_id is required' });
+  const plan = membership_id ?? client_membership_id;
+  if (!client_id || !plan) {
+    return res.status(400).json({ error: 'client_id and membership_id are required' });
   }
 
   // The backend uses the service key, so RLS is bypassed and this check is
   // the only thing stopping a foreign id from being accepted. 404, not 403.
   if (!await requireOwned(req, res, [
-    { table: 'client_memberships', id: client_membership_id },
+    { table: 'clients', id: client_id },
+    { table: 'client_memberships', id: plan },
   ])) return;
 
   const { data, error } = await supabase
     .from('membership_subscriptions')
     .insert({
       beautician_id: req.beautician.id,
-      client_membership_id,
-      subscription_status: subscription_status || 'active',
-      next_billing_date: next_billing_date || null
+      client_id,
+      membership_id: plan,
+      status: status ?? subscription_status ?? 'active',
+      started_at: started_at || new Date().toISOString(),
+      next_billing_at: next_billing_at ?? next_billing_date ?? null,
     })
     .select('*, clients(first_name, last_name, email), client_memberships(name, price_cents)')
     .single();
@@ -936,18 +1089,23 @@ router.post('/membership-subscriptions', requireAuth, async (req, res) => {
     logger.error({ err: error }, 'Database operation failed');
     return res.status(500).json({ error: 'Something went wrong' });
   }
-  res.status(201).json({ membershipSubscription: data });
+  res.status(201).json({ membershipSubscription: subscriptionOut(data) });
 });
 
 /**
  * PATCH /api/features/membership-subscriptions/:id
  */
 router.patch('/membership-subscriptions/:id', requireAuth, async (req, res) => {
-  const { subscription_status, next_billing_date } = req.body;
+  const {
+    status, subscription_status, next_billing_at, next_billing_date, cancelled_at,
+  } = req.body;
   const updates = {};
 
-  if (subscription_status !== undefined) updates.subscription_status = subscription_status;
-  if (next_billing_date !== undefined) updates.next_billing_date = next_billing_date;
+  if (status !== undefined) updates.status = status;
+  else if (subscription_status !== undefined) updates.status = subscription_status;
+  if (next_billing_at !== undefined) updates.next_billing_at = next_billing_at;
+  else if (next_billing_date !== undefined) updates.next_billing_at = next_billing_date;
+  if (cancelled_at !== undefined) updates.cancelled_at = cancelled_at;
 
   const { data, error } = await supabase
     .from('membership_subscriptions')
@@ -961,7 +1119,7 @@ router.patch('/membership-subscriptions/:id', requireAuth, async (req, res) => {
     logger.error({ err: error }, 'Database operation failed');
     return res.status(500).json({ error: 'Something went wrong' });
   }
-  res.json({ membershipSubscription: data });
+  res.json({ membershipSubscription: subscriptionOut(data) });
 });
 
 // LOYALTY CONFIG
@@ -970,6 +1128,19 @@ router.patch('/membership-subscriptions/:id', requireAuth, async (req, res) => {
  * GET /api/features/loyalty-config
  * Get single loyalty config row for beautician
  */
+/**
+ * loyalty_config is points_per_pound / reward_threshold / reward_type /
+ * reward_value_cents / reward_name / is_active (007_all_features.sql plus
+ * 058_loyalty_reward.sql). `min_points_redeem` is reward_threshold under
+ * another name and is renamed here; `redemption_rate` has no column at all and
+ * is refused loudly rather than dropped, because a silently discarded
+ * redemption rate is a loyalty scheme that pays out the wrong amount.
+ */
+const loyaltyConfigOut = (row) => (row ? {
+  ...row,
+  min_points_redeem: row.reward_threshold,
+} : row);
+
 router.get('/loyalty-config', requireAuth, async (req, res) => {
   const { data, error } = await supabase
     .from('loyalty_config')
@@ -982,7 +1153,7 @@ router.get('/loyalty-config', requireAuth, async (req, res) => {
     return res.status(500).json({ error: 'Something went wrong' });
   }
 
-  res.json({ loyaltyConfig: data || null });
+  res.json({ loyaltyConfig: loyaltyConfigOut(data) || null });
 });
 
 /**
@@ -990,16 +1161,32 @@ router.get('/loyalty-config', requireAuth, async (req, res) => {
  * Upsert loyalty config
  */
 router.post('/loyalty-config', requireAuth, async (req, res) => {
-  const { points_per_pound, redemption_rate, min_points_redeem } = req.body;
+  const {
+    points_per_pound, redemption_rate, min_points_redeem, reward_threshold,
+    reward_type, reward_value_cents, reward_name, is_active,
+  } = req.body;
+
+  if (redemption_rate !== undefined) {
+    return res.status(400).json({
+      error: 'redemption_rate is not stored yet. loyalty_config has reward_threshold (points needed) and reward_value_cents (what the reward is worth); a points-to-pounds rate needs a new column before it can be saved.',
+    });
+  }
+
+  const threshold = reward_threshold ?? min_points_redeem;
+
+  const row = {
+    beautician_id: req.beautician.id,
+    points_per_pound: points_per_pound || 1,
+    reward_threshold: threshold ?? 100,
+  };
+  if (reward_type !== undefined) row.reward_type = reward_type;
+  if (reward_value_cents !== undefined) row.reward_value_cents = reward_value_cents;
+  if (reward_name !== undefined) row.reward_name = reward_name;
+  if (is_active !== undefined) row.is_active = is_active;
 
   const { data, error } = await supabase
     .from('loyalty_config')
-    .upsert({
-      beautician_id: req.beautician.id,
-      points_per_pound: points_per_pound || 1,
-      redemption_rate: redemption_rate || 100,
-      min_points_redeem: min_points_redeem || 50
-    }, { onConflict: 'beautician_id' })
+    .upsert(row, { onConflict: 'beautician_id' })
     .select()
     .single();
 
@@ -1007,7 +1194,7 @@ router.post('/loyalty-config', requireAuth, async (req, res) => {
     logger.error({ err: error }, 'Database operation failed');
     return res.status(500).json({ error: 'Something went wrong' });
   }
-  res.status(201).json({ loyaltyConfig: data });
+  res.status(201).json({ loyaltyConfig: loyaltyConfigOut(data) });
 });
 
 // LOYALTY POINTS
@@ -1044,6 +1231,9 @@ router.post('/loyalty-points', requireAuth, async (req, res) => {
   if (!client_id || points === undefined) {
     return res.status(400).json({ error: 'client_id and points are required' });
   }
+  if (!Number.isFinite(Number(points))) {
+    return res.status(400).json({ error: 'points must be a number' });
+  }
 
   // The backend uses the service key, so RLS is bypassed and this check is
   // the only thing stopping a foreign id from being accepted. 404, not 403.
@@ -1051,14 +1241,36 @@ router.post('/loyalty-points', requireAuth, async (req, res) => {
     { table: 'clients', id: client_id },
   ])) return;
 
+  // loyalty_points has no transaction_date. The column that records when a
+  // movement happened is created_at, and it defaults to now(), so the write
+  // simply stops naming a column that does not exist.
+  //
+  // balance_after is NOT NULL and is what every reader treats as the running
+  // total (services/loyalty.js, frontend Loyalty.jsx). Leaving it at its zero
+  // default would have made a manual award read as "balance nil" ever after,
+  // so it is computed from the ledger the same way the accrual service does.
+  const { data: ledger, error: ledgerError } = await supabase
+    .from('loyalty_points')
+    .select('points')
+    .eq('beautician_id', req.beautician.id)
+    .eq('client_id', client_id);
+
+  if (ledgerError) {
+    logger.error({ err: ledgerError }, 'Loyalty: could not read the current balance');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
+
+  const delta = Math.round(Number(points));
+  const balance = (ledger || []).reduce((sum, row) => sum + (row.points || 0), 0);
+
   const { data, error } = await supabase
     .from('loyalty_points')
     .insert({
       beautician_id: req.beautician.id,
       client_id,
-      points,
+      points: delta,
       reason: reason || 'manual',
-      transaction_date: new Date().toISOString()
+      balance_after: balance + delta,
     })
     .select()
     .single();
@@ -1071,6 +1283,25 @@ router.post('/loyalty-points', requireAuth, async (req, res) => {
 });
 
 // REFERRALS
+
+/**
+ * referrals is referrer_id / referred_id / referrer_reward_cents /
+ * referred_reward_cents (supabase/migrations/007_all_features.sql, which
+ * creates the table; 023_referrals.sql is a second CREATE TABLE IF NOT EXISTS
+ * for the same name and is therefore a no-op, see the note in the report).
+ *
+ * The API called them referrer_client_id / referred_client_id and had a single
+ * `reward` field with no column behind it at all. The id spellings are
+ * accepted in and echoed out. `reward` is taken as the REFERRER's reward in
+ * pence, which is the one a referral list means by "reward", and anything that
+ * is not a number is refused rather than dropped.
+ */
+const referralOut = (row) => (row ? {
+  ...row,
+  referrer_client_id: row.referrer_id,
+  referred_client_id: row.referred_id,
+  reward: row.referrer_reward_cents,
+} : row);
 
 /**
  * GET /api/features/referrals
@@ -1086,35 +1317,67 @@ router.get('/referrals', requireAuth, async (req, res) => {
     logger.error({ err: error }, 'Database operation failed');
     return res.status(500).json({ error: 'Something went wrong' });
   }
-  res.json({ referrals: data });
+  res.json({ referrals: (data || []).map(referralOut) });
 });
 
 /**
  * POST /api/features/referrals
  */
-router.post('/referrals', requireAuth, async (req, res) => {
-  const { referrer_client_id, referred_client_id, status, reward } = req.body;
+const REFERRAL_STATUSES = ['pending', 'booked', 'completed', 'rewarded'];
 
-  if (!referrer_client_id || !referred_client_id) {
+/** `reward` in pence, or an error string naming what is wrong with it. */
+function referrerRewardCents(reward) {
+  if (reward === undefined || reward === null) return { cents: undefined };
+  const cents = Number(reward);
+  if (!Number.isFinite(cents) || cents < 0) {
+    return { error: 'reward must be the referrer reward in pence. There is no free-text reward column; use referrer_reward_cents and referred_reward_cents.' };
+  }
+  return { cents: Math.round(cents) };
+}
+
+router.post('/referrals', requireAuth, async (req, res) => {
+  const {
+    referrer_client_id, referrer_id, referred_client_id, referred_id,
+    referred_name, referred_email, referred_phone,
+    status, reward, referrer_reward_cents, referred_reward_cents,
+  } = req.body;
+
+  const referrer = referrer_id ?? referrer_client_id;
+  const referred = referred_id ?? referred_client_id;
+
+  if (!referrer || !referred) {
     return res.status(400).json({ error: 'referrer_client_id and referred_client_id are required' });
   }
+  if (status !== undefined && !REFERRAL_STATUSES.includes(status)) {
+    return res.status(400).json({ error: `status must be one of: ${REFERRAL_STATUSES.join(', ')}` });
+  }
+
+  const legacyReward = referrerRewardCents(reward);
+  if (legacyReward.error) return res.status(400).json({ error: legacyReward.error });
 
   // The backend uses the service key, so RLS is bypassed and this check is
   // the only thing stopping a foreign id from being accepted. 404, not 403.
   if (!await requireOwned(req, res, [
-    { table: 'clients', id: referrer_client_id },
-    { table: 'clients', id: referred_client_id },
+    { table: 'clients', id: referrer },
+    { table: 'clients', id: referred },
   ])) return;
+
+  const row = {
+    beautician_id: req.beautician.id,
+    referrer_id: referrer,
+    referred_id: referred,
+    status: status || 'pending',
+  };
+  if (referred_name !== undefined) row.referred_name = referred_name;
+  if (referred_email !== undefined) row.referred_email = referred_email;
+  if (referred_phone !== undefined) row.referred_phone = referred_phone;
+  if (referrer_reward_cents !== undefined) row.referrer_reward_cents = referrer_reward_cents;
+  else if (legacyReward.cents !== undefined) row.referrer_reward_cents = legacyReward.cents;
+  if (referred_reward_cents !== undefined) row.referred_reward_cents = referred_reward_cents;
 
   const { data, error } = await supabase
     .from('referrals')
-    .insert({
-      beautician_id: req.beautician.id,
-      referrer_client_id,
-      referred_client_id,
-      status: status || 'pending',
-      reward: reward || null
-    })
+    .insert(row)
     .select()
     .single();
 
@@ -1122,18 +1385,30 @@ router.post('/referrals', requireAuth, async (req, res) => {
     logger.error({ err: error }, 'Database operation failed');
     return res.status(500).json({ error: 'Something went wrong' });
   }
-  res.status(201).json({ referral: data });
+  res.status(201).json({ referral: referralOut(data) });
 });
 
 /**
  * PATCH /api/features/referrals/:id
  */
 router.patch('/referrals/:id', requireAuth, async (req, res) => {
-  const { status, reward } = req.body;
+  const { status, reward, referrer_reward_cents, referred_reward_cents, completed_at } = req.body;
   const updates = {};
 
-  if (status !== undefined) updates.status = status;
-  if (reward !== undefined) updates.reward = reward;
+  if (status !== undefined) {
+    if (!REFERRAL_STATUSES.includes(status)) {
+      return res.status(400).json({ error: `status must be one of: ${REFERRAL_STATUSES.join(', ')}` });
+    }
+    updates.status = status;
+  }
+
+  const legacyReward = referrerRewardCents(reward);
+  if (legacyReward.error) return res.status(400).json({ error: legacyReward.error });
+
+  if (referrer_reward_cents !== undefined) updates.referrer_reward_cents = referrer_reward_cents;
+  else if (legacyReward.cents !== undefined) updates.referrer_reward_cents = legacyReward.cents;
+  if (referred_reward_cents !== undefined) updates.referred_reward_cents = referred_reward_cents;
+  if (completed_at !== undefined) updates.completed_at = completed_at;
 
   const { data, error } = await supabase
     .from('referrals')
@@ -1147,7 +1422,7 @@ router.patch('/referrals/:id', requireAuth, async (req, res) => {
     logger.error({ err: error }, 'Database operation failed');
     return res.status(500).json({ error: 'Something went wrong' });
   }
-  res.json({ referral: data });
+  res.json({ referral: referralOut(data) });
 });
 
 // REVENUE GOALS
@@ -1367,6 +1642,25 @@ router.delete('/automation-rules/:id', requireAuth, async (req, res) => {
 // POLICIES
 
 /**
+ * policies is `type` + `title` + `content`
+ * (supabase/migrations/007_all_features.sql). The API called them category /
+ * name / policy_text, so all three names were wrong and every write was
+ * rejected whole. Old spellings are accepted in and echoed out.
+ *
+ * `type` carries a CHECK constraint, so a bad one is a 400 here rather than a
+ * 500 from the database. There is no 'general' type, which is what the handler
+ * used to default to; 'custom' is the catch-all the constraint actually allows.
+ */
+const POLICY_TYPES = ['cancellation', 'no_show', 'deposit', 'late', 'health', 'privacy', 'custom'];
+
+const policyOut = (row) => (row ? {
+  ...row,
+  name: row.title,
+  policy_text: row.content,
+  category: row.type,
+} : row);
+
+/**
  * GET /api/features/policies
  */
 router.get('/policies', requireAuth, async (req, res) => {
@@ -1380,27 +1674,42 @@ router.get('/policies', requireAuth, async (req, res) => {
     logger.error({ err: error }, 'Database operation failed');
     return res.status(500).json({ error: 'Something went wrong' });
   }
-  res.json({ policies: data });
+  res.json({ policies: (data || []).map(policyOut) });
 });
 
 /**
  * POST /api/features/policies
  */
 router.post('/policies', requireAuth, async (req, res) => {
-  const { name, policy_text, category } = req.body;
+  const {
+    name, title, policy_text, content, category, type,
+    is_active, show_on_booking, require_acceptance,
+  } = req.body;
 
-  if (!name || !policy_text) {
+  const heading = title ?? name;
+  const body = content ?? policy_text;
+  const kind = type ?? category ?? 'custom';
+
+  if (!heading || !body) {
     return res.status(400).json({ error: 'name and policy_text are required' });
   }
+  if (!POLICY_TYPES.includes(kind)) {
+    return res.status(400).json({ error: `category must be one of: ${POLICY_TYPES.join(', ')}` });
+  }
+
+  const row = {
+    beautician_id: req.beautician.id,
+    type: kind,
+    title: heading,
+    content: body,
+  };
+  if (is_active !== undefined) row.is_active = is_active;
+  if (show_on_booking !== undefined) row.show_on_booking = show_on_booking;
+  if (require_acceptance !== undefined) row.require_acceptance = require_acceptance;
 
   const { data, error } = await supabase
     .from('policies')
-    .insert({
-      beautician_id: req.beautician.id,
-      name,
-      policy_text,
-      category: category || 'general'
-    })
+    .insert(row)
     .select()
     .single();
 
@@ -1408,19 +1717,34 @@ router.post('/policies', requireAuth, async (req, res) => {
     logger.error({ err: error }, 'Database operation failed');
     return res.status(500).json({ error: 'Something went wrong' });
   }
-  res.status(201).json({ policy: data });
+  res.status(201).json({ policy: policyOut(data) });
 });
 
 /**
  * PATCH /api/features/policies/:id
  */
 router.patch('/policies/:id', requireAuth, async (req, res) => {
-  const { name, policy_text, category } = req.body;
+  const {
+    name, title, policy_text, content, category, type,
+    is_active, show_on_booking, require_acceptance,
+  } = req.body;
   const updates = {};
 
-  if (name !== undefined) updates.name = name;
-  if (policy_text !== undefined) updates.policy_text = policy_text;
-  if (category !== undefined) updates.category = category;
+  if (title !== undefined) updates.title = title;
+  else if (name !== undefined) updates.title = name;
+  if (content !== undefined) updates.content = content;
+  else if (policy_text !== undefined) updates.content = policy_text;
+
+  const kind = type ?? category;
+  if (kind !== undefined) {
+    if (!POLICY_TYPES.includes(kind)) {
+      return res.status(400).json({ error: `category must be one of: ${POLICY_TYPES.join(', ')}` });
+    }
+    updates.type = kind;
+  }
+  if (is_active !== undefined) updates.is_active = is_active;
+  if (show_on_booking !== undefined) updates.show_on_booking = show_on_booking;
+  if (require_acceptance !== undefined) updates.require_acceptance = require_acceptance;
 
   const { data, error } = await supabase
     .from('policies')
@@ -1434,7 +1758,7 @@ router.patch('/policies/:id', requireAuth, async (req, res) => {
     logger.error({ err: error }, 'Database operation failed');
     return res.status(500).json({ error: 'Something went wrong' });
   }
-  res.json({ policy: data });
+  res.json({ policy: policyOut(data) });
 });
 
 /**
@@ -1638,21 +1962,55 @@ router.get('/hours-exceptions', requireAuth, async (req, res) => {
 /**
  * POST /api/features/hours-exceptions
  */
-router.post('/hours-exceptions', requireAuth, async (req, res) => {
-  const { date, exception_type, details } = req.body;
+/**
+ * hours_exceptions is `type` plus flat columns: end_date, start_time, end_time,
+ * reason, note, notify_clients, is_closed, location_id
+ * (007_all_features.sql, 008_hours_exceptions_updates.sql, 027_multi_location).
+ * There is no `exception_type` and no JSONB `details` bag, so this insert was
+ * rejected whole and no closure could be saved from here.
+ *
+ * `details` is still accepted, and its keys are spread onto the real columns
+ * rather than thrown away. A key with no column behind it is a 400 naming it:
+ * losing a day she meant to block, quietly, is worse than refusing the write.
+ */
+const EXCEPTION_TYPES = ['closed', 'amended', 'extended'];
+const EXCEPTION_DETAIL_COLUMNS = [
+  'end_date', 'start_time', 'end_time', 'reason', 'note',
+  'notify_clients', 'is_closed', 'custom_start', 'custom_end', 'location_id',
+];
 
-  if (!date || !exception_type) {
+router.post('/hours-exceptions', requireAuth, async (req, res) => {
+  const { date, exception_type, type, details, ...rest } = req.body;
+
+  const kind = type ?? exception_type;
+  if (!date || !kind) {
     return res.status(400).json({ error: 'date and exception_type are required' });
+  }
+  if (!EXCEPTION_TYPES.includes(kind)) {
+    return res.status(400).json({ error: `exception_type must be one of: ${EXCEPTION_TYPES.join(', ')}` });
+  }
+
+  const flat = { ...rest, ...(details && typeof details === 'object' ? details : {}) };
+  const unknown = Object.keys(flat).filter(k => !EXCEPTION_DETAIL_COLUMNS.includes(k));
+  if (unknown.length) {
+    return res.status(400).json({
+      error: `hours_exceptions has no column for: ${unknown.join(', ')}. Supported: ${EXCEPTION_DETAIL_COLUMNS.join(', ')}.`,
+    });
+  }
+
+  const row = {
+    beautician_id: req.beautician.id,
+    date,
+    type: kind,
+    is_closed: kind === 'closed',
+  };
+  for (const key of EXCEPTION_DETAIL_COLUMNS) {
+    if (flat[key] !== undefined) row[key] = flat[key];
   }
 
   const { data, error } = await supabase
     .from('hours_exceptions')
-    .insert({
-      beautician_id: req.beautician.id,
-      date,
-      exception_type,
-      details: details || {}
-    })
+    .insert(row)
     .select()
     .single();
 
@@ -1748,16 +2106,40 @@ router.delete('/client-tags/:id', requireAuth, async (req, res) => {
 /**
  * GET /api/features/client-tag-assignments
  * Get by client_id (?client_id=...)
+ *
+ * client_tag_assignments is client_id + tag_id and nothing else
+ * (supabase/migrations/007_all_features.sql). It has no beautician_id, so
+ * filtering on one made PostgREST reject the request and this list has always
+ * been a 500. The POST was fixed for the same reason; the read was not, which
+ * is how a fixed write can still look broken.
+ *
+ * Tenancy therefore has to come from the ends: either the client asked for
+ * (checked), or the beautician's own tags.
  */
 router.get('/client-tag-assignments', requireAuth, async (req, res) => {
   let query = supabase
     .from('client_tag_assignments')
     .select('*')
-    .eq('beautician_id', req.beautician.id)
     .order('created_at', { ascending: false });
 
   if (req.query.client_id) {
+    if (!await requireOwned(req, res, [
+      { table: 'clients', id: req.query.client_id },
+    ])) return;
     query = query.eq('client_id', req.query.client_id);
+  } else {
+    const { data: tags, error: tagError } = await supabase
+      .from('client_tags')
+      .select('id')
+      .eq('beautician_id', req.beautician.id);
+
+    if (tagError) {
+      logger.error({ err: tagError }, 'Database operation failed');
+      return res.status(500).json({ error: 'Something went wrong' });
+    }
+    const tagIds = (tags || []).map(t => t.id);
+    if (!tagIds.length) return res.json({ clientTagAssignments: [] });
+    query = query.in('tag_id', tagIds);
   }
 
   const { data, error } = await query;
@@ -1808,11 +2190,29 @@ router.post('/client-tag-assignments', requireAuth, async (req, res) => {
  * DELETE /api/features/client-tag-assignments/:id
  */
 router.delete('/client-tag-assignments/:id', requireAuth, async (req, res) => {
+  // Same missing beautician_id as the GET above. The row has to be read first
+  // so the tag it points at can be checked, or the delete is either a 500 or,
+  // with the filter simply removed, a cross-tenant delete.
+  const { data: row, error: readError } = await supabase
+    .from('client_tag_assignments')
+    .select('id, tag_id')
+    .eq('id', req.params.id)
+    .maybeSingle();
+
+  if (readError) {
+    logger.error({ err: readError }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
+  if (!row) return res.status(404).json({ error: 'Not found' });
+
+  if (!await requireOwned(req, res, [
+    { table: 'client_tags', id: row.tag_id },
+  ])) return;
+
   const { error } = await supabase
     .from('client_tag_assignments')
     .delete()
-    .eq('id', req.params.id)
-    .eq('beautician_id', req.beautician.id);
+    .eq('id', req.params.id);
 
   if (error) {
     logger.error({ err: error }, 'Database operation failed');
@@ -1955,6 +2355,11 @@ router.get('/end-of-day-reports', requireAuth, async (req, res) => {
  * GET /api/features/portal-settings
  * Get single row for beautician
  */
+const portalSettingsOut = (row) => (row ? {
+  ...row,
+  show_online_booking: row.allow_self_booking,
+} : row);
+
 router.get('/portal-settings', requireAuth, async (req, res) => {
   const { data, error } = await supabase
     .from('portal_settings')
@@ -1967,7 +2372,7 @@ router.get('/portal-settings', requireAuth, async (req, res) => {
     return res.status(500).json({ error: 'Something went wrong' });
   }
 
-  res.json({ portalSettings: data || null });
+  res.json({ portalSettings: portalSettingsOut(data) || null });
 });
 
 /**
@@ -1975,17 +2380,46 @@ router.get('/portal-settings', requireAuth, async (req, res) => {
  * Upsert
  */
 router.post('/portal-settings', requireAuth, async (req, res) => {
-  const { show_online_booking, booking_buffer_minutes, max_bookings_per_day, theme } = req.body;
+  const {
+    show_online_booking, allow_self_booking, allow_rescheduling, allow_cancellation,
+    cancellation_window_hours, show_prices, show_reviews, custom_welcome,
+    booking_buffer_minutes, max_bookings_per_day, theme,
+  } = req.body;
+
+  // portal_settings is allow_self_booking / allow_rescheduling /
+  // allow_cancellation / cancellation_window_hours / show_prices /
+  // show_reviews / custom_welcome (supabase/migrations/007_all_features.sql).
+  // Every one of the four names this handler used to write was wrong, so the
+  // upsert was rejected whole and no portal setting has ever saved.
+  //
+  // show_online_booking is allow_self_booking under another name and is
+  // renamed. The other three have no column anywhere in the migrations, so
+  // they are refused with their names in the message rather than dropped on
+  // the floor. The SQL to add them is in the report; inventing them here would
+  // mean writing to columns that do not exist, which is this bug again.
+  const missing = [];
+  if (booking_buffer_minutes !== undefined) missing.push('booking_buffer_minutes');
+  if (max_bookings_per_day !== undefined) missing.push('max_bookings_per_day');
+  if (theme !== undefined) missing.push('theme');
+  if (missing.length) {
+    return res.status(400).json({
+      error: `portal_settings has no column for: ${missing.join(', ')}. These need a migration before they can be saved.`,
+    });
+  }
+
+  const row = { beautician_id: req.beautician.id };
+  const selfBooking = allow_self_booking ?? show_online_booking;
+  if (selfBooking !== undefined) row.allow_self_booking = selfBooking;
+  if (allow_rescheduling !== undefined) row.allow_rescheduling = allow_rescheduling;
+  if (allow_cancellation !== undefined) row.allow_cancellation = allow_cancellation;
+  if (cancellation_window_hours !== undefined) row.cancellation_window_hours = cancellation_window_hours;
+  if (show_prices !== undefined) row.show_prices = show_prices;
+  if (show_reviews !== undefined) row.show_reviews = show_reviews;
+  if (custom_welcome !== undefined) row.custom_welcome = custom_welcome;
 
   const { data, error } = await supabase
     .from('portal_settings')
-    .upsert({
-      beautician_id: req.beautician.id,
-      show_online_booking: show_online_booking !== undefined ? show_online_booking : true,
-      booking_buffer_minutes: booking_buffer_minutes || 15,
-      max_bookings_per_day: max_bookings_per_day || 10,
-      theme: theme || 'light'
-    }, { onConflict: 'beautician_id' })
+    .upsert(row, { onConflict: 'beautician_id' })
     .select()
     .single();
 
@@ -1993,7 +2427,7 @@ router.post('/portal-settings', requireAuth, async (req, res) => {
     logger.error({ err: error }, 'Database operation failed');
     return res.status(500).json({ error: 'Something went wrong' });
   }
-  res.status(201).json({ portalSettings: data });
+  res.status(201).json({ portalSettings: portalSettingsOut(data) });
 });
 
 // REBOOK REMINDERS
@@ -2377,6 +2811,26 @@ router.post('/messages', requireAuth, async (req, res) => {
 // CAMPAIGNS
 
 /**
+ * campaigns is `type` + `message_template`
+ * (supabase/migrations/001_initial_schema.sql). campaign_type and content are
+ * not columns, which is why creating a campaign through this route always
+ * failed, and it is the same file's own send handler at
+ * POST /campaigns/:id/send that proves the real names: it reads
+ * campaign.type and campaign.message_template.
+ *
+ * Both old spellings are accepted in and echoed out. `type` carries a CHECK,
+ * so a bad one is a 400 here rather than a 500 out of the database, and
+ * message_template is NOT NULL, so an object where text belongs is refused.
+ */
+const CAMPAIGN_TYPES = ['reactivation', 'rescue', 'weather', 'bank_holiday', 'event', 'custom'];
+
+const campaignOut = (row) => (row ? {
+  ...row,
+  campaign_type: row.type,
+  content: row.message_template,
+} : row);
+
+/**
  * GET /api/features/campaigns
  */
 router.get('/campaigns', requireAuth, async (req, res) => {
@@ -2390,28 +2844,47 @@ router.get('/campaigns', requireAuth, async (req, res) => {
     logger.error({ err: error }, 'Database operation failed');
     return res.status(500).json({ error: 'Something went wrong' });
   }
-  res.json({ campaigns: data });
+  res.json({ campaigns: (data || []).map(campaignOut) });
 });
 
 /**
  * POST /api/features/campaigns
  */
 router.post('/campaigns', requireAuth, async (req, res) => {
-  const { name, campaign_type, content, status } = req.body;
+  const {
+    name, campaign_type, type, content, message_template, status,
+    trigger_reason, target_client_ids,
+  } = req.body;
 
-  if (!name || !campaign_type) {
+  const kind = type ?? campaign_type;
+  const body = message_template ?? content;
+
+  if (!name || !kind) {
     return res.status(400).json({ error: 'name and campaign_type are required' });
+  }
+  if (!CAMPAIGN_TYPES.includes(kind)) {
+    return res.status(400).json({ error: `campaign_type must be one of: ${CAMPAIGN_TYPES.join(', ')}` });
+  }
+  if (typeof body !== 'string' || !body.trim()) {
+    return res.status(400).json({ error: 'content must be the message text to send' });
+  }
+
+  const row = {
+    beautician_id: req.beautician.id,
+    name,
+    type: kind,
+    message_template: body,
+    status: status || 'draft',
+  };
+  if (trigger_reason !== undefined) row.trigger_reason = trigger_reason;
+  if (target_client_ids !== undefined) {
+    row.target_client_ids = target_client_ids;
+    row.target_count = Array.isArray(target_client_ids) ? target_client_ids.length : 0;
   }
 
   const { data, error } = await supabase
     .from('campaigns')
-    .insert({
-      beautician_id: req.beautician.id,
-      name,
-      campaign_type,
-      content: content || {},
-      status: status || 'draft'
-    })
+    .insert(row)
     .select()
     .single();
 
@@ -2419,18 +2892,37 @@ router.post('/campaigns', requireAuth, async (req, res) => {
     logger.error({ err: error }, 'Database operation failed');
     return res.status(500).json({ error: 'Something went wrong' });
   }
-  res.status(201).json({ campaign: data });
+  res.status(201).json({ campaign: campaignOut(data) });
 });
 
 /**
  * PATCH /api/features/campaigns/:id
  */
 router.patch('/campaigns/:id', requireAuth, async (req, res) => {
-  const { name, content, status } = req.body;
+  const { name, content, message_template, status, campaign_type, type, target_client_ids } = req.body;
   const updates = {};
 
   if (name !== undefined) updates.name = name;
-  if (content !== undefined) updates.content = content;
+
+  const body = message_template ?? content;
+  if (body !== undefined) {
+    if (typeof body !== 'string' || !body.trim()) {
+      return res.status(400).json({ error: 'content must be the message text to send' });
+    }
+    updates.message_template = body;
+  }
+
+  const kind = type ?? campaign_type;
+  if (kind !== undefined) {
+    if (!CAMPAIGN_TYPES.includes(kind)) {
+      return res.status(400).json({ error: `campaign_type must be one of: ${CAMPAIGN_TYPES.join(', ')}` });
+    }
+    updates.type = kind;
+  }
+  if (target_client_ids !== undefined) {
+    updates.target_client_ids = target_client_ids;
+    updates.target_count = Array.isArray(target_client_ids) ? target_client_ids.length : 0;
+  }
   if (status !== undefined) updates.status = status;
 
   const { data, error } = await supabase
@@ -2445,7 +2937,7 @@ router.patch('/campaigns/:id', requireAuth, async (req, res) => {
     logger.error({ err: error }, 'Database operation failed');
     return res.status(500).json({ error: 'Something went wrong' });
   }
-  res.json({ campaign: data });
+  res.json({ campaign: campaignOut(data) });
 });
 
 /**

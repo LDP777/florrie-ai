@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { INCOME_TYPES } from '../lib/money-guards.js';
 import { z } from 'zod';
 import { supabase } from '../config.js';
+import { nowInSalonWall } from '../lib/free-slots.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireOwned } from '../lib/ownership.js';
 import Anthropic from '@anthropic-ai/sdk';
@@ -26,19 +27,84 @@ const router = Router();
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 /**
+ * TWO CLOCKS, AND THE MONEY PAGE HAS TO KNOW WHICH IS WHICH.
+ *
+ * appointments.starts_at stores SALON WALL TIME parked in a UTC slot: 10:00 in
+ * the salon is written 10:00Z whatever the season. transactions.created_at and
+ * the rest of the audit stamps are REAL INSTANTS. Comparing one against the
+ * other is an hour wrong for seven months of the year.
+ *
+ * That is what dropped the appointment she had just finished. `/pulse` counted
+ * appointments with `.lt('starts_at', now.toISOString())`, and in BST that
+ * bound is an hour behind the salon clock, so anything that finished in the
+ * last hour fell outside the week and out of both completedAppts and noShows.
+ * The appointment missing from the tally was always the one she opened the page
+ * to look at.
+ *
+ * So the week is worked out ONCE on the salon's clock and then expressed in
+ * both frames:
+ *   wall    for starts_at
+ *   instant for created_at
+ *   day     for the plain DATE column on expenses
+ * Nothing is "converted to UTC" that was already a real instant.
+ */
+const SALON_TZ = 'Europe/London';
+
+/** Render a real instant on the salon's clock, in the wall frame. */
+function toSalonWall(instant, timeZone = SALON_TZ) {
+  const p = new Intl.DateTimeFormat('en-CA', {
+    timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  }).formatToParts(instant).reduce((a, x) => (a[x.type] = x.value, a), {});
+  return new Date(`${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}Z`);
+}
+
+/**
+ * The real instant a wall-frame Date names in the salon's timezone. Two passes
+ * because the offset depends on the answer: a first guess lands within an hour,
+ * and re-rendering it corrects the guess. That is what makes the boundary right
+ * in the week the clocks change instead of only most of the year.
+ */
+function fromSalonWall(wall, timeZone = SALON_TZ) {
+  let guess = new Date(wall.getTime());
+  for (let i = 0; i < 2; i += 1) {
+    const drift = toSalonWall(guess, timeZone).getTime() - wall.getTime();
+    if (drift === 0) break;
+    guess = new Date(guess.getTime() - drift);
+  }
+  return guess;
+}
+
+/** Monday 00:00 on the salon clock, as a wall-frame Date. */
+function salonWeekStartWall(nowWall) {
+  const start = new Date(nowWall.getTime());
+  // getUTCDay() is Sunday-0. Monday is the start of her week, and on a Sunday
+  // that is six days back, not one day FORWARD, which is what
+  // `- getDay() + 1` used to do: every Sunday the pulse showed the week that
+  // had not started yet, so it read zero all day.
+  start.setUTCDate(start.getUTCDate() - ((start.getUTCDay() + 6) % 7));
+  start.setUTCHours(0, 0, 0, 0);
+  return start;
+}
+
+/** A wall-frame Date as the plain YYYY-MM-DD the expenses DATE column holds. */
+const wallDay = (wall) => wall.toISOString().slice(0, 10);
+
+/**
  * GET /api/money/pulse
  * Weekly business pulse — income, expenses, profit, comparison.
  * The "Money" digital employee's main output.
  */
 router.get('/pulse', requireAuth, async (req, res) => {
   try {
-    const now = new Date();
-    const weekStart = new Date(now);
-    weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1); // Monday
-    weekStart.setHours(0, 0, 0, 0);
+    const nowWall = nowInSalonWall(SALON_TZ);
+    const weekStartWall = salonWeekStartWall(nowWall);
+    const lastWeekStartWall = new Date(weekStartWall.getTime());
+    lastWeekStartWall.setUTCDate(lastWeekStartWall.getUTCDate() - 7);
 
-    const lastWeekStart = new Date(weekStart);
-    lastWeekStart.setDate(lastWeekStart.getDate() - 7);
+    // The same two boundaries as real instants, for the columns that hold one.
+    const weekStart = fromSalonWall(weekStartWall);
+    const lastWeekStart = fromSalonWall(lastWeekStartWall);
 
     // This week's income
     const { data: thisWeekIncome, error: err1 } = await supabase
@@ -74,7 +140,7 @@ router.get('/pulse', requireAuth, async (req, res) => {
       .from('expenses')
       .select('amount_cents, category')
       .eq('beautician_id', req.beautician.id)
-      .gte('date', weekStart.toISOString().split('T')[0]);
+      .gte('date', wallDay(weekStartWall));
 
     if (err3) {
       logger.error({ err: err3 }, 'Failed to fetch this week expenses');
@@ -86,8 +152,8 @@ router.get('/pulse', requireAuth, async (req, res) => {
       .from('expenses')
       .select('amount_cents')
       .eq('beautician_id', req.beautician.id)
-      .gte('date', lastWeekStart.toISOString().split('T')[0])
-      .lt('date', weekStart.toISOString().split('T')[0]);
+      .gte('date', wallDay(lastWeekStartWall))
+      .lt('date', wallDay(weekStartWall));
 
     if (err4) {
       logger.error({ err: err4 }, 'Failed to fetch last week expenses');
@@ -99,8 +165,10 @@ router.get('/pulse', requireAuth, async (req, res) => {
       .from('appointments')
       .select('id, status')
       .eq('beautician_id', req.beautician.id)
-      .gte('starts_at', weekStart.toISOString())
-      .lt('starts_at', now.toISOString());
+      // starts_at is wall time, so both bounds are wall time. This is the line
+      // that lost the appointment she had just finished.
+      .gte('starts_at', weekStartWall.toISOString())
+      .lt('starts_at', nowWall.toISOString());
 
     if (err5) {
       logger.error({ err: err5 }, 'Failed to fetch this week appointments');
@@ -145,7 +213,7 @@ router.get('/pulse', requireAuth, async (req, res) => {
       incomeChange,
       period: {
         start: weekStart.toISOString(),
-        end: now.toISOString()
+        end: new Date().toISOString()
       }
     });
   } catch (err) {
@@ -540,10 +608,21 @@ function getCurrentTaxYear() {
 
 router.get('/reports', requireAuth, async (req, res) => {
   try {
-    const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const ninetyAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+    // Same two clocks as /pulse. The month boundaries are salon-calendar
+    // boundaries: worked out on her clock, then expressed as real instants for
+    // transactions.created_at and left in the wall frame for starts_at.
+    const nowWall = nowInSalonWall(SALON_TZ);
+
+    const startOfMonthWall = new Date(nowWall.getTime());
+    startOfMonthWall.setUTCDate(1);
+    startOfMonthWall.setUTCHours(0, 0, 0, 0);
+    const startOfLastMonthWall = new Date(startOfMonthWall.getTime());
+    startOfLastMonthWall.setUTCMonth(startOfLastMonthWall.getUTCMonth() - 1);
+
+    const startOfMonth = fromSalonWall(startOfMonthWall);
+    const startOfLastMonth = fromSalonWall(startOfLastMonthWall);
+
+    const ninetyAgoWall = new Date(nowWall.getTime() - 90 * 24 * 60 * 60 * 1000);
 
     // Revenue: this month vs last month
     const { data: tx } = await supabase
@@ -567,10 +646,13 @@ router.get('/reports', requireAuth, async (req, res) => {
       .from('appointments')
       .select('id, client_id, starts_at, status')
       .eq('beautician_id', req.beautician.id)
-      .gte('starts_at', ninetyAgo.toISOString());
+      .gte('starts_at', ninetyAgoWall.toISOString());
 
     const all = appts || [];
-    const past = all.filter(a => new Date(a.starts_at) <= now);
+    // starts_at against a wall-frame now, never against a real instant: in BST
+    // the real instant is an hour behind the salon clock and the appointment
+    // that has just finished still counts as "upcoming".
+    const past = all.filter(a => new Date(a.starts_at) <= nowWall);
 
     // No-show rate over the last 90 days of terminal appointments
     const terminal = past.filter(a => ['completed', 'no_show', 'cancelled', 'rescheduled'].includes(a.status));
