@@ -147,6 +147,7 @@ const OPTIONAL_ENV = [
   'TWILIO_AUTH_TOKEN',   // Twilio webhook signatures + WhatsApp BSP auth
   'TWILIO_ACCOUNT_SID',  // Twilio WhatsApp BSP (wa_provider='twilio' tenants)
   'TWILIO_CONTENT_SIDS', // JSON map templateName -> Twilio ContentSid (HX...), shared across tenants
+  'CRON_SECRET',        // x-cron-key for /api/notifications/process-reminders and /api/stripe/cleanup-events. Unset means both answer 503 rather than running for anybody
 ];
 
 const missing = REQUIRED_ENV.filter(k => !process.env[k]);

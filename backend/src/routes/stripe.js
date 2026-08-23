@@ -7,7 +7,7 @@ import { requireOwned } from '../lib/ownership.js';
 import { notifyBookingConfirmed } from '../services/notifications.js';
 import { pushBookingConfirmed } from '../services/push-notifications.js';
 import { cleanupStripeEvents } from '../services/stripe-cleanup.js';
-import { totalApplicationFee, getFeeDescription } from '../lib/platform-fees.js';
+import { totalApplicationFee, estimateStripeFee, getFeeDescription } from '../lib/platform-fees.js';
 import {
   buildRefundTransaction,
   buildDisputeReversalTransaction,
@@ -18,6 +18,7 @@ import {
 import { chargePolicyFee } from '../services/policy-fees.js';
 import logger from '../lib/logger.js';
 import { verifyWebhook } from '../lib/stripe-webhook-secret.js';
+import { requireCronKey } from '../middleware/security.js';
 
 const router = Router();
 const stripe = process.env.STRIPE_SECRET_KEY
@@ -562,16 +563,131 @@ async function recordMoneyOut({
 }
 
 /**
+ * How much of the application fee may honestly be handed back.
+ *
+ * On a destination charge Florrie collects ONE application fee made of two
+ * different things (see lib/platform-fees.js):
+ *
+ *     application_fee = Florrie's cut + estimated Stripe processing fee
+ *
+ * The second part is not income. It exists because the PLATFORM, not the
+ * beautician, is billed by Stripe for processing a destination charge, so the
+ * fee has to be recovered through the application fee or every booking loses
+ * money. On a GBP 10 deposit that is 15p + 34p = 49p collected, of which
+ * Florrie actually KEEPS 15p.
+ *
+ * Stripe does not return its processing fee when a UK charge is refunded. So
+ * `refund_application_fee: true`, which returns the whole 49p, hands back 34p
+ * that Florrie never had. That is the same arrears leak the platform-fees
+ * comments were written to close, running in reverse.
+ *
+ * The honest number is the RETAINED part only, prorated by how much of the
+ * charge is being refunded:
+ *
+ *     retained = application_fee_charged - estimated Stripe fee on the charge
+ *     owed(x)  = min(retained, round(retained * x / charge_amount))
+ *     this refund's fee = owed(already_refunded + this_refund) - owed(already_refunded)
+ *
+ * Working from the RUNNING TOTAL rather than this refund alone is what stops a
+ * string of small partials rounding their way past `retained`. Ten 10p refunds
+ * of a GBP 1 charge each round 0.5p up to 1p, which would hand back 10p of a
+ * 5p margin; on the running total they hand back exactly 5p.
+ *
+ * Worked, GBP 10 deposit refunded in full:
+ *     fee charged 49p, Stripe estimate 34p, retained 15p -> refund 15p
+ *     (today: 49p, so 34p per refund out of Florrie's pocket)
+ *
+ * Worked, GBP 50 deposit with GBP 15 refunded:
+ *     fee charged 165p (75p cut + 90p Stripe), retained 75p
+ *     75 * 1500 / 5000 = 22.5 -> 23p
+ *     (today: 165 * 1500 / 5000 = 49.5 -> 50p, so 27p out of pocket)
+ *
+ * Floors at zero: on a tiny charge the application fee is capped at the charge
+ * amount and can be less than the Stripe estimate, meaning nothing was
+ * retained and nothing can be given back.
+ *
+ * @param {object} args
+ * @param {number} args.chargeAmountCents amount of the original charge
+ * @param {number} args.refundAmountCents amount being refunded now
+ * @param {number} [args.alreadyRefundedCents] refunded before this one
+ * @param {number} [args.applicationFeeCents] fee actually taken on the charge
+ * @returns {number} application fee refund in pence
+ */
+export function refundableApplicationFeeCents({
+  chargeAmountCents,
+  refundAmountCents,
+  alreadyRefundedCents = 0,
+  applicationFeeCents,
+}) {
+  const charge = Math.round(Number(chargeAmountCents) || 0);
+  const refundAmount = Math.round(Number(refundAmountCents) || 0);
+  const already = Math.max(0, Math.round(Number(alreadyRefundedCents) || 0));
+  if (charge <= 0 || refundAmount <= 0) return 0;
+
+  const feeCharged = Number.isFinite(Number(applicationFeeCents))
+    ? Math.max(0, Math.round(Number(applicationFeeCents)))
+    : totalApplicationFee(charge);
+
+  // The slice of the fee that was really Florrie's. Never negative.
+  const retained = Math.max(0, feeCharged - estimateStripeFee(charge));
+  if (retained === 0) return 0;
+
+  const owed = (refunded) => Math.min(
+    retained,
+    Math.round(retained * Math.min(Math.max(0, refunded), charge) / charge),
+  );
+
+  return Math.max(0, owed(already + refundAmount) - owed(already));
+}
+
+/**
+ * The key that makes a double tap harmless.
+ *
+ * Stripe will happily create a SECOND partial refund on the same charge until
+ * the charge total is exhausted, so "refund GBP 15 of a GBP 50 deposit" twice
+ * takes GBP 30. Every input that defines this refund goes into the key: who is
+ * refunding, which payment, and how much. Two taps of the same button produce
+ * the same key, Stripe replays the first refund instead of making another, and
+ * the caller gets the original refund id back.
+ *
+ * Nothing here comes from a request header. The old guard keyed on an
+ * Idempotency-Key the app has never sent, which is why it never fired.
+ *
+ * A deliberate second refund of the SAME amount on the same payment is
+ * indistinguishable from a double tap, so it is blocked for Stripe's 24 hour
+ * idempotency window. `refund_request_id` in the body is the escape hatch for
+ * that case: any value not used before makes the key distinct.
+ */
+export function refundIdempotencyKey({ beauticianId, paymentIntentId, amountCents, requestId }) {
+  const parts = ['florrie-refund', beauticianId, paymentIntentId, String(amountCents)];
+  if (requestId) parts.push(String(requestId).slice(0, 64));
+  return parts.join(':');
+}
+
+/**
  * POST /api/stripe/refund
  * Refunds a payment (full or partial).
  * The beautician can refund from their dashboard.
- * Florrie's platform fee is also refunded proportionally (reverse_transfer).
+ * The beautician's portion comes back via reverse_transfer; Florrie's own cut
+ * is returned separately and exactly, see refundableApplicationFeeCents.
  */
 router.post('/refund', requireAuth, requireStripe, async (req, res) => {
-  const { appointment_id, amount_cents, reason } = req.body;
+  const { appointment_id, amount_cents, reason, refund_request_id } = req.body || {};
 
   if (!appointment_id) {
     return res.status(400).json({ error: 'appointment_id is required' });
+  }
+
+  // Shape check before anything talks to Stripe. amount_cents used to go
+  // straight through with no floor and no ceiling, so a slipped digit in the
+  // box could refund more than was ever taken.
+  let requestedAmount = null;
+  if (amount_cents !== undefined && amount_cents !== null && amount_cents !== '') {
+    const asNumber = Number(amount_cents);
+    if (!Number.isInteger(asNumber) || asNumber <= 0) {
+      return res.status(400).json({ error: 'amount_cents must be a whole number of pence greater than zero' });
+    }
+    requestedAmount = asNumber;
   }
 
   try {
@@ -591,17 +707,56 @@ router.post('/refund', requireAuth, requireStripe, async (req, res) => {
       return res.status(400).json({ error: 'No payment found for this appointment' });
     }
 
-    // Build refund params
+    // The ceiling has to be Stripe's number, not ours. deposit_cents can drift
+    // from what was actually captured (promo codes, a partial capture, an
+    // earlier partial refund), and it is what is left on the CHARGE that
+    // bounds a refund.
+    const intent = await stripe.paymentIntents.retrieve(
+      appointment.stripe_payment_intent_id,
+      { expand: ['latest_charge'] },
+    );
+    const charge = intent?.latest_charge && typeof intent.latest_charge === 'object'
+      ? intent.latest_charge
+      : null;
+
+    const chargeAmountCents = Math.round(Number(
+      charge?.amount ?? intent?.amount_received ?? intent?.amount ?? 0,
+    ) || 0);
+    const alreadyRefundedCents = Math.round(Number(charge?.amount_refunded ?? 0) || 0);
+    const refundableCents = Math.max(0, chargeAmountCents - alreadyRefundedCents);
+
+    if (chargeAmountCents <= 0) {
+      // A PaymentIntent that never captured. There is nothing to send back.
+      return res.status(400).json({ error: 'No completed payment found for this appointment' });
+    }
+
+    if (refundableCents <= 0) {
+      return res.status(400).json({
+        error: 'This payment has already been refunded in full.',
+        charge_amount_cents: chargeAmountCents,
+        already_refunded_cents: alreadyRefundedCents,
+      });
+    }
+
+    if (requestedAmount !== null && requestedAmount > refundableCents) {
+      return res.status(400).json({
+        error: `You can refund at most £${(refundableCents / 100).toFixed(2)} on this payment.`,
+        max_refundable_cents: refundableCents,
+        already_refunded_cents: alreadyRefundedCents,
+      });
+    }
+
+    const refundAmountCents = requestedAmount ?? refundableCents;
+
+    // Build refund params. The amount is always explicit so the idempotency
+    // key below means the same thing for "refund everything" and "refund the
+    // exact remaining amount".
     const refundParams = {
       payment_intent: appointment.stripe_payment_intent_id,
-      reverse_transfer: true,       // refund the beautician's portion
-      refund_application_fee: true,  // refund Florrie's platform fee too
+      amount: refundAmountCents,
+      reverse_transfer: true,        // pull the beautician's portion back
+      refund_application_fee: false, // handled exactly, below
     };
-
-    // Partial refund if amount specified
-    if (amount_cents && amount_cents > 0) {
-      refundParams.amount = amount_cents;
-    }
 
     if (reason) {
       refundParams.reason = reason === 'duplicate' ? 'duplicate'
@@ -610,7 +765,53 @@ router.post('/refund', requireAuth, requireStripe, async (req, res) => {
       refundParams.metadata = { reason_text: reason };
     }
 
-    const refund = await stripe.refunds.create(refundParams);
+    const idempotencyKey = refundIdempotencyKey({
+      beauticianId: req.beautician.id,
+      paymentIntentId: appointment.stripe_payment_intent_id,
+      amountCents: refundAmountCents,
+      requestId: refund_request_id,
+    });
+
+    const refund = await stripe.refunds.create(refundParams, { idempotencyKey });
+
+    // Give back Florrie's own cut, and only that. See the arithmetic on
+    // refundableApplicationFeeCents: refunding the whole application fee also
+    // hands back the Stripe processing fee, which Stripe keeps on a UK refund.
+    const applicationFeeId = typeof charge?.application_fee === 'string'
+      ? charge.application_fee
+      : charge?.application_fee?.id || null;
+    const applicationFeeRefundCents = refundableApplicationFeeCents({
+      chargeAmountCents,
+      refundAmountCents: refund.amount,
+      alreadyRefundedCents,
+      applicationFeeCents: charge?.application_fee_amount,
+    });
+
+    if (applicationFeeId && applicationFeeRefundCents > 0) {
+      try {
+        await stripe.applicationFees.createRefund(
+          applicationFeeId,
+          { amount: applicationFeeRefundCents },
+          { idempotencyKey: `${idempotencyKey}:appfee` },
+        );
+      } catch (feeErr) {
+        // The client already has their money. A failed fee refund leaves
+        // Florrie holding a few pence too many, which is a reconciliation
+        // job, not a reason to tell the caller the refund failed.
+        logger.error({ err: feeErr, applicationFeeId, applicationFeeRefundCents },
+          'Refund went through but the application fee refund did not');
+        Sentry.captureMessage('Application fee refund failed', {
+          level: 'warning',
+          tags: { area: 'payments', check: 'application_fee_refund' },
+          extra: {
+            applicationFeeId,
+            applicationFeeRefundCents,
+            refundId: refund.id,
+            paymentIntentId: appointment.stripe_payment_intent_id,
+          },
+        });
+      }
+    }
 
     // Record refund transaction (negative amount). This insert was unchecked,
     // and it was the ONLY path in the codebase that ever wrote a refund, so a
@@ -625,11 +826,18 @@ router.post('/refund', requireAuth, requireStripe, async (req, res) => {
       fallbackBeauticianId: req.beautician.id,
       fallbackAppointmentId: appointment_id,
       description: reason ? `Refund, ${String(reason).slice(0, 80)}` : 'Refund',
+      // Tag the row with the Stripe refund id. When Stripe replays a refund
+      // under the idempotency key above, the SAME refund arrives here a second
+      // time, and without the tag the books would grow a second negative row
+      // for money that only left once.
+      tag: `[refund:${refund.id}]`,
       source: 'app_refund_route',
     });
 
-    // Update appointment deposit status if fully refunded
-    if (!amount_cents || amount_cents >= (appointment.deposit_cents || appointment.price_cents)) {
+    // Update appointment deposit status if the CHARGE is now fully refunded.
+    // Measured against the charge, not deposit_cents, for the same reason the
+    // ceiling is: deposit_cents is not always what was taken.
+    if (alreadyRefundedCents + refundedAmount >= chargeAmountCents) {
       const { error: apptErr } = await supabase.from('appointments').update({
         deposit_status: 'refunded',
         deposit_paid: false,
@@ -652,6 +860,10 @@ router.post('/refund', requireAuth, requireStripe, async (req, res) => {
       refund_id: refund.id,
       amount_cents: refundedAmount,
       status: refund.status,
+      // What is left on the charge after this one, so the dashboard can grey
+      // the button out rather than letting her tap into a 400.
+      remaining_refundable_cents: Math.max(0, chargeAmountCents - alreadyRefundedCents - refundedAmount),
+      application_fee_refunded_cents: applicationFeeId ? applicationFeeRefundCents : 0,
       // Tell the caller the truth: the refund went through at Stripe either
       // way, but the books may not have it.
       recorded: recorded.recorded,
@@ -898,15 +1110,12 @@ router.post('/payment-link', requireAuth, requireStripe, async (req, res) => {
 /**
  * POST /api/stripe/cleanup-events
  * Deletes stripe_events older than 90 days.
- * Protected by x-cron-key header (same as process-reminders).
+ * Protected by x-cron-key header (same as process-reminders). requireCronKey
+ * refuses outright when CRON_SECRET is unset; the inline compare it replaced
+ * read `undefined !== undefined`, which let anybody through.
  * Can be called by: cron job, admin endpoint, Supabase Edge Function.
  */
-router.post('/cleanup-events', async (req, res) => {
-  const cronKey = req.headers['x-cron-key'];
-  if (cronKey !== process.env.CRON_SECRET) {
-    return res.status(401).json({ error: 'Invalid cron key' });
-  }
-
+router.post('/cleanup-events', requireCronKey, async (req, res) => {
   try {
     const result = await cleanupStripeEvents();
     res.json({ success: true, ...result });

@@ -5,6 +5,7 @@ import { processReminders, sendSMS, sendEmail } from '../services/notifications.
 import { getSMSUsage } from '../services/sms-metering.js';
 import logger from '../lib/logger.js';
 import { authorship } from '../lib/authorship.js';
+import { requireCronKey } from '../middleware/security.js';
 
 const router = Router();
 
@@ -13,13 +14,14 @@ const router = Router();
  * Trigger the 24h reminder cron job.
  * Called by: Supabase Edge Function, external cron, or admin endpoint.
  * Protected by a simple API key (not user auth).
+ *
+ * requireCronKey fails CLOSED. The inline check it replaced was
+ * `cronKey !== process.env.CRON_SECRET`, and with CRON_SECRET unset on the
+ * server that is `undefined !== undefined`, so a request with no header at all
+ * ran the reminder pass for every tenant. Anyone who knew the path could burn
+ * the SMS allowance and re-text clients on demand.
  */
-router.post('/process-reminders', async (req, res) => {
-  const cronKey = req.headers['x-cron-key'];
-  if (cronKey !== process.env.CRON_SECRET) {
-    return res.status(401).json({ error: 'Invalid cron key' });
-  }
-
+router.post('/process-reminders', requireCronKey, async (req, res) => {
   try {
     const result = await processReminders();
     res.json({ success: true, ...result });

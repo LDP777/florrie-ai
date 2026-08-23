@@ -90,7 +90,14 @@ describe('a tampered payload', () => {
 
   it('refuses a flipped character in the signature', () => {
     const state = signOAuthState({ beauticianId: VICTIM });
-    const flipped = state.slice(0, -1) + (state.endsWith('A') ? 'B' : 'A');
+    // Deliberately NOT the last character. base64url of a 32 byte digest is 43
+    // characters, and the final one carries only 4 significant bits, so half the
+    // possible flips there change padding bits that decode to the same bytes and
+    // the signature still verifies. That made this test fail about one run in
+    // three. Flip a character in the middle, where every bit is real.
+    const at = Math.floor(state.length / 2);
+    const flipped = state.slice(0, at) + (state[at] === 'A' ? 'B' : 'A') + state.slice(at + 1);
+    expect(flipped).not.toBe(state);
     expect(verifyOAuthState(flipped)).toBeNull();
   });
 
