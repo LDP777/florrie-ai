@@ -85,8 +85,18 @@ async function runForBeautician(beautician) {
   const bid = beautician.id;
   const threshold = beautician.confidence_threshold || DEFAULT_CONFIDENCE;
 
-  // Run all checks in parallel
-  const [rebookResults, gapResults, messageResults, gapFillResults, patchTestResults, prearrivalResults] = await Promise.allSettled([
+  // Run all checks in parallel.
+  //
+  // Six names were being destructured from five promises. That is what was
+  // left when checkUnansweredMessages was deleted from the middle of the array
+  // and the name list was not shortened with it, so every result after the
+  // second was reported under the label of the check before it, and
+  // `prearrivalResults` was undefined. Reading `.status` off undefined threw a
+  // TypeError, per beautician, every cycle. The work had already been done by
+  // then, so the only casualty was the log line that says what was done, which
+  // is the one thing that could have shown any of the rest of this file was
+  // broken.
+  const [rebookResults, gapResults, gapFillResults, patchTestResults, prearrivalResults] = await Promise.allSettled([
     checkRebookDueClients(bid, threshold),
     checkCalendarGaps(bid, threshold),
     checkGapFillOpportunities(bid, threshold),
@@ -97,13 +107,12 @@ async function runForBeautician(beautician) {
   // Log summary
   const rebook = rebookResults.status === 'fulfilled' ? rebookResults.value : 0;
   const gaps = gapResults.status === 'fulfilled' ? gapResults.value : 0;
-  const msgs = messageResults.status === 'fulfilled' ? messageResults.value : 0;
   const gapFill = gapFillResults.status === 'fulfilled' ? gapFillResults.value : { matched: 0 };
   const patchTests = patchTestResults.status === 'fulfilled' ? patchTestResults.value : 0;
   const prearrival = prearrivalResults.status === 'fulfilled' ? prearrivalResults.value : 0;
 
-  if (rebook + gaps + msgs + (gapFill.matched || 0) + patchTests + prearrival > 0) {
-    logger.info({ bid, rebook, gaps, msgs, gapFill: gapFill.matched || 0, patchTests, prearrival }, 'Autonomous actions taken');
+  if (rebook + gaps + (gapFill.matched || 0) + patchTests + prearrival > 0) {
+    logger.info({ bid, rebook, gaps, gapFill: gapFill.matched || 0, patchTests, prearrival }, 'Autonomous actions taken');
   }
 }
 
@@ -119,9 +128,15 @@ async function checkRebookDueClients(beauticianId, threshold) {
   // which has never existed on clients (it exists on client_intelligence),
   // so PostgREST rejected the WHOLE select and this nudge found nobody, ever.
   // The error was discarded, which is why nothing ever said so.
+  //
+  // Same story a second time with last_whatsapp_inbound_at, which is in no
+  // migration either, so the select stayed rejected even after the first
+  // rename. Nothing here read it: it was carried only so sendNudge could
+  // decide whether the 24h WhatsApp window was open, and sendNudge now asks
+  // the messages table itself (notifications.js inWhatsAppSession).
   const { data: clients, error: clientsErr } = await supabase
     .from('clients')
-    .select('id, first_name, last_name, phone, email, whatsapp_id, last_whatsapp_inbound_at, next_expected_visit')
+    .select('id, first_name, last_name, phone, email, whatsapp_id, next_expected_visit')
     .eq('beautician_id', beauticianId)
     .not('next_expected_visit', 'is', null)
     .lt('next_expected_visit', new Date().toISOString())
@@ -378,14 +393,38 @@ async function checkPatchTestsExpiring(beauticianId, beautician) {
     const nudgeBody = `Hi ${client.first_name}! Just a heads up — your patch test is expiring in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}. You'll need a fresh one before your next tint or lift appointment. Give us a message to book one in 💕`;
 
     try {
-      const result = await sendNudge({
+      // BELOW THE GATE. This called sendNudge directly, so a client set to
+      // 'just me', a client already at the frequency cap, and a client it is
+      // 23:00 for all got the text anyway, and none of it was recorded in
+      // outbound_sends where the cross-engine cap reads from. Ten lines further
+      // up the same file, checkRebookDueClients had been doing it correctly.
+      //
+      // 'patch_test_reminder' is deliberately NOT one of the transactional
+      // types. Nobody asked for this message; it is Florrie noticing a date and
+      // reaching out, which is the definition of proactive. It gets consent,
+      // quiet hours, the cap, the allowance reserve and the autonomy dial, and
+      // on the default 'ask' setting it lands in Ellie's outbox for a one-tap
+      // approve rather than going out on its own.
+      let result = null;
+      const guard = await guardedSend({
+        beauticianId,
+        clientId: client.id,
+        messageType: 'patch_test_reminder',
+        channel: beauticianPrefs.whatsapp_connected ? 'whatsapp' : 'sms',
         client,
         body: nudgeBody,
-        beauticianId,
-        beauticianPrefs,
+        send: async () => {
+          result = await sendNudge({
+            client,
+            body: nudgeBody,
+            beauticianId,
+            beauticianPrefs,
+          });
+          return result;
+        },
       });
 
-      if (result) {
+      if (guard.delivered && result) {
         await logAction(
           beauticianId,
           'patch_test_reminder',
@@ -395,6 +434,17 @@ async function checkPatchTestsExpiring(beauticianId, beautician) {
           client.id
         );
         sent++;
+      } else if (guard.decision === 'approve') {
+        await logAction(
+          beauticianId,
+          'patch_test_reminder',
+          'pending_approval',
+          `Patch test reminder for ${client.first_name}, expires in ${daysLeft} days`,
+          0.95,
+          client.id
+        );
+      } else {
+        logger.info({ clientId: client.id, reason: guard.reason }, 'Patch test reminder held by the outbound gate');
       }
     } catch (err) {
       logger.warn({ err, clientId: client.id }, 'Failed to send patch test reminder');
@@ -425,7 +475,14 @@ async function checkPreAppointmentRequirements(beauticianId) {
 
   const { data: appts } = await supabase
     .from('appointments')
-    .select('id, starts_at, client_id, management_token, treatments(name, requires_patch_test, requires_consultation), clients(id, first_name, last_name, phone, whatsapp_id, email, last_whatsapp_inbound_at, imported_from)')
+    // clients.last_whatsapp_inbound_at was in this embed and is in no
+    // migration, so PostgREST rejected the whole select, `appts` came back
+    // null, and this returned 0 on every run since it shipped. That is not a
+    // cosmetic miss: a first-time client booked for a lash lift was never told
+    // she needs a patch test at least 24 hours beforehand, and that reminder
+    // exists for a safety reason. The 24h-window question it was fetched for
+    // is answered from the messages table now.
+    .select('id, starts_at, client_id, management_token, treatments(name, requires_patch_test, requires_consultation), clients(id, first_name, last_name, phone, whatsapp_id, email, imported_from)')
     .eq('beautician_id', beauticianId)
     .in('status', ['confirmed', 'pending'])
     .gte('starts_at', windowStart.toISOString())
@@ -467,6 +524,7 @@ async function checkPreAppointmentRequirements(beauticianId) {
     if ((count || 0) > 0) continue;
 
     const parts = [];
+    let needsPatchTest = false;
 
     // Patch test gap (gated on the same toggle as expiry reminders).
     if (t.requires_patch_test && b.patch_test_auto_remind) {
@@ -485,6 +543,7 @@ async function checkPreAppointmentRequirements(beauticianId) {
       // row on its own is exactly the client we need to chase to book one.
       const hasBookedSlot = (pts || []).some(p => p.confirmed_at);
       if (!hasValid && !hasBookedSlot) {
+        needsPatchTest = true;
         const link = appt.management_token ? `${FRONTEND}/book/${b.booking_slug}/manage/${appt.management_token}?book=patch` : null;
         parts.push(`you'll need a quick patch test beforehand${link ? `, you can book one here: ${link}` : ''}`);
       }
@@ -512,8 +571,33 @@ async function checkPreAppointmentRequirements(beauticianId) {
     const body = `Hi ${client.first_name}! Looking forward to your ${t.name} on ${apptDay}. Just so you're all set, ${parts.join(', and ')}. Any questions, message me 💕`;
 
     try {
-      const result = await sendNudge({ client, body, beauticianId, beauticianPrefs });
-      if (result) {
+      // BELOW THE GATE, same bypass as the patch-test expiry reminder above.
+      //
+      // This one is TRANSACTIONAL, and deliberately so: it is about a booking
+      // this client has already made, in the next 24 to 72 hours, and it tells
+      // her the one thing she has to do before she can be treated. 'patch_test'
+      // and 'consultation_form' are both in the guard's transactional set
+      // (lib/outbound-guard.js), so it passes straight through rather than
+      // waiting in an approvals queue that would not be read in time. Going
+      // through guardedSend still means the master pause applies, the send is
+      // recorded in outbound_sends so other engines' frequency caps can see it,
+      // and if this category is ever reclassified this sender obeys without
+      // anyone having to remember it exists.
+      const messageType = needsPatchTest ? 'patch_test' : 'consultation_form';
+      let result = null;
+      const guard = await guardedSend({
+        beauticianId,
+        clientId: client.id,
+        messageType,
+        channel: beauticianPrefs.whatsapp_connected ? 'whatsapp' : 'sms',
+        client,
+        body,
+        send: async () => {
+          result = await sendNudge({ client, body, beauticianId, beauticianPrefs });
+          return result;
+        },
+      });
+      if (guard.delivered && result) {
         await supabase.from('ai_actions').insert({
           beautician_id: beauticianId,
           action_type: 'prearrival_reminder',
@@ -526,6 +610,9 @@ async function checkPreAppointmentRequirements(beauticianId) {
           created_at: new Date().toISOString(),
         });
         sent++;
+      } else {
+        logger.warn({ apptId: appt.id, decision: guard.decision, reason: guard.reason },
+          'Pre-appointment requirements reminder not delivered');
       }
     } catch (err) {
       logger.warn({ err, apptId: appt.id }, 'Failed to send pre-appointment reminder');

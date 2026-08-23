@@ -55,6 +55,11 @@ import { cleanupStripeEvents } from '../services/stripe-cleanup.js';
 import { billMonthlySurplus } from '../services/whatsapp-metering.js';
 import { runReconciliation } from '../services/reconciliation.js';
 import { materialiseDueExpenses } from '../services/recurring-expenses.js';
+import {
+  processAftercareFollowups,
+  processRebookNudges,
+  processFollowUpSequences,
+} from '../services/automations.js';
 
 const MINUTE = 60 * 1000;
 const HOUR = 60 * MINUTE;
@@ -231,6 +236,49 @@ export const JOBS = [
     intervalMs: DAY,
     handler: materialiseDueExpenses,
     startupDelayMs: 2 * MINUTE,
+    leaseMs: 15 * MINUTE,
+  },
+  {
+    // THREE SETTINGS PAGES THAT DID NOTHING
+    //
+    // services/automations.js exported five processors and not one of them was
+    // in this list. Nothing imported them except createBookingSuggestion, which
+    // is a different function on a different path. So the Aftercare page, the
+    // rebook button on a completed appointment, and the Sequences tab of
+    // AutomationRules were all forms Ellie could fill in that no process ever
+    // read back. Two of the five are now deleted rather than registered (an
+    // ungated duplicate of review-requests.js, and a rules engine whose table
+    // cannot hold a row); the file header explains both. These three are the
+    // ones that are real.
+    //
+    // Hourly, all three. Each looks for work in a one-hour window ending now,
+    // so a slower cadence would step over items that were due in between.
+    name: 'aftercare-followups',
+    description: 'send aftercare messages the configured hours after a visit',
+    intervalMs: HOUR,
+    handler: processAftercareFollowups,
+    startupDelayMs: 2 * MINUTE,
+  },
+  {
+    // The queue Ellie fills herself: "Send rebook reminder in 4 weeks" on a
+    // completed appointment. reminder_date is a DATE, so a run any time that
+    // day picks it up; hourly just means it goes out at a sensible hour rather
+    // than whenever the container last booted.
+    name: 'rebook-reminder-queue',
+    description: 'send the rebook nudges Ellie scheduled from the diary',
+    intervalMs: HOUR,
+    handler: processRebookNudges,
+    startupDelayMs: 2 * MINUTE,
+  },
+  {
+    // Two phases in one pass: enrol appointments completed in the last hour,
+    // then send any enrolment whose next step is due. The enrolment window is
+    // exactly an hour wide, so this cadence is load-bearing, not a preference.
+    name: 'follow-up-sequences',
+    description: 'enrol completed appointments and send due sequence steps',
+    intervalMs: HOUR,
+    handler: processFollowUpSequences,
+    startupDelayMs: 3 * MINUTE,
     leaseMs: 15 * MINUTE,
   },
   {

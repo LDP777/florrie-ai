@@ -9,6 +9,7 @@ import * as Sentry from '@sentry/node';
 import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
 import { guardedSend } from '../lib/outbound-guard.js';
+import { encrypt, decrypt, isEncrypted } from '../lib/crypto.js';
 import { sendOnChannel } from './messaging.js';
 import { pushTeamUpdate } from './push-notifications.js';
 
@@ -338,18 +339,52 @@ async function sendSlotReleasedMessage(appt, getBeautician) {
 /**
  * Remove a Google Calendar event when a booking is auto-cancelled.
  * Fetches the beautician's OAuth tokens and calls the GCal delete API.
+ *
+ * THE COLUMNS. There is one column, google_calendar_tokens, an encrypted JSONB
+ * blob holding { access_token, refresh_token, expiry_date }
+ * (supabase/migrations/004_integrations.sql:7). The two singular columns this
+ * used to name, google_calendar_token and google_calendar_refresh_token, are
+ * in no migration. PostgREST rejected the whole select, `b` came back null,
+ * and the function returned at the first guard on every single call.
+ *
+ * That silence had a shape. The sweep cancelled the appointment and texted the
+ * client that her slot was released, and the event stayed in Ellie's Google
+ * Calendar looking booked. She then worked around a slot she believed was
+ * taken, or booked over it and double-booked herself.
+ *
+ * Decryption and refresh follow routes/google-calendar.js getAccessToken,
+ * which is the working implementation of the same thing. It is not exported
+ * from a route module, so the shape is mirrored here rather than imported: the
+ * blob may be an encrypted string or a legacy plain object, the refreshed
+ * token is written back as the whole re-encrypted blob, and a refresh that
+ * Google refuses disconnects the integration instead of leaving a dead token
+ * in place to fail again every five minutes.
  */
 async function removeFromGoogleCalendar(beauticianId, eventId) {
-  const { data: b } = await supabase
+  const { data: b, error } = await supabase
     .from('beauticians')
-    .select('google_calendar_token, google_calendar_refresh_token, google_calendar_id')
+    .select('google_calendar_tokens, google_calendar_id')
     .eq('id', beauticianId)
     .maybeSingle();
 
-  if (!b?.google_calendar_token) return;
+  if (error) {
+    logger.warn({ err: error, beauticianId }, 'GCal token lookup failed');
+    return;
+  }
+  if (!b?.google_calendar_tokens) return; // not connected, nothing to remove
+
+  let tokens;
+  try {
+    const raw = b.google_calendar_tokens;
+    tokens = (typeof raw === 'string' && isEncrypted(raw)) ? decrypt(raw) : raw;
+  } catch (err) {
+    logger.warn({ err, beauticianId }, 'GCal tokens could not be decrypted');
+    return;
+  }
+  if (!tokens?.access_token) return;
 
   // Try with existing access token first
-  let accessToken = b.google_calendar_token;
+  let accessToken = tokens.access_token;
   const calendarId = b.google_calendar_id || 'primary';
 
   const del = async (token) => {
@@ -362,13 +397,13 @@ async function removeFromGoogleCalendar(beauticianId, eventId) {
   let res = await del(accessToken);
 
   // Token expired, try to refresh
-  if (res.status === 401 && b.google_calendar_refresh_token) {
+  if (res.status === 401 && tokens.refresh_token) {
     const refreshRes = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         grant_type: 'refresh_token',
-        refresh_token: b.google_calendar_refresh_token,
+        refresh_token: tokens.refresh_token,
         client_id: process.env.GOOGLE_CLIENT_ID,
         client_secret: process.env.GOOGLE_CLIENT_SECRET,
       }),
@@ -378,13 +413,32 @@ async function removeFromGoogleCalendar(beauticianId, eventId) {
       const refreshed = await refreshRes.json();
       accessToken = refreshed.access_token;
 
-      // Persist new token
-      await supabase
+      // Persist the whole blob, re-encrypted. Writing a bare access_token to
+      // google_calendar_token was the second half of the same bug: that column
+      // does not exist, so the update was rejected and the refreshed token was
+      // thrown away even in the world where the read had worked.
+      const updated = {
+        ...tokens,
+        access_token: refreshed.access_token,
+        expiry_date: Date.now() + (refreshed.expires_in || 3600) * 1000,
+      };
+      const { error: saveErr } = await supabase
         .from('beauticians')
-        .update({ google_calendar_token: accessToken })
+        .update({ google_calendar_tokens: encrypt(updated) })
         .eq('id', beauticianId);
+      if (saveErr) logger.warn({ err: saveErr, beauticianId }, 'GCal refreshed token not persisted');
 
       res = await del(accessToken);
+    } else {
+      // Google refused the refresh (revoked access, invalid_grant). Mark the
+      // integration disconnected so Ellie is asked to reconnect, rather than
+      // this failing quietly every five minutes forever.
+      logger.warn({ beauticianId, status: refreshRes.status }, 'GCal refresh refused, disconnecting integration');
+      await supabase
+        .from('beauticians')
+        .update({ google_calendar_tokens: null, google_calendar_connected: false })
+        .eq('id', beauticianId);
+      return;
     }
   }
 

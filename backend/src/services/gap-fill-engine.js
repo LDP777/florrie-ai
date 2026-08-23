@@ -453,13 +453,27 @@ function minsToTime(mins) {
  * Fetch active waitlist entries with treatment + client details.
  */
 async function fetchWaitlistPool(beauticianId) {
-  const { data } = await supabase
+  // The column is preferred_time, SINGULAR and scalar
+  // (supabase/migrations/070_waitlist_pro_columns.sql:
+  //   ALTER TABLE waitlist ADD COLUMN preferred_time TEXT DEFAULT 'any').
+  // `preferred_times` plural is a column on client_intelligence, a different
+  // table, so PostgREST rejected this whole select, `data` came back null, and
+  // the waitlist pool was empty on every run. A cancellation left a gap and no
+  // waitlisted client was ever matched to it.
+  const { data, error } = await supabase
     .from('waitlist')
-    .select('id, client_id, preferred_days, preferred_times, treatments(name, duration_minutes), clients(id, first_name, last_name, phone, email)')
+    .select('id, client_id, preferred_days, preferred_time, treatments(name, duration_minutes), clients(id, first_name, last_name, phone, email)')
     .eq('beautician_id', beauticianId)
     .in('status', ['active', 'waiting'])
     .is('notified_at', null) // Haven't been notified yet
     .order('created_at', { ascending: true });
+
+  // Read the error. A null here reads exactly like "nobody is waiting", which
+  // is why an empty pool never looked like a bug.
+  if (error) {
+    logger.error({ err: error, beauticianId }, 'Waitlist pool query failed');
+    return [];
+  }
 
   return (data || []).map(w => ({
     waitlist_id: w.id,
@@ -477,7 +491,11 @@ async function fetchWaitlistPool(beauticianId) {
     },
     treatment_duration: w.treatments?.duration_minutes || 60,
     preferred_days: w.preferred_days || [],
-    preferred_times: w.preferred_times || [],
+    // One scalar in the column, an array in the matcher. WaitlistPro writes
+    // exactly one of 'morning' | 'afternoon' | 'evening' | 'any', and 'any'
+    // (or nothing) means no preference, which the matcher expresses as an
+    // empty list.
+    preferred_times: (!w.preferred_time || w.preferred_time === 'any') ? [] : [w.preferred_time],
   }));
 }
 
@@ -585,12 +603,20 @@ function matchesPreferences(waiter, gap) {
     return true;
   }
 
-  // Check day preference
+  // Check day preference.
+  //
+  // waitlist.preferred_days holds the SHORT day keys the WaitlistPro chips
+  // write ('mon', 'tue', ...), matching the working_hours keys used everywhere
+  // else in this file. This compared them against full names ('monday'), so a
+  // waiter who had picked any day at all matched nothing and was dropped. Both
+  // forms are accepted now, because the day a client is free is not the place
+  // to be strict about spelling.
   if (waiter.preferred_days?.length > 0) {
     const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     const gapDay = dayNames[gap.dayOfWeek]?.toLowerCase();
-    const prefDays = waiter.preferred_days.map(d => d.toLowerCase());
-    if (!prefDays.includes(gapDay)) return false;
+    const gapDayShort = gapDay?.slice(0, 3);
+    const prefDays = waiter.preferred_days.map(d => String(d).toLowerCase());
+    if (!prefDays.includes(gapDay) && !prefDays.includes(gapDayShort)) return false;
   }
 
   // Check time preference (morning/afternoon/evening)

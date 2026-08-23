@@ -1,14 +1,51 @@
 /**
- * Automations service — cron-compatible functions for:
- *   1. Aftercare follow-ups (send aftercare messages X days after appointment)
- *   2. Rebook nudges (send rebook reminders on their due date)
- *   3. Review requests (send review link after appointment completion)
- *   4. Automation rules engine (evaluate trigger-action rules on events)
- *   5. Follow-up sequence executor (step through multi-step message chains)
+ * Automations service.
  *
- * All functions follow the processReminders() pattern from notifications.js:
+ * WHAT LIVES HERE NOW, AND WHY THE LIST GOT SHORTER
+ *
+ * Five processors used to be exported from this file and NONE of them was in
+ * any job in jobs/register.js. Nothing imported them except createBookingSuggestion
+ * at the bottom, which is called from ai-front-desk.js. So the Aftercare page,
+ * the RebookReminders page and the AutomationRules page were settings screens
+ * wired to nothing: Ellie filled them in and no process ever read them back.
+ *
+ * Two of the five have been deleted rather than wired up.
+ *
+ *   processReviewRequests  DELETED. services/review-requests.js already does
+ *     this, is already called (from runAutonomousCycle), already dedupes
+ *     through ai_actions, and already sends through guardedSend. This copy did
+ *     it a second way, ungated, off a `review_requests_sent` table nothing else
+ *     touches, and selected beauticians(booking_page_url), a column in no
+ *     migration, so PostgREST rejected the whole select and it returned null
+ *     regardless. Registering it would have double-asked every client for a
+ *     review AND bypassed the gate to do it.
+ *
+ *   processAutomationRules  DELETED, with findTriggerTargets and
+ *     executeRuleAction. Not superseded, unbuildable as written. It read
+ *     `rule.config`; the columns are trigger_config and action_config. Its
+ *     trigger branches ('new_client', 'no_visit_30_days') are not in the
+ *     trigger_type CHECK in 007_all_features.sql, so no such row can exist.
+ *     AutomationRules.jsx inserts trigger / actions / conditions /
+ *     delay_minutes / enabled / runs / last_run straight to the table, none of
+ *     which are columns, so no rule can be created at all and automation_rules
+ *     is empty. Its one sending action read config.message, which was always
+ *     undefined, and fell through to a hardcoded "Hey {name}, just a quick
+ *     message from {business}!" sent ungated to every client the trigger
+ *     matched. Wiring that up would have been the single most dangerous change
+ *     in this sweep. The tables and the settings page stay; the engine gets
+ *     written once there is an agreed answer to what an automation rule is.
+ *
+ * The three that remain are registered in jobs/register.js and every one of
+ * them now sends through guardedSend, so consent, the per-client autonomy
+ * override, quiet hours, the frequency cap and the monthly allowance all apply.
+ *
+ *   1. Aftercare follow-ups   (aftercare_messages, N hours after a visit)
+ *   2. Rebook nudges          (rebook_reminders, the queue Ellie fills herself)
+ *   3. Follow-up sequences    (follow_up_sequences, multi-step message chains)
+ *
+ * All three follow the processReminders() pattern from notifications.js:
  *   - Query for due items
- *   - Send via the client's preferred channel
+ *   - Send via the client's preferred channel, through the gate
  *   - Mark as sent to avoid duplicates
  *   - Return { sent, total } for logging
  */
@@ -16,6 +53,7 @@ import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
 import { sendEmail, sendSMS, sendWhatsApp } from './notifications.js';
 import { shouldAutoSend } from './sms-metering.js';
+import { guardedSend } from '../lib/outbound-guard.js';
 import { getLoyaltyConfig, getClientPoints, loyaltyProximity } from './loyalty.js';
 
 // messageType must match a key in DEFAULT_PRIORITY_RULES (e.g. 'aftercare_followup', 'rebook_nudge', 'review_request', 'marketing').
@@ -70,22 +108,76 @@ async function sendOnChannel({ beautician, client, body, beauticianId, messageTy
   return results;
 }
 
+/**
+ * sendOnChannel, but underneath the outbound safety gate.
+ *
+ * sendOnChannel above is the DELIVERY step and nothing else. Every processor
+ * in this file is a proactive sender running on a timer with no human in the
+ * loop, so none of them may call it directly: the decision about whether
+ * Florrie may speak to this client at all has to come first.
+ *
+ * Returns { delivered, decision, reason } so callers can tell "sent" from
+ * "held for approval" from "blocked", and importantly can decline to mark a
+ * queue row as done when nothing actually went out.
+ */
+async function gatedSend({ beautician, client, body, beauticianId, clientId, messageType }) {
+  const prefs = beautician?.client_reminder_prefs || {};
+  const channel = prefs.channel || 'sms';
+  let results = null;
+  const verdict = await guardedSend({
+    beauticianId,
+    clientId: clientId || client?.id || null,
+    messageType,
+    channel,
+    client,
+    body,
+    send: async () => {
+      results = await sendOnChannel({ beautician, client, body, beauticianId, messageType, clientId });
+      // sendOnChannel returns an array of per-channel results, and pushes null
+      // for a channel it deliberately skipped. Delivered means at least one
+      // channel actually took it.
+      return Array.isArray(results) && results.some(Boolean);
+    },
+  });
+  return { delivered: !!verdict.delivered, decision: verdict.decision, reason: verdict.reason };
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // 1. AFTERCARE FOLLOW-UPS
 // ═══════════════════════════════════════════════════════════════════════
 /**
- * Find completed appointments that have matching aftercare templates
- * whose timing_days window has arrived but haven't been sent yet.
+ * Find completed appointments that have a matching aftercare template whose
+ * send window has arrived but which have not been sent yet.
  *
- * aftercare_messages table: { beautician_id, treatment_id, message_text, timing_days }
- * We track sends via aftercare_sends: { aftercare_message_id, appointment_id, sent_at }
+ * THE COLUMNS. aftercare_messages is
+ *   { beautician_id, treatment_id, name, message, send_after_hours, channel,
+ *     is_active }
+ * (supabase/migrations/007_all_features.sql:63). `message_text` and
+ * `timing_days`, which this used to read, are in neither that file nor any
+ * later one.
+ *
+ * `timing_days` being undefined is why this could never have run even by
+ * accident: `now - undefined * 86400000` is NaN, `new Date(NaN).toISOString()`
+ * throws RangeError, and it threw on the first template every time.
+ *
+ * send_after_hours is HOURS, not days, so the arithmetic changes with the name.
+ * The window is one hour wide and the job runs hourly, so nothing due falls
+ * between two passes.
+ *
+ * We track sends via aftercare_sends: { aftercare_message_id, appointment_id,
+ * sent_at }, with a UNIQUE(aftercare_message_id, appointment_id) behind it.
  */
 export async function processAftercareFollowups() {
-  // Get all aftercare message templates
-  const { data: templates } = await supabase
+  // Get all active aftercare message templates
+  const { data: templates, error } = await supabase
     .from('aftercare_messages')
-    .select('*, beauticians(business_name, first_name, client_reminder_prefs)');
+    .select('id, beautician_id, treatment_id, name, message, send_after_hours, is_active, beauticians(business_name, first_name, client_reminder_prefs)')
+    .eq('is_active', true);
 
+  if (error) {
+    logger.error({ err: error }, 'Aftercare template query failed');
+    return { sent: 0, total: 0 };
+  }
   if (!templates?.length) return { sent: 0, total: 0 };
 
   const now = new Date();
@@ -93,18 +185,28 @@ export async function processAftercareFollowups() {
   let total = 0;
 
   for (const tpl of templates) {
-    // Find completed appointments for this treatment where aftercare is due
-    const targetTime = new Date(now.getTime() - tpl.timing_days * 24 * 60 * 60 * 1000);
-    // Window: appointments completed between (timing_days + 1h) and (timing_days - 0h) ago
+    if (!tpl.message) continue; // nothing to say
+    // Find completed appointments for this treatment where aftercare is due.
+    // Default 24h matches the column default, so a template saved without one
+    // still behaves like the UI says it will.
+    const afterHours = Number.isFinite(tpl.send_after_hours) ? tpl.send_after_hours : 24;
+    const targetTime = new Date(now.getTime() - afterHours * 60 * 60 * 1000);
+    // Window: appointments that ended between (afterHours + 1h) and afterHours ago
     const windowStart = new Date(targetTime.getTime() - 60 * 60 * 1000);
     const windowEnd = targetTime;
 
+    // 'completed' only. This used to accept 'confirmed' as well, which meant a
+    // booking nobody had marked as happened could still trigger "hope you're
+    // loving your lashes". auto-complete runs every ten minutes and the
+    // shortest aftercare delay is an hour, so anything genuinely finished is
+    // 'completed' by the time this looks; anything still 'confirmed' is a
+    // no-show or a cancellation waiting to be recorded.
     const { data: appointments } = await supabase
       .from('appointments')
-      .select('id, beautician_id, client_id, clients(first_name, phone, email)')
+      .select('id, beautician_id, client_id, clients(id, first_name, phone, email)')
       .eq('beautician_id', tpl.beautician_id)
       .eq('treatment_id', tpl.treatment_id)
-      .in('status', ['completed', 'confirmed'])
+      .eq('status', 'completed')
       .gte('ends_at', windowStart.toISOString())
       .lte('ends_at', windowEnd.toISOString());
 
@@ -124,14 +226,23 @@ export async function processAftercareFollowups() {
       if (existing?.length) continue;
 
       try {
-        await sendOnChannel({
+        const { delivered, decision, reason } = await gatedSend({
           beautician: tpl.beauticians,
           client: appt.clients,
-          body: tpl.message_text,
+          body: tpl.message,
           beauticianId: appt.beautician_id,
           messageType: 'aftercare_followup',
           clientId: appt.client_id || appt.clients?.id || null,
         });
+
+        if (!delivered) {
+          // Held or blocked. Do NOT write the aftercare_sends row: that row is
+          // the dedup key, and claiming a send that never happened would
+          // suppress this aftercare message for this appointment forever.
+          logger.info({ appointmentId: appt.id, templateId: tpl.id, decision, reason },
+            'Aftercare follow-up not delivered');
+          continue;
+        }
 
         // Record send
         await supabase.from('aftercare_sends').insert({
@@ -156,25 +267,63 @@ export async function processAftercareFollowups() {
 /**
  * Find rebook_reminders where reminder_date <= now and sent = false.
  * Send the nudge, mark sent = true.
+ *
+ * WHY THIS ONE IS WORTH REGISTERING RATHER THAN DELETING, given that
+ * autonomous-scheduler.checkRebookDueClients and predictive-nudge already send
+ * rebook nudges: those two are Florrie INFERRING that somebody is due, from
+ * clients.next_expected_visit and from client_intelligence. This queue is Ellie
+ * DECIDING, at the chair, with the client in front of her. CalendarView's
+ * "Send rebook reminder in 4 weeks" button on a completed appointment writes
+ * the row (POST /api/features/rebook-reminders). It is the one rebook path
+ * that carries an actual human intention, and it is the one that has never
+ * fired: nothing in the codebase has ever read this table back.
+ *
+ * The overlap with the inference-based nudges is handled where it should be,
+ * in the gate: guardedSend's cross-engine frequency cap sees a nudge sent by
+ * any engine in the last 7 days and holds this one.
+ *
+ * The columns are real. client_id, reminder_date, message and sent were added
+ * by supabase/migrations/078_schema_sweep_repairs.sql, whose own comment
+ * records that the cron read reminder_date/sent and the feature wrote
+ * client_id/message and none of them existed. The columns arrived; the cron
+ * never did.
+ *
+ * reminder_date is a DATE, so it is compared against a date string, not a full
+ * ISO timestamp. Comparing a date column to '2026-08-23T16:04:11.244Z' relies
+ * on a cast that will not do what anyone expects at the boundary.
  */
 export async function processRebookNudges() {
-  const now = new Date().toISOString();
+  const today = new Date().toISOString().slice(0, 10);
 
-  const { data: reminders } = await supabase
+  const { data: reminders, error } = await supabase
     .from('rebook_reminders')
-    .select('*, clients(first_name, phone, email), beauticians(business_name, first_name, client_reminder_prefs, booking_slug)')
+    .select('id, beautician_id, client_id, appointment_id, reminder_date, message, sent, clients(id, first_name, phone, email), beauticians(business_name, first_name, client_reminder_prefs, booking_slug)')
     .eq('sent', false)
-    .lte('reminder_date', now);
+    .not('client_id', 'is', null)
+    .lte('reminder_date', today);
 
+  if (error) {
+    logger.error({ err: error }, 'Rebook reminder queue query failed');
+    return { sent: 0, total: 0 };
+  }
   if (!reminders?.length) return { sent: 0, total: 0 };
 
   let sent = 0;
   for (const reminder of reminders) {
+    if (!reminder.clients) continue; // client deleted since the reminder was set
     try {
       const slug = reminder.beauticians?.booking_slug;
       const linkLine = slug ? ` Book in here: florrie.ai/book/${slug}` : '';
-      const defaultMsg = `Hey {name}, it's been a while! Ready for your next appointment?${linkLine} Would love to see you soon xx`;
-      let body = reminder.message || defaultMsg;
+      // DELIBERATELY NOT reminder.message.
+      //
+      // The only thing that writes that field is CalendarView's rebook button,
+      // and what it writes is a note to ELLIE: "Time to rebook Sarah for their
+      // brow lamination." Sending it as-is would text that sentence to Sarah.
+      // The field is a reminder note, the body below is what the client reads.
+      // See the report: the frontend should either write a client-facing body
+      // or the column should be renamed to `note`, and until one of those
+      // happens this is the safe reading.
+      let body = `Hey {name}, it's been a while! Ready for your next appointment?${linkLine} Would love to see you soon xx`;
 
       // Nudge towards their loyalty reward when they are close. Fail soft.
       try {
@@ -188,7 +337,7 @@ export async function processRebookNudges() {
         logger.warn({ err, reminderId: reminder.id }, 'Rebook nudge loyalty hook skipped');
       }
 
-      await sendOnChannel({
+      const { delivered, decision, reason } = await gatedSend({
         beautician: reminder.beauticians,
         client: reminder.clients,
         body,
@@ -196,6 +345,19 @@ export async function processRebookNudges() {
         messageType: 'rebook_nudge',
         clientId: reminder.client_id || null,
       });
+
+      if (!delivered) {
+        // Blocked means the answer is no and will stay no (opted out, cap
+        // reached, allowance spent): retire the row so it is not retried
+        // hourly forever. Held for approval means the decision has moved to
+        // Ellie's outbox and this row's job is done either way.
+        logger.info({ reminderId: reminder.id, decision, reason }, 'Rebook nudge not delivered');
+        await supabase
+          .from('rebook_reminders')
+          .update({ sent: true })
+          .eq('id', reminder.id);
+        continue;
+      }
 
       // Mark as sent
       await supabase
@@ -213,288 +375,27 @@ export async function processRebookNudges() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// 3. REVIEW REQUESTS
+// 3 and 4, DELETED. See the header of this file for the full reasoning.
+//
+//   processReviewRequests   superseded by services/review-requests.js, which
+//                           is called, deduped through ai_actions and gated.
+//                           This copy was ungated and selected
+//                           beauticians(booking_page_url), which is a column
+//                           in no migration.
+//
+//   processAutomationRules  with findTriggerTargets and executeRuleAction.
+//                           Read rule.config (the columns are trigger_config
+//                           and action_config), branched on trigger types the
+//                           CHECK constraint forbids, and its send_message
+//                           action would have sent a hardcoded placeholder,
+//                           ungated, to every matching client. automation_rules
+//                           cannot hold a row today because the page inserts
+//                           seven columns that do not exist. The feature needs
+//                           a data model, not a rename.
 // ═══════════════════════════════════════════════════════════════════════
-/**
- * After a completed appointment (1-2 hours later), send a review request.
- * We check for appointments that ended 1-2h ago and haven't had a review
- * request sent yet.
- *
- * Uses the beautician's google_review_link or booking_page_url.
- * Tracked via review_requests_sent: { appointment_id, beautician_id, sent_at }
- */
-export async function processReviewRequests() {
-  const now = new Date();
-  const windowStart = new Date(now.getTime() - 2 * 60 * 60 * 1000); // 2h ago
-  const windowEnd = new Date(now.getTime() - 1 * 60 * 60 * 1000);   // 1h ago
-
-  const { data: appointments } = await supabase
-    .from('appointments')
-    .select('id, beautician_id, client_id, clients(first_name, phone, email), beauticians(business_name, first_name, client_reminder_prefs, google_review_link, booking_page_url)')
-    .eq('status', 'completed')
-    .gte('ends_at', windowStart.toISOString())
-    .lte('ends_at', windowEnd.toISOString());
-
-  if (!appointments?.length) return { sent: 0, total: 0 };
-
-  let sent = 0;
-  for (const appt of appointments) {
-    // Check if already sent
-    const { data: existing } = await supabase
-      .from('review_requests_sent')
-      .select('id')
-      .eq('appointment_id', appt.id)
-      .limit(1);
-
-    if (existing?.length) continue;
-
-    try {
-      const biz = appt.beauticians;
-      const bizName = biz?.business_name || biz?.first_name;
-      const reviewLink = biz?.google_review_link || biz?.booking_page_url || '';
-      const linkLine = reviewLink ? `\n\nLeave a review here: ${reviewLink}` : '';
-
-      const body = `Hey {name}, thanks for coming in today! If you loved your treatment, a quick review would mean the world to me.${linkLine}\n\nThank you so much xx`;
-
-      await sendOnChannel({
-        beautician: biz,
-        client: appt.clients,
-        body,
-        beauticianId: appt.beautician_id,
-        messageType: 'review_request',
-        clientId: appt.client_id || null,
-      });
-
-      await supabase.from('review_requests_sent').insert({
-        appointment_id: appt.id,
-        beautician_id: appt.beautician_id,
-      });
-
-      sent++;
-    } catch (err) {
-      logger.error({ err, appointmentId: appt.id }, 'Review request send failed');
-    }
-  }
-
-  return { sent, total: appointments.length };
-}
 
 // ═══════════════════════════════════════════════════════════════════════
-// 4. AUTOMATION RULES ENGINE
-// ═══════════════════════════════════════════════════════════════════════
-/**
- * Evaluate all enabled automation rules against recent events.
- *
- * Supported trigger types:
- *   - appointment_completed: fires when appointment status → completed
- *   - new_client: fires when a client has their first appointment
- *   - no_visit_X_days: fires when client hasn't visited in X days
- *   - birthday: fires on client's birthday
- *
- * Supported action types:
- *   - send_message: send a message to the client
- *   - add_tag: tag the client
- *   - create_task: create a daily checklist item
- *
- * We track rule firings in automation_rule_logs to avoid duplicates.
- */
-export async function processAutomationRules() {
-  // The column is is_active, not enabled (supabase/migrations/007_all_features.sql).
-  // PostgREST rejects the whole query when a filter names an unknown column, so
-  // this returned null on every run and the automation engine has never fired
-  // a single rule.
-  const { data: rules, error } = await supabase
-    .from('automation_rules')
-    .select('*')
-    .eq('is_active', true);
-
-  // Read the error. A null here is indistinguishable from "no rules", which is
-  // why nobody noticed.
-  if (error) {
-    logger.error({ err: error }, 'Automation rules query failed');
-    return { fired: 0, total: 0 };
-  }
-
-  if (!rules?.length) return { fired: 0, total: 0 };
-
-  const now = new Date();
-  let fired = 0;
-
-  for (const rule of rules) {
-    try {
-      const targets = await findTriggerTargets(rule, now);
-
-      for (const target of targets) {
-        // Check if already fired for this target
-        const { data: existing } = await supabase
-          .from('automation_rule_logs')
-          .select('id')
-          .eq('rule_id', rule.id)
-          .eq('target_id', target.id)
-          .limit(1);
-
-        if (existing?.length) continue;
-
-        await executeRuleAction(rule, target);
-
-        // Log the firing
-        await supabase.from('automation_rule_logs').insert({
-          rule_id: rule.id,
-          beautician_id: rule.beautician_id,
-          target_id: target.id,
-          target_type: target.type,
-          action_type: rule.action_type,
-        });
-
-        fired++;
-      }
-    } catch (err) {
-      logger.error({ err, ruleId: rule.id }, 'Automation rule evaluation failed');
-    }
-  }
-
-  return { fired, total: rules.length };
-}
-
-async function findTriggerTargets(rule, now) {
-  const config = rule.config || {};
-
-  switch (rule.trigger_type) {
-    case 'appointment_completed': {
-      // Appointments completed in the last hour
-      const windowStart = new Date(now.getTime() - 60 * 60 * 1000);
-      const { data } = await supabase
-        .from('appointments')
-        .select('id, client_id, beautician_id, clients(first_name, phone, email)')
-        .eq('beautician_id', rule.beautician_id)
-        .eq('status', 'completed')
-        .gte('ends_at', windowStart.toISOString())
-        .lte('ends_at', now.toISOString());
-      return (data || []).map(a => ({ ...a, id: `appt_${a.id}`, type: 'appointment', raw: a }));
-    }
-
-    case 'new_client': {
-      // Clients created in the last hour
-      const windowStart = new Date(now.getTime() - 60 * 60 * 1000);
-      const { data } = await supabase
-        .from('clients')
-        .select('id, first_name, phone, email')
-        .eq('beautician_id', rule.beautician_id)
-        .gte('created_at', windowStart.toISOString());
-      return (data || []).map(c => ({ ...c, id: `client_${c.id}`, type: 'client', raw: c }));
-    }
-
-    case 'no_visit_30_days':
-    case 'no_visit_60_days':
-    case 'no_visit_90_days': {
-      const days = parseInt(rule.trigger_type.match(/\d+/)[0], 10);
-      const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000).toISOString();
-
-      // Find clients whose last appointment is older than the cutoff
-      const { data: clients } = await supabase
-        .from('clients')
-        .select('id, first_name, phone, email, last_visit_at')
-        .eq('beautician_id', rule.beautician_id)
-        .lte('last_visit_at', cutoff)
-        .not('last_visit_at', 'is', null);
-
-      return (clients || []).map(c => ({ ...c, id: `dormant_${c.id}_${days}d`, type: 'client', raw: c }));
-    }
-
-    case 'birthday': {
-      const todayMonth = now.getMonth() + 1;
-      const todayDay = now.getDate();
-
-      const { data: clients } = await supabase
-        .from('clients')
-        .select('id, first_name, phone, email, date_of_birth')
-        .eq('beautician_id', rule.beautician_id)
-        .not('date_of_birth', 'is', null);
-
-      // Filter to clients whose birthday is today
-      return (clients || [])
-        .filter(c => {
-          const dob = new Date(c.date_of_birth);
-          return dob.getMonth() + 1 === todayMonth && dob.getDate() === todayDay;
-        })
-        .map(c => ({ ...c, id: `bday_${c.id}_${now.toISOString().slice(0, 10)}`, type: 'client', raw: c }));
-    }
-
-    default:
-      return [];
-  }
-}
-
-async function executeRuleAction(rule, target) {
-  const config = rule.config || {};
-  const raw = target.raw || target;
-
-  switch (rule.action_type) {
-    case 'send_message': {
-      const { data: beautician } = await supabase
-        .from('beauticians')
-        .select('business_name, first_name, client_reminder_prefs')
-        .eq('id', rule.beautician_id)
-        .single();
-
-      const client = raw.clients || raw;
-      await sendOnChannel({
-        beautician,
-        client,
-        body: config.message || 'Hey {name}, just a quick message from {business}!',
-        beauticianId: rule.beautician_id,
-        messageType: 'marketing',
-        clientId: raw.client_id || raw.id || null,
-      });
-      break;
-    }
-
-    case 'add_tag': {
-      if (!config.tag || !raw.client_id && !raw.id) break;
-      const clientId = raw.client_id || raw.id;
-      // Append tag to client's tags array
-      const { data: client } = await supabase
-        .from('clients')
-        .select('tags')
-        .eq('id', clientId)
-        .single();
-
-      const tags = client?.tags || [];
-      if (!tags.includes(config.tag)) {
-        await supabase
-          .from('clients')
-          .update({ tags: [...tags, config.tag] })
-          .eq('id', clientId);
-      }
-      break;
-    }
-
-    case 'create_task': {
-      const today = now.toISOString().slice(0, 10);
-      // One row per checklist ITEM. daily_checklists has label / list_type /
-      // done / sort_order and has never had an `items` array, so this insert
-      // was rejected whole: a create_task rule reported success and produced
-      // nothing on the checklist.
-      const { error: taskErr } = await supabase.from('daily_checklists').insert({
-        beautician_id: rule.beautician_id,
-        date: today,
-        list_type: 'custom',
-        label: config.task_text || `Automation: ${rule.name}`,
-        done: false,
-      });
-      if (taskErr) {
-        logger.error({ err: taskErr, ruleId: rule.id }, 'Automation create_task insert failed');
-      }
-      break;
-    }
-
-    default:
-      logger.warn({ actionType: rule.action_type, ruleId: rule.id }, 'Unknown automation action type');
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// 5. FOLLOW-UP SEQUENCE EXECUTOR
+// 3. FOLLOW-UP SEQUENCE EXECUTOR
 // ═══════════════════════════════════════════════════════════════════════
 /**
  * Step through active follow-up sequences.
@@ -506,15 +407,30 @@ async function executeRuleAction(rule, target) {
  * Two phases:
  *   A. Enroll new clients (completed appointments matching active sequences)
  *   B. Send due steps for existing enrollments
+ *
+ * REGISTERED, not deleted. This is the one of the five that works end to end
+ * on both sides and was only ever missing its caller. AutomationRules.jsx's
+ * Sequences tab inserts exactly { beautician_id, name, trigger, steps, active,
+ * stats } and every one of those is a real column
+ * (supabase/migrations/20260802_schema_drift_catchup.sql, written FROM this
+ * function). Ellie can build a sequence today, it saves, it shows in the list
+ * with an on/off toggle, and nothing has ever sent a step of it.
+ *
+ * Not a duplicate of anything: no other engine walks a multi-step chain.
  */
 export async function processFollowUpSequences() {
   let enrolled = 0;
   let sent = 0;
 
-  const { data: sequences } = await supabase
+  const { data: sequences, error: seqErr } = await supabase
     .from('follow_up_sequences')
-    .select('*')
+    .select('id, beautician_id, name, trigger, treatments, steps, active')
     .eq('active', true);
+
+  if (seqErr) {
+    logger.error({ err: seqErr }, 'Follow-up sequence query failed');
+    return { enrolled: 0, sent: 0 };
+  }
 
   if (sequences?.length) {
     const now = new Date();
@@ -528,7 +444,11 @@ export async function processFollowUpSequences() {
         .from('appointments')
         .select('id, beautician_id, client_id, treatment_id, treatments(name)')
         .eq('beautician_id', seq.beautician_id)
-        .in('status', ['completed', 'confirmed'])
+        // 'completed' only, same reasoning as the aftercare pass: a booking
+        // still marked 'confirmed' an hour after it ended is a no-show or a
+        // cancellation waiting to be recorded, and enrolling it starts a chain
+        // of "hope you loved it" messages to somebody who never came.
+        .eq('status', 'completed')
         .gte('ends_at', windowStart.toISOString())
         .lte('ends_at', now.toISOString());
 
@@ -597,16 +517,33 @@ export async function processFollowUpSequences() {
 
         const step = steps[stepIndex];
 
-        await sendOnChannel({
-          beautician: enrollment.beauticians,
-          client: enrollment.clients,
-          body: step.message,
-          beauticianId: enrollment.beautician_id,
-          messageType: 'marketing',
-          clientId: enrollment.client_id || null,
-        });
+        let stepDelivered = false;
+        if (!step?.message) {
+          // A step with no body is nothing to send. Advance past it rather
+          // than sending an empty message or stalling the whole enrolment.
+          logger.warn({ enrollmentId: enrollment.id, stepIndex }, 'Follow-up step has no message, skipping');
+        } else {
+          const { delivered, decision, reason } = await gatedSend({
+            beautician: enrollment.beauticians,
+            client: enrollment.clients,
+            body: step.message,
+            beauticianId: enrollment.beautician_id,
+            messageType: 'marketing',
+            clientId: enrollment.client_id || null,
+          });
+          stepDelivered = delivered;
+          if (!delivered) {
+            logger.info({ enrollmentId: enrollment.id, stepIndex, decision, reason },
+              'Follow-up sequence step not delivered');
+          }
+        }
 
-        // Advance to next step
+        // Advance to next step. Deliberately advances whether or not the step
+        // was delivered: a sequence is a schedule, and holding the whole chain
+        // because step 2 hit the frequency cap would deliver step 3 weeks late,
+        // out of context, referring to a visit nobody remembers. The gate has
+        // already recorded what it held, and every later step goes through it
+        // again on its own merits.
         const nextStep = stepIndex + 1;
         const nextDelay = nextStep < steps.length ? parseDelay(steps[nextStep].delay) : 0;
         const nextSendAt = nextStep < steps.length
@@ -622,7 +559,10 @@ export async function processFollowUpSequences() {
           })
           .eq('id', enrollment.id);
 
-        sent++;
+        // Count what actually went out, not what was walked past. A step the
+        // gate held is progress through the sequence but it is not a send, and
+        // the number this returns is what the job log reports.
+        if (stepDelivered) sent++;
       } catch (err) {
         logger.error({ err, enrollmentId: enrollment.id }, 'Follow-up sequence step failed');
       }

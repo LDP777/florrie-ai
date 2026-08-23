@@ -827,12 +827,45 @@ export function pickChannel(client, beauticianPrefs = {}) {
 /**
  * Check whether we're inside the 24-hour WhatsApp free-form messaging window.
  * Meta only allows free-form text to a number that messaged us within the last 24h.
+ *
+ * This used to read `client.last_whatsapp_inbound_at`, a column that exists in
+ * no migration and never has. `undefined` is falsy, so the function returned
+ * false for every client who has ever lived, the free-form path below was
+ * unreachable, and EVERY proactive WhatsApp went out as a billable template or
+ * an SMS. A client who messaged five minutes ago still got a paid template, and
+ * the 120/month allowance the transactional sends depend on paid for it.
+ *
+ * The real record of "when did this client last message us" is the messages
+ * table: one row per message, with channel, direction and created_at. Same
+ * shape sendOnPreferredChannel already uses for the Instagram 24h window, so
+ * there is now one answer to that question rather than two.
+ *
+ * created_at on messages is a REAL INSTANT, not salon wall time, so ordinary
+ * Date arithmetic is correct here.
+ *
+ * Fails CLOSED: any error means we cannot prove the window is open, so we do
+ * not send free-form. The cost of that is a template we did not need to pay
+ * for. The cost of the other direction is Meta rejecting the send outright and
+ * the message never arriving.
  */
-function inWhatsAppSession(client) {
-  if (!client?.last_whatsapp_inbound_at) return false;
-  const lastInbound = new Date(client.last_whatsapp_inbound_at);
-  const hoursSince = (Date.now() - lastInbound.getTime()) / (1000 * 60 * 60);
-  return hoursSince < 24;
+async function inWhatsAppSession(client) {
+  if (!client?.id) return false;
+  try {
+    const { data, error } = await supabase
+      .from('messages')
+      .select('created_at')
+      .eq('client_id', client.id)
+      .eq('channel', 'whatsapp')
+      .eq('direction', 'inbound')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error || !data?.created_at) return false;
+    const hoursSince = (Date.now() - new Date(data.created_at).getTime()) / (1000 * 60 * 60);
+    return hoursSince < 24;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -844,7 +877,7 @@ function inWhatsAppSession(client) {
  *   - If no template channel is available, fall back to SMS → Email
  *
  * @param {object} opts
- * @param {object} opts.client         - Client record (needs whatsapp_id, last_whatsapp_inbound_at, phone, email)
+ * @param {object} opts.client         - Client record (needs id, whatsapp_id, phone, email)
  * @param {string} opts.body           - Message text (used for SMS/email and in-session WhatsApp)
  * @param {string} [opts.templateName] - WhatsApp template name for out-of-session sends
  * @param {string[]} [opts.templateParams] - Template variable substitutions
@@ -855,7 +888,7 @@ export async function sendNudge({ client, body, templateName, templateParams, be
   // Master pause — no proactive outbound goes out on the beautician's behalf.
   if (beauticianPrefs?.paused) return { skipped: 'paused' };
   // Path 1: active WhatsApp session — send free-form, it'll land immediately
-  if (client?.whatsapp_id && (WA_TOKEN || twilioConfigured()) && beauticianPrefs?.whatsapp_connected && inWhatsAppSession(client)) {
+  if (client?.whatsapp_id && (WA_TOKEN || twilioConfigured()) && beauticianPrefs?.whatsapp_connected && await inWhatsAppSession(client)) {
     const result = await sendWhatsAppText({ to: client.whatsapp_id, body, beauticianId });
     if (result) {
       await logComms(beauticianId, client.id, 'whatsapp', 'outbound', body);

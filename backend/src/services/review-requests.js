@@ -48,6 +48,14 @@ export async function scheduleReviewRequest(beauticianId, appointmentId, clientI
     client_id: clientId,
     confidence: 0.95,
     autonomous: true,
+    // status and outcome are two different axes and this row needs BOTH.
+    // outcome is the RESULT (success / pending / failed / escalated);
+    // status is where the row sits in the queue. This insert set only
+    // outcome, so status stayed NULL, and processReviewRequests below asks
+    // .eq('status', 'scheduled'), which never matches NULL. Every completed
+    // appointment has been scheduling a row that sits in ai_actions forever
+    // and no review request has ever gone out.
+    status: 'scheduled',
     outcome: 'pending',
   });
 }
@@ -92,7 +100,15 @@ export async function processReviewRequests() {
         .single();
 
       if (!appt?.clients) {
-        await supabase.from('ai_actions').update({ status: 'executed', outcome: 'skipped' }).eq('id', action.id);
+        // 'skipped' is not an allowed outcome: the CHECK on ai_actions.outcome
+        // is (success, pending, failed, escalated) and has never been widened.
+        // Writing 'skipped' here raised 23514, the update did nothing, the row
+        // stayed status='scheduled', and the next run picked it up again. That
+        // was invisible while the queue query was returning null; the moment
+        // the status fix above lets rows through it becomes an endless retry
+        // loop. The queue state lives in `status`; `outcome` records what came
+        // of it, and nothing came of it.
+        await supabase.from('ai_actions').update({ status: 'executed', outcome: 'failed' }).eq('id', action.id);
         continue;
       }
 
@@ -136,7 +152,10 @@ export async function processReviewRequests() {
       if (!guard.delivered) {
         await supabase.from('ai_actions').update({
           status: 'executed',
-          outcome: guard.decision === 'approve' ? 'pending' : 'skipped',
+          // Same CHECK as above: 'skipped' is not one of the four allowed
+          // outcomes. Held by the gate is a 'failed' send, and the reason is
+          // spelled out in the summary.
+          outcome: guard.decision === 'approve' ? 'pending' : 'failed',
           summary: `Review request ${guard.decision === 'approve' ? 'queued for approval' : 'held'} for ${client.first_name} (${guard.reason})`,
         }).eq('id', action.id);
         continue;
