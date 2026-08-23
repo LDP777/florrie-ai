@@ -5,6 +5,7 @@ import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 
 /**
  * Loyalty
@@ -200,9 +201,7 @@ export default function Loyalty() {
   if (error) {
     return (
       <div style={styles.page}>
-        <div style={styles.header}>
-          <h1 style={styles.title}>Loyalty</h1>
-        </div>
+        <PageHeader title="Loyalty" />
         <ErrorCard message={error} onDismiss={() => setError(null)} />
         <button type="button" onClick={load} style={styles.retryBtn}>Try again</button>
       </div>
@@ -211,12 +210,10 @@ export default function Loyalty() {
 
   return (
     <div style={styles.page}>
-      <div style={styles.header}>
-        <h1 style={styles.title}>Loyalty</h1>
-        <p style={styles.subtitle}>
-          Clients earn points automatically when their appointments complete. Nothing to stamp, nothing to remember.
-        </p>
-      </div>
+      <PageHeader
+        title="Loyalty"
+        subtitle="Clients earn points automatically when their appointments complete. Nothing to stamp, nothing to remember."
+      />
 
       {/* Settings */}
       <div style={styles.card}>
@@ -438,20 +435,6 @@ const styles = {
     margin: '0 auto',
     fontFamily: 'var(--font-body, "Plus Jakarta Sans", sans-serif)',
     color: 'var(--text-primary, #241B17)',
-  },
-  header: { marginBottom: 18 },
-  title: {
-    fontSize: 26,
-    fontWeight: 600,
-    margin: 0,
-    fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
-  },
-  subtitle: {
-    fontSize: 13.5,
-    lineHeight: 1.55,
-    color: 'var(--text-secondary, #574A42)',
-    margin: '6px 0 0',
-    maxWidth: 440,
   },
 
   card: {

@@ -3,6 +3,7 @@ import { useBeautician, fetchRows, updateRow, insertRow } from '../lib/supabase.
 import logger from '../lib/logger.js';
 import { todayLocal } from '../lib/dates.js';
 import Money from '../components/ui/Money';
+import PageHeader from '../components/ui/PageHeader.jsx';
 
 export default function EndOfDay() {
   const { beautician, loading: bLoading } = useBeautician();
@@ -181,11 +182,10 @@ export default function EndOfDay() {
 
   return (
     <div style={styles.page}>
-      {/* Header */}
-      <div style={styles.header}>
-        <h1 style={styles.title}>End of Day</h1>
-        <span style={styles.dateChip}>{todayDisplay}</span>
-      </div>
+      <PageHeader
+        title="End of Day"
+        action={<span style={styles.dateChip}>{todayDisplay}</span>}
+      />
 
       {dayClosed && (
         <div style={styles.closedBanner}>
@@ -435,8 +435,6 @@ export default function EndOfDay() {
 
 const styles = {
   page: { padding: '16px 16px 24px', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 480, margin: '0 auto' },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: 700, color: 'var(--text-primary, #241B17)', margin: 0 },
   dateChip: { fontSize: 12, color: 'var(--text-secondary, #574A42)', background: 'var(--bg-hover, #f3ede9)', padding: '4px 10px', borderRadius: 10 },
 
   closedBanner: { display: 'flex', alignItems: 'center', gap: 12, background: 'var(--success-bg, #E9F0EB)', borderRadius: 10, padding: '12px 16px', marginBottom: 16 },

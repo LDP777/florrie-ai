@@ -6,6 +6,7 @@ import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import Icon, { iconName } from '../components/ui/Icon';
 import Money from '../components/ui/Money';
+import PageHeader from '../components/ui/PageHeader.jsx';
 /**
  * Analytics - unified historical analytics hub.
  *
@@ -285,9 +286,7 @@ export default function Analytics() {
   // Render
   return (
     <div style={styles.page}>
-      <div style={styles.header}>
-        <h1 style={styles.title}>Analytics</h1>
-      </div>
+      <PageHeader title="Analytics" />
 
       {/* Tab nav */}
       <div style={styles.tabNav}>
@@ -673,8 +672,6 @@ function getInsights(stats) {
 // Styles
 const styles = {
   page: { minHeight: 'var(--shell-viewport)', background: 'var(--bg, #FBF6F1)', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", padding: '0 16px var(--scroll-pad-bottom)', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary, #241B17)' },
-  header: { paddingTop: 8, paddingBottom: 8 },
-  title: { fontSize: 22, fontWeight: 700, margin: 0, fontFamily: "'Playfair Display', Georgia, serif", letterSpacing: '-0.02em' },
 
   tabNav: { display: 'flex', gap: 6, marginBottom: 12 },
   tabBtn: { flex: 1, padding: '9px 0', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s' },

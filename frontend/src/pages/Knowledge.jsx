@@ -16,6 +16,7 @@ import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import Icon, { iconName } from '../components/ui/Icon';
+import PageHeader from '../components/ui/PageHeader.jsx';
 
 const CATEGORIES = [
   { key: 'aftercare', label: 'Aftercare', matIcon: 'self_care' },
@@ -151,11 +152,10 @@ export default function Knowledge() {
 
   return (
     <div style={S.page}>
-      <h1 style={S.heading}>Florrie's knowledge</h1>
-      <p style={S.intro}>
-        Anything you save here, Florrie can use to answer clients. Aftercare, policies, prep, the lot.
-        If it is not written down here, she says she will check with you rather than guess.
-      </p>
+      <PageHeader
+        title="Florrie's knowledge"
+        subtitle="Anything you save here, Florrie can use to answer clients. Aftercare, policies, prep, the lot. If it is not written down here, she says she will check with you rather than guess."
+      />
 
       {needsMigration && (
         <div style={S.quietNote}>
@@ -284,21 +284,6 @@ const S = {
     maxWidth: 480,
     margin: '0 auto',
     color: '#1d1b19',
-  },
-  heading: {
-    fontSize: 26,
-    fontWeight: 600,
-    fontFamily: "'Playfair Display', Georgia, serif",
-    fontStyle: 'italic',
-    color: 'var(--text-primary, #241B17)',
-    margin: '12px 0 8px',
-    letterSpacing: '-0.01em',
-  },
-  intro: {
-    fontSize: 13.5,
-    color: 'var(--text-secondary, #574A42)',
-    lineHeight: 1.5,
-    margin: '0 0 16px',
   },
   quietNote: {
     display: 'flex', alignItems: 'center', gap: 8,

@@ -4,6 +4,7 @@ import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import Icon, { iconName } from '../components/ui/Icon';
+import PageHeader from '../components/ui/PageHeader.jsx';
 /**
  * ClientPortal - Booking page settings + share tools.
  *
@@ -142,18 +143,18 @@ export default function ClientPortal() {
 
   return (
     <div style={s.page}>
-      <div style={s.header}>
-        <div>
-          <h1 style={s.title}>Client Portal</h1>
-          <div style={s.subtitle}>Your public booking page</div>
-        </div>
-        <button
-          onClick={() => savePortal({ enabled: !portal.enabled })}
-          style={{ ...s.toggle, background: portal.enabled ? 'var(--accent, #92405e)' : '#E8E4E0' }}
-        >
-          <div style={{ ...s.toggleDot, transform: portal.enabled ? 'translateX(18px)' : 'translateX(0)' }} />
-        </button>
-      </div>
+      <PageHeader
+        title="Client Portal"
+        subtitle="Your public booking page"
+        action={(
+          <button
+            onClick={() => savePortal({ enabled: !portal.enabled })}
+            style={{ ...s.toggle, background: portal.enabled ? 'var(--accent, #92405e)' : '#E8E4E0' }}
+          >
+            <div style={{ ...s.toggleDot, transform: portal.enabled ? 'translateX(18px)' : 'translateX(0)' }} />
+          </button>
+        )}
+      />
 
       {saved && <div style={s.savedBanner}>Saved ✓</div>}
 
@@ -311,9 +312,6 @@ export default function ClientPortal() {
 
 const s = {
   page: { padding: '16px 16px 24px', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 480, margin: '0 auto' },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: 700, color: 'var(--text-primary)', margin: 0 },
-  subtitle: { fontSize: 13, color: 'var(--text-muted)', marginTop: 2 },
   savedBanner: { background: 'var(--success, #386F52)', color: '#fff', borderRadius: 10, padding: '8px 14px', fontSize: 13, fontWeight: 600, marginBottom: 12, textAlign: 'center' },
 
   linkCard: { background: 'linear-gradient(135deg, #B9466D 0%, #A85575 100%)', borderRadius: 16, padding: 16, marginBottom: 16, color: '#fff' },

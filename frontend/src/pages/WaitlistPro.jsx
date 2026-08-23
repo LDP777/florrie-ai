@@ -16,6 +16,7 @@ import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import Icon, { iconName } from '../components/ui/Icon';
 import Money from '../components/ui/Money';
+import PageHeader from '../components/ui/PageHeader.jsx';
 
 const PRIORITY_CONFIG = {
   vip: { label: 'VIP', bg: '#F0E6ED', color: 'var(--accent, #92405e)', icon: 'star' },
@@ -217,10 +218,10 @@ export default function WaitlistPro() {
 
   return (
     <div style={S.page}>
-      <div style={S.header}>
-        <h1 style={S.title}>Smart waitlist</h1>
-        <button style={S.addBtn} onClick={() => { setError(null); setShowAdd(true); }}>+ Add</button>
-      </div>
+      <PageHeader
+        title="Smart waitlist"
+        action={<button style={S.addBtn} onClick={() => { setError(null); setShowAdd(true); }}>+ Add</button>}
+      />
 
       {error && <ErrorCard message={error} onDismiss={() => setError(null)} />}
 
@@ -454,8 +455,6 @@ function formatDateTime(iso) {
 
 const S = {
   page: { padding: '20px 16px 32px', fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)", maxWidth: 480, margin: '0 auto' },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: 700, color: 'var(--text-primary, #241B17)', margin: 0, fontFamily: "var(--font-heading, 'Playfair Display', serif)" },
   addBtn: { background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', border: 'none', borderRadius: 22, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   statsRow: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 16 },
   statCard: { background: 'var(--card, #FFFCF9)', borderRadius: 10, padding: '10px 6px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },

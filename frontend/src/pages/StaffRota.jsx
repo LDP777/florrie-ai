@@ -11,6 +11,7 @@ import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
@@ -212,10 +213,10 @@ export default function StaffRota() {
 
   return (
     <div style={S.page}>
-      <div style={S.header}>
-        <h1 style={S.title}>Staff Rota</h1>
-        <button style={S.addBtn} onClick={() => setShowAddTimeOff(true)}>+ Time Off</button>
-      </div>
+      <PageHeader
+        title="Staff Rota"
+        action={<button style={S.addBtn} onClick={() => setShowAddTimeOff(true)}>+ Time Off</button>}
+      />
 
       {error && <div style={{ ...S.errorBox, marginBottom: 16 }}>{error}</div>}
 
@@ -483,8 +484,6 @@ export default function StaffRota() {
 
 const S = {
   page: { padding: '20px 16px 32px', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 480, margin: '0 auto' },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #241B17)', margin: 0 },
   addBtn: { background: 'var(--accent, #92405e)', color: '#fff', border: 'none', borderRadius: 22, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   errorBox: { background: 'var(--danger-bg, #F7E4E4)', borderRadius: 10, padding: '10px 12px', color: 'var(--danger, #9E2B32)', fontSize: 13, fontWeight: 500 },
 

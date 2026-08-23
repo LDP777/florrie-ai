@@ -12,6 +12,7 @@ import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import Icon, { iconName } from '../components/ui/Icon';
+import PageHeader from '../components/ui/PageHeader.jsx';
 const DEV_CLIENTS_FULL = [
   { id: 'c1', name: 'Shauna', visits: 8, totalSpent: 32000, since: '2025-09-15', tags: ['VIP', 'Regular'] },
   { id: 'c2', name: 'Daisy S', visits: 12, totalSpent: 54000, since: '2025-06-22', tags: ['VIP', 'Semi-perm client'] },
@@ -168,7 +169,7 @@ export default function ClientTimeline() {
   return (
     <div style={S.page}>
       {error && <ErrorCard message={error} onDismiss={() => setError(null)} />}
-      <h1 style={S.title}>Client Timeline</h1>
+      <PageHeader title="Client Timeline" />
       {/* Client selector */}
       <div style={S.clientRow}>
         {clients.map(c => (
@@ -304,7 +305,6 @@ function formatDate(dateStr) {
 }
 const S = {
   page: { padding: '20px 16px 32px', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 480, margin: '0 auto' },
-  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #241B17)', margin: '0 0 16px' },
   clientRow: { display: 'flex', gap: 8, marginBottom: 16, overflowX: 'auto' },
   clientChip: { display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px 6px 6px', borderRadius: 22, border: '1px solid var(--border-light, #ede7e3)', background: 'var(--card, #FFFCF9)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #241B17)', whiteSpace: 'nowrap' },
   clientActive: { background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', border: '1px solid var(--accent, #92405e)' },

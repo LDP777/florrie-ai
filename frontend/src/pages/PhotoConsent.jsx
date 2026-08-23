@@ -11,6 +11,7 @@ import { API_BASE } from '../lib/config.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import Icon from '../components/ui/Icon';
+import PageHeader from '../components/ui/PageHeader.jsx';
 
 const SCOPE_OPTIONS = [
   { value: 'portfolio', label: 'Portfolio', desc: 'Visible in your florrie.ai portfolio' },
@@ -237,10 +238,10 @@ export default function PhotoConsent() {
 
   return (
     <div style={S.page}>
-      <div style={S.header}>
-        <h1 style={S.title}>Photo Consent</h1>
-        <button style={S.reqBtn} onClick={() => { setModalError(''); setShowRequest(true); }}>+ Request</button>
-      </div>
+      <PageHeader
+        title="Photo Consent"
+        action={<button style={S.reqBtn} onClick={() => { setModalError(''); setShowRequest(true); }}>+ Request</button>}
+      />
 
       {toast && <div style={S.toast}>{toast}</div>}
 
@@ -427,8 +428,6 @@ function formatDate(dateStr) {
 
 const S = {
   page: { padding: '20px 16px 32px', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 480, margin: '0 auto' },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #241B17)', margin: 0 },
   reqBtn: { background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', border: 'none', borderRadius: 22, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
   statsRow: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 16 },

@@ -4,6 +4,7 @@ import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import Icon from '../components/ui/Icon';
+import PageHeader from '../components/ui/PageHeader.jsx';
 
 const PERIODS = ['This Week', 'This Month', 'Last 30 Days', 'This Quarter'];
 
@@ -60,10 +61,10 @@ export default function StaffPerformance() {
   if (staff.length === 0) {
     return (
       <div style={s.page}>
-        <div style={s.header}>
-          <h1 style={s.title}>Staff Performance</h1>
-          <p style={s.subtitle}>Track individual KPIs and team output</p>
-        </div>
+        <PageHeader
+          title="Staff Performance"
+          subtitle="Track individual KPIs and team output"
+        />
         <EmptyState
           icon="users"
           title="No team members yet"
@@ -79,10 +80,10 @@ export default function StaffPerformance() {
 
   return (
     <div style={s.page}>
-      <div style={s.header}>
-        <h1 style={s.title}>Staff Performance</h1>
-        <p style={s.subtitle}>Track individual KPIs and team output</p>
-      </div>
+      <PageHeader
+        title="Staff Performance"
+        subtitle="Track individual KPIs and team output"
+      />
 
       {/* Period selector */}
       <div style={s.periodRow}>
@@ -222,9 +223,6 @@ export default function StaffPerformance() {
 
 const s = {
   page: { padding: '20px 16px 40px', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 480, margin: '0 auto' },
-  header: { marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: 700, margin: 0, color: 'var(--text, #241B17)' },
-  subtitle: { fontSize: 13, color: 'var(--text-muted, #6B5D54)', margin: '4px 0 0' },
   kpiNote: { fontSize: 11, color: 'var(--text-muted, #6B5D54)', margin: '8px 0 16px', fontStyle: 'italic' },
   periodRow: { display: 'flex', gap: 8, marginBottom: 16, overflowX: 'auto' },
   periodChip: { padding: '6px 14px', borderRadius: 22, border: '1px solid var(--card-border, #E8DDD4)', background: 'none', fontSize: 12, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap', color: 'var(--text, #241B17)', fontFamily: 'inherit' },

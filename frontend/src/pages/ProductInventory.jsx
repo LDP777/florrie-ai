@@ -12,6 +12,7 @@ import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import { todayLocal } from '../lib/dates.js';
 import Icon from '../components/ui/Icon';
+import PageHeader from '../components/ui/PageHeader.jsx';
 
 const fmt = (cents) => `£${(cents / 100).toFixed(2)}`;
 
@@ -159,7 +160,7 @@ export default function ProductInventory() {
 
   if (products.length === 0) return (
     <div style={S.page}>
-      <h1 style={S.title}>Inventory</h1>
+      <PageHeader title="Inventory" />
       <EmptyState title="No products yet" description="Add your first product to start tracking inventory." />
       <button style={S.fab} onClick={() => setShowAdd(true)}>+</button>
       {showAdd && (
@@ -215,7 +216,7 @@ export default function ProductInventory() {
 
   return (
     <div style={S.page}>
-      <h1 style={S.title}>Inventory</h1>
+      <PageHeader title="Inventory" />
 
       {/* Summary */}
       <div style={S.summaryRow}>
@@ -395,7 +396,6 @@ function formatDate(d) {
 
 const S = {
   page: { padding: '20px 16px 100px', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 480, margin: '0 auto' },
-  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, var(--text-primary, #241B17))', margin: '0 0 16px' },
   summaryRow: { display: 'flex', gap: 6, marginBottom: 12 },
   summaryCard: { flex: 1, background: 'var(--card, #FFFCF9)', borderRadius: 10, padding: '12px 6px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
   summaryNum: { fontSize: 18, fontWeight: 700, color: 'var(--accent, #92405e)' },

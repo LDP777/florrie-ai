@@ -294,7 +294,6 @@ export default function Treatments() {
             size="sm"
             pill
             onClick={() => { setReordering(r => !r); setShowAdd(false); setEditing(null); }}
-            style={{ marginRight: 8 }}
           >
             {reordering ? 'Done' : 'Reorder'}
           </Button>

@@ -5,6 +5,7 @@ import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import Icon, { iconName } from '../components/ui/Icon';
+import PageHeader from '../components/ui/PageHeader.jsx';
 
 /**
  * SetupHub (/setup)
@@ -253,13 +254,11 @@ export default function SetupHub() {
 
   return (
     <div style={S.page}>
-      <header style={S.header}>
-        <div style={S.eyebrow}>Set up</div>
-        <h1 style={S.title}>Get Florrie fully working for you</h1>
-        <p style={S.subtitle}>
-          Everything here makes Florrie a bit sharper, and each row takes you straight to the right place.
-        </p>
-      </header>
+      <PageHeader
+        eyebrow="Set up"
+        title="Get Florrie fully working for you"
+        subtitle="Everything here makes Florrie a bit sharper, and each row takes you straight to the right place."
+      />
 
       <div style={S.progressWrap}>
         <div style={S.progressLabelRow}>
@@ -296,28 +295,6 @@ const S = {
     margin: '0 auto',
     fontFamily: 'var(--font-body, "Plus Jakarta Sans", sans-serif)',
     color: 'var(--text-primary, #241B17)',
-  },
-  header: { marginBottom: 16 },
-  eyebrow: {
-    fontSize: 10.5,
-    fontWeight: 800,
-    letterSpacing: '0.16em',
-    textTransform: 'uppercase',
-    color: 'var(--accent, #92405e)',
-    marginBottom: 6,
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: 600,
-    margin: 0,
-    fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
-  },
-  subtitle: {
-    fontSize: 13.5,
-    lineHeight: 1.55,
-    color: 'var(--text-secondary, #574A42)',
-    margin: '6px 0 0',
-    maxWidth: 460,
   },
 
   progressWrap: {

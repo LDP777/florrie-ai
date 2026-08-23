@@ -13,6 +13,7 @@ import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import Icon, { iconName } from '../components/ui/Icon';
 import Button from '../components/ui/Button';
+import PageHeader from '../components/ui/PageHeader.jsx';
 const DEV_TAGS = [
   { id: 't1', name: 'VIP', colour: 'var(--accent, #92405e)', icon: 'star', auto: false, clients: ['Shauna', 'Daisy S', 'Holly B'] },
   { id: 't2', name: 'Patch Test Due', colour: '#FF9800', icon: 'alert-triangle', auto: true, rule: 'Last patch test > 6 months ago', clients: ['Amy R', 'Beth K'] },
@@ -87,7 +88,7 @@ export default function ClientTags() {
 
   return (
     <div style={S.page}>
-      <h1 style={S.title}>Tags & Segments</h1>
+      <PageHeader title="Tags & Segments" />
 
       {/* Overview */}
       <div style={S.overviewRow}>
@@ -396,7 +397,6 @@ export default function ClientTags() {
 
 const S = {
   page: { padding: '20px 16px 100px', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 480, margin: '0 auto' },
-  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #241B17)', margin: '0 0 16px' },
 
   overviewRow: { display: 'flex', gap: 8, marginBottom: 16 },
   overviewCard: { flex: 1, background: 'var(--card, #FFFCF9)', borderRadius: 10, padding: '14px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },

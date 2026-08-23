@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import Icon from '../components/ui/Icon';
+import PageHeader from '../components/ui/PageHeader.jsx';
 
 const fmt = (cents) => `£${(Math.abs(cents) / 100).toFixed(2)}`;
 
@@ -174,7 +175,7 @@ export default function PromoCodes() {
 
   return (
     <div style={S.page}>
-      <h1 style={S.title}>Promo Codes</h1>
+      <PageHeader title="Promo Codes" />
 
       {/* Summary */}
       <div style={S.summaryRow}>
@@ -384,7 +385,6 @@ function formatDate(dateStr) {
 
 const S = {
   page: { padding: '20px 16px 100px', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 480, margin: '0 auto' },
-  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #241B17)', margin: '0 0 16px' },
 
   summaryRow: { display: 'flex', gap: 8, marginBottom: 16 },
   summaryCard: { flex: 1, background: 'var(--card, #FFFCF9)', borderRadius: 10, padding: '14px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },

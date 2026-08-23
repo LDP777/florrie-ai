@@ -20,6 +20,7 @@ import ErrorCard from '../components/ErrorCard.jsx';
 import { bookingUrl as publicBookingUrl } from '../lib/booking.js';
 import Icon, { iconName } from '../components/ui/Icon';
 import { onBrand } from '../lib/brand-colour.js';
+import PageHeader from '../components/ui/PageHeader.jsx';
 const BRAND_COLOURS = [
   'var(--accent, #92405e)', '#E8A0BF', '#C4A882', '#8B7355',
   '#7B9E89', '#5B8F6F', '#6B8EC4', '#4A6FA5',
@@ -154,10 +155,10 @@ export default function BusinessProfile() {
 
   return (
     <div style={s.page}>
-      <div style={s.header}>
-        <h1 style={s.title}>Business Profile</h1>
-        <p style={s.sub}>Your public info, branding & social links</p>
-      </div>
+      <PageHeader
+        title="Business Profile"
+        subtitle="Your public info, branding & social links"
+      />
 
       {/* Hero card */}
       <div style={{ ...s.heroCard, background: `linear-gradient(135deg, ${brandColor}, ${brandColor}CC)`, color: onBrand(brandColor) }}>
@@ -399,18 +400,6 @@ const s = {
     maxWidth: 480,
     margin: '0 auto',
     fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
-  },
-  header: { marginBottom: 16 },
-  title: {
-    fontSize: 24,
-    fontWeight: 700,
-    color: 'var(--text, #241B17)',
-    margin: 0,
-  },
-  sub: {
-    fontSize: 13,
-    color: 'var(--text-muted, #6B5D54)',
-    margin: '4px 0 0',
   },
   heroCard: {
     borderRadius: 16,

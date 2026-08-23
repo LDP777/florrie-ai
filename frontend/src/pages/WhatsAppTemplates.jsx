@@ -5,6 +5,7 @@ import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import { templateDisplay, isClientTemplate, humanise, STARTER_NAMES, templateBase } from '../lib/templates.js';
+import PageHeader from '../components/ui/PageHeader.jsx';
 
 /**
  * WhatsAppTemplates
@@ -375,21 +376,16 @@ export default function WhatsAppTemplates() {
 
   return (
     <div style={styles.page}>
-      <div style={styles.header}>
-        <div>
-          <div style={styles.crumb}>
-            <Link to="/whatsapp" style={styles.crumbLink}>&larr; WhatsApp Business</Link>
-          </div>
-          <h1 style={styles.title}>Message templates</h1>
-          <p style={styles.subtitle}>
-            The pre-approved messages Florrie can send anytime, even when a client
-            hasn't texted you in over 24 hours (a WhatsApp rule, not ours).
-          </p>
-        </div>
-        <button type="button" onClick={() => setModalOpen(true)} style={styles.primaryBtn}>
-          + New template
-        </button>
-      </div>
+      <PageHeader
+        eyebrow={<Link to="/whatsapp" style={styles.crumbLink}>&larr; WhatsApp Business</Link>}
+        title="Message templates"
+        subtitle="The pre-approved messages Florrie can send anytime, even when a client hasn't texted you in over 24 hours (a WhatsApp rule, not ours)."
+        action={(
+          <button type="button" onClick={() => setModalOpen(true)} style={styles.primaryBtn}>
+            + New template
+          </button>
+        )}
+      />
 
       {loading && <PageLoader />}
 
@@ -457,33 +453,11 @@ const styles = {
     fontFamily: 'var(--font-body, "Plus Jakarta Sans", sans-serif)',
     color: 'var(--text-primary, #241B17)',
   },
-  header: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 12,
-    marginBottom: 18,
-    flexWrap: 'wrap',
-  },
-  crumb: { marginBottom: 4 },
   crumbLink: {
     fontSize: 12,
     color: 'var(--text-muted, #6B5D54)',
     textDecoration: 'none',
     fontWeight: 500,
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: 600,
-    margin: 0,
-    fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
-  },
-  subtitle: {
-    fontSize: 13.5,
-    lineHeight: 1.55,
-    color: 'var(--text-secondary, #574A42)',
-    margin: '6px 0 0',
-    maxWidth: 440,
   },
   primaryBtn: {
     padding: '10px 16px',

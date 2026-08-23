@@ -2,11 +2,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { API_BASE } from '../lib/config.js';
 import { supabase } from '../lib/supabase.js';
-import { type as t } from '../lib/designSystem.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import Icon, { iconName } from '../components/ui/Icon';
+import PageHeader from '../components/ui/PageHeader.jsx';
 /**
  * ConsultationFormBuilder - create and edit consultation/consent forms.
  * Beautician can add fields: text, yes_no, multi_select, single_select, checkbox, text_block, signature.
@@ -56,10 +56,10 @@ function FormList() {
   return (
     <div style={styles.page}>
       {error && <ErrorCard message={error} onDismiss={() => setError(null)} />}
-      <div style={styles.header}>
-        <h1 style={t.displayMd}>Consultation Forms</h1>
-        <p style={styles.subtitle}>Build custom forms clients fill in before their appointment</p>
-      </div>
+      <PageHeader
+        title="Consultation Forms"
+        subtitle="Build custom forms clients fill in before their appointment"
+      />
 
       <button style={styles.createBtn} onClick={() => navigate('/consultation-forms/new')}>
         + New Form
@@ -430,14 +430,6 @@ const styles = {
     margin: '0 auto',
     padding: '24px 16px 120px',
     animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
-  },
-  header: {
-    marginBottom: 24,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: 'var(--text-muted)',
-    marginTop: 4,
   },
   loadingState: {
     textAlign: 'center',

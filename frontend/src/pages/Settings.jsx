@@ -13,6 +13,7 @@ import { isIOSNative } from '../lib/platform.js';
 import Button from '../components/ui/Button.jsx';
 import { isVoiceEnabled, setVoiceEnabled } from '../lib/voicePref.js';
 import { celebrationsEnabled, setCelebrationsEnabled, bloom } from '../lib/bloom.js';
+import PageHeader from '../components/ui/PageHeader.jsx';
 
 /**
  * Settings, beautician profile and app configuration.
@@ -358,11 +359,15 @@ export default function Settings({ onLogout }) {
 
   return (
     <div style={{ ...styles.page, animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)' }}>
-      <div style={styles.header}>
-        <h1 style={styles.title}>Settings</h1>
-        {saved && <span style={styles.savedBadge}>Saved</span>}
-        {saveError && <span style={{ ...styles.savedBadge, background: 'var(--danger, #9E2B32)', color: '#fff' }}>{saveError}</span>}
-      </div>
+      <PageHeader
+        title="Settings"
+        action={(
+          <>
+            {saved && <span style={styles.savedBadge}>Saved</span>}
+            {saveError && <span style={{ ...styles.savedBadge, background: 'var(--danger, #9E2B32)', color: '#fff' }}>{saveError}</span>}
+          </>
+        )}
+      />
 
       {/* Setup guide banner */}
       <button
@@ -2204,8 +2209,6 @@ function BookingLinkCard({ slug }) {
 
 const styles = {
   page: { minHeight: 'var(--shell-viewport)', background: 'var(--bg)', fontFamily: "var(--font-body, 'Plus Jakarta Sans', -apple-system, sans-serif)", padding: '0 16px var(--scroll-pad-bottom)', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary)' },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, paddingTop: 8, paddingBottom: 12 },
-  title: { fontSize: 22, fontWeight: 700, margin: 0, fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)", letterSpacing: '-0.02em' },
   savedBadge: { padding: '4px 10px', borderRadius: 6, background: 'var(--success-bg)', color: 'var(--success)', fontSize: 12, fontWeight: 600 },
   loadingText: { textAlign: 'center', color: 'var(--text-muted)', padding: 60, fontSize: 14, fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)" },
   sectionNav: { display: 'flex', gap: 6, marginBottom: 16, overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none', paddingBottom: 2 },

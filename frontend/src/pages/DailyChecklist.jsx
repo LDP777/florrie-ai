@@ -21,6 +21,7 @@ import ErrorCard from '../components/ErrorCard.jsx';
 import { todayLocal } from '../lib/dates.js';
 import Icon, { iconName } from '../components/ui/Icon';
 import Money from '../components/ui/Money';
+import PageHeader from '../components/ui/PageHeader.jsx';
 const todayStr = () => todayLocal();
 /* ─── Factory default templates ─── */
 const FACTORY_OPENING = [
@@ -471,23 +472,22 @@ export default function DailyChecklist() {
   return (
     <div style={S.page}>
       {error && <ErrorCard message={error} onDismiss={() => setError(null)} />}
-      {/* ─── Header + Edit toggle ─── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 2 }}>
-        <h1 style={S.pageTitle}>Daily Checklist</h1>
-        <button
-          onClick={() => { setEditing(e => !e); setShowAdd(false); }}
-          style={{ ...S.editToggle,
-            background: editing ? 'var(--accent, #92405e)' : 'rgba(146, 64, 94, 0.08)',
-            color: editing ? '#fff' : 'var(--accent, #92405e)',
-          }}
-        >
-          <Icon name={iconName(editing ? 'check' : 'edit')} size={16} inline style={{ color: editing ? '#fff' : 'var(--accent, #92405e)' }} />
-          {editing ? 'Done' : 'Edit'}
-        </button>
-      </div>
-      <p style={S.dateLabel}>
-        {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
-      </p>
+      <PageHeader
+        title="Daily Checklist"
+        subtitle={new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
+        action={(
+          <button
+            onClick={() => { setEditing(e => !e); setShowAdd(false); }}
+            style={{ ...S.editToggle,
+              background: editing ? 'var(--accent, #92405e)' : 'rgba(146, 64, 94, 0.08)',
+              color: editing ? '#fff' : 'var(--accent, #92405e)',
+            }}
+          >
+            <Icon name={iconName(editing ? 'check' : 'edit')} size={16} inline style={{ color: editing ? '#fff' : 'var(--accent, #92405e)' }} />
+            {editing ? 'Done' : 'Edit'}
+          </button>
+        )}
+      />
       {/* ─── Template toast ─── */}
       {templateToast && (
         <div style={S.toast}>
@@ -809,12 +809,6 @@ const S = {
     maxWidth: 480, margin: '0 auto', color: 'var(--text-primary, #241B17)',
     animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
   },
-  pageTitle: {
-    fontFamily: "var(--font-display, 'Playfair Display', serif)",
-    fontSize: 24, fontStyle: 'italic', fontWeight: 400,
-    color: 'var(--accent, #92405e)', margin: 0,
-  },
-  dateLabel: { fontSize: 13, color: 'var(--text-muted, #6B5D54)', margin: '0 0 16px' },
   // Edit toggle
   editToggle: {
     display: 'flex', alignItems: 'center', gap: 5,

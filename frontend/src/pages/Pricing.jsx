@@ -11,6 +11,7 @@ import { ds, type } from '../lib/designSystem.js';
 import CheckoutModal from '../components/CheckoutModal.jsx';
 import { isIOSNative } from '../lib/platform.js';
 import Icon from '../components/ui/Icon';
+import PageHeader from '../components/ui/PageHeader.jsx';
 
 const API = import.meta.env.VITE_API_URL || '';
 
@@ -120,8 +121,7 @@ export default function Pricing() {
 
   return (
     <div style={S.page}>
-      <h1 style={S.title}>Plans & Billing</h1>
-      <p style={S.subtitle}>One plan. Everything included.</p>
+      <PageHeader title="Plans & Billing" subtitle="One plan. Everything included." />
 
       {/* Current plan banner */}
       <div style={S.banner}>
@@ -265,8 +265,6 @@ export default function Pricing() {
 
 const S = {
   page: { padding: '20px 16px 100px', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 480, margin: '0 auto' },
-  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #241B17)', margin: '0 0 4px' },
-  subtitle: { fontSize: 13, color: 'var(--text-muted, #6B5D54)', margin: '0 0 20px' },
 
   banner: {
     background: 'linear-gradient(135deg, #2D2D3F 0%, #1A1A2E 40%, #B9466D 100%)',

@@ -18,6 +18,7 @@ import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import Icon from '../components/ui/Icon';
+import PageHeader from '../components/ui/PageHeader.jsx';
 
 const pence = v => `£${(v / 100).toFixed(2)}`;
 const fmt = v => `£${Number(v || 0).toFixed(0)}`;
@@ -174,16 +175,15 @@ export default function Courses() {
   return (
     <div style={s.page}>
 
-      {/* Header */}
-      <div style={s.header}>
-        <div>
-          <h1 style={s.title}>Courses</h1>
-          <p style={s.sub}>Sell training & masterclasses</p>
-        </div>
-        <button onClick={() => { setShowCreate(!showCreate); if (showCreate) resetForm(); }} style={s.addBtn}>
-          {showCreate ? '✕' : '+ New course'}
-        </button>
-      </div>
+      <PageHeader
+        title="Courses"
+        subtitle="Sell training & masterclasses"
+        action={(
+          <button onClick={() => { setShowCreate(!showCreate); if (showCreate) resetForm(); }} style={s.addBtn}>
+            {showCreate ? '✕' : '+ New course'}
+          </button>
+        )}
+      />
 
       {/* Stats */}
       <div style={s.statsRow}>
@@ -535,9 +535,6 @@ export default function Courses() {
 
 const s = {
   page:         { padding: '16px 16px 40px', maxWidth: 480, margin: '0 auto', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif" },
-  header:       { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
-  title:        { fontSize: 24, fontWeight: 700, color: 'var(--text-primary, #241B17)', margin: 0 },
-  sub:          { fontSize: 13, color: 'var(--text-muted, #6B5D54)', margin: '4px 0 0' },
   addBtn:       { padding: '8px 16px', borderRadius: 10, border: 'none', background: 'var(--accent, #92405e)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
 
   statsRow:     { display: 'flex', gap: 8, marginBottom: 16 },

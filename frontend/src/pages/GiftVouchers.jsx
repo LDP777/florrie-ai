@@ -5,6 +5,7 @@ import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import Icon from '../components/ui/Icon';
+import PageHeader from '../components/ui/PageHeader.jsx';
 
 /**
  * Gift Vouchers - Create, send & redeem digital gift vouchers.
@@ -135,12 +136,7 @@ export default function GiftVouchers() {
 
   return (
     <div style={styles.page}>
-      <div style={styles.header}>
-        <div>
-          <h1 style={styles.title}>Gift Vouchers</h1>
-          <p style={styles.subtitle}>Create, send & redeem</p>
-        </div>
-      </div>
+      <PageHeader title="Gift Vouchers" subtitle="Create, send & redeem" />
 
       {/* Stats bar */}
       <div style={styles.statsBar}>
@@ -479,9 +475,6 @@ const styles = {
     fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
     padding: '0 16px var(--scroll-pad-bottom)', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary, #241B17)',
   },
-  header: { paddingTop: 8, paddingBottom: 8 },
-  title: { fontSize: 22, fontWeight: 700, margin: '0 0 2px' },
-  subtitle: { fontSize: 13, color: 'var(--accent, #92405e)', margin: 0, fontWeight: 500 },
 
   // Stats
   statsBar: {

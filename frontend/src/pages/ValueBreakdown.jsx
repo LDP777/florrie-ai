@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import Icon, { iconName } from '../components/ui/Icon';
+import PageHeader from '../components/ui/PageHeader.jsx';
 
 /**
  * ValueBreakdown , the "how did Florrie make me that money" screen.
@@ -81,9 +82,7 @@ export default function ValueBreakdown() {
           secondary screen, and this page rendered a second one right beside it
           — two identical affordances 14px apart, with the title squeezed
           between them and running underneath the floating pill. */}
-      <header style={S.header}>
-        <h1 style={S.title}>How Florrie helped</h1>
-      </header>
+      <PageHeader title="How Florrie helped" />
 
       {loading && <div style={S.muted}>Adding it up…</div>}
       {!loading && error && <div style={S.muted}>Could not load your breakdown just now. Please try again.</div>}
@@ -173,12 +172,10 @@ const S = {
     padding: '12px 16px 24px',
     boxSizing: 'border-box', maxWidth: 560, margin: '0 auto',
   },
-  header: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 },
   back: {
     width: 40, height: 40, borderRadius: 10, border: 'none', background: 'var(--tone-1, #fbf1ea)',
     color: 'var(--text-primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
-  title: { fontSize: 22, fontWeight: 700, margin: 0, fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" },
   muted: { color: 'var(--text-muted)', fontSize: 14, padding: '18px 2px', lineHeight: 1.55 },
   body: { display: 'flex', flexDirection: 'column', gap: 16 },
 

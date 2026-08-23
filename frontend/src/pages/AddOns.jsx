@@ -12,6 +12,7 @@ import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import Icon from '../components/ui/Icon';
+import PageHeader from '../components/ui/PageHeader.jsx';
 
 const fmt = (cents) => `£${(cents / 100).toFixed(2)}`;
 
@@ -153,10 +154,10 @@ export default function AddOns() {
 
   return (
     <div style={S.page}>
-      <div style={S.header}>
-        <h1 style={S.title}>Add-ons & Upsells</h1>
-        <button style={S.createBtn} onClick={openCreate}>+ Add</button>
-      </div>
+      <PageHeader
+        title="Add-ons & Upsells"
+        action={<button style={S.createBtn} onClick={openCreate}>+ Add</button>}
+      />
 
       {/* Stats */}
       <div style={S.statsRow}>
@@ -334,8 +335,6 @@ export default function AddOns() {
 
 const S = {
   page: { padding: '20px 16px 32px', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 480, margin: '0 auto', animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)' },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #241B17)', margin: 0, fontFamily: 'var(--font-display, "Playfair Display", Georgia, serif)' },
   createBtn: { background: 'var(--accent, #92405e)', color: '#fff', border: 'none', borderRadius: 22, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
   statsRow: { display: 'flex', gap: 10, marginBottom: 16 },

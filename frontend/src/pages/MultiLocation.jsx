@@ -6,6 +6,7 @@ import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import Icon from '../components/ui/Icon';
+import PageHeader from '../components/ui/PageHeader.jsx';
 
 const tabs = ['Overview', 'Locations'];
 
@@ -82,10 +83,7 @@ export default function MultiLocation() {
 
   return (
     <div style={ds.page}>
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={ds.pageTitle}>Multi-Location</h1>
-        <p style={{ ...type.bodySmall, marginTop: 4 }}>Manage your branches</p>
-      </div>
+      <PageHeader title="Multi-Location" subtitle="Manage your branches" />
 
       {/* Hero */}
       <div style={{ ...ds.heroCard, marginBottom: 20 }}>

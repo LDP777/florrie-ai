@@ -11,6 +11,7 @@ import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import Icon from '../components/ui/Icon';
+import PageHeader from '../components/ui/PageHeader.jsx';
 
 const fmtGbp = pence => {
   const pounds = pence / 100;
@@ -69,8 +70,10 @@ export default function WeekReview() {
 
   return (
     <div style={S.page}>
-      <h1 style={S.title}>Your week</h1>
-      <p style={S.sub}>Screenshot it. Send it to the group chat. We don't mind.</p>
+      <PageHeader
+        title="Your week"
+        subtitle="Screenshot it. Send it to the group chat. We don't mind."
+      />
 
       {error && (
         <div style={S.errorCard}>Could not load your week just now. Try again in a moment.</div>
@@ -132,11 +135,6 @@ const S = {
     padding: '20px 16px var(--scroll-pad-bottom)', maxWidth: 480, margin: '0 auto',
     fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
   },
-  title: {
-    fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
-    fontSize: 26, fontWeight: 600, color: 'var(--text-primary, #241B17)', margin: '40px 0 4px',
-  },
-  sub: { fontSize: 13.5, color: 'var(--text-secondary, #574A42)', margin: '0 0 18px' },
   errorCard: {
     background: 'var(--danger-bg, #F7E4E4)', color: 'var(--danger-text, #9E2B32)',
     borderRadius: 10, padding: 14, fontSize: 13.5,

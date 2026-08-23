@@ -21,6 +21,7 @@ import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import Icon, { iconName } from '../components/ui/Icon';
+import PageHeader from '../components/ui/PageHeader.jsx';
 const fmt = (cents) => `£${(Math.abs(cents) / 100).toFixed(2)}`;
 
 const STATUS_CONFIG = {
@@ -101,7 +102,7 @@ export default function DepositTracker() {
 
   return (
     <div style={S.page}>
-      <h1 style={S.title}>Deposit Tracker</h1>
+      <PageHeader title="Deposit Tracker" />
 
       {error && (
         <div style={S.errorBanner}>
@@ -225,7 +226,6 @@ function formatDate(dateStr) {
 
 const S = {
   page: { padding: '20px 16px 32px', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 480, margin: '0 auto' },
-  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, var(--text-primary, #241B17))', margin: '0 0 16px' },
 
   errorBanner: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--danger-bg, #F7E4E4)', borderRadius: 10, padding: '10px 12px', marginBottom: 16, color: 'var(--danger-text, #9E2B32)', fontSize: 13 },
   errorClose: { background: 'none', border: 'none', color: 'var(--danger-text, #9E2B32)', cursor: 'pointer', fontSize: 16, fontWeight: 600, padding: 0 },

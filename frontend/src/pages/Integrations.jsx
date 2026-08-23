@@ -9,6 +9,7 @@ import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import logger from '../lib/logger.js';
 import Icon, { iconName } from '../components/ui/Icon';
+import PageHeader from '../components/ui/PageHeader.jsx';
 // Static integration catalog - connection status is computed dynamically from real data
 const CATALOG = [
   {
@@ -259,10 +260,10 @@ export default function Integrations() {
 
   return (
     <div style={ds.page}>
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={ds.pageTitle}>Integrations</h1>
-        <p style={{ ...type.bodySmall, marginTop: 4 }}>{connectedCount} connected · {integrations.length} available</p>
-      </div>
+      <PageHeader
+        title="Integrations"
+        subtitle={`${connectedCount} connected · ${integrations.length} available`}
+      />
 
       {/* WhatsApp + SMS moved to their own home at /messaging */}
       <button

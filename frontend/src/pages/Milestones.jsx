@@ -12,6 +12,7 @@ import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import { bloom } from '../lib/bloom.js';
 import Icon from '../components/ui/Icon';
+import PageHeader from '../components/ui/PageHeader.jsx';
 
 function describe(m) {
   const key = m.key || '';
@@ -74,8 +75,10 @@ export default function Milestones() {
 
   return (
     <div style={S.page}>
-      <h1 style={S.title}>Milestones</h1>
-      <p style={S.sub}>The moments worth telling the group chat about.</p>
+      <PageHeader
+        title="Milestones"
+        subtitle="The moments worth telling the group chat about."
+      />
 
       {error && <div style={S.errorCard}>Could not load milestones just now.</div>}
 
@@ -120,11 +123,6 @@ const S = {
     padding: '20px 16px var(--scroll-pad-bottom)', maxWidth: 480, margin: '0 auto',
     fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
   },
-  title: {
-    fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
-    fontSize: 26, fontWeight: 600, color: 'var(--text-primary, #241B17)', margin: '40px 0 4px',
-  },
-  sub: { fontSize: 13.5, color: 'var(--text-secondary, #574A42)', margin: '0 0 18px' },
   errorCard: { background: 'var(--danger-bg, #F7E4E4)', color: 'var(--danger-text, #9E2B32)', borderRadius: 10, padding: 14, fontSize: 13.5 },
   emptyCard: { background: 'var(--tone-1, #fbf1ea)', borderRadius: 22, padding: 18 },
   card: {

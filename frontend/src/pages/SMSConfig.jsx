@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { ds, type } from '../lib/designSystem.js';
 import { supabase } from '../lib/supabase.js';
 import Icon from '../components/ui/Icon';
+import PageHeader from '../components/ui/PageHeader.jsx';
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -174,10 +175,10 @@ export default function SMSConfig() {
 
   return (
     <div style={ds.page}>
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={ds.pageTitle}>SMS</h1>
-        <p style={{ ...type.bodySmall, marginTop: 4 }}>Bird-powered SMS, no regulatory bundle required</p>
-      </div>
+      <PageHeader
+        title="SMS"
+        subtitle="Bird-powered SMS, no regulatory bundle required"
+      />
 
       {/* Status card */}
       <div style={{ ...ds.heroCard, marginBottom: 20 }}>

@@ -23,6 +23,7 @@ import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import Icon from '../components/ui/Icon';
+import PageHeader from '../components/ui/PageHeader.jsx';
 
 async function getToken() {
   const { data } = await supabase.auth.getSession();
@@ -171,10 +172,10 @@ export default function Referrals() {
 
   return (
     <div style={s.page}>
-      <div style={s.header}>
-        <h1 style={s.title}>Refer a Friend</h1>
-        <p style={s.sub}>Grow your client base through word of mouth</p>
-      </div>
+      <PageHeader
+        title="Refer a Friend"
+        subtitle="Grow your client base through word of mouth"
+      />
 
       {/* Stats */}
       <div style={s.statsRow}>
@@ -379,9 +380,6 @@ export default function Referrals() {
 
 const s = {
   page: { padding: '16px 16px 32px', maxWidth: 480, margin: '0 auto', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif" },
-  header: { marginBottom: 16 },
-  title: { fontSize: 24, fontWeight: 700, color: 'var(--text, #241B17)', margin: 0 },
-  sub: { fontSize: 13, color: 'var(--text-muted, #6B5D54)', margin: '4px 0 0' },
   statsRow: { display: 'flex', gap: 8, marginBottom: 14 },
   statCard: { flex: 1, background: 'var(--card-bg, #FFFCF9)', borderRadius: 10, padding: '12px 10px', textAlign: 'center', border: '1px solid var(--border, #E8DDD4)' },
   statValue: { display: 'block', fontSize: 20, fontWeight: 700, color: 'var(--text, #241B17)' },

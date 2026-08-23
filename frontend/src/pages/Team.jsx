@@ -5,6 +5,7 @@ import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import { isIOSNative } from '../lib/platform.js';
 import Icon from '../components/ui/Icon';
+import PageHeader from '../components/ui/PageHeader.jsx';
 
 const ROLES = [
   { key: 'stylist', label: 'Stylist', desc: 'Books & manages their own clients' },
@@ -77,17 +78,15 @@ export default function Team() {
 
   return (
     <div style={styles.page}>
-      <div style={styles.header}>
-        <div>
-          <h1 style={styles.title}>Team</h1>
-          <p style={styles.subtitle}>
-            {activeCount === 0 ? 'Just you for now' : `${activeCount} team member${activeCount !== 1 ? 's' : ''}`}
-          </p>
-        </div>
-        <button onClick={() => { setForm(blankForm()); setShowAdd(true); }} style={styles.addBtn}>
-          + Add
-        </button>
-      </div>
+      <PageHeader
+        title="Team"
+        subtitle={activeCount === 0 ? 'Just you for now' : `${activeCount} team member${activeCount !== 1 ? 's' : ''}`}
+        action={(
+          <button onClick={() => { setForm(blankForm()); setShowAdd(true); }} style={styles.addBtn}>
+            + Add
+          </button>
+        )}
+      />
 
       {/* Pricing summary */}
       {!isIOSNative() && activeCount > 0 && (
@@ -360,9 +359,6 @@ function SkeletonCard() {
 
 const styles = {
   page: { minHeight: 'var(--shell-viewport)', background: 'var(--bg, #FBF6F1)', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", padding: '0 16px var(--scroll-pad-bottom)', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary, #241B17)' },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingTop: 8, paddingBottom: 12 },
-  title: { fontSize: 22, fontWeight: 700, margin: 0 },
-  subtitle: { fontSize: 13, color: 'var(--text-muted, var(--text-muted, #6B5D54))', margin: '4px 0 0' },
   addBtn: { padding: '8px 16px', borderRadius: 10, border: 'none', background: 'var(--accent, #92405e)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
 
   // Pricing summary

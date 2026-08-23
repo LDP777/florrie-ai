@@ -11,6 +11,7 @@ import PageLoader from '../components/PageLoader.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import { bookingUrl as publicBookingUrl } from '../lib/booking.js';
 import Icon, { iconName } from '../components/ui/Icon';
+import PageHeader from '../components/ui/PageHeader.jsx';
 const fmt = (cents) => `£${(cents / 100).toFixed(0)}`;
 
 const CATEGORIES = [
@@ -171,7 +172,7 @@ export default function PriceList() {
         </div>
       )}
 
-      <h1 style={S.title}>Price List</h1>
+      <PageHeader title="Price List" />
 
       {items.length === 0 && !loading && (
         <div style={S.emptyWrap}>
@@ -354,12 +355,6 @@ const S = {
     fontFamily: "var(--font-body, 'Plus Jakarta Sans', -apple-system, sans-serif)",
     maxWidth: 480, margin: '0 auto',
     color: 'var(--text-primary, #241B17)',
-  },
-  title: {
-    fontSize: 22, fontWeight: 700,
-    color: 'var(--text-primary, #241B17)',
-    margin: '0 0 16px',
-    fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
   },
 
   // Empty state

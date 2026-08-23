@@ -12,6 +12,7 @@ import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import Icon, { iconName } from '../components/ui/Icon';
+import PageHeader from '../components/ui/PageHeader.jsx';
 const fmt = (cents) => `£${(cents / 100).toFixed(2)}`;
 
 const TYPE_CONFIG = {
@@ -136,7 +137,7 @@ export default function CancellationLog() {
 
   return (
     <div style={S.page}>
-      <h1 style={S.title}>Cancellation Log</h1>
+      <PageHeader title="Cancellation Log" />
       {error && <div style={{ ...S.errorBanner, marginBottom: 16 }}>{error}</div>}
       {loading && <p style={{ textAlign: 'center', color: 'var(--text-muted, #6B5D54)' }}>Loading cancellations...</p>}
 
@@ -355,7 +356,6 @@ function computeNotice(cancelledAt, startsAt) {
 
 const S = {
   page: { padding: '20px 16px 32px', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 480, margin: '0 auto' },
-  title: { fontSize: 22, fontWeight: 700, color: 'var(--text-primary, #241B17)', margin: '0 0 12px' },
   errorBanner: { background: 'var(--danger-bg, #F7E4E4)', color: 'var(--danger, #9E2B32)', padding: '10px 12px', borderRadius: 10, fontSize: 13 },
   periodRow: { display: 'flex', gap: 8, marginBottom: 16 },
   periodChip: { padding: '6px 14px', borderRadius: 16, border: '1px solid var(--border, var(--border, #E8DDD4))', background: 'var(--bg-card, #FFFCF9)', color: 'var(--text-secondary, #574A42)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },

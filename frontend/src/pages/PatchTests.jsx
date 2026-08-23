@@ -7,6 +7,7 @@ import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import { todayLocal } from '../lib/dates.js';
 import Icon, { iconName } from '../components/ui/Icon';
+import PageHeader from '../components/ui/PageHeader.jsx';
 /**
  * Patch Test Tracker - Regulatory compliance for brow & lash treatments.
  *
@@ -274,12 +275,7 @@ export default function PatchTests() {
 
   return (
     <div style={styles.page}>
-      <div style={styles.header}>
-        <div>
-          <h1 style={styles.title}>Patch Tests</h1>
-          <p style={styles.subtitle}>Compliance tracker</p>
-        </div>
-      </div>
+      <PageHeader title="Patch Tests" subtitle="Compliance tracker" />
 
       {/* Status summary */}
       <div style={styles.summaryRow}>
@@ -650,9 +646,6 @@ const styles = {
     fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
     padding: '0 16px var(--scroll-pad-bottom)', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary)',
   },
-  header: { paddingTop: 8, paddingBottom: 8 },
-  title: { fontSize: 22, fontWeight: 700, margin: '0 0 2px' },
-  subtitle: { fontSize: 13, color: 'var(--accent)', margin: 0, fontWeight: 500 },
 
   summaryRow: { display: 'flex', gap: 8, marginBottom: 12 },
   summaryChip: {

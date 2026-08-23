@@ -5,6 +5,7 @@ import { API_BASE } from '../lib/config.js';
 import Icon, { iconName } from '../components/ui/Icon';
 import Money from '../components/ui/Money';
 import Button from '../components/ui/Button';
+import PageHeader from '../components/ui/PageHeader.jsx';
 /**
  * Client Import: one-click migration from Fresha, Timely, Vagaro, or any CSV/XLSX.
  *
@@ -281,10 +282,7 @@ export default function ClientImport() {
 
   return (
     <div style={styles.page}>
-      <div style={styles.header}>
-        <h1 style={styles.title}>Switch to Florrie</h1>
-        <p style={styles.subtitle}>Import everything in 60 seconds</p>
-      </div>
+      <PageHeader title="Switch to Florrie" subtitle="Import everything in 60 seconds" />
 
       {/* Hidden file input */}
       <input
@@ -1011,14 +1009,6 @@ const styles = {
     margin: '0 auto',
     color: 'var(--text-primary, #241B17)',
   },
-  header: { paddingTop: 8, paddingBottom: 8 },
-  title: {
-    fontSize: 24,
-    fontWeight: 700,
-    margin: '0 0 2px',
-    fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
-  },
-  subtitle: { fontSize: 14, color: 'var(--accent, #92405e)', margin: 0, fontWeight: 500 },
   intro: { fontSize: 13, color: 'var(--text-secondary, #574A42)', margin: '4px 0 16px', lineHeight: 1.5 },
 
   // Error

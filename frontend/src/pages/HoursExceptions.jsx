@@ -3,6 +3,7 @@ import { useBeautician, supabase, insertRow, deleteRow } from '../lib/supabase.j
 import logger from '../lib/logger.js';
 import { todayLocal } from '../lib/dates.js';
 import Icon, { iconName } from '../components/ui/Icon';
+import PageHeader from '../components/ui/PageHeader.jsx';
 /**
  * Availability Planner - forward-looking calendar for blocking days / changing hours.
  *
@@ -268,19 +269,16 @@ export default function HoursExceptions() {
 
   return (
     <div style={S.page}>
-      {/* ── Header ── */}
-      <div style={S.header}>
-        <div>
-          <h1 style={S.title}>Availability</h1>
-          <p style={S.subtitle}>Tap any future day to block it</p>
-        </div>
-        {upcoming.length > 0 && (
+      <PageHeader
+        title="Availability"
+        subtitle="Tap any future day to block it"
+        action={upcoming.length > 0 ? (
           <div style={S.upcomingBubble}>
             <span style={S.upcomingNum}>{upcoming.length}</span>
             <span style={S.upcomingLbl}>upcoming</span>
           </div>
-        )}
-      </div>
+        ) : null}
+      />
 
       {/* ── Next off card ── */}
       {upcoming.find(e => e.type === 'closed') && (() => {
@@ -542,15 +540,6 @@ const S = {
     color: 'var(--text-primary, #241B17)',
   },
 
-  header: {
-    paddingTop: 28,
-    paddingBottom: 12,
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  title:    { fontSize: 22, fontWeight: 700, margin: '0 0 2px' },
-  subtitle: { fontSize: 13, color: 'var(--accent, #92405e)', margin: 0, fontWeight: 500 },
 
   upcomingBubble: {
     display: 'flex', flexDirection: 'column', alignItems: 'center',

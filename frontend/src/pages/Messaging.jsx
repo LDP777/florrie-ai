@@ -1,10 +1,11 @@
 import { useState, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useBeautician } from '../lib/supabase.js';
-import { ds, type } from '../lib/designSystem.js';
+import { ds } from '../lib/designSystem.js';
 import WhatsAppConfig from './WhatsAppConfig.jsx';
 import SMSConfig from './SMSConfig.jsx';
 import Icon from '../components/ui/Icon';
+import PageHeader from '../components/ui/PageHeader.jsx';
 
 /**
  * Messaging, single entry point for WhatsApp + SMS setup.
@@ -45,12 +46,10 @@ export default function Messaging() {
 
   return (
     <div style={ds.page}>
-      <div style={{ marginBottom: 16 }}>
-        <h1 style={ds.pageTitle}>Messaging</h1>
-        <p style={{ ...type.bodySmall, marginTop: 4 }}>
-          WhatsApp + SMS in one place. Pick a channel to set it up or check its status.
-        </p>
-      </div>
+      <PageHeader
+        title="Messaging"
+        subtitle="WhatsApp + SMS in one place. Pick a channel to set it up or check its status."
+      />
 
       {/* Tabs */}
       <div style={styles.tabBar}>

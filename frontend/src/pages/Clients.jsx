@@ -11,6 +11,7 @@ import { todayLocal } from '../lib/dates.js';
 import Icon, { iconName } from '../components/ui/Icon';
 import Money from '../components/ui/Money';
 import Button from '../components/ui/Button';
+import PageHeader from '../components/ui/PageHeader.jsx';
 function getToken() {
   const key = Object.keys(localStorage).find(k => /^sb-.+-auth-token$/.test(k));
   if (!key) return null;
@@ -640,39 +641,41 @@ export default function Clients() {
   return (
     <div style={styles.page}>
       {error && <ErrorCard message={error} onDismiss={() => setError(null)} />}
-      <div style={styles.header}>
-        <h1 style={styles.title}>Clients</h1>
-        {/* Select and Export are rare and were sitting in the best real
-            estate on the page, next to the one button that is not rare. They
-            go behind a menu; Add stays where the thumb goes. */}
-        <div style={styles.headerActions}>
-          {!selectMode && (
-            <>
-              <Button size="sm" onClick={() => setShowAdd(!showAdd)}>+ Add</Button>
-              <div style={{ position: 'relative', flexShrink: 0 }}>
-                <Button
-                  variant="quiet" icon size="icon"
-                  aria-label="More client actions"
-                  aria-haspopup="menu"
-                  aria-expanded={moreOpen}
-                  onClick={() => setMoreOpen(o => !o)}
-                >
-                  <Icon name={iconName('expand_more')} size={18} inline />
-                </Button>
-                {moreOpen && (
-                  <div style={styles.sortMenu} role="menu">
-                    <MenuItem onClick={() => { setMoreOpen(false); setSelectMode(true); }}>Select several</MenuItem>
-                    <MenuItem onClick={() => { setMoreOpen(false); handleExportCSV(); }}>Export to a spreadsheet</MenuItem>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-          {selectMode && (
-            <Button size="sm" onClick={exitSelectMode}>Done</Button>
-          )}
-        </div>
-      </div>
+      {/* Select and Export are rare and were sitting in the best real
+          estate on the page, next to the one button that is not rare. They
+          go behind a menu; Add stays where the thumb goes. */}
+      <PageHeader
+        title="Clients"
+        action={(
+          <>
+            {!selectMode && (
+              <>
+                <Button size="sm" onClick={() => setShowAdd(!showAdd)}>+ Add</Button>
+                <div style={{ position: 'relative', flexShrink: 0 }}>
+                  <Button
+                    variant="quiet" icon size="icon"
+                    aria-label="More client actions"
+                    aria-haspopup="menu"
+                    aria-expanded={moreOpen}
+                    onClick={() => setMoreOpen(o => !o)}
+                  >
+                    <Icon name={iconName('expand_more')} size={18} inline />
+                  </Button>
+                  {moreOpen && (
+                    <div style={styles.sortMenu} role="menu">
+                      <MenuItem onClick={() => { setMoreOpen(false); setSelectMode(true); }}>Select several</MenuItem>
+                      <MenuItem onClick={() => { setMoreOpen(false); handleExportCSV(); }}>Export to a spreadsheet</MenuItem>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+            {selectMode && (
+              <Button size="sm" onClick={exitSelectMode}>Done</Button>
+            )}
+          </>
+        )}
+      />
 
       {/* Just-imported banner: shown above the list whenever a batch_id is in the URL */}
       {justImportedBatchId && (
@@ -1802,17 +1805,6 @@ const styles = {
     color: 'var(--text-primary)',
     animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
   },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8, paddingBottom: 12 },
-  title: {
-    fontSize: 22,
-    fontWeight: 700,
-    fontStyle: 'italic',
-    margin: 0,
-    fontFamily: "'Playfair Display', Georgia, serif",
-    color: 'var(--text-primary, #241B17)',
-    lineHeight: 1.2,
-  },
-  headerActions: { display: 'flex', gap: 8, alignItems: 'center' },
   // Count summary
   countRow: {
     display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',

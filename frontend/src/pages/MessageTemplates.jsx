@@ -49,6 +49,7 @@ function previewMessage(body) {
 
 import MessagePreview from '../components/MessagePreview.jsx';
 import Icon, { iconName } from '../components/ui/Icon';
+import PageHeader from '../components/ui/PageHeader.jsx';
 
 export default function MessageTemplates() {
   const { dark } = useTheme();
@@ -138,15 +139,15 @@ export default function MessageTemplates() {
 
   return (
     <div style={s.page}>
-      <div style={s.header}>
-        <div>
-          <h1 style={s.title}>Templates</h1>
-          <p style={s.sub}>Reusable message templates</p>
-        </div>
-        <button onClick={() => setShowCreate(!showCreate)} style={s.addBtn}>
-          {showCreate ? '×' : '+ New'}
-        </button>
-      </div>
+      <PageHeader
+        title="Templates"
+        subtitle="Reusable message templates"
+        action={(
+          <button onClick={() => setShowCreate(!showCreate)} style={s.addBtn}>
+            {showCreate ? '×' : '+ New'}
+          </button>
+        )}
+      />
 
       {/* Create form */}
       {showCreate && (
@@ -310,9 +311,6 @@ export default function MessageTemplates() {
 
 const s = {
   page: { padding: '16px 16px 32px', maxWidth: 480, margin: '0 auto', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif" },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
-  title: { fontSize: 24, fontWeight: 700, color: 'var(--text, var(--text-primary, #241B17))', margin: 0 },
-  sub: { fontSize: 13, color: 'var(--text-muted, var(--text-muted, var(--text-muted, #6B5D54)))', margin: '4px 0 0' },
   addBtn: { padding: '8px 16px', borderRadius: 10, border: 'none', background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   createCard: { background: 'var(--card-bg, #FFFCF9)', borderRadius: 16, padding: 16, marginBottom: 16, border: '1px solid var(--border, var(--border, var(--border, var(--border, #E8DDD4))))' },
   catRow: { display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 },

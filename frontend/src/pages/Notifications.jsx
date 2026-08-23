@@ -5,6 +5,7 @@ import { API_BASE } from '../lib/config.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import Icon, { iconName } from '../components/ui/Icon';
+import PageHeader from '../components/ui/PageHeader.jsx';
 
 /**
  * Notifications Centre - Real-time feed of everything happening.
@@ -147,17 +148,13 @@ export default function Notifications() {
 
   return (
     <div style={styles.page}>
-      <div style={styles.header}>
-        <div>
-          <h1 style={styles.title}>Notifications</h1>
-          <p style={styles.subtitle}>
-            {unreadCount > 0 ? `${unreadCount} unread` : 'All caught up'}
-          </p>
-        </div>
-        {unreadCount > 0 && (
+      <PageHeader
+        title="Notifications"
+        subtitle={unreadCount > 0 ? `${unreadCount} unread` : 'All caught up'}
+        action={unreadCount > 0 ? (
           <button onClick={markAllRead} style={styles.markAllBtn}>Mark all read</button>
-        )}
-      </div>
+        ) : null}
+      />
 
       {/* Waiting on your OK , the one yes/no flag, links straight to the outbox */}
       {approvals?.count > 0 && (
@@ -262,12 +259,6 @@ const styles = {
     fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
     padding: '0 16px var(--scroll-pad-bottom)', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary, #241B17)',
   },
-  header: {
-    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    paddingTop: 28, paddingBottom: 8,
-  },
-  title: { fontSize: 22, fontWeight: 700, margin: '0 0 2px' },
-  subtitle: { fontSize: 13, color: 'var(--accent, #92405e)', margin: 0, fontWeight: 500 },
   markAllBtn: {
     padding: '6px 14px', borderRadius: 10, border: 'none',
     background: 'var(--accent-light, #F6E7EC)', color: 'var(--accent, #92405e)', fontSize: 11, fontWeight: 600,

@@ -4,6 +4,7 @@ import { useBeautician } from '../lib/supabase.js';
 import { hasFeature, getRequiredPlan } from '../lib/subscription.js';
 import { isIOSNative } from '../lib/platform.js';
 import Icon, { iconName } from '../components/ui/Icon';
+import PageHeader from '../components/ui/PageHeader.jsx';
 
 /**
  * More , the back-of-house catalogue of every secondary page.
@@ -210,7 +211,7 @@ export default function More() {
 
   return (
     <div style={S.page}>
-      <h1 style={S.heading}>More</h1>
+      <PageHeader title="More" />
 
       <div style={S.searchWrap}>
         <Icon name={iconName('search')} size={18} inline style={S.searchIcon} />
@@ -345,15 +346,6 @@ const S = {
     maxWidth: 480,
     margin: '0 auto',
     color: '#1d1b19',
-  },
-  heading: {
-    fontSize: 26,
-    fontWeight: 600,
-    fontFamily: "'Playfair Display', Georgia, serif",
-    fontStyle: 'italic',
-    color: 'var(--text-primary, #241B17)',
-    margin: '12px 0 16px',
-    letterSpacing: '-0.01em',
   },
 
   searchWrap: { position: 'relative', marginBottom: 20 },

@@ -10,6 +10,7 @@ import { useBeautician, fetchRows, insertRow, updateRow, deleteRow } from '../li
 import logger from '../lib/logger.js';
 import { todayLocal } from '../lib/dates.js';
 import Icon from '../components/ui/Icon';
+import PageHeader from '../components/ui/PageHeader.jsx';
 
 const DEV_PHOTOS = [
   { id: 'p1', url: null, treatment: 'Lamination & Hybrid Dye', client: 'Shauna', date: '2026-03-18', type: 'after', tags: ['brows', 'lamination'], pair_id: 'pair1' },
@@ -127,10 +128,10 @@ export default function Portfolio() {
 
   return (
     <div style={S.page}>
-      <div style={S.header}>
-        <h1 style={S.title}>Portfolio</h1>
-        <button style={S.uploadBtn} onClick={() => setShowUpload(true)}>+ Add Photo</button>
-      </div>
+      <PageHeader
+        title="Portfolio"
+        action={<button style={S.uploadBtn} onClick={() => setShowUpload(true)}>+ Add Photo</button>}
+      />
 
       {/* Stats */}
       <div style={S.statsRow}>
@@ -319,8 +320,6 @@ export default function Portfolio() {
 
 const S = {
   page: { padding: '20px 16px 32px', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 480, margin: '0 auto' },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, var(--text-primary, #241B17))', margin: 0 },
   uploadBtn: { background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', border: 'none', borderRadius: 22, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
   statsRow: { display: 'flex', gap: 10, marginBottom: 16 },

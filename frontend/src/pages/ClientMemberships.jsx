@@ -4,6 +4,7 @@ import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import Icon from '../components/ui/Icon';
+import PageHeader from '../components/ui/PageHeader.jsx';
 
 const STATUS_COLORS = {
   active: { bg: 'var(--success-bg, #E9F0EB)', color: 'var(--success, #386F52)' },
@@ -110,10 +111,7 @@ export default function ClientMemberships() {
 
   return (
     <div style={s.page}>
-      <div style={s.header}>
-        <h1 style={s.title}>Memberships</h1>
-        <p style={s.subtitle}>Subscription plans and recurring revenue</p>
-      </div>
+      <PageHeader title="Memberships" subtitle="Subscription plans and recurring revenue" />
 
       {/* Revenue hero */}
       <div style={s.heroCard}>
@@ -257,9 +255,6 @@ export default function ClientMemberships() {
 
 const s = {
   page: { padding: '20px 16px 40px', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 480, margin: '0 auto' },
-  header: { marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: 700, margin: 0, color: 'var(--text, #241B17)' },
-  subtitle: { fontSize: 13, color: 'var(--text-muted, #6B5D54)', margin: '4px 0 0' },
   heroCard: { padding: 20, borderRadius: 16, background: 'linear-gradient(135deg, var(--accent, #92405e), var(--accent-hover, #782b49))', marginBottom: 16 },
   tabRow: { display: 'flex', gap: 0, marginBottom: 16, borderRadius: 10, overflow: 'hidden', border: '1px solid var(--card-border, #E8DDD4)' },
   tab: { flex: 1, padding: '10px 0', border: 'none', background: 'none', fontSize: 13, fontWeight: 500, cursor: 'pointer', color: 'var(--text-muted, #6B5D54)', fontFamily: 'inherit' },

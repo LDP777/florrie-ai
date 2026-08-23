@@ -7,6 +7,7 @@ import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import Icon, { iconName } from '../components/ui/Icon';
+import PageHeader from '../components/ui/PageHeader.jsx';
 /**
  * apiFetch attaches the full response body to thrown errors so callers can
  * read structured diagnostic fields (diagnostic.code, meta_code, fbtrace_id…)
@@ -1139,19 +1140,21 @@ export default function WhatsAppConfig() {
 
   return (
     <div style={styles.page}>
-      <div style={styles.header}>
-        <h1 style={styles.title}>WhatsApp Business</h1>
-        <div style={{ ...styles.statusBadge,
-          background: connected
-            ? 'var(--success-bg, #E9F0EB)'
-            : pendingActivation ? '#EDF3FA' : '#FFF3E0',
-          color: connected
-            ? 'var(--success, #386F52)'
-            : pendingActivation ? '#2E4A6B' : '#B33F00',
-        }}>
-          {connected ? 'Connected' : pendingActivation ? '⏳ Activating' : 'Not connected'}
-        </div>
-      </div>
+      <PageHeader
+        title="WhatsApp Business"
+        action={(
+          <div style={{ ...styles.statusBadge,
+            background: connected
+              ? 'var(--success-bg, #E9F0EB)'
+              : pendingActivation ? '#EDF3FA' : '#FFF3E0',
+            color: connected
+              ? 'var(--success, #386F52)'
+              : pendingActivation ? '#2E4A6B' : '#B33F00',
+          }}>
+            {connected ? 'Connected' : pendingActivation ? '⏳ Activating' : 'Not connected'}
+          </div>
+        )}
+      />
 
       {/* Retry exhausted, shown when retry worker has given up after max attempts */}
       {!connected && !pendingActivation && status?.retry_exhausted && (
@@ -1400,8 +1403,6 @@ export default function WhatsAppConfig() {
 
 const styles = {
   page: { padding: '16px 16px 24px', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 480, margin: '0 auto' },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #241B17)', margin: 0 },
   statusBadge: { padding: '4px 10px', borderRadius: 10, fontSize: 12, fontWeight: 600 },
 
   connectBox: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: 24, border: '1px solid var(--border, #E8DDD4)' },

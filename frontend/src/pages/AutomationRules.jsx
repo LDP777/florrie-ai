@@ -6,6 +6,7 @@ import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import Icon, { iconName } from '../components/ui/Icon';
 import Button from '../components/ui/Button.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 const triggerOptions = [
   { id: 'appointment_booked', label: 'Appointment booked', icon: 'calendar' },
   { id: 'appointment_completed', label: 'Appointment completed', icon: 'check-circle' },
@@ -156,15 +157,15 @@ export default function AutomationRules() {
   ];
   return (
     <div style={styles.page}>
-      <div style={styles.header}>
-        <div>
-          <h1 style={styles.title}>Automations</h1>
-          <div style={styles.subtitle}>{activeCount} active · {totalRuns} total runs</div>
-        </div>
-        <Button size="sm" onClick={() => setCreating(!creating)}>
-          {creating ? '✕' : '+ New'}
-        </Button>
-      </div>
+      <PageHeader
+        title="Automations"
+        subtitle={`${activeCount} active · ${totalRuns} total runs`}
+        action={(
+          <Button size="sm" onClick={() => setCreating(!creating)}>
+            {creating ? '✕' : '+ New'}
+          </Button>
+        )}
+      />
       {/* Create new rule */}
       {creating && (
         <div style={styles.createCard}>
@@ -364,9 +365,6 @@ export default function AutomationRules() {
 }
 const styles = {
   page: { padding: '16px 16px 24px', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 480, margin: '0 auto' },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: 700, color: 'var(--text-primary, #241B17)', margin: 0 },
-  subtitle: { fontSize: 13, color: 'var(--text-muted, var(--text-muted, #6B5D54))', marginTop: 2 },
   createCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: 16, border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', marginBottom: 16 },
   createTitle: { fontSize: 16, fontWeight: 700, color: 'var(--text-primary, #241B17)', marginBottom: 12 },
   ruleInput: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border, var(--border, var(--border, #E8DDD4)))', fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 16, boxSizing: 'border-box', background: 'var(--bg, var(--bg, #FBF6F1))' },

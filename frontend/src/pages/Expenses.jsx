@@ -14,6 +14,7 @@ import { todayLocal } from '../lib/dates.js';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import Icon from '../components/ui/Icon';
+import PageHeader from '../components/ui/PageHeader.jsx';
 
 const CATEGORIES = [
   { value: 'products', label: 'Products', icon: 'flower', color: 'var(--accent, #92405e)' },
@@ -188,10 +189,10 @@ export default function Expenses() {
 
   return (
     <div style={S.page}>
-      <div style={S.header}>
-        <h1 style={S.title}>Expenses</h1>
-        <button style={S.addBtn} onClick={() => setShowAdd(true)}>+ Add</button>
-      </div>
+      <PageHeader
+        title="Expenses"
+        action={<button style={S.addBtn} onClick={() => setShowAdd(true)}>+ Add</button>}
+      />
 
       {/* Month nav */}
       <div style={S.monthNav}>
@@ -458,8 +459,6 @@ function formatDate(dateStr) {
 
 const S = {
   page: { padding: '20px 16px 32px', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 480, margin: '0 auto' },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, var(--text-primary, #241B17))', margin: 0 },
   addBtn: { background: 'var(--accent, #92405e)', color: '#fff', border: 'none', borderRadius: 22, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
   monthNav: { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 20, marginBottom: 16 },

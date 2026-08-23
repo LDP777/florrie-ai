@@ -705,7 +705,6 @@ function EmptyState() {
 const s = {
   page: {
     padding: '16px 16px 32px',
-    paddingBottom: 'calc(env(safe-area-inset-bottom, 8px) + 96px)',
     maxWidth: 480,
     margin: '0 auto',
     fontFamily: "'Plus Jakarta Sans', 'DM Sans', -apple-system, sans-serif",

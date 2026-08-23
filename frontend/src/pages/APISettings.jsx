@@ -14,6 +14,7 @@ import { useBeautician } from '../lib/supabase.js';
 import { ds, type } from '../lib/designSystem.js';
 import PageLoader from '../components/PageLoader.jsx';
 import Icon from '../components/ui/Icon';
+import PageHeader from '../components/ui/PageHeader.jsx';
 
 const tabs = ['API Reference', 'Your Account', 'Webhooks'];
 
@@ -68,10 +69,10 @@ export default function APISettings() {
 
   return (
     <div style={ds.page}>
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={ds.pageTitle}>Developer Tools</h1>
-        <p style={{ ...type.bodySmall, marginTop: 4 }}>API reference, account identifiers, and integrations</p>
-      </div>
+      <PageHeader
+        title="Developer Tools"
+        subtitle="API reference, account identifiers, and integrations"
+      />
 
       {/* Hero */}
       <div style={{ ...ds.heroCard, marginBottom: 20, background: 'linear-gradient(135deg, #2D2D3F 0%, #1A1A2E 40%, #B9466D 100%)' }}>
