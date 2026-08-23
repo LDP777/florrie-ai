@@ -19,6 +19,23 @@ import { supabase } from '../config.js';
 
 const WALL_DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 
+// How far back to look for a closure that started before the window and is still
+// running. A year covers any real salon closure; anything longer is a data entry
+// mistake, not a holiday.
+const MAX_BLOCK_LOOKBACK_DAYS = 366;
+
+/** The lower bound a hours_exceptions query needs to catch a closure already in progress. */
+export function blockLookbackFrom(day) {
+  return shiftDay(day, -MAX_BLOCK_LOOKBACK_DAYS);
+}
+
+/** Shift a YYYY-MM-DD wall day by n days, staying in the wall frame. */
+function shiftDay(day, n) {
+  const d = new Date(`${day}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
 /** "Now", rendered in the salon's wall clock, in the wall frame. */
 export function nowInSalonWall(timezone = 'Europe/London') {
   const p = new Intl.DateTimeFormat('en-CA', {
@@ -36,12 +53,25 @@ export function nowInSalonWall(timezone = 'Europe/London') {
  * book a patch test straight over a block. Load them once, in the wall frame.
  */
 export async function loadBlocks(beauticianId, fromWall, toWall) {
+  const from = fromWall.toISOString().slice(0, 10);
+  const to = toWall.toISOString().slice(0, 10);
+
+  // A block is a RANGE, date..end_date, not a single day. This used to filter
+  // on `date` alone, so a holiday entered as 24 to 30 August closed the 24th
+  // and left the other six days bookable.
+  //
+  // The row that matters may START before the window (a fortnight off that began
+  // last Tuesday still closes today), so the lower bound is widened by
+  // MAX_BLOCK_LOOKBACK_DAYS and the exact date..end_date test is done in JS
+  // below. A plain range predicate would need `coalesce(end_date, date)`, which
+  // PostgREST cannot express without an `or(...)` string, and a malformed one of
+  // those fails the whole availability lookup.
   const { data: rows, error } = await supabase
     .from('hours_exceptions')
-    .select('date, type, start_time, end_time')
+    .select('date, end_date, type, start_time, end_time')
     .eq('beautician_id', beauticianId)
-    .gte('date', fromWall.toISOString().slice(0, 10))
-    .lte('date', toWall.toISOString().slice(0, 10));
+    .gte('date', blockLookbackFrom(from))
+    .lte('date', to);
 
   // A failed block lookup used to come back as `rows = null`, which reads as
   // "she has no days off" and offers her holiday to a client. Throw instead:
@@ -51,16 +81,52 @@ export async function loadBlocks(beauticianId, fromWall, toWall) {
   const closedDays = new Set();
   const intervals = [];
   for (const r of rows || []) {
-    if (r.type !== 'closed' && r.start_time && r.end_time) {
-      intervals.push({
-        start: new Date(`${r.date}T${String(r.start_time).slice(0, 5)}:00Z`),
-        end: new Date(`${r.date}T${String(r.end_time).slice(0, 5)}:00Z`),
-      });
-    } else {
-      closedDays.add(r.date); // whole day off
+    // Walk the row's own days, clamped to the window so one long range cannot
+    // expand into thousands of entries. Filtering here as well as in the query
+    // keeps this correct even if the query ever comes back wider than asked.
+    for (const day of blockDays(r, from, to)) {
+      if (r.type !== 'closed' && r.start_time && r.end_time) {
+        intervals.push({
+          start: new Date(`${day}T${String(r.start_time).slice(0, 5)}:00Z`),
+          end: new Date(`${day}T${String(r.end_time).slice(0, 5)}:00Z`),
+        });
+      } else {
+        closedDays.add(day); // whole day off
+      }
     }
   }
   return { closedDays, intervals };
+}
+
+/** The last day a block covers. Null/blank end_date, or one before the start, = a single day. */
+export function blockEndDate(row) {
+  const start = String(row?.date || '').slice(0, 10);
+  const end = String(row?.end_date || '').slice(0, 10);
+  return end && end >= start ? end : start;
+}
+
+/** Does a date..end_date block cover this YYYY-MM-DD wall day? */
+export function blockCoversDay(row, day) {
+  const start = String(row?.date || '').slice(0, 10);
+  if (!start) return false;
+  return start <= day && day <= blockEndDate(row);
+}
+
+/** Every YYYY-MM-DD a block covers, clamped to [from, to]. */
+export function blockDays(row, from, to) {
+  const start = String(row?.date || '').slice(0, 10);
+  if (!start) return [];
+  const first = start > from ? start : from;
+  const last = (() => { const e = blockEndDate(row); return e < to ? e : to; })();
+  const days = [];
+  // Step in the wall frame (UTC fields ARE the wall clock), never with getDate().
+  const cursor = new Date(`${first}T00:00:00Z`);
+  const stop = new Date(`${last}T00:00:00Z`);
+  while (cursor <= stop) {
+    days.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return days;
 }
 
 export function hitsBlock(slotStart, slotEnd, blocks) {

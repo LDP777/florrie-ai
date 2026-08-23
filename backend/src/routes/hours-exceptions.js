@@ -53,6 +53,15 @@ router.post('/', requireAuth, async (req, res) => {
     }
     if (!reason) return res.status(400).json({ error: 'reason is required' });
 
+    // A range picker that hands back its two ends in the wrong order used to be
+    // stored verbatim. Nothing downstream can honour date..end_date when the end
+    // is before the start, so the closure would silently cover no days at all.
+    // Reject it here rather than store a range that cannot be read back.
+    const endDate = typeof end_date === 'string' && end_date.trim() ? end_date.trim() : null;
+    if (endDate && endDate < String(date)) {
+      return res.status(400).json({ error: 'end_date cannot be before date' });
+    }
+
     // Build the insertion object
     const exc = {
       beautician_id: req.beautician.id,
@@ -68,8 +77,8 @@ router.post('/', requireAuth, async (req, res) => {
       created_at: new Date().toISOString(),
     };
 
-    // Add optional fields
-    if (end_date) exc.end_date = end_date;
+    // Add optional fields. A blank end_date is a single day, not an empty range.
+    if (endDate) exc.end_date = endDate;
     if (type !== 'closed') {
       exc.start_time = start_time || null;
       exc.end_time = end_time || null;

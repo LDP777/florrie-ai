@@ -16,9 +16,10 @@ import { chargePolicyFee, computePolicyFee, chargeRescheduleDeposit } from '../s
 import { verifyTurnstile } from '../middleware/turnstile.js';
 import logger from '../lib/logger.js';
 import { bookingSchema } from '../lib/schemas.js';
-import { nowInSalonWall, loadBlocks, hitsBlock, wallDayHours } from '../lib/free-slots.js';
+import { nowInSalonWall, loadBlocks, hitsBlock, wallDayHours, blockCoversDay, blockLookbackFrom } from '../lib/free-slots.js';
 import { getOutstandingBalanceCents } from '../services/outstanding-balance.js';
 import { autoUnarchiveClient } from '../lib/client-archive.js';
+import { guardedSend } from '../lib/outbound-guard.js';
 import { BOOKING_MONEY_LOGGED_TYPES } from '../lib/money-guards.js';
 import { combineTreatments, resolveDepositCents } from '../lib/booking-rules.js';
 import { recomputeTotals, endsAtWall } from '../lib/appointment-treatments.js';
@@ -32,6 +33,30 @@ const FRONTEND_URL = process.env.FRONTEND_URL;
 const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY)
   : null;
+
+/**
+ * What is actually left on a gift voucher, in pence.
+ * gift_vouchers has amount_cents (face value) and remaining_cents (what is left
+ * after part-redemptions); there has never been a plain `amount` column. Read
+ * remaining_cents, and only fall back to the face value if the row predates it.
+ */
+function voucherRemainingCents(voucher) {
+  if (!voucher) return 0;
+  const remaining = voucher.remaining_cents ?? voucher.amount_cents ?? 0;
+  return Math.max(0, Number(remaining) || 0);
+}
+
+/**
+ * Sessions left on a bought package. The purchased row carries its own
+ * sessions_total (client_packages.sessions_total, NOT NULL); the catalogue row
+ * is packages.sessions_total. Neither is called `sessions`.
+ */
+function packageSessionsRemaining(clientPkg) {
+  if (!clientPkg) return 0;
+  const total = clientPkg.sessions_total ?? clientPkg.packages?.sessions_total ?? 0;
+  const used = clientPkg.sessions_used || 0;
+  return Math.max(0, (Number(total) || 0) - used);
+}
 
 /**
  * GET /api/booking/:slug
@@ -2363,41 +2388,85 @@ router.post('/:slug/manage/:token/patch-test/confirm', async (req, res) => {
 async function notifyWaitlistAboutFreedSlot({ beauticianId, treatmentId, freedStart, freedEnd }) {
   const freedDate = new Date(freedStart);
 
-  // Find waitlist entries for this beautician + treatment (or any treatment)
-  const { data: waiters } = await supabase
+  // The waitlist row holds no contact details at all. It never has: the table is
+  // client_id + treatment_id + preferences (supabase/migrations/001, 070). This
+  // used to select phone, first_name and preferred_times, none of which exist,
+  // so PostgREST rejected the whole select, `waiters` was null, and in the whole
+  // life of this feature nobody has ever been told a slot opened up. Contact
+  // details come through the client_id join.
+  const { data: waiters, error: waitersErr } = await supabase
     .from('waitlist')
-    .select('id, client_id, phone, email, first_name, preferred_days, preferred_times')
+    .select('id, client_id, notify_count, preferred_days, preferred_time, clients(id, first_name, phone, email, marketing_consent, marketing_opted_out_at, messaging_autonomy)')
     .eq('beautician_id', beauticianId)
     .or(`treatment_id.eq.${treatmentId},treatment_id.is.null`)
-    .eq('status', 'waiting')
+    .in('status', ['waiting', 'active'])
     .order('created_at', { ascending: true })
     .limit(3); // notify top 3
 
+  if (waitersErr) {
+    logger.warn({ err: waitersErr, beauticianId }, 'waitlist gap-fill: lookup failed, nobody notified');
+    return;
+  }
   if (!waiters?.length) return;
 
-  const { sendSMS } = await import('./notifications.js');
-  const { sendEmail } = await import('../services/notifications.js');
+  const { sendSMS, sendEmail } = await import('../services/notifications.js');
 
   // timeZone UTC: the freed slot is salon wall time stored in the UTC slot
   const dayName = freedDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
   const timeStr = freedDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
 
   for (const waiter of waiters) {
-    const msg = `Hi ${waiter.first_name || 'there'}! A slot has just opened up: ${dayName} at ${timeStr}. Reply YES to claim it or book at your link.`;
+    const person = waiter.clients;
+    if (!person) continue;                       // no client row, nobody to write to
 
-    if (waiter.phone) {
-      sendSMS({ to: waiter.phone, body: msg, beauticianId, messageType: 'waitlist_alert' }).catch(() => {});
-    }
-    if (waiter.email) {
-      sendEmail({
-        to: waiter.email,
-        subject: `A slot just opened up — ${dayName} at ${timeStr}`,
-        html: `<p>${msg}</p>`,
-      }).catch(() => {});
-    }
+    const msg = `Hi ${person.first_name || 'there'}! A slot has just opened up: ${dayName} at ${timeStr}. Reply YES to claim it or book at your link.`;
 
-    // Mark as notified (don't spam them)
-    await supabase.from('waitlist').update({ notified_at: new Date().toISOString() }).eq('id', waiter.id);
+    // ONE channel per person, through the one gate. This block used to call
+    // sendSMS and sendEmail directly with no evaluateOutbound, which is a
+    // proactive message: it would have gone to clients who had replied STOP,
+    // ignored the cross-engine frequency cap, and eaten the allowance kept back
+    // for confirmations and reminders. Texting an opted-out client is a PECR
+    // breach, not a bug. Two guardedSend calls would also double-count against
+    // the cap, so pick the channel and send once.
+    const channel = person.phone ? 'sms' : (person.email ? 'email' : null);
+    if (!channel) continue;
+
+    const verdict = await guardedSend({
+      beauticianId,
+      clientId: person.id,
+      messageType: 'waitlist_alert',
+      channel,
+      client: person,
+      body: msg,
+      send: async () => {
+        if (channel === 'sms') {
+          return await sendSMS({
+            to: person.phone, body: msg, beauticianId,
+            messageType: 'waitlist_alert', clientId: person.id,
+          });
+        }
+        return await sendEmail({
+          to: person.email,
+          subject: `A slot just opened up, ${dayName} at ${timeStr}`,
+          html: `<p>${msg}</p>`,
+        });
+      },
+    });
+
+    // Only a delivered message counts as "notified". Marking a held or blocked
+    // draft as notified would quietly drop her off the list without her ever
+    // hearing about the slot.
+    if (!verdict.delivered) continue;
+
+    const { error: markErr } = await supabase
+      .from('waitlist')
+      .update({
+        notified_at: new Date().toISOString(),
+        last_notified_at: new Date().toISOString(),
+        notify_count: (waiter.notify_count || 0) + 1,
+      })
+      .eq('id', waiter.id);
+    if (markErr) logger.warn({ err: markErr, waitlistId: waiter.id }, 'waitlist gap-fill: could not mark as notified');
   }
 }
 
@@ -2719,32 +2788,46 @@ router.post('/:slug/check-packages', async (req, res) => {
 
   // Find client by phone (last-9 match: +44 / 0 / spaced all resolve the same)
   const ppd = String(phone || '').replace(/\D/g, '');
-  const { data: pkgClientRows } = ppd.length >= 7 ? await supabase
+  const { data: pkgClientRows, error: pkgClientErr } = ppd.length >= 7 ? await supabase
     .from('clients')
     .select('id')
     .eq('beautician_id', beautician.id)
     .ilike('phone', `%${ppd.slice(-9)}`)
-    .limit(1) : { data: [] };
+    .limit(1) : { data: [], error: null };
+
+  // "We could not look" is not "you have no packages". Say so, otherwise she is
+  // shown the full price for sessions she has already paid for.
+  if (pkgClientErr) {
+    logger.error({ err: pkgClientErr, beauticianId: beautician.id }, 'check-packages: client lookup failed');
+    return res.status(503).json({ packages: [], unchecked: true, error: 'Could not check your packages just then.' });
+  }
   const client = pkgClientRows?.[0] || null;
 
   if (!client) return res.json({ packages: [] });
 
-  // Get active client packages with sessions remaining
-  const { data: clientPkgs } = await supabase
+  // Get active client packages with sessions remaining.
+  // The column is sessions_total on BOTH tables (supabase/migrations/007), not
+  // `sessions`. Asking for a column that does not exist made PostgREST reject
+  // the whole select, so this always came back null and every client was told
+  // she had no packages at all.
+  const { data: clientPkgs, error: clientPkgsErr } = await supabase
     .from('client_packages')
-    .select('id, sessions_used, package_id, packages(name, sessions, treatment_ids)')
+    .select('id, sessions_used, sessions_total, package_id, packages(name, sessions_total, treatment_ids)')
     .eq('beautician_id', beautician.id)
     .eq('client_id', client.id)
     .eq('status', 'active');
+
+  if (clientPkgsErr) {
+    logger.error({ err: clientPkgsErr, beauticianId: beautician.id }, 'check-packages: package lookup failed');
+    return res.status(503).json({ packages: [], unchecked: true, error: 'Could not check your packages just then.' });
+  }
 
   if (!clientPkgs || clientPkgs.length === 0) return res.json({ packages: [] });
 
   // Filter to packages that have sessions remaining and (optionally) include this treatment
   const available = clientPkgs
     .filter(cp => {
-      const totalSessions = cp.packages?.sessions || 0;
-      const used = cp.sessions_used || 0;
-      if (used >= totalSessions) return false;
+      if (packageSessionsRemaining(cp) <= 0) return false;
       // If treatment_id provided, only show packages that include that treatment
       if (treatment_id && cp.packages?.treatment_ids?.length > 0) {
         return cp.packages.treatment_ids.includes(treatment_id);
@@ -2754,8 +2837,8 @@ router.post('/:slug/check-packages', async (req, res) => {
     .map(cp => ({
       client_package_id: cp.id,
       package_name: cp.packages?.name || 'Package',
-      sessions_remaining: (cp.packages?.sessions || 0) - (cp.sessions_used || 0),
-      sessions_total: cp.packages?.sessions || 0,
+      sessions_remaining: packageSessionsRemaining(cp),
+      sessions_total: cp.sessions_total ?? cp.packages?.sessions_total ?? 0,
     }));
 
   return res.json({ packages: available });
@@ -2787,12 +2870,20 @@ router.post('/:slug/validate-code', async (req, res) => {
   const now = new Date().toISOString();
 
   // 1. Try promo_codes
-  const { data: promo } = await supabase
+  const { data: promo, error: promoErr } = await supabase
     .from('promo_codes')
     .select('id, code, discount_type, discount_value, max_uses, current_uses, valid_from, valid_until, is_active')
     .eq('beautician_id', beautician.id)
     .eq('code', normalised)
     .maybeSingle();
+
+  // An unread lookup error is indistinguishable from "no such code", and telling
+  // a client her code is not recognised when we simply could not look is how she
+  // ends up paying full price for something the salon already sold her.
+  if (promoErr) {
+    logger.error({ err: promoErr, beauticianId: beautician.id }, 'validate-code: promo lookup failed');
+    return res.status(503).json({ valid: false, unchecked: true, error: 'Could not check that code just then. Please try again in a moment.' });
+  }
 
   if (promo) {
     if (!promo.is_active) return res.status(400).json({ valid: false, error: 'This code is no longer active' });
@@ -2812,29 +2903,46 @@ router.post('/:slug/validate-code', async (req, res) => {
     });
   }
 
-  // 2. Try gift_vouchers
-  const { data: voucher } = await supabase
+  // 2. Try gift_vouchers.
+  // There is no `amount` column on this table (see supabase/migrations/007):
+  // it is amount_cents (face value) and remaining_cents (what is left after
+  // part-redemptions). PostgREST rejects the WHOLE select for one unknown
+  // column, so this came back { data: null, error }, the error was never read,
+  // and every real voucher fell through to "Code not recognised" below.
+  const { data: voucher, error: voucherErr } = await supabase
     .from('gift_vouchers')
-    .select('id, code, amount, status')
+    .select('id, code, amount_cents, remaining_cents, status, expires_at')
     .eq('beautician_id', beautician.id)
     .eq('code', normalised)
     .maybeSingle();
 
+  if (voucherErr) {
+    logger.error({ err: voucherErr, beauticianId: beautician.id }, 'validate-code: voucher lookup failed');
+    return res.status(503).json({ valid: false, unchecked: true, error: 'Could not check that code just then. Please try again in a moment.' });
+  }
+
   if (voucher) {
     if (voucher.status !== 'active') {
       return res.status(400).json({ valid: false, error: 'This voucher has already been used or cancelled' });
+    }
+    if (voucher.expires_at && voucher.expires_at < now) {
+      return res.status(400).json({ valid: false, error: 'This voucher has expired' });
+    }
+    const remaining = voucherRemainingCents(voucher);
+    if (remaining <= 0) {
+      return res.status(400).json({ valid: false, error: 'This voucher has already been used' });
     }
     return res.json({
       valid: true,
       type: 'voucher',
       code: voucher.code,
       discount_type: 'fixed',
-      discount_value: voucher.amount,   // amount in pence
+      discount_value: remaining,   // pence still on the voucher
       voucher_id: voucher.id,
     });
   }
 
-  // Nothing matched
+  // Nothing matched, and we know that because both lookups actually ran.
   return res.status(404).json({ valid: false, error: 'Code not recognised' });
 });
 
@@ -2852,7 +2960,7 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
   // Get beautician from slug (include Stripe fields, booking policy, payment settings)
   const { data: beautician } = await supabase
     .from('beauticians')
-    .select('id, business_name, first_name, stripe_account_id, stripe_onboarding_complete, booking_policy, payment_settings')
+    .select('id, business_name, first_name, timezone, stripe_account_id, stripe_onboarding_complete, booking_policy, payment_settings')
     .eq('booking_slug', req.params.slug)
     .single();
 
@@ -2918,17 +3026,24 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
     priceCents: combinedPriceCents,
   } = combineTreatments(allTreatments);
 
-  // Block appointments in the past
+  // Block appointments in the past.
+  // starts_at is SALON WALL TIME with no zone (see bookingSchema), so
+  // `new Date(starts_at)` is a wall-frame Date. `new Date()` is a real instant,
+  // and in BST it reads an hour BEHIND the salon clock: at 10:00 BST a 09:30
+  // wall slot compared as still in the future and sailed through. Compare like
+  // with like, against the salon's own wall clock.
   const startsAtCheck = new Date(starts_at);
-  if (startsAtCheck < new Date()) {
+  const salonNow = nowInSalonWall(beautician.timezone || 'Europe/London');
+  if (startsAtCheck < salonNow) {
     return res.status(400).json({ error: 'Cannot book an appointment in the past' });
   }
 
-  // Enforce minimum booking window
+  // Enforce minimum booking window (same wall frame, same reason: measured
+  // against a real instant, a 2 hour notice period let a 1 hour booking through)
   const bookingPolicy = beautician.booking_policy || {};
   const minHours = bookingPolicy.min_booking_hours || 0;
   if (minHours > 0) {
-    const hoursUntil = (startsAtCheck - new Date()) / (1000 * 60 * 60);
+    const hoursUntil = (startsAtCheck - salonNow) / (1000 * 60 * 60);
     if (hoursUntil < minHours) {
       return res.status(400).json({
         error: `Bookings must be made at least ${minHours} hour${minHours !== 1 ? 's' : ''} in advance. Please choose a later time.`
@@ -2939,8 +3054,8 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
   // Enforce how far ahead the diary is open (0/unset = no limit).
   const maxAdvanceDays = bookingPolicy.max_advance_days || 0;
   if (maxAdvanceDays > 0) {
-    const horizon = new Date();
-    horizon.setDate(horizon.getDate() + maxAdvanceDays);
+    const horizon = new Date(salonNow);
+    horizon.setUTCDate(horizon.getUTCDate() + maxAdvanceDays);
     if (startsAtCheck > horizon) {
       return res.status(400).json({
         error: `Online bookings are only open up to ${maxAdvanceDays} days ahead. Please choose an earlier date.`
@@ -3108,12 +3223,19 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
   // stale page or direct API call could still slip through without this.
   // starts_at from the public picker is salon-local wall time ('...THH:MM:00',
   // no Z), and exception times are salon-local too, so compare wall minutes.
+  // A closure is a RANGE (date..end_date). Matching on `date` alone meant a
+  // holiday entered as 24 to 30 August only guarded the 24th, and clients booked
+  // straight through the rest of it.
+  // The lower bound is widened (see MAX_BLOCK_LOOKBACK_DAYS in lib/free-slots.js)
+  // so a closure that STARTED earlier and is still running is fetched too; the
+  // exact date..end_date test happens in JS just below.
   const bookDate = String(starts_at).slice(0, 10);
-  const { data: dayExceptions, error: dayExceptionErr } = await supabase
+  const { data: dayExceptionRows, error: dayExceptionErr } = await supabase
     .from('hours_exceptions')
-    .select('type, start_time, end_time')
+    .select('date, end_date, type, start_time, end_time')
     .eq('beautician_id', beautician.id)
-    .eq('date', bookDate);
+    .gte('date', blockLookbackFrom(bookDate))
+    .lte('date', bookDate);
 
   // An unreadable exception list is not an empty one. Read as empty, this guard
   // waves a client straight into a closed day or a blocked-out hour.
@@ -3122,7 +3244,11 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
     return res.status(500).json({ error: 'Could not check that time just then. Nothing has been booked, please try again.' });
   }
 
-  if (dayExceptions && dayExceptions.length > 0) {
+  // Filter here too: the query narrows, this decides. A row only counts if its
+  // own date..end_date span actually contains the day being booked.
+  const dayExceptions = (dayExceptionRows || []).filter(ex => blockCoversDay(ex, bookDate));
+
+  if (dayExceptions.length > 0) {
     const wall = /T(\d{2}):(\d{2})/.exec(String(starts_at));
     const slotStartMin = wall ? Number(wall[1]) * 60 + Number(wall[2]) : null;
     const slotEndMin = slotStartMin === null ? null : slotStartMin + totalMinutes;
@@ -3142,13 +3268,14 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
 
   // ---- New-client safety gate (Ellie's rule, 2026-07-04) -------------------
   // First-time clients booking a patch-test treatment must be 24h+ out so the
-  // test can happen at least 24 hours before the appointment. starts_at is
-  // salon wall time stored as UTC, so in BST this reads up to 1h generous;
-  // acceptable for a v1 gate. The confirmation + manage portal then walk the
-  // client through booking the actual patch-test slot (24h validation there).
+  // test can happen at least 24 hours before the appointment. Measured against
+  // the salon wall clock, not a real instant: against Date.now() this read an
+  // hour generous in BST and let a 23 hour booking through. The confirmation +
+  // manage portal then walk the client through booking the actual patch-test
+  // slot (24h validation there).
   const gateNeedsPatchTest = isNewClient && allTreatments.some(t => t.requires_patch_test === true);
   if (gateNeedsPatchTest) {
-    const hoursAway = (startsDate.getTime() - Date.now()) / 3600000;
+    const hoursAway = (startsDate.getTime() - salonNow.getTime()) / 3600000;
     if (hoursAway < 24) {
       return res.status(409).json({
         error: 'As a new client, this treatment needs a quick patch test at least 24 hours before your appointment. Please choose a time from tomorrow onwards so there is time to fit it in.',
@@ -3182,12 +3309,19 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
     const now = new Date().toISOString();
 
     // Try promo code first
-    const { data: promo } = await supabase
+    const { data: promo, error: promoErr } = await supabase
       .from('promo_codes')
       .select('id, code, discount_type, discount_value, max_uses, current_uses, valid_from, valid_until, is_active')
       .eq('beautician_id', beautician.id)
       .eq('code', normalised)
       .maybeSingle();
+
+    // She typed a code. If we cannot tell whether it is good, do NOT quietly
+    // charge her the full price and book her anyway.
+    if (promoErr) {
+      logger.error({ err: promoErr, beauticianId: beautician.id }, 'book: promo lookup failed');
+      return res.status(503).json({ error: 'Could not check your discount code just then. Nothing has been booked, please try again.' });
+    }
 
     if (promo && promo.is_active && now >= promo.valid_from && now <= promo.valid_until
         && (!promo.max_uses || promo.current_uses < promo.max_uses)) {
@@ -3203,56 +3337,106 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
       await supabase.from('promo_codes').update({ current_uses: (promo.current_uses || 0) + 1 }).eq('id', promo.id);
     }
 
-    // Try gift voucher if promo didn't match
+    // Try gift voucher if promo didn't match. Columns are amount_cents and
+    // remaining_cents (supabase/migrations/007), never `amount`: selecting the
+    // column that does not exist made PostgREST reject the whole select, left
+    // `voucher` null, and the salon's own gift voucher was silently ignored
+    // while the client paid in full.
     if (!discountMeta) {
-      const { data: voucher } = await supabase
+      const { data: voucher, error: voucherErr } = await supabase
         .from('gift_vouchers')
-        .select('id, code, amount, status')
+        .select('id, code, amount_cents, remaining_cents, status, expires_at')
         .eq('beautician_id', beautician.id)
         .eq('code', normalised)
         .maybeSingle();
 
-      if (voucher && voucher.status === 'active') {
-        const treatmentTotal = combinedPriceCents + (add_ons || []).reduce((s, ao) => s + ao.price_cents, 0);
-        discountCents = Math.min(voucher.amount, treatmentTotal);
-        discountMeta = { type: 'voucher', code: voucher.code, voucher_id: voucher.id, discount_cents: discountCents };
+      if (voucherErr) {
+        logger.error({ err: voucherErr, beauticianId: beautician.id }, 'book: voucher lookup failed');
+        return res.status(503).json({ error: 'Could not check your discount code just then. Nothing has been booked, please try again.' });
+      }
 
-        // Mark voucher as redeemed
-        await supabase.from('gift_vouchers').update({ status: 'redeemed', redeemed_at: new Date().toISOString() }).eq('id', voucher.id);
+      const voucherLive = voucher && voucher.status === 'active'
+        && !(voucher.expires_at && voucher.expires_at < now);
+
+      if (voucherLive) {
+        const remaining = voucherRemainingCents(voucher);
+        const treatmentTotal = combinedPriceCents + (add_ons || []).reduce((s, ao) => s + ao.price_cents, 0);
+        discountCents = Math.min(remaining, treatmentTotal);
+
+        if (discountCents > 0) {
+          discountMeta = { type: 'voucher', code: voucher.code, voucher_id: voucher.id, discount_cents: discountCents };
+
+          // Draw down what was actually used. A GBP 100 voucher against a GBP 40
+          // treatment used to be marked fully 'redeemed', burning the other 60.
+          const left = remaining - discountCents;
+          const { error: redeemErr } = await supabase
+            .from('gift_vouchers')
+            .update({
+              remaining_cents: left,
+              ...(left <= 0 && { status: 'redeemed', redeemed_at: new Date().toISOString() }),
+            })
+            .eq('id', voucher.id);
+
+          // If the draw-down did not stick, the voucher could be spent twice.
+          if (redeemErr) {
+            logger.error({ err: redeemErr, voucherId: voucher.id }, 'book: voucher redemption write failed');
+            return res.status(503).json({ error: 'Could not apply your voucher just then. Nothing has been booked, please try again.' });
+          }
+        }
       }
     }
 
-    // If code was provided but nothing matched, that's fine — we just don't apply a discount.
-    // The frontend already validated it, so this is a safety net.
+    // A code that genuinely matches nothing applies no discount, which is fine.
+    // The difference that matters is that we now know it matched nothing,
+    // rather than assuming so because a query we never checked came back null.
   }
 
   let isPackageRedemption = false;
   if (client_package_id && client) {
-    // Verify the package belongs to this client, is active, and has sessions left
-    const { data: clientPkg } = await supabase
+    // Verify the package belongs to this client, is active, and has sessions left.
+    // sessions_total, not `sessions`: the wrong column name made PostgREST reject
+    // the select, left `clientPkg` null, and sent a client with a paid-for
+    // 6-session package to Stripe to pay for the same session twice.
+    const { data: clientPkg, error: clientPkgErr } = await supabase
       .from('client_packages')
-      .select('id, sessions_used, package_id, client_id, packages(sessions, treatment_ids)')
+      .select('id, sessions_used, sessions_total, package_id, client_id, packages(sessions_total, treatment_ids)')
       .eq('id', client_package_id)
       .eq('beautician_id', beautician.id)
       .eq('status', 'active')
       .maybeSingle();
 
-    if (clientPkg && clientPkg.client_id === client.id) {
-      const totalSessions = clientPkg.packages?.sessions || 0;
-      const used = clientPkg.sessions_used || 0;
-      if (used < totalSessions) {
-        isPackageRedemption = true;
-        // Increment sessions_used
-        await supabase
-          .from('client_packages')
-          .update({
-            sessions_used: used + 1,
-            // Auto-complete if all sessions now used
-            ...(used + 1 >= totalSessions && { status: 'completed' }),
-          })
-          .eq('id', client_package_id);
-      }
+    // She asked to use a session. If we cannot verify it, refuse the booking
+    // rather than fall through and charge her card for it.
+    if (clientPkgErr) {
+      logger.error({ err: clientPkgErr, beauticianId: beautician.id }, 'book: package lookup failed');
+      return res.status(503).json({ error: 'Could not check your package just then. Nothing has been booked, please try again.' });
     }
+
+    const usable = clientPkg && clientPkg.client_id === client.id && packageSessionsRemaining(clientPkg) > 0;
+    if (!usable) {
+      return res.status(409).json({ error: 'That package has no sessions left on it. Please refresh and book again.' });
+    }
+
+    const used = clientPkg.sessions_used || 0;
+    const totalSessions = clientPkg.sessions_total ?? clientPkg.packages?.sessions_total ?? 0;
+
+    // Increment sessions_used. If this write does not land the session is
+    // effectively free, so it decides the booking rather than being ignored.
+    const { error: redeemPkgErr } = await supabase
+      .from('client_packages')
+      .update({
+        sessions_used: used + 1,
+        // Auto-complete if all sessions now used
+        ...(used + 1 >= totalSessions && { status: 'completed' }),
+      })
+      .eq('id', client_package_id);
+
+    if (redeemPkgErr) {
+      logger.error({ err: redeemPkgErr, clientPackageId: client_package_id }, 'book: package redemption write failed');
+      return res.status(503).json({ error: 'Could not use your package session just then. Nothing has been booked, please try again.' });
+    }
+
+    isPackageRedemption = true;
   }
 
   // Package redemptions skip payment entirely — session already paid for
