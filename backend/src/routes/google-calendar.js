@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import { encrypt, decrypt, isEncrypted } from '../lib/crypto.js';
+import { signOAuthState, inspectOAuthState, oauthStateSecretProblem } from '../lib/oauth-state.js';
 import logger from '../lib/logger.js';
 import { calendarDescription } from '../lib/client-notes.js';
 
@@ -38,10 +39,25 @@ router.get('/connect', requireAuth, (req, res) => {
     logger.error({ err }, 'Google Calendar config error');
     return res.status(500).json({ error: 'Google Calendar integration not available — contact support' });
   }
+
+  // Refuse to start a flow we will not be able to finish. Issuing state we
+  // cannot verify on the way back would either lock her out at the callback or,
+  // worse, tempt someone into accepting it unverified.
+  const secretProblem = oauthStateSecretProblem();
+  if (secretProblem) {
+    logger.error({ integration: 'google-calendar' }, secretProblem);
+    return res.status(503).json({ error: secretProblem });
+  }
+
   const scopes = [
     'https://www.googleapis.com/auth/calendar.events',
     'https://www.googleapis.com/auth/calendar.readonly',
   ];
+
+  // Signed at connect time, when requireAuth has already told us who is asking.
+  // The callback has no session, so this string is the only thing tying the
+  // tokens Google is about to hand back to the account that asked for them.
+  const state = signOAuthState({ beauticianId: req.beautician.id });
 
   const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
     `client_id=${GOOGLE_CLIENT_ID}` +
@@ -50,7 +66,7 @@ router.get('/connect', requireAuth, (req, res) => {
     `&scope=${encodeURIComponent(scopes.join(' '))}` +
     `&access_type=offline` +
     `&prompt=consent` +
-    `&state=${req.beautician.id}`;
+    `&state=${encodeURIComponent(state)}`;
 
   res.json({ url: authUrl });
 });
@@ -60,9 +76,29 @@ router.get('/connect', requireAuth, (req, res) => {
  * Handles the OAuth callback from Google.
  */
 router.get('/callback', async (req, res) => {
-  const { code, state: beauticianId } = req.query;
+  const { code, state } = req.query;
 
-  if (!code || !beauticianId) {
+  // `state` used to BE the beautician id, straight off the query string, which
+  // meant anyone could finish this flow with their own Google account and a
+  // victim's public id and take over her calendar connection. It is now only
+  // ever an id we signed ourselves.
+  const checked = inspectOAuthState(state);
+  if (!checked.ok || !checked.payload.beauticianId) {
+    logger.warn(
+      {
+        integration: 'google-calendar',
+        reason: checked.reason || 'no_beautician_id',
+        hasCode: !!code,
+        stateLength: typeof state === 'string' ? state.length : 0,
+      },
+      'Google Calendar OAuth callback refused: the state did not verify',
+    );
+    return res.redirect(`${FRONTEND_URL}/settings?gcal=error&reason=state`);
+  }
+
+  const beauticianId = checked.payload.beauticianId;
+
+  if (!code) {
     return res.redirect(`${FRONTEND_URL}/settings?gcal=error`);
   }
 

@@ -41,6 +41,12 @@
 import { Router } from 'express';
 import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
+import {
+  signOAuthState,
+  inspectOAuthState,
+  peekOAuthStateClaims,
+  oauthStateSecretProblem,
+} from '../lib/oauth-state.js';
 import logger from '../lib/logger.js';
 
 const router = Router();
@@ -146,8 +152,25 @@ router.get('/connect', requireAuth, (req, res) => {
   //
   // Carried in `state` rather than a query parameter because state is the only
   // thing Instagram gives back to us, and it is already round-tripping.
+  //
+  // It now rides INSIDE the signed payload rather than as a `|native` suffix.
+  // The suffix was appended to an id the client could choose, and the callback
+  // trusted the whole thing, which is how someone else's Instagram account
+  // could end up wired to her Florrie. Same information, no longer forgeable.
   const native = req.query.platform === 'native';
-  const state = native ? `${req.beautician.id}|native` : String(req.beautician.id);
+
+  // Do not start a flow that cannot be finished. Better a plain 503 naming the
+  // variable than a login that dead ends on the way back.
+  const secretProblem = oauthStateSecretProblem();
+  if (secretProblem) {
+    logger.error({ integration: 'instagram' }, secretProblem);
+    return res.status(503).json({ error: secretProblem, problems: [secretProblem] });
+  }
+
+  const state = signOAuthState({
+    beauticianId: String(req.beautician.id),
+    ...(native ? { platform: 'native' } : {}),
+  });
 
   const url =
     `https://www.instagram.com/oauth/authorize` +
@@ -196,8 +219,16 @@ function nativeReturnPage(ok, detail) {
 router.get('/callback', async (req, res) => {
   const { code: rawCode, state: rawState, error: oauthError, error_description } = req.query;
 
-  const [beauticianId, platform] = String(rawState || '').split('|');
-  const isNative = platform === 'native';
+  // How to END this request is a presentation question, not a security one, and
+  // it has to be answered even when the state is rubbish: a phone that gets a
+  // redirect to /settings lands on a login form in a stray Safari tab with no
+  // session, which looks like nothing happened at all. So the platform marker
+  // is read unverified, and ONLY to pick which page to draw. The legacy
+  // `|native` suffix is still recognised here for the same reason: someone who
+  // tapped Connect just before this deployed should still get the apology page
+  // rather than a dead end. It never decides whose row gets written.
+  const isNative = peekOAuthStateClaims(rawState).platform === 'native'
+    || /\|native$/.test(String(rawState || ''));
   const redirectBase = `${FRONTEND_URL}/settings?section=ai`;
 
   // One place decides how this request ends, so no branch below can forget.
@@ -205,10 +236,30 @@ router.get('/callback', async (req, res) => {
     ? res.status(200).type('html').send(nativeReturnPage(ok, detail))
     : res.redirect(`${redirectBase}&ig=${ok ? 'success' : 'error'}`));
 
-  if (oauthError || !rawCode || !beauticianId) {
+  if (oauthError || !rawCode) {
     logger.warn({ oauthError, error_description, hasCode: !!rawCode }, 'Instagram OAuth callback rejected');
     return finish(false, error_description || oauthError || null);
   }
+
+  // The id comes out of a signature we made, never off the wire. `state` was
+  // the beautician id in the clear, so anyone could complete this flow with
+  // their own Instagram account against a victim's public id: her DMs would
+  // stop reaching her, and Florrie would start answering the attacker's DMs
+  // with her diary and her prices.
+  const checked = inspectOAuthState(rawState);
+  if (!checked.ok || !checked.payload.beauticianId) {
+    logger.warn(
+      {
+        integration: 'instagram',
+        reason: checked.reason || 'no_beautician_id',
+        isNative,
+        stateLength: typeof rawState === 'string' ? rawState.length : 0,
+      },
+      'Instagram OAuth callback refused: the state did not verify',
+    );
+    return finish(false, 'that link expired, please try again from Florrie');
+  }
+  const beauticianId = checked.payload.beauticianId;
 
   // Instagram appends a trailing "#_" fragment to the code on web redirects; the
   // query parser usually drops it, but strip defensively.

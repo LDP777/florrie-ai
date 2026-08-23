@@ -16,6 +16,7 @@ import {
   getHMRCAuthUrl,
   exchangeHMRCCode,
 } from '../services/hmrc-mtd.js';
+import { signOAuthState, inspectOAuthState, oauthStateSecretProblem } from '../lib/oauth-state.js';
 import logger from '../lib/logger.js';
 
 const router = Router();
@@ -91,9 +92,25 @@ router.post('/submit/:taxYear/:quarter', requireAuth, async (req, res) => {
  * GET /api/hmrc/auth — redirect beautician to HMRC OAuth
  */
 router.get('/auth', requireAuth, (req, res) => {
+  const secretProblem = oauthStateSecretProblem();
+  if (secretProblem) {
+    logger.error({ integration: 'hmrc' }, secretProblem);
+    return res.status(503).json({ error: secretProblem });
+  }
+
   const redirectUri = `${FRONTEND_URL}/api/hmrc/callback`;
   const url = getHMRCAuthUrl(req.beautician.id, redirectUri);
-  res.json({ url });
+
+  // getHMRCAuthUrl still base64url encodes { beauticianId } on its own, and it
+  // is shared with other callers, so the state is swapped for a signed one here
+  // instead. Only the state parameter is touched: rebuilding the url through
+  // URLSearchParams would also re-encode the scope, and HMRC compares strings.
+  const signed = signOAuthState({ beauticianId: req.beautician.id });
+  const withSignedState = /[?&]state=/.test(url)
+    ? url.replace(/([?&]state=)[^&]*/, `$1${encodeURIComponent(signed)}`)
+    : `${url}&state=${encodeURIComponent(signed)}`;
+
+  res.json({ url: withSignedState });
 });
 
 /**
@@ -107,8 +124,22 @@ router.get('/callback', async (req, res) => {
       return res.redirect(`${FRONTEND_URL}/settings?hmrc=error&reason=missing_code`);
     }
 
-    // Decode state to get beautician ID
-    const { beauticianId } = JSON.parse(Buffer.from(state, 'base64url').toString());
+    // The id comes out of a signature we made. Base64 is not a signature: the
+    // old decode here would happily accept a state anybody had assembled, and
+    // write HMRC tokens onto whichever row it named.
+    const checked = inspectOAuthState(state);
+    if (!checked.ok || !checked.payload.beauticianId) {
+      logger.warn(
+        {
+          integration: 'hmrc',
+          reason: checked.reason || 'no_beautician_id',
+          stateLength: typeof state === 'string' ? state.length : 0,
+        },
+        'HMRC OAuth callback refused: the state did not verify',
+      );
+      return res.redirect(`${FRONTEND_URL}/settings?hmrc=error&reason=state`);
+    }
+    const { beauticianId } = checked.payload;
     const redirectUri = `${FRONTEND_URL}/api/hmrc/callback`;
 
     const tokens = await exchangeHMRCCode(code, redirectUri);
