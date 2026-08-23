@@ -134,9 +134,16 @@ async function checkRebookDueClients(beauticianId, threshold) {
   // rename. Nothing here read it: it was carried only so sendNudge could
   // decide whether the 24h WhatsApp window was open, and sendNudge now asks
   // the messages table itself (notifications.js inWhatsAppSession).
+  //
+  // marketing_opted_out_at, marketing_consent and messaging_autonomy are here
+  // because this row is handed to guardedSend as `client`, and the gate only
+  // re-reads the client when it is given none. A row without those columns has
+  // marketing_opted_out_at === undefined, the opt-out branch never fires, and
+  // a client who replied STOP is nudged anyway. Under-selecting here is a PECR
+  // breach, not a missing field.
   const { data: clients, error: clientsErr } = await supabase
     .from('clients')
-    .select('id, first_name, last_name, phone, email, whatsapp_id, next_expected_visit')
+    .select('id, first_name, last_name, phone, email, whatsapp_id, next_expected_visit, marketing_consent, marketing_opted_out_at, messaging_autonomy')
     .eq('beautician_id', beauticianId)
     .not('next_expected_visit', 'is', null)
     .lt('next_expected_visit', new Date().toISOString())
@@ -187,7 +194,7 @@ async function checkRebookDueClients(beauticianId, threshold) {
         ...(bPrefs?.client_reminder_prefs || {}),
       };
 
-      const nudgeBody = `Hey ${client.first_name}! It's been a while since your last visit. We'd love to see you again — fancy booking in? 💕`;
+      const nudgeBody = `Hey ${client.first_name}! It's been a while since your last visit. We'd love to see you again. Fancy booking in? 💕`;
       try {
         let sent = null;
         const guard = await guardedSend({
@@ -356,7 +363,7 @@ async function checkPatchTestsExpiring(beauticianId, beautician) {
 
   const { data: expiringTests } = await supabase
     .from('patch_tests')
-    .select('id, client_id, test_date, clients(id, first_name, last_name, phone, whatsapp_id, email)')
+    .select('id, client_id, test_date, clients(id, first_name, last_name, phone, whatsapp_id, email, marketing_consent, marketing_opted_out_at, messaging_autonomy)')
     .eq('beautician_id', beauticianId)
     .eq('result', 'pass')
     .gte('test_date', lowerBound.toISOString().split('T')[0])
@@ -390,7 +397,7 @@ async function checkPatchTestsExpiring(beauticianId, beautician) {
     expiryDate.setMonth(expiryDate.getMonth() + expiryMonths);
     const daysLeft = Math.ceil((expiryDate.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
 
-    const nudgeBody = `Hi ${client.first_name}! Just a heads up — your patch test is expiring in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}. You'll need a fresh one before your next tint or lift appointment. Give us a message to book one in 💕`;
+    const nudgeBody = `Hi ${client.first_name}! Just a heads up, your patch test is expiring in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}. You'll need a fresh one before your next tint or lift appointment. Give us a message to book one in 💕`;
 
     try {
       // BELOW THE GATE. This called sendNudge directly, so a client set to
@@ -429,7 +436,7 @@ async function checkPatchTestsExpiring(beauticianId, beautician) {
           beauticianId,
           'patch_test_reminder',
           'executed',
-          `Patch test reminder sent to ${client.first_name} — expires in ${daysLeft} days`,
+          `Patch test reminder sent to ${client.first_name}, expires in ${daysLeft} days`,
           0.95,
           client.id
         );
@@ -482,7 +489,7 @@ async function checkPreAppointmentRequirements(beauticianId) {
     // she needs a patch test at least 24 hours beforehand, and that reminder
     // exists for a safety reason. The 24h-window question it was fetched for
     // is answered from the messages table now.
-    .select('id, starts_at, client_id, management_token, treatments(name, requires_patch_test, requires_consultation), clients(id, first_name, last_name, phone, whatsapp_id, email, imported_from)')
+    .select('id, starts_at, client_id, management_token, treatments(name, requires_patch_test, requires_consultation), clients(id, first_name, last_name, phone, whatsapp_id, email, imported_from, marketing_consent, marketing_opted_out_at, messaging_autonomy)')
     .eq('beautician_id', beauticianId)
     .in('status', ['confirmed', 'pending'])
     .gte('starts_at', windowStart.toISOString())

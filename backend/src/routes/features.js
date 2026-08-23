@@ -6,6 +6,7 @@ import { guardedSend } from '../lib/outbound-guard.js';
 import { sendNudge } from '../services/notifications.js';
 import { requireOwned } from '../lib/ownership.js';
 import { authorship } from '../lib/authorship.js';
+import { exceptionRangeError } from '../lib/hours-exception-range.js';
 
 const router = Router();
 
@@ -1979,6 +1980,28 @@ const EXCEPTION_DETAIL_COLUMNS = [
   'notify_clients', 'is_closed', 'custom_start', 'custom_end', 'location_id',
 ];
 
+/**
+ * TWO DOORS INTO ONE TABLE, AND ONLY ONE OF THEM WAS LOCKED.
+ *
+ * A closure is a RANGE, date..end_date, and lib/free-slots.js blockEndDate
+ * falls back to `date` when end_date does not read as a later day. So a
+ * holiday entered end-first, 30 Aug to 24 Aug, is stored happily and closes
+ * exactly one day: the 30th. The other six stay bookable on the public page
+ * and the first Ellie hears of it is a client turning up while she is away.
+ * That is the bug commit ede39ba closed on POST /api/hours-exceptions, and
+ * this route writes the same columns to the same table.
+ *
+ * Exported so there is one answer to "is this range the right way round"
+ * rather than two copies to keep in step. routes/hours-exceptions.js still
+ * carries its own inline copy of this check and should import this instead;
+ * that file is outside this change.
+ *
+ * @returns {string|null} the refusal to send back, or null if the range is fine
+ */
+// Re-exported so existing importers keep working. The rule itself lives in
+// lib/ because the other door into this table needs the identical answer.
+export { exceptionRangeError };
+
 router.post('/hours-exceptions', requireAuth, async (req, res) => {
   const { date, exception_type, type, details, ...rest } = req.body;
 
@@ -1998,6 +2021,11 @@ router.post('/hours-exceptions', requireAuth, async (req, res) => {
     });
   }
 
+  // Same check the other door does, from the same function. A range stored
+  // back to front closes one day and quietly leaves the rest bookable.
+  const rangeError = exceptionRangeError(date, flat.end_date);
+  if (rangeError) return res.status(400).json({ error: rangeError });
+
   const row = {
     beautician_id: req.beautician.id,
     date,
@@ -2007,6 +2035,9 @@ router.post('/hours-exceptions', requireAuth, async (req, res) => {
   for (const key of EXCEPTION_DETAIL_COLUMNS) {
     if (flat[key] !== undefined) row[key] = flat[key];
   }
+  // A blank end_date is a single day, not an empty range, and an empty string
+  // in a DATE column is a 22007 rejection of the whole insert.
+  if (row.end_date !== undefined && !String(row.end_date || '').trim()) delete row.end_date;
 
   const { data, error } = await supabase
     .from('hours_exceptions')

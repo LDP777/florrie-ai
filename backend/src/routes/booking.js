@@ -59,6 +59,30 @@ function packageSessionsRemaining(clientPkg) {
 }
 
 /**
+ * Has this package run out of time?
+ *
+ * client_packages.expires_at (007_all_features.sql:104) is a real instant and
+ * a real column, and until now nothing read it: a six month course bought two
+ * years ago still handed out free sessions, because "sessions left" was the
+ * only question anyone asked. status can say 'expired' too, but only if
+ * something has been through and set it, and nothing ever has.
+ *
+ * No expires_at means no expiry, which is what a NULL there means.
+ */
+function packageExpired(clientPkg, now = Date.now()) {
+  const raw = clientPkg?.expires_at;
+  if (!raw) return false;
+  const ms = new Date(raw).getTime();
+  if (!Number.isFinite(ms)) return false;   // unreadable date is not an expiry
+  return ms < now;
+}
+
+/** Sessions left AND still in date. The one question the booking path asks. */
+function packageIsRedeemable(clientPkg, now = Date.now()) {
+  return packageSessionsRemaining(clientPkg) > 0 && !packageExpired(clientPkg, now);
+}
+
+/**
  * GET /api/booking/:slug
  * Public endpoint — returns the beautician's booking page data.
  * This powers the branded booking link (florrie.ai/book/ellie-brows).
@@ -763,7 +787,7 @@ router.post('/:slug/lookup-client', async (req, res) => {
     });
   } catch (err) {
     logger.error({ err }, 'Client lookup failed');
-    res.json({ found: false }); // fail silently — don't block booking
+    res.json({ found: false }); // fail silently, do not block booking
   }
 });
 
@@ -1951,7 +1975,7 @@ router.post('/:slug/manage/:token/resend-payment', async (req, res) => {
 
     const b = appt.beauticians;
     if (!stripe || !b?.stripe_account_id || !b?.stripe_onboarding_complete) {
-      return res.status(400).json({ error: 'Payment not available — contact your beautician directly' });
+      return res.status(400).json({ error: 'Payment not available. Contact your beautician directly' });
     }
 
     // Create a fresh Stripe checkout session for the outstanding deposit
@@ -1981,7 +2005,7 @@ router.post('/:slug/manage/:token/resend-payment', async (req, res) => {
         price_data: {
           currency: 'gbp',
           product_data: {
-            name: `${appt.treatments?.name || 'Appointment'} — deposit`,
+            name: `${appt.treatments?.name || 'Appointment'} deposit`,
             description: `${dateLabel} at ${timeLabel} with ${beauticianName}`,
           },
           unit_amount: depositCents,
@@ -2043,12 +2067,12 @@ router.post('/:slug/manage/:token/resend-payment', async (req, res) => {
     const { sendEmail } = await import('../services/notifications.js');
     await sendEmail({
       to: clientEmail,
-      subject: `Complete your booking with ${beauticianName} — payment link`,
+      subject: `Complete your booking with ${beauticianName}`,
       html: `
         <p>Hi ${appt.clients?.first_name || 'there'},</p>
         <p>Your booking for <strong>${appt.treatments?.name || 'your appointment'}</strong> on <strong>${dateLabel} at ${timeLabel}</strong> with ${beauticianName} is still waiting for payment.</p>
-        <p>Click below to secure your spot — this link is active for 24 hours:</p>
-        <p><a href="${session.url}" style="background:#C76B8A;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600;">Pay deposit — £${(depositCents / 100).toFixed(2)}</a></p>
+        <p>Click below to secure your spot. This link is active for 24 hours:</p>
+        <p><a href="${session.url}" style="background:#C76B8A;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600;">Pay deposit £${(depositCents / 100).toFixed(2)}</a></p>
         <p style="color:#999;font-size:12px;">If your slot isn't paid for, it may be released to another client.</p>
       `,
     });
@@ -2812,7 +2836,7 @@ router.post('/:slug/check-packages', async (req, res) => {
   // she had no packages at all.
   const { data: clientPkgs, error: clientPkgsErr } = await supabase
     .from('client_packages')
-    .select('id, sessions_used, sessions_total, package_id, packages(name, sessions_total, treatment_ids)')
+    .select('id, sessions_used, sessions_total, expires_at, package_id, packages(name, sessions_total, treatment_ids)')
     .eq('beautician_id', beautician.id)
     .eq('client_id', client.id)
     .eq('status', 'active');
@@ -2827,7 +2851,10 @@ router.post('/:slug/check-packages', async (req, res) => {
   // Filter to packages that have sessions remaining and (optionally) include this treatment
   const available = clientPkgs
     .filter(cp => {
-      if (packageSessionsRemaining(cp) <= 0) return false;
+      // Out of sessions, or out of date. Offering a package the booking path
+      // will not honour is how a client gets told her session is free and then
+      // asked to pay on the next screen.
+      if (!packageIsRedeemable(cp)) return false;
       // If treatment_id provided, only show packages that include that treatment
       if (treatment_id && cp.packages?.treatment_ids?.length > 0) {
         return cp.packages.treatment_ids.includes(treatment_id);
@@ -3392,6 +3419,10 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
   }
 
   let isPackageRedemption = false;
+  // Set when a package was asked for and could not be used, so the response can
+  // say why the client is being asked to pay for a session she thought was
+  // already paid for. Anything else and she just sees a bill she did not expect.
+  let packageFellBackToPayment = false;
   if (client_package_id && client) {
     // Verify the package belongs to this client, is active, and has sessions left.
     // sessions_total, not `sessions`: the wrong column name made PostgREST reject
@@ -3399,7 +3430,7 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
     // 6-session package to Stripe to pay for the same session twice.
     const { data: clientPkg, error: clientPkgErr } = await supabase
       .from('client_packages')
-      .select('id, sessions_used, sessions_total, package_id, client_id, packages(sessions_total, treatment_ids)')
+      .select('id, sessions_used, sessions_total, expires_at, package_id, client_id, packages(sessions_total, treatment_ids)')
       .eq('id', client_package_id)
       .eq('beautician_id', beautician.id)
       .eq('status', 'active')
@@ -3412,31 +3443,56 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
       return res.status(503).json({ error: 'Could not check your package just then. Nothing has been booked, please try again.' });
     }
 
-    const usable = clientPkg && clientPkg.client_id === client.id && packageSessionsRemaining(clientPkg) > 0;
-    if (!usable) {
-      return res.status(409).json({ error: 'That package has no sessions left on it. Please refresh and book again.' });
+    // SOMEONE ELSE'S PACKAGE IS THE ONLY HARD NO.
+    //
+    // A client_package_id that belongs to another client is not a race, it is
+    // an id from somewhere it should not have come from, and quietly charging
+    // the card would hide it. Refuse, loudly.
+    if (clientPkg && clientPkg.client_id !== client.id) {
+      logger.warn({ clientPackageId: client_package_id, beauticianId: beautician.id },
+        'book: package belongs to a different client, refused');
+      return res.status(409).json({ error: 'That package is not on your account. Please refresh and book again.' });
     }
 
-    const used = clientPkg.sessions_used || 0;
-    const totalSessions = clientPkg.sessions_total ?? clientPkg.packages?.sessions_total ?? 0;
+    // EVERYTHING ELSE FALLS BACK TO PAYING.
+    //
+    // Gone, cancelled, out of sessions, out of date: this is the last session
+    // of a course being used on another device between the page loading and
+    // this submit, and before check-packages was fixed it could not happen at
+    // all because the page never offered a package. The booking is still a
+    // perfectly good booking; it just is not free. Refusing it turns a payable
+    // booking into an error message, and she has to start again to get to the
+    // same slot with the same card.
+    if (!packageIsRedeemable(clientPkg)) {
+      logger.info({
+        clientPackageId: client_package_id,
+        beauticianId: beautician.id,
+        reason: !clientPkg ? 'not_found_or_inactive'
+          : packageExpired(clientPkg) ? 'expired' : 'no_sessions_left',
+      }, 'book: package not usable, booking continues as a paid booking');
+      packageFellBackToPayment = true;
+    } else {
+      const used = clientPkg.sessions_used || 0;
+      const totalSessions = clientPkg.sessions_total ?? clientPkg.packages?.sessions_total ?? 0;
 
-    // Increment sessions_used. If this write does not land the session is
-    // effectively free, so it decides the booking rather than being ignored.
-    const { error: redeemPkgErr } = await supabase
-      .from('client_packages')
-      .update({
-        sessions_used: used + 1,
-        // Auto-complete if all sessions now used
-        ...(used + 1 >= totalSessions && { status: 'completed' }),
-      })
-      .eq('id', client_package_id);
+      // Increment sessions_used. If this write does not land the session is
+      // effectively free, so it decides the booking rather than being ignored.
+      const { error: redeemPkgErr } = await supabase
+        .from('client_packages')
+        .update({
+          sessions_used: used + 1,
+          // Auto-complete if all sessions now used
+          ...(used + 1 >= totalSessions && { status: 'completed' }),
+        })
+        .eq('id', client_package_id);
 
-    if (redeemPkgErr) {
-      logger.error({ err: redeemPkgErr, clientPackageId: client_package_id }, 'book: package redemption write failed');
-      return res.status(503).json({ error: 'Could not use your package session just then. Nothing has been booked, please try again.' });
+      if (redeemPkgErr) {
+        logger.error({ err: redeemPkgErr, clientPackageId: client_package_id }, 'book: package redemption write failed');
+        return res.status(503).json({ error: 'Could not use your package session just then. Nothing has been booked, please try again.' });
+      }
+
+      isPackageRedemption = true;
     }
-
-    isPackageRedemption = true;
   }
 
   // Package redemptions skip payment entirely — session already paid for
@@ -3605,7 +3661,7 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
     autonomous: false,
     outcome: 'success',
     notification_sent: true,
-    notification_text: `New booking: ${firstName} — ${treatmentNames}, ${startsDate.toLocaleDateString('en-GB', { timeZone: 'UTC' })} at ${startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}`
+    notification_text: `New booking: ${firstName}, ${treatmentNames}, ${startsDate.toLocaleDateString('en-GB', { timeZone: 'UTC' })} at ${startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}`
   });
   if (logErr) logger.warn({ err: logErr }, 'AI action log failed (non-fatal)');
 
@@ -3664,7 +3720,10 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
         deposit_pending: true,
       },
       // No checkout_url — Stripe not ready
-      deposit_note: 'Deposit required — your beautician will send a payment link to confirm your booking.',
+      deposit_note: 'Deposit required. Your beautician will send a payment link to confirm your booking.',
+      // She picked a package and it was not there to use. Saying why beats
+      // showing her a bill with no explanation.
+      ...(packageFellBackToPayment && { package_note: 'That package session was not available any more, so this booking has been priced as normal.' }),
     });
   }
 
@@ -3717,8 +3776,8 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
       } else {
         // Deposit: single combined line item
         const label = allTreatments.length > 1
-          ? `${treatmentNames} — deposit`
-          : `${treatment.name} — deposit`;
+          ? `${treatmentNames} deposit`
+          : `${treatment.name} deposit`;
         lineItems.push({
           price_data: {
             currency: 'gbp',
@@ -3875,6 +3934,9 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
           ...(discountMeta && { discount: { code: discountMeta.code, type: discountMeta.type, saved: `£${(discountCents / 100).toFixed(2)}` } }),
         },
         checkout_url: session.url,
+        // She picked a package and it was not there to use. Saying why beats
+        // showing her a bill with no explanation.
+        ...(packageFellBackToPayment && { package_note: 'That package session was not available any more, so this booking has been priced as normal.' }),
       });
     } catch (err) {
       // THE FALL-THROUGH THAT TOLD A CLIENT SHE WAS BOOKED.
@@ -3973,7 +4035,10 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
       deposit: null,
       status: appointment.status,
       paymentExpiresAt: paymentExpiresAt || null,
-    }
+    },
+    // She picked a package and it was not there to use. Saying why beats
+    // showing her a bill with no explanation.
+    ...(packageFellBackToPayment && { package_note: 'That package session was not available any more, so this booking has been priced as normal.' }),
   });
 });
 

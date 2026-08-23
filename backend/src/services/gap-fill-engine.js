@@ -462,7 +462,7 @@ async function fetchWaitlistPool(beauticianId) {
   // waitlisted client was ever matched to it.
   const { data, error } = await supabase
     .from('waitlist')
-    .select('id, client_id, preferred_days, preferred_time, treatments(name, duration_minutes), clients(id, first_name, last_name, phone, email)')
+    .select('id, client_id, preferred_days, preferred_time, treatments(name, duration_minutes), clients(id, first_name, last_name, phone, email, marketing_consent, marketing_opted_out_at, messaging_autonomy)')
     .eq('beautician_id', beauticianId)
     .in('status', ['active', 'waiting'])
     .is('notified_at', null) // Haven't been notified yet
@@ -478,12 +478,15 @@ async function fetchWaitlistPool(beauticianId) {
   return (data || []).map(w => ({
     waitlist_id: w.id,
     client_id: w.clients?.id || w.client_id,
+    // Spread the joined row rather than picking fields off it. Rebuilding a
+    // client by hand is how the consent columns got dropped between the select
+    // and the gate: evaluateOutbound reads a missing marketing_opted_out_at as
+    // a yes, so a client who replied STOP was offered the gap anyway.
     client: {
+      ...(w.clients || {}),
       id: w.clients?.id || w.client_id,
       first_name: w.clients?.first_name || 'there',
       last_name: w.clients?.last_name || '',
-      phone: w.clients?.phone,
-      email: w.clients?.email,
     },
     treatment: {
       name: w.treatments?.name || 'Treatment',

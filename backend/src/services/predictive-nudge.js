@@ -76,7 +76,7 @@ async function nudgeForBeautician(beautician) {
     // check the 24h WhatsApp window, which notifications.js now answers from
     // the messages table. Left in, it kept the whole select rejected even
     // after next_predicted_visit was added.
-    .select('client_id, next_predicted_visit, clients(id, first_name, last_name, phone, email, whatsapp_id, status)')
+    .select('client_id, next_predicted_visit, clients(id, first_name, last_name, phone, email, whatsapp_id, status, marketing_consent, marketing_opted_out_at, messaging_autonomy)')
     .eq('beautician_id', bid)
     .gte('next_predicted_visit', windowStart.toISOString())
     .lte('next_predicted_visit', windowEnd.toISOString());

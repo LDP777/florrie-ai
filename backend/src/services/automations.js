@@ -54,7 +54,38 @@ import logger from '../lib/logger.js';
 import { sendEmail, sendSMS, sendWhatsApp } from './notifications.js';
 import { shouldAutoSend } from './sms-metering.js';
 import { guardedSend } from '../lib/outbound-guard.js';
+import { nowInSalonWall } from '../lib/free-slots.js';
 import { getLoyaltyConfig, getClientPoints, loyaltyProximity } from './loyalty.js';
+
+/**
+ * TWO CLOCKS, AND EVERY JOB IN THIS FILE HAS TO KNOW WHICH IS WHICH.
+ *
+ * appointments.ends_at holds SALON WALL TIME parked in a UTC slot: an
+ * appointment finishing at 15:00 in the salon is written 15:00Z whatever the
+ * season (lib/appointment-treatments.js endsAtWall). `new Date()` is a REAL
+ * INSTANT. Building a window from one and comparing it against the other is an
+ * hour wrong for the seven months of BST, which is a 24 hour aftercare going
+ * out 25 wall hours after the visit.
+ *
+ * Worse than the hour: the window MOVED. The clocks go forward, wall time
+ * jumps from 01:00 to 02:00 between two hourly runs, and one hour's worth of
+ * finished appointments falls between the run before and the run after. Those
+ * clients never get their aftercare and are never enrolled in a sequence, and
+ * nothing anywhere says so.
+ *
+ * So both jobs now do what routes/money.js does: work the window out on the
+ * salon's clock, in the wall frame, and make it WIDER THAN THE STEP. A three
+ * hour window on an hourly job cannot skip an hour however the clocks move,
+ * and both passes already dedupe on a table (aftercare_sends,
+ * follow_up_enrollments), so seeing the same appointment twice costs nothing
+ * and missing it once costs a client.
+ */
+const SALON_TZ = 'Europe/London';
+
+// How far back each hourly pass looks. Three times the cadence, so a skipped
+// hour (clock change, a slow run, a deploy) is picked up on the next pass
+// rather than lost. The dedup tables make the overlap free.
+const SCAN_WINDOW_MS = 3 * 60 * 60 * 1000;
 
 // messageType must match a key in DEFAULT_PRIORITY_RULES (e.g. 'aftercare_followup', 'rebook_nudge', 'review_request', 'marketing').
 // shouldAutoSend() is checked before any AI-initiated SMS to respect autopilot credit rules.
@@ -95,8 +126,15 @@ async function sendOnChannel({ beautician, client, body, beauticianId, messageTy
     }
   }
 
-  // Email fallback (always send if client has email)
-  if (client.email) {
+  // Email, and ONLY to somebody who has not opted out.
+  //
+  // This used to be an unconditional "always send if client has email". Every
+  // processor in this file is direct marketing under PECR, and the SMS leg has
+  // two consent checks on it (the gate above, and sendSMS's own PECR check on
+  // a marketing messageType). The email leg had neither, so a client who
+  // replied STOP still got the same words in her inbox. An opt-out is an
+  // opt-out on every channel, not just the one she happened to reply on.
+  if (client.email && await mayMarketByEmail({ beauticianId, client })) {
     results.push(await sendEmail({
       to: client.email,
       subject: `A message from ${bizName}`,
@@ -106,6 +144,37 @@ async function sendOnChannel({ beautician, client, body, beauticianId, messageTy
   }
 
   return results;
+}
+
+/**
+ * May we put a proactive message in this client's inbox?
+ *
+ * Everything this file sends is proactive, so there is no transactional case
+ * to let through. The check is deliberately paranoid about WHERE the answer
+ * comes from: `undefined` because a select did not ask for the column reads
+ * exactly like `null` because she never opted out, and that is the whole
+ * failure this fixes. A row that does not carry the column is not evidence,
+ * so we read the column, and if we cannot read it we do not send.
+ */
+async function mayMarketByEmail({ beauticianId, client }) {
+  if (client && typeof client === 'object' && 'marketing_opted_out_at' in client) {
+    return !client.marketing_opted_out_at;
+  }
+  const clientId = client?.id || null;
+  if (!clientId || !beauticianId) return false;
+  try {
+    const { data, error } = await supabase
+      .from('clients')
+      .select('marketing_opted_out_at')
+      .eq('id', clientId)
+      .eq('beautician_id', beauticianId)
+      .maybeSingle();
+    if (error || !data) return false;
+    return !data.marketing_opted_out_at;
+  } catch (err) {
+    logger.warn({ err, beauticianId, clientId }, 'Email consent unreadable, not emailing');
+    return false;
+  }
 }
 
 /**
@@ -171,7 +240,7 @@ export async function processAftercareFollowups() {
   // Get all active aftercare message templates
   const { data: templates, error } = await supabase
     .from('aftercare_messages')
-    .select('id, beautician_id, treatment_id, name, message, send_after_hours, is_active, beauticians(business_name, first_name, client_reminder_prefs)')
+    .select('id, beautician_id, treatment_id, name, message, send_after_hours, is_active, beauticians(business_name, first_name, client_reminder_prefs, timezone)')
     .eq('is_active', true);
 
   if (error) {
@@ -180,7 +249,6 @@ export async function processAftercareFollowups() {
   }
   if (!templates?.length) return { sent: 0, total: 0 };
 
-  const now = new Date();
   let sent = 0;
   let total = 0;
 
@@ -190,11 +258,27 @@ export async function processAftercareFollowups() {
     // Default 24h matches the column default, so a template saved without one
     // still behaves like the UI says it will.
     const afterHours = Number.isFinite(tpl.send_after_hours) ? tpl.send_after_hours : 24;
-    const targetTime = new Date(now.getTime() - afterHours * 60 * 60 * 1000);
-    // Window: appointments that ended between (afterHours + 1h) and afterHours ago
-    const windowStart = new Date(targetTime.getTime() - 60 * 60 * 1000);
-    const windowEnd = targetTime;
 
+    // ends_at is wall time, so "now" has to be the salon's clock, not the
+    // server's instant. See the two-clocks note at the top of this file: with
+    // a real-instant window this ran an hour late all summer and skipped an
+    // hour outright on the morning the clocks went forward.
+    const nowWall = nowInSalonWall(tpl.beauticians?.timezone || SALON_TZ);
+    const windowEnd = new Date(nowWall.getTime() - afterHours * 60 * 60 * 1000);
+    const windowStart = new Date(windowEnd.getTime() - SCAN_WINDOW_MS);
+
+    // THE CONSENT COLUMNS ARE NOT OPTIONAL ON THIS JOIN.
+    //
+    // guardedSend only reads the client from the database when it is handed
+    // nothing; give it a row and it trusts the row. A row selected as
+    // (id, first_name, phone, email) has `marketing_opted_out_at === undefined`,
+    // which is falsy, so the opt-out branch never fires and a client who
+    // replied STOP walks straight through the gate. She then lands in the
+    // Outbox as an ordinary loud pending_approval draft, inside "Send all",
+    // and services/messaging.js sends her without a messageType so sendSMS's
+    // own PECR check does not fire either. Three columns, or do not pass a
+    // client at all.
+    //
     // 'completed' only. This used to accept 'confirmed' as well, which meant a
     // booking nobody had marked as happened could still trigger "hope you're
     // loving your lashes". auto-complete runs every ten minutes and the
@@ -203,7 +287,7 @@ export async function processAftercareFollowups() {
     // no-show or a cancellation waiting to be recorded.
     const { data: appointments } = await supabase
       .from('appointments')
-      .select('id, beautician_id, client_id, clients(id, first_name, phone, email)')
+      .select('id, beautician_id, client_id, clients(id, first_name, phone, email, marketing_consent, marketing_opted_out_at, messaging_autonomy)')
       .eq('beautician_id', tpl.beautician_id)
       .eq('treatment_id', tpl.treatment_id)
       .eq('status', 'completed')
@@ -290,17 +374,74 @@ export async function processAftercareFollowups() {
  *
  * reminder_date is a DATE, so it is compared against a date string, not a full
  * ISO timestamp. Comparing a date column to '2026-08-23T16:04:11.244Z' relies
- * on a cast that will not do what anyone expects at the boundary.
+ * on a cast that will not do what anyone expects at the boundary. The date is
+ * taken off the salon's clock, not the server's, so a run at 23:30 BST is
+ * working from the day Ellie thinks it is.
+ *
+ * THE FLOOR, AND WHY THERE HAS TO BE ONE
+ *
+ * CalendarView's rebook button has been writing rows since migration 078 and
+ * nothing has ever read them back. The first time this job runs it is not
+ * looking at today's work, it is looking at every row the salon has ever
+ * created. Unbounded, two minutes after deploy a salon with a year of use gets
+ * hundreds of drafts in the Outbox, one tap from delivery, each referring to a
+ * visit that happened last spring, and every client on
+ * messaging_autonomy = 'florrie' is simply texted.
+ *
+ * So: nothing older than REBOOK_MAX_AGE_DAYS is ever sent, and anything older
+ * is marked sent so it stops looking due. Fourteen days because the row says
+ * "nudge her in four weeks" and a nudge a fortnight after that is no longer
+ * the thing Ellie asked for, while two weeks is wide enough to ride out any
+ * real outage, a long weekend of failed runs or a container that would not
+ * start. Rows are closed rather than deleted: Ellie's intention stays on the
+ * record, it just stops being a pending instruction.
+ *
+ * And a batch limit, because "the floor is empty now" is only true after the
+ * first pass. REBOOK_BATCH_LIMIT rows an hour, oldest first, is more than any
+ * real salon books in a day and slow enough that a surprise cannot become a
+ * flood.
  */
+const REBOOK_MAX_AGE_DAYS = 14;
+const REBOOK_BATCH_LIMIT = 50;
+
 export async function processRebookNudges() {
-  const today = new Date().toISOString().slice(0, 10);
+  const todayWall = nowInSalonWall(SALON_TZ);
+  const today = todayWall.toISOString().slice(0, 10);
+  const floor = new Date(todayWall.getTime() - REBOOK_MAX_AGE_DAYS * 86400000)
+    .toISOString().slice(0, 10);
+  // reminder_date is a DATE, so "before the floor" and "on or before the day
+  // before the floor" name exactly the same rows. Written as the second, so
+  // both halves of this job compare the column the same way.
+  const dayBeforeFloor = new Date(todayWall.getTime() - (REBOOK_MAX_AGE_DAYS + 1) * 86400000)
+    .toISOString().slice(0, 10);
+
+  // Everything past the floor is retired first, in one statement, before
+  // anything is sent. See REBOOK_MAX_AGE_DAYS: these rows are a backlog nobody
+  // has ever read, and the only two honest things to do with them are send
+  // them or close them. Sending them is out. Closing them means the queue is
+  // empty from here on and the button starts working properly tomorrow.
+  const { data: retired, error: retireErr } = await supabase
+    .from('rebook_reminders')
+    .update({ sent: true })
+    .eq('sent', false)
+    .lte('reminder_date', dayBeforeFloor)
+    .select('id');
+
+  if (retireErr) {
+    logger.error({ err: retireErr, floor }, 'Rebook reminder backlog could not be retired');
+  } else if (retired?.length) {
+    logger.info({ retired: retired.length, floor }, 'Rebook reminders older than the floor closed unsent');
+  }
 
   const { data: reminders, error } = await supabase
     .from('rebook_reminders')
-    .select('id, beautician_id, client_id, appointment_id, reminder_date, message, sent, clients(id, first_name, phone, email), beauticians(business_name, first_name, client_reminder_prefs, booking_slug)')
+    .select('id, beautician_id, client_id, appointment_id, reminder_date, message, sent, clients(id, first_name, phone, email, marketing_consent, marketing_opted_out_at, messaging_autonomy), beauticians(business_name, first_name, client_reminder_prefs, booking_slug)')
     .eq('sent', false)
     .not('client_id', 'is', null)
-    .lte('reminder_date', today);
+    .gte('reminder_date', floor)
+    .lte('reminder_date', today)
+    .order('reminder_date', { ascending: true })
+    .limit(REBOOK_BATCH_LIMIT);
 
   if (error) {
     logger.error({ err: error }, 'Rebook reminder queue query failed');
@@ -433,8 +574,14 @@ export async function processFollowUpSequences() {
   }
 
   if (sequences?.length) {
-    const now = new Date();
-    const windowStart = new Date(now.getTime() - 60 * 60 * 1000); // last hour
+    // Enrolment reads ends_at, which is wall time, so the window is built on
+    // the salon's clock (two-clocks note at the top of this file). Three hours
+    // wide on an hourly job: the enrolment check below is a dedup on
+    // (sequence_id, appointment_id), so an overlap costs nothing, while an
+    // hour-wide window loses an hour of finished appointments every time the
+    // clocks go forward and those clients are never enrolled at all.
+    const nowWall = nowInSalonWall(SALON_TZ);
+    const windowStart = new Date(nowWall.getTime() - SCAN_WINDOW_MS);
 
     for (const seq of sequences) {
       if (seq.trigger !== 'after-appointment') continue;
@@ -450,7 +597,7 @@ export async function processFollowUpSequences() {
         // of "hope you loved it" messages to somebody who never came.
         .eq('status', 'completed')
         .gte('ends_at', windowStart.toISOString())
-        .lte('ends_at', now.toISOString());
+        .lte('ends_at', nowWall.toISOString());
 
       const { data: appointments } = await query;
       if (!appointments?.length) continue;
@@ -470,7 +617,10 @@ export async function processFollowUpSequences() {
 
         if (existing?.length) continue;
 
-        // Parse the first step delay to calculate next_send_at
+        // next_send_at and enrolled_at are REAL INSTANTS (the due-step query
+        // below compares them against new Date()), so they are stamped from
+        // the real clock, never from the wall frame the window above uses.
+        const now = new Date();
         const firstStep = seq.steps?.[0];
         const nextSendAt = firstStep
           ? new Date(now.getTime() + parseDelay(firstStep.delay))
@@ -495,7 +645,7 @@ export async function processFollowUpSequences() {
   const now = new Date();
   const { data: dueEnrollments } = await supabase
     .from('follow_up_enrollments')
-    .select('*, clients(first_name, phone, email), beauticians(business_name, first_name, client_reminder_prefs), follow_up_sequences(steps, name)')
+    .select('*, clients(id, first_name, phone, email, marketing_consent, marketing_opted_out_at, messaging_autonomy), beauticians(business_name, first_name, client_reminder_prefs), follow_up_sequences(steps, name)')
     .eq('status', 'active')
     .lte('next_send_at', now.toISOString());
 

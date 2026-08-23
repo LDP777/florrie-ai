@@ -654,9 +654,14 @@ export function refundableApplicationFeeCents({
  * Idempotency-Key the app has never sent, which is why it never fired.
  *
  * A deliberate second refund of the SAME amount on the same payment is
- * indistinguishable from a double tap, so it is blocked for Stripe's 24 hour
+ * indistinguishable from a double tap, so it is held for Stripe's 24 hour
  * idempotency window. `refund_request_id` in the body is the escape hatch for
  * that case: any value not used before makes the key distinct.
+ *
+ * The route does NOT assume the replay was a double tap. It checks the charge
+ * afterwards, and when no money moved it says so and names the escape hatch,
+ * rather than reporting a refund that did not happen. See the check under
+ * refunds.create below.
  */
 export function refundIdempotencyKey({ beauticianId, paymentIntentId, amountCents, requestId }) {
   const parts = ['florrie-refund', beauticianId, paymentIntentId, String(amountCents)];
@@ -773,6 +778,65 @@ router.post('/refund', requireAuth, requireStripe, async (req, res) => {
     });
 
     const refund = await stripe.refunds.create(refundParams, { idempotencyKey });
+
+    // DID ANY MONEY ACTUALLY MOVE?
+    //
+    // The idempotency key above is doing exactly what it is there for, and it
+    // cannot tell a double tap from a decision. Refund GBP 15 of a GBP 50
+    // deposit, then deliberately refund another GBP 15 the same day: same
+    // beautician, same intent, same amount, same key. Stripe hands back the
+    // ORIGINAL refund object and creates nothing. The route used to answer
+    // success:true with the first refund's id and a remaining_refundable that
+    // was a further GBP 15 out, so Ellie was told a refund had gone through
+    // that had not, and her client never got the money.
+    //
+    // The charge is the witness. If amount_refunded has not moved, nothing
+    // left the account, whatever the refund object says. Only a positive
+    // observation counts: if we cannot re-read the charge we say nothing and
+    // report the refund as normal, because a failed verification must never
+    // turn a genuine refund into an error.
+    let replayed = false;
+    try {
+      const after = await stripe.paymentIntents.retrieve(
+        appointment.stripe_payment_intent_id,
+        { expand: ['latest_charge'] },
+      );
+      const afterCharge = after?.latest_charge && typeof after.latest_charge === 'object'
+        ? after.latest_charge
+        : null;
+      const afterRefundedCents = Math.round(Number(afterCharge?.amount_refunded ?? NaN));
+      if (Number.isFinite(afterRefundedCents) && refund.amount > 0) {
+        replayed = afterRefundedCents <= alreadyRefundedCents;
+      }
+    } catch (verifyErr) {
+      logger.warn({ err: verifyErr, refundId: refund.id },
+        'Refund created but the charge could not be re-read to confirm it moved');
+    }
+
+    if (replayed) {
+      // Nothing to record and nothing to reverse: this refund is already in
+      // the books and already reflected in the charge. Say so plainly, and say
+      // how to do it on purpose, because "refund another GBP 15" is a real
+      // thing Ellie sometimes means.
+      logger.warn({
+        refundId: refund.id,
+        paymentIntentId: appointment.stripe_payment_intent_id,
+        amountCents: refundAmountCents,
+      }, 'Refund request replayed an existing refund; no new money moved');
+      return res.json({
+        success: false,
+        duplicate: true,
+        refund_id: refund.id,
+        amount_cents: refund.amount,
+        status: refund.status,
+        already_refunded_cents: alreadyRefundedCents,
+        remaining_refundable_cents: Math.max(0, chargeAmountCents - alreadyRefundedCents),
+        application_fee_refunded_cents: 0,
+        recorded: true,
+        error: `No new money has moved. This is the refund of £${(refund.amount / 100).toFixed(2)} that already went back to this client, not a second one.`,
+        message: 'If you meant to send back the same amount again, repeat the request with a different refund_request_id and it will go through as a separate refund.',
+      });
+    }
 
     // Give back Florrie's own cut, and only that. See the arithmetic on
     // refundableApplicationFeeCents: refunding the whole application fee also

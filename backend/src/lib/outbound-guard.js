@@ -122,14 +122,32 @@ export async function evaluateOutbound({ beauticianId, clientId, messageType, ch
     // 1) Consent. Fail CLOSED: a proactive message needs a matched, opted-in
     //    client. (The old guard allowed sends when it could not match a phone.)
     let c = client;
-    if (!c && clientId) {
+    // A client row is only evidence if it carries the columns this decision
+    // needs. A select that never asked for marketing_opted_out_at hands back a
+    // row where it is undefined, which is falsy, so the opt-out branch below
+    // reads a missing column as a yes and texts somebody who replied STOP.
+    // Three senders shipped that way. Treat a row with no consent columns as
+    // no row and go and read them.
+    //
+    // Re-read rather than block: blocking would break every caller that still
+    // under-selects, and a caller that under-selects is the one case where we
+    // most need the true answer rather than a refusal.
+    if (c && typeof c === 'object' && !('marketing_opted_out_at' in c)) {
+      logger.warn(
+        { beauticianId, messageType, clientId: clientId || c.id || null },
+        'evaluateOutbound was handed a client row with no consent columns, re-reading it',
+      );
+      c = null;
+    }
+    if (!c && (clientId || client?.id)) {
+      const id = clientId || client.id;
       const { data } = await supabase
         .from('clients')
         .select('id, marketing_consent, marketing_opted_out_at, messaging_autonomy')
-        .eq('id', clientId)
+        .eq('id', id)
         .eq('beautician_id', beauticianId)
         .maybeSingle();
-      c = data;
+      c = data ? { ...client, ...data } : null;
     }
     if (!c) return decision('block', tier, 'no_client_match');
     if (c.marketing_opted_out_at) return decision('block', tier, 'opted_out');

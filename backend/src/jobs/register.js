@@ -251,8 +251,12 @@ export const JOBS = [
     // cannot hold a row); the file header explains both. These three are the
     // ones that are real.
     //
-    // Hourly, all three. Each looks for work in a one-hour window ending now,
-    // so a slower cadence would step over items that were due in between.
+    // Hourly, all three. Each looks for work in a window ending now, on the
+    // SALON's clock, and the window is deliberately wider than the cadence:
+    // ends_at is wall time, so an hour-wide window loses an hour of finished
+    // appointments every spring when the clocks go forward. Both passes dedupe
+    // on a table, so the overlap costs nothing. A slower cadence would still
+    // step over items that were due in between.
     name: 'aftercare-followups',
     description: 'send aftercare messages the configured hours after a visit',
     intervalMs: HOUR,
@@ -264,6 +268,13 @@ export const JOBS = [
     // completed appointment. reminder_date is a DATE, so a run any time that
     // day picks it up; hourly just means it goes out at a sensible hour rather
     // than whenever the container last booted.
+    //
+    // Nothing has ever read this table, so the first run after this deploy
+    // meets every row the salon has ever written. The processor holds the
+    // floor and the batch limit that keeps that from becoming hundreds of
+    // stale drafts two minutes after boot; see REBOOK_MAX_AGE_DAYS in
+    // services/automations.js. The startup delay below is not the protection
+    // and was never enough to be.
     name: 'rebook-reminder-queue',
     description: 'send the rebook nudges Ellie scheduled from the diary',
     intervalMs: HOUR,
@@ -271,9 +282,12 @@ export const JOBS = [
     startupDelayMs: 2 * MINUTE,
   },
   {
-    // Two phases in one pass: enrol appointments completed in the last hour,
-    // then send any enrolment whose next step is due. The enrolment window is
-    // exactly an hour wide, so this cadence is load-bearing, not a preference.
+    // Two phases in one pass: enrol appointments recently completed, then send
+    // any enrolment whose next step is due. The enrolment window is three
+    // hours of SALON WALL TIME against an hourly run, so a missed hour is
+    // picked up on the next pass instead of being lost; the enrolment dedup on
+    // (sequence_id, appointment_id) is what makes the overlap free. Slowing
+    // this job past the window is what would start losing enrolments.
     name: 'follow-up-sequences',
     description: 'enrol completed appointments and send due sequence steps',
     intervalMs: HOUR,

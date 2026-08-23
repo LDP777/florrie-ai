@@ -95,7 +95,7 @@ export async function processReviewRequests() {
       // Fetch appointment + client + treatment + beautician
       const { data: appt } = await supabase
         .from('appointments')
-        .select('*, clients(id, first_name, phone, email, whatsapp_id, instagram_id, preferred_channel), treatments(name), beauticians(first_name, business_name, brand_color, google_place_id)')
+        .select('*, clients(id, first_name, phone, email, whatsapp_id, instagram_id, preferred_channel, marketing_consent, marketing_opted_out_at, messaging_autonomy), treatments(name), beauticians(first_name, business_name, brand_color, google_place_id)')
         .eq('id', appointmentId)
         .single();
 
@@ -186,7 +186,7 @@ export async function processReviewRequests() {
     <p style="margin:0;color:#a09a93;font-size:13px">Not happy? Reply to this email and we'll make it right.</p>
   </td></tr>
   <tr><td style="padding:14px 32px;border-top:1px solid #f0eeeb">
-    <p style="margin:0;color:#a09a93;font-size:11px;text-align:center">${bizName} — powered by Florrie</p>
+    <p style="margin:0;color:#a09a93;font-size:11px;text-align:center">${bizName}, powered by Florrie</p>
   </td></tr>
 </table>
 </td></tr>

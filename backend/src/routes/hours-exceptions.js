@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
+import { exceptionRangeError } from '../lib/hours-exception-range.js';
 
 const router = Router();
 
@@ -53,14 +54,11 @@ router.post('/', requireAuth, async (req, res) => {
     }
     if (!reason) return res.status(400).json({ error: 'reason is required' });
 
-    // A range picker that hands back its two ends in the wrong order used to be
-    // stored verbatim. Nothing downstream can honour date..end_date when the end
-    // is before the start, so the closure would silently cover no days at all.
-    // Reject it here rather than store a range that cannot be read back.
+    // Shared with POST /api/features/hours-exceptions, which writes the same
+    // table. Two copies of this rule is how one door ended up without it.
     const endDate = typeof end_date === 'string' && end_date.trim() ? end_date.trim() : null;
-    if (endDate && endDate < String(date)) {
-      return res.status(400).json({ error: 'end_date cannot be before date' });
-    }
+    const rangeError = exceptionRangeError(date, endDate);
+    if (rangeError) return res.status(400).json({ error: rangeError });
 
     // Build the insertion object
     const exc = {
