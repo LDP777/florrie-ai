@@ -37,14 +37,45 @@ router.get('/pending', async (req, res) => {
   res.json({ pending: data || [] });
 });
 
+/**
+ * A quiet draft: a client Ellie set to "Florrie never initiates" (clients
+ * .messaging_autonomy = 'just_me'). The guard still writes the words, tagged
+ * with this reason, so she can use them if she ever wants to. Nothing about
+ * them may be swept up by a bulk action.
+ */
+const QUIET_REASON = 'just_me_silent_draft';
+
+/**
+ * The one definition of "a hold a bulk action is allowed to touch". The badge
+ * count and Send all now share it instead of each carrying their own copy.
+ *
+ * They did not agree before. GET /count excluded quiet drafts and
+ * frontend/src/pages/Outbox.jsx splits them into their own section with the
+ * promise that nothing sends unless she says so, but POST /approve-all
+ * selected on status alone. Tapping Send all to clear three gap offers also
+ * sent a proactive message to every client she had explicitly told Florrie
+ * never to initiate with. That setting is the one promise the product makes
+ * about not messaging people.
+ *
+ * `reason` is nullable, and in SQL `reason <> 'x'` is NULL, not true, for a
+ * NULL reason, so a plain .neq() silently dropped those rows as well. The
+ * frontend calls a row quiet only when the reason matches exactly, so the
+ * predicate says the same thing: quiet means the reason IS the quiet one.
+ */
+function loudPending(query) {
+  return query
+    .eq('status', 'pending_approval')
+    .or(`reason.is.null,reason.neq.${QUIET_REASON}`);
+}
+
 /** GET /api/outbound/count - pending count for the home/nav badge. */
 router.get('/count', async (req, res) => {
-  const { count } = await supabase
-    .from('outbound_sends')
-    .select('id', { count: 'exact', head: true })
-    .eq('beautician_id', req.beautician.id)
-    .eq('status', 'pending_approval')
-    .neq('reason', 'just_me_silent_draft') // quiet drafts never nag;
+  const { count } = await loudPending(
+    supabase
+      .from('outbound_sends')
+      .select('id', { count: 'exact', head: true })
+      .eq('beautician_id', req.beautician.id)
+  );
   res.json({ count: count || 0 });
 });
 
@@ -75,9 +106,60 @@ router.post('/:id/skip', async (req, res) => {
   res.json({ ok: true });
 });
 
-// Deliver one queued row. Returns { ok, error }. Loads the full beautician row
-// (sendOnChannel needs whatsapp_phone_id etc., which the sanitised req.beautician
-// may not carry).
+/**
+ * Claim one pending row for sending: flip pending_approval -> sent, filtered
+ * on the old status, and take the row the flip returned.
+ *
+ * This is the whole concurrency fix. Approve used to read the row filtered on
+ * pending_approval, send, and only then mark it sent, so two requests both
+ * passed the read and the client got the same proactive message twice. A
+ * double tap did it, and so did approve racing approve-all.
+ *
+ * Claiming to the FINAL status rather than an in-between one is deliberate. A
+ * crash between the claim and the send then leaves a message unsent, which is
+ * recoverable, instead of leaving the row parked in a state that no query
+ * looks at and no frequency cap counts. Nothing needs a stale-claim sweeper.
+ *
+ * Returns { row, error }. row is null when somebody else got there first.
+ */
+async function claimPending(rowId, beauticianId) {
+  const { data, error } = await supabase
+    .from('outbound_sends')
+    .update({ status: 'sent', decided_at: new Date().toISOString() })
+    .eq('id', rowId)
+    .eq('beautician_id', beauticianId)
+    .eq('status', 'pending_approval')
+    .select('*');
+  if (error) {
+    logger.error({ err: error, rowId }, 'outbound: could not claim the row for sending');
+    return { row: null, error: 'Could not send that one' };
+  }
+  return { row: (data || [])[0] || null, error: null };
+}
+
+/**
+ * Undo a claim whose send did not happen, so the message comes back into the
+ * outbox and she can try again. Only ever called on a path that knows nothing
+ * was delivered, and filtered on the status the claim set, so a row anything
+ * else has since moved is left alone.
+ */
+async function releaseClaim(rowId, beauticianId) {
+  const { error } = await supabase
+    .from('outbound_sends')
+    .update({ status: 'pending_approval', decided_at: null })
+    .eq('id', rowId)
+    .eq('beautician_id', beauticianId)
+    .eq('status', 'sent');
+  if (error) {
+    logger.error({ err: error, rowId }, 'outbound: could not release a claim after a failed send');
+  }
+}
+
+// Deliver one already-claimed row. Returns { ok, error }. Loads the full
+// beautician row (sendOnChannel needs whatsapp_phone_id etc., which the
+// sanitised req.beautician may not carry). The row's status is not touched
+// here: claimPending already moved it, and the caller releases the claim if
+// this comes back not ok.
 async function deliverQueued(row, beauticianId) {
   const { data: beautician } = await supabase
     .from('beauticians')
@@ -134,44 +216,73 @@ async function deliverQueued(row, beauticianId) {
     authoredBy: AUTHOR.AI,
   });
   if (!result.ok) return { ok: false, error: result.error || 'Send failed' };
-
-  await supabase
-    .from('outbound_sends')
-    .update({ status: 'sent', decided_at: new Date().toISOString() })
-    .eq('id', row.id);
   return { ok: true };
 }
 
 /** POST /api/outbound/:id/approve - send this one now. */
 router.post('/:id/approve', async (req, res) => {
-  const { data: row } = await supabase
-    .from('outbound_sends')
-    .select('*')
-    .eq('id', req.params.id)
-    .eq('beautician_id', req.beautician.id)
-    .eq('status', 'pending_approval')
-    .maybeSingle();
+  // Claim first, send second. A quiet draft is fair game here: this is Ellie
+  // deciding about one named person, which is exactly what 'just me' leaves
+  // to her. It is the BULK action that must never touch them.
+  const { row, error } = await claimPending(req.params.id, req.beautician.id);
+  if (error) return res.status(500).json({ error });
   if (!row) return res.status(404).json({ error: 'Not found or already handled' });
 
-  const out = await deliverQueued(row, req.beautician.id);
-  if (!out.ok) return res.status(400).json({ error: out.error });
+  let out;
+  try {
+    out = await deliverQueued(row, req.beautician.id);
+  } catch (err) {
+    logger.error({ err, rowId: row.id }, 'outbound approve: delivery threw');
+    out = { ok: false, error: 'Could not send that one' };
+  }
+  if (!out.ok) {
+    await releaseClaim(row.id, req.beautician.id);
+    return res.status(400).json({ error: out.error });
+  }
   res.json({ ok: true });
 });
 
-/** POST /api/outbound/approve-all - send everything still pending. */
+/**
+ * POST /api/outbound/approve-all - send everything still pending.
+ *
+ * Everything LOUD, that is. Quiet drafts are excluded here by the same
+ * predicate the badge count uses, because the page tells her they are.
+ */
 router.post('/approve-all', async (req, res) => {
-  const { data: rows } = await supabase
-    .from('outbound_sends')
-    .select('*')
-    .eq('beautician_id', req.beautician.id)
-    .eq('status', 'pending_approval')
+  const { data: rows, error } = await loudPending(
+    supabase
+      .from('outbound_sends')
+      .select('id')
+      .eq('beautician_id', req.beautician.id)
+  )
     .order('created_at', { ascending: true })
     .limit(200);
 
+  if (error) {
+    logger.error({ err: error }, 'outbound approve-all: could not read the queue');
+    return res.status(500).json({ error: 'Could not send them all' });
+  }
+
   let sent = 0, failed = 0;
-  for (const row of rows || []) {
-    const out = await deliverQueued(row, req.beautician.id);
-    if (out.ok) sent++; else failed++;
+  for (const pending of rows || []) {
+    // Claim each one on its own, so approve-all racing a single approve (or a
+    // second approve-all) can never send the same message twice.
+    const { row } = await claimPending(pending.id, req.beautician.id);
+    if (!row) continue; // somebody else took it: not ours to count either way
+
+    let out;
+    try {
+      out = await deliverQueued(row, req.beautician.id);
+    } catch (err) {
+      logger.error({ err, rowId: row.id }, 'outbound approve-all: delivery threw');
+      out = { ok: false, error: 'Send failed' };
+    }
+    if (out.ok) {
+      sent++;
+    } else {
+      failed++;
+      await releaseClaim(row.id, req.beautician.id);
+    }
   }
   res.json({ ok: true, sent, failed });
 });
