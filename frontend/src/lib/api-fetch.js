@@ -61,7 +61,7 @@ export async function apiFetch(url, opts = {}) {
  * whether waiting would help. She read it as broken and worked around it.
  */
 export const RATE_LIMIT_MESSAGE =
-  'The app got ahead of itself. Nothing has been saved or changed — give it a few seconds and try that again.';
+  'The app got ahead of itself. Nothing has been saved or changed, so give it a few seconds and try that again.';
 
 /**
  * Pull a message out of an API error body, preferring one that reads like a

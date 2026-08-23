@@ -1238,7 +1238,7 @@ function ClientDetailPanel({ detail, onClose, onNavigate, onChanged }) {
         </div>
         {blocked && (
           <div style={{ background: 'var(--danger-bg, #F7E4E4)', border: '1px solid var(--danger)', borderRadius: 10, padding: '9px 12px', margin: '0 0 12px', fontSize: 13, color: 'var(--danger)', fontWeight: 600, textAlign: 'center' }}>
-            Blocked — this client can't book online.
+            Blocked. This client can't book online.
           </div>
         )}
         {archived && (

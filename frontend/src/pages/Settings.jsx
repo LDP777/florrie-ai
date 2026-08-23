@@ -207,7 +207,7 @@ export default function Settings({ onLogout }) {
   }
 
   async function handleDeleteAccount() {
-    if (!window.confirm('Delete your Florrie account?\n\nThis permanently erases your account and ALL your data \u2014 clients, messages, appointments, everything. This cannot be undone.')) return;
+    if (!window.confirm('Delete your Florrie account?\n\nThis permanently erases your account and ALL your data: clients, messages, appointments, everything. This cannot be undone.')) return;
     if (window.prompt('This is permanent. Type DELETE to confirm.') !== 'DELETE') return;
     try {
       const token = (await supabase.auth.getSession()).data.session?.access_token;

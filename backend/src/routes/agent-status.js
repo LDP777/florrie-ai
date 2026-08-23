@@ -150,7 +150,7 @@ router.get('/status', requireAuth, async (req, res) => {
         totalAgents: agents.length,
         headline: activeCount === 0
           ? 'Your team is resting'
-          : `${activeCount} agent${activeCount > 1 ? 's' : ''} working — ${totalToday} actions today`,
+          : `${activeCount} agent${activeCount > 1 ? 's' : ''} working, ${totalToday} actions today`,
       },
     });
   } catch (err) {
@@ -192,7 +192,7 @@ router.get('/widget', requireAuth, async (req, res) => {
       const isActive = agentActions.length > 0;
       const lastAction = agentActions[0] || null;
 
-      let micro = isActive ? '✓' : '—';
+      let micro = isActive ? '✓' : '-';
       if (lastAction) {
         micro = shortTimeAgo(new Date(lastAction.created_at), now);
       }

@@ -24,6 +24,7 @@ import { classifyInboundMessage, looksLikeKnownClient } from '../lib/junk-classi
 import logger from '../lib/logger.js';
 import { autoUnarchiveClient } from '../lib/client-archive.js';
 import { authorship } from '../lib/authorship.js';
+import { deDash } from '../lib/text.js';
 
 const router = Router();
 
@@ -254,7 +255,7 @@ function buildRedirectMessage(beautician) {
   if (waLink) {
     return `Hey! ${name} replies much faster on WhatsApp 💬 Message me here: ${waLink}`;
   }
-  return `Hey! I reply much faster on WhatsApp — please message me there instead 💬`;
+  return `Hey! I reply much faster on WhatsApp, please message me there instead 💬`;
 }
 
 /**
@@ -263,6 +264,8 @@ function buildRedirectMessage(beautician) {
  * long-lived Instagram user token).
  */
 async function sendInstagramReply(recipientId, text, token) {
+  // House rule choke point for the Instagram auto-reply. Body only.
+  text = deDash(text);
   const igToken = token || process.env.INSTAGRAM_PAGE_TOKEN;
   if (!igToken) {
     logger.warn('No Instagram token available — cannot send Instagram reply');

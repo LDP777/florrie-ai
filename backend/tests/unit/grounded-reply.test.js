@@ -158,7 +158,7 @@ describe('every message Florrie sends says it is Florrie', () => {
   it('appends to a reply without touching the reply', () => {
     const out = signAsFlorrie("You're booked in Tuesday at 6pm.", 'Ellie');
     expect(out.startsWith("You're booked in Tuesday at 6pm.")).toBe(true);
-    expect(out).toContain('— Florrie');
+    expect(out).toContain("Florrie, Ellie's assistant");
   });
 
   it('does not sign twice', () => {

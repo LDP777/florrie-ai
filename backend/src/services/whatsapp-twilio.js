@@ -19,6 +19,7 @@
  */
 import crypto from 'node:crypto';
 import logger from '../lib/logger.js';
+import { deDash } from '../lib/text.js';
 
 const TWILIO_API_BASE = process.env.TWILIO_API_BASE || 'https://api.twilio.com';
 
@@ -124,7 +125,9 @@ export async function twilioSendText({ to, body, sender }) {
     logger.warn({ to, sender }, 'twilioSendText: could not normalise addresses');
     return null;
   }
-  return postTwilioMessage({ To, From, Body: body }, 'text');
+  // House rule choke point: the free-form body only. twilioSendTemplate below
+  // is left alone on purpose (ContentSid + ContentVariables are structured).
+  return postTwilioMessage({ To, From, Body: deDash(body) }, 'text');
 }
 
 /**

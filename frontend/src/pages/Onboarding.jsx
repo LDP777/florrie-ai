@@ -384,7 +384,7 @@ export default function Onboarding({ onComplete }) {
       if (res.ok && d.url) {
         if (native) {
           window.open(d.url, '_blank');
-          setIgNote('Finish in the browser, then come back here — we will pick it up.');
+          setIgNote('Finish in the browser, then come back here. We will pick it up.');
         } else {
           window.location.href = d.url;
         }

@@ -43,7 +43,7 @@ export const SETTINGS = [
       'you reply to them', 'I want to see every message first',
       'turn the ai up', 'turn the ai down',
     ],
-    means: "When it's on, Florrie replies straight away to questions she can answer from your diary and price list — when someone is booked in, what a treatment costs, aftercare — signed as Florrie, with a way for the client to ask for you instead. Availability, moving a booking, anything about money owed or a complaint still comes to you either way.",
+    means: "When it's on, Florrie replies straight away to questions she can answer from your diary and price list (when someone is booked in, what a treatment costs, aftercare), signed as Florrie, with a way for the client to ask for you instead. Availability, moving a booking, anything about money owed or a complaint still comes to you either way.",
     where: { json: 'autonomy', key: 'grounded_replies' },
     type: 'boolean',
     default: true,

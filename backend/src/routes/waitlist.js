@@ -67,7 +67,7 @@ Signed up at: ${new Date().toISOString()}
     const confirmHtml = `
       <h2>Welcome to the Florrie Waitlist</h2>
       <p>Thanks for signing up, ${name || 'friend'}!</p>
-      <p>You're now on the waitlist for early access to Florrie — the AI-powered salon management platform.</p>
+      <p>You're now on the waitlist for early access to Florrie, the AI-powered salon management platform.</p>
       <p>We'll be in touch soon with updates and exclusive early-access opportunities.</p>
       <p style="color: #666; font-size: 12px; margin-top: 20px;">
         <strong>Florrie</strong><br/>
@@ -79,11 +79,11 @@ Welcome to the Florrie Waitlist
 
 Thanks for signing up, ${name || 'friend'}!
 
-You're now on the waitlist for early access to Florrie — the AI-powered salon management platform.
+You're now on the waitlist for early access to Florrie, the AI-powered salon management platform.
 
 We'll be in touch soon with updates and exclusive early-access opportunities.
 
-Florrie — The future of salon management
+Florrie: the future of salon management
     `.trim();
 
     await sendEmail({

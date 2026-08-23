@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm run check:icons && npm run check:icon-usage && npm run check:chrome && npm run check:primitives && npm run check:tap && npm run check:dedupe && npm run check:brand && npm run check:render && vite build",
+    "build": "npm run check:icons && npm run check:icon-usage && npm run check:chrome && npm run check:primitives && npm run check:tap && npm run check:dedupe && npm run check:brand && npm run check:em-dash && npm run check:render && vite build",
     "preview": "vite preview",
     "test:e2e": "playwright test",
     "test:e2e:booking": "playwright test --project=booking",
@@ -32,6 +32,7 @@
     "check:deferred": "node scripts/check-deferred.mjs",
     "check:dedupe": "node scripts/check-dedupe.mjs",
     "check:brand": "node scripts/check-brand-colour.mjs",
+    "check:em-dash": "node scripts/check-em-dash.mjs",
     "check:tokens": "node scripts/check-tokens.mjs",
     "check:swatches": "node scripts/check-swatches.mjs",
     "check:live": "node scripts/check-live.mjs"

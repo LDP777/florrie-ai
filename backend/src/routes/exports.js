@@ -238,7 +238,7 @@ router.get('/tax-quarterly', requireAuth, async (req, res) => {
     const lines = [];
 
     // Section 1: Summary
-    lines.push('FLORRIE.AI — QUARTERLY TAX EXPORT');
+    lines.push('FLORRIE.AI: QUARTERLY TAX EXPORT');
     lines.push(`Tax Year,${taxYear}`);
     lines.push(`Period,${periodStart} to ${periodEnd}`);
     lines.push(`Generated,${new Date().toISOString().split('T')[0]}`);

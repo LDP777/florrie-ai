@@ -25,7 +25,7 @@ const SEQUENCES = {
       {
         key: 'welcome_day0',
         delay_hours: 0,
-        subject: 'Welcome to Florrie — let\'s get you set up',
+        subject: 'Welcome to Florrie, let\'s get you set up',
         build: (b) => welcomeDay0(b),
       },
       {
@@ -43,7 +43,7 @@ const SEQUENCES = {
       {
         key: 'welcome_day14',
         delay_hours: 336,
-        subject: 'Your trial is halfway through — how\'s it going?',
+        subject: 'Your trial is halfway through. How\'s it going?',
         build: (b) => welcomeDay14(b),
       },
     ],
@@ -61,7 +61,7 @@ const SEQUENCES = {
       {
         key: 'trial_expired',
         delay_hours: 72,
-        subject: 'Your trial has ended — but your data is safe',
+        subject: 'Your trial has ended, but your data is safe',
         build: (b) => trialExpired(b),
       },
     ],
@@ -250,7 +250,7 @@ function brandedWrapper(beautician, content) {
   </td></tr>
   <tr><td style="padding:16px 36px 28px;border-top:1px solid #f0eeeb">
     <p style="margin:0;color:#a09a93;font-size:12px;text-align:center">
-      Florrie — AI-powered beauty business management<br/>
+      Florrie: AI-powered beauty business management<br/>
       <a href="https://florrie.ai/unsubscribe" style="color:#a09a93;text-decoration:underline">Unsubscribe</a>
     </p>
   </td></tr>
@@ -279,7 +279,7 @@ function welcomeDay0(b) {
       and keeps your finances in order.
     </p>
     <p style="margin:0 0 16px;color:#6b6560;font-size:15px;line-height:1.6">
-      Your 14-day trial includes every feature — no card needed. Here's what to do first:
+      Your 14-day trial includes every feature, no card needed. Here's what to do first:
     </p>
     <table cellpadding="0" cellspacing="0" style="margin:0 0 20px">
       <tr><td style="padding:6px 0;color:#2d2a26;font-size:14px">
@@ -294,7 +294,7 @@ function welcomeDay0(b) {
     </table>
     ${ctaButton('Open your dashboard', dashUrl, b.brand_color || '#92405E')}
     <p style="margin:0;color:#a09a93;font-size:13px">
-      Questions? Just reply to this email — a real person reads every one.
+      Questions? Just reply to this email, a real person reads every one.
     </p>
   `);
 
@@ -309,13 +309,13 @@ function welcomeDay3(b) {
   const html = brandedWrapper(b, `
     <h1 style="margin:0 0 12px;color:#2d2a26;font-size:22px;font-weight:700">Meet your AI team, ${name}</h1>
     <p style="margin:0 0 20px;color:#6b6560;font-size:15px;line-height:1.6">
-      Florrie isn't one thing — it's a team of specialists working behind the scenes. Here's who's got your back:
+      Florrie isn't one thing. It's a team of specialists working behind the scenes. Here's who's got your back:
     </p>
 
     <table cellpadding="0" cellspacing="0" width="100%" style="margin:0 0 20px">
       <tr><td style="padding:14px 16px;background:#faf8f5;border-radius:10px;margin-bottom:8px">
         <p style="margin:0 0 4px;font-size:14px;font-weight:700;color:#2d2a26">🗓 Front Desk</p>
-        <p style="margin:0;font-size:13px;color:#6b6560;line-height:1.5">Answers client messages, checks your calendar, suggests appointment times — all in your voice.</p>
+        <p style="margin:0;font-size:13px;color:#6b6560;line-height:1.5">Answers client messages, checks your calendar, suggests appointment times, all in your voice.</p>
       </td></tr>
       <tr><td style="height:8px"></td></tr>
       <tr><td style="padding:14px 16px;background:#faf8f5;border-radius:10px">
@@ -325,7 +325,7 @@ function welcomeDay3(b) {
       <tr><td style="height:8px"></td></tr>
       <tr><td style="padding:14px 16px;background:#faf8f5;border-radius:10px">
         <p style="margin:0 0 4px;font-size:14px;font-weight:700;color:#2d2a26">💰 Money</p>
-        <p style="margin:0;font-size:13px;color:#6b6560;line-height:1.5">Tracks income, scans receipts, calculates your tax — quarterly set-aside, HMRC categories, the lot.</p>
+        <p style="margin:0;font-size:13px;color:#6b6560;line-height:1.5">Tracks income, scans receipts, calculates your tax: quarterly set-aside, HMRC categories, the lot.</p>
       </td></tr>
       <tr><td style="height:8px"></td></tr>
       <tr><td style="padding:14px 16px;background:#faf8f5;border-radius:10px">
@@ -337,7 +337,7 @@ function welcomeDay3(b) {
     ${ctaButton('See them in action', 'https://florrie.ai/dashboard', b.brand_color || '#92405E')}
   `);
 
-  const text = `Hey ${name}, meet your AI team:\n\n🗓 Front Desk — answers DMs in your voice\n📸 Content — turns photos into captions\n💰 Money — tracks income + tax\n🔁 Comeback Engine — nudges clients to rebook\n\nSee them in action: https://florrie.ai/dashboard`;
+  const text = `Hey ${name}, meet your AI team:\n\n🗓 Front Desk: answers DMs in your voice\n📸 Content: turns photos into captions\n💰 Money: tracks income + tax\n🔁 Comeback Engine: nudges clients to rebook\n\nSee them in action: https://florrie.ai/dashboard`;
 
   return { html, text };
 }
@@ -346,7 +346,7 @@ function welcomeDay7(b) {
   const name = b.first_name || 'there';
 
   const html = brandedWrapper(b, `
-    <h1 style="margin:0 0 12px;color:#2d2a26;font-size:22px;font-weight:700">One week in — how's it going?</h1>
+    <h1 style="margin:0 0 12px;color:#2d2a26;font-size:22px;font-weight:700">One week in. How's it going?</h1>
     <p style="margin:0 0 16px;color:#6b6560;font-size:15px;line-height:1.6">
       ${name}, you've been on Florrie for a week now. Here's what beauticians like you are saying:
     </p>
@@ -357,7 +357,7 @@ function welcomeDay7(b) {
           "I used to spend my whole Sunday night replying to DMs and doing my accounts.
           Now Florrie handles the messages and my tax is sorted. I actually had a Sunday off."
         </p>
-        <p style="margin:0;font-size:12px;color:#a09a93;font-weight:600">— Ellie, Brow & Lash Specialist, Manchester</p>
+        <p style="margin:0;font-size:12px;color:#a09a93;font-weight:600">- Ellie, Brow & Lash Specialist, Manchester</p>
       </td></tr>
     </table>
 
@@ -367,7 +367,7 @@ function welcomeDay7(b) {
     ${b.booking_slug ? ctaButton('Your booking page', `https://florrie.ai/book/${b.booking_slug}`, b.brand_color || '#92405E') : ''}
   `);
 
-  const text = `Hey ${name}, one week in! Here's what beauticians are saying:\n\n"I used to spend my whole Sunday night replying to DMs. Now Florrie handles everything." — Ellie, Manchester\n\nHave you tried sharing your booking link yet? That's usually the moment it clicks.`;
+  const text = `Hey ${name}, one week in! Here's what beauticians are saying:\n\n"I used to spend my whole Sunday night replying to DMs. Now Florrie handles everything." - Ellie, Manchester\n\nHave you tried sharing your booking link yet? That's usually the moment it clicks.`;
 
   return { html, text };
 }
@@ -378,7 +378,7 @@ function welcomeDay14(b) {
   const html = brandedWrapper(b, `
     <h1 style="margin:0 0 12px;color:#2d2a26;font-size:22px;font-weight:700">Halfway through your trial, ${name}</h1>
     <p style="margin:0 0 16px;color:#6b6560;font-size:15px;line-height:1.6">
-      You've had two weeks with Florrie. Your trial runs for another 14 days —
+      You've had two weeks with Florrie. Your trial runs for another 14 days,
       plenty of time to see the full picture.
     </p>
     <p style="margin:0 0 16px;color:#6b6560;font-size:15px;line-height:1.6">
@@ -404,21 +404,21 @@ function trialWarning(b) {
   const html = brandedWrapper(b, `
     <h1 style="margin:0 0 12px;color:#2d2a26;font-size:22px;font-weight:700">Your trial ends in 3 days</h1>
     <p style="margin:0 0 16px;color:#6b6560;font-size:15px;line-height:1.6">
-      Hey ${name}, just a heads up — your Florrie trial wraps up on
+      Hey ${name}, just a heads up, your Florrie trial wraps up on
       ${b.trial_ends_at ? new Date(b.trial_ends_at).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }) : 'soon'}.
     </p>
     <p style="margin:0 0 16px;color:#6b6560;font-size:15px;line-height:1.6">
-      Your data, clients, and settings are all safe — nothing gets deleted.
+      Your data, clients, and settings are all safe, nothing gets deleted.
       But the AI features will pause until you pick a plan.
     </p>
     <p style="margin:0 0 16px;color:#6b6560;font-size:15px;line-height:1.6">
-      Plans start at £19/month. That's less than one brow appointment —
+      Plans start at £19/month. That's less than one brow appointment,
       and it saves you 8+ hours a week.
     </p>
     ${ctaButton('Choose a plan', 'https://florrie.ai/settings#billing', b.brand_color || '#92405E')}
   `);
 
-  const text = `Hey ${name}, your Florrie trial ends in 3 days. Your data is safe — but AI features will pause. Plans start at £19/month. Choose a plan: https://florrie.ai/settings#billing`;
+  const text = `Hey ${name}, your Florrie trial ends in 3 days. Your data is safe, but AI features will pause. Plans start at £19/month. Choose a plan: https://florrie.ai/settings#billing`;
 
   return { html, text };
 }
@@ -438,7 +438,7 @@ function trialExpired(b) {
       <tr><td style="padding:6px 0;color:#2d2a26;font-size:14px">⏸ Smart scheduling and reminders are <strong>paused</strong></td></tr>
     </table>
     <p style="margin:0 0 16px;color:#6b6560;font-size:15px;line-height:1.6">
-      Upgrade any time to pick up right where you left off. No setup needed —
+      Upgrade any time to pick up right where you left off. No setup needed,
       everything is exactly as you left it.
     </p>
     ${ctaButton('Upgrade now', 'https://florrie.ai/settings#billing', b.brand_color || '#92405E')}

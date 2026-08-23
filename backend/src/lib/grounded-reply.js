@@ -153,13 +153,21 @@ export function isGroundedReply({ intent, message, context, reply }) {
  * longer reads as a footer people learn to skip.
  */
 export function florrieSignature(beauticianFirstName = 'Ellie') {
-  return `— Florrie, ${beauticianFirstName}'s assistant. Reply ELLIE if you'd rather speak to her.`;
+  return `Florrie, ${beauticianFirstName}'s assistant. Reply ELLIE if you'd rather speak to her.`;
 }
 
-/** Append the signature, without doubling it if it is somehow already there. */
+/**
+ * Append the signature, without doubling it if it is somehow already there.
+ *
+ * The already-signed test still recognises the older `— Florrie,` form, because
+ * that string is sitting in thousands of stored messages and a reply quoted back
+ * through here must not pick up a second signature. It is anchored to the start
+ * of a line so a client saying "thanks Florrie, see you then" is not mistaken
+ * for one.
+ */
 export function signAsFlorrie(reply, beauticianFirstName) {
   const body = String(reply || '').trimEnd();
-  if (/—\s*Florrie[,.]/i.test(body)) return body;
+  if (/(?:^|\n)\s*(?:—\s*)?Florrie,[^\n]*assistant\./i.test(body)) return body;
   return `${body}\n\n${florrieSignature(beauticianFirstName)}`;
 }
 

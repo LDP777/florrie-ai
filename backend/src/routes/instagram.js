@@ -79,11 +79,11 @@ export function igConfigProblems() {
   const problems = [];
   if (!IG_APP_ID) problems.push('INSTAGRAM_APP_ID is not set.');
   else if (!process.env.INSTAGRAM_APP_ID && process.env.META_APP_ID) {
-    problems.push('INSTAGRAM_APP_ID is not set and META_APP_ID is being used instead. The Meta App ID is not the Instagram app id — Instagram will reject it. Copy the id from Meta > Instagram > API setup with Instagram login.');
+    problems.push('INSTAGRAM_APP_ID is not set and META_APP_ID is being used instead. The Meta App ID is not the Instagram app id. Instagram will reject it. Copy the id from Meta > Instagram > API setup with Instagram login.');
   }
   if (!IG_APP_SECRET) problems.push('INSTAGRAM_APP_SECRET is not set.');
   if (!process.env.INSTAGRAM_REDIRECT_URI) {
-    problems.push(`INSTAGRAM_REDIRECT_URI is not set, so it defaults to ${REDIRECT_URI} — Instagram will reject that. Set it to https://<this-api-host>/api/instagram/callback and register the identical string in the Meta dashboard.`);
+    problems.push(`INSTAGRAM_REDIRECT_URI is not set, so it defaults to ${REDIRECT_URI}, which Instagram will reject. Set it to https://<this-api-host>/api/instagram/callback and register the identical string in the Meta dashboard.`);
   } else if (/^http:\/\/(localhost|127\.)/.test(REDIRECT_URI)) {
     problems.push(`INSTAGRAM_REDIRECT_URI points at ${REDIRECT_URI}, which only works on a developer machine.`);
   }

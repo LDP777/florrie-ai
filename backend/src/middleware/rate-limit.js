@@ -87,7 +87,7 @@ export function isRead(method) {
 function tooMany(res) {
   const retryAfter = Number(res.getHeader('Retry-After')) || 60;
   return {
-    error: 'The app is asking for a lot at once. Nothing has been saved or changed — give it a moment and try again.',
+    error: 'The app is asking for a lot at once. Nothing has been saved or changed, so give it a moment and try again.',
     retryAfterSeconds: retryAfter,
     code: 'rate_limited',
   };

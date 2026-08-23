@@ -373,7 +373,7 @@ export async function pushReviewReceived(beauticianId, clientName, rating) {
 
 export async function pushRebookNudge(beauticianId, clientName) {
   return pushTeamUpdate(beauticianId, 'rebook_nudge',
-    `Sent a rebook nudge to ${clientName} — they're overdue`,
+    `Sent a rebook nudge to ${clientName}, they're overdue`,
     { url: '/clients', clientName }
   );
 }

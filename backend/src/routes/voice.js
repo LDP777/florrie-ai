@@ -43,7 +43,7 @@ router.post('/command', requireAuth, async (req, res) => {
 
     // Map typed errors to friendly responses
     const friendlyErrors = {
-      AI_CREDITS_EXHAUSTED: "I'm temporarily offline — the AI service needs topping up. Please try again later.",
+      AI_CREDITS_EXHAUSTED: "I'm temporarily offline. The AI service needs topping up, please try again later.",
       AI_RATE_LIMITED: "I'm a bit overloaded right now. Give me a moment and try again.",
       AI_UNAVAILABLE: "I couldn't connect to my brain just now. Try again in a moment.",
     };

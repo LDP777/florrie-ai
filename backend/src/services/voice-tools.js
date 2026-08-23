@@ -549,7 +549,7 @@ async function toolCheckSchedule({ date }, beautician, supabase) {
   const lines = appts.map(a => {
     // timeZone UTC: starts_at is salon wall time stored in the UTC slot
     const t = new Date(a.starts_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
-    return `${t} — ${a.clients?.first_name || 'Client'} (${a.treatments?.name || 'Treatment'})`;
+    return `${t}, ${a.clients?.first_name || 'Client'} (${a.treatments?.name || 'Treatment'})`;
   });
 
   const dayName = new Date(`${targetDate}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -581,7 +581,7 @@ async function toolGetUpcoming({ days_ahead = 7 }, beautician, supabase) {
     // timeZone UTC: the UTC slot holds the salon wall clock
     const dayStr = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
     const timeStr = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
-    return `${dayStr} ${timeStr} — ${a.clients?.first_name || 'Client'} (${a.treatments?.name || 'Treatment'})`;
+    return `${dayStr} ${timeStr}, ${a.clients?.first_name || 'Client'} (${a.treatments?.name || 'Treatment'})`;
   });
 
   return {
@@ -811,7 +811,7 @@ async function toolCancelAppointment({ client_name, appointment_date, notify_cli
   }
 
   return {
-    result: `${client.first_name}'s ${treatmentName} on ${friendlyDate} cancelled${notify_client ? ' — they\'ve been notified.' : '.'}`,
+    result: `${client.first_name}'s ${treatmentName} on ${friendlyDate} cancelled${notify_client ? '. They\'ve been notified.' : '.'}`,
   };
 }
 
@@ -836,7 +836,7 @@ async function toolBlockDate({ date, all_day, start_time, end_time, reason = 'pe
   const { error } = await supabase.from('hours_exceptions').insert(row);
   if (error) {
     logger.error({ err: error }, 'block_date insert failed');
-    return { result: 'Could not block that date — something went wrong.' };
+    return { result: 'Could not block that date. Something went wrong.' };
   }
 
   const friendlyDate = new Date(`${date}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -974,7 +974,7 @@ async function toolGetLapsedClients({ days_since_last_visit = 60, limit = 10 }, 
   const lapsed = (clients || []).filter(c => !recentClientIds.has(c.id)).slice(0, limit);
 
   if (!lapsed.length) {
-    return { result: `Everyone's been in recently — no lapsed clients found in the last ${days_since_last_visit} days.` };
+    return { result: `Everyone's been in recently. No lapsed clients found in the last ${days_since_last_visit} days.` };
   }
 
   const names = lapsed.map(c => `${c.first_name} ${c.last_name || ''}`.trim()).join(', ');
@@ -1000,7 +1000,7 @@ async function toolAddClientNote({ client_name, note }, beautician, supabase) {
 
   if (error) {
     logger.error({ err: error }, 'add_client_note failed');
-    return { result: 'Could not save the note — something went wrong.' };
+    return { result: 'Could not save the note. Something went wrong.' };
   }
 
   return { result: `Note added to ${client.first_name}'s record.` };
@@ -1117,7 +1117,7 @@ async function toolSendPaymentLink({ client_name, amount_pence, description }, b
   const desc = description || `Payment to ${beautician.business_name || beautician.first_name}`;
 
   if (!stripe || !beautician.stripe_account_id || !beautician.stripe_onboarding_complete) {
-    return { result: `Stripe isn't connected yet — head to Settings → Payments to connect it.` };
+    return { result: `Stripe isn't connected yet. Head to Settings → Payments to connect it.` };
   }
 
   // Destination charge: the platform pays Stripe's processing fee, so the
@@ -1179,7 +1179,7 @@ async function toolSendRebookReminder({ client_name, treatment }, beautician, su
 
   await sendMessage({
     client,
-    body: `Hi ${client.first_name}! It's been a while — time to book ${treatmentRef}? 💕 Reply or book online at ${FRONTEND_URL}/book/${beautician.booking_slug || ''}`,
+    body: `Hi ${client.first_name}! It's been a while, time to book ${treatmentRef}? 💕 Reply or book online at ${FRONTEND_URL}/book/${beautician.booking_slug || ''}`,
     beauticianId: beautician.id,
     beauticianPrefs: beautician.client_reminder_prefs || {},
   });
@@ -1264,7 +1264,7 @@ async function toolGetOutstandingPayments({ }, beautician, supabase) {
 
   const total = links.reduce((s, l) => s + (l.amount_cents || 0), 0);
   const lines = links.map(l =>
-    `${l.clients?.first_name || 'Client'} — £${(l.amount_cents / 100).toFixed(2)} (${l.description || 'payment'})`
+    `${l.clients?.first_name || 'Client'}: £${(l.amount_cents / 100).toFixed(2)} (${l.description || 'payment'})`
   );
 
   return {
@@ -1287,7 +1287,7 @@ async function toolCreateExpense({ amount_pence, category, description, date }, 
 
   if (error) {
     logger.error({ err: error }, 'create_expense failed');
-    return { result: 'Could not log the expense — something went wrong.' };
+    return { result: 'Could not log the expense. Something went wrong.' };
   }
 
   return { result: `Logged £${(amount_pence / 100).toFixed(2)} expense: ${description} (${category}).` };
@@ -1343,7 +1343,7 @@ async function toolGetTopClients({ limit = 5 }, beautician, supabase) {
   const sorted = Object.values(totals).sort((a, b) => b.total - a.total).slice(0, limit);
   if (!sorted.length) return { result: 'No completed appointments yet.' };
 
-  const lines = sorted.map((c, i) => `${i + 1}. ${c.name} — £${(c.total / 100).toFixed(2)}`);
+  const lines = sorted.map((c, i) => `${i + 1}. ${c.name}: £${(c.total / 100).toFixed(2)}`);
   return { result: `Top ${sorted.length} clients:\n${lines.join('\n')}`, data: { clients: sorted } };
 }
 

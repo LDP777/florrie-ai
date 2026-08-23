@@ -507,7 +507,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
     const validated = receiptOutputSchema.safeParse(rawParsed);
     if (!validated.success) {
       logger.warn({ issues: validated.error.issues, raw: rawParsed }, 'Receipt scan AI output failed validation');
-      return res.status(422).json({ error: 'Could not extract valid receipt data — try a clearer photo' });
+      return res.status(422).json({ error: 'Could not extract valid receipt data. Try a clearer photo' });
     }
 
     const extracted = validated.data;

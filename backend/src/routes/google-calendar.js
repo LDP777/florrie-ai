@@ -37,7 +37,7 @@ router.get('/connect', requireAuth, (req, res) => {
     validateGoogleConfig();
   } catch (err) {
     logger.error({ err }, 'Google Calendar config error');
-    return res.status(500).json({ error: 'Google Calendar integration not available — contact support' });
+    return res.status(500).json({ error: 'Google Calendar integration not available, contact support' });
   }
 
   // Refuse to start a flow we will not be able to finish. Issuing state we
@@ -214,7 +214,7 @@ async function getAccessToken(beautician) {
           })
           .eq('id', beautician.id);
 
-        throw new Error('Google Calendar token expired — please reconnect in Settings');
+        throw new Error('Google Calendar token expired. Please reconnect in Settings');
       }
 
       const updatedTokens = {
@@ -252,7 +252,7 @@ router.post('/sync', requireAuth, async (req, res) => {
     } catch (err) {
       if (err.message.includes('token expired')) {
         logger.error({ err }, 'Google Calendar token expired during sync');
-        return res.status(401).json({ error: 'Google Calendar token expired — please reconnect', disconnected: true });
+        return res.status(401).json({ error: 'Google Calendar token expired. Please reconnect', disconnected: true });
       }
       throw err;
     }
@@ -280,7 +280,7 @@ router.post('/sync', requireAuth, async (req, res) => {
     const clientName = `${appt.clients?.first_name || ''} ${appt.clients?.last_name || ''}`.trim();
 
     const event = {
-      summary: `${clientName} — ${appt.treatments?.name || 'Appointment'}`,
+      summary: `${clientName}: ${appt.treatments?.name || 'Appointment'}`,
       start: { dateTime: appt.starts_at, timeZone: 'Europe/London' },
       end: { dateTime: appt.ends_at, timeZone: 'Europe/London' },
       // client_notes used to be pasted in here verbatim. It is the column the
@@ -322,10 +322,10 @@ router.post('/sync', requireAuth, async (req, res) => {
           google_calendar_connected: false,
         })
         .eq('id', req.beautician.id);
-      return res.status(401).json({ error: 'Google Calendar access denied — please reconnect in Settings', disconnected: true });
+      return res.status(401).json({ error: 'Google Calendar access denied. Please reconnect in Settings', disconnected: true });
     }
 
-    if (!gcalRes.ok) throw new Error(gcalEvent.error?.message || 'Google Calendar sync failed — check your connection in Settings');
+    if (!gcalRes.ok) throw new Error(gcalEvent.error?.message || 'Google Calendar sync failed. Check your connection in Settings');
 
     // Store the Google event ID on the appointment
     await supabase
@@ -385,7 +385,7 @@ router.post('/sync-all', requireAuth, async (req, res) => {
         const clientName = `${fullAppt.clients?.first_name || ''} ${fullAppt.clients?.last_name || ''}`.trim();
 
         const event = {
-          summary: `${clientName} — ${fullAppt.treatments?.name || 'Appointment'}`,
+          summary: `${clientName}: ${fullAppt.treatments?.name || 'Appointment'}`,
           start: { dateTime: fullAppt.starts_at, timeZone: 'Europe/London' },
           end: { dateTime: fullAppt.ends_at, timeZone: 'Europe/London' },
           // Same body as the single sync, from the same builder, so the two
@@ -441,7 +441,7 @@ router.post('/sync-all', requireAuth, async (req, res) => {
       total: appointments?.length || 0,
       errors,
       disconnected,
-      message: disconnected ? 'Google Calendar token expired — please reconnect' : undefined,
+      message: disconnected ? 'Google Calendar token expired. Please reconnect' : undefined,
     });
   } catch (err) {
     logger.error({ err }, 'GCal sync-all error');

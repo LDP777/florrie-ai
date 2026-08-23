@@ -19,6 +19,7 @@ import {
   specFor,
 } from '../lib/whatsapp-templates.js';
 import { authorship } from '../lib/authorship.js';
+import { deDash } from '../lib/text.js';
 import { appointmentIcs, googleCalendarUrl } from '../lib/ical.js';
 import { apiPublicBase } from '../lib/public-url.js';
 
@@ -35,6 +36,13 @@ export async function sendEmail({ to, subject, html, text, attachments }) {
     logger.debug('Resend not configured, skipping email');
     return null;
   }
+
+  // House rule choke point: no em/en dashes in anything a human reads. Applied
+  // here, at the last step before Resend, so every caller is covered whatever
+  // wrote the copy. Deliberately NOT applied to `to`, `from` or attachments.
+  subject = deDash(subject);
+  html = deDash(html);
+  text = deDash(text);
 
   const maxRetries = 2;
   const retryDelay = 1000; // 1 second
@@ -110,6 +118,10 @@ export async function sendSMS({ to, body, beauticianId, originator, messageType 
     logger.debug('Bird not configured, skipping SMS');
     return null;
   }
+
+  // House rule choke point: the text of the message only. `to` is a phone
+  // number and is normalised separately by toE164 below.
+  body = deDash(body);
   if (!BIRD_WORKSPACE_ID || !BIRD_SMS_CHANNEL_ID) {
     logger.error('Bird workspace/channel not configured, cannot send SMS');
     return null;
@@ -662,6 +674,11 @@ export async function sendWhatsApp({ to, templateName, templateParams, beauticia
  * Note: freeform messages can only be sent within the 24-hour conversation window.
  */
 export async function sendWhatsAppText({ to, body, beauticianId }) {
+  // House rule choke point for free-form WhatsApp, before either provider
+  // branch. Only the body: `to` is a phone number, template sends go via
+  // sendWhatsApp() and are not touched here.
+  body = deDash(body);
+
   // Resolve provider + sender config from the beautician record (Twilio
   // tenants don't need the Meta token, so this runs before the WA_TOKEN gate).
   let phoneNumberId = null;
@@ -757,6 +774,8 @@ export async function sendWhatsAppText({ to, body, beauticianId }) {
  * @param {string} [pageToken] - Per-beautician page token (falls back to env)
  */
 export async function sendInstagramDM({ recipientId, text, pageToken }) {
+  // House rule choke point for Instagram. Body only; recipientId is an IGSID.
+  text = deDash(text);
   const token = pageToken || process.env.INSTAGRAM_PAGE_TOKEN;
   if (!token) {
     logger.debug('Instagram page token not configured, skipping DM');
@@ -1297,7 +1316,7 @@ export async function notifyBookingConfirmed(appointmentId) {
 
     await sendEmail({
       to: client.email,
-      subject: `Confirmed: ${treatment.name} — ${shortDate} at ${timeStr}`,
+      subject: `Confirmed: ${treatment.name}, ${shortDate} at ${timeStr}`,
       text: textMsg,
       html,
       // The whole point of this change. iOS Mail and Gmail both surface an

@@ -1,0 +1,21 @@
+{
+  "note": "Em dashes in non-log strings that predate check-em-dash (prompt text, mostly). New ones fail CI; this list may only shrink.",
+  "known": [
+    "backend/src/lib/calendar-page.js :: hich app she is actually in — \"you're in // WhatsApp's br",
+    "backend/src/routes/coach.js :: rds. - Never use em dashes (—) or en dashes (–). Use comm",
+    "backend/src/services/ai-front-desk.js :: ded. - Never use em dashes (—) or en dashes (–). Use comm",
+    "backend/src/services/ai-front-desk.js :: ith prices. Keep it natural — don't list every treatment",
+    "backend/src/services/ai-front-desk.js :: lete. Never use em dashes (—) or en dashes (–). Use comm",
+    "backend/src/services/ai-front-desk.js :: pointment they ALREADY have — when is it, is it still boo",
+    "backend/src/services/ai-front-desk.js :: weekday as a friendly aside — a client asked \"hello\" and",
+    "backend/src/services/content-autopilot.js :: i max. Never use em dashes (—) or en dashes (–). Use comm",
+    "backend/src/services/content-autopilot.js :: ish. - Never use em dashes (—) or en dashes (–). Use comm",
+    "backend/src/services/voice-orchestrator.js :: r. 10. NEVER use em dashes (—) or en dashes (–). Use comm",
+    "backend/src/services/voice-tools.js :: \"last_month\" | \"this_year\" — or provide from_date/to_dat",
+    "backend/src/services/voice-tools.js :: Florrie is set up right now — whether she answers clients",
+    "backend/src/services/voice-tools.js :: ISO date YYYY-MM-DD — first day of the block.",
+    "backend/src/services/voice-tools.js :: ISO date YYYY-MM-DD — last day of the block (incl",
+    "backend/src/services/voice-tools.js :: ISO date — used with booked_in_range.",
+    "backend/src/services/voice-tools.js :: s, ask rather than guessing — this changes how her busine"
+  ]
+}

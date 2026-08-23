@@ -101,7 +101,7 @@ router.post('/send-reminder', requireAuth, async (req, res) => {
 
     // No contact info or client not found — log and return success (queued)
     logger.warn({ type, client_name, client_id }, 'Reminder requested but no contact info found');
-    return res.json({ success: true, channel: 'queued', note: 'Client contact not found — reminder queued' });
+    return res.json({ success: true, channel: 'queued', note: 'Client contact not found, reminder queued' });
   } catch (err) {
     logger.error({ err }, 'Unexpected error sending reminder');
     res.status(500).json({ error: 'Something went wrong' });
@@ -387,12 +387,12 @@ router.post('/sms/test', requireAuth, async (req, res) => {
 
     const result = await sendSMS({
       to: phone,
-      body: `Florrie test message — SMS is working! Sent at ${new Date().toLocaleTimeString('en-GB')}.`,
+      body: `Florrie test message: SMS is working! Sent at ${new Date().toLocaleTimeString('en-GB')}.`,
       beauticianId: req.beautician.id,
     });
 
     if (!result) {
-      return res.status(500).json({ error: 'SMS failed to send — check Bird API key and originator' });
+      return res.status(500).json({ error: 'SMS failed to send. Check the Bird API key and originator' });
     }
 
     res.json({ success: true, messageId: result.id });

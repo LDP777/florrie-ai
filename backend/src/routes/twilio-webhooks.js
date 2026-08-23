@@ -86,7 +86,7 @@ router.post('/whatsapp', async (req, res) => {
       mediaType = req.body.MediaContentType0 || null;
       if (!messageContent) {
         messageContent = mediaType?.startsWith('image/') ? '[Image]'
-          : mediaType?.startsWith('audio/') ? '[Voice note — transcription unavailable]'
+          : mediaType?.startsWith('audio/') ? '[Voice note: transcription unavailable]'
           : '[Media message]';
       }
     }

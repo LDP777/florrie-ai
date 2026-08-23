@@ -30,7 +30,7 @@ const STATUS_CONFIG = {
   applied: { label: 'Applied', bg: 'var(--success-bg, #E9F0EB)', color: 'var(--success, #386F52)', icon: 'check' },
   refunded: { label: 'Refunded', bg: '#E3F2FD', color: 'var(--info, #2E6DA4)', icon: '↩' },
   forfeited: { label: 'Kept (policy)', bg: 'var(--danger-bg, #F7E4E4)', color: '#ba160a', icon: 'x' },
-  lapsed: { label: 'Lapsed', bg: 'var(--bg-subtle, #ede7e3)', color: 'var(--text-muted, #6B5D54)', icon: '—' },
+  lapsed: { label: 'Lapsed', bg: 'var(--bg-subtle, #ede7e3)', color: 'var(--text-muted, #6B5D54)', icon: '-' },
 };
 
 export default function DepositTracker() {

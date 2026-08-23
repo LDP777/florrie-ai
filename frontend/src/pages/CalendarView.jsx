@@ -3665,7 +3665,7 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], initialCl
             ? (noContactDetails
               ? "You have no phone number for this client, so there's nothing to send to. Add one above and they'll get a confirmation."
               : "They'll get a message confirming the day and time.")
-            : 'Off, so nothing is sent — right when you\'re copying a booking over from somewhere else.'}
+            : 'Off, so nothing is sent. Right when you\'re copying a booking over from somewhere else.'}
         </p>
         </div>{/* end scrollable body */}
         {/* Sticky footer: the clash note, any error, and the always-visible

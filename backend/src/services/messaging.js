@@ -15,6 +15,7 @@ import logger from '../lib/logger.js';
 import { AUTHOR } from '../lib/idiolect.js';
 import { sendSMS, sendEmail } from './notifications.js';
 import { authorship } from '../lib/authorship.js';
+import { deDash } from '../lib/text.js';
 
 const WA_TOKEN = process.env.WHATSAPP_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN;
 const API_VER = process.env.WHATSAPP_API_VERSION || 'v21.0';
@@ -130,7 +131,11 @@ export async function sendOnChannel({ beautician, clientId, channel, body, autho
   if (!['whatsapp', 'sms', 'email', 'instagram'].includes(channel)) {
     return { ok: false, status: 400, error: 'channel must be whatsapp, sms, email, or instagram' };
   }
-  const trimmed = String(body || '').trim();
+  // House rule choke point for the unified inbox path: clean once, here, so
+  // the text that goes out over any of the four transports and the copy we
+  // persist to `messages` are the same string. Body only, never the channel,
+  // the client's contact details or the message id.
+  const trimmed = deDash(String(body || '').trim());
   if (!trimmed) return { ok: false, status: 400, error: 'Message body required' };
 
   // Pull the client and confirm tenancy in one shot.

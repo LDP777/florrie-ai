@@ -1358,7 +1358,7 @@ router.post('/reconcile', async (req, res) => {
       register_response: regData,
       message: registerOk
         ? 'Number reconciled and registered for Cloud API. WhatsApp is live.'
-        : 'Number reconciled. Cloud API register pending — retry worker will finish.',
+        : 'Number reconciled. Cloud API register pending, the retry worker will finish it.',
     });
   } catch (err) {
     logger.error({ err }, 'WhatsApp reconcile error');
@@ -1540,12 +1540,12 @@ router.post('/test-email', async (req, res) => {
     const { sendEmail } = await import('../services/notifications.js');
     const result = await sendEmail({
       to: b.email,
-      subject: 'Florrie email diagnostic — confirmation plumbing live',
+      subject: 'Florrie email diagnostic: confirmation plumbing live',
       text: `Hi ${b.first_name || ''}, this is an automated test to confirm Florrie can send you booking confirmations via Resend. If this lands, email confirmation for appointments is fully wired up.`,
       html: `<p>Hi ${b.first_name || ''},</p><p>This is an automated test to confirm Florrie can send you booking confirmations via Resend.</p><p>If this lands, email confirmation for appointments is fully wired up.</p><p>Business: <strong>${b.business_name || 'n/a'}</strong></p>`,
     });
     if (!result) {
-      return res.status(500).json({ ok: false, code: 'send_failed', error: 'sendEmail returned null — see Sentry for Resend error' });
+      return res.status(500).json({ ok: false, code: 'send_failed', error: 'sendEmail returned null. See Sentry for the Resend error' });
     }
     return res.json({
       ok: true,

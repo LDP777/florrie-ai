@@ -662,7 +662,7 @@ router.post('/public/:token/submit', validate(submitConsultationFormSchema), asy
 
   if (error) return res.status(500).json({ error: 'Failed to save form' });
 
-  res.json({ success: true, message: 'Thank you — your form has been submitted.' });
+  res.json({ success: true, message: 'Thank you, your form has been submitted.' });
 });
 
 // ═══════════════════════════════════════════════
