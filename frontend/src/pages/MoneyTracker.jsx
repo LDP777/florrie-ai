@@ -11,6 +11,7 @@ import PageHeader from '../components/ui/PageHeader.jsx';
 import { hapticTap, hapticSuccess } from '../lib/native.js';
 import { useCountUp } from '../lib/useCountUp.js';
 import { todayLocal, localDateStr } from '../lib/dates.js';
+import { uploadFile, objectPath, signedUrlMap, PRIVATE_BUCKET } from '../lib/storage.js';
 import Icon, { iconName } from '../components/ui/Icon';
 import Money from '../components/ui/Money';
 
@@ -223,6 +224,7 @@ export default function MoneyTracker() {
   const [repeatFrequency, setRepeatFrequency] = useState('monthly');
 
   const [receiptPreview, setReceiptPreview] = useState(null);
+  const [attachingReceipt, setAttachingReceipt] = useState(false);
   const [showLogTip, setShowLogTip] = useState(false);
   const [showLogSale, setShowLogSale] = useState(false);
   const [tipAmount, setTipAmount] = useState('');
@@ -230,11 +232,30 @@ export default function MoneyTracker() {
   const [saleDesc, setSaleDesc] = useState('');
   const receiptInputRef = useRef(null);
 
+  // `receipt_url` holds the storage PATH inside the private bucket, not a URL.
+  // A signed URL expires; a path does not. See lib/storage.js.
   const [newExpense, setNewExpense] = useState({
     amount: '', vendor: '', description: '',
     category: 'products', date: todayLocal(),
-    tax_deductible: true
+    tax_deductible: true, receipt_url: ''
   });
+
+  // Receipts live in a private bucket, so a thumbnail needs a signed URL.
+  // Signed here on read, keyed by expense id, refreshed whenever the list
+  // changes. Nothing is persisted, so nothing can expire in the database.
+  const [receiptThumbs, setReceiptThumbs] = useState({});
+
+  useEffect(() => {
+    const refs = expenses
+      .filter(e => e.receipt_url)
+      .map(e => [e.id, e.receipt_url]);
+    if (!refs.length) { setReceiptThumbs({}); return undefined; }
+    let cancelled = false;
+    signedUrlMap(refs, { bucket: PRIVATE_BUCKET })
+      .then(map => { if (!cancelled) setReceiptThumbs(map); })
+      .catch(err => logger.warn({ err }, 'Receipt thumbnails could not be signed'));
+    return () => { cancelled = true; };
+  }, [expenses]);
 
   // Long-press an expense row to delete it (Ellie: duplicate receipt scans
   // need clearing out). Press-and-hold ~550ms opens a confirm sheet; any
@@ -730,20 +751,41 @@ export default function MoneyTracker() {
     const file = e.target.files?.[0];
     if (!file) return;
     setScanning(true);
+    setNotice(null);
 
     try {
       const reader = new FileReader();
       reader.onload = async () => {
         const base64 = reader.result.split(',')[1];
 
-        // 1. Upload receipt image to Supabase Storage
-        const path = `${beautician.id}/receipts/${Date.now()}-${file.name}`;
-        await supabase.storage.from('content-images').upload(path, file);
-        const { data: urlData } = supabase.storage.from('content-images').getPublicUrl(path);
-        const receiptUrl = urlData?.publicUrl || '';
+        // 1. Upload the receipt image. A receipt is a financial document, so
+        //    it goes in the private bucket and is read back through a signed
+        //    URL. What gets stored on the row is the PATH.
+        //
+        //    A failed upload used to be swallowed here, which left the row
+        //    holding an empty string and the salon believing the photo was
+        //    filed. Now she is told. The scan itself still runs, because the
+        //    OCR reads the base64 in memory and does not need storage, and
+        //    losing the typing as well as the photo helps nobody.
+        let receiptPath = '';
+        try {
+          const stored = await uploadReceipt(file);
+          receiptPath = stored.path;
+        } catch (uploadErr) {
+          setNotice(`${uploadErr.message} The details below were still read from the photo, so you can save the expense without it.`);
+        }
 
-        // 2. Send to Claude Vision OCR endpoint
-        const token = (await supabase.auth.getSession())?.data?.session?.access_token;
+        // 2. Send to Claude Vision OCR endpoint.
+        //    The session lookup is guarded because this whole handler runs
+        //    inside FileReader.onload, outside the try below it: anything that
+        //    threw here left `scanning` stuck true and the Scan Receipt button
+        //    disabled until the page was reloaded.
+        let token = null;
+        try {
+          token = (await supabase.auth.getSession())?.data?.session?.access_token;
+        } catch (sessionErr) {
+          logger.warn('Receipt scan: session lookup failed', sessionErr);
+        }
         let extracted = null;
         let confidence = 0;
 
@@ -782,7 +824,7 @@ export default function MoneyTracker() {
             category: extracted.category || 'other',
             date: extracted.date || todayLocal(),
             tax_deductible: true,
-            receipt_url: receiptUrl,
+            receipt_url: receiptPath,
             hmrc_category: extracted.hmrc_category || '',
             line_items: extracted.line_items || [],
             ocr_confidence: confidence,
@@ -792,7 +834,7 @@ export default function MoneyTracker() {
           setNewExpense(prev => ({
             ...prev,
             description: `Receipt: ${file.name}`,
-            receipt_url: receiptUrl,
+            receipt_url: receiptPath,
             date: todayLocal(),
           }));
         }
@@ -801,10 +843,59 @@ export default function MoneyTracker() {
         setShowAddExpense(true);
         setScanning(false);
       };
+      reader.onerror = () => {
+        logger.error('Receipt file could not be read');
+        setNotice('Could not read that image. Try taking the photo again.');
+        setScanning(false);
+      };
       reader.readAsDataURL(file);
+      // The File is already held, so clearing the input is safe and lets her
+      // rescan the same receipt after a failure.
+      if (e.target) e.target.value = '';
     } catch (err) {
       logger.error({ err }, 'Receipt scan error');
+      setNotice('Could not read that receipt. Please try again.');
       setScanning(false);
+    }
+  }
+
+  /**
+   * Put a receipt in the private bucket and hand back where it landed.
+   *
+   * Throws on failure so no caller can quietly carry on. The message on the
+   * error is already written for a person to read.
+   */
+  async function uploadReceipt(file) {
+    return uploadFile({
+      bucket: PRIVATE_BUCKET,
+      path: objectPath(beautician.id, 'receipts', file.name),
+      file,
+    });
+  }
+
+  /**
+   * The "Add photo" button on the expense form, as opposed to Scan Receipt.
+   *
+   * This used to set a blob URL as the preview and upload nothing at all, so
+   * the photo existed until the screen closed and then did not exist anywhere.
+   */
+  async function handleReceiptAttach(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setReceiptPreview(URL.createObjectURL(file));
+    setAttachingReceipt(true);
+    setNotice(null);
+    try {
+      const stored = await uploadReceipt(file);
+      setNewExpense(p => ({ ...p, receipt_url: stored.path }));
+    } catch (err) {
+      setNewExpense(p => ({ ...p, receipt_url: '' }));
+      setReceiptPreview(null);
+      setNotice(err.message);
+    } finally {
+      setAttachingReceipt(false);
+      // Let her pick the same file again after a failure.
+      if (e.target) e.target.value = '';
     }
   }
 
@@ -820,6 +911,9 @@ export default function MoneyTracker() {
         category: newExpense.category,
         date: newExpense.date,
         tax_deductible: newExpense.tax_deductible,
+        // The storage path, not a URL. It was computed on every scan and then
+        // dropped on the floor here, so no expense has ever kept its receipt.
+        receipt_url: newExpense.receipt_url || null,
       });
       setExpenses(prev => [row, ...prev]);
 
@@ -858,7 +952,7 @@ export default function MoneyTracker() {
       setNewExpense({
         amount: '', vendor: '', description: '',
         category: 'products', date: todayLocal(),
-        tax_deductible: true
+        tax_deductible: true, receipt_url: ''
       });
       setRepeats(false);
       setRepeatFrequency('monthly');
@@ -1489,7 +1583,7 @@ export default function MoneyTracker() {
                   {receiptPreview ? (
                     <div style={{ position: 'relative', display: 'inline-block' }}>
                       <img src={receiptPreview} alt="Receipt" style={{ width: 64, height: 64, borderRadius: 10, objectFit: 'cover', border: '1.5px solid var(--border-light)' }} />
-                      <button className="fl-tap" onClick={() => setReceiptPreview(null)} style={{ position: 'absolute', top: -6, right: -6,
+                      <button className="fl-tap" onClick={() => { setReceiptPreview(null); setNewExpense(p => ({ ...p, receipt_url: '' })); }} style={{ position: 'absolute', top: -6, right: -6,
                         width: 20, height: 20, borderRadius: 10, border: 'none',
                         background: 'var(--danger)', color: '#fff', fontSize: 12,
                         cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -1510,12 +1604,17 @@ export default function MoneyTracker() {
                   <input
                     ref={receiptInputRef}
                     type="file" accept="image/*" capture="environment"
-                    onChange={e => {
-                      const file = e.target.files?.[0];
-                      if (file) setReceiptPreview(URL.createObjectURL(file));
-                    }}
+                    onChange={handleReceiptAttach}
                     style={{ display: 'none' }}
                   />
+                  {attachingReceipt && (
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Saving photo...</span>
+                  )}
+                  {!attachingReceipt && receiptPreview && !newExpense.receipt_url && (
+                    <span style={{ fontSize: 11, color: '#E57373' }}>
+                      Not saved yet. Remove it and try again.
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -1831,6 +1930,16 @@ export default function MoneyTracker() {
                       {exp.tax_deductible && ' · Tax deductible'}
                     </p>
                   </div>
+                  {/* The receipt itself. It lives in the private bucket, so
+                      this src is a signed URL minted on read, never a value
+                      out of the database. */}
+                  {receiptThumbs[exp.id] && (
+                    <img
+                      src={receiptThumbs[exp.id]}
+                      alt={`Receipt for ${exp.vendor || catMeta.label}`}
+                      style={{ width: 34, height: 34, borderRadius: 8, objectFit: 'cover', marginLeft: 10, border: '1px solid var(--border-light)', flexShrink: 0 }}
+                    />
+                  )}
                   <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--danger)', marginLeft: 12, whiteSpace: 'nowrap' }}>
                     -{fmt(exp.amount_cents)}
                   </span>

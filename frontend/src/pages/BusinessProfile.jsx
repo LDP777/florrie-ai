@@ -11,7 +11,8 @@
  */
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useBeautician, updateRow, supabase } from '../lib/supabase.js';
+import { useBeautician, updateRow } from '../lib/supabase.js';
+import { uploadFile, publicUrl, LOGO_BUCKET } from '../lib/storage.js';
 import { useTheme } from '../lib/theme.jsx';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
@@ -98,6 +99,20 @@ export default function BusinessProfile() {
     alert('Link copied. Paste it into your Instagram bio, story link, or a DM.');
   }
 
+  /**
+   * The logo is the one image here that is genuinely public: it renders on the
+   * booking page, which is a page strangers open. So it stays in the public
+   * `logos` bucket, and the row keeps a public URL rather than a path.
+   *
+   * The path is fixed per salon (`{id}/logo.{ext}`) so a new logo replaces the
+   * old one instead of piling up, which is why `upsert` matters and why the
+   * `?t=` cache buster on the stored URL matters: same URL, new bytes.
+   *
+   * The error path was already the best of the four. What it lacked was a
+   * message that says anything: every failure read "Upload failed, please try
+   * again", including the row-level-security refusal that was rejecting every
+   * single upload. Now the reason reaches her.
+   */
   async function handleLogoUpload(e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -105,21 +120,26 @@ export default function BusinessProfile() {
     setLogoUploading(true);
     setLogoError(null);
     try {
-      const ext = file.name.split('.').pop();
-      const path = `${beautician.id}/logo.${ext}`;
-      const { error: upErr } = await supabase.storage.from('logos').upload(path, file, { upsert: true, contentType: file.type });
-      if (upErr) throw upErr;
-      const { data: { publicUrl } } = supabase.storage.from('logos').getPublicUrl(path);
-      // Bust cache by appending timestamp
-      const url = `${publicUrl}?t=${Date.now()}`;
+      const ext = (file.name.split('.').pop() || 'png').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const { path } = await uploadFile({
+        bucket: LOGO_BUCKET,
+        path: `${beautician.id}/logo.${ext || 'png'}`,
+        file,
+        upsert: true,
+      });
+      const base = publicUrl(path, { bucket: LOGO_BUCKET });
+      if (!base) throw new Error('Logo saved, but its address could not be worked out. Please try again.');
+      // Bust cache by appending timestamp: the object key never changes.
+      const url = `${base}?t=${Date.now()}`;
       setLogoPreview(url);
       await updateRow('beauticians', beautician.id, { logo_url: url });
       await refresh();
     } catch (err) {
       logger.error('Logo upload error:', err);
-      setLogoError('Upload failed, please try again');
+      setLogoError(err.message || 'Upload failed, please try again');
     } finally {
       setLogoUploading(false);
+      if (e.target) e.target.value = '';
     }
   }
 

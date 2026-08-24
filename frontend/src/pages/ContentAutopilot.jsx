@@ -4,6 +4,7 @@ import { useBeautician, supabase, fetchRows, insertRow, updateRow, deleteRow } f
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import { localDateStr } from '../lib/dates.js';
+import { uploadFile, objectPath, publicUrl, PUBLIC_BUCKET } from '../lib/storage.js';
 function getToken() {
   // Supabase stores session under sb-<project-ref>-auth-token, find it by pattern
   const key = Object.keys(localStorage).find(k => /^sb-.+-auth-token$/.test(k));
@@ -472,26 +473,40 @@ export default function ContentAutopilot() {
     if (which === 'before') { setGalleryBefore(file); setGalleryBeforePreview(url); }
     else { setGalleryAfter(file); setGalleryAfterPreview(url); }
   }
+  /**
+   * A gallery pair, which is content she means to publish.
+   *
+   * Public bucket, and public URLs on the row, because Instagram fetches the
+   * image server side at publish time and has to be able to reach it.
+   *
+   * The old version seeded `beforeUrl`/`afterUrl` from the local blob previews
+   * and only overwrote them if the upload happened to work, so a failed upload
+   * wrote `blob:https://app.florrie.ai/...` into content_posts.image_url. That
+   * renders on the screen she is looking at and is a dead reference everywhere
+   * else, forever. There is no fallback now: either both images are stored or
+   * nothing is written and she is told why.
+   */
   async function handleSaveGalleryItem() {
     if (!galleryBefore || !galleryAfter) return;
+    if (!supabase || !beautician) {
+      setError('Not connected. Check your internet connection and try again.');
+      return;
+    }
     setSavingGallery(true);
+    setError(null);
     try {
-      let beforeUrl = galleryBeforePreview;
-      let afterUrl = galleryAfterPreview;
-      // Upload images in production
-      if (supabase && beautician) {
-        for (const [file, label] of [[galleryBefore, 'before'], [galleryAfter, 'after']]) {
-          const ext = file.name.split('.').pop();
-          const path = `${beautician.id}/gallery/${Date.now()}-${label}.${ext}`;
-          const { error: uploadErr } = await supabase.storage
-            .from('content-images')
-            .upload(path, file, { contentType: file.type });
-          if (!uploadErr) {
-            const { data: urlData } = supabase.storage.from('content-images').getPublicUrl(path);
-            if (label === 'before') beforeUrl = urlData?.publicUrl;
-            else afterUrl = urlData?.publicUrl;
-          }
-        }
+      let beforeUrl = null;
+      let afterUrl = null;
+      for (const [file, label] of [[galleryBefore, 'before'], [galleryAfter, 'after']]) {
+        const { path } = await uploadFile({
+          bucket: PUBLIC_BUCKET,
+          path: objectPath(beautician.id, 'gallery', `${label}-${file.name}`),
+          file,
+        });
+        const url = publicUrl(path, { bucket: PUBLIC_BUCKET });
+        if (!url) throw new Error('Could not save that photo. Please try again.');
+        if (label === 'before') beforeUrl = url;
+        else afterUrl = url;
       }
       const item = {
         id: crypto.randomUUID(),
@@ -518,6 +533,7 @@ export default function ContentAutopilot() {
       setGalleryAfterPreview(null);
     } catch (err) {
       logger.error('Save gallery:', err);
+      setError(err.message || 'Could not save that before and after. Please try again.');
     }
     setSavingGallery(false);
   }
@@ -540,21 +556,25 @@ export default function ContentAutopilot() {
   async function handleSaveDraft() {
     if (!composeCaption.trim() || !beautician) return;
     setSaving(true);
+    setError(null);
     try {
       let imageUrl = null;
-      // Upload image to Supabase Storage if available
+      // The image is what Instagram fetches at publish time, so it goes in the
+      // public bucket and the row holds a public URL.
+      //
+      // A failed upload used to be a logger.warn and a null image_url: the
+      // draft saved, the photo vanished, and the only sign was a "needs photo"
+      // badge she had no reason to connect to the picture she had just
+      // attached. Saving the draft without the photo she chose is not saving
+      // the draft, so this stops and says so.
       if (composeImageFile && supabase) {
-        const ext = composeImageFile.name.split('.').pop();
-        const path = `${beautician.id}/${Date.now()}.${ext}`;
-        const { error: uploadErr } = await supabase.storage
-          .from('content-images')
-          .upload(path, composeImageFile, { contentType: composeImageFile.type });
-        if (!uploadErr) {
-          const { data: urlData } = supabase.storage.from('content-images').getPublicUrl(path);
-          imageUrl = urlData?.publicUrl || null;
-        } else {
-          logger.warn('Image upload failed:', uploadErr.message);
-        }
+        const { path } = await uploadFile({
+          bucket: PUBLIC_BUCKET,
+          path: objectPath(beautician.id, 'gallery', composeImageFile.name),
+          file: composeImageFile,
+        });
+        imageUrl = publicUrl(path, { bucket: PUBLIC_BUCKET });
+        if (!imageUrl) throw new Error('Could not save that photo. Please try again.');
       }
       const hashtags = composeHashtags.trim().split(/\s+/).filter(h => h.startsWith('#'));
       const post = await insertRow('content_posts', {
@@ -572,6 +592,7 @@ export default function ContentAutopilot() {
       setTab('drafts');
     } catch (err) {
       logger.error('Save draft error:', err);
+      setError(err.message || 'Could not save that draft. Please try again.');
     } finally {
       setSaving(false);
     }

@@ -8,6 +8,7 @@ import logger from '../lib/logger.js';
 import { hapticTap, hapticSuccess } from '../lib/native.js';
 import { treatmentColor, tint } from '../lib/treatmentColors.js';
 import { parseDateOnly } from '../lib/dates.js';
+import { uploadFile, objectPath, signedUrl, PRIVATE_BUCKET } from '../lib/storage.js';
 import Icon, { iconName } from '../components/ui/Icon';
 import Button from '../components/ui/Button';
 import Money from '../components/ui/Money';
@@ -1457,7 +1458,11 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
   const [notes, setNotes] = useState(appointment.beautician_notes || '');
   const [paymentMethod, setPaymentMethod] = useState('card');
   const [rebookWeeks, setRebookWeeks] = useState(4);
+  // A short-lived signed URL for the photo just uploaded. The photo itself is
+  // in the private bucket. Nothing persists the reference yet: there is no
+  // column on `appointments` to hold it, which is a separate defect.
   const [beforeAfterUrl, setBeforeAfterUrl] = useState(null);
+  const [photoError, setPhotoError] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [noShowCharging, setNoShowCharging] = useState(false);
@@ -2153,23 +2158,37 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
       setSaving(false);
     }
   }
+  /**
+   * A before/after photo is a client's face, taken in a salon.
+   *
+   * It goes in the private bucket, and the preview below is a signed URL for
+   * the object that was just written, not a local blob. That is deliberate:
+   * if the thumbnail appears, the file genuinely landed and is genuinely
+   * readable. The old code fell back to `URL.createObjectURL(file)` on
+   * failure, which looks identical on screen and is gone on the next load.
+   */
   async function handlePhotoUpload(e) {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
+    setPhotoError(null);
     try {
-      const path = `${beautician.id}/before-after/${Date.now()}-${file.name}`;
-      const { error } = await supabase.storage.from('content-images').upload(path, file);
-      if (!error) {
-        const { data } = supabase.storage.from('content-images').getPublicUrl(path);
-        setBeforeAfterUrl(data?.publicUrl);
-      } else {
-        setBeforeAfterUrl(URL.createObjectURL(file));
-      }
+      const { path } = await uploadFile({
+        bucket: PRIVATE_BUCKET,
+        path: objectPath(beautician.id, 'before-after', file.name),
+        file,
+      });
+      const src = await signedUrl(path, { bucket: PRIVATE_BUCKET });
+      if (!src) throw new Error('Photo saved, but it could not be shown. Reopen this booking to try again.');
+      setBeforeAfterUrl(src);
     } catch (err) {
-      logger.error('Upload error:', err);
+      logger.error('Before/after upload error:', err);
+      setBeforeAfterUrl(null);
+      setPhotoError(err.message || 'Could not save that photo. Please try again.');
     } finally {
       setUploading(false);
+      // Let her pick the same file again after a failure.
+      if (e.target) e.target.value = '';
     }
   }
   function handleDone() {
@@ -2905,13 +2924,18 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
             {beforeAfterUrl ? (
               <div style={styles.photoPreview}>
                 <img src={beforeAfterUrl} alt="Before/after" style={styles.photoImg} />
-                <button onClick={() => setBeforeAfterUrl(null)} style={styles.photoRemove}>×</button>
+                <button onClick={() => { setBeforeAfterUrl(null); setPhotoError(null); }} style={styles.photoRemove}>×</button>
               </div>
             ) : (
               <label style={styles.photoUploadBtn}>
                 {<Icon name="camera" inline />} {uploading ? 'Uploading...' : 'Take or upload photo'}
                 <input type="file" accept="image/*" capture="environment" onChange={handlePhotoUpload} style={{ display: 'none' }} />
               </label>
+            )}
+            {photoError && (
+              <p style={{ fontSize: 11.5, color: '#E57373', margin: '6px 0 0', lineHeight: 1.4 }} role="alert">
+                {photoError}
+              </p>
             )}
           </div>
           <button onClick={handleComplete} disabled={saving} style={styles.confirmCompleteBtn}>
