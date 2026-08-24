@@ -22,6 +22,7 @@ import { authorship } from '../lib/authorship.js';
 import { deDash } from '../lib/text.js';
 import { appointmentIcs, googleCalendarUrl } from '../lib/ical.js';
 import { apiPublicBase } from '../lib/public-url.js';
+import { hasColumn } from '../lib/schema-probe.js';
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const FROM_EMAIL = process.env.FROM_EMAIL || 'Florrie <noreply@florrie.ai>';
@@ -113,6 +114,158 @@ function toE164(raw) {
   return '+' + digits;                                                // assume already E.164 digits
 }
 
+/* ------------------------------------------------------------------------- *
+ * ONE COLUMN WAS BEING ASKED TO HOLD TWO INCOMPATIBLE THINGS.
+ *
+ * `beauticians.sms_originator` was read two ways that can never agree:
+ *
+ *   outbound  sendSMS() honoured it only if it was a Bird CHANNEL ID (a UUID).
+ *             Anything else, a phone number included, was ignored and the text
+ *             left from the shared platform long code.
+ *   inbound   webhooks.js routed on `.eq('sms_originator', <number texted>)`.
+ *             A UUID can never equal a phone number.
+ *
+ * So no single value made both directions work, and the onboarding default made
+ * it worse than a per-tenant bug: the SMS fork pre-filled the SHARED long code,
+ * so the second salon to accept it gave two rows the same value, the inbound
+ * lookup went ambiguous, and EVERY inbound SMS was dropped for both of them.
+ *
+ * The split:
+ *   sms_channel_id      outbound. A Bird channel id. NULL = shared platform channel.
+ *   sms_inbound_number  inbound. The virtual number clients text. UNIQUE, and the
+ *                       shared long code is never a legal value for it.
+ *   sms_originator      display only now: the brand name that appears in copy.
+ *                       No routing meaning whatsoever.
+ *
+ * The two new columns do not exist yet (the SQL is in the report and is applied
+ * by hand here). Everything below therefore probes for them and falls back to
+ * reading the single legacy column, so this ships correctly BEFORE the SQL runs
+ * and picks the split up with no redeploy once it does.
+ * ------------------------------------------------------------------------- */
+
+/** A Bird channel id. The only thing the outbound API will accept as a sender. */
+export const BIRD_CHANNEL_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * The SHARED platform long code. Every tenant's outbound SMS leaves from this
+ * number unless they have bought their own, so it identifies Florrie and not
+ * any one salon. It must never be stored as a salon's inbound routing number:
+ * two salons holding it is precisely the outage described above.
+ */
+export const SHARED_SMS_NUMBERS = [
+  process.env.BIRD_SHARED_SMS_NUMBER || '+447418313493',
+  // BIRD_ORIGINATOR is the env-level default sender. When it is a number it is
+  // the shared one, by definition, so it is disqualified the same way.
+  process.env.BIRD_ORIGINATOR || '',
+].filter(Boolean);
+
+/** E.164 digits, or '' for anything that is not a phone number at all. */
+function canonicalNumber(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  const e164 = toE164(raw);
+  if (typeof e164 !== 'string' || !e164.startsWith('+')) return '';
+  const digits = e164.slice(1);
+  return /^[1-9]\d{9,14}$/.test(digits) ? digits : '';
+}
+
+/** Same phone number, whatever spacing or national/international form it wears. */
+export function sameSmsNumber(a, b) {
+  const x = canonicalNumber(a);
+  return !!x && x === canonicalNumber(b);
+}
+
+/** Is this the platform's shared long code (or the env default sender)? */
+export function isSharedSmsNumber(value) {
+  return SHARED_SMS_NUMBERS.some(n => sameSmsNumber(n, value));
+}
+
+/** A per-tenant inbound number: a real mobile, and not the shared long code. */
+export function isRoutableInboundNumber(value) {
+  return !!canonicalNumber(value) && !isSharedSmsNumber(value);
+}
+
+/** E.164 form of a number, or null if it is not one. */
+export function toInboundNumber(value) {
+  const digits = canonicalNumber(value);
+  return digits ? `+${digits}` : null;
+}
+
+/**
+ * Split ONE legacy `sms_originator` value into the two things it was being
+ * asked to be. This is the exact logic the migration in the report uses, kept
+ * here so the pre-migration code path and the migration cannot disagree.
+ *
+ * Every value that can plausibly be in that column today is handled:
+ *   a UUID                  a Bird channel id       -> outbound
+ *   a phone number          a virtual mobile        -> inbound, unless it is
+ *                                                      the SHARED long code, in
+ *                                                      which case it is dropped
+ *   'Florrie' (the default) an alphanumeric sender  -> display name only
+ *   anything else / empty                           -> display name only
+ */
+export function splitLegacySmsOriginator(value) {
+  const raw = String(value ?? '').trim();
+  const empty = { channelId: null, inboundNumber: null, senderName: null };
+  if (!raw) return empty;
+  if (BIRD_CHANNEL_ID_RE.test(raw)) return { ...empty, channelId: raw };
+  const number = toInboundNumber(raw);
+  if (number) {
+    // The shared long code is deliberately dropped rather than migrated: it is
+    // not this salon's number, and keeping it is what breaks every tenant.
+    return isSharedSmsNumber(number) ? empty : { ...empty, inboundNumber: number };
+  }
+  return { ...empty, senderName: raw };
+}
+
+/**
+ * Which of the split columns this database actually has. Probed, not assumed:
+ * migrations here are applied by hand, so the code ships first.
+ */
+export async function smsSchema() {
+  const [channel, inbound] = await Promise.all([
+    hasColumn(supabase, 'beauticians', 'sms_channel_id'),
+    hasColumn(supabase, 'beauticians', 'sms_inbound_number'),
+  ]);
+  return { channel, inbound, split: channel && inbound };
+}
+
+/**
+ * A salon's SMS routing, read from whichever schema is live.
+ * Returns { channelId, inboundNumber, senderName, split }.
+ */
+export async function readSmsRouting(beauticianId) {
+  const empty = { channelId: null, inboundNumber: null, senderName: null, split: false };
+  if (!beauticianId) return empty;
+
+  const schema = await smsSchema();
+  const cols = ['sms_originator'];
+  if (schema.channel) cols.push('sms_channel_id');
+  if (schema.inbound) cols.push('sms_inbound_number');
+
+  const { data, error } = await supabase
+    .from('beauticians')
+    .select(cols.join(', '))
+    .eq('id', beauticianId)
+    .maybeSingle();
+
+  if (error || !data) {
+    if (error) logger.warn({ err: error, beauticianId }, 'SMS routing lookup failed');
+    return empty;
+  }
+
+  const legacy = splitLegacySmsOriginator(data.sms_originator);
+  return {
+    // Before the split exists, the single column is the only source. After it
+    // exists the new columns win, and the legacy value stays as a fallback for
+    // rows the migration has not touched.
+    channelId: (schema.channel ? data.sms_channel_id : null) || legacy.channelId,
+    inboundNumber: (schema.inbound ? toInboundNumber(data.sms_inbound_number) : null) || legacy.inboundNumber,
+    senderName: legacy.senderName,
+    split: schema.split,
+  };
+}
+
 export async function sendSMS({ to, body, beauticianId, originator, messageType = 'general', clientId = null, skipThreadLog = false }) {
   if (!BIRD_API_KEY) {
     logger.debug('Bird not configured, skipping SMS');
@@ -140,22 +293,28 @@ export async function sendSMS({ to, body, beauticianId, originator, messageType 
   // so failed/rejected messages never count against the allowance or get billed.
   let usageInfo = null;
 
-  // On the new Bird platform the *channel* is the sender. The legacy per-beautician
-  // alphanumeric originator ("Florrie"/"FlorrieAI") is brand-gated and currently
-  // rejected, so we route through the long-code channel by default. We still allow
-  // a per-beautician channel override via sms_originator when it looks like a
-  // Bird channel id (UUID); plain alphanumeric values are ignored for sending.
+  // On the new Bird platform the *channel* is the sender. An alphanumeric brand
+  // sender ("Florrie") is registration-gated and currently rejected, so a name
+  // can never be a sender here; only a channel id can. Default to the shared
+  // platform channel, and let a salon that has bought its own Bird number
+  // override it with that channel's id.
   let channelId = BIRD_SMS_CHANNEL_ID;
-  const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (originator && uuidRe.test(originator)) {
+  if (originator && BIRD_CHANNEL_ID_RE.test(originator)) {
     channelId = originator;
   } else if (!originator && beauticianId) {
-    const { data: b } = await supabase
-      .from('beauticians')
-      .select('sms_originator')
-      .eq('id', beauticianId)
-      .maybeSingle();
-    if (b?.sms_originator && uuidRe.test(b.sms_originator)) channelId = b.sms_originator;
+    const routing = await readSmsRouting(beauticianId);
+    if (routing.channelId) {
+      channelId = routing.channelId;
+    } else if (routing.inboundNumber) {
+      // Loud, because it is silently one-directional: she receives on her own
+      // number but sends from the shared long code, so every reply a client
+      // sends to the number she texted FROM lands on a number that identifies
+      // nobody and is dropped. The fix is her Bird channel id, not a resend.
+      logger.warn(
+        { beauticianId, inboundNumber: routing.inboundNumber },
+        'SMS half-configured: this salon has an inbound number but no Bird channel id, so outbound leaves from the shared long code and replies to it cannot be routed back. Set beauticians.sms_channel_id.'
+      );
+    }
   }
 
   // Validate the number before we bother Bird. A malformed/empty/landline value

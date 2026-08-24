@@ -1,18 +1,17 @@
 /**
  * Referrals - Refer-a-friend programme.
  *
- * Features:
- *   - Referral code generation per client
- *   - Reward config (referrer gets X, friend gets Y)
- *   - Tracking: referrals made, converted, rewards issued
- *   - Shareable referral link/message
- *   - Leaderboard of top referrers
- *   - Settings: reward type and amount (the only fields the backend persists)
+ * The share link is PER CLIENT, not per salon. A salon-level link says which
+ * salon, which the booking slug in the same URL already said; it cannot say who
+ * did the referring, and `referrals.referrer_id` is NOT NULL. So the referrer's
+ * client id is the identifier and the link is
+ * `/book/{slug}?ref={client id}`, one per client, from GET /api/referrals/links.
+ * The old single "your referral link" box was a link that could never have
+ * credited anybody.
  *
- * Note: the backend referral config stores referral_enabled,
- * referral_reward_type and referral_reward_value_cents only. Friend
- * reward, expiry and auto-reward have no backing column, so those
- * controls were removed rather than implying they save.
+ * Settings persisted by the backend: referral_enabled, referral_reward_type,
+ * referral_reward_value_cents. Friend reward, expiry and auto-reward have no
+ * backing column, so those controls are not offered.
  */
 import { useState, useEffect } from 'react';
 import { useBeautician, supabase, fetchRows, updateRow } from '../lib/supabase.js';
@@ -30,11 +29,14 @@ async function getToken() {
   return data?.session?.access_token || null;
 }
 
+// The four values 007's CHECK constraint allows, and nothing else. 'converted'
+// and 'shared' were shown here but could never be stored, so a row could never
+// carry them.
 const STATUS_CONFIG = {
-  shared: { label: 'Shared', color: 'var(--text-muted)', bg: 'var(--bg-subtle)' },
-  pending: { label: 'Pending', color: 'var(--warning)', bg: 'var(--warning-bg)' },
+  pending: { label: 'Link shared', color: 'var(--text-muted)', bg: 'var(--bg-subtle)' },
   booked: { label: 'Booked', color: 'var(--info)', bg: 'var(--info-bg)' },
-  converted: { label: 'Converted', color: 'var(--success)', bg: 'var(--success-bg)' },
+  completed: { label: 'Been in', color: 'var(--warning)', bg: 'var(--warning-bg)' },
+  rewarded: { label: 'Rewarded', color: 'var(--success)', bg: 'var(--success-bg)' },
 };
 
 export default function Referrals() {
@@ -49,17 +51,21 @@ export default function Referrals() {
   const [leaderboard, setLeaderboard] = useState([]);
 
   // Config from backend
-  const [referralLink, setReferralLink] = useState('florrie.ai/ref/...');
+  const [bookingLink, setBookingLink] = useState(null);
+  const [clientLinks, setClientLinks] = useState([]);
+  const [pickedClientId, setPickedClientId] = useState('');
   const [programEnabled, setProgramEnabled] = useState(true);
   const [referrerReward, setReferrerReward] = useState(10);
   const [rewardType, setRewardType] = useState('discount');
   const [linkCopied, setLinkCopied] = useState(false);
   const [msgCopied, setMsgCopied] = useState(false);
+  const [saveMsg, setSaveMsg] = useState(null);
 
   useEffect(() => {
     if (beautician && !bLoading) {
       loadReferrals();
       loadConfig();
+      loadLinks();
     }
   }, [beautician, bLoading]);
 
@@ -72,7 +78,7 @@ export default function Referrals() {
       if (!res.ok) return;
       const data = await res.json();
       const cfg = data.config || {};
-      if (data.shareLink) setReferralLink(data.shareLink.replace('https://', ''));
+      if (data.bookingLink) setBookingLink(data.bookingLink);
       if (cfg.referral_enabled !== undefined) setProgramEnabled(cfg.referral_enabled);
       if (cfg.referral_reward_type) setRewardType(cfg.referral_reward_type);
       if (cfg.referral_reward_value_cents) {
@@ -84,11 +90,28 @@ export default function Referrals() {
     }
   }
 
-  async function saveConfig() {
-    setSaving(true);
+  async function loadLinks() {
     try {
       const token = await getToken();
-      await fetch(`${API_BASE}/api/referrals/config`, {
+      const res = await fetch(`${API_BASE}/api/referrals/links`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setClientLinks(data.links || []);
+      if (data.bookingLink) setBookingLink(data.bookingLink);
+      if (data.links?.length) setPickedClientId(data.links[0].client_id);
+    } catch (err) {
+      logger.warn('Load referral links failed:', err);
+    }
+  }
+
+  async function saveConfig() {
+    setSaving(true);
+    setSaveMsg(null);
+    try {
+      const token = await getToken();
+      const res = await fetch(`${API_BASE}/api/referrals/config`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -100,10 +123,17 @@ export default function Referrals() {
           referral_reward_value_cents: referrerReward * 100,
         }),
       });
+      const data = await res.json().catch(() => ({}));
+      // The save used to be fire and forget: it 500'd every time and still said
+      // nothing, so the settings looked saved and were not.
+      if (!res.ok) throw new Error(data.error || 'Could not save');
+      setSaveMsg({ ok: true, text: 'Saved' });
     } catch (err) {
       logger.error('Save referral config failed:', err);
+      setSaveMsg({ ok: false, text: err.message || 'Could not save' });
     } finally {
       setSaving(false);
+      setTimeout(() => setSaveMsg(null), 6000);
     }
   }
 
@@ -119,13 +149,15 @@ export default function Referrals() {
         const data = await res.json();
         const rows = data.referrals || [];
         setReferrals(rows);
-        // Compute leaderboard client-side
+        // Leaderboard, grouped by the referrer. `referrer_name` is derived by
+        // the route from the clients table; there is no such column on
+        // referrals, so grouping used to label every row "Client".
         const grouped = {};
         rows.forEach(r => {
-          const key = r.referrer_id || r.referred_name || 'Unknown';
+          const key = r.referrer_id || 'unknown';
           if (!grouped[key]) grouped[key] = { name: r.referrer_name || 'Client', referrals: 0, converted: 0 };
           grouped[key].referrals++;
-          if (['rewarded', 'completed', 'converted'].includes(r.status)) grouped[key].converted++;
+          if (['rewarded', 'completed'].includes(r.status)) grouped[key].converted++;
         });
         setLeaderboard(Object.values(grouped).sort((a, b) => b.converted - a.converted).slice(0, 5));
     } catch (err) {
@@ -138,17 +170,25 @@ export default function Referrals() {
   }
 
   const totalReferrals = referrals.length;
-  const converted = referrals.filter(r => ['converted', 'rewarded', 'completed'].includes(r.status)).length;
+  const converted = referrals.filter(r => ['rewarded', 'completed'].includes(r.status)).length;
   const conversionRate = totalReferrals ? Math.round((converted / totalReferrals) * 100) : 0;
 
   if (loading) {
     return <PageLoader />;
   }
 
-  const fullLink = `https://${referralLink}`;
-  const shareMessage = `Hey! I wanted to share my beautician with you - she's brilliant. Use this link for £${referrerReward} off your first appointment: ${fullLink}`;
+  const picked = clientLinks.find(l => l.client_id === pickedClientId) || null;
+  // No client picked means no referrer, and a link with no referrer credits
+  // nobody. Fall back to the plain booking link and say so, rather than
+  // handing out a referral link that is not one.
+  const fullLink = picked?.share_link || bookingLink || '';
+  const linkLabel = fullLink.replace(/^https?:\/\//, '');
+  const shareMessage = picked
+    ? `Hey! I wanted to share my beautician with you - she's brilliant. Use this link for £${referrerReward} off your first appointment: ${fullLink}`
+    : `Hey! I wanted to share my beautician with you - she's brilliant. Book in here: ${fullLink}`;
 
   function handleCopyLink() {
+    if (!fullLink) return;
     navigator.clipboard?.writeText(fullLink);
     setLinkCopied(true);
     setTimeout(() => setLinkCopied(false), 2000);
@@ -207,21 +247,44 @@ export default function Referrals() {
         </button>
       </div>
 
-      {/* Share card */}
+      {/* Share card. One link per client, because the client IS the referral. */}
       <div style={{ ...s.shareCard, opacity: programEnabled ? 1 : 0.55 }}>
-        <span style={s.shareTitle}>Your referral link</span>
+        <span style={s.shareTitle}>Referral link for one client</span>
+        {clientLinks.length > 0 ? (
+          <>
+            <select
+              value={pickedClientId}
+              onChange={e => setPickedClientId(e.target.value)}
+              style={s.clientPicker}
+              aria-label="Which client is sharing this link"
+            >
+              {clientLinks.map(l => (
+                <option key={l.client_id} value={l.client_id}>{l.name}</option>
+              ))}
+            </select>
+            <span style={s.shareNote}>
+              Each client gets her own link. That is how we know who to credit when her friend books.
+            </span>
+          </>
+        ) : (
+          <span style={s.shareNote}>
+            {bookingLink
+              ? 'No clients yet, so this is your plain booking link. Once you have clients, each one gets her own link and the referral gets credited to her.'
+              : 'Set your booking link up first, then each client gets her own referral link.'}
+          </span>
+        )}
         <div style={s.urlRow}>
-          <span style={s.urlText}>{referralLink}</span>
-          <button onClick={handleCopyLink} style={s.copyBtn}>
+          <span style={s.urlText}>{linkLabel || 'No booking link yet'}</span>
+          <button onClick={handleCopyLink} style={s.copyBtn} disabled={!fullLink}>
             {linkCopied ? 'Copied' : 'Copy'}
           </button>
         </div>
         <div style={s.shareActions}>
-          <button onClick={handleWhatsAppShare} style={s.shareBtn} disabled={!programEnabled}><Icon name="phone" size={14} inline /> WhatsApp</button>
-          <button onClick={handleCopyMessage} style={s.shareBtn} disabled={!programEnabled}>
+          <button onClick={handleWhatsAppShare} style={s.shareBtn} disabled={!programEnabled || !fullLink}><Icon name="phone" size={14} inline /> WhatsApp</button>
+          <button onClick={handleCopyMessage} style={s.shareBtn} disabled={!programEnabled || !fullLink}>
             {msgCopied ? 'Copied' : 'Copy message'}
           </button>
-          <button onClick={handleCopyLink} style={s.shareBtn} disabled={!programEnabled}><Icon name="link" size={14} inline /> Link</button>
+          <button onClick={handleCopyLink} style={s.shareBtn} disabled={!programEnabled || !fullLink}><Icon name="link" size={14} inline /> Link</button>
         </div>
       </div>
 
@@ -300,10 +363,9 @@ export default function Referrals() {
             </div>
           )}
           {referrals.map(r => {
-            const statusKey = r.status === 'rewarded' ? 'converted' : (r.status || 'shared');
-            const st = STATUS_CONFIG[statusKey] || STATUS_CONFIG.shared;
-            const referrerName = r.referrer_name || r.referrer || 'Client';
-            const friendName = r.referred_name || r.friend || 'Awaiting...';
+            const st = STATUS_CONFIG[r.status] || STATUS_CONFIG.pending;
+            const referrerName = r.referrer_name || 'Client';
+            const friendName = r.referred_name || 'Awaiting...';
             return (
               <div key={r.id} style={s.refCard}>
                 <div style={s.refTop}>
@@ -315,8 +377,12 @@ export default function Referrals() {
                   <span style={{ ...s.statusBadge, background: st.bg, color: st.color }}>{st.label}</span>
                 </div>
                 <div style={s.refBottom}>
-                  <span style={s.refCode}>{r.referral_code || r.code || '-'}</span>
-                  <span style={s.refDate}>{new Date(r.created_at || r.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
+                  {/* There is no referral_code column. What is worth showing is
+                      how to reach the friend, and what she is owed. */}
+                  <span style={s.refCode}>
+                    {r.referred_contact || `£${((r.referrer_reward_cents || 0) / 100).toFixed(0)} to ${referrerName}`}
+                  </span>
+                  <span style={s.refDate}>{new Date(r.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
                 </div>
               </div>
             );
@@ -372,6 +438,11 @@ export default function Referrals() {
           <button onClick={saveConfig} disabled={saving} style={s.saveBtn}>
             {saving ? 'Saving…' : 'Save settings'}
           </button>
+          {saveMsg && (
+            <div style={{ ...s.saveNote, color: saveMsg.ok ? 'var(--success, #2E7D32)' : 'var(--danger, #B3261E)' }}>
+              {saveMsg.text}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -386,6 +457,9 @@ const s = {
   statLabel: { display: 'block', fontSize: 10, color: 'var(--text-muted, #6B5D54)', textTransform: 'uppercase', letterSpacing: '0.03em' },
   shareCard: { background: 'linear-gradient(135deg, var(--accent, #92405e), #8B3A55)'   /* white on the light end must clear 4.5:1; #B55A79 was 4.46, #9C4463 still 4.48 through the translucent overlays that sit on it */   /* was #B55A79: white on it measured 4.46:1 */, borderRadius: 16, padding: 16, marginBottom: 16, color: '#fff' },
   shareTitle: { display: 'block', fontSize: 14, fontWeight: 700, marginBottom: 8 },
+  clientPicker: { width: '100%', minHeight: 44, padding: '8px 12px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.2)', color: '#fff', fontSize: 14, fontFamily: 'inherit', marginBottom: 8 },
+  shareNote: { display: 'block', fontSize: 11, lineHeight: 1.5, opacity: 0.9, marginBottom: 8 },
+  saveNote: { fontSize: 13, marginTop: 8, textAlign: 'center' },
   urlRow: { display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.2)', borderRadius: 10, padding: '8px 12px', marginBottom: 10 },
   urlText: { flex: 1, fontSize: 13, fontWeight: 500 },
   copyBtn: { padding: '4px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.4)', background: 'transparent', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },

@@ -11,6 +11,8 @@ import { getAppSecret, getWhatsAppVerifyToken } from '../lib/env.js';
 import { autoUnarchiveClient } from '../lib/client-archive.js';
 import Anthropic from '@anthropic-ai/sdk';
 import { authorship } from '../lib/authorship.js';
+import { hasColumn } from '../lib/schema-probe.js';
+import { isSharedSmsNumber } from '../services/notifications.js';
 
 const router = Router();
 
@@ -704,7 +706,7 @@ router.post('/bird-sms', async (req, res) => {
       // Dropped on purpose. See findBeauticianByBirdNumber for why.
       logger.error(
         { to: toPhone, from: fromPhone },
-        'Inbound Bird SMS could not be routed to a salon; dropping rather than guessing a tenant. Set beauticians.sms_originator to the recipient number to route it.'
+        'Inbound Bird SMS could not be routed to a salon; dropping rather than guessing a tenant. Set beauticians.sms_inbound_number to that salon own Bird number to route it (the shared platform long code is never routable).'
       );
       return;
     }
@@ -772,15 +774,101 @@ function normalisePhoneNumber(raw) {
 }
 
 /**
- * Find the beautician whose Bird virtual mobile number an inbound SMS was sent
- * TO. Matches sms_originator (the per-beautician number), then phone for
- * tenants who have not had sms_originator set yet. Returns null on no match.
+ * Every spelling of one number that could be sitting in the column, so a row
+ * saved as "07700 900123" still matches an inbound "+447700900123". Matching on
+ * more spellings never widens WHO can be matched: the exactly-one rule below
+ * still applies, and two rows spelling the same number differently stay
+ * ambiguous and stay dropped.
+ */
+
+/**
+ * The last nine digits of a phone number, or '' if there are not nine.
  *
- * There is deliberately NO "first beautician in the table" fallback here
- * either. See findBeauticianByTwilioNumber above for the full reasoning: a
- * message in the wrong salon's inbox is worse than a message lost, because the
- * sender still holds the original in their own SMS thread but the leak cannot
- * be undone.
+ * Nine because a UK mobile written +447700900123 and 07700900123 differ only in
+ * the country prefix and both end in the same nine. It is also how this
+ * codebase already matches a CLIENT's phone, so routing a salon uses the same
+ * rule rather than a second, weaker one. Fewer than nine digits is not a phone
+ * number, which is what stops the text value this column defaults to
+ * ('Florrie') from matching anything at all.
+ */
+function lastNineDigits(value) {
+  const digits = String(value ?? '').replace(/\D/g, '');
+  return digits.length >= 9 ? digits.slice(-9) : '';
+}
+
+// A routing lookup reads salon rows, not client rows, so it is bounded by how
+// many salons exist rather than by traffic. The cap is a backstop: past it the
+// lookup would be reading one page of a larger table and could miss a match it
+// should have found, so it sits far above any plausible tenant count.
+const MAX_ROUTING_CANDIDATES = 1000;
+
+/**
+ * Look up exactly one beautician by a routing column, or nobody.
+ *
+ * `.limit(2)` and an explicit count, NOT `.maybeSingle()`. maybeSingle turns
+ * "two salons claim this number" into a PostgREST error, which reads at the
+ * call site like any other query failure; the count says out loud which of the
+ * two happened, and the number gets logged either way.
+ */
+async function beauticianByRoutingColumn(column, phoneNumber) {
+  // Two reads on purpose. The first pulls only the id and the routing column,
+  // because the match cannot be expressed as a filter (see below) and pulling
+  // whole salon rows to throw nearly all of them away would be wasteful. The
+  // second fetches the one row that matched.
+  const { data, error } = await supabase
+    .from('beauticians')
+    .select(`id, ${column}`)
+    .limit(MAX_ROUTING_CANDIDATES);
+
+  if (error) {
+    logger.error({ err: error, column, phoneNumber }, 'Bird SMS: routing lookup failed, cannot route');
+    return null;
+  }
+
+  // Compared in JS on the last nine digits, not with an .in() over spellings.
+  // A salon types her number into a box: '07700 900123', '+44 7700 900123',
+  // '(07700) 900123' are all the same number and an exact match catches none of
+  // them. The last-nine rule is already how this codebase matches a client's
+  // phone (+44 versus a leading 0), so routing uses the same rule rather than a
+  // second, weaker one.
+  const target = lastNineDigits(phoneNumber);
+  if (!target) return null;
+
+  const rows = (data || []).filter(r => lastNineDigits(r?.[column]) === target);
+
+  if (rows.length > 1) {
+    // The exact failure this split exists to prevent. Never pick one.
+    logger.error(
+      { column, phoneNumber, matches: rows.length, beauticianIds: rows.map(r => r.id) },
+      'Bird SMS: more than one salon claims this number, dropping rather than guessing a tenant'
+    );
+    return null;
+  }
+  if (rows.length === 0) return null;
+
+  const { data: full, error: fullErr } = await supabase
+    .from('beauticians')
+    .select('*')
+    .eq('id', rows[0].id)
+    .maybeSingle();
+
+  if (fullErr) {
+    logger.error({ err: fullErr, column, phoneNumber }, 'Bird SMS: matched a salon but could not read her row');
+    return null;
+  }
+  return full || null;
+}
+
+/**
+ * Find the beautician whose Bird virtual mobile number an inbound SMS was sent
+ * TO. Returns null on no match, on an ambiguous match, and on the shared long
+ * code, all of which mean the same thing: we do not know whose client this is.
+ *
+ * There is deliberately NO "first beautician in the table" fallback here.
+ * See findBeauticianByTwilioNumber above for the full reasoning: a message in
+ * the wrong salon's inbox is worse than a message lost, because the sender
+ * still holds the original in their own SMS thread but the leak cannot be
+ * undone. The Instagram incident in this codebase is the same fallback.
  */
 async function findBeauticianByBirdNumber(phoneNumber) {
   if (!phoneNumber) return null;
@@ -788,34 +876,31 @@ async function findBeauticianByBirdNumber(phoneNumber) {
   const sanitised = phoneNumber.toString().replace(/[^0-9+\-() ]/g, '').substring(0, 30);
   if (!sanitised) return null;
 
-  const { data: byOriginator, error: originatorErr } = await supabase
-    .from('beauticians')
-    .select('*')
-    .eq('sms_originator', sanitised)
-    .maybeSingle();
-
-  if (originatorErr) {
-    // Ambiguous (more than one tenant claims this number) or the query failed.
-    // Either way we cannot say whose client this is, so we do not guess.
-    logger.error({ err: originatorErr, phoneNumber: sanitised }, 'Bird SMS: sms_originator lookup failed or was ambiguous, cannot route');
-    return null;
-  }
-  if (byOriginator) return byOriginator;
-
-  // New tenants may not have sms_originator set yet; also match on phone so
-  // their inbound SMS isn't silently dropped (M6).
-  const { data: byPhone, error: phoneErr } = await supabase
-    .from('beauticians')
-    .select('*')
-    .eq('phone', sanitised)
-    .maybeSingle();
-
-  if (phoneErr) {
-    logger.error({ err: phoneErr, phoneNumber: sanitised }, 'Bird SMS: phone lookup failed or was ambiguous, cannot route');
+  // The shared platform long code identifies Florrie, not a salon. Whatever any
+  // row happens to say, a text to it cannot name a tenant, so it never routes.
+  // This is the guard that holds BEFORE the split columns exist: today the
+  // onboarding default puts this very number in sms_originator.
+  if (isSharedSmsNumber(sanitised)) {
+    logger.error(
+      { to: sanitised },
+      'Inbound Bird SMS was sent to the SHARED platform long code, which identifies no single salon. Dropping. Give the salon its own Bird number and set beauticians.sms_inbound_number.'
+    );
     return null;
   }
 
-  return byPhone || null;
+  // Post-migration: the dedicated inbound column. Pre-migration: the single
+  // legacy column, which is what the live database still has.
+  const inboundColumn = await hasColumn(supabase, 'beauticians', 'sms_inbound_number')
+    ? 'sms_inbound_number'
+    : 'sms_originator';
+
+  const byNumber = await beauticianByRoutingColumn(inboundColumn, sanitised);
+  if (byNumber) return byNumber;
+
+  // A salon whose own mobile IS the Bird number she bought, and who has not set
+  // the routing column yet (M6). Same exactly-one rule: `phone` has no unique
+  // constraint, so two salons sharing one is possible and is not routable.
+  return beauticianByRoutingColumn('phone', sanitised);
 }
 
 /**

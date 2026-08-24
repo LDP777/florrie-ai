@@ -1,7 +1,12 @@
 import { Router } from 'express';
 import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
-import { processReminders, sendSMS, sendEmail } from '../services/notifications.js';
+import {
+  processReminders, sendSMS, sendEmail,
+  readSmsRouting, smsSchema, splitLegacySmsOriginator,
+  toInboundNumber, isSharedSmsNumber,
+  BIRD_CHANNEL_ID_RE, SHARED_SMS_NUMBERS,
+} from '../services/notifications.js';
 import { getSMSUsage } from '../services/sms-metering.js';
 import logger from '../lib/logger.js';
 import { authorship } from '../lib/authorship.js';
@@ -268,6 +273,11 @@ router.get('/sms/usage', requireAuth, async (req, res) => {
 /**
  * GET /api/sms/config
  * Get the SMS configuration for the authenticated beautician.
+ *
+ * Outbound sender and inbound routing number are now two separate things (see
+ * the long note in services/notifications.js). This reports both, plus whether
+ * the split columns exist yet, so the UI never has to guess a salon's 2-way
+ * status from the shape of one string.
  */
 router.get('/sms/config', requireAuth, async (req, res) => {
   try {
@@ -282,22 +292,27 @@ router.get('/sms/config', requireAuth, async (req, res) => {
       return res.status(500).json({ error: 'Something went wrong' });
     }
 
-    // Resolve effective sender — beautician override → platform default → fallback.
-    // Mirrors sendSMS() resolution so the /sms UI shows the same sender that
-    // outbound messages will actually use (and the 2-way badge stays truthful
-    // when the platform default is a phone number).
-    const beauticianOriginator = data?.sms_originator || null;
-    const platformOriginator = process.env.BIRD_ORIGINATOR || null;
-    const effectiveOriginator = beauticianOriginator || platformOriginator || 'Florrie';
-    const originatorSource = beauticianOriginator
+    const routing = await readSmsRouting(req.beautician.id);
+
+    // The display sender: the brand name that appears in copy. It is NOT what
+    // Bird puts in the From field (that is the channel), and it is no longer
+    // what inbound routes on.
+    const displayName = routing.senderName || process.env.BIRD_ORIGINATOR || 'Florrie';
+    const displaySource = routing.senderName
       ? 'beautician'
-      : platformOriginator
-        ? 'platform'
-        : 'default';
+      : process.env.BIRD_ORIGINATOR ? 'platform' : 'default';
 
     res.json({
-      sms_originator: effectiveOriginator,
-      sms_originator_source: originatorSource,
+      // Kept under the old key: Settings, Messaging and Integrations all read
+      // it as the sender name to show, and that is now all it means.
+      sms_originator: displayName,
+      sms_originator_source: displaySource,
+      sms_channel_id: routing.channelId,
+      sms_inbound_number: routing.inboundNumber,
+      // The one thing the UI actually needs: can her clients reply to her?
+      two_way: !!routing.inboundNumber,
+      shared_sms_number: SHARED_SMS_NUMBERS[0] || null,
+      schema_split: routing.split,
       sms_enabled: data?.sms_enabled || false,
       bird_configured: !!process.env.BIRD_API_KEY,
       channel: data?.client_reminder_prefs?.channel || 'whatsapp',
@@ -308,33 +323,135 @@ router.get('/sms/config', requireAuth, async (req, res) => {
   }
 });
 
+/** Nobody else may already hold this inbound number. */
+async function inboundNumberIsFree(column, number, beauticianId) {
+  const { data, error } = await supabase
+    .from('beauticians')
+    .select('id')
+    .eq(column, number)
+    .neq('id', beauticianId)
+    .limit(1);
+  // A failed check is not a pass. Refusing to save is recoverable; two salons
+  // sharing an inbound number drops every inbound SMS for both of them.
+  if (error) {
+    logger.error({ err: error, column }, 'SMS inbound number uniqueness check failed');
+    return false;
+  }
+  return (data || []).length === 0;
+}
+
 /**
  * PUT /api/sms/config
  * Update SMS configuration for the authenticated beautician.
- * Body: { sms_originator?: string, sms_enabled?: boolean, channel?: string }
+ *
+ * Body: {
+ *   sms_inbound_number?: string|null,  the number clients text her on
+ *   sms_channel_id?:     string|null,  her Bird channel id, for outbound
+ *   sms_originator?:     string,       LEGACY: one field that meant all three.
+ *                                      Still accepted and split, so older
+ *                                      clients keep working.
+ *   sms_enabled?: boolean, channel?: string
+ * }
  */
 router.put('/sms/config', requireAuth, async (req, res) => {
   try {
-    const { sms_originator, sms_enabled, channel } = req.body;
+    const { sms_originator, sms_inbound_number, sms_channel_id, sms_enabled, channel } = req.body;
 
-    // Validate originator — either a phone number (E.164, +7-15 digits) for 2-way
-    // SMS, or an alphanumeric sender (max 11 chars, GSMA limit) for one-way.
+    // What the caller is asking for, whichever field shape it used.
+    let wantInbound;      // string | null | undefined
+    let wantChannel;      // string | null | undefined
+    let wantName;         // string | undefined
+
+    const clears = (v) => v === null || v === '';
+
+    if (sms_inbound_number !== undefined) {
+      if (clears(sms_inbound_number)) wantInbound = null;
+      else if (typeof sms_inbound_number !== 'string') {
+        return res.status(400).json({ error: 'sms_inbound_number must be a phone number or null' });
+      } else {
+        const number = toInboundNumber(sms_inbound_number);
+        if (!number) {
+          return res.status(400).json({ error: 'sms_inbound_number must be a mobile number in international format, e.g. +447700900123' });
+        }
+        if (isSharedSmsNumber(number)) {
+          return res.status(400).json({
+            error: 'That is the shared Florrie number, not yours. Every salon sends from it, so it cannot tell us whose client is replying. Leave the inbound number empty until you have bought your own Bird number.',
+          });
+        }
+        wantInbound = number;
+      }
+    }
+
+    if (sms_channel_id !== undefined) {
+      if (clears(sms_channel_id)) wantChannel = null;
+      else if (typeof sms_channel_id !== 'string' || !BIRD_CHANNEL_ID_RE.test(sms_channel_id.trim())) {
+        return res.status(400).json({ error: 'sms_channel_id must be a Bird channel id (a UUID), or null' });
+      } else wantChannel = sms_channel_id.trim();
+    }
+
+    // LEGACY single field. Split it the same way the migration does, so an old
+    // client that posts a phone number here still ends up routing inbound, and
+    // one that posts "Ellindigo" still ends up with a sender name.
     if (sms_originator !== undefined) {
-      if (typeof sms_originator !== 'string' || sms_originator.length === 0) {
+      if (typeof sms_originator !== 'string' || sms_originator.trim().length === 0) {
         return res.status(400).json({ error: 'sms_originator must be a non-empty string' });
       }
       const trimmed = sms_originator.trim();
-      const isPhone = /^\+?[0-9]{7,15}$/.test(trimmed.replace(/\s/g, ''));
-      const isAlpha = trimmed.length <= 11 && /^[a-zA-Z0-9 ]+$/.test(trimmed);
-      if (!isPhone && !isAlpha) {
+      const parts = splitLegacySmsOriginator(trimmed);
+      if (parts.channelId && wantChannel === undefined) wantChannel = parts.channelId;
+      else if (parts.inboundNumber && wantInbound === undefined) wantInbound = parts.inboundNumber;
+      else if (parts.senderName) {
+        if (parts.senderName.length > 11 || !/^[a-zA-Z0-9 ]+$/.test(parts.senderName)) {
+          return res.status(400).json({
+            error: 'sms_originator must be your own mobile number (e.g. +447700900123), a Bird channel id, or a sender name of up to 11 letters and numbers',
+          });
+        }
+        wantName = parts.senderName;
+      } else if (!parts.channelId && !parts.inboundNumber && isSharedSmsNumber(trimmed)) {
+        // The onboarding default used to land here and take every tenant down.
         return res.status(400).json({
-          error: 'sms_originator must be a phone number (e.g. +447700900123) or alphanumeric (max 11 chars)'
+          error: 'That is the shared Florrie number, not yours. Every salon sends from it, so it cannot tell us whose client is replying. Leave the sender empty until you have bought your own Bird number.',
         });
       }
     }
 
+    const schema = await smsSchema();
     const updates = {};
-    if (sms_originator !== undefined) updates.sms_originator = sms_originator.trim();
+    const warnings = [];
+
+    if (schema.inbound) {
+      if (wantInbound !== undefined) updates.sms_inbound_number = wantInbound;
+      if (schema.channel && wantChannel !== undefined) updates.sms_channel_id = wantChannel;
+      if (wantName !== undefined) updates.sms_originator = wantName;
+    } else {
+      // BEFORE the split SQL runs there is one column, so one of the three can
+      // be stored. Inbound routing wins: it is the direction that is broken.
+      if (wantInbound !== undefined && wantInbound !== null) {
+        updates.sms_originator = wantInbound;
+        if (wantChannel) warnings.push('Your Bird channel id was not saved: this database still has a single sms_originator column and the inbound number needs it. Re-save once the SMS split migration has run.');
+        if (wantName) warnings.push('Your sender name was not saved: the inbound number needs the one column that exists today.');
+      } else if (wantChannel !== undefined && wantChannel !== null) {
+        updates.sms_originator = wantChannel;
+        if (wantName) warnings.push('Your sender name was not saved: the Bird channel id needs the one column that exists today.');
+      } else if (wantName !== undefined) {
+        updates.sms_originator = wantName;
+      } else if (wantInbound === null || wantChannel === null) {
+        updates.sms_originator = null;
+      }
+    }
+
+    // Uniqueness. The DB index does not exist until the migration runs, so this
+    // check is the only thing standing between two salons and a shared number.
+    const inboundColumn = schema.inbound ? 'sms_inbound_number' : 'sms_originator';
+    const inboundValue = schema.inbound ? updates.sms_inbound_number : updates.sms_originator;
+    if (inboundValue && toInboundNumber(inboundValue)) {
+      if (!await inboundNumberIsFree(inboundColumn, inboundValue, req.beautician.id)) {
+        return res.status(409).json({
+          error: 'Another salon already receives SMS on that number. Two salons cannot share one inbound number: the reply would not say whose client sent it, so both would lose every text.',
+        });
+      }
+    }
+
     if (sms_enabled !== undefined) updates.sms_enabled = Boolean(sms_enabled);
 
     // If channel is being set, update it inside client_reminder_prefs JSONB
@@ -351,20 +468,46 @@ router.put('/sms/config', requireAuth, async (req, res) => {
       };
     }
 
-    const { data, error } = await supabase
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: 'Nothing to update' });
+    }
+
+    const { error } = await supabase
       .from('beauticians')
       .update(updates)
-      .eq('id', req.beautician.id)
-      .select('sms_originator, sms_enabled, client_reminder_prefs')
-      .maybeSingle();
+      .eq('id', req.beautician.id);
 
     if (error) {
+      // 23505 is the unique index on sms_inbound_number, once it exists. It is
+      // the same refusal as the 409 above, reached by the database instead.
+      if (error.code === '23505') {
+        return res.status(409).json({
+          error: 'Another salon already receives SMS on that number. Two salons cannot share one inbound number.',
+        });
+      }
       logger.error({ err: error }, 'Failed to update SMS config');
       return res.status(500).json({ error: 'Something went wrong' });
     }
 
-    logger.info({ beauticianId: req.beautician.id, updates }, 'SMS config updated');
-    res.json({ success: true, ...data });
+    const routing = await readSmsRouting(req.beautician.id);
+    const { data: after } = await supabase
+      .from('beauticians')
+      .select('sms_enabled, client_reminder_prefs')
+      .eq('id', req.beautician.id)
+      .maybeSingle();
+
+    logger.info({ beauticianId: req.beautician.id, fields: Object.keys(updates) }, 'SMS config updated');
+    res.json({
+      success: true,
+      sms_originator: routing.senderName || process.env.BIRD_ORIGINATOR || 'Florrie',
+      sms_channel_id: routing.channelId,
+      sms_inbound_number: routing.inboundNumber,
+      two_way: !!routing.inboundNumber,
+      schema_split: routing.split,
+      sms_enabled: after?.sms_enabled || false,
+      channel: after?.client_reminder_prefs?.channel || 'whatsapp',
+      ...(warnings.length ? { warnings } : {}),
+    });
   } catch (err) {
     logger.error({ err }, 'SMS config update error');
     res.status(500).json({ error: 'Something went wrong' });

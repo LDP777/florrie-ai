@@ -26,10 +26,14 @@ const templates = [
 
 const tabs = ['Overview', 'Templates', 'Settings'];
 
-// A sender is a real phone number (capable of 2-way SMS) if it starts with +
-// or is a run of digits at least 7 chars long. Otherwise it's an alphanumeric
-// sender, which most carriers treat as one-way.
-function isPhoneSender(value) {
+// Whether clients can reply is NOT something to infer from the shape of the
+// sender string. It used to be: a value that looked like a phone number was
+// shown as "2-way", which was true of the SHARED platform long code as well,
+// so a salon sending from a number nobody could route replies on was told her
+// replies were live. The backend now answers it directly, in `two_way`.
+//
+// This is only kept for the input hint while she is typing.
+function looksLikeNumber(value) {
   if (!value) return false;
   const trimmed = value.toString().trim();
   if (trimmed.startsWith('+')) return /^\+[0-9]{7,15}$/.test(trimmed);
@@ -43,8 +47,12 @@ export default function SMSConfig() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Settings form state
-  const [originatorInput, setOriginatorInput] = useState('');
+  // Settings form state. Three separate things, because they ARE three separate
+  // things: the number clients text her on, the Bird channel her texts leave
+  // from, and the brand name that appears in message copy.
+  const [inboundInput, setInboundInput] = useState('');
+  const [channelInput, setChannelInput] = useState('');
+  const [nameInput, setNameInput] = useState('');
   const [smsEnabled, setSmsEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
@@ -83,7 +91,9 @@ export default function SMSConfig() {
       const usageData = usageRes.ok ? await usageRes.json() : null;
 
       setConfig(cfg);
-      setOriginatorInput(cfg.sms_originator || 'Florrie');
+      setInboundInput(cfg.sms_inbound_number || '');
+      setChannelInput(cfg.sms_channel_id || '');
+      setNameInput(cfg.sms_originator || 'Florrie');
       setSmsEnabled(cfg.sms_enabled || false);
       setUsage(usageData);
 
@@ -113,23 +123,24 @@ export default function SMSConfig() {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          // Allow phone numbers (up to 16 chars incl. +) or alphanumeric (max 11)
-          sms_originator: isPhoneSender(originatorInput)
-            ? originatorInput.trim().substring(0, 16)
-            : originatorInput.trim().substring(0, 11),
+          // Empty means "I have not got my own number", which is a real and
+          // common answer, so it clears the field rather than being rejected.
+          sms_inbound_number: inboundInput.trim() || null,
+          sms_channel_id: channelInput.trim() || null,
+          sms_originator: nameInput.trim() || 'Florrie',
           sms_enabled: smsEnabled,
           channel: smsEnabled ? 'sms' : (config?.channel || 'whatsapp'),
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Save failed');
-      setSaveMsg('Saved ✓');
-      setConfig(prev => ({ ...prev, sms_originator: data.sms_originator, sms_enabled: data.sms_enabled }));
+      setSaveMsg(data.warnings?.length ? data.warnings[0] : 'Saved');
+      setConfig(prev => ({ ...prev, ...data }));
     } catch (err) {
       setSaveMsg(`Error: ${err.message}`);
     } finally {
       setSaving(false);
-      setTimeout(() => setSaveMsg(''), 3000);
+      setTimeout(() => setSaveMsg(''), 6000);
     }
   }
 
@@ -170,8 +181,12 @@ export default function SMSConfig() {
   );
 
   const birdConfigured = config?.bird_configured;
-  const senderValue = config?.sms_originator || originatorInput || 'Florrie';
-  const twoWay = isPhoneSender(senderValue);
+  const senderValue = config?.sms_originator || nameInput || 'Florrie';
+  // Straight from the backend. Not guessed from a string.
+  const twoWay = !!config?.two_way;
+  const sendingFrom = config?.sms_channel_id
+    ? 'your own Bird number'
+    : `the shared Florrie number${config?.shared_sms_number ? ` (${config.shared_sms_number})` : ''}`;
 
   return (
     <div style={ds.page}>
@@ -194,13 +209,20 @@ export default function SMSConfig() {
               </span>
             </div>
             <div style={{ fontSize: 13, opacity: 0.9, marginTop: 6 }}>
-              Sender: <strong>{senderValue}</strong>
+              Sending from {sendingFrom}
               {smsEnabled ? ' · SMS enabled' : ' · SMS disabled (WhatsApp primary)'}
             </div>
             <div style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 999, background: twoWay ? 'rgba(74,222,128,0.2)' : 'rgba(250,204,21,0.18)', fontSize: 11, fontWeight: 600 }}>
               <span style={{ width: 6, height: 6, borderRadius: 6, background: twoWay ? '#4ADE80' : '#FACC15' }} />
-              {twoWay ? '2-way, clients can reply' : 'One-way, alphanumeric sender, no replies'}
+              {twoWay
+                ? `2-way, clients can reply on ${config.sms_inbound_number}`
+                : 'One-way. Replies are not delivered'}
             </div>
+            {twoWay && !config?.sms_channel_id && (
+              <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 10, background: 'rgba(250,204,21,0.18)', fontSize: 11, lineHeight: 1.5 }}>
+                Half set up. Clients can text {config.sms_inbound_number}, but your outbound texts still leave from the shared Florrie number, so a reply to one of those is not delivered. Add your Bird channel id below.
+              </div>
+            )}
           </div>
           <div style={{ fontSize: 40 }}><Icon name="phone" size={40} /></div>
         </div>
@@ -240,8 +262,8 @@ export default function SMSConfig() {
             <span style={{ fontSize: 20 }}>{twoWay ? '💬' : '💡'}</span>
             <div style={{ ...type.bodySmall, lineHeight: 1.5 }}>
               {twoWay
-                ? "2-way SMS is on, clients can text your number and Florrie's AI replies the same way it does on WhatsApp. Booking confirmations, reminders, and rebook nudges all fire automatically."
-                : "SMS fires automatically when a client doesn't have WhatsApp, booking confirmations, 24h reminders, and rebook nudges all fall back to SMS seamlessly. Paste a phone number in Settings to turn on 2-way replies."}
+                ? "2-way SMS is on, clients can text your own number and Florrie's AI replies the same way it does on WhatsApp. Booking confirmations, reminders, and rebook nudges all fire automatically."
+                : "SMS fires automatically when a client doesn't have WhatsApp, booking confirmations, 24h reminders, and rebook nudges all fall back to SMS seamlessly. Replies do not come back: outbound goes out on the shared Florrie number, which every salon uses, so a text to it cannot say whose client sent it. Buy your own Bird number and add it in Settings to turn on replies."}
             </div>
           </div>
 
@@ -249,7 +271,7 @@ export default function SMSConfig() {
             <div style={{ ...type.heading, marginBottom: 12 }}>How SMS fits in</div>
             {[
               { step: '1', label: 'Client books', desc: 'System picks WhatsApp if available, SMS if not' },
-              { step: '2', label: 'Confirmation fires', desc: `Sent from "${senderValue}" via Bird` },
+              { step: '2', label: 'Confirmation fires', desc: `Sent from ${sendingFrom}, signed "${senderValue}"` },
               { step: '3', label: '24h before appointment', desc: 'Reminder sent automatically' },
               {
                 step: '4',
@@ -328,33 +350,65 @@ export default function SMSConfig() {
               </button>
             </div>
 
-            {/* Sender */}
+            {/* Inbound number. The only thing that makes replies work. */}
             <div style={{ marginBottom: 16 }}>
-              <div style={ds.inputLabel}>Sender</div>
+              <div style={ds.inputLabel}>Your own number, for replies</div>
               <div style={{ ...type.bodySmall, fontSize: 11, marginBottom: 8 }}>
-                Paste a UK mobile number (e.g. +447700900123) to enable 2-way SMS, clients can reply and the AI handles it. Or enter up to 11 letters/numbers (e.g. Ellindigo) for a one-way brand sender.
+                A Bird virtual mobile you have bought yourself, e.g. +447700900123. Clients text this number and Florrie knows the text is for you. Leave it empty if you have not got one: your texts still go out, they just cannot be replied to. The shared Florrie number is not valid here, because every salon uses it and a reply to it would not say who it was for.
+              </div>
+              <input
+                value={inboundInput}
+                onChange={e => setInboundInput(e.target.value.replace(/[^0-9+ ]/g, '').substring(0, 20))}
+                style={{ minHeight: 44, width: '100%', padding: '8px 12px', borderRadius: 10,
+                  border: '1px solid var(--border)', background: 'var(--bg-card)',
+                  color: 'var(--text-primary)', fontSize: 14, boxSizing: 'border-box',
+                }}
+                placeholder="+447700900123"
+                inputMode="tel"
+              />
+              {inboundInput && !looksLikeNumber(inboundInput.replace(/\s/g, '')) && (
+                <div style={{ ...type.bodySmall, fontSize: 11, marginTop: 6, color: 'var(--warning)' }}>
+                  That does not look like a mobile number yet.
+                </div>
+              )}
+            </div>
+
+            {/* Outbound channel. */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={ds.inputLabel}>Bird channel id (optional)</div>
+              <div style={{ ...type.bodySmall, fontSize: 11, marginBottom: 8 }}>
+                The channel id Bird gives you for the number above. Without it your texts go out from the shared Florrie number, so a client replying to the text she received would not reach you. Leave empty to use the shared number.
+              </div>
+              <input
+                value={channelInput}
+                onChange={e => setChannelInput(e.target.value.trim().substring(0, 36))}
+                style={{ minHeight: 44, width: '100%', padding: '8px 12px', borderRadius: 10,
+                  border: '1px solid var(--border)', background: 'var(--bg-card)',
+                  color: 'var(--text-primary)', fontSize: 13, boxSizing: 'border-box',
+                  fontFamily: 'monospace',
+                }}
+                placeholder="7e8e2014-98b9-508d-be22-6dde76d0dd0e"
+              />
+            </div>
+
+            {/* Display name. */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={ds.inputLabel}>Business name in messages</div>
+              <div style={{ ...type.bodySmall, fontSize: 11, marginBottom: 8 }}>
+                Up to 11 letters and numbers, e.g. Ellindigo. This is how your messages sign off. It is not the sender number and it does not affect replies.
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <input
-                  value={originatorInput}
-                  onChange={e => {
-                    const raw = e.target.value;
-                    // Allow either a phone number (+ and digits, up to 16 chars)
-                    // or an alphanumeric sender (letters/numbers/space, up to 11 chars)
-                    if (raw.startsWith('+') || /^[0-9]+$/.test(raw.replace(/\s/g, ''))) {
-                      setOriginatorInput(raw.replace(/[^0-9+]/g, '').substring(0, 16));
-                    } else {
-                      setOriginatorInput(raw.replace(/[^a-zA-Z0-9 ]/g, '').substring(0, 11));
-                    }
-                  }}
+                  value={nameInput}
+                  onChange={e => setNameInput(e.target.value.replace(/[^a-zA-Z0-9 ]/g, '').substring(0, 11))}
                   style={{ minHeight: 44, flex: 1, padding: '8px 12px', borderRadius: 10,
                     border: '1px solid var(--border)', background: 'var(--bg-card)',
                     color: 'var(--text-primary)', fontSize: 14,
                   }}
-                  placeholder="+447700900123 or Ellindigo"
+                  placeholder="Ellindigo"
                 />
-                <span style={{ ...type.mono, fontSize: 11, color: isPhoneSender(originatorInput) ? 'var(--success)' : 'var(--text-muted)' }}>
-                  {isPhoneSender(originatorInput) ? '2-way' : `${originatorInput.length}/11`}
+                <span style={{ ...type.mono, fontSize: 11, color: 'var(--text-muted)' }}>
+                  {nameInput.length}/11
                 </span>
               </div>
             </div>
@@ -415,11 +469,11 @@ export default function SMSConfig() {
             <div style={{ ...type.bodySmall, fontSize: 12, lineHeight: 1.5 }}>
               {twoWay ? (
                 <>
-                  <strong>2-way SMS is live.</strong> Clients see your number as the sender and can reply, Florrie's AI picks up the thread the same way it does on WhatsApp. Messages cost ~0.5p each via Bird. Your plan includes 120 messages a month across SMS and WhatsApp combined.
+                  <strong>2-way SMS is live.</strong> Clients text your own number and Florrie's AI picks up the thread the same way it does on WhatsApp. Messages cost ~0.5p each via Bird. Your plan includes 120 messages a month across SMS and WhatsApp combined.
                 </>
               ) : (
                 <>
-                  <strong>One-way sender.</strong> Alphanumeric names like "Ellindigo" can't receive replies, use a phone number above to switch on 2-way. Outbound messages cost ~0.5p each via Bird. Your plan includes 120 messages a month across SMS and WhatsApp combined.
+                  <strong>One-way.</strong> Your texts go out on the shared Florrie number. Replies to it are dropped on purpose: every salon sends from it, so an incoming text cannot say whose client it is, and delivering it to a guess would put one salon's client in another salon's inbox. Buy your own Bird number and paste it above to switch replies on. Outbound messages cost ~0.5p each via Bird. Your plan includes 120 messages a month across SMS and WhatsApp combined.
                 </>
               )}
             </div>
