@@ -43,16 +43,80 @@ export function combineTreatments(treatments) {
 }
 
 /**
+ * Has the salon actually switched its own deposit on?
+ *
+ * THE £10 NOBODY ASKED FOR.
+ *
+ * migration 029 gives every beautician row payment_settings
+ * '{"require_deposit": false, "deposit_amount": "£10", ...}'. Those two keys
+ * are a switch and the amount the switch charges, and resolveDepositCents read
+ * the amount without ever reading the switch. So a salon that has never opened
+ * the payments page, never connected Stripe and never asked anybody for a
+ * penny had a booking page charging £10, because £10 is what the DEFAULT says
+ * and the default is off.
+ *
+ * The old comment claimed "a salon that genuinely wants no deposit sets it to
+ * zero", which describes a setting no screen offers: nothing in the app writes
+ * require_deposit or deposit_amount at all. The only deposit a salon can
+ * actually configure today is the per-treatment one. So the flag is read the
+ * way its name reads: off means off.
+ *
+ * Settings.jsx reads `require_deposit || deposit_required`, so both spellings
+ * are honoured here rather than leaving one of them silently dead.
+ * booking_policy.deposit_required (migration 030) is a THIRD copy of the same
+ * idea and is deliberately not read: nothing writes it either, and guessing
+ * which of three flags a salon meant is how you get back to charging money
+ * nobody agreed to.
+ */
+export function salonRequiresDeposit(paymentSettings = {}) {
+  const flag = paymentSettings?.require_deposit ?? paymentSettings?.deposit_required;
+  return flag === true || flag === 'true';
+}
+
+/**
+ * The salon-level deposit rule, parsed, or null when there isn't one.
+ * '£15' and 15 both mean fifteen pounds; '50%' means half the price.
+ * Anything blank, zero or unreadable is null, never a fallback figure: an
+ * invented amount on a client's card is the bug, not the safe default.
+ */
+function parseConfiguredDeposit(raw) {
+  const text = String(raw ?? '').trim();
+  if (!text) return null;
+  if (text.endsWith('%')) {
+    const pct = parseFloat(text);
+    return Number.isFinite(pct) && pct > 0 ? { percent: pct } : null;
+  }
+  const pounds = parseFloat(text.replace(/[£$€,\s]/g, ''));
+  return Number.isFinite(pounds) && pounds > 0 ? { cents: Math.round(pounds * 100) } : null;
+}
+
+/**
+ * Would the salon-level switch, on its own, put a deposit on a booking?
+ *
+ * The Setup Hub checklist and the booking page have to answer this the same
+ * way or the app tells her deposits are off while her page charges one. Both
+ * call this.
+ */
+export function salonDepositIsConfigured(paymentSettings = {}) {
+  if (!salonRequiresDeposit(paymentSettings)) return false;
+  return parseConfiguredDeposit(paymentSettings?.deposit_amount) !== null;
+}
+
+/**
  * The deposit a booking must collect, in pence.
  *
  * Lifted verbatim out of POST /:slug/book so the booking page and the
  * conversational flow can never charge different amounts for the same
  * treatment. Rules, in order:
  *   1. Per treatment: a deposit_percent of the price beats a flat deposit_cents.
- *   2. If that comes to nothing, the salon's own configured deposit applies
- *      ('GBP 10' style or '50%'), because every booking secures a deposit by
- *      card whatever the balance is paid with. A salon that genuinely wants no
- *      deposit sets it to zero.
+ *      This applies whatever the salon-level switch says. She typed that number
+ *      against that treatment; it is the most specific thing anybody has said
+ *      about it, and a global switch is not a reason to ignore it. The switch
+ *      exists to add a deposit to treatments that carry none, not to suppress
+ *      the ones that do.
+ *   2. If no treatment carries a deposit, the salon's own configured deposit
+ *      applies ONLY when require_deposit is on. Off, or on with no readable
+ *      amount, means no deposit rather than the migration default.
  *   3. A deposit can never exceed the price, which guards a misconfigured
  *      flat amount or percentage.
  *
@@ -73,15 +137,10 @@ export function resolveDepositCents({ treatments, paymentSettings = {}, combined
     return sum + (t.deposit_cents || 0);
   }, 0);
 
-  if (depositCents === 0 && price > 0) {
-    const raw = String(paymentSettings?.deposit_amount ?? '').trim() || '£10';
-    if (raw.endsWith('%')) {
-      const pct = parseInt(raw, 10);
-      depositCents = Number.isFinite(pct) ? Math.round(price * pct / 100) : 0;
-    } else {
-      const pounds = parseFloat(raw.replace(/[£$€,\s]/g, ''));
-      depositCents = Number.isFinite(pounds) ? Math.round(pounds * 100) : 0;
-    }
+  if (depositCents === 0 && price > 0 && salonRequiresDeposit(paymentSettings)) {
+    const rule = parseConfiguredDeposit(paymentSettings?.deposit_amount);
+    if (rule?.percent) depositCents = Math.round(price * rule.percent / 100);
+    else if (rule?.cents) depositCents = rule.cents;
   }
 
   if (price > 0) depositCents = Math.min(depositCents, price);

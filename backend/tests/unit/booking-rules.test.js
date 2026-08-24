@@ -48,22 +48,27 @@ describe('resolveDepositCents', () => {
     expect(cents).toBe(1250);
   });
 
+  // The salon fallback now needs the switch as well as the amount. The four
+  // cases below used to pass without require_deposit, which is exactly how a
+  // salon that had never opened the payments page ended up charging the
+  // migration default of £10. deposit-switch-is-honoured.test.js covers the
+  // switched-off side.
   it('falls back to the salon setting when the treatment has no deposit', () => {
     expect(resolveDepositCents({
       treatments: [{ price_cents: 4000, deposit_cents: 0, deposit_percent: 0 }],
-      paymentSettings: { deposit_amount: '£15' },
+      paymentSettings: { require_deposit: true, deposit_amount: '£15' },
     })).toBe(1500);
   });
 
   it('handles a percentage salon setting', () => {
     expect(resolveDepositCents({
       treatments: [{ price_cents: 4000 }],
-      paymentSettings: { deposit_amount: '50%' },
+      paymentSettings: { require_deposit: true, deposit_amount: '50%' },
     })).toBe(2000);
   });
 
-  it('defaults to £10 when the salon has set nothing', () => {
-    expect(resolveDepositCents({ treatments: [{ price_cents: 4000 }] })).toBe(1000);
+  it('takes nothing when the salon has set nothing, rather than a default £10', () => {
+    expect(resolveDepositCents({ treatments: [{ price_cents: 4000 }] })).toBe(0);
   });
 
   it('never charges more than the treatment costs', () => {
@@ -75,7 +80,7 @@ describe('resolveDepositCents', () => {
   it('survives a numeric deposit_amount, which the original threw on', () => {
     expect(resolveDepositCents({
       treatments: [{ price_cents: 4000 }],
-      paymentSettings: { deposit_amount: 20 },
+      paymentSettings: { require_deposit: true, deposit_amount: 20 },
     })).toBe(2000);
   });
 

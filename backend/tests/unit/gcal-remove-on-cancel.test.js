@@ -128,6 +128,9 @@ beforeEach(() => {
   refreshOk = true;
   db.beauticians.push({
     id: 'b1', business_name: 'Ellindigo', booking_slug: 'ellindigo',
+    // Stripe is connected, so an unpaid deposit here really is an abandoned
+    // checkout rather than a deposit nobody could ever have been asked for.
+    stripe_account_id: 'acct_1', stripe_onboarding_complete: true,
     google_calendar_connected: true,
     google_calendar_tokens: encrypt({ access_token: 'live-token', refresh_token: 'refresh-token', expiry_date: Date.now() + 3600_000 }),
     google_calendar_id: 'primary',

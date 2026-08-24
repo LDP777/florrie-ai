@@ -12,6 +12,7 @@ import { Router } from 'express';
 import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
+import { salonDepositIsConfigured } from '../lib/booking-rules.js';
 
 const router = Router();
 
@@ -112,9 +113,16 @@ router.get('/status', requireAuth, async (req, res) => {
       services: {
         treatments_count: treatmentsCount,
         has_prices: pricedCount > 0,
-        // Global switch in payment_settings, or any treatment with its own
-        // deposit amount/percent set.
-        deposits: paySettings.require_deposit === true || depositTreatments > 0,
+        // Any treatment with its own deposit amount/percent set, or the
+        // salon-level switch on WITH a readable amount behind it.
+        //
+        // This has to be the same question lib/booking-rules.js asks when it
+        // prices a booking, or the checklist says "deposits: not done" while
+        // her booking page charges one, which is the shape the bug had: the
+        // checklist read require_deposit and the booking page read only
+        // deposit_amount, so the two disagreed on every fresh account.
+        // salonDepositIsConfigured is the single answer both now use.
+        deposits: depositTreatments > 0 || salonDepositIsConfigured(paySettings),
       },
       channels: {
         whatsapp: !!b.whatsapp_phone_id,

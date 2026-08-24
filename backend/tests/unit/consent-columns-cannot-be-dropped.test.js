@@ -163,11 +163,11 @@ describe('no new sender joins clients without the consent columns', () => {
     'src/routes/appointments.js:66',
     'src/routes/appointments.js:431',
     'src/routes/appointments.js:1598',
-    'src/routes/booking.js:809',
-    'src/routes/booking.js:1519',
-    'src/routes/booking.js:1960',
-    'src/routes/booking.js:2226',
-    'src/routes/booking.js:2637',
+    'src/routes/booking.js:833',
+    'src/routes/booking.js:1543',
+    'src/routes/booking.js:1984',
+    'src/routes/booking.js:2250',
+    'src/routes/booking.js:2661',
     'src/routes/features.js:132',
     'src/routes/features.js:169',
     'src/routes/features.js:194',
@@ -184,8 +184,10 @@ describe('no new sender joins clients without the consent columns', () => {
     'src/routes/features.js:2791',
     'src/routes/features.js:2832',
     'src/routes/features.js:3317',
-    'src/services/notifications.js:1077',
-    'src/services/notifications.js:1355',
+    // Both moved down by the SMS routing split added above them in
+    // services/notifications.js. Same two joins, same file, new line numbers.
+    'src/services/notifications.js:1236',
+    'src/services/notifications.js:1514',
   ]);
 
   function walk(dir) {

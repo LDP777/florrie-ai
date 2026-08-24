@@ -21,7 +21,7 @@ import { getOutstandingBalanceCents } from '../services/outstanding-balance.js';
 import { autoUnarchiveClient } from '../lib/client-archive.js';
 import { guardedSend } from '../lib/outbound-guard.js';
 import { BOOKING_MONEY_LOGGED_TYPES } from '../lib/money-guards.js';
-import { combineTreatments, resolveDepositCents } from '../lib/booking-rules.js';
+import { combineTreatments, resolveDepositCents, salonRequiresDeposit } from '../lib/booking-rules.js';
 import { recomputeTotals, endsAtWall } from '../lib/appointment-treatments.js';
 import { appointmentIcs, googleCalendarUrl, DEAD_STATUSES } from '../lib/ical.js';
 import { calendarLandingPage } from '../lib/calendar-page.js';
@@ -410,8 +410,12 @@ router.get('/:slug', async (req, res) => {
     treatments: treatments || [],
     paymentSettings: {
       acceptedMethods: availableMethods.length > 0 ? availableMethods : ['cash'],
-      requireDeposit: paySettings.require_deposit || false,
-      depositAmount: paySettings.deposit_amount || '£10',
+      // The deposit rule IN FORCE, not the raw column. depositAmount used to
+      // fall back to '£10' whether or not deposits were switched on, which is
+      // where the "Pay £10.00 deposit" button on a brand new salon's page came
+      // from. Off means there is no amount to show.
+      requireDeposit: salonRequiresDeposit(paySettings),
+      depositAmount: salonRequiresDeposit(paySettings) ? (paySettings.deposit_amount ?? '£0') : '£0',
       noShowFee: paySettings.no_show_fee || false,
       stripeActive,
     },
@@ -461,8 +465,28 @@ router.get('/:slug/page', async (req, res) => {
     .eq('beautician_id', salon.id)
     .maybeSingle();
 
+  // THE BUTTON HAS TO SAY WHAT THE CARD WILL BE CHARGED.
+  //
+  // The page prices its own deposit from salon.payment_settings.deposit_amount,
+  // falling back to '£10' the way this route's own arithmetic used to, so a
+  // salon with require_deposit false still showed "Pay £10.00 deposit" over a
+  // booking that now takes nothing. What the page needs is the rule in force,
+  // so deposit_amount is cleared when the switch is off rather than handed over
+  // as a number the booking route will not honour. require_deposit itself is
+  // passed through untouched.
+  //
+  // '£0' rather than null on purpose: the page reads
+  // `deposit_amount || '£10'`, so a null would land straight back on the
+  // invented tenner. Zero is also the true answer, which is the point.
+  const effectivePaymentSettings = { ...(salon.payment_settings || {}) };
+  if (!salonRequiresDeposit(effectivePaymentSettings)) effectivePaymentSettings.deposit_amount = '£0';
+
   res.json({
-    salon: { ...salon, loyalty_enabled: loyaltyConfig?.is_active === true },
+    salon: {
+      ...salon,
+      payment_settings: effectivePaymentSettings,
+      loyalty_enabled: loyaltyConfig?.is_active === true,
+    },
     treatments: treatments || [],
     addOns: addOns || [],
   });
@@ -3506,10 +3530,11 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
 
   if (!isPackageRedemption) {
     // The deposit rules (per-treatment percent beats flat amount, the salon's
-    // own configured deposit as the fallback, never more than the price) now
-    // live in lib/booking-rules.js. Every booking secures a deposit by card
-    // whatever the balance is paid with; the payment method only governs the
-    // BALANCE. A salon that truly wants no deposit sets it to £0.
+    // own switched-on deposit as the fallback, never more than the price) live
+    // in lib/booking-rules.js. The payment method only governs the BALANCE.
+    // A salon that has not switched deposits on takes none: the migration 029
+    // default of "£10" sits next to require_deposit false and is not an
+    // instruction to charge anybody.
     depositCents = resolveDepositCents({
       treatments: allTreatments,
       paymentSettings: beautician.payment_settings || {},
@@ -3525,8 +3550,21 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
     depositRequired = depositCents > 0 || isFullPayment;
   }
 
-  // Payment buffer: if enabled, set expiry timestamp
-  const bufferEnabled = bookingPolicy.payment_buffer_enabled && depositRequired;
+  // CAN THIS SALON ACTUALLY TAKE THE MONEY?
+  //
+  // stripe_account_id plus stripe_onboarding_complete (migrations 001 and 003)
+  // is the pair every paying path in this file already checks, so it is the
+  // pair checked here. Without them there is no Checkout session to open, and
+  // a booking that requires a payment nobody can make is not a booking, it is
+  // a fifteen minute countdown to an auto-cancellation that tells the client
+  // she did not pay and tells the owner nothing at all.
+  const stripeReady = Boolean(stripe && beautician.stripe_account_id && beautician.stripe_onboarding_complete);
+  const depositUnpayable = depositRequired && !stripeReady;
+
+  // Payment buffer: if enabled, set expiry timestamp. Never on a booking there
+  // is no way to pay for: an expiry is a deadline, and a deadline for a payment
+  // that cannot be started is just a slower way of losing the appointment.
+  const bufferEnabled = bookingPolicy.payment_buffer_enabled && depositRequired && !depositUnpayable;
   const paymentExpiresAt = bufferEnabled
     ? new Date(Date.now() + (bookingPolicy.payment_buffer_minutes || 10) * 60 * 1000).toISOString()
     : null;
@@ -3548,7 +3586,12 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
       client_notes: clientNotes,
       booked_via: 'booking_page',
       payment_method: payment_method || 'card',
-      status: depositRequired ? 'pending' : 'confirmed',
+      // 'pending' means "held while she pays". If there is nothing to pay with,
+      // the hold has no end and the booking is simply confirmed: the client
+      // asked for the slot, the salon can take the money in the chair, and
+      // deposit_cents stays on the row so it shows as awaiting in the deposit
+      // tracker rather than vanishing.
+      status: depositRequired && !depositUnpayable ? 'pending' : 'confirmed',
       client_email: client_email ? client_email.toLowerCase().trim() : null,
       policy_snapshot: bookingPolicy,
       ...(paymentExpiresAt && { payment_expires_at: paymentExpiresAt }),
@@ -3669,25 +3712,65 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
   // timeZone UTC: wall time lives in the UTC slot
   const timeStr = startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
   const dateStr = startsDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
-  // Only alert on a REAL booking. A deposit booking starts as 'pending'; it must
-  // NOT fire a "waiting on a deposit" push up front (that was the noise). Ellie
-  // now hears about a deposit booking only when the deposit lands (confirmed push
-  // in the Stripe paths) or when it is abandoned (cleanup releases the slot).
-  if (appointment.status !== 'pending') {
-    pushNewBooking(beautician.id, firstName, treatmentNames, `${dateStr} at ${timeStr}`, { appointmentId: appointment.id, apptDate: appointment.starts_at, pending: false }).catch(() => {});
-  }
+  // SHE IS TOLD ABOUT EVERY BOOKING, INCLUDING THE ONES STILL BEING PAID FOR.
+  //
+  // The old gate was `if (appointment.status !== 'pending')`, and the reason
+  // given was noise: one push at the payment screen and a second when the money
+  // landed read as two bookings, so the first was dropped. But the fix for two
+  // pushes that say the same thing is two pushes that say different things, and
+  // pushNewBooking has said different things since it was written: pending:true
+  // sends "X is trying to book Y. Not confirmed until the deposit is paid" and
+  // the confirmed push from the Stripe webhook is the second beat. The gate made
+  // that copy unreachable, so a pending booking was silent, and if the client
+  // never finished paying the FIRST thing the owner ever heard about it was the
+  // cleanup saying a booking she never knew existed had been released.
+  //
+  // A booking she is never told about is worse than no booking, so the gate
+  // stays but inverts: it picks the wording rather than deciding whether to
+  // speak at all.
+  pushNewBooking(beautician.id, firstName, treatmentNames, `${dateStr} at ${timeStr}`, {
+    appointmentId: appointment.id,
+    apptDate: appointment.starts_at,
+    pending: appointment.status === 'pending',
+  }).catch(() => {});
   refreshLiveActivity(beautician.id).catch(() => {});
 
-  // If deposit required but Stripe isn't configured, return booking with deposit_pending flag
-  // so the frontend can show an appropriate message instead of silently skipping payment.
-  if (depositRequired && (!stripe || !beautician.stripe_account_id || !beautician.stripe_onboarding_complete)) {
-    // Booking created as 'pending' (beautician needs to complete Stripe setup or collect deposit manually).
-    // Don't fire the confirmation notification yet; the booking isn't actually confirmed until payment lands.
-    if (appointment.status === 'confirmed') {
-      notifyBookingConfirmed(appointment.id).catch(err =>
-        logger.warn({ err }, 'Booking confirmation notification failed (non-fatal)')
-      );
-    }
+  // A DEPOSIT NOBODY CAN PAY DOES NOT HOLD UP A BOOKING.
+  //
+  // This branch used to answer 201 with status 'pending', deposit_pending true
+  // and the line "your beautician will send a payment link to confirm your
+  // booking". Nothing in Florrie sends one. Fifteen minutes later the stale
+  // sweep cancelled the row, texted the client that her slot was released
+  // because the deposit was not paid, and pushed the owner that somebody had
+  // started a booking and not paid. Every sentence in that sequence was untrue,
+  // and it happened to a new salon's FIRST booking, because a new salon has
+  // payment_settings at the migration default and no Stripe account.
+  //
+  // So the booking is confirmed instead. Refusing it was the other honest
+  // option and it is the wrong one: the client picked a real slot on a real
+  // page, the salon can take a card or cash in the chair, and the alternative
+  // is turning away business over a payment setting nobody has opened. The
+  // deposit stays recorded on the row as awaiting, and the owner is told it
+  // could not be taken online so she can ask for it herself.
+  if (depositUnpayable) {
+    notifyBookingConfirmed(appointment.id).catch(err =>
+      logger.warn({ err }, 'Booking confirmation notification failed (non-fatal)')
+    );
+
+    // One extra line to the owner, beside the new-booking push: the money side
+    // of this booking is hers to chase, and she cannot chase what she has not
+    // been told about.
+    const owedLabel = isFullPayment
+      ? `the £${(combinedPriceCents / 100).toFixed(2)}`
+      : `the £${(depositCents / 100).toFixed(2)} deposit`;
+    pushTeamUpdate(beautician.id, 'booking_confirmed',
+      `${firstName} is booked in for ${treatmentNames}, ${dateStr} at ${timeStr}. Card payments are not set up yet, so ${owedLabel} could not be taken online. Take it at the appointment, or connect Stripe to collect it up front.`,
+      { url: `/calendar/week?date=${String(appointment.starts_at).slice(0, 10)}&appt=${appointment.id}` }
+    ).catch(() => {});
+
+    logger.warn({
+      appointmentId: appointment.id, beauticianId: beautician.id, depositCents,
+    }, 'Deposit could not be collected online (no Stripe connection), booking confirmed instead of held');
 
     // Send consultation form to first-time clients (non-blocking).
     // Skipped when they already answered inline during booking (double-ask bug).
@@ -3715,12 +3798,15 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
         date: startsDate.toLocaleDateString('en-GB', { timeZone: 'UTC' }),
         time: startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }),
         price: `£${(combinedPriceCents / 100).toFixed(2)}`,
-        deposit: `£${(depositCents / 100).toFixed(2)}`,
-        status: 'pending',
-        deposit_pending: true,
+        // deposit stays null so the page does not subtract a deposit nobody
+        // has taken from the balance it shows her. The amount still owed is
+        // the whole price, and that is what the bank-transfer panel prints.
+        deposit: null,
+        status: appointment.status,
+        deposit_pending: false,
       },
-      // No checkout_url — Stripe not ready
-      deposit_note: 'Deposit required. Your beautician will send a payment link to confirm your booking.',
+      // No checkout_url, and no promise of a payment link nothing sends.
+      deposit_note: 'Your booking is confirmed. Nothing to pay online, you can settle up at your appointment.',
       // She picked a package and it was not there to use. Saying why beats
       // showing her a bill with no explanation.
       ...(packageFellBackToPayment && { package_note: 'That package session was not available any more, so this booking has been priced as normal.' }),
@@ -3729,7 +3815,10 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
 
   // If deposit required and beautician has Stripe Connect, create Checkout session.
   // Returning clients with a saved stripe_customer_id see saved payment methods.
-  if (depositRequired && stripe && beautician.stripe_account_id && beautician.stripe_onboarding_complete) {
+  // stripeReady is the same three-part check the branch above answers with, kept
+  // as one expression so the two can never disagree about whether a payment is
+  // possible and leave a booking in the gap between them.
+  if (depositRequired && stripeReady) {
     try {
       const bookingSlug = req.params.slug;
       const dateLabel = startsDate.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });

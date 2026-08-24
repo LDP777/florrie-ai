@@ -96,7 +96,13 @@ const stale = (over = {}) => ({
 
 beforeEach(() => {
   for (const t of Object.keys(db)) db[t] = [];
-  db.beauticians.push({ id: 'b1', business_name: 'Ellindigo', booking_slug: 'ellindigo' });
+  // Stripe connected: every booking in this file COULD have been paid for, so
+  // an unpaid one is a real abandoned checkout. A salon with no Stripe account
+  // never asked anybody for the money, and cleanup leaves those alone.
+  db.beauticians.push({
+    id: 'b1', business_name: 'Ellindigo', booking_slug: 'ellindigo',
+    stripe_account_id: 'acct_1', stripe_onboarding_complete: true,
+  });
   counts.stripe_events = 5; counts.transactions = 3;
   stripeRecentEvents = 0;
   eventsError = null; piStatus.clear(); updates.length = 0;

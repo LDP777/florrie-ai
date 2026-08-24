@@ -127,6 +127,12 @@ async function stripeSaysPaid(paymentIntentId) {
  * the time slot for other clients, and send the client a friendly
  * "your slot was released, rebook here" message so an abandoned payment
  * screen doesn't silently lose the booking.
+ *
+ * Two things stop a release, both for the same reason: a slot must only be
+ * taken away when nobody paid, and not-paid has to be distinguishable from
+ * could-not-pay and from we-never-heard. paymentNewsIsArriving covers
+ * we-never-heard for the whole sweep; the per-booking check on a salon with no
+ * Stripe connection covers could-not-pay.
  */
 export async function cleanupStaleBookings() {
   const now = new Date().toISOString();
@@ -186,7 +192,127 @@ export async function cleanupStaleBookings() {
 
   let cancelled = 0;
   let rescued = 0;
+  let confirmedUnpayable = 0;
   for (const appt of stale) {
+    // WAS THERE EVER A WAY TO PAY THIS?
+    //
+    // Same shape of question as the breaker above, one booking down. The
+    // breaker asks whether the payment NEWS is reaching us; this asks whether
+    // the payment could have been made at all. Both exist because
+    // deposit_paid = false is not evidence of anything on its own.
+    //
+    // A salon with no Stripe Connect account has no Checkout session, no
+    // payment link, nothing. Until the booking route was fixed it still wrote
+    // deposit_cents from the migration 029 default and left the row 'pending',
+    // so fifteen minutes later this loop cancelled a brand new salon's first
+    // booking, texted the client that her deposit was not paid, and pushed the
+    // owner that somebody had started a booking and not paid. Nobody was ever
+    // asked for money. Releasing that slot and blaming the client for it is a
+    // lie told twice.
+    //
+    // Only rows with no payment intent are read this way: a payment intent
+    // means a Checkout session existed, so the money WAS askable and the
+    // ordinary rules apply.
+    if ((appt.deposit_cents || 0) > 0 && !appt.stripe_payment_intent_id) {
+      const salon = await getBeautician(appt.beautician_id);
+      if (!salon) {
+        // Cannot read the salon, so cannot say whether anybody could have paid.
+        // An unreadable check is not permission to cancel. Same rule as the breaker.
+        logger.warn({ appointmentId: appt.id, beauticianId: appt.beautician_id },
+          'Cleanup skipped: could not read the salon to see whether the deposit was ever payable');
+        continue;
+      }
+      const couldTakePayment = Boolean(salon.stripe_account_id) && salon.stripe_onboarding_complete === true;
+      if (!couldTakePayment) {
+        // Wall-time convention: starts_at is salon wall time parked in a UTC
+        // slot, so this compares it against a real instant and runs up to an
+        // hour optimistic through BST. That slop points the safe way: a booking
+        // that started half an hour ago still reads as ahead of us, and a
+        // client who may be sitting in the chair keeps her appointment.
+        const stillAhead = String(appt.starts_at || '') > new Date().toISOString();
+
+        if (stillAhead) {
+          // She asked for a real slot on a real page and nobody could take her
+          // money. That is the salon's problem to settle in the chair, not a
+          // reason to take the appointment away. Confirm it and say so.
+          const { error: fixErr } = await supabase
+            .from('appointments')
+            .update({ status: 'confirmed' })
+            .eq('id', appt.id)
+            .eq('status', 'pending');
+
+          if (fixErr) {
+            logger.error({ err: fixErr, appointmentId: appt.id }, 'Could not confirm a booking whose deposit was never payable');
+            continue;
+          }
+          confirmedUnpayable++;
+
+          await supabase.from('ai_actions').insert({
+            beautician_id: appt.beautician_id,
+            action_type: 'booking_confirmed_deposit_unpayable',
+            digital_employee: 'front_desk',
+            summary: 'Confirmed a booking whose deposit could never be collected online',
+            details: {
+              appointment_id: appt.id,
+              reason: 'salon_has_no_stripe_connection',
+              deposit_cents: appt.deposit_cents,
+            },
+            client_id: appt.client_id,
+            appointment_id: appt.id,
+            confidence: 1.0,
+            autonomous: true,
+            outcome: 'success',
+          });
+
+          // The owner hears about it once, honestly, and can ask for the money
+          // at the appointment.
+          try {
+            const time = String(appt.starts_at || '').slice(11, 16);
+            const day = String(appt.starts_at || '').slice(0, 10);
+            const dateLabel = day
+              ? `${new Date(`${day}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}${time ? ` at ${time}` : ''}`
+              : 'their slot';
+            const name = appt.clients?.first_name || 'Someone';
+            await pushTeamUpdate(appt.beautician_id, 'booking_confirmed',
+              `${name}'s ${appt.treatments?.name || 'appointment'} on ${dateLabel} is confirmed. Card payments are not set up, so the £${((appt.deposit_cents || 0) / 100).toFixed(2)} deposit could not be taken online. Take it at the appointment, or connect Stripe to collect deposits up front.`,
+              { url: '/calendar/week' });
+          } catch (e) {
+            logger.warn({ err: e, appointmentId: appt.id }, 'unpayable-deposit push failed (non-fatal)');
+          }
+          continue;
+        }
+
+        // Already been and gone. Confirming it now would hand it to the
+        // auto-complete sweep, which marks past confirmed bookings completed
+        // and books the takings, so a deposit nobody paid would turn into
+        // revenue nobody took. It is cleared instead, with a reason that says
+        // what actually happened, and in silence: there is no slot left to
+        // release and nothing either of them can do about it now.
+        const { error: clearErr } = await supabase
+          .from('appointments')
+          .update({
+            status: 'cancelled',
+            cancellation_reason: 'auto_cancelled_never_payable',
+            cancelled_at: new Date().toISOString(),
+          })
+          .eq('id', appt.id)
+          .eq('status', 'pending');
+        if (clearErr) {
+          logger.error({ err: clearErr, appointmentId: appt.id }, 'Could not clear a past booking whose deposit was never payable');
+          continue;
+        }
+        cancelled++;
+        logger.warn({ appointmentId: appt.id, beauticianId: appt.beautician_id },
+          'Cleared a past booking whose deposit was never payable, nobody messaged');
+        Sentry.captureMessage('Past booking cleared: its deposit was never payable', {
+          level: 'warning',
+          tags: { area: 'payments', check: 'stale_cleanup_never_payable' },
+          extra: { appointmentId: appt.id, beauticianId: appt.beautician_id },
+        });
+        continue;
+      }
+    }
+
     // One last question before her slot goes. If Stripe says this was paid, the
     // booking is real and our copy of it was wrong: repair it instead, and do
     // not message the client to say a booking they paid for has been released.
@@ -288,7 +414,7 @@ export async function cleanupStaleBookings() {
     }
   }
 
-  return { cancelled, rescued, checked: stale.length };
+  return { cancelled, rescued, confirmedUnpayable, checked: stale.length };
 }
 
 /**
