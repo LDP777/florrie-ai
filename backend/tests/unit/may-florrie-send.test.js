@@ -32,9 +32,16 @@ const KNOWLEDGE = [{ question: 'aftercare', answer: 'Keep them dry for 24 hours.
 const PRICES = [{ name: 'Korean lash lift', price_cents: 5000 }];
 const BOOKED = [{ starts_at: '2026-09-05T14:00:00', treatments: { name: 'Brow lamination' } }];
 
-/** The real grounded verdict, so these two files cannot disagree. */
+/**
+ * The real grounded verdict, so these two files cannot disagree.
+ *
+ * The beautician's own first name goes in, because that is what makes
+ * "can I speak to <her>" an ask for a human. It used to be a literal inside
+ * the module, which worked for exactly one salon.
+ */
+const HER_FIRST_NAME = 'Ellie';
 const verdict = (intent, message = 'hello', context = {}) =>
-  isGroundedReply({ intent, message, context });
+  isGroundedReply({ intent, message, context, beauticianFirstName: HER_FIRST_NAME });
 
 const decide = (intent, opts = {}) => mayFlorrieSend({
   classification: { intent, confidence: opts.confidence ?? 0.85 },

@@ -114,6 +114,11 @@ describe('grounded means the data is actually there', () => {
 });
 
 describe('asking for a person gets a person', () => {
+  // The beautician in these fixtures is the pilot, so HER name is the one
+  // that counts here. It is passed in rather than baked into the module:
+  // every tenant gets her own name matched, see tenant-name-leak.test.js.
+  const HER = 'Ellie';
+
   it.each([
     'ELLIE',
     'ellie',
@@ -125,7 +130,7 @@ describe('asking for a person gets a person', () => {
     'are you a bot',
     'are you human?',
     'is this an actual person',
-  ])('recognises %j', (m) => expect(asksForHuman(m)).toBe(true));
+  ])('recognises %j', (m) => expect(asksForHuman(m, HER)).toBe(true));
 
   it.each([
     'thanks Ellie see you Tuesday',
@@ -134,7 +139,7 @@ describe('asking for a person gets a person', () => {
     'are you free tomorrow',
     'is this the right number for lashes',
     'hi!',
-  ])('does not fire on %j', (m) => expect(asksForHuman(m)).toBe(false));
+  ])('does not fire on %j', (m) => expect(asksForHuman(m, HER)).toBe(false));
 
   it('overrides even a perfectly grounded question', () => {
     // A client who asks for Ellie by name and gets a machine is the worst

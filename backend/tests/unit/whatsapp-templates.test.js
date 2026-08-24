@@ -130,12 +130,14 @@ describe('choosing a version to send', () => {
       .toBe('booking_confirmation_v4');
   });
 
-  it('falls back to v3 while v4 is still in review', () => {
-    // This is the live pilot's path on the day v4 is submitted: her _v3
-    // templates are approved, v4 is PENDING, and nothing about her sends
-    // changes until Meta says yes.
+  it('stays on v2 while v4 is in review, rather than dropping to v3', () => {
+    // This is the second customer's path on her first day: _v3 is APPROVED
+    // on the shared WABA because the pilot submitted it, and its body has
+    // the PILOT's salon name typed into it. Upgrading to it sent her client
+    // a confirmation signed with another salon. _v2 is the plain original
+    // and names nobody, so that is where an un-upgraded send belongs.
     expect(chooseTemplateVersion('booking_confirmation_v2', approved('booking_confirmation_v3')))
-      .toBe('booking_confirmation_v3');
+      .toBe('booking_confirmation_v2');
   });
 
   it('falls back to the requested name when nothing else is approved', () => {

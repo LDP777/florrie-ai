@@ -220,7 +220,7 @@ export async function processInboundMessage(messageId, beautician, client, messa
     // One switch, so this is reversible without a deploy: autonomy.grounded_replies.
     const groundedRepliesOn = beautician.autonomy?.grounded_replies !== false;
     let groundedDecision = groundedRepliesOn
-      ? isGroundedReply({ intent: classification.intent, message: messageContent, context })
+      ? isGroundedReply({ intent: classification.intent, message: messageContent, context, beauticianFirstName: beautician.first_name })
       : { grounded: false, reason: 'grounded_replies_switched_off' };
 
     // A client Ellie already knows is a relationship she manages personally, so
@@ -246,7 +246,7 @@ export async function processInboundMessage(messageId, beautician, client, messa
     // marked so Florrie stays out of it from now on rather than making her ask
     // twice. This runs regardless of intent: a client who says "is this a bot?"
     // has said the only thing that matters in the message.
-    if (client?.id && asksForHuman(messageContent)) {
+    if (client?.id && asksForHuman(messageContent, beautician.first_name)) {
       shouldAct = false;
       try {
         await supabase.from('clients')
@@ -307,6 +307,7 @@ export async function processInboundMessage(messageId, beautician, client, messa
       if (groundedDecision?.grounded) {
         const onText = isGroundedReply({
           intent: classification.intent, message: messageContent, context, reply: result.response,
+          beauticianFirstName: beautician.first_name,
         });
         if (!onText.grounded) {
           logger.info({ beauticianId: beautician.id, clientId: client?.id, reason: onText.reason },
@@ -328,11 +329,15 @@ export async function processInboundMessage(messageId, beautician, client, messa
       // Signed, whenever Florrie is speaking for herself.
       //
       // Two things at once, and the second is the one that matters most: it
-      // says a machine wrote this so nobody thinks Ellie typed it, and it
-      // gives a one-word way out. A client cannot be expected to guess that
-      // "ELLIE" works — it has to be on the message. Nothing Ellie approves
-      // herself gets signed, because she wrote it.
-      const outgoing = signAsFlorrie(result.response, beautician.first_name || 'Ellie');
+      // says a machine wrote this so nobody thinks the beautician typed it,
+      // and it gives a one-word way out. A client cannot be expected to guess
+      // the word, so the signature prints it. Nothing she approves herself
+      // gets signed, because she wrote it.
+      //
+      // No fallback name here. `first_name` is empty on a fresh signup, and a
+      // default put the pilot's name on every other salon's messages for
+      // months; florrieSignature handles the empty case honestly instead.
+      const outgoing = signAsFlorrie(result.response, beautician.first_name);
 
       // 5a. Try to deliver. Returns true ONLY if the message was actually sent.
       // Florrie never silently auto-sends a phantom message; if delivery does not

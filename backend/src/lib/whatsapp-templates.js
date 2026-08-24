@@ -114,10 +114,66 @@ export const TEMPLATE_SPECS = {
 export const CURRENT_TEMPLATE_VERSION = 'v4';
 
 /**
- * Newest first. chooseTemplateVersion walks this list, so adding a _v5 means
- * adding it here and to every spec above, nowhere else.
+ * Versions an unversioned caller may be UPGRADED to, newest first.
+ *
+ * _v3 is deliberately absent, and this is the whole multi-tenancy fix.
+ *
+ * The Meta-approved _v3 body has the pilot salon's own name typed into it
+ * (see the header). It is still listed in `versions` above because messages
+ * were really sent on it and the inbox log has to render them, but it must
+ * never be CHOSEN for a send: any tenant whose WABA reports _v3 approved and
+ * _v4 still in review would have had her client read another salon's name.
+ * A body cannot be edited after approval, so unreachability is the only fix.
+ *
+ * That leaves the chain as: _v4 if approved, otherwise the _v2 the caller
+ * asked for, which is the plain original and names no salon (its parameter
+ * list carries first name, date, time and nothing else). Sending on _v2 is
+ * the same message every pilot client has received all year, minus the salon
+ * name, which is the correct thing to do while _v4 is in review.
+ *
+ * Adding a _v5 means adding it here and to every spec above. It will only be
+ * used if it takes the salon name as a PARAMETER, see isTenantSafeVersion.
  */
-const UPGRADE_ORDER = ['v4', 'v3'];
+const UPGRADE_ORDER = ['v4'];
+
+/**
+ * May this version be sent on behalf of ANY tenant?
+ *
+ * The rule is derived rather than listed, so a future version cannot be added
+ * silently and quietly reintroduce this bug: every body in this file greets
+ * the client with the salon name, so a version that does not carry
+ * `business_name` as a parameter is one whose body has a name written into
+ * it. That is exactly what _v3 is, and it is why _v3 fails this test.
+ *
+ * _v2 is not a candidate for upgrade at all, it is the floor the caller
+ * already asked for, so it never comes past here.
+ */
+export function isTenantSafeVersion(base, version) {
+  const fields = TEMPLATE_SPECS[base]?.versions?.[version];
+  return Array.isArray(fields) && fields.includes('business_name');
+}
+
+/**
+ * The literal salon name a template body gives away, or null.
+ *
+ * For TEMPLATE BODIES only, the ones submitted to Meta, where every value a
+ * client will read must arrive as a {{n}} parameter. A rendered message is a
+ * different thing entirely and of course contains a real salon name.
+ *
+ * The check is structural rather than a list of known salons: it looks for
+ * the shapes the copy uses to name the sender ("It's X", "from X", "with X",
+ * "at X") followed by a capitalised literal instead of a placeholder. A list
+ * of names would only ever catch the salon that already burned us.
+ */
+export function bodyLeaksSalonName(body) {
+  const text = String(body || '');
+  // Deliberately NOT case-insensitive: the capital on the literal is half the
+  // signal, so only the leading word of each phrase is allowed either case.
+  const m = text.match(
+    /\b(?:[Ii]t['\u2019]?s|[Ff]rom|[Ww]ith|[Aa]t)\s+(?!\{\{)([A-Z][A-Za-z0-9&'\u2019.-]*(?:\s+[A-Z][A-Za-z0-9&'\u2019.-]*)*)/
+  );
+  return m ? m[1] : null;
+}
 
 /**
  * Example values Meta requires alongside every {{n}} placeholder. Keyed by
@@ -229,6 +285,10 @@ export function chooseTemplateVersion(requestedName, isAvailable) {
   if (!spec || version !== 'v2') return requestedName;
   for (const candidate of UPGRADE_ORDER) {
     if (!spec.versions[candidate]) continue;
+    // Belt and braces with UPGRADE_ORDER. A version whose body names the
+    // salon itself can never be sent for a tenant who is not that salon, so
+    // it is skipped even if somebody adds it to the list above.
+    if (!isTenantSafeVersion(base, candidate)) continue;
     const name = `${base}_${candidate}`;
     if (isAvailable(name)) return name;
   }
@@ -290,11 +350,19 @@ export function starterPack(version = CURRENT_TEMPLATE_VERSION) {
     .filter(([, spec]) => !!spec.versions[version])
     .map(([base, spec]) => {
       const name = `${base}_${version}`;
+      const body = metaBodyFor(name);
+      // Nothing with a salon name written into it is ever submitted to Meta
+      // again. An approved body cannot be edited, so the only moment this can
+      // be stopped is before it is sent for review.
+      const leak = bodyLeaksSalonName(body);
+      if (leak) {
+        throw new Error(`${name} names "${leak}" in its body; the salon name must be a parameter`);
+      }
       return {
         name,
         category: spec.category,
         label: spec.label,
-        body: metaBodyFor(name),
+        body,
         examples: exampleValuesFor(name),
       };
     });

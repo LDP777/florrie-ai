@@ -66,28 +66,151 @@ const UNGROUNDED_INTENTS = new Set([
 
 /**
  * Phrases that mean the person wants a human, whatever else the message says.
- * Checked before anything else, because a client asking for Ellie by name and
- * getting a machine is the single worst outcome available here.
+ * Checked before anything else, because a client asking for her beautician by
+ * name and getting a machine is the single worst outcome available here.
+ *
+ * These are the ones that are true for EVERY salon. The beautician's own name
+ * is deliberately NOT in here. This module is loaded once and serves every
+ * tenant, so a name written into a module constant is a name written into
+ * every other salon's messages: for months this regex matched "ellie" and
+ * nothing else, which meant a client of any other salon asking to speak to
+ * her own beautician by name was not recognised as asking for a human at all.
+ * The per beautician half is built in nameMatcher() below.
  */
-const WANTS_HUMAN = new RegExp([
-  // "can I speak to Ellie", "talk to a person", "chat with someone"
-  /(speak|talk|chat)\s+(to|with)\s+(ellie|a\s+human|a\s+person|someone|somebody)/.source,
+const WANTS_HUMAN_GENERIC = new RegExp([
+  // "talk to a person", "chat with someone", "speak to the owner"
+  /(speak|talk|chat)\s+(to|with)\s+(an?\s+human|a\s+person|an?\s+actual\s+person|a\s+real\s+person|someone|somebody|the\s+owner|the\s+manager|the\s+boss)/.source,
   // "is this a bot", "is that an AI", "are you a robot", "are you human".
   // `an?` matters: a first version required "a" and missed "is that an AI",
   // which is one of the two most natural ways to ask.
   /\b(is|are)\s+(this|that|you)\s+(an?\s+)?(bot|ai|robot|human|real\s+person|actual\s+person)\b/.source,
   /\breal\s+person\b/.source,
   /\bnot\s+a\s+bot\b/.source,
-  // The bare word, on its own — what the signature tells them to send.
-  /^\s*ellie\s*[.!?]*\s*$/.source,
+  // The bare generic word on its own. Always accepted, on every tenant, even
+  // though the signature advertises her name instead: a client who has never
+  // caught her name still needs a way out, and HUMAN is the word people
+  // already try.
+  /^\s*(human|person|a\s+human|a\s+person)\s*[.!?]*\s*$/.source,
 ].join('|'), 'i');
 
-/** The word a client sends to be put through. Matched on its own line only. */
-const HUMAN_HANDOFF_WORD = /^\s*(ellie|human|person)\s*[.!?]*\s*$/i;
+/**
+ * Words the network or one of our own templates already owns. A beautician
+ * called Faith keeps FAITH; one whose name collided with an opt-out keyword
+ * would be handing clients a word that unsubscribes them instead, and
+ * gap_fill_offer really does say "Reply YES and it's yours".
+ */
+const RESERVED_WORDS = new Set([
+  'STOP', 'START', 'UNSTOP', 'UNSUBSCRIBE', 'END', 'QUIT', 'CANCEL',
+  'HELP', 'INFO', 'YES', 'NO', 'OK', 'OKAY',
+]);
 
-export function asksForHuman(message) {
-  const m = String(message || '');
-  return HUMAN_HANDOFF_WORD.test(m) || WANTS_HUMAN.test(m);
+/** The word every tenant accepts, and the fallback when a name cannot be shouted. */
+export const GENERIC_HANDOFF_WORD = 'HUMAN';
+
+/** Longer than this and a client mistypes it. See handoffWord. */
+const MAX_HANDOFF_WORD = 12;
+
+/** Accent folding, applied to her name AND to the message, so the two meet. */
+function fold(value) {
+  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+/** Her name as it is written, for the possessive in the signature. */
+function displayName(beauticianFirstName) {
+  return String(beauticianFirstName || '').replace(/\s+/g, ' ').trim();
+}
+
+function escapeRe(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * The word a client sends to be put through, derived from HER first name.
+ *
+ * The signature shouts it, so it has to survive being read in capitals and
+ * typed back on a phone keyboard:
+ *
+ *   - accents fold (Zoe with a diaeresis becomes ZOE) and the inbound message
+ *     is folded the same way, so a client who types the accent still matches
+ *   - two words take the first only (Mary Jane -> MARY), because MARYJANE is
+ *     not a word anybody would type and "MARY JANE" is not one word
+ *   - punctuation goes (O'Hara -> OHARA, Anne-Marie -> ANNEMARIE); the
+ *     apostrophe reads as a typo in caps and half of clients omit it
+ *   - a name written in a script with no Latin letters leaves nothing to
+ *     type, so it falls back rather than printing a word the client's
+ *     keyboard cannot produce
+ *   - over MAX_HANDOFF_WORD characters it falls back too. Truncating would
+ *     invent a nickname she never chose and might not answer to
+ *   - a collision with a reserved word falls back, see RESERVED_WORDS
+ *
+ * Every fallback lands on the same generic word, which is always accepted, so
+ * the escape hatch exists for every beautician whatever she is called.
+ */
+export function handoffWord(beauticianFirstName) {
+  const first = fold(beauticianFirstName).trim().split(/\s+/)[0] || '';
+  const word = first.toUpperCase().replace(/[^A-Z]/g, '');
+  if (word.length < 2 || word.length > MAX_HANDOFF_WORD) return GENERIC_HANDOFF_WORD;
+  if (RESERVED_WORDS.has(word)) return GENERIC_HANDOFF_WORD;
+  return word;
+}
+
+/**
+ * The per beautician half of the human check: her name, her handoff word, and
+ * her first name where the full name is two words. Built per beautician
+ * because the module cannot know whose salon a message arrived at, and cached
+ * because it is rebuilt on every inbound message otherwise.
+ */
+const _matcherCache = new Map();
+
+function nameMatcher(beauticianFirstName) {
+  const name = displayName(fold(beauticianFirstName));
+  if (!name) return null;
+  const hit = _matcherCache.get(name);
+  if (hit) return hit;
+
+  const word = handoffWord(name);
+  const alternatives = new Set([name.toLowerCase(), name.split(' ')[0].toLowerCase()]);
+  // The generic word is already covered above; adding it here would only make
+  // the same match twice.
+  if (word !== GENERIC_HANDOFF_WORD) alternatives.add(word.toLowerCase());
+  const group = [...alternatives].filter(Boolean).map(escapeRe).join('|');
+
+  const re = new RegExp([
+    // The bare word, on its own line, which is what the signature asks for.
+    `^\\s*(?:${group})\\s*[.!?]*\\s*$`,
+    // "can I speak to Priya", "talk with Mary Jane"
+    `(speak|talk|chat)\\s+(to|with)\\s+(?:${group})\\b`,
+  ].join('|'), 'i');
+
+  // A platform has a bounded number of beauticians, but never let a cache
+  // grow without a ceiling.
+  if (_matcherCache.size > 500) _matcherCache.clear();
+  _matcherCache.set(name, re);
+  return re;
+}
+
+/**
+ * Is this client asking for a person?
+ *
+ * `beauticianFirstName` is optional only so a caller that genuinely does not
+ * have it still gets the generic patterns. Every real caller has the
+ * beautician record in hand and must pass it: without it "can I speak to
+ * Priya" is just a sentence.
+ */
+export function asksForHuman(message, beauticianFirstName) {
+  const m = fold(message);
+  if (WANTS_HUMAN_GENERIC.test(m)) return true;
+  const byName = nameMatcher(beauticianFirstName);
+  return byName ? byName.test(m) : false;
+}
+
+/** "I'll get her to call you" in any of the forms a model writes it. */
+function promisesAHumanAction(text, beauticianFirstName) {
+  const who = ["i'?ll", 'i will', "she'?ll", 'she will', "we'?ll", 'we will'];
+  const first = displayName(fold(beauticianFirstName)).split(' ')[0];
+  if (first) who.push(`${escapeRe(first)}\\s+will`);
+  const re = new RegExp(`\\b(?:${who.join('|')})\\b.*\\b(call|ring|text|check|get back|confirm|sort)\\b`, 'i');
+  return re.test(String(text || ''));
 }
 
 /**
@@ -96,8 +219,8 @@ export function asksForHuman(message) {
  * Returns { grounded, reason }. `reason` is logged and shown in the activity
  * feed, so a decision can always be explained after the fact.
  */
-export function isGroundedReply({ intent, message, context, reply }) {
-  if (asksForHuman(message)) return { grounded: false, reason: 'asked_for_a_human' };
+export function isGroundedReply({ intent, message, context, reply, beauticianFirstName }) {
+  if (asksForHuman(message, beauticianFirstName)) return { grounded: false, reason: 'asked_for_a_human' };
 
   const key = String(intent || '').toLowerCase();
   if (UNGROUNDED_INTENTS.has(key)) return { grounded: false, reason: `ungrounded_intent:${key}` };
@@ -123,10 +246,14 @@ export function isGroundedReply({ intent, message, context, reply }) {
   }
 
   // Last line of defence, on the TEXT rather than the intent. A reply that
-  // offers a time, promises a call back or commits Ellie to anything is not a
-  // lookup any more, whatever it was classified as.
+  // offers a time, promises a call back or commits the beautician to anything
+  // is not a lookup any more, whatever it was classified as.
+  //
+  // Her own name goes in the alternation rather than a hardcoded one: "Ellie
+  // will ring you" was caught and "Priya will ring you" was not, which is the
+  // same bug as the signature in a different clothes.
   const t = String(reply || '');
-  if (/\b(i'?ll|i will|she'?ll|ellie will|we'?ll)\b.*\b(call|ring|text|check|get back|confirm|sort)\b/i.test(t)) {
+  if (promisesAHumanAction(t, beauticianFirstName)) {
     return { grounded: false, reason: 'reply_promises_a_human_action' };
   }
   if (/\b(free|available|open|got a slot|squeeze you|fit you)\b/i.test(t) && !/\bnot\b/i.test(t)) {
@@ -145,15 +272,32 @@ export function isGroundedReply({ intent, message, context, reply }) {
  * The signature on every message Florrie sends by herself.
  *
  * Two jobs, and the second is the one Levi asked for. It says a machine wrote
- * it, so nobody thinks Ellie typed it — and it gives a one-word way out, so a
- * client who wants a person is never stuck talking to software. A client
- * cannot be expected to guess that "ELLIE" works; it has to be on the message.
+ * it, so nobody thinks the beautician typed it, and it gives a one-word way
+ * out, so a client who wants a person is never stuck talking to software. A
+ * client cannot be expected to guess the word; it has to be on the message.
+ *
+ * The word is HERS, derived from her own first name by handoffWord. It used
+ * to be the literal string ELLIE for every salon on the platform, which meant
+ * a client of any other salon was told to send a word that did nothing.
+ *
+ * ONE word is advertised, not two. The line already names her ("Florrie,
+ * Priya's assistant"), so a client who does not know her name reads it in the
+ * same breath as the instruction, and a second word would add clutter to the
+ * end of every single message for no new capability. asksForHuman still
+ * accepts HUMAN, PERSON and the plain-English asks from anybody who types
+ * them unprompted, so nothing is actually lost by advertising one.
  *
  * Kept to one short line: it goes on the end of every reply, and anything
  * longer reads as a footer people learn to skip.
  */
-export function florrieSignature(beauticianFirstName = 'Ellie') {
-  return `Florrie, ${beauticianFirstName}'s assistant. Reply ELLIE if you'd rather speak to her.`;
+export function florrieSignature(beauticianFirstName) {
+  const name = displayName(beauticianFirstName);
+  const word = handoffWord(beauticianFirstName);
+  // A fresh signup can have an empty first_name, and "Florrie, 's assistant"
+  // is worse than saying nothing about who she is. There is no default name:
+  // defaulting is what put the pilot's name on other people's messages.
+  if (!name) return `Florrie, the salon's assistant. Reply ${word} if you'd rather speak to a person.`;
+  return `Florrie, ${name}'s assistant. Reply ${word} if you'd rather speak to her.`;
 }
 
 /**
