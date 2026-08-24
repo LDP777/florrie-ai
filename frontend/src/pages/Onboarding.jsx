@@ -48,6 +48,24 @@ const DEFAULT_HOURS = {
   sat: { enabled: false, start: '10:00', end: '16:00' },
   sun: { enabled: false, start: '', end: '' }
 };
+/**
+ * How far through the wizard this account already is, read from its own data.
+ *
+ * Deliberately does NOT look at working_hours: that column has a Mon-Fri 9-5
+ * database default, so it is populated from the moment the row is created and
+ * proves nothing about whether she has been through step 3.
+ */
+async function resolveResumeStep(beautician) {
+  if (beautician.booking_slug) return 5;   // step 4 is the only thing that sets it
+  if (!beautician.first_name) return 1;
+  const { count, error } = await supabase
+    .from('treatments')
+    .select('id', { count: 'exact', head: true })
+    .eq('beautician_id', beautician.id);
+  if (!error && (count || 0) > 0) return 3;
+  return 2;
+}
+
 export default function Onboarding({ onComplete }) {
   const { beautician, loading: bLoading, refresh } = useBeautician();
   const [step, setStep] = useState(1);
@@ -76,7 +94,13 @@ export default function Onboarding({ onComplete }) {
   const [pushLoading, setPushLoading] = useState(false);
   // Step 6: SMS fork (for users who don't have WhatsApp)
   const [smsForkOpen, setSmsForkOpen] = useState(false);
-  const [smsOriginator, setSmsOriginator] = useState('+447418313493');
+  // Empty on purpose. This used to be pre-filled with the SHARED platform long
+  // code and hinted "leave it as-is", so every salon that took the SMS fork
+  // claimed the same inbound number. The second one to do it made the inbound
+  // lookup ambiguous and dropped every inbound SMS for BOTH of them. Most
+  // salons have no number of their own, and empty is the correct answer for
+  // them: outbound still works, replies just are not routed.
+  const [smsOriginator, setSmsOriginator] = useState('');
   const [smsTestPhone, setSmsTestPhone] = useState('');
   const [smsTestMsg, setSmsTestMsg] = useState('');
   const [smsTesting, setSmsTesting] = useState(false);
@@ -94,6 +118,46 @@ export default function Onboarding({ onComplete }) {
   useEffect(() => {
     try { track('onboarding_step_viewed', { step, total_steps: totalSteps }); } catch { /* never block signup */ }
   }, [step]);
+
+  // Pick up where she left off.
+  //
+  // The wizard used to hold all its progress in component state, so a signup
+  // interrupted at step 3 restarted at step 1 on the next load and added a
+  // second copy of every treatment. Her own row already records how far she
+  // got, so read it from there: a booking slug can only have been set on step
+  // 4, a treatment can only have been added on step 2, a first name on step 1.
+  const [resumed, setResumed] = useState(false);
+  useEffect(() => {
+    if (resumed || bLoading || !beautician) return;
+    setResumed(true);
+
+    setFirstName(prev => prev || beautician.first_name || '');
+    setBusinessName(prev => prev || beautician.business_name || '');
+    setSlug(prev => prev || beautician.booking_slug || '');
+    const saved = beautician.working_hours;
+    if (saved && typeof saved === 'object') {
+      setHours(prev => {
+        const next = { ...prev };
+        DAY_KEYS.forEach(day => {
+          const day_hours = saved[day];
+          next[day] = day_hours?.start && day_hours?.end
+            ? { enabled: true, start: day_hours.start, end: day_hours.end }
+            : { ...prev[day], enabled: false };
+        });
+        return next;
+      });
+    }
+
+    (async () => {
+      try {
+        const resumeStep = await resolveResumeStep(beautician);
+        if (resumeStep > 1) setStep(resumeStep);
+      } catch (err) {
+        logger.warn('Could not work out the resume step, starting at 1:', err);
+      }
+    })();
+  }, [beautician, bLoading, resumed]);
+
   if (bLoading) {
     return <p style={styles.loadingText}>Setting up your account...</p>;
   }
@@ -196,10 +260,17 @@ export default function Onboarding({ onComplete }) {
         setSaving(false);
         return;
       }
-      try { track('onboarding_completed', { total_steps: totalSteps }); } catch { /* noop */ }
+      // onboarding_completed_at is NOT written here.
+      //
+      // It used to be, at step 4 of 6, which meant every exit from steps 5 and
+      // 6 was final: App.jsx only shows this wizard while the column is null,
+      // so a beautician who closed the tab on the import step never saw the
+      // card step, the Instagram connect or the push opt-in again, and had no
+      // way back to any of them. The flag now moves at the actual end of the
+      // wizard (markOnboardingComplete), and the step she left off at is
+      // worked out from her own row when she comes back.
       await updateRow('beauticians', beautician.id, {
         booking_slug: cleanSlug,
-        onboarding_completed_at: new Date().toISOString()
       });
       await refresh();
       setStep(5);
@@ -265,7 +336,31 @@ export default function Onboarding({ onComplete }) {
       setSaving(false);
     }
   }
-  function finishOnboarding(destination) {
+  /**
+   * The one place onboarding is marked done.
+   *
+   * Every way out of the last step goes through here: the dashboard button,
+   * the WhatsApp and SMS forks, and the hop to Stripe. Anything that does NOT
+   * go through here leaves the wizard open, which is the point: an abandoned
+   * signup is resumable rather than silently finished.
+   */
+  async function markOnboardingComplete() {
+    if (!beautician || beautician.onboarding_completed_at) return;
+    try {
+      await updateRow('beauticians', beautician.id, {
+        onboarding_completed_at: new Date().toISOString(),
+      });
+      try { track('onboarding_completed', { total_steps: totalSteps }); } catch { /* noop */ }
+      await refresh();
+    } catch (err) {
+      // Never trap her in the wizard over a failed write. She lands in the app
+      // and the resume logic puts her back on the last step next time.
+      logger.error('Could not mark onboarding complete:', err);
+    }
+  }
+
+  async function finishOnboarding(destination) {
+    await markOnboardingComplete();
     if (onComplete) onComplete(destination);
   }
   async function startCardCapture() {
@@ -287,6 +382,11 @@ export default function Onboarding({ onComplete }) {
       if (data.url) {
         // Stripe's hosted page collects the card. On success Stripe sends the
         // beautician back to /?billing=success and the trialing subscription is live.
+        //
+        // Marked done BEFORE we leave: Stripe returns to "/", and an account
+        // still flagged incomplete would drop the person who has just entered
+        // her card back into the wizard.
+        await markOnboardingComplete();
         window.location.href = data.url;
         return;
       }
@@ -334,11 +434,10 @@ export default function Onboarding({ onComplete }) {
     }
   }
   async function useSMSOnly() {
+    // Blank is valid and is the common case: she has no number of her own, so
+    // SMS goes out from the shared Florrie number and replies are not routed.
+    // Sending null CLEARS any inbound number rather than claiming a shared one.
     const originator = smsOriginator.trim();
-    if (!originator) {
-      setSmsError('Enter a sender number first');
-      return;
-    }
     setSmsSaving(true);
     setSmsError(null);
     try {
@@ -347,9 +446,7 @@ export default function Onboarding({ onComplete }) {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sms_originator: isPhoneSender(originator)
-            ? originator.substring(0, 16)
-            : originator.substring(0, 11),
+          sms_inbound_number: originator || null,
           sms_enabled: true,
           channel: 'sms',
         }),
@@ -793,7 +890,9 @@ export default function Onboarding({ onComplete }) {
             );
           })()}
           <p style={styles.trialNote}>
-            Add your card to start your 14-day trial. You won't be charged today, and you can cancel any time before day 14.
+            Your 14 day trial is already running, with everything switched on and
+            no card needed. Add a card now and Florrie carries straight on when
+            it ends, or leave it and we will ask you nearer the time.
           </p>
           <div style={{ ...styles.planCard,
             border: '1.5px solid var(--accent, #92405e)',
@@ -818,14 +917,17 @@ export default function Onboarding({ onComplete }) {
           )}
           {isIOSNative() ? (
             <>
+              {/* No purchase CTA and no link out to a payment page on native
+                  iOS, per App Store Guideline 3.1.3(b). The old copy here told
+                  her to go to florrie.ai and add a card "to start your 14 day
+                  trial", which was both a steer to an external purchase and
+                  untrue: the trial starts at signup either way. */}
               <div style={styles.messagingCard}>
                 <p style={{ fontSize: 14, color: 'var(--text)', margin: 0, lineHeight: 1.5 }}>
-                  To start your 14 day trial, add your card at <strong>florrie.ai</strong> from any browser. You will not be charged today, and you can cancel anytime before day 14.
+                  Your 14 day trial is running, with every feature switched on.
+                  Nothing to set up and nothing to pay today.
                 </p>
               </div>
-              <p style={styles.trialNote}>
-                Free for 14 days, then {PLAN.monthlyLabel}.
-              </p>
             </>
           ) : (
             <>
@@ -837,10 +939,10 @@ export default function Onboarding({ onComplete }) {
                 disabled={billingLoading}
                 style={{ marginTop: 12, opacity: billingLoading ? 0.6 : 1 }}
               >
-                {billingLoading ? 'Opening secure checkout...' : 'Add card and start trial'}
+                {billingLoading ? 'Opening secure checkout...' : 'Add a card now'}
               </Button>
               <p style={styles.trialNote}>
-                Free for 14 days, then {PLAN.monthlyLabel}. Save with annual billing at {PLAN.annualLabel}. Card details are handled securely by Stripe, we never see them.
+                Nothing to pay today. From day 15 it is {PLAN.monthlyLabel}, or {PLAN.annualLabel} on annual billing, and you can cancel before then from Settings. Card details are handled securely by Stripe, we never see them.
               </p>
             </>
           )}
@@ -884,7 +986,7 @@ export default function Onboarding({ onComplete }) {
                 <div style={styles.smsForkHeadRow}>
                   <div style={styles.smsForkHead}>
                     <div style={styles.smsForkTitle}>Set up SMS</div>
-                    <div style={styles.smsForkSub}>Two-way from our UK longcode. Clients can reply.</div>
+                    <div style={styles.smsForkSub}>Texts go out from our shared UK number. Replies need your own.</div>
                   </div>
                   <Button
                     variant="secondary"
@@ -901,17 +1003,17 @@ export default function Onboarding({ onComplete }) {
                   </Button>
                 </div>
                 <div style={styles.smsFieldBlock}>
-                  <label style={styles.smsFieldLabel}>Sender number</label>
+                  <label style={styles.smsFieldLabel}>Your own number, for replies (optional)</label>
                   <input
                     type="text"
                     value={smsOriginator}
-                    onChange={e => setSmsOriginator(e.target.value)}
+                    onChange={e => setSmsOriginator(e.target.value.replace(/[^0-9+ ]/g, '').substring(0, 20))}
                     style={styles.smsFieldInput}
-                    placeholder="+44 7418 313493"
+                    placeholder="Leave empty if you haven't got one"
                     inputMode="tel"
                   />
                   <div style={styles.smsFieldHint}>
-                    Pre-filled with our shared UK longcode. Leave it as-is unless you've bought your own Bird number.
+                    Only fill this in if you have bought your own Bird number. Leave it empty and your texts still go out on our shared number, clients just cannot reply to them. Our shared number is not an option here: every salon sends from it, so a reply to it would not say which salon it was meant for.
                   </div>
                 </div>
                 <div style={styles.smsFieldBlock}>
@@ -1005,7 +1107,7 @@ export default function Onboarding({ onComplete }) {
             )}
           </div>
           <Button
-            variant="primary"
+            variant="secondary"
             size="lg"
             fullWidth
             onClick={() => finishOnboarding('/')}
@@ -1013,11 +1115,11 @@ export default function Onboarding({ onComplete }) {
           >
             Go to my dashboard
           </Button>
-          {!pushGranted && (
-            <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
-              You can enable this later in Settings
-            </p>
-          )}
+          <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
+            {isIOSNative()
+              ? 'You can turn on notifications later in Settings.'
+              : 'You can add a card, or turn on notifications, any time in Settings.'}
+          </p>
         </div>
       )}
     </div>

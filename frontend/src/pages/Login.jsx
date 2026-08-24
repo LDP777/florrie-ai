@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { API_BASE } from '../lib/config.js';
 import { isIOSNative } from '../lib/platform.js';
 
@@ -37,10 +37,24 @@ const GENERIC_SIGNUP_ERROR = 'Something went wrong. Please try again.';
 const RESET_SENT_MESSAGE = "If an account exists with that email, you'll receive a password reset link shortly. Check your inbox (and spam).";
 const APPLE_NOT_CONFIGURED_MESSAGE = 'Apple sign-in coming soon. Use email or Google for now.';
 
-export default function Login({ supabase }) {
+export default function Login({ supabase, initialMode }) {
   const iosNative = isIOSNative();
+  const location = useLocation();
+  // Which form opens first.
+  //
+  // The paid CTA on the marketing site sends a buyer to /signup. Landing her on
+  // "Welcome back" with a password field and a "Sign up" toggle several taps
+  // down the page is a sign-in form, whatever the URL said, so /signup opens
+  // the signup form (App.jsx passes initialMode; ?mode=signup does the same for
+  // any link written by hand or by an ad).
+  //
+  // iOS native never opens signup: App Store Guideline 3.1.3(b).
+  const requestedMode = initialMode
+    || (new URLSearchParams(location.search).get('mode') === 'signup' ? 'signup' : null);
   // On iOS the only allowed modes are login + forgot + reset-sent. Signup is suppressed.
-  const [mode, setMode] = useState('login'); // login | signup | confirm | forgot | reset-sent
+  const [mode, setMode] = useState(
+    requestedMode === 'signup' && !iosNative ? 'signup' : 'login'
+  ); // login | signup | confirm | forgot | reset-sent
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -388,7 +402,10 @@ export default function Login({ supabase }) {
       </form>
 
       {effectiveMode === 'signup' && !iosNative && (
-        <p style={styles.trialNote}>14-day trial. Card required, but you will not be charged until day 14.</p>
+        <p style={styles.trialNote}>
+          14 days free, everything included. No card needed to start, and we will
+          remind you before it ends.
+        </p>
       )}
     </div>
   );

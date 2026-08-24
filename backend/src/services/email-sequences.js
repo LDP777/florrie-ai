@@ -3,6 +3,26 @@ import { sendEmail } from './notifications.js';
 import logger from '../lib/logger.js';
 
 /**
+ * Where the app actually lives.
+ *
+ * Every CTA in this file used to point at https://florrie.ai/<something>, and
+ * three of those paths do not exist: /dashboard is not a route (the app home is
+ * "/") and /settings#billing is read by nobody, because Settings switches tabs
+ * on ?section= and has no billing tab at all. A beautician who tapped the one
+ * button in the email landed on Not Found or on her Profile tab.
+ *
+ * Same default as routes/billing.js so the checkout return URLs and the emails
+ * cannot drift onto different hosts.
+ */
+const APP_URL = (process.env.APP_URL || 'https://app.florrie.ai').replace(/\/+$/, '');
+
+/** The page where she can actually pick a plan and pay. A real route. */
+const PLANS_URL = `${APP_URL}/pricing`;
+
+/** The app home (Hub). "/dashboard" has never been a route. */
+const APP_HOME_URL = `${APP_URL}/`;
+
+/**
  * Email Sequence Engine — drip campaigns triggered by lifecycle events.
  *
  * How it works:
@@ -37,15 +57,15 @@ const SEQUENCES = {
       {
         key: 'welcome_day7',
         delay_hours: 168,
-        subject: 'What beauticians are saying about Florrie',
+        subject: 'One week in. Have you shared your booking link?',
         build: (b) => welcomeDay7(b),
       },
-      {
-        key: 'welcome_day14',
-        delay_hours: 336,
-        subject: 'Your trial is halfway through. How\'s it going?',
-        build: (b) => welcomeDay14(b),
-      },
+      // There used to be a fourth email here, welcome_day14 at 336 hours,
+      // subject "Your trial is halfway through". The trial is 14 days long, so
+      // it landed on the LAST day of the trial and told her she had another 14
+      // to go, on the same day the trial_expiring sequence sends "your trial
+      // has ended". Its checklist was the useful part and now lives in the day
+      // 7 email; days 11 and 14 belong to trial_expiring.
     ],
   },
 
@@ -251,7 +271,7 @@ function brandedWrapper(beautician, content) {
   <tr><td style="padding:16px 36px 28px;border-top:1px solid #f0eeeb">
     <p style="margin:0;color:#a09a93;font-size:12px;text-align:center">
       Florrie: AI-powered beauty business management<br/>
-      <a href="https://florrie.ai/unsubscribe" style="color:#a09a93;text-decoration:underline">Unsubscribe</a>
+      <a href="${APP_URL}/settings?section=notifications" style="color:#a09a93;text-decoration:underline">Manage email preferences</a>
     </p>
   </td></tr>
 </table>
@@ -269,7 +289,7 @@ function ctaButton(text, url, color = '#92405E') {
 
 function welcomeDay0(b) {
   const name = b.first_name || 'there';
-  const dashUrl = `https://florrie.ai/dashboard`;
+  const dashUrl = APP_HOME_URL;
 
   const html = brandedWrapper(b, `
     <h1 style="margin:0 0 12px;color:#2d2a26;font-size:22px;font-weight:700">Hey ${name}, welcome to Florrie</h1>
@@ -334,66 +354,56 @@ function welcomeDay3(b) {
       </td></tr>
     </table>
 
-    ${ctaButton('See them in action', 'https://florrie.ai/dashboard', b.brand_color || '#92405E')}
+    ${ctaButton('See them in action', APP_HOME_URL, b.brand_color || '#92405E')}
   `);
 
-  const text = `Hey ${name}, meet your AI team:\n\n🗓 Front Desk: answers DMs in your voice\n📸 Content: turns photos into captions\n💰 Money: tracks income + tax\n🔁 Comeback Engine: nudges clients to rebook\n\nSee them in action: https://florrie.ai/dashboard`;
+  const text = `Hey ${name}, meet your AI team:\n\n🗓 Front Desk: answers DMs in your voice\n📸 Content: turns photos into captions\n💰 Money: tracks income + tax\n🔁 Comeback Engine: nudges clients to rebook\n\nSee them in action: ${APP_HOME_URL}`;
 
   return { html, text };
 }
 
+/**
+ * Day 7.
+ *
+ * This used to lead on a testimonial attributed to "Ellie, Brow & Lash
+ * Specialist, Manchester", sent to other customers. A quote in a marketing
+ * email has to be a real thing a real person said and agreed to have used, and
+ * that one could not be shown to be either, so it is gone and is deliberately
+ * not replaced with another. When there is a consented quote on file it can go
+ * back in, with the words the customer actually wrote.
+ *
+ * What is left is the part that was doing the work anyway: the booking link,
+ * plus the checklist that used to sit in a day 14 email claiming a 14-day
+ * trial was halfway through.
+ */
 function welcomeDay7(b) {
   const name = b.first_name || 'there';
+  const bookingUrl = b.booking_slug ? `https://florrie.ai/book/${b.booking_slug}` : null;
 
   const html = brandedWrapper(b, `
     <h1 style="margin:0 0 12px;color:#2d2a26;font-size:22px;font-weight:700">One week in. How's it going?</h1>
     <p style="margin:0 0 16px;color:#6b6560;font-size:15px;line-height:1.6">
-      ${name}, you've been on Florrie for a week now. Here's what beauticians like you are saying:
+      ${name}, you're a week into your trial, with a week to go. If you have not
+      sent your booking link to a client yet, that is the one thing worth doing
+      today. It is usually the moment Florrie clicks.
     </p>
-
-    <table cellpadding="0" cellspacing="0" width="100%" style="margin:0 0 24px">
-      <tr><td style="padding:16px 20px;background:#faf8f5;border-radius:12px;border-left:3px solid ${b.brand_color || '#92405E'}">
-        <p style="margin:0 0 8px;font-size:14px;color:#2d2a26;line-height:1.5;font-style:italic">
-          "I used to spend my whole Sunday night replying to DMs and doing my accounts.
-          Now Florrie handles the messages and my tax is sorted. I actually had a Sunday off."
-        </p>
-        <p style="margin:0;font-size:12px;color:#a09a93;font-weight:600">- Ellie, Brow & Lash Specialist, Manchester</p>
-      </td></tr>
-    </table>
-
-    <p style="margin:0 0 16px;color:#6b6560;font-size:15px;line-height:1.6">
-      Have you tried sharing your booking link yet? That's usually the moment it clicks.
-    </p>
-    ${b.booking_slug ? ctaButton('Your booking page', `https://florrie.ai/book/${b.booking_slug}`, b.brand_color || '#92405E') : ''}
-  `);
-
-  const text = `Hey ${name}, one week in! Here's what beauticians are saying:\n\n"I used to spend my whole Sunday night replying to DMs. Now Florrie handles everything." - Ellie, Manchester\n\nHave you tried sharing your booking link yet? That's usually the moment it clicks.`;
-
-  return { html, text };
-}
-
-function welcomeDay14(b) {
-  const name = b.first_name || 'there';
-
-  const html = brandedWrapper(b, `
-    <h1 style="margin:0 0 12px;color:#2d2a26;font-size:22px;font-weight:700">Halfway through your trial, ${name}</h1>
-    <p style="margin:0 0 16px;color:#6b6560;font-size:15px;line-height:1.6">
-      You've had two weeks with Florrie. Your trial runs for another 14 days,
-      plenty of time to see the full picture.
-    </p>
-    <p style="margin:0 0 16px;color:#6b6560;font-size:15px;line-height:1.6">
-      If there's anything you haven't tried yet, now's the time:
+    ${bookingUrl ? ctaButton('Your booking page', bookingUrl, b.brand_color || '#92405E') : ''}
+    <p style="margin:0 0 12px;color:#6b6560;font-size:15px;line-height:1.6">
+      And if you have a spare five minutes, these are the ones people tell us
+      they wish they had tried sooner:
     </p>
     <table cellpadding="0" cellspacing="0" style="margin:0 0 20px">
-      <tr><td style="padding:5px 0;color:#2d2a26;font-size:14px">☐ Upload a before/after photo → get an instant caption</td></tr>
-      <tr><td style="padding:5px 0;color:#2d2a26;font-size:14px">☐ Scan a receipt → watch it categorise for HMRC</td></tr>
-      <tr><td style="padding:5px 0;color:#2d2a26;font-size:14px">☐ Check your Tax tab → see your quarterly set-aside</td></tr>
-      <tr><td style="padding:5px 0;color:#2d2a26;font-size:14px">☐ Add a deposit requirement → cut no-shows overnight</td></tr>
+      <tr><td style="padding:5px 0;color:#2d2a26;font-size:14px">Upload a before and after photo and get an instant caption</td></tr>
+      <tr><td style="padding:5px 0;color:#2d2a26;font-size:14px">Scan a receipt and watch it categorise for HMRC</td></tr>
+      <tr><td style="padding:5px 0;color:#2d2a26;font-size:14px">Open the Money tab and see your quarterly tax set-aside</td></tr>
+      <tr><td style="padding:5px 0;color:#2d2a26;font-size:14px">Turn on deposits and cut no-shows</td></tr>
     </table>
-    ${ctaButton('Explore your dashboard', 'https://florrie.ai/dashboard', b.brand_color || '#92405E')}
+    <p style="margin:0;color:#a09a93;font-size:13px">
+      Stuck on any of it? Reply to this email, a real person reads every one.
+    </p>
   `);
 
-  const text = `Hey ${name}, you're halfway through your Florrie trial.\n\nThings to try before it ends:\n- Upload a before/after photo for an instant caption\n- Scan a receipt for HMRC categorisation\n- Check your tax tab\n- Add deposit requirements\n\nExplore: https://florrie.ai/dashboard`;
+  const text = `Hey ${name}, you're a week into your Florrie trial, with a week to go.\n\nIf you have not shared your booking link with a client yet, that is the one thing worth doing today.${bookingUrl ? `\n\nYour booking page: ${bookingUrl}` : ''}\n\nWorth five minutes:\n- Upload a before and after photo for an instant caption\n- Scan a receipt and watch it categorise for HMRC\n- Open the Money tab for your quarterly tax set-aside\n- Turn on deposits to cut no-shows\n\nStuck? Just reply to this email.`;
 
   return { html, text };
 }
@@ -408,17 +418,19 @@ function trialWarning(b) {
       ${b.trial_ends_at ? new Date(b.trial_ends_at).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }) : 'soon'}.
     </p>
     <p style="margin:0 0 16px;color:#6b6560;font-size:15px;line-height:1.6">
-      Your data, clients, and settings are all safe, nothing gets deleted.
-      But the AI features will pause until you pick a plan.
+      Your data, clients and settings are all safe, nothing gets deleted, and
+      your booking page keeps taking bookings. But the app itself locks until
+      you pick a plan: your diary, clients, inbox, money and everything Florrie
+      does for you all sit behind it.
     </p>
     <p style="margin:0 0 16px;color:#6b6560;font-size:15px;line-height:1.6">
-      Plans start at £19/month. That's less than one brow appointment,
-      and it saves you 8+ hours a week.
+      Florrie is £29 a month, or £290 a year if you pay up front. That's less
+      than one set of brows, and it saves you hours every week.
     </p>
-    ${ctaButton('Choose a plan', 'https://florrie.ai/settings#billing', b.brand_color || '#92405E')}
+    ${ctaButton('Choose a plan', PLANS_URL, b.brand_color || '#92405E')}
   `);
 
-  const text = `Hey ${name}, your Florrie trial ends in 3 days. Your data is safe, but AI features will pause. Plans start at £19/month. Choose a plan: https://florrie.ai/settings#billing`;
+  const text = `Hey ${name}, your Florrie trial ends in 3 days. Your data is safe, but the app locks until you pick a plan. Florrie is £29 a month, or £290 a year. Choose a plan: ${PLANS_URL}`;
 
   return { html, text };
 }
@@ -432,19 +444,19 @@ function trialExpired(b) {
       Hey ${name}, your 14-day trial has finished. Here's what happens now:
     </p>
     <table cellpadding="0" cellspacing="0" style="margin:0 0 20px">
-      <tr><td style="padding:6px 0;color:#2d2a26;font-size:14px">✅ Your data, clients, and bookings are <strong>safe</strong></td></tr>
-      <tr><td style="padding:6px 0;color:#2d2a26;font-size:14px">✅ Clients can still book through your link</td></tr>
-      <tr><td style="padding:6px 0;color:#2d2a26;font-size:14px">⏸ AI replies, content creation, and insights are <strong>paused</strong></td></tr>
-      <tr><td style="padding:6px 0;color:#2d2a26;font-size:14px">⏸ Smart scheduling and reminders are <strong>paused</strong></td></tr>
+      <tr><td style="padding:6px 0;color:#2d2a26;font-size:14px">✅ Your data, clients and bookings are <strong>safe</strong>, nothing is deleted</td></tr>
+      <tr><td style="padding:6px 0;color:#2d2a26;font-size:14px">✅ Clients can still book through your link, and you can still sign in</td></tr>
+      <tr><td style="padding:6px 0;color:#2d2a26;font-size:14px">⏸ Your diary, clients, inbox and money screens are <strong>locked</strong></td></tr>
+      <tr><td style="padding:6px 0;color:#2d2a26;font-size:14px">⏸ AI replies, content, reminders and smart scheduling are <strong>paused</strong></td></tr>
     </table>
     <p style="margin:0 0 16px;color:#6b6560;font-size:15px;line-height:1.6">
-      Upgrade any time to pick up right where you left off. No setup needed,
-      everything is exactly as you left it.
+      Start your plan any time to pick up right where you left off. It is £29 a
+      month, nothing to set up again, everything exactly as you left it.
     </p>
-    ${ctaButton('Upgrade now', 'https://florrie.ai/settings#billing', b.brand_color || '#92405E')}
+    ${ctaButton('Start your plan', PLANS_URL, b.brand_color || '#92405E')}
   `);
 
-  const text = `Hey ${name}, your Florrie trial has ended.\n\nYour data is safe. Clients can still book. But AI features are paused.\n\nUpgrade any time: https://florrie.ai/settings#billing`;
+  const text = `Hey ${name}, your Florrie trial has ended.\n\nYour data is safe and clients can still book through your link, but your diary, clients, inbox and money screens are locked, and Florrie has stopped replying.\n\nStart your plan for £29 a month: ${PLANS_URL}`;
 
   return { html, text };
 }

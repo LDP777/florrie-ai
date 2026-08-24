@@ -388,6 +388,11 @@ export default function App() {
       <Suspense fallback={<PageLoader />}>
         <Routes>
           <Route path="/login" element={<Login supabase={supabase} />} />
+          {/* The paid CTA on the marketing site points here. Before this route
+              existed the wildcard below sent that buyer to /login, which opens
+              on "Welcome back" with the account-creation toggle several taps
+              down the page. Same screen, signup form open. */}
+          <Route path="/signup" element={<Login supabase={supabase} initialMode="signup" />} />
           <Route path="/update-password" element={<UpdatePassword supabase={supabase} />} />
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
@@ -581,6 +586,8 @@ export default function App() {
               <Onboarding onComplete={(destination) => navigate(destination || '/')} />
             } />
             <Route path="/login" element={<Navigate to="/" replace />} />
+            {/* Already signed in and she taps the marketing CTA again. */}
+            <Route path="/signup" element={<Navigate to="/" replace />} />
             <Route path="/update-password" element={<UpdatePassword supabase={supabase} />} />
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />

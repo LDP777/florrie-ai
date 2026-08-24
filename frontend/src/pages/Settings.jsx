@@ -12,6 +12,7 @@ import ErrorCard from '../components/ErrorCard.jsx';
 import { isIOSNative } from '../lib/platform.js';
 import Button from '../components/ui/Button.jsx';
 import { isVoiceEnabled, setVoiceEnabled } from '../lib/voicePref.js';
+import { PLAN } from '../lib/subscription.js';
 import { celebrationsEnabled, setCelebrationsEnabled, bloom } from '../lib/bloom.js';
 import PageHeader from '../components/ui/PageHeader.jsx';
 
@@ -891,9 +892,17 @@ export default function Settings({ onLogout }) {
           </div>
 
           {/* Subscription management, hidden on native iOS for App Store
-              Guideline 3.1.3(b) compliance (no external purchasing surfaces). */}
-          {beautician.stripe_customer_id && !isIOSNative() && (
-            <SubscriptionManager beautician={beautician} />
+              Guideline 3.1.3(b) compliance (no external purchasing surfaces).
+              
+              With no Stripe customer yet there is nothing for the portal to
+              open, and until now that meant a beautician on a card-free trial
+              had no way to set up billing anywhere in the app short of waiting
+              for the trial to expire and hitting the lock screen. The onboarding
+              card step is a one-shot, so this is the way back to it. */}
+          {!isIOSNative() && (
+            beautician.stripe_customer_id
+              ? <SubscriptionManager beautician={beautician} />
+              : <StartPlanCard />
           )}
 
           {/* Payment methods */}
@@ -1197,6 +1206,24 @@ export default function Settings({ onLogout }) {
                 saveProfile({ notification_prefs: np });
               }}
             />
+            {/* The unsubscribe footer on every Florrie email used to point at
+                florrie.ai/unsubscribe, which is not a route and never has been.
+                The emails now point here, and this is the switch they promise:
+                marketing_emails_enabled is the exact column the sequence engine
+                checks before every send (services/email-sequences.js). */}
+            <div style={styles.toggleRow}>
+              <div style={{ flex: 1, paddingRight: 12 }}>
+                <span style={styles.toggleLabel}>Emails from Florrie</span>
+                <span style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                  Setup tips and trial reminders. Booking and payment alerts above are not affected.
+                </span>
+              </div>
+              <AutonomyToggle
+                on={beautician.marketing_emails_enabled !== false}
+                onToggle={() => saveProfile({ marketing_emails_enabled: beautician.marketing_emails_enabled === false })}
+                label="Emails from Florrie"
+              />
+            </div>
           </div>
 
           <div style={styles.card}>
@@ -1661,8 +1688,14 @@ export default function Settings({ onLogout }) {
             </div>
             {/* Expired token. The row above says so; this card explains what
                 stopped and gives her the one button that fixes it. Same OAuth
-                flow as first-time connect, so nothing new to learn. The 21 June
-                date is Ellie's actual outage start (pilot-specific copy). */}
+                flow as first-time connect, so nothing new to learn.
+                No date in the copy: it used to name 21 June, which is the day
+                the PILOT account's token died, shown to every salon whose token
+                expires whenever. Nothing we hold records when an individual
+                token stopped working (/api/instagram/status only answers "is it
+                valid right now"), so the honest version says what is broken and
+                leaves the date out. If a stopped_at is ever recorded per
+                account, this is the sentence to put it in. */}
             {igNeedsReconnect && (
               <div style={{ marginTop: 12,
                 padding: '12px 14px',
@@ -1673,7 +1706,8 @@ export default function Settings({ onLogout }) {
                   Instagram needs reconnecting
                 </p>
                 <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 10px', lineHeight: 1.5 }}>
-                  Messages still arrive, but replies, posting and client names stopped going out on 21 June. Takes one tap.
+                  Instagram DMs still reach your inbox, but replies, posting and
+                  client names are not going out until you reconnect. Takes one tap.
                 </p>
                 <Button
                   variant="danger"
@@ -1883,14 +1917,29 @@ export default function Settings({ onLogout }) {
             </div>
             <p style={styles.cardDesc}>Control what happens when clients message you on Instagram.</p>
 
-            {/* Mode selector */}
+            {/* Mode selector.
+
+                Three options because the database has three, and the one that
+                was missing is the one that is switched on by default. The list
+                used to offer only Redirect and Store only, and mapped a stored
+                'ai' onto Redirect with a tick beside it, so a new salon read
+                "Redirect to WhatsApp, selected" while Florrie was answering her
+                clients' DMs herself. The default for the column is 'ai'
+                (migration 032), and a brand new salon has no client history, so
+                nobody is a known client, the hold-for-approval branch never
+                fires and those replies go out unread.
+
+                The effective mode is resolved exactly the way the webhook
+                resolves it (routes/instagram-webhooks.js: `instagram_dm_mode ||
+                'redirect'`), so what is ticked here is what will actually
+                happen to the next DM. */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
               {[
-                { key: 'redirect', label: 'Redirect to WhatsApp', desc: 'Send one auto-reply with your WhatsApp link, then stop', icon: 'message' },
-                { key: 'off', label: 'Store only', desc: 'Log the message but don\'t reply at all', icon: 'bell' },
+                { key: 'ai', label: 'Florrie replies for you', desc: 'Florrie answers DMs herself, in your voice, and can book people in. Replies send without you seeing them first.', icon: 'sparkle' },
+                { key: 'redirect', label: 'Reply with your WhatsApp link', desc: 'One automatic reply pointing them to WhatsApp, then nothing else to that person for 7 days.', icon: 'message' },
+                { key: 'off', label: 'Store only, never reply', desc: 'The message lands in your inbox and nothing is sent back. Florrie stays quiet until you write yourself.', icon: 'bell' },
               ].map(opt => {
-                // treat legacy 'ai' setting as 'redirect' since Instagram DM replies aren't supported
-                const mode = ['ai', 'redirect'].includes(beautician.instagram_dm_mode) ? 'redirect' : (beautician.instagram_dm_mode || 'redirect');
+                const mode = beautician.instagram_dm_mode || 'redirect';
                 const active = mode === opt.key;
                 return (
                   <button className="fl-tap"
@@ -1915,8 +1964,26 @@ export default function Settings({ onLogout }) {
               })}
             </div>
 
-            {/* Redirect message editor, only shown in redirect mode */}
-            {(['redirect', 'ai'].includes(beautician.instagram_dm_mode || 'redirect')) && (() => {
+            {/* What "Florrie replies for you" means in practice, said plainly at
+                the point where it is switched on. This is also the state a Meta
+                reviewer's test DM hits: their message gets an automatic reply
+                before the account owner has typed anything. */}
+            {(beautician.instagram_dm_mode || 'redirect') === 'ai' && (
+              <div style={{ marginBottom: 16, padding: '12px 14px', borderRadius: 10, background: 'var(--warning-bg, #FAF0DC)' }}>
+                <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+                  {beautician.instagram_page_id
+                    ? 'Florrie is answering your Instagram DMs right now. She writes and sends the reply herself, so a client hears back before you have read the message.'
+                    : 'As soon as you connect Instagram, Florrie will answer your DMs herself. She writes and sends the reply, so a client hears back before you have read the message.'}
+                  {' '}Pick "Store only, never reply" above if you would rather read
+                  everything first and answer in your own words.
+                </p>
+              </div>
+            )}
+
+            {/* Redirect message editor, only shown in redirect mode. It used to
+                show in 'ai' mode too, offering to edit a message that mode
+                never sends. */}
+            {(beautician.instagram_dm_mode || 'redirect') === 'redirect' && (() => {
               const phone = beautician.phone || '';
               const digits = phone.replace(/\D/g, '');
               const waNumber = digits.startsWith('44') ? digits : digits.startsWith('0') ? `44${digits.slice(1)}` : digits;
@@ -2373,6 +2440,60 @@ const styles = {
 /**
  * SubscriptionManager, Opens Stripe Customer Portal to manage subscription
  */
+/**
+ * Set up billing before the trial runs out.
+ *
+ * Same Stripe Checkout call the last onboarding step makes (trial: true, so the
+ * card is captured now and the first charge lands on day 15). Shown only while
+ * there is no Stripe customer on the account, and never on native iOS.
+ */
+function StartPlanCard() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  async function startCheckout() {
+    setError(null);
+    setLoading(true);
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      if (!token) {
+        setError('Your session has expired. Refresh the page and try again.');
+        return;
+      }
+      const res = await fetch(`${API_BASE}/api/billing/create-checkout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ plan: PLAN.id, interval: 'monthly', trial: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data?.url) {
+        window.location.href = data.url;
+        return;
+      }
+      setError(data?.error || 'Could not open checkout. Try again in a moment.');
+    } catch (err) {
+      logger.error('Start plan error:', err);
+      setError('Could not reach billing. Check your connection and try again.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div style={styles.card}>
+      <div style={styles.cardTitle}>Your Florrie plan</div>
+      <p style={styles.cardHint}>
+        No card on file. Your trial keeps running either way, and adding one now
+        means nothing stops when it ends. {PLAN.monthlyLabel} from day 15, or {PLAN.annualLabel} on annual billing. Cancel any time before then.
+      </p>
+      {error && <p style={{ ...styles.cardHint, color: 'var(--danger, #9E2B32)', marginTop: 8 }}>{error}</p>}
+      <Button size="sm" onClick={startCheckout} disabled={loading}>
+        {loading ? 'Opening secure checkout...' : 'Add a card'}
+      </Button>
+    </div>
+  );
+}
+
 function SubscriptionManager({ beautician }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);

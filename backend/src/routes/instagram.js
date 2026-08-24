@@ -472,9 +472,31 @@ router.get('/callback', async (req, res) => {
     const patch = {
       instagram_page_id:    String(accountId),
       instagram_page_token: userToken,
-      instagram_dm_mode:    'ai', // connecting = Florrie answers DMs (changeable later)
     };
     if (username) patch.instagram_page_name = username;
+
+    // Connecting used to set instagram_dm_mode to 'ai', which meant that the
+    // act of plugging Instagram in also switched on Florrie answering strangers
+    // unsupervised. At a new salon that is the worst possible moment for it:
+    // isKnownClient is "has ever had an appointment", so at zero clients nobody
+    // is known, the hold-for-approval branch cannot fire, and the first person
+    // who ever messages her gets an unreviewed reply. It also ruins a Meta
+    // review screencast, where the reviewer's test DM is answered before the
+    // owner has typed a word.
+    //
+    // So connecting no longer decides. A salon that has already chosen a mode
+    // keeps it across a reconnect, and one that has never chosen starts silent:
+    // the DM lands in her inbox and nothing is sent back until she picks.
+    const { data: existingMode, error: modeErr } = await supabase
+      .from('beauticians')
+      .select('instagram_dm_mode')
+      .eq('id', beauticianId)
+      .maybeSingle();
+    if (modeErr) {
+      logger.warn({ err: modeErr, beauticianId }, 'Instagram: could not read the existing DM mode, leaving it alone');
+    } else if (!existingMode?.instagram_dm_mode) {
+      patch.instagram_dm_mode = 'off';
+    }
 
     const { error: updateErr } = await supabase
       .from('beauticians')
