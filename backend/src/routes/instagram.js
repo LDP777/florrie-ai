@@ -98,6 +98,17 @@ for (const p of igConfigProblems()) logger.warn({ integration: 'instagram' }, p)
 const SCOPES = [
   'instagram_business_basic',
   'instagram_business_manage_messages',
+  // Publishing was built, wired to a scheduler, and never requested here, so
+  // every token this flow has ever minted could read and reply to DMs and
+  // could not post. The Content page's Publish button was calling Meta with a
+  // token that had no permission to do it.
+  //
+  // It has to be in the list BEFORE anyone connects, because the permissions
+  // on a token are fixed at authorisation time. Adding it later means every
+  // connected account has to reconnect, and it means the Meta App Review
+  // screencast for instagram_business_content_publish cannot be recorded at
+  // all, since there is nothing to record.
+  'instagram_business_content_publish',
 ].join(',');
 
 function igConfigured() {
