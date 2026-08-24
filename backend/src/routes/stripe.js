@@ -19,6 +19,10 @@ import { chargePolicyFee } from '../services/policy-fees.js';
 import logger from '../lib/logger.js';
 import { verifyWebhook } from '../lib/stripe-webhook-secret.js';
 import { requireCronKey } from '../middleware/security.js';
+// The plan name is written in routes/billing.js and read here. Importing the
+// reader from the writer is the whole point: the key cannot drift apart again
+// without breaking the import.
+import { readPlanFromMetadata, PLAN_METADATA_KEY } from './billing.js';
 
 const router = Router();
 const stripe = process.env.STRIPE_SECRET_KEY
@@ -1677,18 +1681,51 @@ router.post('/webhook', async (req, res) => {
       case 'customer.subscription.created':
       case 'customer.subscription.updated': {
         const sub = event.data.object;
-        const planId = sub.metadata?.plan_id;
         const beauticianId = sub.metadata?.beautician_id;
 
+        // This read used to be `sub.metadata?.plan_id`, a key nothing has ever
+        // written, so it was undefined on every event and the write below fell
+        // back to 'florrie'. Renewal, card update, trial ending: any of them
+        // silently demoted a Team salon out of /team, /rota, /locations and
+        // /staff-performance. The key now comes from the same constant the
+        // checkout writes, and an unreadable plan is a shout, not a downgrade.
+        const { plan, problem, found } = readPlanFromMetadata(sub.metadata);
+
         if (beauticianId) {
+          const updates = {
+            subscription_stripe_id: sub.id,
+            subscription_status: sub.status === 'active' || sub.status === 'trialing' ? 'active' : sub.status,
+            subscription_current_period_end: sub.current_period_end
+              ? new Date(sub.current_period_end * 1000).toISOString()
+              : null,
+          };
+
+          if (plan) {
+            updates.subscription_plan = plan;
+          } else {
+            // Leave subscription_plan exactly as it is. Whatever she is on now
+            // was written by a path that knew the answer; this event does not.
+            logger.error(
+              { beauticianId, subscriptionId: sub.id, problem, found, eventType: event.type },
+              'Subscription plan unreadable from metadata, leaving the stored plan alone'
+            );
+            Sentry.captureMessage('Subscription webhook could not read the plan', {
+              level: 'error',
+              tags: { area: 'billing', check: 'subscription_plan_metadata' },
+              extra: {
+                beauticianId,
+                subscriptionId: sub.id,
+                eventType: event.type,
+                problem,
+                found: found || null,
+                expectedKey: PLAN_METADATA_KEY,
+              },
+            });
+          }
+
           await supabase
             .from('beauticians')
-            .update({
-              subscription_plan: planId || 'florrie',
-              subscription_stripe_id: sub.id,
-              subscription_status: sub.status === 'active' || sub.status === 'trialing' ? 'active' : sub.status,
-              subscription_current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
-            })
+            .update(updates)
             .eq('id', beauticianId);
         }
         break;

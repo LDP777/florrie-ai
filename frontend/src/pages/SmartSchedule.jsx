@@ -6,6 +6,7 @@ import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
+import Button from '../components/ui/Button';
 import Icon from '../components/ui/Icon';
 import Money from '../components/ui/Money';
 
@@ -101,22 +102,82 @@ function computeDayStats(appts) {
     .slice(0, 5);
 }
 
-function computeTotalWorkMinutes(workingHours) {
-  if (!workingHours) return 5 * 8 * 60;
+/** Minutes since midnight, from a "HH:MM" working-hours string. */
+function minsOfDay(hhmm) {
+  const [h, m] = String(hhmm).split(':').map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
+
+/** The next quarter hour on or after now, the granularity a slot is offered at. */
+function nextQuarter(nowMins) {
+  return Math.ceil(nowMins / 15) * 15;
+}
+
+/**
+ * The part of a working day that can still be sold.
+ *
+ * Yesterday's afternoon is not capacity, and neither is this morning. The gap
+ * finder has always known that (it drops finished gaps and clamps the one in
+ * progress), but the utilisation sum did not, so every hour that had already
+ * gone by today was counted as WORK BOOKED. Open the tab at 3pm on a Wednesday
+ * with the default 9 to 5 and an empty diary and it read "15% booked, 6h
+ * booked". Nobody had booked anything.
+ *
+ * Both sides use this now, with the same 15 minute rounding, so an empty diary
+ * subtracts to exactly zero at any hour of the day.
+ *
+ * @returns {{start: number, end: number}|null} null when nothing sellable is left
+ */
+function bookableWindow(dayStartMins, dayEndMins, isToday, nowMins) {
+  if (!(dayEndMins > dayStartMins)) return null;
+  if (!isToday) return { start: dayStartMins, end: dayEndMins };
+  const start = Math.max(dayStartMins, nextQuarter(nowMins));
+  // Under a quarter of an hour left is not a slot, and the gap finder bins it
+  // for the same reason.
+  if (dayEndMins - start < 15) return null;
+  return { start, end: dayEndMins };
+}
+
+/**
+ * Total sellable minutes across the next 7 days, today counted from now on.
+ *
+ * Returns 0 when she has no working hours set, rather than inventing a 9 to 5
+ * week. A fabricated denominator with no gaps to subtract from it reported
+ * "100% booked" to an account that had never taken a booking.
+ */
+function computeTotalWorkMinutes(workingHours, now = new Date()) {
+  if (!workingHours) return 0;
   const dayMap = { 0: 'sun', 1: 'mon', 2: 'tue', 3: 'wed', 4: 'thu', 5: 'fri', 6: 'sat' };
+  const nowMins = now.getHours() * 60 + now.getMinutes();
   let total = 0;
-  const now = new Date();
   for (let i = 0; i < 7; i++) {
     const d = new Date(now);
     d.setDate(now.getDate() + i);
-    const dayKey = dayMap[d.getDay()];
-    const hours = workingHours[dayKey];
+    const hours = workingHours[dayMap[d.getDay()]];
     if (!hours?.start || !hours?.end) continue;
-    const [sh, sm] = hours.start.split(':').map(Number);
-    const [eh, em] = hours.end.split(':').map(Number);
-    total += (eh * 60 + em) - (sh * 60 + sm);
+    const win = bookableWindow(minsOfDay(hours.start), minsOfDay(hours.end), i === 0, nowMins);
+    if (!win) continue;
+    total += win.end - win.start;
   }
-  return total || 5 * 8 * 60;
+  return total;
+}
+
+/**
+ * Blended price of an hour of her actual price list, in pence.
+ *
+ * "Revenue at risk" used to be gap hours times a hardcoded £35, a number that
+ * had nothing to do with anybody's prices. Null when there is nothing to work
+ * it out from, and the tile says so instead of printing a made-up figure.
+ */
+function hourlyRatePence(treatments) {
+  const rows = (treatments || []).filter(
+    t => Number(t?.price_cents) > 0 && Number(t?.duration_minutes) > 0
+  );
+  if (!rows.length) return null;
+  const pence = rows.reduce((s, t) => s + Number(t.price_cents), 0);
+  const minutes = rows.reduce((s, t) => s + Number(t.duration_minutes), 0);
+  if (!minutes) return null;
+  return (pence / minutes) * 60;
 }
 
 export default function SmartSchedule() {
@@ -125,6 +186,7 @@ export default function SmartSchedule() {
   const [gaps, setGaps] = useState([]);
   const [suggestions, setSuggestions] = useState({ rebook_due: [], waitlist_match: [], dormant_rescue: [] });
   const [allAppts, setAllAppts] = useState([]);
+  const [treatments, setTreatments] = useState([]);
   const [tab, setTab] = useState('gaps');
   const [loading, setLoading] = useState(true);
   const [selectedGap, setSelectedGap] = useState(null);
@@ -196,17 +258,22 @@ export default function SmartSchedule() {
         a.starts_at && a.starts_at.slice(0, 10) >= startStr && a.starts_at.slice(0, 10) <= endStr
       );
 
-      const treatments = await fetchRows('treatments', beautician.id);
-      const computedGaps = computeGapsFromAppointments(thisWeekAppts, beautician.working_hours, treatments);
+      const treatmentRows = await fetchRows('treatments', beautician.id);
+      setTreatments(treatmentRows || []);
+      const computedGaps = computeGapsFromAppointments(thisWeekAppts, beautician.working_hours, treatmentRows);
       setGaps(computedGaps);
 
-      // Coach nudge: alert about gap revenue if schedule has openings
-      if (computedGaps.length > 0) {
+      // Coach nudge: alert about gap revenue if schedule has openings.
+      // The nudge is a money warning, and the money has to be hers: the £35 an
+      // hour that used to be hardcoded here went straight into the prompt as
+      // fact. No priced treatments means no honest figure, so no warning about
+      // a number we would have had to invent.
+      const ratePence = hourlyRatePence(treatmentRows);
+      if (computedGaps.length > 0 && ratePence) {
         const totalGapMins = computedGaps.reduce((s, g) => s + g.duration_minutes, 0);
         const totalWorkMins = computeTotalWorkMinutes(beautician.working_hours);
         const utilisation = totalWorkMins > 0 ? Math.round(((totalWorkMins - totalGapMins) / totalWorkMins) * 100) : 0;
-        const avgApptValue = 3500; // £35 fallback, backend enriches with real data
-        const revenueAtRisk = Math.round((totalGapMins / 60) * (avgApptValue / 100));
+        const revenueAtRisk = Math.round((totalGapMins / 60) * (ratePence / 100));
         triggerNudge('calendar_gaps', {
           gap_count: computedGaps.length,
           gap_hours: Math.round(totalGapMins / 60),
@@ -342,17 +409,17 @@ export default function SmartSchedule() {
 
     // Today: a gap that has already passed is not a gap. Drop finished ones,
     // clamp in-progress ones to the next quarter hour, bin sub-15min slivers.
+    // Same bookableWindow() the utilisation total uses, so the two agree to
+    // the minute and an empty diary subtracts to exactly zero booked.
+    const toMins = t => { const [h, m] = String(t).split(':').map(Number); return h * 60 + m; };
     const cleaned = gaps.filter(g => {
       if (g.date !== todayStr) return true;
-      const toMins = t => { const [h, m] = String(t).split(':').map(Number); return h * 60 + m; };
-      const endM = toMins(g.end);
-      if (endM <= nowMins) return false;
       const startM = toMins(g.start);
-      if (startM < nowMins) {
-        const clamped = Math.ceil(nowMins / 15) * 15;
-        if (endM - clamped < 15) return false;
-        g.start = `${String(Math.floor(clamped / 60)).padStart(2, '0')}:${String(clamped % 60).padStart(2, '0')}`;
-        g.duration_minutes = endM - clamped;
+      const win = bookableWindow(startM, toMins(g.end), true, nowMins);
+      if (!win) return false;
+      if (win.start !== startM) {
+        g.start = `${String(Math.floor(win.start / 60)).padStart(2, '0')}:${String(win.start % 60).padStart(2, '0')}`;
+        g.duration_minutes = win.end - win.start;
         const fi = fitInfo(g.duration_minutes);
         g.fitCount = fi.fitCount; g.fitTotal = fi.fitTotal;
       }
@@ -435,13 +502,18 @@ export default function SmartSchedule() {
     }
   }
 
-  // Utilisation stats, computed from actual working hours
+  // Utilisation stats, over the hours that are still sellable: the rest of
+  // today plus the next six days. Hours that have already gone by are not
+  // capacity, so they can be neither booked nor open.
   const totalWorkMinutes = computeTotalWorkMinutes(beautician?.working_hours);
   const totalGapMinutes = gaps.reduce((sum, g) => sum + g.duration_minutes, 0);
   const bookedMins = Math.max(0, totalWorkMinutes - totalGapMinutes);
-  const utilisation = totalWorkMinutes > 0 ? Math.round((bookedMins / totalWorkMinutes) * 100) : 0;
+  const hasHours = totalWorkMinutes > 0;
+  const utilisation = hasHours ? Math.round((bookedMins / totalWorkMinutes) * 100) : 0;
   const bookedHours = Math.round(bookedMins / 60);
   const gapHours = (totalGapMinutes / 60).toFixed(1);
+  const ratePence = useMemo(() => hourlyRatePence(treatments), [treatments]);
+  const revenueAtRisk = ratePence == null ? null : Math.round((totalGapMinutes / 60) * (ratePence / 100));
 
   // Insights computed from real data
   const dayStats = useMemo(() => computeDayStats(allAppts), [allAppts]);
@@ -480,20 +552,37 @@ export default function SmartSchedule() {
         </div>
       </div>
 
-      {/* Utilisation bar */}
+      {/* Utilisation bar. "This week" means the hours left in it: today from
+          now on, plus the next six days. */}
       <div style={styles.utilisationCard}>
-        <div style={styles.utilisationHeader}>
-          <span style={styles.utilisationLabel}>This week</span>
-          <span style={styles.utilisationPct}>{utilisation}% booked</span>
-        </div>
-        <div style={styles.utilisationBar}>
-          <div style={{ ...styles.utilisationFill, width: `${utilisation}%` }} />
-        </div>
-        <div style={styles.utilisationStats}>
-          <span style={styles.utilisationStat}>{bookedHours}h booked</span>
-          <span style={styles.utilisationStat}>{gapHours}h open</span>
-          <span style={styles.utilisationStat}>{gaps.length} gaps</span>
-        </div>
+        {hasHours ? (
+          <>
+            <div style={styles.utilisationHeader}>
+              <span style={styles.utilisationLabel}>Rest of this week</span>
+              <span style={styles.utilisationPct}>{utilisation}% booked</span>
+            </div>
+            <div style={styles.utilisationBar}>
+              <div style={{ ...styles.utilisationFill, width: `${utilisation}%` }} />
+            </div>
+            <div style={styles.utilisationStats}>
+              <span style={styles.utilisationStat}>{bookedHours}h booked</span>
+              <span style={styles.utilisationStat}>{gapHours}h open</span>
+              <span style={styles.utilisationStat}>{gaps.length} gaps</span>
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={styles.utilisationHeader}>
+              <span style={styles.utilisationLabel}>Rest of this week</span>
+            </div>
+            <p style={styles.utilisationEmpty}>
+              No working hours set, so there is nothing to measure yet.
+            </p>
+            <Button variant="secondary" size="sm" onClick={() => navigate('/business')}>
+              Set your hours
+            </Button>
+          </>
+        )}
       </div>
 
       {/* Tabs */}
@@ -750,10 +839,24 @@ export default function SmartSchedule() {
               <span style={styles.insightNum}>{gapHours}h</span>
               <span style={styles.insightLabel}>Empty hours</span>
             </div>
-            <div style={styles.insightCard}>
-              <span style={styles.insightNum}>£{Math.round(totalGapMinutes / 60 * 35)}</span>
-              <span style={styles.insightLabel}>Revenue at risk</span>
-            </div>
+            {/* Was gap hours times a hardcoded £35, which was nobody's price.
+                Now it is an hour of her own price list, and if she has not
+                priced anything yet it says so rather than making one up. */}
+            {revenueAtRisk == null ? (
+              <div
+                style={{ ...styles.insightCard, cursor: 'pointer' }}
+                onClick={() => navigate('/treatments')}
+                role="button"
+              >
+                <span style={styles.insightPrompt}>Add your prices</span>
+                <span style={styles.insightLabel}>To see revenue at risk</span>
+              </div>
+            ) : (
+              <div style={styles.insightCard}>
+                <span style={styles.insightNum}>£{revenueAtRisk}</span>
+                <span style={styles.insightLabel}>Revenue at risk</span>
+              </div>
+            )}
           </div>
 
           <div style={styles.insightSection}>
@@ -830,6 +933,7 @@ const styles = {
   },
   utilisationStats: { display: 'flex', justifyContent: 'space-between' },
   utilisationStat: { fontSize: 11, color: 'var(--text-muted, #6B5D54)' },
+  utilisationEmpty: { fontSize: 13, color: 'var(--text-secondary, #574A42)', margin: '6px 0 10px', lineHeight: 1.45 },
 
   tabs: { display: 'flex', gap: 16, borderBottom: '1px solid #F0ECE8', marginBottom: 16 },
   tab: {
@@ -938,6 +1042,7 @@ const styles = {
     boxShadow: 'var(--elev-1)',
   },
   insightNum: { display: 'block', fontSize: 22, fontWeight: 700, color: 'var(--accent, #92405e)' },
+  insightPrompt: { display: 'block', fontSize: 15, fontWeight: 700, color: 'var(--accent, #92405e)', lineHeight: 1.3 },
   insightLabel: { display: 'block', fontSize: 11, color: 'var(--text-muted, #6B5D54)', textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 4 },
 
   insightSection: {

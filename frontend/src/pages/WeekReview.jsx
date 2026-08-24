@@ -18,6 +18,21 @@ const fmtGbp = pence => {
   return Number.isInteger(pounds) ? `£${pounds.toLocaleString('en-GB')}` : `£${pounds.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+/**
+ * Minutes saved, from the field the API actually sends.
+ *
+ * minutes_saved is the honest number and it is allowed to be 0. hours_saved is
+ * kept as a fallback only so a cached bundle talking to the new API (or the
+ * other way round) still renders something sane.
+ */
+function savedMinutes(stats) {
+  if (!stats) return 0;
+  if (Number.isFinite(stats.minutes_saved)) return Math.max(0, stats.minutes_saved);
+  return Math.max(0, Number(stats.hours_saved) || 0) * 60;
+}
+
 export default function WeekReview() {
   const { beautician, loading: bLoading } = useBeautician();
   const [stats, setStats] = useState(null);
@@ -45,9 +60,10 @@ export default function WeekReview() {
   }, [beautician, bLoading]);
 
   async function share() {
-    const text = stats
-      ? `My week with Florrie: ${stats.messages_answered} messages answered, ${stats.gaps_filled} gaps filled, about ${stats.hours_saved} hours saved 🌸 florrie.ai`
-      : 'My week with Florrie 🌸 florrie.ai';
+    // Built from the same numbers the card shows, and only the ones that are
+    // above zero. It used to read "0 messages answered, 0 gaps filled, about 1
+    // hours saved", which is the one advert you would not want forwarded.
+    const text = shareText || 'My week with Florrie 🌸 florrie.ai';
     try {
       if (navigator.share) {
         await navigator.share({ text });
@@ -67,6 +83,31 @@ export default function WeekReview() {
     { n: stats.brought_back, label: 'clients brought back' },
     { n: stats.bookings_taken, label: 'bookings taken on your page' },
   ].filter(r => r.n > 0) : [];
+
+  // The admin-time row is a stat like any other: it appears when there is one,
+  // and it does not appear when there is not. Under an hour it says minutes
+  // rather than rounding a real 40 minutes away to nothing.
+  const mins = savedMinutes(stats);
+  const savedNum = mins >= 60 ? `~${Math.round(mins / 60)}h` : mins > 0 ? `~${mins}min` : null;
+  const savedWords = mins >= 60 ? plural(Math.round(mins / 60), 'hour') : mins > 0 ? plural(mins, 'minute') : null;
+
+  const lines = [
+    ...rows.map(r => ({ key: r.label, num: String(r.n), label: r.label })),
+    ...(stats?.takings_pence > 0
+      ? [{ key: 'takings', num: fmtGbp(stats.takings_pence), label: 'taken this week' }]
+      : []),
+    ...(savedNum
+      ? [{ key: 'saved', num: savedNum, label: 'of admin you never had to do' }]
+      : []),
+  ];
+
+  const shareBits = stats ? [
+    stats.messages_answered > 0 ? plural(stats.messages_answered, 'message') + ' answered' : null,
+    stats.gaps_filled > 0 ? plural(stats.gaps_filled, 'gap') + ' filled' : null,
+    stats.brought_back > 0 ? plural(stats.brought_back, 'client') + ' brought back' : null,
+    savedWords ? `about ${savedWords} saved` : null,
+  ].filter(Boolean) : [];
+  const shareText = shareBits.length ? `My week with Florrie: ${shareBits.join(', ')} 🌸 florrie.ai` : null;
 
   return (
     <div style={S.page}>
@@ -98,30 +139,30 @@ export default function WeekReview() {
               : 'A quiet week on the front desk'}
           </h2>
 
-          <div style={S.statList}>
-            {rows.map(r => (
-              <div key={r.label} style={S.statRow}>
-                <span style={S.statNum}>{r.n}</span>
-                <span style={S.statLabel}>{r.label}</span>
-              </div>
-            ))}
-            {stats.takings_pence > 0 && (
-              <div style={S.statRow}>
-                <span style={S.statNum}>{fmtGbp(stats.takings_pence)}</span>
-                <span style={S.statLabel}>taken this week</span>
-              </div>
-            )}
-            <div style={{ ...S.statRow, borderBottom: 'none' }}>
-              <span style={S.statNum}>~{stats.hours_saved}h</span>
-              <span style={S.statLabel}>of admin you never had to do</span>
+          {lines.length > 0 ? (
+            <div style={S.statList}>
+              {lines.map((l, i) => (
+                <div key={l.key} style={i === lines.length - 1 ? { ...S.statRow, borderBottom: 'none' } : S.statRow}>
+                  <span style={S.statNum}>{l.num}</span>
+                  <span style={S.statLabel}>{l.label}</span>
+                </div>
+              ))}
             </div>
-          </div>
+          ) : (
+            // Nothing happened. Say so. A brand new account lands here on its
+            // first Sunday, and inventing an hour of saved admin for someone
+            // who has not had a single message yet is how a product teaches
+            // its user that its numbers are decoration.
+            <p style={S.quiet}>
+              No messages to answer, no gaps to fill, nothing to chase. Florrie sat this one out.
+            </p>
+          )}
 
           <div style={S.cardFooter}>florrie.ai · the AI front desk for beauty pros</div>
         </div>
       )}
 
-      {stats && (
+      {stats && shareText && (
         <button onClick={share} style={S.shareBtn}>
           {shared ? 'Shared 🌸' : 'Share your week'}
         </button>
@@ -159,6 +200,9 @@ const S = {
     fontSize: 24, fontWeight: 600, lineHeight: 1.22, margin: '0 0 18px',
   },
   statList: { display: 'flex', flexDirection: 'column' },
+  quiet: {
+    fontSize: 14, lineHeight: 1.5, color: 'rgba(255,255,255,0.85)', margin: '2px 0 4px',
+  },
   statRow: {
     display: 'flex', alignItems: 'baseline', gap: 12,
     padding: '11px 0', borderBottom: '1px solid rgba(255,255,255,0.14)',

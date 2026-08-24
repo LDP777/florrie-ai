@@ -29,6 +29,39 @@ function getToken() {
   } catch { return null; }
 }
 
+const DEAD_STATUSES = ['cancelled', 'cancelled_by_client', 'cancelled_by_beautician', 'no_show', 'rescheduled'];
+
+/**
+ * The salon's own calendar date, as YYYY-MM-DD.
+ *
+ * appointments.starts_at holds SALON WALL TIME in a UTC-shaped slot, so the
+ * bounds sent to the API have to be wall time too. Local midnight turned into
+ * an instant is not: in British Summer Time it is 23:00Z the previous day, so
+ * the "yesterday" window quietly slid an hour off either end of the diary.
+ */
+function wallDay(d) {
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+const dayFrom = day => `${day}T00:00:00.000Z`;
+const dayTo = day => `${day}T23:59:59.999Z`;
+
+/**
+ * What this appointment was worth, in pence.
+ *
+ * appointments.price_cents is the stored total for the booking, extras and all
+ * (see lib/appointment-treatments.js). The embedded treatment row is only a
+ * fallback for a legacy row that never got a price of its own, and it is keyed
+ * `treatments` because that is the table name PostgREST embeds under.
+ */
+function apptPricePence(a) {
+  const own = Number(a?.price_cents);
+  if (Number.isFinite(own) && own > 0) return own;
+  const fromTreatment = Number(a?.treatments?.price_cents);
+  return Number.isFinite(fromTreatment) ? fromTreatment : 0;
+}
+
 function todayKey(now = new Date()) {
   const y = now.getFullYear();
   const m = String(now.getMonth() + 1).padStart(2, '0');
@@ -148,17 +181,15 @@ async function loadData(beautician) {
   const h = { Authorization: `Bearer ${token}` };
 
   const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const todayEnd = new Date(todayStart); todayEnd.setDate(todayEnd.getDate() + 1);
-
-  const yesterdayStart = new Date(todayStart); yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+  const today = wallDay(now);
+  const yesterday = wallDay(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1));
 
   // /api/money/pulse sat in this list bound to `pulseRes` and was never read.
   // The docblock above still promises yesterday's revenue from it; that has
   // not been true for some time, and the brief renders without it.
   const [apptRes, suggRes] = await Promise.all([
     fetch(
-      `${API_BASE}/api/appointments?from=${todayStart.toISOString()}&to=${todayEnd.toISOString()}&per_page=100`,
+      `${API_BASE}/api/appointments?from=${dayFrom(today)}&to=${dayTo(today)}&per_page=100`,
       { headers: h }
     ).catch(() => null),
     // Same source as the cards below, so the brief's count can never disagree
@@ -169,29 +200,42 @@ async function loadData(beautician) {
   let todayCount = null, firstAppt = null;
   if (apptRes?.ok) {
     const j = await apptRes.json();
-    const todays = (j.data || []).filter(a => ['confirmed', 'booked'].includes(a.status));
+    // 'booked' is not a status this database has ever held (see migration 056:
+    // pending, confirmed, in_progress, completed, the cancelled family, no_show,
+    // rescheduled). Allowlisting an invented value meant a diary full of
+    // pending bookings read as an empty day, so count everything that is still
+    // going to happen instead.
+    const todays = (j.data || []).filter(a => !DEAD_STATUSES.includes(a.status));
     todayCount = todays.length;
     const sorted = todays.sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at));
     firstAppt = sorted[0] || null;
   }
 
   // Pulse is weekly, no per-day breakdown, but we can read yesterday-only by
-  // calling appointments for yesterday too. For Day 4 demo, we surface
-  // "yesterday's income" as null when we can't compute, and gracefully degrade.
+  // calling appointments for yesterday too. Null when we can't compute, and
+  // the line degrades to "Quiet day on the books."
+  //
+  // This row said "£0 taken" for every salon since it was written, because it
+  // summed price_pence off the appointment and price_pence off `treatment`.
+  // GET /api/appointments returns neither: the column is price_cents (pence,
+  // despite the name, see 001_initial_schema.sql) and the embedded relation is
+  // `treatments`, plural. Both reads were undefined, every time, so the sum was
+  // always exactly zero and looked like a real answer.
   let yesterdayRevenue = null, yesterdayNoShows = null;
   try {
     const yRes = await fetch(
-      `${API_BASE}/api/appointments?from=${yesterdayStart.toISOString()}&to=${todayStart.toISOString()}&per_page=100`,
+      `${API_BASE}/api/appointments?from=${dayFrom(yesterday)}&to=${dayTo(yesterday)}&per_page=100`,
       { headers: h }
     );
     if (yRes.ok) {
       const yj = await yRes.json();
       const yAppts = yj.data || [];
-      const completed = yAppts.filter(a => a.status === 'completed');
-      yesterdayRevenue = completed.reduce(
-        (sum, a) => sum + (a.price_pence || a.treatment?.price_pence || 0), 0
-      );
-      yesterdayNoShows = yAppts.filter(a => a.status === 'no_show').length;
+      // An empty diary is not "£0 taken", it is a day with nothing on it.
+      if (yAppts.length > 0) {
+        const completed = yAppts.filter(a => a.status === 'completed');
+        yesterdayRevenue = completed.reduce((sum, a) => sum + apptPricePence(a), 0);
+        yesterdayNoShows = yAppts.filter(a => a.status === 'no_show').length;
+      }
     }
   } catch {}
 

@@ -98,8 +98,16 @@ export async function computeWeekReview(beauticianId) {
   const bookingsTaken = bookingsRes.count || 0;
 
   // Honest time estimate: ~3 min per handled message, ~5 min per real action.
+  //
+  // This used to be Math.max(1, ...), so a week in which Florrie did precisely
+  // nothing still reported "about 1 hour saved", and the share card printed it
+  // under the "A quiet week" headline. A floor on a derived number is a lie
+  // with a nice bedside manner: it is worst for a brand new account, where the
+  // very first thing the product says about itself is untrue. No floor. Zero
+  // work is zero minutes, and minutes_saved goes out alongside the rounded
+  // hours so the card can say "40 minutes" instead of rounding it to nothing
+  // or up to an hour.
   const minutesSaved = messagesAnswered * 3 + realActions * 5;
-  const hoursSaved = Math.max(1, Math.round(minutesSaved / 60));
 
   return {
     from: fromIso.slice(0, 10),
@@ -110,8 +118,27 @@ export async function computeWeekReview(beauticianId) {
     bookings_taken: bookingsTaken,
     total_handled: totalHandled,
     takings_pence: takingsPence,
-    hours_saved: hoursSaved,
+    minutes_saved: minutesSaved,
+    hours_saved: Math.round(minutesSaved / 60),
   };
+}
+
+/**
+ * "about 40 minutes" / "about 2 hours", or null when nothing was saved.
+ *
+ * Null is the point: every caller has to decide what to say when the honest
+ * answer is nothing, instead of being handed a "0" or a rounded-up "1" to
+ * print unchallenged.
+ *
+ * @param {number} minutes
+ * @returns {string|null}
+ */
+export function formatTimeSaved(minutes) {
+  const m = Math.round(Number(minutes) || 0);
+  if (m <= 0) return null;
+  if (m < 60) return `${m} minute${m === 1 ? '' : 's'}`;
+  const hours = Math.round(m / 60);
+  return `${hours} hour${hours === 1 ? '' : 's'}`;
 }
 
 function buildPushCopy(stats) {
@@ -120,7 +147,8 @@ function buildPushCopy(stats) {
   if (stats.gaps_filled > 0) bits.push(`filled ${stats.gaps_filled} gap${stats.gaps_filled === 1 ? '' : 's'}`);
   if (stats.brought_back > 0) bits.push(`brought back ${stats.brought_back} client${stats.brought_back === 1 ? '' : 's'}`);
   if (!bits.length) return null; // a quiet week sends nothing
-  return `This week I ${bits.join(', ')} and saved you about ${stats.hours_saved} hour${stats.hours_saved === 1 ? '' : 's'}. Have a look 🌸`;
+  const saved = formatTimeSaved(stats.minutes_saved);
+  return `This week I ${bits.join(', ')}${saved ? ` and saved you about ${saved}` : ''}. Have a look 🌸`;
 }
 
 /**
