@@ -297,7 +297,7 @@ function WeekGrid({ days, apptsOn, blocksOn = () => [], onPickDay, onOpenAppt = 
                       style={{ position: 'absolute', left: 1, right: 1, top: Math.max(0, top), height,
                         background: 'repeating-linear-gradient(45deg, rgba(146,64,94,0.08) 0px, rgba(146,64,94,0.08) 5px, rgba(146,64,94,0.02) 5px, rgba(146,64,94,0.02) 10px)',
                         borderLeft: '3px solid rgba(146,64,94,0.45)',
-                        borderRadius: 6, zIndex: 1, pointerEvents: 'none',
+                        borderRadius: 'var(--radius-xs)', zIndex: 1, pointerEvents: 'none',
                         display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 4,
                       }}
                     >
@@ -559,7 +559,7 @@ const S = {
   monthCellTop: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
   monthDayNum: { fontSize: 13, fontWeight: 700, color: C.text },
   monthDayNumToday: { color: C.accent },
-  monthCount: { fontSize: 10, fontWeight: 700, color: C.accent, background: 'rgba(146, 64, 94, 0.10)', borderRadius: 6, padding: '1px 5px' },
+  monthCount: { fontSize: 10, fontWeight: 700, color: C.accent, background: 'rgba(146, 64, 94, 0.10)', borderRadius: 'var(--radius-xs)', padding: '1px 5px' },
   monthDots: { display: 'flex', flexWrap: 'wrap', gap: 3, alignItems: 'center' },
   monthDot: { width: 7, height: 7, borderRadius: '50%' },
   monthMore: { fontSize: 9, fontWeight: 700, color: C.muted },

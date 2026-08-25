@@ -274,6 +274,6 @@ const s = {
   memberTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   detailRow: { display: 'flex', justifyContent: 'space-between', padding: '4px 0', color: 'var(--text, #241B17)' },
   detailLabel: { color: 'var(--text-muted, #6B5D54)' },
-  smallBtn: { background: 'none', border: '1px solid var(--card-border, #E8DDD4)', borderRadius: 6, padding: '6px 12px', fontSize: 12, fontWeight: 500, cursor: 'pointer', color: 'var(--accent, #92405e)', fontFamily: 'inherit' },
+  smallBtn: { background: 'none', border: '1px solid var(--card-border, #E8DDD4)', borderRadius: 'var(--radius-xs)', padding: '6px 12px', fontSize: 12, fontWeight: 500, cursor: 'pointer', color: 'var(--accent, #92405e)', fontFamily: 'inherit' },
   settingsList: { display: 'flex', flexDirection: 'column', gap: 10 },
 };

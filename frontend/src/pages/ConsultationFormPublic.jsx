@@ -604,7 +604,7 @@ const styles = {
   sigCanvas: {
     width: '100%',
     height: 120,
-    borderRadius: 6,
+    borderRadius: 'var(--radius-xs)',
     background: '#faf9f7',
     border: '1px dashed #d4d0cb',
     touchAction: 'none',

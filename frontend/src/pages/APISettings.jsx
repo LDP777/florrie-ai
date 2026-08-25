@@ -128,8 +128,8 @@ export default function APISettings() {
           <div style={{ ...ds.insightCard, marginTop: 16 }}>
             <span style={{ fontSize: 18 }}><Icon name="lock" size={15} /></span>
             <div style={{ ...type.bodySmall, fontSize: 12, lineHeight: 1.5 }}>
-              All authenticated endpoints require a <code style={{ fontFamily: 'var(--font-mono)', background: 'var(--bg-subtle)', padding: '1px 4px', borderRadius: 6 }}>Bearer</code> token
-              from your Supabase session. Pass it as the <code style={{ fontFamily: 'var(--font-mono)', background: 'var(--bg-subtle)', padding: '1px 4px', borderRadius: 6 }}>Authorization</code> header.
+              All authenticated endpoints require a <code style={{ fontFamily: 'var(--font-mono)', background: 'var(--bg-subtle)', padding: '1px 4px', borderRadius: 'var(--radius-xs)' }}>Bearer</code> token
+              from your Supabase session. Pass it as the <code style={{ fontFamily: 'var(--font-mono)', background: 'var(--bg-subtle)', padding: '1px 4px', borderRadius: 'var(--radius-xs)' }}>Authorization</code> header.
             </div>
           </div>
         </div>

@@ -815,17 +815,17 @@ const styles = {
   treatmentDesc: { fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   treatmentActions: { display: 'flex', gap: 6, marginLeft: 10, flexShrink: 0 },
   editBtn: {
-    padding: '5px 10px', borderRadius: 6, border: 'none',
+    padding: '5px 10px', borderRadius: 'var(--radius-xs)', border: 'none',
     background: 'var(--accent-light)', color: 'var(--accent)', fontSize: 11, fontWeight: 500,
     cursor: 'pointer', fontFamily: 'inherit'
   },
   deactivateBtn: {
-    padding: '5px 10px', borderRadius: 6, border: 'none',
+    padding: '5px 10px', borderRadius: 'var(--radius-xs)', border: 'none',
     background: 'var(--border-light)', color: 'var(--text-secondary)', fontSize: 11, fontWeight: 500,
     cursor: 'pointer', fontFamily: 'inherit'
   },
   reactivateBtn: {
-    padding: '5px 10px', borderRadius: 6, border: 'none',
+    padding: '5px 10px', borderRadius: 'var(--radius-xs)', border: 'none',
     background: 'var(--success-bg)', color: 'var(--success)', fontSize: 11, fontWeight: 500,
     cursor: 'pointer', fontFamily: 'inherit'
   },
@@ -886,7 +886,7 @@ const styles = {
     border: '1px solid var(--border)', fontSize: 13, color: 'var(--text-secondary)'
   },
   previewCheckbox: {
-    width: 18, height: 18, borderRadius: 6, border: '1.5px solid var(--border)',
+    width: 18, height: 18, borderRadius: 'var(--radius-xs)', border: '1.5px solid var(--border)',
     background: 'var(--bg-card, #FFFCF9)', display: 'inline-block', flexShrink: 0
   },
   previewInputGhost: {

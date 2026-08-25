@@ -984,7 +984,7 @@ const styles = {
   navDot: {
     width: 4,
     height: 4,
-    borderRadius: 6,
+    borderRadius: 'var(--radius-xs)',
     background: '#92405e',
     position: 'absolute',
     bottom: -1,

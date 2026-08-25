@@ -924,10 +924,10 @@ const styles = {
   utilisationLabel: { fontSize: 12, color: 'var(--text-muted, #6B5D54)', textTransform: 'uppercase', letterSpacing: '0.04em' },
   utilisationPct: { fontSize: 14, fontWeight: 700, color: 'var(--text-primary, #241B17)' },
   utilisationBar: {
-    height: 8, borderRadius: 6, background: '#F0ECE8', overflow: 'hidden', marginBottom: 8,
+    height: 8, borderRadius: 'var(--radius-xs)', background: '#F0ECE8', overflow: 'hidden', marginBottom: 8,
   },
   utilisationFill: {
-    height: '100%', borderRadius: 6,
+    height: '100%', borderRadius: 'var(--radius-xs)',
     background: 'linear-gradient(90deg, #B9466D, #C9315D)',
     transition: 'width 0.6s ease',
   },
@@ -955,7 +955,7 @@ const styles = {
   gapSlot: { fontSize: 15, fontWeight: 700, color: 'var(--text-primary, #241B17)' },
   gapDuration: { fontSize: 11, color: 'var(--text-muted, #6B5D54)' },
   fillBadge: {
-    padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
+    padding: '4px 10px', borderRadius: 'var(--radius-xs)', fontSize: 11, fontWeight: 600,
   },
   gapSuggestHint: { fontSize: 12, color: '#6b6560', marginTop: 8, display: 'block' },
 
@@ -1031,7 +1031,7 @@ const styles = {
   },
   suggReasonText: { fontSize: 12, color: '#6b6560', margin: '8px 0', lineHeight: 1.4 },
   overdueBadge: {
-    padding: '3px 8px', borderRadius: 6, fontSize: 10, fontWeight: 600,
+    padding: '3px 8px', borderRadius: 'var(--radius-xs)', fontSize: 10, fontWeight: 600,
     background: '#FEF2F2', color: '#c32424', flexShrink: 0,
   },
 
@@ -1052,8 +1052,8 @@ const styles = {
   insightSectionTitle: { fontSize: 14, fontWeight: 600, margin: '0 0 12px', color: 'var(--text-primary, #241B17)' },
   dayRow: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 },
   dayName: { fontSize: 12, color: '#5A5550', width: 70, flexShrink: 0 },
-  dayBar: { flex: 1, height: 6, borderRadius: 6, background: '#F0ECE8', overflow: 'hidden' },
-  dayBarFill: { height: '100%', borderRadius: 6, transition: 'width 0.6s ease' },
+  dayBar: { flex: 1, height: 6, borderRadius: 'var(--radius-xs)', background: '#F0ECE8', overflow: 'hidden' },
+  dayBarFill: { height: '100%', borderRadius: 'var(--radius-xs)', transition: 'width 0.6s ease' },
   dayPct: { fontSize: 11, fontWeight: 600, color: 'var(--text-primary, #241B17)', width: 30, textAlign: 'right' },
 
   hardSlotList: { display: 'flex', flexDirection: 'column', gap: 8 },

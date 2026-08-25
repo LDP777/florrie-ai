@@ -381,7 +381,7 @@ const styles = {
   memberInfo: { flex: 1, display: 'flex', flexDirection: 'column', gap: 2 },
   memberName: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #241B17)' },
   memberRole: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #6B5D54))' },
-  statusDot: { width: 8, height: 8, borderRadius: 6 },
+  statusDot: { width: 8, height: 8, borderRadius: 'var(--radius-xs)' },
   chevron: { fontSize: 18, color: '#756A5F', fontWeight: 300 },
 
   // Modal
@@ -407,7 +407,7 @@ const styles = {
   hoursGrid: { display: 'flex', flexDirection: 'column', gap: 4 },
   hourRow: { display: 'flex', gap: 12, alignItems: 'center' },
   permList: { display: 'flex', flexWrap: 'wrap', gap: 6 },
-  permBadge: { padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600 },
+  permBadge: { padding: '4px 10px', borderRadius: 'var(--radius-xs)', fontSize: 11, fontWeight: 600 },
   detailActions: { display: 'flex', flexDirection: 'column', gap: 8, marginTop: 20 },
   actionBtn: { width: '100%', padding: '12px 0', borderRadius: 10, border: '1.5px solid', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 

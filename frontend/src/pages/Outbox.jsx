@@ -944,7 +944,7 @@ const s = {
   skeletonCard: { pointerEvents: 'none' },
   skelLine: {
     height: 13,
-    borderRadius: 6,
+    borderRadius: 'var(--radius-xs)',
     background: 'var(--border-light, #ede7e3)',
   },
   skelBlock: {
@@ -996,8 +996,8 @@ const s = {
     left: '50%',
     bottom: 'calc(env(safe-area-inset-bottom, 8px) + 92px)',
     transform: 'translateX(-50%)',
-    background: 'var(--text-primary, #241B17)',
-    color: '#fff',
+    background: 'var(--surface-inverse)',
+    color: 'var(--text-on-inverse)',
     fontSize: 13,
     fontWeight: 500,
     padding: '10px 18px',

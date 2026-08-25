@@ -714,8 +714,8 @@ const styles = {
   barChart: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: 120, gap: 4, paddingTop: 8 },
   barCol: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flex: 1 },
   barValue: { fontSize: 10, fontWeight: 600, color: 'var(--text-muted, #6B5D54)' },
-  barTrack: { width: '100%', height: 80, borderRadius: 6, background: 'var(--bg, #FBF6F1)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', overflow: 'hidden' },
-  barFill: { width: '100%', borderRadius: 6, transition: 'height 0.4s ease', minHeight: 3 },
+  barTrack: { width: '100%', height: 80, borderRadius: 'var(--radius-xs)', background: 'var(--bg, #FBF6F1)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', overflow: 'hidden' },
+  barFill: { width: '100%', borderRadius: 'var(--radius-xs)', transition: 'height 0.4s ease', minHeight: 3 },
   barLabel: { fontSize: 10, fontWeight: 600 },
 
   insightsList: { display: 'flex', flexDirection: 'column', gap: 8 },

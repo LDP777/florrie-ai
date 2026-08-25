@@ -692,7 +692,7 @@ const styles = {
   alertInfo: { flex: 1, display: 'flex', flexDirection: 'column', gap: 2 },
   alertName: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' },
   alertDetail: { fontSize: 11, color: 'var(--text-muted)' },
-  alertBadge: { padding: '3px 8px', borderRadius: 6, fontSize: 10, fontWeight: 600, flexShrink: 0 },
+  alertBadge: { padding: '3px 8px', borderRadius: 'var(--radius-xs)', fontSize: 10, fontWeight: 600, flexShrink: 0 },
   alertActions: { display: 'flex', gap: 8 },
   remindBtn: { flex: 1, padding: '8px 0', borderRadius: 10, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   logBtn: { padding: '8px 14px', borderRadius: 10, border: '1.5px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-secondary)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
@@ -705,7 +705,7 @@ const styles = {
   testInfo: { flex: 1, display: 'flex', flexDirection: 'column', gap: 1 },
   testName: { fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' },
   testMeta: { fontSize: 11, color: 'var(--warning)' },
-  smallRemindBtn: { padding: '5px 10px', borderRadius: 6, border: 'none', background: 'var(--warning-bg)', color: 'var(--warning)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  smallRemindBtn: { padding: '5px 10px', borderRadius: 'var(--radius-xs)', border: 'none', background: 'var(--warning-bg)', color: 'var(--warning)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
   // All tests
   testList: { display: 'flex', flexDirection: 'column', gap: 10 },
@@ -715,7 +715,7 @@ const styles = {
   testCardInfo: { flex: 1, display: 'flex', flexDirection: 'column', gap: 1 },
   testCardName: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' },
   testCardDate: { fontSize: 11, color: 'var(--text-muted)' },
-  statusBadge: { padding: '3px 8px', borderRadius: 6, fontSize: 10, fontWeight: 600, flexShrink: 0 },
+  statusBadge: { padding: '3px 8px', borderRadius: 'var(--radius-xs)', fontSize: 10, fontWeight: 600, flexShrink: 0 },
   testCardBody: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   testResult: { fontSize: 12, color: 'var(--text-secondary)' },
   testExpiry: { fontSize: 11, color: 'var(--text-muted)' },

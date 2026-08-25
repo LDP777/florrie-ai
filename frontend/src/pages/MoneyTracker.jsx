@@ -1297,7 +1297,7 @@ export default function MoneyTracker() {
                       <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
                         <div style={{ width: '100%',
                           height: h,
-                          borderRadius: 6,
+                          borderRadius: 'var(--radius-xs)',
                           background: isToday
                             ? 'linear-gradient(180deg, #B9466D 0%, #92405e 100%)'
                             : 'rgba(146, 64, 94, 0.15)',
@@ -2179,8 +2179,8 @@ export default function MoneyTracker() {
                   <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t.period.start} to {t.period.end}</span>
 
                   {/* Year progress bar */}
-                  <div style={{ marginTop: 10, background: 'var(--border, #E8DDD4)', borderRadius: 6, height: 6, overflow: 'hidden' }}>
-                    <div style={{ width: `${Math.round(t.yearProgress * 100)}%`, height: '100%', background: 'var(--accent, #92405e)', borderRadius: 6, transition: 'width 0.3s ease' }} />
+                  <div style={{ marginTop: 10, background: 'var(--border, #E8DDD4)', borderRadius: 'var(--radius-xs)', height: 6, overflow: 'hidden' }}>
+                    <div style={{ width: `${Math.round(t.yearProgress * 100)}%`, height: '100%', background: 'var(--accent, #92405e)', borderRadius: 'var(--radius-xs)', transition: 'width 0.3s ease' }} />
                   </div>
                   <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>{Math.round(t.yearProgress * 100)}% through tax year</span>
                 </div>
@@ -2286,8 +2286,8 @@ export default function MoneyTracker() {
                       <h4 style={{ ...S.breakdownTitle, margin: 0 }}>VAT Threshold</h4>
                       <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Not registered</span>
                     </div>
-                    <div style={{ background: 'var(--border, #E8DDD4)', borderRadius: 6, height: 8, overflow: 'hidden', marginBottom: 6 }}>
-                      <div style={{ width: `${t.vat.vatPct}%`, height: '100%', borderRadius: 6, transition: 'width 0.4s ease',
+                    <div style={{ background: 'var(--border, #E8DDD4)', borderRadius: 'var(--radius-xs)', height: 8, overflow: 'hidden', marginBottom: 6 }}>
+                      <div style={{ width: `${t.vat.vatPct}%`, height: '100%', borderRadius: 'var(--radius-xs)', transition: 'width 0.4s ease',
                         background: t.vat.vatPct >= 90 ? '#ef4444' : t.vat.vatPct >= 75 ? '#f59e0b' : '#22c55e',
                       }} />
                     </div>

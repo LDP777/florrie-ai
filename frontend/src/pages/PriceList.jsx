@@ -466,7 +466,7 @@ const S = {
   toast: {
     position: 'fixed', bottom: 90, left: '50%', transform: 'translateX(-50%)',
     display: 'flex', alignItems: 'center', gap: 8,
-    background: 'var(--text-primary, #241B17)', color: '#fff',
+    background: 'var(--surface-inverse)', color: 'var(--text-on-inverse)',
     padding: '10px 20px', borderRadius: 10,
     boxShadow: 'var(--elev-3)',
     zIndex: 9999, fontSize: 13, fontWeight: 500,

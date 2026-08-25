@@ -201,7 +201,7 @@ export default function SMSConfig() {
           <div>
             <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 4 }}>SMS GATEWAY</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-              <div style={{ width: 10, height: 10, borderRadius: 6,
+              <div style={{ width: 10, height: 10, borderRadius: 'var(--radius-xs)',
                 background: birdConfigured ? '#4ADE80' : '#F87171',
               }} />
               <span style={{ fontSize: 16, fontWeight: 600 }}>
@@ -213,7 +213,7 @@ export default function SMSConfig() {
               {smsEnabled ? ' · SMS enabled' : ' · SMS disabled (WhatsApp primary)'}
             </div>
             <div style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 999, background: twoWay ? 'rgba(74,222,128,0.2)' : 'rgba(250,204,21,0.18)', fontSize: 11, fontWeight: 600 }}>
-              <span style={{ width: 6, height: 6, borderRadius: 6, background: twoWay ? '#4ADE80' : '#FACC15' }} />
+              <span style={{ width: 6, height: 6, borderRadius: 'var(--radius-xs)', background: twoWay ? '#4ADE80' : '#FACC15' }} />
               {twoWay
                 ? `2-way, clients can reply on ${config.sms_inbound_number}`
                 : 'One-way. Replies are not delivered'}

@@ -619,7 +619,7 @@ const S = {
     minWidth: 0,
   },
   excDot: {
-    width: 4, height: 4, borderRadius: 6, marginTop: 1,
+    width: 4, height: 4, borderRadius: 'var(--radius-xs)', marginTop: 1,
   },
 
   // Legend
@@ -628,7 +628,7 @@ const S = {
     padding: '10px 0', marginBottom: 8,
   },
   legendItem: { display: 'flex', alignItems: 'center', gap: 5 },
-  legendDot: { width: 8, height: 8, borderRadius: 6 },
+  legendDot: { width: 8, height: 8, borderRadius: 'var(--radius-xs)' },
   legendLabel: { fontSize: 11, color: 'var(--text-muted)' },
 
   // Quick-block panel
@@ -711,10 +711,10 @@ const S = {
     background: 'var(--bg-card, #FFFCF9)', borderRadius: 10, padding: '12px 12px',
     boxShadow: 'var(--elev-1)',
   },
-  excDotLarge: { width: 10, height: 10, borderRadius: 6, flexShrink: 0 },
+  excDotLarge: { width: 10, height: 10, borderRadius: 'var(--radius-xs)', flexShrink: 0 },
   excTopRow:   { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
   excDate:     { fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #241B17)' },
-  excBadge:    { padding: '2px 7px', borderRadius: 6, fontSize: 10, fontWeight: 600, flexShrink: 0 },
+  excBadge:    { padding: '2px 7px', borderRadius: 'var(--radius-xs)', fontSize: 10, fontWeight: 600, flexShrink: 0 },
   excTimes:    { display: 'block', fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 },
   excMeta:     { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' },
   excAway:     { fontSize: 11, color: 'var(--text-muted, #6B5D54)' },

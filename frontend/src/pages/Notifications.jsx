@@ -185,8 +185,9 @@ export default function Notifications() {
         <button
           onClick={() => setFilter('all')}
           style={{ ...styles.filterChip,
-            background: filter === 'all' ? 'var(--text-primary, #241B17)' : 'var(--bg-card, #FFFCF9)',
-            color: filter === 'all' ? 'var(--bg-card, #FFFCF9)' : '#5A5550',
+            background: filter === 'all' ? 'var(--accent)' : 'var(--bg-card, #FFFCF9)',
+            color: filter === 'all' ? 'var(--on-accent, #fff)' : '#5A5550',
+            borderColor: filter === 'all' ? 'var(--accent)' : 'var(--border, #E8DDD4)',
           }}
         >
           All
@@ -329,7 +330,7 @@ const styles = {
   notifTime: { fontSize: 10, color: 'var(--text-muted, #6B5D54)', flexShrink: 0, marginLeft: 8 },
   notifText: { fontSize: 12, color: 'var(--text-muted)', margin: 0, lineHeight: 1.4 },
   unreadDot: {
-    width: 8, height: 8, borderRadius: 6, background: 'var(--accent, #92405e)',
+    width: 8, height: 8, borderRadius: 'var(--radius-xs)', background: 'var(--accent, #92405e)',
     position: 'absolute', top: 14, right: 10, flexShrink: 0,
   },
 

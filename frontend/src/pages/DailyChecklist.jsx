@@ -587,7 +587,7 @@ export default function DailyChecklist() {
             <Icon name={iconName(t.icon)} size={16} filled={tab === t.key} inline style={{ color: tab === t.key ? '#fff' : 'var(--text-muted, #6B5D54)' }} />
             {t.label}
             {editing && <span style={{ fontSize: 9, fontWeight: 700, marginLeft: 2,
-              background: 'rgba(255,255,255,0.25)', borderRadius: 6,
+              background: 'rgba(255,255,255,0.25)', borderRadius: 'var(--radius-xs)',
               padding: '1px 4px', color: tab === t.key ? '#fff' : 'var(--text-muted, #6B5D54)',
             }}>{checklists[t.key]?.length || 0}</span>}
           </button>
@@ -904,11 +904,11 @@ const S = {
   // Progress
   progressSection: { marginBottom: 16 },
   progressTrack: {
-    height: 6, borderRadius: 6,
+    height: 6, borderRadius: 'var(--radius-xs)',
     background: 'rgba(146, 64, 94, 0.08)',
     overflow: 'hidden', marginBottom: 4,
   },
-  progressFill: { height: '100%', borderRadius: 6, transition: 'width 0.3s ease' },
+  progressFill: { height: '100%', borderRadius: 'var(--radius-xs)', transition: 'width 0.3s ease' },
   progressText: { fontSize: 11, color: 'var(--text-muted, #6B5D54)', fontWeight: 500 },
   // Checklist items
   checkItem: {

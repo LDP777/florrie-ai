@@ -303,7 +303,7 @@ const styles = {
   reasonBadge: {
     display: 'inline-block',
     padding: '4px 10px',
-    borderRadius: 6,
+    borderRadius: 'var(--radius-xs)',
     fontSize: 11,
     fontWeight: 500,
     background: 'var(--warning-bg)',

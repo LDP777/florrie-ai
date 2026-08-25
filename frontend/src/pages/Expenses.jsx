@@ -486,8 +486,8 @@ const S = {
   catName: { fontSize: 14, fontWeight: 600, color: 'var(--text, var(--text-primary, #241B17))' },
   catPct: { fontSize: 11, color: 'var(--text-muted, var(--text-muted, #6B5D54))' },
   catRight: { display: 'flex', alignItems: 'center', gap: 10 },
-  catBarBg: { width: 60, height: 6, borderRadius: 6, background: 'var(--border, var(--border, #E8DDD4))' },
-  catBarFill: { height: 6, borderRadius: 6 },
+  catBarBg: { width: 60, height: 6, borderRadius: 'var(--radius-xs)', background: 'var(--border, var(--border, #E8DDD4))' },
+  catBarFill: { height: 6, borderRadius: 'var(--radius-xs)' },
   catAmount: { fontSize: 14, fontWeight: 600, color: 'var(--text, var(--text-primary, #241B17))', minWidth: 60, textAlign: 'right' },
 
   // Recurring
@@ -509,9 +509,9 @@ const S = {
   expenseVendor: { fontSize: 14, fontWeight: 600, color: 'var(--text, var(--text-primary, #241B17))' },
   expenseDesc: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #6B5D54))' },
   expenseTags: { display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' },
-  tagDate: { fontSize: 10, color: 'var(--text-secondary, #574A42)', padding: '2px 6px', borderRadius: 6, background: 'var(--border, var(--border, #E8DDD4))' },
-  tagRecurring: { fontSize: 10, color: '#675a78', padding: '2px 6px', borderRadius: 6, background: '#F0E6F4' },
-  tagTax: { fontSize: 10, color: 'var(--success, #386F52)', padding: '2px 6px', borderRadius: 6, background: 'var(--success-bg, #E9F0EB)' },
+  tagDate: { fontSize: 10, color: 'var(--text-secondary, #574A42)', padding: '2px 6px', borderRadius: 'var(--radius-xs)', background: 'var(--border, var(--border, #E8DDD4))' },
+  tagRecurring: { fontSize: 10, color: '#675a78', padding: '2px 6px', borderRadius: 'var(--radius-xs)', background: '#F0E6F4' },
+  tagTax: { fontSize: 10, color: 'var(--success, #386F52)', padding: '2px 6px', borderRadius: 'var(--radius-xs)', background: 'var(--success-bg, #E9F0EB)' },
   expenseAmount: { fontSize: 15, fontWeight: 700, color: 'var(--accent, #92405e)', whiteSpace: 'nowrap' },
 
   // Budgets
@@ -520,8 +520,8 @@ const S = {
   budgetHeader: { display: 'flex', justifyContent: 'space-between', marginBottom: 8 },
   budgetCat: { fontSize: 14, fontWeight: 600, color: 'var(--text, var(--text-primary, #241B17))' },
   budgetPct: { fontSize: 14, fontWeight: 700 },
-  budgetBarBg: { height: 8, borderRadius: 6, background: 'var(--border, var(--border, #E8DDD4))', marginBottom: 6 },
-  budgetBarFill: { height: 8, borderRadius: 6, transition: 'width 0.3s' },
+  budgetBarBg: { height: 8, borderRadius: 'var(--radius-xs)', background: 'var(--border, var(--border, #E8DDD4))', marginBottom: 6 },
+  budgetBarFill: { height: 8, borderRadius: 'var(--radius-xs)', transition: 'width 0.3s' },
   budgetFooter: { display: 'flex', justifyContent: 'space-between' },
   budgetSpent: { fontSize: 12, color: 'var(--text-secondary, #574A42)' },
   budgetLimit: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #6B5D54))' },

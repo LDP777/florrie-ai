@@ -176,12 +176,12 @@ const styles = {
   progressBg: {
     height: 6,
     background: 'var(--border-light)',
-    borderRadius: 6,
+    borderRadius: 'var(--radius-xs)',
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    borderRadius: 6,
+    borderRadius: 'var(--radius-xs)',
     transition: 'width 0.3s ease',
   },
   status: {
@@ -225,7 +225,7 @@ const styles = {
   skeletonBar: {
     height: 12,
     background: 'var(--border-light)',
-    borderRadius: 6,
+    borderRadius: 'var(--radius-xs)',
     animation: 'shimmer 1.5s infinite',
   },
 };

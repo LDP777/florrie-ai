@@ -4,6 +4,7 @@ import logger from '../lib/logger.js';
 import { todayLocal } from '../lib/dates.js';
 import Money from '../components/ui/Money';
 import PageHeader from '../components/ui/PageHeader.jsx';
+import Button from '../components/ui/Button.jsx';
 
 export default function EndOfDay() {
   const { beautician, loading: bLoading } = useBeautician();
@@ -418,12 +419,9 @@ export default function EndOfDay() {
       {/* Close day button */}
       {!dayClosed && appointments.length > 0 && (
         <div style={styles.closeDayWrap}>
-          <button
-            onClick={saveEndOfDay}
-            style={styles.closeDayBtn}
-          >
+          <Button variant="primary" size="lg" fullWidth onClick={saveEndOfDay}>
             {'\uD83D\uDD12'} Close Day
-          </button>
+          </Button>
           {!isReconciled && (
             <div style={styles.closeDayHint}>Cash up is optional - close whenever you're ready</div>
           )}
@@ -461,12 +459,12 @@ const styles = {
   statIcon: { fontSize: 16, marginBottom: 6 },
   statValue: { fontSize: 20, fontWeight: 700, color: 'var(--text-primary, #241B17)' },
   statLabel: { fontSize: 11, color: 'var(--text-muted, #6B5D54)', marginTop: 2 },
-  utilBar: { height: 4, background: 'var(--border-light, #ede7e3)', borderRadius: 6, marginTop: 8 },
-  utilFill: { height: '100%', background: 'var(--accent, #92405e)', borderRadius: 6, transition: 'width 0.3s' },
+  utilBar: { height: 4, background: 'var(--border-light, #ede7e3)', borderRadius: 'var(--radius-xs)', marginTop: 8 },
+  utilFill: { height: '100%', background: 'var(--accent, #92405e)', borderRadius: 'var(--radius-xs)', transition: 'width 0.3s' },
 
   timelineRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid #F0ECE8' },
   timelineTime: { fontSize: 13, fontWeight: 600, color: 'var(--text-muted, #6B5D54)', width: 42, flexShrink: 0 },
-  timelineDot: (status) => ({ width: 8, height: 8, borderRadius: 6, flexShrink: 0, background: status === 'completed' ? 'var(--success, #386F52)' : (status === 'no-show' || status === 'no_show') ? 'var(--danger, #9E2B32)' : status === 'cancelled' ? 'var(--warning, #79581C)' : status === 'confirmed' ? 'var(--success, #386F52)' : 'var(--text-muted, #6B5D54)' }),
+  timelineDot: (status) => ({ width: 8, height: 8, borderRadius: 'var(--radius-xs)', flexShrink: 0, background: status === 'completed' ? 'var(--success, #386F52)' : (status === 'no-show' || status === 'no_show') ? 'var(--danger, #9E2B32)' : status === 'cancelled' ? 'var(--warning, #79581C)' : status === 'confirmed' ? 'var(--success, #386F52)' : 'var(--text-muted, #6B5D54)' }),
   timelineClient: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #241B17)' },
   timelineTreatment: { fontSize: 12, color: 'var(--text-muted, #6B5D54)' },
   timelineAmount: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #241B17)' },
@@ -491,6 +489,5 @@ const styles = {
   textarea: { width: '100%', padding: 12, borderRadius: 10, border: '1.5px solid var(--border, #E8DDD4)', fontSize: 14, fontFamily: 'inherit', resize: 'vertical', outline: 'none', background: 'var(--bg, var(--bg, #FBF6F1))', color: 'var(--text-primary, #241B17)', boxSizing: 'border-box' },
 
   closeDayWrap: { textAlign: 'center', marginTop: 8, paddingBottom: 20 },
-  closeDayBtn: { width: '100%', padding: '16px 0', borderRadius: 16, border: 'none', background: 'var(--text-primary, #241B17)', color: 'var(--bg-card, #FFFCF9)', fontSize: 16, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' },
   closeDayHint: { fontSize: 12, color: 'var(--text-muted, #6B5D54)', marginTop: 8 },
 };

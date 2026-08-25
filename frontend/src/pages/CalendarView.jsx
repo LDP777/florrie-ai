@@ -1072,7 +1072,7 @@ export default function CalendarView({ initialView } = {}) {
                   {appt.payment_type === 'full' && (
                     tiny
                       ? <span title="Paid in full" style={{ position: 'absolute', top: 3, right: 3, width: 8, height: 8, borderRadius: '50%', background: '#2E7D32' }} />
-                      : <span style={{ position: 'absolute', top: 3, right: 4, background: '#2E7D32', color: '#fff', fontSize: 8, fontWeight: 700, letterSpacing: '0.04em', padding: '1px 5px', borderRadius: 6 }}>PAID</span>
+                      : <span style={{ position: 'absolute', top: 3, right: 4, background: '#2E7D32', color: '#fff', fontSize: 8, fontWeight: 700, letterSpacing: '0.04em', padding: '1px 5px', borderRadius: 'var(--radius-xs)' }}>PAID</span>
                   )}
                   <div style={styles.appointmentCardContent}>
                     <div style={styles.appointmentCardHeader}>
@@ -1133,7 +1133,7 @@ export default function CalendarView({ initialView } = {}) {
                       height: Math.max(height, 36),
                       background: 'repeating-linear-gradient(45deg, rgba(146,64,94,0.07) 0px, rgba(146,64,94,0.07) 5px, rgba(146,64,94,0.02) 5px, rgba(146,64,94,0.02) 10px)',
                       borderLeft: '3px solid rgba(146,64,94,0.5)',
-                      borderRadius: 6,
+                      borderRadius: 'var(--radius-xs)',
                       zIndex: 1,
                       pointerEvents: 'none',
                     }}
@@ -1143,7 +1143,7 @@ export default function CalendarView({ initialView } = {}) {
                       style={{ pointerEvents: 'auto',
                         position: 'absolute', top: 4, left: 8,
                         background: 'rgba(255,255,255,0.9)',
-                        border: 'none', borderRadius: 6,
+                        border: 'none', borderRadius: 'var(--radius-xs)',
                         padding: '3px 7px',
                         fontSize: 11, fontWeight: 700, color: COLORS.primary,
                         letterSpacing: '0.04em', cursor: 'pointer',
@@ -2639,7 +2639,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #574A42)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Notes</span>
               {notes !== (appointment.beautician_notes || '') && (
                 <button className="fl-tap" onClick={handleSaveNote}
-                  style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, border: 'none', background: noteSaved ? 'var(--success-bg, #E9F0EB)' : 'var(--accent)', color: noteSaved ? 'var(--success, #386F52)' : '#fff', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, transition: 'all 0.15s' }}>
+                  style={{ fontSize: 11, padding: '3px 10px', borderRadius: 'var(--radius-xs)', border: 'none', background: noteSaved ? 'var(--success-bg, #E9F0EB)' : 'var(--accent)', color: noteSaved ? 'var(--success, #386F52)' : '#fff', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, transition: 'all 0.15s' }}>
                   {noteSaved ? 'Saved' : 'Save'}
                 </button>
               )}
@@ -2764,7 +2764,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                   {cardLink && (
                     <input readOnly value={cardLink}
                       onClick={e => { e.target.select(); navigator.clipboard?.writeText?.(cardLink); }}
-                      style={{ minHeight: 44, width: '100%', marginTop: 8, padding: '8px', borderRadius: 6, border: `1px solid ${COLORS.outlineVariant}`, fontSize: 11, boxSizing: 'border-box', fontFamily: 'inherit', background: 'var(--bg-card)' }} />
+                      style={{ minHeight: 44, width: '100%', marginTop: 8, padding: '8px', borderRadius: 'var(--radius-xs)', border: `1px solid ${COLORS.outlineVariant}`, fontSize: 11, boxSizing: 'border-box', fontFamily: 'inherit', background: 'var(--bg-card)' }} />
                   )}
                 </div>
               )}
@@ -2847,7 +2847,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
             {manageLink && (
               <input readOnly value={manageLink}
                 onClick={e => { e.target.select(); navigator.clipboard?.writeText?.(manageLink); setManageCopied(true); setTimeout(() => setManageCopied(false), 2000); }}
-                style={{ minHeight: 44, width: '100%', marginTop: 8, padding: '8px', borderRadius: 6, border: `1px solid ${COLORS.outlineVariant}`, fontSize: 12, boxSizing: 'border-box', fontFamily: 'inherit', background: 'var(--bg-card)' }} />
+                style={{ minHeight: 44, width: '100%', marginTop: 8, padding: '8px', borderRadius: 'var(--radius-xs)', border: `1px solid ${COLORS.outlineVariant}`, fontSize: 12, boxSizing: 'border-box', fontFamily: 'inherit', background: 'var(--bg-card)' }} />
             )}
             <p style={{ fontSize: 11, color: COLORS.stone400, margin: '6px 0 0' }}>
               {needsPatchTest
@@ -2859,7 +2859,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
           {paymentLinkUrl && (
             <div style={{ marginTop: 12, padding: 12, borderRadius: 10, background: 'var(--success-bg)', border: '1px solid #C6F6D5' }}>
               <p style={{ fontSize: 13, color: 'var(--success-text)', margin: '0 0 8px', fontWeight: 600 }}>Payment link ready</p>
-              <input readOnly value={paymentLinkUrl} style={{ minHeight: 44, width: '100%', padding: '8px', borderRadius: 6, border: '1px solid #C6F6D5', fontSize: 12, boxSizing: 'border-box' }}
+              <input readOnly value={paymentLinkUrl} style={{ minHeight: 44, width: '100%', padding: '8px', borderRadius: 'var(--radius-xs)', border: '1px solid #C6F6D5', fontSize: 12, boxSizing: 'border-box' }}
                 onClick={e => { e.target.select(); navigator.clipboard?.writeText?.(paymentLinkUrl); }} />
               <p style={{ fontSize: 11, color: 'var(--success-text)', margin: '6px 0 0' }}>Tap to copy. Send to client via WhatsApp or SMS.</p>
             </div>
@@ -3032,7 +3032,7 @@ const styles = {
   appointmentCardTreatment: { fontSize: 10, fontWeight: 500, textTransform: 'uppercase', color: COLORS.stone400, letterSpacing: '0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
   appointmentCardMeta: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, flexShrink: 0 },
   appointmentCardTime: { fontWeight: 600, color: COLORS.stone400, textTransform: 'uppercase' },
-  aiTag: { display: 'inline-block', padding: '2px 6px', borderRadius: 6, fontSize: 9, fontWeight: 600, background: '#EEF4FC', color: '#2467ad', letterSpacing: '0.03em' },
+  aiTag: { display: 'inline-block', padding: '2px 6px', borderRadius: 'var(--radius-xs)', fontSize: 9, fontWeight: 600, background: '#EEF4FC', color: '#2467ad', letterSpacing: '0.03em' },
   // Open Slot Cards
   openSlotCard: { position: 'absolute', left: 4, right: 4, borderRadius: 16, border: `2px dashed ${COLORS.outlineVariant}80`, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 'calc(100% - 8px)' },
   openSlotText: { fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: COLORS.stone400 },
@@ -3044,7 +3044,7 @@ const styles = {
   weekDayHeadLeft: { display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 },
   weekDayDow: { fontSize: 17, fontWeight: 600, fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" },
   weekDayDate: { fontSize: 12, fontWeight: 500, color: COLORS.stone400 },
-  weekTodayTag: { fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#fff', background: COLORS.primary, padding: '2px 6px', borderRadius: 6 },
+  weekTodayTag: { fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#fff', background: COLORS.primary, padding: '2px 6px', borderRadius: 'var(--radius-xs)' },
   weekDayStats: { display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 },
   weekDayCount: { fontSize: 12, fontWeight: 600, color: COLORS.onSurface },
   weekDayMoney: { fontSize: 12, fontWeight: 700, color: COLORS.primary },
@@ -3070,7 +3070,7 @@ const styles = {
   detailRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: `1px solid ${COLORS.outlineVariant}33` },
   detailLabel: { fontSize: 13, color: COLORS.stone400, fontWeight: 500 },
   detailValue: { fontSize: 13, fontWeight: 600, textAlign: 'right' },
-  statusBadge: { padding: '3px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600, textTransform: 'capitalize' },
+  statusBadge: { padding: '3px 10px', borderRadius: 'var(--radius-xs)', fontSize: 12, fontWeight: 600, textTransform: 'capitalize' },
   completeBtn: { width: '100%', padding: '12px 0', borderRadius: 10, border: 'none', background: '#41785c', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 14 },
   completionFlow: { display: 'flex', flexDirection: 'column', gap: 16 },
   completionSection: { display: 'flex', flexDirection: 'column', gap: 6 },

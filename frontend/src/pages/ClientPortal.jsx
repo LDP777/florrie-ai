@@ -341,7 +341,7 @@ const s = {
   card: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: 16, border: '1px solid var(--border, #E8DDD4)', marginBottom: 12 },
   cardTitle: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 10 },
   apptRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--border-light, #ede7e3)' },
-  statusChip: { fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 6, textTransform: 'capitalize' },
+  statusChip: { fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 'var(--radius-xs)', textTransform: 'capitalize' },
 
   textInput: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border, #E8DDD4)', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: 'var(--bg, #FBF6F1)', color: 'var(--text-primary)' },
   colourRow: { display: 'flex', gap: 8 },
@@ -352,7 +352,10 @@ const s = {
   toggleDot: { width: 20, height: 20, borderRadius: 10, background: '#fff', position: 'absolute', top: 2, left: 2, transition: 'transform 0.2s', boxShadow: 'var(--elev-1)' },
 
   previewLabel: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 10, marginTop: 4 },
-  phoneFrame: { background: 'var(--text-primary, #241B17)', borderRadius: 22, padding: 8, maxWidth: 240, margin: '0 auto 16px' },
+  // The bezel of a phone, not a surface of the app, so it uses the ink token
+  // and stays dark in dark mode. A theme-aware background here paints a white
+  // phone around a cream screen and the preview stops reading as a device.
+  phoneFrame: { background: 'var(--surface-inverse)', borderRadius: 22, padding: 8, maxWidth: 240, margin: '0 auto 16px' },
   phoneScreen: { background: 'var(--bg, #FBF6F1)', borderRadius: 16, minHeight: 220, overflow: 'hidden' },
 
   featureRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--border-light, #ede7e3)' },

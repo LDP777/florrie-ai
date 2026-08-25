@@ -1222,9 +1222,9 @@ export default function ContentAutopilot() {
             <button onClick={() => setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1))} style={styles.calendarNav}>→</button>
           </div>
           <div style={{ display: 'flex', gap: 14, justifyContent: 'center', margin: '2px 0 10px', fontSize: 11, color: 'var(--text-secondary, #574A42)' }}>
-            <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 6, background: '#D1D5DB', marginRight: 4 }} />draft</span>
-            <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 6, background: '#60A5FA', marginRight: 4 }} />scheduled</span>
-            <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 6, background: '#34D399', marginRight: 4 }} />posted</span>
+            <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 'var(--radius-xs)', background: '#D1D5DB', marginRight: 4 }} />draft</span>
+            <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 'var(--radius-xs)', background: '#60A5FA', marginRight: 4 }} />scheduled</span>
+            <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 'var(--radius-xs)', background: '#34D399', marginRight: 4 }} />posted</span>
           </div>
           <div style={styles.calendarGrid}>
             {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
@@ -1543,7 +1543,7 @@ const styles = {
   typeBadge: {
     display: 'inline-block',
     padding: '3px 10px',
-    borderRadius: 6,
+    borderRadius: 'var(--radius-xs)',
     fontSize: 11,
     fontWeight: 600,
     marginBottom: 10
@@ -1552,7 +1552,7 @@ const styles = {
   postImage: { width: '100%', height: 200, objectFit: 'cover', display: 'block' },
   caption: { fontSize: 14, lineHeight: 1.6, margin: '0 0 10px', whiteSpace: 'pre-wrap' },
   hashtags: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 },
-  hashtag: { fontSize: 12, color: '#2467ad', background: '#EEF4FC', padding: '3px 8px', borderRadius: 6 },
+  hashtag: { fontSize: 12, color: '#2467ad', background: '#EEF4FC', padding: '3px 8px', borderRadius: 'var(--radius-xs)' },
   actions: { display: 'flex', gap: 8 },
   discardBtn: {
     padding: '10px 14px',
@@ -1634,7 +1634,7 @@ const styles = {
   galleryViewImg: { width: '100%', height: 160, objectFit: 'cover', display: 'block' },
   galleryLabel: {
     position: 'absolute', bottom: 6, left: 6,
-    padding: '2px 8px', borderRadius: 6,
+    padding: '2px 8px', borderRadius: 'var(--radius-xs)',
     background: 'rgba(0,0,0,0.5)', color: 'var(--bg-card, #FFFCF9)',
     fontSize: 10, fontWeight: 600,
   },
@@ -1645,7 +1645,7 @@ const styles = {
   // AI suggestions
   aiSuggestionsSection: { marginBottom: 4 },
   aiSuggestionsHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-  refreshBtn: { minWidth: 44, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '2px 8px', borderRadius: 6, border: '1px solid var(--border, #E8DDD4)', background: 'transparent', cursor: 'pointer', fontSize: 14, color: 'var(--text-muted, #6B5D54)', fontFamily: 'inherit' },
+  refreshBtn: { minWidth: 44, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '2px 8px', borderRadius: 'var(--radius-xs)', border: '1px solid var(--border, #E8DDD4)', background: 'transparent', cursor: 'pointer', fontSize: 14, color: 'var(--text-muted, #6B5D54)', fontFamily: 'inherit' },
   aiLoadingCard: { padding: 14, borderRadius: 10, background: 'linear-gradient(135deg, #FBF0F3, #F3EEFF)', textAlign: 'center' },
   aiSuggestionCard: {
     background: 'linear-gradient(135deg, #FBF0F3, #F3EEFF)',
@@ -1697,13 +1697,13 @@ const styles = {
   progressBar: {
     height: 8,
     background: 'var(--bg-subtle, #ede7e3)',
-    borderRadius: 6,
+    borderRadius: 'var(--radius-xs)',
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
     transition: 'width 0.3s ease',
-    borderRadius: 6,
+    borderRadius: 'var(--radius-xs)',
   },
   // Cancelled prompt
   cancelledPromptBanner: {
@@ -1785,7 +1785,7 @@ const styles = {
   calendarChip: {
     width: 6,
     height: 6,
-    borderRadius: 6,
+    borderRadius: 'var(--radius-xs)',
     cursor: 'pointer',
   },
   calendarMore: {

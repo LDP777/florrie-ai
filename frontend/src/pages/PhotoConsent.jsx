@@ -452,7 +452,7 @@ const S = {
   statusBadge: { padding: '4px 10px', borderRadius: 10, fontSize: 11, fontWeight: 600 },
 
   scopeRow: { display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 },
-  scopeTag: { padding: '3px 8px', borderRadius: 6, background: '#F0E6ED', color: 'var(--accent, #92405e)', fontSize: 11 },
+  scopeTag: { padding: '3px 8px', borderRadius: 'var(--radius-xs)', background: '#F0E6ED', color: 'var(--accent, #92405e)', fontSize: 11 },
 
   expandedSection: { marginTop: 12, paddingTop: 12, borderTop: '1px solid #F0ECE8' },
   consentNotes: { fontSize: 13, color: '#735C4E', lineHeight: 1.4, margin: '0 0 10px', fontStyle: 'italic' },
@@ -473,7 +473,7 @@ const S = {
   fieldLabel: { fontSize: 12, fontWeight: 600, color: '#735C4E', marginBottom: 6, marginTop: 12 },
   select: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary, #241B17)', background: 'var(--bg-card, #FFFCF9)', outline: 'none', boxSizing: 'border-box' },
   scopeOption: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', cursor: 'pointer' },
-  checkbox: { width: 22, height: 22, borderRadius: 6, border: '2px solid', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  checkbox: { width: 22, height: 22, borderRadius: 'var(--radius-xs)', border: '2px solid', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   checkmark: { color: 'var(--bg-card, #FFFCF9)', fontSize: 13, fontWeight: 700 },
   scopeOptionInfo: { display: 'flex', flexDirection: 'column', gap: 1 },
   scopeOptionLabel: { fontSize: 13, fontWeight: 600, color: 'var(--text, #241B17)' },

@@ -307,8 +307,8 @@ const styles = {
   heroRight: { flex: 1, display: 'flex', flexDirection: 'column', gap: 4, justifyContent: 'center' },
   ratingBar: { display: 'flex', alignItems: 'center', gap: 6 },
   ratingBarLabel: { fontSize: 11, color: 'var(--text-muted, #6B5D54)', width: 22, textAlign: 'right' },
-  ratingBarTrack: { flex: 1, height: 6, borderRadius: 6, background: 'var(--bg-hover, #f3ede9)', overflow: 'hidden' },
-  ratingBarFill: { height: '100%', borderRadius: 6, background: 'var(--success, #386F52)', transition: 'width 0.3s ease' },
+  ratingBarTrack: { flex: 1, height: 6, borderRadius: 'var(--radius-xs)', background: 'var(--bg-hover, #f3ede9)', overflow: 'hidden' },
+  ratingBarFill: { height: '100%', borderRadius: 'var(--radius-xs)', background: 'var(--success, #386F52)', transition: 'width 0.3s ease' },
   ratingBarPct: { fontSize: 10, color: 'var(--text-muted, #6B5D54)', width: 28, textAlign: 'right' },
 
   // Tabs
@@ -326,7 +326,7 @@ const styles = {
   reviewDate: { display: 'block', fontSize: 10, color: 'var(--text-muted, #6B5D54)', marginTop: 1 },
   reviewStars: { display: 'flex', gap: 1 },
   reviewText: { fontSize: 13, color: 'var(--text-secondary, #574A42)', margin: '0 0 8px', lineHeight: 1.5 },
-  reviewTreatment: { display: 'inline-block', fontSize: 11, color: 'var(--text-secondary, #574A42)', padding: '3px 8px', borderRadius: 6, background: 'var(--bg-hover, #f3ede9)', marginBottom: 8 },
+  reviewTreatment: { display: 'inline-block', fontSize: 11, color: 'var(--text-secondary, #574A42)', padding: '3px 8px', borderRadius: 'var(--radius-xs)', background: 'var(--bg-hover, #f3ede9)', marginBottom: 8 },
   replyCard: { background: 'var(--bg, #FBF6F1)', borderRadius: 10, padding: 12, marginTop: 4 },
   replyLabel: { display: 'block', fontSize: 10, fontWeight: 600, color: 'var(--text-muted, #6B5D54)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 },
   replyText: { fontSize: 12, color: 'var(--text-secondary, #574A42)', margin: 0, lineHeight: 1.5 },
@@ -354,7 +354,7 @@ const styles = {
   requestAvatar: { width: 28, height: 28, borderRadius: 16, background: 'var(--accent-light, #F6E7EC)', color: 'var(--accent, #92405e)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 },
   requestName: { display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text, #241B17)' },
   requestMeta: { display: 'block', fontSize: 11, color: 'var(--text-muted, #6B5D54)' },
-  requestStatusDot: { width: 8, height: 8, borderRadius: 6, flexShrink: 0 },
+  requestStatusDot: { width: 8, height: 8, borderRadius: 'var(--radius-xs)', flexShrink: 0 },
 
   // Settings tab
   settingsCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: 16, boxShadow: 'var(--elev-1)' },

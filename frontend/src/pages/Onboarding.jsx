@@ -1140,7 +1140,7 @@ const styles = {
   progressBar: {
     height: 4,
     background: 'var(--border)',
-    borderRadius: 6,
+    borderRadius: 'var(--radius-xs)',
     marginTop: 20,
     marginBottom: 8,
     overflow: 'hidden'
@@ -1148,7 +1148,7 @@ const styles = {
   progressFill: {
     height: '100%',
     background: 'var(--accent)',
-    borderRadius: 6,
+    borderRadius: 'var(--radius-xs)',
     transition: 'width 0.3s ease'
   },
   stepIndicator: {
@@ -1232,7 +1232,7 @@ const styles = {
   treatmentNum: { fontSize: 12, fontWeight: 600, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.04em' },
   removeBtn: {
     padding: '4px 10px',
-    borderRadius: 6,
+    borderRadius: 'var(--radius-xs)',
     border: 'none',
     background: 'var(--danger-bg)',
     color: 'var(--danger)',
@@ -1258,7 +1258,7 @@ const styles = {
   timeInputs: { display: 'flex', alignItems: 'center', gap: 6 },
   timeInput: {
     padding: '6px 8px',
-    borderRadius: 6,
+    borderRadius: 'var(--radius-xs)',
     border: '1.5px solid var(--border)',
     fontSize: 13,
     fontFamily: 'inherit',
@@ -1354,7 +1354,7 @@ const styles = {
     fontSize: 10,
     fontWeight: 600,
     padding: '3px 10px',
-    borderRadius: 6,
+    borderRadius: 'var(--radius-xs)',
     letterSpacing: '0.02em',
   },
   planName: {
@@ -1471,7 +1471,7 @@ const styles = {
     color: 'var(--success, #386F52)',
     background: 'rgba(91, 169, 123, 0.12)',
     padding: '3px 8px',
-    borderRadius: 6,
+    borderRadius: 'var(--radius-xs)',
     letterSpacing: '0.04em',
     textTransform: 'uppercase',
     alignSelf: 'flex-start',

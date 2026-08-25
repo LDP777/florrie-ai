@@ -450,7 +450,7 @@ const S = {
   lockBadge: {
     fontSize: 9, fontWeight: 700,
     background: 'linear-gradient(135deg, #745a27, #986302)',
-    color: '#fff', padding: '2px 6px', borderRadius: 6,
+    color: '#fff', padding: '2px 6px', borderRadius: 'var(--radius-xs)',
     letterSpacing: '0.05em',
   },
 };

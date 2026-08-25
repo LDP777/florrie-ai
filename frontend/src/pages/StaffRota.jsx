@@ -511,14 +511,14 @@ const S = {
 
   gridRow: { display: 'grid', gridTemplateColumns: '80px repeat(6, 1fr)', borderBottom: '1px solid var(--border, #E8DDD4)', minHeight: 56 },
   gridStaff: { display: 'flex', alignItems: 'center', gap: 6, padding: '8px 8px 8px 10px' },
-  staffDot: { width: 8, height: 8, borderRadius: 6, flexShrink: 0 },
+  staffDot: { width: 8, height: 8, borderRadius: 'var(--radius-xs)', flexShrink: 0 },
   staffInfo: { display: 'flex', flexDirection: 'column' },
   staffName: { fontSize: 12, fontWeight: 600, color: 'var(--text, #241B17)' },
   staffRole: { fontSize: 10, color: 'var(--text-muted, #6B5D54)' },
 
   gridCell: { padding: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' },
   todayCell: { background: 'var(--bg, #FBF6F1)' },
-  shiftBlock: { width: '100%', borderRadius: 6, padding: '4px 3px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 },
+  shiftBlock: { width: '100%', borderRadius: 'var(--radius-xs)', padding: '4px 3px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 },
   shiftTime: { fontSize: 10, fontWeight: 500, color: 'var(--text, #241B17)' },
   offLabel: { fontSize: 10, color: 'var(--text-muted, #6B5D54)' },
 

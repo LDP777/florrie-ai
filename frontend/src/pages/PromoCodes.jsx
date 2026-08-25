@@ -421,8 +421,8 @@ const S = {
   treatmentChipSelect: { padding: '5px 12px', borderRadius: 22, background: 'var(--border, #E8DDD4)', color: 'var(--text-secondary, #574A42)', fontSize: 12, fontWeight: 500, cursor: 'pointer' },
 
   usageBar: { marginBottom: 10 },
-  usageTrack: { height: 6, borderRadius: 6, background: 'var(--border, #E8DDD4)', overflow: 'hidden', marginBottom: 4 },
-  usageFill: { height: '100%', borderRadius: 6, transition: 'width .3s' },
+  usageTrack: { height: 6, borderRadius: 'var(--radius-xs)', background: 'var(--border, #E8DDD4)', overflow: 'hidden', marginBottom: 4 },
+  usageFill: { height: '100%', borderRadius: 'var(--radius-xs)', transition: 'width .3s' },
   usageText: { fontSize: 11, color: 'var(--text-muted, #6B5D54)' },
 
   actionRow: { display: 'flex', gap: 8, marginTop: 8 },

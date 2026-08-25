@@ -174,8 +174,8 @@ function SkeletonCard() {
   return (
     <div style={{ ...SC.card, opacity: 0.6 }}>
       <div style={{ ...SC.icon, background: '#f3ede9' }} />
-      <div style={{ height: 14, background: '#f3ede9', borderRadius: 6, marginTop: 10, width: '90%' }} />
-      <div style={{ height: 14, background: '#f3ede9', borderRadius: 6, marginTop: 6, width: '60%' }} />
+      <div style={{ height: 14, background: '#f3ede9', borderRadius: 'var(--radius-xs)', marginTop: 10, width: '90%' }} />
+      <div style={{ height: 14, background: '#f3ede9', borderRadius: 'var(--radius-xs)', marginTop: 6, width: '60%' }} />
       <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
         <div style={{ flex: 1, height: 28, background: '#f3ede9', borderRadius: 10 }} />
         <div style={{ flex: 1, height: 28, background: '#f3ede9', borderRadius: 10 }} />

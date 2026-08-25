@@ -447,7 +447,7 @@ const F = {
   },
   skelLine: {
     height: 12,
-    borderRadius: 6,
+    borderRadius: 'var(--radius-xs)',
     background: '#f3ede9',
     display: 'block',
     width: '78%',
@@ -455,7 +455,7 @@ const F = {
   skelTime: {
     height: 10,
     width: 42,
-    borderRadius: 6,
+    borderRadius: 'var(--radius-xs)',
     background: '#f3ede9',
     display: 'block',
   },

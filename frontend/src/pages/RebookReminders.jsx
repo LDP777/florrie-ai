@@ -417,7 +417,7 @@ const s = {
   clientMeta: { display: 'block', fontSize: 11, color: 'var(--text-muted, #6B5D54)' },
   clientRight: {},
   urgencyBadge: {
-    fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 6,
+    fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 'var(--radius-xs)',
   },
   messagePreview: {
     padding: '10px 12px', borderRadius: 10,

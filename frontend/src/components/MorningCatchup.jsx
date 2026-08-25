@@ -339,7 +339,7 @@ const MC = {
     width: 42,
     height: 4,
     background: '#E0D6CF',
-    borderRadius: 6,
+    borderRadius: 'var(--radius-xs)',
     margin: '0 auto 14px',
   },
   heading: {

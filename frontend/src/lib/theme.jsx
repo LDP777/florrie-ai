@@ -156,6 +156,14 @@ const lightTokens = {
   '--danger-light': '#F7E4E4',
   '--danger-border': '#EFCFCF',
   '--overlay': 'rgba(29, 27, 25, 0.18)',
+  // The ink surface and the colour of whatever sits on it. Identical in both
+  // maps on purpose: "inverse" names the ink fill (the toasts, the phone bezel
+  // on the portal preview), not "the opposite of the page". Mirroring it would
+  // paint a white phone and put the toasts back to pale-on-pale, which is the
+  // bug this token was promoted to fix. Declared here as well as in index.css
+  // so applyTheme() can never leave it undefined on one side.
+  '--surface-inverse': '#241B17',
+  '--text-on-inverse': '#FBF6F1',
 };
 
 
@@ -261,4 +269,7 @@ const darkTokens = {
   '--nav-bg': 'rgba(30, 29, 27, 0.9)',
   '--nav-border': 'rgba(255, 177, 200, 0.1)',
   '--overlay': 'rgba(0, 0, 0, 0.45)',
+  // Same values as the light map, and that is the point. See the light map.
+  '--surface-inverse': '#241B17',
+  '--text-on-inverse': '#FBF6F1',
 };

@@ -302,7 +302,7 @@ const S = {
   },
   saveBadge: {
     background: 'var(--success, #386F52)', color: '#fff',
-    fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 6,
+    fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 'var(--radius-xs)',
   },
 
   card: {

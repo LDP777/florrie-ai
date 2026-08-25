@@ -560,7 +560,7 @@ function CampaignCard({ campaign, sending, onApprove, onSend, onCancel, onView }
 function StatusBadge({ status }) {
   const cfg = STATUS_LABELS[status] || STATUS_LABELS.draft;
   return (
-    <span style={{ padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, background: cfg.bg, color: cfg.color }}>
+    <span style={{ padding: '3px 10px', borderRadius: 'var(--radius-xs)', fontSize: 11, fontWeight: 600, background: cfg.bg, color: cfg.color }}>
       {cfg.label}
     </span>
   );

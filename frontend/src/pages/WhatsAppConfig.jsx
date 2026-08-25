@@ -54,8 +54,8 @@ function UsageBar({ usage }) {
           </span>
         )}
       </div>
-      <div style={{ height: 6, background: 'var(--border, #E8DDD4)', borderRadius: 6 }}>
-        <div style={{ width: `${pct}%`, height: '100%', background: barColor, borderRadius: 6, transition: 'width 0.4s' }} />
+      <div style={{ height: 6, background: 'var(--border, #E8DDD4)', borderRadius: 'var(--radius-xs)' }}>
+        <div style={{ width: `${pct}%`, height: '100%', background: barColor, borderRadius: 'var(--radius-xs)', transition: 'width 0.4s' }} />
       </div>
       {isOver && (
         <div style={{ fontSize: 11, color: '#E85D75', marginTop: 4 }}>
@@ -1470,7 +1470,7 @@ const styles = {
 
   connectionCard: { display: 'flex', alignItems: 'center', gap: 12, background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: 14, border: '1px solid var(--border, #E8DDD4)', marginBottom: 12 },
   waLogo: { width: 44, height: 44, borderRadius: 10, background: 'var(--success-bg, #E9F0EB)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  metaBadge: { fontSize: 10, color: 'var(--text-muted, #6B5D54)', background: 'var(--border, #E8DDD4)', padding: '3px 8px', borderRadius: 6 },
+  metaBadge: { fontSize: 10, color: 'var(--text-muted, #6B5D54)', background: 'var(--border, #E8DDD4)', padding: '3px 8px', borderRadius: 'var(--radius-xs)' },
 
   tabs: { display: 'flex', gap: 4, marginBottom: 16, background: 'var(--border, #E8DDD4)', borderRadius: 10, padding: 4 },
   tab: { flex: 1, padding: '8px 0', fontSize: 11, fontWeight: 500, border: 'none', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', background: 'none', color: 'var(--text-secondary, #574A42)' },
@@ -1485,8 +1485,8 @@ const styles = {
   funnelTitle: { fontSize: 13, fontWeight: 600, color: 'var(--text, #241B17)', marginBottom: 12 },
   funnelRow: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 },
   funnelLabel: { fontSize: 12, color: 'var(--text-secondary, #574A42)', width: 60 },
-  funnelBarBg: { flex: 1, height: 8, background: 'var(--border, #E8DDD4)', borderRadius: 6 },
-  funnelBarFill: { height: '100%', borderRadius: 6, transition: 'width 0.5s' },
+  funnelBarBg: { flex: 1, height: 8, background: 'var(--border, #E8DDD4)', borderRadius: 'var(--radius-xs)' },
+  funnelBarFill: { height: '100%', borderRadius: 'var(--radius-xs)', transition: 'width 0.5s' },
   funnelValue: { fontSize: 12, fontWeight: 600, color: 'var(--text, #241B17)', width: 36, textAlign: 'right' },
 
   insightCard: { display: 'flex', gap: 10, background: '#FFF8F0', border: '1px solid #FFE8CC', borderRadius: 10, padding: 14, marginBottom: 16 },
@@ -1497,8 +1497,8 @@ const styles = {
   templateCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, border: '1px solid var(--border, #E8DDD4)', marginBottom: 8, overflow: 'hidden' },
   templateHeader: { display: 'flex', alignItems: 'center', gap: 8, padding: 14, cursor: 'pointer' },
   templateName: { fontSize: 14, fontWeight: 600, color: 'var(--text, #241B17)' },
-  tmplStatus: { fontSize: 10, fontWeight: 600, padding: '2px 6px', borderRadius: 6 },
-  tmplCategory: { fontSize: 10, color: 'var(--text-muted, #6B5D54)', background: 'var(--border, #E8DDD4)', padding: '2px 6px', borderRadius: 6 },
+  tmplStatus: { fontSize: 10, fontWeight: 600, padding: '2px 6px', borderRadius: 'var(--radius-xs)' },
+  tmplCategory: { fontSize: 10, color: 'var(--text-muted, #6B5D54)', background: 'var(--border, #E8DDD4)', padding: '2px 6px', borderRadius: 'var(--radius-xs)' },
   templatePreview: { padding: '0 14px 14px', borderTop: '1px solid var(--border, #E8DDD4)' },
   previewBubble: { background: 'var(--success-bg, #E9F0EB)', borderRadius: '12px 12px 12px 0', padding: 12, fontSize: 13, color: 'var(--text, #241B17)', lineHeight: 1.5, marginTop: 12, marginBottom: 10 },
   previewActions: { display: 'flex', gap: 8 },

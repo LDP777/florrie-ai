@@ -333,7 +333,7 @@ const S = {
 
   filters: { display: 'flex', gap: 8, marginBottom: 16, overflowX: 'auto' },
   filterChip: { padding: '6px 14px', borderRadius: 16, border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', background: 'var(--card, #FFFCF9)', color: 'var(--text-secondary, #574A42)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
-  filterActive: { background: 'var(--text-primary, #241B17)', color: 'var(--bg-card, #FFFCF9)', border: '1px solid var(--text-primary, #241B17)' },
+  filterActive: { background: 'var(--accent)', color: 'var(--on-accent, #fff)', border: '1px solid var(--accent)' },
 
   // Gallery grid
   grid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 },

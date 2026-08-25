@@ -24,8 +24,8 @@ function memberRole(m) {
 function Bar({ value, max, color = 'var(--accent-rose, #C76B8A)' }) {
   const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0;
   return (
-    <div style={{ height: 6, borderRadius: 6, background: 'var(--card-border, #E8DDD4)', overflow: 'hidden' }}>
-      <div style={{ height: '100%', width: `${pct}%`, borderRadius: 6, background: color, transition: 'width 0.4s ease' }} />
+    <div style={{ height: 6, borderRadius: 'var(--radius-xs)', background: 'var(--card-border, #E8DDD4)', overflow: 'hidden' }}>
+      <div style={{ height: '100%', width: `${pct}%`, borderRadius: 'var(--radius-xs)', background: color, transition: 'width 0.4s ease' }} />
     </div>
   );
 }

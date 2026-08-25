@@ -521,7 +521,7 @@ const styles = {
   voucherInfo: { flex: 1, display: 'flex', flexDirection: 'column', gap: 2 },
   voucherAmount: { fontSize: 15, fontWeight: 700, color: 'var(--text-primary, #241B17)' },
   voucherFor: { fontSize: 11, color: 'var(--text-muted, #6B5D54)' },
-  statusBadge: { padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, flexShrink: 0 },
+  statusBadge: { padding: '4px 10px', borderRadius: 'var(--radius-xs)', fontSize: 11, fontWeight: 600, flexShrink: 0 },
   voucherCode: {
     padding: '8px 12px', borderRadius: 10, background: 'var(--bg, #FBF6F1)',
     fontSize: 14, fontWeight: 700, letterSpacing: '0.12em', color: 'var(--accent, #92405e)',
@@ -531,7 +531,7 @@ const styles = {
   voucherFooter: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   voucherDate: { fontSize: 11, color: 'var(--text-muted, #6B5D54)' },
   redeemSmallBtn: {
-    padding: '6px 14px', borderRadius: 6, border: 'none',
+    padding: '6px 14px', borderRadius: 'var(--radius-xs)', border: 'none',
     background: 'var(--accent-light, #F6E7EC)', color: 'var(--accent, #92405e)', fontSize: 11, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
@@ -587,7 +587,7 @@ const styles = {
   previewFor: { fontSize: 13, opacity: 0.85, marginBottom: 4 },
   previewMsg: { fontSize: 12, opacity: 0.8, fontStyle: 'italic', marginBottom: 8 },
   previewCode: {
-    display: 'inline-block', padding: '6px 16px', borderRadius: 6,
+    display: 'inline-block', padding: '6px 16px', borderRadius: 'var(--radius-xs)',
     background: 'rgba(255,255,255,0.2)', fontSize: 14, fontWeight: 700,
     letterSpacing: '0.12em',
   },

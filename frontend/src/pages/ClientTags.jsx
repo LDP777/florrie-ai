@@ -415,7 +415,7 @@ const S = {
   cardName: { fontSize: 14, fontWeight: 600, color: 'var(--text, #241B17)' },
   cardMeta: { fontSize: 12, color: 'var(--text-muted, #6B5D54)' },
   cardRight: { display: 'flex', alignItems: 'center', gap: 8 },
-  autoBadge: { padding: '3px 8px', borderRadius: 6, background: '#FFF8E1', color: 'var(--warning, #79581C)', fontSize: 10, fontWeight: 600 },
+  autoBadge: { padding: '3px 8px', borderRadius: 'var(--radius-xs)', background: '#FFF8E1', color: 'var(--warning, #79581C)', fontSize: 10, fontWeight: 600 },
   chevron: { fontSize: 10, color: 'var(--text-muted, #6B5D54)' },
 
   expandedSection: { marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border, #E8DDD4)' },

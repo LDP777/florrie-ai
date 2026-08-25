@@ -573,11 +573,11 @@ const s = {
   courseDesc:   { fontSize: 13, color: 'var(--text-secondary, #574A42)', lineHeight: 1.6, marginBottom: 10 },
 
   includesRow:  { display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 10 },
-  includeTag:   { fontSize: 11, background: 'var(--bg, #FBF6F1)', border: '1px solid var(--border, #E8DDD4)', borderRadius: 6, padding: '3px 7px', color: 'var(--text-secondary, #574A42)' },
+  includeTag:   { fontSize: 11, background: 'var(--bg, #FBF6F1)', border: '1px solid var(--border, #E8DDD4)', borderRadius: 'var(--radius-xs)', padding: '3px 7px', color: 'var(--text-secondary, #574A42)' },
 
   spotsRow:     { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 },
-  spotsBar:     { flex: 1, height: 5, borderRadius: 6, background: 'var(--border, #E8DDD4)', overflow: 'hidden' },
-  spotsBarFill: { height: '100%', borderRadius: 6, transition: 'width 0.3s' },
+  spotsBar:     { flex: 1, height: 5, borderRadius: 'var(--radius-xs)', background: 'var(--border, #E8DDD4)', overflow: 'hidden' },
+  spotsBarFill: { height: '100%', borderRadius: 'var(--radius-xs)', transition: 'width 0.3s' },
   spotsLabel:   { fontSize: 11, fontWeight: 500, whiteSpace: 'nowrap' },
 
   linkRow:      { display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center' },
@@ -597,7 +597,7 @@ const s = {
   enrollContact:{ fontSize: 12, color: 'var(--text-muted, #6B5D54)' },
   enrollCourse: { fontSize: 11, color: 'var(--accent, #92405e)', fontWeight: 500, marginTop: 2 },
   enrollMeta:   { fontSize: 12, color: 'var(--text-muted, #6B5D54)' },
-  enrollStatus: { fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 6, whiteSpace: 'nowrap' },
+  enrollStatus: { fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 'var(--radius-xs)', whiteSpace: 'nowrap' },
 
   empty:        { textAlign: 'center', padding: '40px 20px' },
   emptyIcon:    { fontSize: 40, marginBottom: 12 },

@@ -1,6 +1,6 @@
 {
   "note": "Hand-styled <button> count per file. May only ever decrease. See scripts/check-primitives.mjs.",
-  "total": 755,
+  "total": 754,
   "files": {
     "App.jsx": 4,
     "components/ActivityFeed.jsx": 3,
@@ -40,7 +40,7 @@
     "pages/ContentAutopilot.jsx": 17,
     "pages/DailyChecklist.jsx": 10,
     "pages/DepositTracker.jsx": 3,
-    "pages/EndOfDay.jsx": 3,
+    "pages/EndOfDay.jsx": 2,
     "pages/Escalations.jsx": 5,
     "pages/Expenses.jsx": 13,
     "pages/GiftVouchers.jsx": 12,

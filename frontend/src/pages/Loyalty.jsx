@@ -667,11 +667,11 @@ const styles = {
 
   progressTrack: {
     height: 5,
-    borderRadius: 6,
+    borderRadius: 'var(--radius-xs)',
     background: 'var(--bg-input, #F4EDE6)',
     overflow: 'hidden',
   },
-  progressFill: { height: '100%', borderRadius: 6, transition: 'width 0.3s ease' },
+  progressFill: { height: '100%', borderRadius: 'var(--radius-xs)', transition: 'width 0.3s ease' },
   progressHint: {
     display: 'block',
     fontSize: 11,

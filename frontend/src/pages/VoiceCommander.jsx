@@ -1046,7 +1046,7 @@ const styles = {
   multiStepBadge: {
     display: 'inline-flex', alignItems: 'center', gap: 4,
     fontSize: 10, fontWeight: 600, opacity: 0.65, marginTop: 4,
-    padding: '2px 6px', borderRadius: 6,
+    padding: '2px 6px', borderRadius: 'var(--radius-xs)',
     background: 'var(--accent-light)', color: 'var(--accent)',
   },
   actionBtn: {
@@ -1136,7 +1136,7 @@ const styles = {
     background: 'var(--danger-bg)',
   },
   recordingDot: {
-    width: 8, height: 8, borderRadius: 6, background: 'var(--danger)',
+    width: 8, height: 8, borderRadius: 'var(--radius-xs)', background: 'var(--danger)',
     animation: 'pulse 1s ease infinite',
   },
   recordingText: { fontSize: 12, fontWeight: 600, color: 'var(--danger)', flex: 1 },

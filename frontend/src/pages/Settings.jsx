@@ -40,7 +40,7 @@ function AutonomyToggle({ on, onToggle, label }) {
       role="switch"
       aria-checked={on}
       aria-label={label}
-      style={{ flexShrink: 0, padding: '5px 12px', borderRadius: 6, border: 'none', fontSize: 11, fontWeight: 600,
+      style={{ flexShrink: 0, padding: '5px 12px', borderRadius: 'var(--radius-xs)', border: 'none', fontSize: 11, fontWeight: 600,
         cursor: 'pointer', fontFamily: 'inherit',
         background: on ? 'var(--success)' : 'var(--border-light)',
         color: on ? '#fff' : 'var(--text-muted)',
@@ -1076,7 +1076,7 @@ export default function Settings({ onLogout }) {
                 <span style={styles.calProviderLabel}>Apple Calendar</span>
                 <span style={styles.calProviderStatus}>Subscribe using the ICS feed below</span>
               </div>
-              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', background: 'var(--border-light)', padding: '4px 8px', borderRadius: 6 }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', background: 'var(--border-light)', padding: '4px 8px', borderRadius: 'var(--radius-xs)' }}>
                 ICS
               </span>
             </div>
@@ -1499,7 +1499,7 @@ export default function Settings({ onLogout }) {
                 {/* Always sent (read-only) */}
                 <div style={{ marginBottom: 18 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: 6, background: 'var(--success)', flexShrink: 0 }} />
+                    <div style={{ width: 8, height: 8, borderRadius: 'var(--radius-xs)', background: 'var(--success)', flexShrink: 0 }} />
                     <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Always sent</span>
                   </div>
                   <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 8px 14px', lineHeight: 1.4 }}>
@@ -1514,7 +1514,7 @@ export default function Settings({ onLogout }) {
 
                 {/* You choose */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                  <div style={{ width: 8, height: 8, borderRadius: 6, background: 'var(--accent)', flexShrink: 0 }} />
+                  <div style={{ width: 8, height: 8, borderRadius: 'var(--radius-xs)', background: 'var(--accent)', flexShrink: 0 }} />
                   <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>You choose</span>
                 </div>
                 {PROACTIVE.map(item => {
@@ -1528,7 +1528,7 @@ export default function Settings({ onLogout }) {
                             <button className="fl-tap"
                               key={opt.value}
                               onClick={() => setMode(item.key, opt.value)}
-                              style={{ padding: '4px 9px', borderRadius: 6, border: 'none', fontSize: 11, fontWeight: 600,
+                              style={{ padding: '4px 9px', borderRadius: 'var(--radius-xs)', border: 'none', fontSize: 11, fontWeight: 600,
                                 cursor: 'pointer', fontFamily: 'inherit',
                                 background: current === opt.value ? opt.color : 'var(--border-light)',
                                 color: current === opt.value ? '#fff' : 'var(--text-muted)',
@@ -1552,7 +1552,7 @@ export default function Settings({ onLogout }) {
                     Default 2 when unset (matches isKnownClient in outbound-guard.js). */}
                 <div style={{ marginTop: 20, paddingTop: 18, borderTop: '1px solid var(--border-light)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: 6, background: 'var(--accent)', flexShrink: 0 }} />
+                    <div style={{ width: 8, height: 8, borderRadius: 'var(--radius-xs)', background: 'var(--accent)', flexShrink: 0 }} />
                     <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Clients you know</span>
                   </div>
                   <p style={{ fontSize: 11.5, color: 'var(--text-muted)', margin: '0 0 10px 14px', lineHeight: 1.5 }}>
@@ -2302,7 +2302,7 @@ function BookingLinkCard({ slug }) {
 
 const styles = {
   page: { minHeight: 'var(--shell-viewport)', background: 'var(--bg)', fontFamily: "var(--font-body, 'Plus Jakarta Sans', -apple-system, sans-serif)", padding: '0 16px var(--scroll-pad-bottom)', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary)' },
-  savedBadge: { padding: '4px 10px', borderRadius: 6, background: 'var(--success-bg)', color: 'var(--success)', fontSize: 12, fontWeight: 600 },
+  savedBadge: { padding: '4px 10px', borderRadius: 'var(--radius-xs)', background: 'var(--success-bg)', color: 'var(--success)', fontSize: 12, fontWeight: 600 },
   loadingText: { textAlign: 'center', color: 'var(--text-muted)', padding: 60, fontSize: 14, fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)" },
   sectionNav: { display: 'flex', gap: 6, marginBottom: 16, overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none', paddingBottom: 2 },
   // <Button variant="chip" size="sm"> owns the padding, radius, type scale and
@@ -2332,7 +2332,7 @@ const styles = {
   dayToggle: { display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' },
   dayName: { fontSize: 14, fontWeight: 500 },
   timeInputs: { display: 'flex', alignItems: 'center', gap: 6 },
-  timeInput: { padding: '5px 6px', borderRadius: 6, border: '1.5px solid var(--border)', fontSize: 12, fontFamily: 'inherit', outline: 'none', width: 80 },
+  timeInput: { padding: '5px 6px', borderRadius: 'var(--radius-xs)', border: '1.5px solid var(--border)', fontSize: 12, fontFamily: 'inherit', outline: 'none', width: 80 },
   timeSep: { fontSize: 11, color: 'var(--text-muted)' },
   toggleRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--border-light)' },
   toggleLabel: { fontSize: 13, fontWeight: 500 },
@@ -2342,7 +2342,7 @@ const styles = {
   sliderHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   sliderLabel: { fontSize: 13, fontWeight: 500 },
   sliderValue: { fontSize: 14, fontWeight: 700, color: 'var(--accent)' },
-  slider: { width: '100%', appearance: 'none', height: 4, borderRadius: 6, background: 'var(--border)', outline: 'none' },
+  slider: { width: '100%', appearance: 'none', height: 4, borderRadius: 'var(--radius-xs)', background: 'var(--border)', outline: 'none' },
   sliderHints: { display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: 10, color: 'var(--text-muted)' },
   toneItem: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border-light)' },
   toneLabel: { fontSize: 12, color: 'var(--text-muted)', fontWeight: 500 },
@@ -2395,7 +2395,7 @@ const styles = {
 
   // Payments
   connectionStatus: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 },
-  statusDot: { width: 8, height: 8, borderRadius: 6, flexShrink: 0 },
+  statusDot: { width: 8, height: 8, borderRadius: 'var(--radius-xs)', flexShrink: 0 },
   connectionLabel: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' },
   connectBtn: { padding: '10px 20px', borderRadius: 10, border: 'none', background: 'var(--accent)', color: 'var(--bg-card)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   paymentMethodRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--border-light)' },

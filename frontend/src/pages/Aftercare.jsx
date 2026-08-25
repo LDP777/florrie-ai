@@ -447,7 +447,7 @@ const styles = {
     padding: '10px 14px', borderRadius: 10, background: 'var(--bg-card, #FFFCF9)',
     boxShadow: 'var(--elev-1)', marginBottom: 12,
   },
-  statusDot: { width: 8, height: 8, borderRadius: 6, flexShrink: 0 },
+  statusDot: { width: 8, height: 8, borderRadius: 'var(--radius-xs)', flexShrink: 0 },
   statusText: { fontSize: 12, color: 'var(--text-secondary, #574A42)', flex: 1 },
   statusCount: { fontSize: 11, color: 'var(--accent, #92405e)', fontWeight: 600 },
 
@@ -473,7 +473,7 @@ const styles = {
   cardName: { fontSize: 14, fontWeight: 600, color: 'var(--text, #241B17)' },
   cardMeta: { fontSize: 11, color: 'var(--text-muted, #6B5D54)' },
   autoSendBadge: {
-    padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
+    padding: '4px 10px', borderRadius: 'var(--radius-xs)', fontSize: 11, fontWeight: 600,
     flexShrink: 0,
   },
 
@@ -488,7 +488,7 @@ const styles = {
 
   productTags: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 },
   productTag: {
-    padding: '4px 10px', borderRadius: 6, background: 'var(--bg-hover, #f3ede9)',
+    padding: '4px 10px', borderRadius: 'var(--radius-xs)', background: 'var(--bg-hover, #f3ede9)',
     fontSize: 11, color: 'var(--text-secondary, #574A42)',
   },
 
@@ -553,7 +553,7 @@ const styles = {
     justifyContent: 'center', flexShrink: 0, marginTop: 4,
   },
   addStepBtn: {
-    padding: '6px 12px', borderRadius: 6, border: '1.5px dashed var(--border, #E8DDD4)',
+    padding: '6px 12px', borderRadius: 'var(--radius-xs)', border: '1.5px dashed var(--border, #E8DDD4)',
     background: 'transparent', color: 'var(--text-muted, #6B5D54)', fontSize: 12,
     cursor: 'pointer', fontFamily: 'inherit',
   },
@@ -609,7 +609,7 @@ const styles = {
     background: 'var(--border, #E8DDD4)', padding: '12px 10px', borderRadius: '0 0 16px 16px',
   },
   phoneNotch: {
-    width: 60, height: 4, borderRadius: 6, background: 'var(--text-muted, #6B5D54)',
+    width: 60, height: 4, borderRadius: 'var(--radius-xs)', background: 'var(--text-muted, #6B5D54)',
     margin: '0 auto 12px',
   },
   phoneContent: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 10, padding: 12 },

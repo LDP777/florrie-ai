@@ -568,7 +568,7 @@ const s = {
     width: 30,
     height: 30,
     border: 'none',
-    borderRadius: 6,
+    borderRadius: 'var(--radius-xs)',
     cursor: 'pointer',
     padding: 0,
   },

@@ -1194,10 +1194,10 @@ const styles = {
   timelyPreviewLine: { fontSize: 14, color: 'var(--text-primary, #241B17)', lineHeight: 1.5 },
   timelyPreviewSub: { fontSize: 12, color: 'var(--text-muted, #6B5D54)', lineHeight: 1.5 },
   timelyProgressTrack: {
-    height: 8, borderRadius: 6, background: 'var(--bg-hover, #f3ede9)', overflow: 'hidden',
+    height: 8, borderRadius: 'var(--radius-xs)', background: 'var(--bg-hover, #f3ede9)', overflow: 'hidden',
   },
   timelyProgressFill: {
-    height: '100%', borderRadius: 6, background: 'var(--accent, #92405e)',
+    height: '100%', borderRadius: 'var(--radius-xs)', background: 'var(--accent, #92405e)',
     transition: 'width 0.3s ease',
   },
   timelyResultList: { display: 'flex', flexDirection: 'column', gap: 8 },

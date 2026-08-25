@@ -373,8 +373,8 @@ const styles = {
   delayRow: { display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 },
   conditionsList: { display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 },
   conditionRow: { display: 'flex', alignItems: 'center', gap: 6 },
-  condSelect: { padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', fontSize: 11, fontFamily: 'inherit', background: 'var(--bg, var(--bg, #FBF6F1))', color: '#4A4540' },
-  condInput: { width: 60, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', fontSize: 11, fontFamily: 'inherit', background: 'var(--bg, var(--bg, #FBF6F1))' },
+  condSelect: { padding: '6px 8px', borderRadius: 'var(--radius-xs)', border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', fontSize: 11, fontFamily: 'inherit', background: 'var(--bg, var(--bg, #FBF6F1))', color: '#4A4540' },
+  condInput: { width: 60, padding: '6px 8px', borderRadius: 'var(--radius-xs)', border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', fontSize: 11, fontFamily: 'inherit', background: 'var(--bg, var(--bg, #FBF6F1))' },
   tabs: { display: 'flex', gap: 4, marginBottom: 16, background: 'var(--border, var(--border, var(--border, #E8DDD4)))', borderRadius: 10, padding: 4 },
   // The two unselected tab labels sat at #6B6560 on the --border tab bar and
   // measured 4.30:1 — a grey picked against cream, then dropped onto a strip
@@ -399,7 +399,7 @@ const styles = {
   templateCard: { display: 'flex', alignItems: 'center', gap: 12, background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: 14, border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', marginBottom: 10 },
   useTemplateBtn: { padding: '8px 14px', borderRadius: 10, border: 'none', background: 'var(--border, var(--border, var(--border, #E8DDD4)))', color: 'var(--text-primary, #241B17)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 },
   logRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '12px 0', borderBottom: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))' },
-  logDot: { width: 6, height: 6, borderRadius: 6, flexShrink: 0 },
+  logDot: { width: 6, height: 6, borderRadius: 'var(--radius-xs)', flexShrink: 0 },
 };
 const SEQ_TRIGGERS = [
   { value: 'after-appointment', label: 'After Appointment', icon: 'check-circle' },
@@ -530,12 +530,12 @@ function SequencesPanel({ beautician }) {
                   {seq.steps.map((step, i) => (
                     <div key={i} style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <div style={{ width: 8, height: 8, borderRadius: 6, background: 'var(--accent-rose, #C76B8A)', marginTop: 4, flexShrink: 0 }} />
+                        <div style={{ width: 8, height: 8, borderRadius: 'var(--radius-xs)', background: 'var(--accent-rose, #C76B8A)', marginTop: 4, flexShrink: 0 }} />
                         {i < seq.steps.length - 1 && <div style={{ width: 1, flex: 1, background: 'var(--border-light, #ede7e3)', marginTop: 4 }} />}
                       </div>
                       <div style={{ flex: 1, paddingBottom: 4 }}>
                         <div style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
-                          <span style={{ fontSize: 10, fontWeight: 700, color: '#aa4064', background: '#FFF0F3', padding: '2px 7px', borderRadius: 6 }}>{formatSeqDelay(step.delay)}</span>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: '#aa4064', background: '#FFF0F3', padding: '2px 7px', borderRadius: 'var(--radius-xs)' }}>{formatSeqDelay(step.delay)}</span>
                           <span style={{ fontSize: 10, color: '#8B8580' }}>{step.channel === 'whatsapp' ? 'message' : step.channel === 'sms' ? 'phone' : 'mail'} {step.channel}</span>
                         </div>
                         <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary, #574A42)', lineHeight: 1.5 }}>{step.message}</p>
