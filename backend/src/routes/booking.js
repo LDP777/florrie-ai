@@ -16,7 +16,7 @@ import { chargePolicyFee, computePolicyFee, chargeRescheduleDeposit } from '../s
 import { verifyTurnstile } from '../middleware/turnstile.js';
 import logger from '../lib/logger.js';
 import { bookingSchema } from '../lib/schemas.js';
-import { nowInSalonWall, loadBlocks, hitsBlock, wallDayHours, blockCoversDay, blockLookbackFrom } from '../lib/free-slots.js';
+import { nowInSalonWall, loadBlocks, hitsBlock, wallDayHours, blockCoversDay, blockDays, blockLookbackFrom, getFreeSlots, excludedAppointmentIds } from '../lib/free-slots.js';
 import { getOutstandingBalanceCents } from '../services/outstanding-balance.js';
 import { autoUnarchiveClient } from '../lib/client-archive.js';
 import { guardedSend } from '../lib/outbound-guard.js';
@@ -574,11 +574,18 @@ router.get('/:slug/availability', async (req, res) => {
   // Blocked-off time for the day: partial (amended) blocks come back with
   // their time range so the picker can grey those slots out; anything
   // without a usable range is treated as a full-day closure.
+  //
+  // A closure is a RANGE, date..end_date. This matched on `date` alone, so a
+  // holiday entered as 24 to 30 August greyed out the 24th and showed the
+  // other six days as a normal working week. Widen the lower bound (see
+  // MAX_BLOCK_LOOKBACK_DAYS in lib/free-slots.js) so a closure that STARTED
+  // earlier and is still running is fetched, then let blockCoversDay decide.
   const { data: exceptionRows, error: exceptionErr } = await supabase
     .from('hours_exceptions')
-    .select('type, start_time, end_time')
+    .select('date, end_date, type, start_time, end_time')
     .eq('beautician_id', salon.id)
-    .eq('date', date);
+    .gte('date', blockLookbackFrom(date))
+    .lte('date', date);
 
   // Same failure, worse consequence: unread exceptions show a closed day as
   // bookable, so a client picks a time in the middle of Ellie's holiday.
@@ -589,7 +596,9 @@ router.get('/:slug/availability', async (req, res) => {
 
   const blocks = [];
   let dayClosed = false;
-  for (const r of exceptionRows || []) {
+  // The query narrows; this decides. A row only counts if its own
+  // date..end_date span actually contains the day being asked about.
+  for (const r of (exceptionRows || []).filter(r => blockCoversDay(r, date))) {
     if (r.type !== 'closed' && r.start_time && r.end_time) {
       blocks.push({ start_time: r.start_time, end_time: r.end_time });
     } else {
@@ -637,11 +646,18 @@ router.get('/:slug/availability-range', async (req, res) => {
   // Blocked-off time: full-day closures AND partial-day (amended) blocks.
   // Previously only type='closed' was returned, so a client could book
   // straight into an hour the beautician had blocked out.
+  //
+  // And a closure is a RANGE, date..end_date. This read `r.date` only, so the
+  // month grid marked the first day of a holiday closed and left the rest of
+  // it looking like a normal week. The lower bound is widened (see
+  // MAX_BLOCK_LOOKBACK_DAYS in lib/free-slots.js) so a fortnight off that
+  // began before `from` is fetched too; blockDays then expands each row into
+  // the days it actually covers, clamped to the window.
   const { data: exceptionRows, error: exceptionErr } = await supabase
     .from('hours_exceptions')
-    .select('date, type, start_time, end_time')
+    .select('date, end_date, type, start_time, end_time')
     .eq('beautician_id', salon.id)
-    .gte('date', from)
+    .gte('date', blockLookbackFrom(from))
     .lte('date', to);
 
   // And an unread exception list reads as "she never takes a day off".
@@ -650,15 +666,23 @@ router.get('/:slug/availability-range', async (req, res) => {
     return res.status(500).json({ error: 'Could not load availability. Please try again.' });
   }
 
-  const closures = [];
+  const closureDays = new Set();
   const blocks = [];
+  const seenBlock = new Set();
   for (const r of exceptionRows || []) {
-    if (r.type !== 'closed' && r.start_time && r.end_time) {
-      blocks.push({ date: r.date, start_time: r.start_time, end_time: r.end_time });
-    } else {
-      closures.push(r.date);
+    // One row, every day it covers. A null or blank end_date is a single day.
+    for (const day of blockDays(r, from, to)) {
+      if (r.type !== 'closed' && r.start_time && r.end_time) {
+        const key = `${day}|${r.start_time}|${r.end_time}`;
+        if (seenBlock.has(key)) continue;
+        seenBlock.add(key);
+        blocks.push({ date: day, start_time: r.start_time, end_time: r.end_time });
+      } else {
+        closureDays.add(day);
+      }
     }
   }
+  const closures = [...closureDays].sort();
 
   res.json({
     appointments: appts || [],
@@ -831,7 +855,7 @@ router.get('/:slug/manage/:token', async (req, res) => {
         payment_type, stripe_payment_intent_id, stripe_payment_method_id,
         treatments(id, name, duration_minutes, price_cents, category, requires_patch_test),
         clients(id, first_name, last_name, email, phone, stripe_customer_id),
-        beauticians(id, first_name, business_name, booking_policy, booking_slug, brand_color, patch_test_expiry_months, patch_test_block_booking, payment_settings)
+        beauticians(id, first_name, business_name, phone, booking_policy, booking_slug, brand_color, patch_test_expiry_months, patch_test_block_booking, payment_settings)
       `)
       .eq('management_token', req.params.token)
       .single();
@@ -957,6 +981,11 @@ router.get('/:slug/manage/:token', async (req, res) => {
         beautician: {
           name: appt.beauticians?.business_name || appt.beauticians?.first_name,
           brandColor: appt.beauticians?.brand_color,
+          // Her business number, so "no times are free, please get in touch"
+          // is something the client can act on rather than a dead end. This is
+          // the same number the Instagram auto-reply already hands out as a
+          // wa.me link; the login email deliberately stays private.
+          phone: appt.beauticians?.phone || null,
         },
       },
       // Remaining balance after the deposit, plus the beautician's bank details
@@ -1819,16 +1848,116 @@ router.post('/:slug/manage/:token/reschedule', async (req, res) => {
   }
 });
 
+/** How far ahead either reschedule mode will look. */
+const RESCHEDULE_HORIZON_DAYS = 28;
+/** Cap on the general list, same grain and same cap as the patch-test picker. */
+const RESCHEDULE_MAX_SLOTS = 800;
+
+/**
+ * General availability for a client moving her own booking: every genuinely
+ * free slot the public booking page would offer her, minus the one thing the
+ * public page never has to think about.
+ *
+ * THE APPOINTMENT BEING MOVED MUST NOT BLOCK ITS OWN REPLACEMENT. Ellie's
+ * client wanting to slide her 1pm to 1.30pm is sitting in the only booking
+ * that overlaps 1.30, her own. getFreeSlots takes excludeAppointmentIds for
+ * exactly this, and the back-to-back path excludes the same row through the
+ * same helper, so both modes agree.
+ *
+ * Everything else comes off getFreeSlots: working hours, closures (date to
+ * end_date), blocked ranges, the real diary and the wall-time convention. No
+ * third availability implementation.
+ *
+ * The list is then passed through the SAME two policy predicates POST
+ * .../reschedule applies before it will accept a time, in the same frames it
+ * applies them in. Offering a slot the acceptor then refuses is the bug this
+ * whole endpoint exists to end, so agreement matters more than elegance here.
+ */
+async function generalRescheduleSlots(res, appt, { policy, livePolicy, workingHours, totalMinutes }) {
+  const timezone = appt.beauticians?.timezone || 'Europe/London';
+
+  // Lead time and horizon: read the way the POST reads them. The POST takes
+  // min_booking_hours and max_advance_days off `policy` (snapshot, falling
+  // back to live). Where the live policy is TIGHTER we honour that too, so a
+  // salon that has just shortened its booking window is not still handing out
+  // dates beyond it.
+  const minHours = Math.max(0, Number(policy.min_booking_hours) || 0);
+  const advanceCandidates = [policy.max_advance_days, livePolicy.max_advance_days]
+    .map(n => Number(n) || 0)
+    .filter(n => n > 0);
+  const maxAdvanceDays = advanceCandidates.length ? Math.min(...advanceCandidates) : 0;
+
+  const days = maxAdvanceDays > 0
+    ? Math.min(RESCHEDULE_HORIZON_DAYS, maxAdvanceDays)
+    : RESCHEDULE_HORIZON_DAYS;
+
+  // getFreeSlots throws when it cannot read the diary or the closures, and the
+  // route's catch turns that into a 500. That is the right way round: an
+  // unreadable diary must never render as a page full of free time.
+  const free = await getFreeSlots(appt.beautician_id, {
+    workingHours,
+    timezone,
+    durationMinutes: totalMinutes,
+    fromWall: nowInSalonWall(timezone),
+    days,
+    leadHours: minHours,
+    maxSlots: RESCHEDULE_MAX_SLOTS,
+    excludeAppointmentIds: [appt.id],
+  });
+
+  // The POST's own guards, replayed. Both of them measure a wall-frame start
+  // against a real instant, which is an hour out in BST; replaying them rather
+  // than reasoning about them is what guarantees every offered time is one it
+  // will actually take.
+  const nowReal = new Date();
+  const horizon = maxAdvanceDays > 0 ? new Date(nowReal) : null;
+  if (horizon) horizon.setDate(horizon.getDate() + maxAdvanceDays);
+
+  const slots = [];
+  for (const s of free) {
+    // Zone-free wall string: this is the only shape POST .../reschedule accepts.
+    const wall = `${s.date}T${s.time}:00`;
+    const start = new Date(`${wall}Z`);
+    if (minHours > 0 && (start - nowReal) / (1000 * 60 * 60) < minHours) continue;
+    if (horizon && start > horizon) continue;
+    slots.push(wall);
+  }
+
+  return res.json({
+    mode: 'available',
+    slots,
+    durationMinutes: totalMinutes,
+    horizonDays: days,
+  });
+}
+
 /**
  * GET /api/booking/:slug/manage/:token/reschedule/slots
- * Back-to-back reschedule slots. Used when the beautician has
- * booking_policy.reschedule_between_only turned on: instead of a free
- * date/time picker, the client is offered only slots that butt directly
- * against another booking (start where one ends, or end where one starts),
- * so days stay tightly packed and Ellie never travels in for one client.
+ * The times this client can actually move her booking to. TWO MODES:
+ *
+ *   reschedule_between_only ON  -> back-to-back only. The client is offered
+ *     only slots that butt directly against another booking (start where one
+ *     ends, or end where one starts), so days stay tightly packed and Ellie
+ *     never travels in for one client. Deliberate product rule, unchanged.
+ *
+ *   otherwise (the default)     -> general availability, the same times the
+ *     public booking page would offer.
+ *
+ * The default used to have no answer at all. The manage page fell back to a
+ * bare date box and a time box, and a client wrote, verbatim: "it doesn't let
+ * me see your slots, I just have to choose a time and date and it keeps saying
+ * it's not available but that's cause I'm guessing haha x". Ellie then read
+ * the diary herself and told her a time. Guess-and-check is not an interface,
+ * so the default now answers the question.
+ *
+ * The general mode is generated by lib/free-slots.js getFreeSlots, the same
+ * generator the AI front desk and the patch-test picker use, so there is one
+ * account of what "free" means rather than three.
  *
  * Wall-clock throughout: appointment times are stored as salon local time in
  * the slot, so we read/build them with plain string maths, never Date tz maths.
+ * Both modes emit `YYYY-MM-DDTHH:MM:SS` with no zone, which is exactly what
+ * POST .../reschedule accepts (it refuses anything carrying an offset).
  */
 router.get('/:slug/manage/:token/reschedule/slots', async (req, res) => {
   try {
@@ -1837,7 +1966,7 @@ router.get('/:slug/manage/:token/reschedule/slots', async (req, res) => {
       .select(`
         id, starts_at, status, duration_minutes, buffer_minutes, extra_padding_minutes,
         policy_snapshot, beautician_id,
-        beauticians(id, booking_slug, booking_policy, working_hours)
+        beauticians(id, booking_slug, booking_policy, working_hours, timezone)
       `)
       .eq('management_token', req.params.token)
       .single();
@@ -1854,7 +1983,16 @@ router.get('/:slug/manage/:token/reschedule/slots', async (req, res) => {
     const workingHours = appt.beauticians?.working_hours || null;
     const totalMinutes = (appt.duration_minutes || 60) + (appt.buffer_minutes || 0) + (appt.extra_padding_minutes || 0);
 
-    const HORIZON_DAYS = 28;
+    // ---------------------------------------------------------------- mode --
+    // The POST route decides adjacency from the LIVE policy, so the list of
+    // offered times has to be decided from the same place. Reading the frozen
+    // snapshot here would offer a back-to-back client the whole diary, or the
+    // reverse.
+    if (livePolicy.reschedule_between_only !== true) {
+      return await generalRescheduleSlots(res, appt, { policy, livePolicy, workingHours, totalMinutes });
+    }
+
+    const HORIZON_DAYS = RESCHEDULE_HORIZON_DAYS;
     const now = new Date();
     const todayStr = now.toISOString().slice(0, 10);
     const nowMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
@@ -1888,9 +2026,13 @@ router.get('/:slug/manage/:token/reschedule/slots', async (req, res) => {
     };
     const dayOf = (isoish) => String(isoish || '').slice(0, 10);
 
-    // Group existing bookings by day.
+    // Group existing bookings by day. The appointment being moved must never
+    // count against its own replacement, so it is excluded twice: once in the
+    // query above (.neq) and once here, through the same helper the general
+    // mode uses, so the two modes cannot drift apart on what "exclude" means.
+    const movingItself = excludedAppointmentIds([appt.id]);
     const byDay = {};
-    for (const a of existing || []) {
+    for (const a of (existing || []).filter(a => !movingItself.has(String(a.id)))) {
       const d = dayOf(a.starts_at);
       (byDay[d] = byDay[d] || []).push({ start: wm(a.starts_at), end: wm(a.ends_at) });
     }

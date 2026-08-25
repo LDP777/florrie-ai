@@ -154,18 +154,23 @@ export default function ClientManagePage() {
     }
   }
 
-  // Reschedule state
+  // Reschedule state.
+  //
+  // There is no free date/time input any more. It was the default path, and
+  // every guess that missed came back as a rejection: "it keeps saying it's
+  // not available but that's cause I'm guessing haha x". Both modes now show
+  // real, pickable times, so there is nothing left for the client to type.
   const [showReschedule, setShowReschedule] = useState(false);
-  const [rescheduleDate, setRescheduleDate] = useState('');
-  const [rescheduleTime, setRescheduleTime] = useState('');
   const [rescheduling, setRescheduling] = useState(false);
   const [rescheduleResult, setRescheduleResult] = useState(null);
   const [rescheduleError, setRescheduleError] = useState(null);
-  // Back-to-back reschedule slots (used when the beautician restricts moves to
-  // times that butt against existing bookings).
+  // The times she can actually move to: back-to-back only when the salon
+  // restricts moves to slots that butt against existing bookings, otherwise
+  // general availability, the same times the public booking page would offer.
   const [rescheduleSlots, setRescheduleSlots] = useState(null);
   const [loadingReschedSlots, setLoadingReschedSlots] = useState(false);
   const [reschedSlotsError, setReschedSlotsError] = useState(null);
+  const [reschedHorizonDays, setReschedHorizonDays] = useState(28);
 
   // Resend payment state
   const [resendingPayment, setResendingPayment] = useState(false);
@@ -253,18 +258,29 @@ export default function ClientManagePage() {
   function openReschedule() {
     setShowReschedule(true);
     setRescheduleError(null);
-    // Restricted to back-to-back slots? Fetch the offered times up front.
-    if (data?.policy?.reschedule_between_only) loadRescheduleSlots();
+    // Always fetch. Both modes are a list of real times now, so there is never
+    // a state where opening the card means "start typing and hope".
+    loadRescheduleSlots();
+  }
+
+  function closeReschedule() {
+    setShowReschedule(false);
+    setRescheduleError(null);
+    setReschedSlotsError(null);
   }
 
   async function loadRescheduleSlots() {
     setLoadingReschedSlots(true);
     setReschedSlotsError(null);
+    // Clear first: a stale list under a spinner invites a tap on a slot that
+    // may already have gone.
+    setRescheduleSlots(null);
     try {
       const res = await fetch(`${API_BASE}/api/booking/${slug}/manage/${token}/reschedule/slots`);
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || 'Could not load available times');
       setRescheduleSlots(result.slots || []);
+      if (result.horizonDays) setReschedHorizonDays(result.horizonDays);
     } catch (err) {
       setReschedSlotsError(err.message);
     } finally {
@@ -272,11 +288,11 @@ export default function ClientManagePage() {
     }
   }
 
-  async function handleReschedule(explicitStartsAt) {
-    // A slot tap passes the ISO string directly; the free picker builds it from
-    // the date + time inputs. Guard against an event object sneaking in.
-    const fromInputs = rescheduleDate && rescheduleTime ? `${rescheduleDate}T${rescheduleTime}:00` : null;
-    const new_starts_at = (typeof explicitStartsAt === 'string' && explicitStartsAt) ? explicitStartsAt : fromInputs;
+  async function handleReschedule(newStartsAt) {
+    // Always an offered slot now: a zone-free wall string, exactly as the
+    // endpoint handed it over. Guard against an event object sneaking in from
+    // an onClick that forgot its arrow.
+    const new_starts_at = (typeof newStartsAt === 'string' && newStartsAt) ? newStartsAt : null;
     if (!new_starts_at) return;
     setRescheduling(true);
     setRescheduleError(null);
@@ -295,6 +311,10 @@ export default function ClientManagePage() {
       await load();
     } catch (err) {
       setRescheduleError(err.message);
+      // Somebody else took it between the list loading and the tap. Refetch so
+      // the times on screen are current; without this the same dead slot stays
+      // tappable and the client is back to guessing.
+      loadRescheduleSlots().catch(() => {});
     } finally {
       setRescheduling(false);
     }
@@ -407,6 +427,47 @@ export default function ClientManagePage() {
   }[appointment.status] || '#8A8580';
   const statusTint = mixOver(rawStatusColour, '#FFFCF9', 0x20 / 255);
   const statusColour = readableOnAll(rawStatusColour, [statusTint]);
+
+  const patchTestPickerCopy = {
+    title: `Pick a day and time for your ${patchTestDuration}-min patch test`,
+    emptyMessage: 'No patch test times are free before your appointment. Message me and we will sort one out.',
+    confirmLabel: 'Confirm my patch test',
+    confirmingLabel: 'Booking your patch test...',
+  };
+
+  // A way through when the diary has nothing in it. "Nothing available" and a
+  // Back button is how a rebooking is lost, so if we hold her number the
+  // client gets a tap-to-call; if we do not, she is at least told to reply to
+  // the confirmation rather than left staring at a dead end.
+  const salonPhone = (appointment.beautician?.phone || '').trim();
+  const salonName = appointment.beautician.name;
+  const reachTheSalon = salonPhone ? (
+    <a
+      href={`tel:${salonPhone.replace(/[^\d+]/g, '')}`}
+      style={{
+        display: 'block', textAlign: 'center', padding: '13px 12px', borderRadius: 10,
+        border: `1.5px solid ${brand}`, background: brandLight, color: brandInk,
+        fontSize: 14, fontWeight: 700, textDecoration: 'none', marginBottom: 10,
+      }}
+    >
+      Call {salonName} on {salonPhone}
+    </a>
+  ) : (
+    <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 10px', lineHeight: 1.5 }}>
+      Reply to your confirmation message and {salonName} will find you a time.
+    </p>
+  );
+
+  const reschedulePickerCopy = {
+    // The card already says "Pick a new time" above it; the picker does not
+    // need to say it twice.
+    title: null,
+    emptyMessage: `There is nothing free in the next ${reschedHorizonDays} days for a ${appointment.totalDurationMinutes || appointment.treatment?.duration_minutes || 0}-minute appointment. ${salonName} can often fit something in that the diary will not show, so please get in touch.`,
+    emptyExtra: reachTheSalon,
+    confirmLabel: 'Confirm my new time',
+    confirmingLabel: 'Moving your booking...',
+    frameless: true,
+  };
 
   return (
     <div style={S.page}>
@@ -803,9 +864,9 @@ export default function ClientManagePage() {
                     {slotsError && <p style={{ fontSize: 13, color: 'var(--danger)', marginTop: 8 }}>{slotsError}</p>}
                   </>
                 ) : (
-                  <PatchTestPicker
+                  <SlotPicker
                     slots={patchTestSlots}
-                    duration={patchTestDuration}
+                    {...patchTestPickerCopy}
                     onPick={confirmPatchTestSlot}
                     confirming={confirmingSlot}
                     error={slotsError}
@@ -876,9 +937,9 @@ export default function ClientManagePage() {
                         )}
                       </div>
                     ) : (
-                      <PatchTestPicker
+                      <SlotPicker
                         slots={patchTestSlots}
-                        duration={patchTestDuration}
+                        {...patchTestPickerCopy}
                         onPick={confirmPatchTestSlot}
                         confirming={confirmingSlot}
                         error={slotsError}
@@ -987,52 +1048,70 @@ export default function ClientManagePage() {
                         ))}
                       </div>
                     ) : (
-                      <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.5 }}>
-                        No back-to-back times are free in the next few weeks. Please contact {appointment.beautician.name} directly to rearrange.
-                      </p>
+                      <>
+                        <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.5 }}>
+                          No back-to-back times are free in the next {reschedHorizonDays} days. {appointment.beautician.name} can often fit something in that the diary will not show, so please get in touch.
+                        </p>
+                        {reachTheSalon}
+                      </>
                     )}
                     {rescheduleError && (
                       <p style={{ fontSize: 13, color: 'var(--danger)', margin: '0 0 10px' }}>{rescheduleError}</p>
                     )}
-                    <button onClick={() => { setShowReschedule(false); setRescheduleError(null); }} style={S.keepBtn}>
+                    <button onClick={closeReschedule} style={S.keepBtn}>
                       Back
                     </button>
                   </>
                 ) : (
                   <>
-                    <p style={{ fontSize: 14, fontWeight: 600, margin: '0 0 12px', color: '#1a1a1a' }}>
-                      Choose a new date and time
+                    {/* THE DEFAULT. It used to be a date box, a time box and a
+                        client guessing, and every guess that missed came back
+                        as "that time is not available". Same real, pickable
+                        times the public booking page offers, minus this very
+                        appointment, which must not block its own replacement. */}
+                    <p style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px', color: '#1a1a1a' }}>
+                      Pick a new time
                     </p>
-                    <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-                      <input
-                        type="date"
-                        value={rescheduleDate}
-                        min={new Date().toISOString().split('T')[0]}
-                        onChange={e => setRescheduleDate(e.target.value)}
-                        style={{ ...S.dateInput, flex: 1 }}
-                      />
-                      <input
-                        type="time"
-                        value={rescheduleTime}
-                        onChange={e => setRescheduleTime(e.target.value)}
-                        style={{ ...S.dateInput, flex: '0 0 auto', width: 120 }}
-                      />
-                    </div>
+                    <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.5 }}>
+                      These are the times {appointment.beautician.name} has free. Anything you can tap here is yours.
+                    </p>
+
                     {rescheduleError && (
-                      <p style={{ fontSize: 13, color: 'var(--danger)', margin: '0 0 10px' }}>{rescheduleError}</p>
+                      <p style={{ fontSize: 13, color: 'var(--danger)', margin: '0 0 10px', fontWeight: 600 }}>{rescheduleError}</p>
                     )}
-                    <div style={{ display: 'flex', gap: 10 }}>
-                      <button onClick={() => { setShowReschedule(false); setRescheduleError(null); }} style={S.keepBtn}>
-                        Back
-                      </button>
-                      <button
-                        onClick={() => handleReschedule()}
-                        disabled={rescheduling || !rescheduleDate || !rescheduleTime}
-                        style={{ ...S.confirmCancelBtn, background: brand, color: onBrandColour, opacity: (!rescheduleDate || !rescheduleTime) ? 0.5 : 1 }}
-                      >
-                        {rescheduling ? 'Moving…' : 'Confirm reschedule'}
-                      </button>
-                    </div>
+
+                    {loadingReschedSlots ? (
+                      <>
+                        <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px' }}>Finding your available times…</p>
+                        <button onClick={closeReschedule} style={S.keepBtn}>Back</button>
+                      </>
+                    ) : reschedSlotsError ? (
+                      <>
+                        {/* A failed lookup is not an empty diary, and it must
+                            not read like one. Say so, and offer the retry. */}
+                        <p style={{ fontSize: 13, color: 'var(--danger)', margin: '0 0 12px', lineHeight: 1.5 }}>
+                          {reschedSlotsError} We could not load the diary just then, so this is not a list of everything that is free.
+                        </p>
+                        <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+                          <button onClick={closeReschedule} style={S.keepBtn}>Back</button>
+                          <Button variant="secondary" onClick={loadRescheduleSlots} style={{ flex: 1 }}>
+                            Try again
+                          </Button>
+                        </div>
+                        {reachTheSalon}
+                      </>
+                    ) : (
+                      <SlotPicker
+                        slots={rescheduleSlots || []}
+                        {...reschedulePickerCopy}
+                        onPick={handleReschedule}
+                        confirming={rescheduling}
+                        error={null}
+                        onBack={closeReschedule}
+                        brand={brand}
+                        brandLight={brandLight}
+                      />
+                    )}
                   </>
                 )}
               </div>
@@ -1113,12 +1192,23 @@ function MetaRow({ icon, label, value }) {
 }
 
 /**
- * A proper calendar for booking a patch test: pick a day, then a time, exactly
- * like the main booking page. Slots arrive as SALON WALL TIME in the UTC slot,
- * so we read the date/time straight off the string (slice) and never let the
- * browser timezone shift them.
+ * A proper calendar: pick a day, then a time, exactly like the main booking
+ * page. Slots arrive as SALON WALL TIME in the UTC slot, so we read the
+ * date/time straight off the string (slice) and never let the browser timezone
+ * shift them.
+ *
+ * This was PatchTestPicker, and for a while it was the only place on this page
+ * where a client could see real times. Rescheduling had a date box and a time
+ * box and a client guessing, which is what she told Ellie it felt like. It is
+ * the same picker, so it is one component; only the words around it change.
  */
-function PatchTestPicker({ slots, duration, onPick, confirming, error, onBack, brand, brandLight }) {
+function SlotPicker({
+  slots, onPick, confirming, error, onBack, brand, brandLight,
+  title, emptyMessage, emptyExtra = null, confirmLabel, confirmingLabel,
+  // The reschedule card is already a card. Nesting a second identical one
+  // inside it draws two borders round the same thing.
+  frameless = false,
+}) {
   const byDay = useMemo(() => {
     const m = new Map();
     for (const s of slots || []) {
@@ -1146,12 +1236,18 @@ function PatchTestPicker({ slots, duration, onPick, confirming, error, onBack, b
     }
   }, [dayKeys, selectedDay]);
 
+  // NOTHING FREE IS NOT AN ANSWER ON ITS OWN. A client who is told "no times
+  // available" and given no next step simply does not rebook, so the caller
+  // always passes a way to reach the salon alongside the bad news.
+  const frame = frameless ? undefined : S.slotPickerCard;
+
   if (!dayKeys.length) {
     return (
-      <div style={S.slotPickerCard}>
-        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>
-          No patch test times are free before your appointment. Message me and we will sort one out.
+      <div style={frame}>
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.5 }}>
+          {emptyMessage}
         </p>
+        {emptyExtra}
         <button onClick={onBack} style={S.keepBtn}>Back</button>
       </div>
     );
@@ -1172,10 +1268,12 @@ function PatchTestPicker({ slots, duration, onPick, confirming, error, onBack, b
   });
 
   return (
-    <div style={S.slotPickerCard}>
-      <p style={{ fontSize: 13, fontWeight: 600, margin: '0 0 10px', color: '#1a1a1a' }}>
-        Pick a day and time for your {duration}-min patch test
-      </p>
+    <div style={frame}>
+      {title ? (
+        <p style={{ fontSize: 13, fontWeight: 600, margin: '0 0 10px', color: '#1a1a1a' }}>
+          {title}
+        </p>
+      ) : null}
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
         <button type="button" disabled={mIdx <= 0} onClick={() => setMonth(months[mIdx - 1])} style={navBtn(mIdx > 0)} aria-label="Previous month">{'\u2039'}</button>
@@ -1269,7 +1367,7 @@ function PatchTestPicker({ slots, duration, onPick, confirming, error, onBack, b
               opacity: confirming ? 0.75 : 1, marginBottom: 8,
             }}
           >
-            {confirming ? 'Booking your patch test...' : 'Confirm my patch test'}
+            {confirming ? confirmingLabel : confirmLabel}
           </button>
         </>
       ) : (
@@ -1325,7 +1423,7 @@ const S = {
   cardBody: { textAlign: 'center', fontSize: 14, color: 'var(--text-secondary)', margin: 0 },
   bookingStatus: { display: 'flex', justifyContent: 'flex-end', marginBottom: 8 },
   statusChip: {
-    padding: '3px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+    padding: '3px 10px', borderRadius: 'var(--radius-xs)', fontSize: 12, fontWeight: 600,
     textTransform: 'capitalize', letterSpacing: '0.02em',
   },
   treatmentName: {
@@ -1443,9 +1541,5 @@ const S = {
   rescheduleCard: {
     background: 'var(--bg-card)', borderRadius: 16, padding: '18px 18px',
     boxShadow: 'var(--elev-2)', border: '1px solid #E8E4DF',
-  },
-  dateInput: {
-    padding: '10px 12px', borderRadius: 10, border: '1.5px solid #E8E4DF',
-    fontSize: 14, fontFamily: 'inherit', background: 'var(--bg-card)', color: '#2D1B1B',
   },
 };

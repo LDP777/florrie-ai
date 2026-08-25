@@ -163,11 +163,13 @@ describe('no new sender joins clients without the consent columns', () => {
     'src/routes/appointments.js:66',
     'src/routes/appointments.js:431',
     'src/routes/appointments.js:1598',
-    'src/routes/booking.js:833',
-    'src/routes/booking.js:1543',
-    'src/routes/booking.js:1984',
-    'src/routes/booking.js:2250',
-    'src/routes/booking.js:2661',
+    // All five moved down by the general reschedule-slots mode added above
+    // them in routes/booking.js. Same five joins, same file, new line numbers.
+    'src/routes/booking.js:857',
+    'src/routes/booking.js:1572',
+    'src/routes/booking.js:2126',
+    'src/routes/booking.js:2392',
+    'src/routes/booking.js:2803',
     'src/routes/features.js:132',
     'src/routes/features.js:169',
     'src/routes/features.js:194',

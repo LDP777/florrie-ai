@@ -145,6 +145,24 @@ export function wallDayHours(workingHours, wallDate) {
 const FREE_SLOT_IGNORED_STATUSES = '(cancelled,cancelled_by_client,cancelled_by_beautician,no_show)';
 
 /**
+ * The appointments that must NOT count as busy for this question.
+ *
+ * A client moving her 1pm to 1.30pm is blocked by her own booking otherwise:
+ * the diary quite correctly says 1pm to 2pm is taken, and the thing taking it
+ * is the very appointment she is trying to move. The back-to-back reschedule
+ * path has always known this and excludes with `.neq('id', appt.id)`; this is
+ * the same rule, written once, so both paths mean the same thing by it.
+ *
+ * Ids are compared as strings because a uuid is a string on both sides and a
+ * stray number would otherwise slip through a `===`.
+ */
+export function excludedAppointmentIds(ids) {
+  if (ids === null || ids === undefined) return new Set();
+  const list = Array.isArray(ids) ? ids : [ids];
+  return new Set(list.filter(Boolean).map(String));
+}
+
+/**
  * Every genuinely free slot in the diary, verified against working hours, her
  * hours_exceptions blocks and the real bookings. This is the ONLY list a reply
  * is allowed to quote a time from.
@@ -158,6 +176,9 @@ const FREE_SLOT_IGNORED_STATUSES = '(cancelled,cancelled_by_client,cancelled_by_
  * @param {number} [opts.days]         how far ahead to scan
  * @param {number} [opts.leadHours]    minimum notice before the first slot
  * @param {number} [opts.maxSlots]     hard cap so a quiet diary cannot run away
+ * @param {string|string[]} [opts.excludeAppointmentIds]  appointment(s) that must
+ *        not count as busy, because they are the ones being moved. Without this
+ *        a client rescheduling 1pm to 1.30pm is blocked by her own booking.
  * @returns {Promise<Array<{iso: string, date: string, time: string}>>}
  */
 export async function getFreeSlots(beauticianId, {
@@ -168,6 +189,7 @@ export async function getFreeSlots(beauticianId, {
   days = 7,
   leadHours = 1,
   maxSlots = 200,
+  excludeAppointmentIds = null,
 } = {}) {
   if (!beauticianId) return [];
 
@@ -179,9 +201,11 @@ export async function getFreeSlots(beauticianId, {
   // long still blocks this afternoon, and filtering on starts_at alone misses it.
   const busyFrom = new Date(startWall.getTime() - 24 * 60 * 60 * 1000);
 
+  const excluded = excludedAppointmentIds(excludeAppointmentIds);
+
   const { data: existing, error: busyError } = await supabase
     .from('appointments')
-    .select('starts_at, ends_at')
+    .select('id, starts_at, ends_at')
     .eq('beautician_id', beauticianId)
     .not('status', 'in', FREE_SLOT_IGNORED_STATUSES)
     .gte('starts_at', busyFrom.toISOString())
@@ -196,8 +220,12 @@ export async function getFreeSlots(beauticianId, {
   // book and come back to you", which is always safe.
   if (busyError) throw new Error(`appointments lookup failed: ${busyError.message}`);
 
+  // The exclusion is applied HERE, in JS, rather than as another PostgREST
+  // filter: one place, one meaning, and it cannot be silently dropped by a
+  // query builder that never saw the option.
   const busy = (existing || [])
     .filter(a => a.starts_at && a.ends_at)
+    .filter(a => !excluded.has(String(a.id)))
     .map(a => ({ start: new Date(a.starts_at), end: new Date(a.ends_at) }));
 
   const blocks = await loadBlocks(beauticianId, startWall, scanEnd);
