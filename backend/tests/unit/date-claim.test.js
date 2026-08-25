@@ -20,7 +20,7 @@
  *
  * A wrong date is worse than no date, because the client acts on it.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { dateClaimCheck, isGroundedReply } from '../../src/lib/grounded-reply.js';
 
 // Wednesday 19 August 2026, the day it happened.
@@ -39,7 +39,15 @@ describe('the message Leanne got', () => {
     expect(v.reason).toBe('reply_said_tomorrow_but_booking_is_7_days_away');
   });
 
+  // The helper takes `now`; the full gate reads the real clock. Without a fixed
+  // clock this test passed or failed depending on the day it ran: the fixture
+  // booking is 26 August, so on 25 August the reply really IS about tomorrow
+  // and the guard is right to allow it. Pin the day it happened.
+  afterEach(() => { vi.useRealTimers(); });
+
   it('is held through the full gate, not just the helper', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(TODAY);
     const v = isGroundedReply({
       intent: 'greeting',
       message: 'Haha hello you',

@@ -1453,7 +1453,10 @@ function ConvoHeader({ onBack, embedded, clientName, navigate, clientId, channel
   if (meta) {
     if (meta.visits >= 3) metaBits.push('Regular');
     metaBits.push(`${meta.visits} visit${meta.visits === 1 ? '' : 's'}`);
-    if (meta.last_visit_at) metaBits.push(`last in ${relDays(meta.last_visit_at)}`);
+    // "last in" + relDays produced "last in 26 days ago", and "last in today"
+    // and "last in yesterday" for the recent cases. relDays already carries the
+    // preposition, so the label must not add a second one.
+    if (meta.last_visit_at) metaBits.push(`last visit ${relDays(meta.last_visit_at)}`);
     metaBits.push(meta.next_appointment_at ? `next: ${nextApptLabel(meta.next_appointment_at)}` : 'next: none booked');
   }
   return (
@@ -1921,7 +1924,7 @@ const S = {
   },
   flagDot: {
     position: 'absolute', top: -1, left: -1, width: 12, height: 12,
-    borderRadius: 6, background: '#c2410c', border: '2px solid var(--bg-card, #FFFCF9)', zIndex: 2,
+    borderRadius: 'var(--radius-xs)', background: '#c2410c', border: '2px solid var(--bg-card, #FFFCF9)', zIndex: 2,
   },
   rowBody: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 },
   rowTop: { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
@@ -1961,7 +1964,7 @@ const S = {
     fontSize: 11, fontWeight: 600, color: 'var(--text-muted, #6B5D54)',
     letterSpacing: '0.01em',
   },
-  typeDot: { width: 6, height: 6, borderRadius: 6, flexShrink: 0 },
+  typeDot: { width: 6, height: 6, borderRadius: 'var(--radius-xs)', flexShrink: 0 },
 
   empty: {
     display: 'flex', flexDirection: 'column', alignItems: 'center',
@@ -2094,8 +2097,8 @@ const S = {
     fontSize: 12, color: '#8A2A1C', background: '#FDECEA', border: '1px solid #F5C6C0', borderRadius: 10, padding: '6px 10px',
   },
 
-  skelLine: { height: 12, width: '60%', borderRadius: 6, background: 'var(--border-light, #ede7e3)', display: 'block' },
-  skelLineShort: { height: 10, width: '40%', borderRadius: 6, background: 'var(--border-light, #ede7e3)', display: 'block', marginTop: 4 },
+  skelLine: { height: 12, width: '60%', borderRadius: 'var(--radius-xs)', background: 'var(--border-light, #ede7e3)', display: 'block' },
+  skelLineShort: { height: 10, width: '40%', borderRadius: 'var(--radius-xs)', background: 'var(--border-light, #ede7e3)', display: 'block', marginTop: 4 },
 };
 
 if (typeof document !== 'undefined' && !document.getElementById('inbox-bold-css')) {
