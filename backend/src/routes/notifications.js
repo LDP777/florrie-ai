@@ -279,6 +279,96 @@ router.get('/sms/usage', requireAuth, async (req, res) => {
  * the split columns exist yet, so the UI never has to guess a salon's 2-way
  * status from the shape of one string.
  */
+/**
+ * GET /sms/bird-debug
+ *
+ * The two values SMS has been missing since it was built, read out of Bird
+ * with the key that already lives on this server.
+ *
+ * sendSMS refuses at its second line when BIRD_WORKSPACE_ID or
+ * BIRD_SMS_CHANNEL_ID is unset, and neither has ever been set. The note in
+ * that function is right that an alphanumeric sender ("Florrie") is
+ * registration-gated and rejected, so only a channel id can send. What it does
+ * not say, because nobody noticed, is that the channel id was never configured
+ * either. So the diagnosis on record, "UK sender registration rejected", was
+ * true and was not the blocker. Two environment variables were.
+ *
+ * This exists so nobody has to copy an API key out of a dashboard and into a
+ * chat window to find them out. The key stays here. What comes back is
+ * workspace and channel IDENTIFIERS, which are not secrets: they appear in
+ * every request URL sendSMS builds.
+ *
+ * Auth required, and no key, token or secret is ever in the response.
+ */
+router.get('/sms/bird-debug', requireAuth, async (req, res) => {
+  const key = process.env.BIRD_API_KEY;
+  if (!key) {
+    return res.status(503).json({
+      error: 'BIRD_API_KEY is not set, so there is nothing to ask Bird with.',
+      set_these: ['BIRD_API_KEY', 'BIRD_WORKSPACE_ID', 'BIRD_SMS_CHANNEL_ID'],
+    });
+  }
+
+  const base = process.env.BIRD_API_BASE || 'https://api.bird.com';
+  const headers = { Authorization: `AccessKey ${key}`, 'Content-Type': 'application/json' };
+  const out = {
+    already_set: {
+      BIRD_API_KEY: true,
+      BIRD_WORKSPACE_ID: !!process.env.BIRD_WORKSPACE_ID,
+      BIRD_SMS_CHANNEL_ID: !!process.env.BIRD_SMS_CHANNEL_ID,
+    },
+    workspaces: [],
+    sms_channels: [],
+    errors: [],
+  };
+
+  try {
+    const wr = await fetch(`${base}/workspaces`, { headers });
+    const wj = await wr.json().catch(() => ({}));
+    if (!wr.ok) {
+      out.errors.push({ step: 'list workspaces', status: wr.status, detail: wj?.message || wj?.error || null });
+      return res.json(out);
+    }
+    const workspaces = Array.isArray(wj?.results) ? wj.results : (Array.isArray(wj) ? wj : []);
+    out.workspaces = workspaces.map(w => ({ id: w.id, name: w.name || null }));
+
+    // Channels are per workspace, and the SMS one is what sendSMS puts in the
+    // url. Listed with their platform so the right one is obvious rather than
+    // guessed: a WhatsApp channel id in BIRD_SMS_CHANNEL_ID would fail in a way
+    // that looks exactly like this bug.
+    for (const w of out.workspaces) {
+      const cr = await fetch(`${base}/workspaces/${w.id}/channels`, { headers });
+      const cj = await cr.json().catch(() => ({}));
+      if (!cr.ok) {
+        out.errors.push({ step: `list channels for ${w.id}`, status: cr.status, detail: cj?.message || null });
+        continue;
+      }
+      const channels = Array.isArray(cj?.results) ? cj.results : (Array.isArray(cj) ? cj : []);
+      for (const c of channels) {
+        out.sms_channels.push({
+          workspace_id: w.id,
+          channel_id: c.id,
+          name: c.name || null,
+          platform: c.platform || c.channelType || null,
+          status: c.status || null,
+          // The number or sender this channel presents as, which is what a
+          // client sees. Not a secret; it is printed on every text.
+          identifier: c.connectorAttributes?.phoneNumber || c.identifier || null,
+        });
+      }
+    }
+
+    out.next_step = out.sms_channels.length
+      ? 'Set BIRD_WORKSPACE_ID to the workspace id and BIRD_SMS_CHANNEL_ID to the channel id whose platform is sms, then redeploy. sendSMS refuses before it reaches Bird until both are set.'
+      : 'Bird answered but this key can see no channels. Either the key belongs to a workspace with no sms channel bought, or it lacks channel scope.';
+  } catch (err) {
+    logger.error({ err }, 'bird-debug failed');
+    out.errors.push({ step: 'unhandled', detail: err.message });
+  }
+
+  return res.json(out);
+});
+
 router.get('/sms/config', requireAuth, async (req, res) => {
   try {
     const { data, error } = await supabase
