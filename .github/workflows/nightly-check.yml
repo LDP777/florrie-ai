@@ -1,0 +1,442 @@
+# Nightly check: verify against reality, fix what is safe, and stay quiet otherwise.
+#
+# WHY THIS RUNS HERE RATHER THAN IN A SANDBOX
+# The check this replaces ran in a container whose egress proxy blocks
+# api.florrie.ai, and reported "API health unverifiable" as a finding about the
+# product. It was a finding about the container. A GitHub runner has real
+# internet, so /health can be asked rather than guessed at, and the whole
+# "unverifiable" class of finding disappears. That is the single most important
+# thing about this file.
+#
+# HOW IT DECIDES TO SPEAK
+# It does not open an issue every night. scripts/nightly-check.mjs classifies
+# every finding as failing, warning, not checked or note, remembers in a cache
+# which warnings it has already reported, and asks for an issue only when
+# something is failing or a warning is NEW. When everything clears, the open
+# issue is closed. A nightly issue that is mostly green is a nightly issue
+# nobody opens.
+#
+# WHAT IT IS ALLOWED TO CHANGE
+# One thing: a workspace lockfile that has drifted from the root lock or from
+# its own package.json. Lockfile only, inside semver ranges that are already
+# committed, and only after the changed lockfile has been installed from and
+# built against. It opens a PULL REQUEST. It never pushes to main, because a
+# push to main here is a full ship: Vercel deploys the frontend, Railway
+# deploys the backend, Xcode Cloud builds to TestFlight.
+#
+# THE NODE VERSIONS ARE DELIBERATE
+# The gates run on Node 20, which is what ci.yml uses, what Vercel builds with
+# and what backend/Dockerfile is based on. A nightly build failing on a version
+# nothing ships on would be a manufactured alarm. The check script runs on Node
+# 22 in its own job, where the only thing a version difference can break is the
+# check itself.
+name: Nightly check
+
+on:
+  # 03:00 UTC. Late enough that an evening deploy has settled, early enough to
+  # be waiting when somebody opens their laptop.
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+# The issue and the fix branch are shared state, so two of these must never
+# race. Deliberately NOT cancel-in-progress: a half finished nightly that has
+# pushed a branch but not yet opened the pull request is worse than a late one.
+concurrency:
+  group: nightly-check
+  cancel-in-progress: false
+
+permissions:
+  contents: write        # push the fix BRANCH. Never main, see the fix job.
+  issues: write          # open, comment on and close the one nightly issue
+  pull-requests: write   # open the fix pull request
+
+env:
+  # Vite inlines these at build time. The real values live in Vercel; a build
+  # only needs them to be present, so placeholders are correct here and keep
+  # real keys out of a workflow file in a public repository.
+  VITE_API_URL: https://api.florrie.ai
+  VITE_SUPABASE_URL: https://placeholder.supabase.co
+  VITE_SUPABASE_ANON_KEY: placeholder
+
+jobs:
+  # ── The real regression gates ─────────────────────────────────────────────
+  # These two are what actually catch a regression, so they run first and their
+  # outcome is carried into the report rather than re-derived. continue-on-error
+  # on both, because a failed build must still produce a report that SAYS the
+  # build failed. The one night it matters, there has to be something to read.
+  gates:
+    name: Build and tests
+    runs-on: ubuntu-latest
+    outputs:
+      build: ${{ steps.build.outcome }}
+      tests: ${{ steps.tests.outcome }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # Before npm ci, for the reason set out at length in ci.yml: npm ci
+      # passing on Linux proves nothing about the Mac that builds iOS.
+      - run: npm run check:lockfile
+
+      - run: npm ci
+
+      - name: Frontend build
+        id: build
+        continue-on-error: true
+        run: npm run build --workspace frontend
+
+      - name: Backend unit tests
+        id: tests
+        continue-on-error: true
+        run: npm test --workspace backend
+
+      # check:boot has existed for a while and NOTHING runs it: not
+      # `npm run build`, not ci.yml. It needs a browser and a built dist, and it
+      # measures first contentful paint over a throttled connection, which is
+      # too slow to gate a push and exactly right for a nightly. The report
+      # compares it with last night and speaks only if it got worse.
+      - name: Install chromium for the boot measurement
+        if: steps.build.outcome == 'success'
+        continue-on-error: true
+        run: npx playwright install --with-deps chromium
+        working-directory: frontend
+
+      - name: Measure boot cost
+        if: steps.build.outcome == 'success'
+        continue-on-error: true
+        run: npm run check:boot --workspace frontend | tee "$RUNNER_TEMP/boot.txt"
+
+      - name: Keep the boot measurement for the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: boot-report
+          path: ${{ runner.temp }}/boot.txt
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # ── The checks, and the decision about whether to say anything ────────────
+  inspect:
+    name: Inspect and report
+    runs-on: ubuntu-latest
+    needs: gates
+    if: always()
+    outputs:
+      fixable: ${{ steps.check.outputs.fixable }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # The check has no dependencies of its own. It needs npm for the audits
+      # and `pg`, a devDependency of the repository root, for the ledger.
+      - run: npm ci
+
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: boot-report
+          path: ${{ runner.temp }}
+
+      # Last night's advisory set and boot figures, so the report can say what
+      # CHANGED rather than repeat itself. A new key every run, because a cache
+      # entry is immutable; restore-keys picks up the most recent one. A miss is
+      # harmless: the run records a baseline and says in the report that it did.
+      - name: Restore last night's state
+        uses: actions/cache@v4
+        with:
+          path: .nightly-state.json
+          key: nightly-state-${{ github.run_id }}
+          restore-keys: nightly-state-
+
+      - name: Run the checks
+        id: check
+        continue-on-error: true
+        env:
+          NIGHTLY_API_URL: https://api.florrie.ai
+          # Read only: SELECT on schema_migrations and nothing else. Absent
+          # until somebody creates it, and the report then says the ledger was
+          # not read instead of guessing at migration state. Never in the repo.
+          # See docs/NIGHTLY_CHECK.md for the exact GRANTs.
+          NIGHTLY_DATABASE_URL: ${{ secrets.NIGHTLY_DATABASE_URL }}
+          REPO_VISIBILITY: ${{ github.event.repository.private && 'private' || 'public' }}
+          BOOT_REPORT: ${{ runner.temp }}/boot.txt
+          SUITE_FRONTEND_BUILD: ${{ needs.gates.outputs.build }}
+          SUITE_BACKEND_TESTS: ${{ needs.gates.outputs.tests }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -o pipefail
+          # --require-network: on a runner, an unreachable API IS a failure.
+          # That assertion is the reason this moved out of the sandbox.
+          # --no-exit-code: a failing check still has to reach the issue below.
+          node scripts/nightly-check.mjs \
+            --require-network \
+            --state .nightly-state.json \
+            --json nightly-report.json \
+            --no-exit-code | tee "$RUNNER_TEMP/nightly.txt"
+
+          node - <<'JS' >> "$GITHUB_OUTPUT"
+          const r = require('./nightly-report.json');
+          console.log(`speak=${r.speech.speak}`);
+          console.log(`close=${r.speech.close}`);
+          console.log(`fixable=${r.fixable.length > 0}`);
+          JS
+
+          {
+            echo '## Nightly check'
+            echo
+            echo '```'
+            cat "$RUNNER_TEMP/nightly.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-report
+          path: nightly-report.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      # ── Speaking ──────────────────────────────────────────────────────────
+      # One issue, found by its label, for the whole life of this check. Opened
+      # or commented on when something is failing or newly wrong, closed the
+      # night it all clears, and left completely alone in between.
+      - name: Open, update or close the issue
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SPEAK: ${{ steps.check.outputs.speak }}
+          CLOSE: ${{ steps.check.outputs.close }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          gh label create nightly-check --color B60205 \
+            --description "Opened by .github/workflows/nightly-check.yml" --force
+
+          EXISTING=$(gh issue list --label nightly-check --state open --limit 1 \
+            --json number --jq '.[0].number // ""')
+
+          # The report is the only thing allowed to decide this. If it is not
+          # there, the check itself broke, and THAT is what gets said, rather
+          # than a silent green night that looks the same as a healthy one.
+          if [ ! -f nightly-report.json ]; then
+            BODY="The nightly check did not produce a report, so nothing was verified tonight. This is a fault in
+          the check itself rather than a finding about the product. $RUN_URL"
+            if [ -n "$EXISTING" ]; then
+              gh issue comment "$EXISTING" --body "$BODY"
+            else
+              gh issue create --title "Nightly check: the check itself failed" \
+                --label nightly-check --body "$BODY"
+            fi
+            exit 0
+          fi
+
+          node -e 'require("fs").writeFileSync("issue-body.md", require("./nightly-report.json").issue_body)'
+
+          if [ "$SPEAK" = "true" ]; then
+            if [ -n "$EXISTING" ]; then
+              echo "Something to say and issue #$EXISTING is open, so commenting there."
+              gh issue comment "$EXISTING" --body-file issue-body.md
+            else
+              echo "Something to say and no issue is open, so opening one."
+              gh issue create \
+                --title "Nightly check: something needs a human" \
+                --label nightly-check \
+                --body-file issue-body.md
+            fi
+          elif [ "$CLOSE" = "true" ] && [ -n "$EXISTING" ]; then
+            echo "All clear, so closing #$EXISTING."
+            gh issue close "$EXISTING" \
+              --comment "All clear as of tonight's run: nothing failing, no warnings left. $RUN_URL"
+          elif [ -n "$EXISTING" ]; then
+            echo "Nothing new tonight, and #$EXISTING is still open with outstanding warnings. Left alone."
+          else
+            echo "Nothing to say."
+          fi
+
+  # ── The fix ───────────────────────────────────────────────────────────────
+  # Runs only when a finding carries a remedy the script is allowed to apply,
+  # and only when tonight's gates were green, because a fix proved by a suite
+  # that was already failing is proved by nothing.
+  #
+  # The branch name is STABLE. Force pushing one branch means a lockfile that is
+  # still drifting a week later updates the same pull request instead of opening
+  # a seventh one. That is the same "only speak when there is something to say"
+  # rule, applied to pull requests.
+  fix:
+    name: Propose the safe fix
+    runs-on: ubuntu-latest
+    needs: [gates, inspect]
+    if: >-
+      needs.inspect.outputs.fixable == 'true' &&
+      needs.gates.outputs.build == 'success' &&
+      needs.gates.outputs.tests == 'success'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+
+      - name: Apply the lockfile fix
+        id: apply
+        run: |
+          set -euo pipefail
+          # The report goes to the runner temp dir, not the working tree, so
+          # that the "only lockfiles moved" assertion below stays meaningful.
+          node scripts/nightly-check.mjs --fix --json "$RUNNER_TEMP/fix.json" \
+            | tee "$RUNNER_TEMP/fix.txt"
+
+          CHANGED=$(git diff --name-only)
+
+          if [ -z "$CHANGED" ]; then
+            echo "The fix produced no diff, so there is nothing to propose."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Only lockfiles may have moved. If anything else did, something went
+          # wrong and a human should look rather than a machine committing it.
+          if printf '%s\n' "$CHANGED" | grep -qv 'package-lock\.json$'; then
+            echo "Refusing to continue: something other than a lockfile changed."
+            git status --porcelain --untracked-files=no
+            exit 1
+          fi
+
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "changed_files=$(printf '%s ' $CHANGED)" >> "$GITHUB_OUTPUT"
+          git diff --stat
+
+      # PROVE IT, DO NOT ASSUME IT.
+      #
+      # This is the only honest way to verify a workspace lockfile, and it is
+      # worth explaining. `npm ci` inside frontend/ does NOT read
+      # frontend/package-lock.json: npm walks up to the workspace root and
+      # installs the root lock, into the root node_modules. That is exactly why
+      # this lockfile drifts unnoticed in the first place, and it means the
+      # ordinary build proves nothing about the file being changed.
+      #
+      # So: copy the tree somewhere, delete the root package.json and root
+      # lockfile so there is no workspace to walk up to, and install. npm then
+      # has no choice but to read the lockfile under test. This reproduces what
+      # Vercel does with Root Directory `frontend/`, which is the situation the
+      # finding is about.
+      - name: Install from the changed lockfiles and build
+        if: steps.apply.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          SIM="$RUNNER_TEMP/standalone"
+          rm -rf "$SIM"; mkdir -p "$SIM"
+          tar -cf - --exclude=node_modules --exclude=dist --exclude=.git . | tar -xf - -C "$SIM"
+          # No workspace root, so npm must use the workspace's own lockfile.
+          rm -f "$SIM/package.json" "$SIM/package-lock.json"
+
+          for FILE in ${{ steps.apply.outputs.changed_files }}; do
+            WS="$(dirname "$FILE")"
+            echo "::group::$WS installs from its own lockfile"
+            ( cd "$SIM/$WS" && npm ci )
+            echo "::endgroup::"
+            case "$WS" in
+              frontend) ( cd "$SIM/frontend" && npm run build ) ;;
+              backend)  ( cd "$SIM/backend"  && npm test ) ;;
+              *) echo "No standalone verification defined for $WS, so no pull request will claim one." ; exit 1 ;;
+            esac
+          done
+
+      # And the workspace root, which is what CI and every developer use, must
+      # still be intact afterwards.
+      - name: The platform matrix still holds
+        if: steps.apply.outputs.changed == 'true'
+        run: npm run check:lockfile
+
+      - name: Frontend build and backend suite at the workspace root
+        if: steps.apply.outputs.changed == 'true'
+        run: |
+          npm run build --workspace frontend
+          npm test --workspace backend
+
+      - name: Open the pull request
+        if: steps.apply.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          BRANCH=nightly/lockfile-drift
+
+          git config user.name "florrie nightly check"
+          git config user.email "noreply@florrie.ai"
+          git checkout -b "$BRANCH"
+          git add ${{ steps.apply.outputs.changed_files }}
+
+          printf '%s\n' \
+            'Refresh the workspace lockfiles that had drifted' \
+            '' \
+            'Opened by .github/workflows/nightly-check.yml. Lockfiles only, inside' \
+            'the semver ranges already committed in package.json, so nothing here' \
+            'is a major version bump.' \
+            '' \
+            'Each changed lockfile was installed from on its own, with no workspace' \
+            'root above it, and the frontend build or the backend suite was run' \
+            'against that install. See the workflow run linked from the pull' \
+            'request body.' > "$RUNNER_TEMP/msg.txt"
+          git commit --file "$RUNNER_TEMP/msg.txt"
+
+          # Fetch first so --force-with-lease has something to compare against.
+          # checkout@v4 clones one branch, so without this the lease has no
+          # remote ref to check and the push is refused as stale. The branch is
+          # owned by this workflow, but the lease still means a human who
+          # pushed a correction to it does not silently lose it.
+          git fetch origin "$BRANCH" || echo "No existing $BRANCH on the remote yet."
+          git push --force-with-lease -u origin "HEAD:$BRANCH"
+
+          {
+            echo 'Opened by the nightly check. **Lockfiles only.**'
+            echo
+            echo '```'
+            cat "$RUNNER_TEMP/fix.txt"
+            echo '```'
+            echo
+            echo '### Why this is safe to propose automatically'
+            echo
+            echo '`npm install --package-lock-only` and `npm update --package-lock-only`'
+            echo 'resolve within the semver ranges already committed in package.json. No'
+            echo 'manifest was edited, so nothing here can be a major version bump.'
+            echo
+            echo 'Before this branch was pushed, every changed lockfile was installed from'
+            echo 'in a copy of the tree with the workspace root removed, which is the only'
+            echo 'way to make npm actually read it, and is what Vercel does with Root'
+            echo 'Directory `frontend/`. The frontend build ran against that install, the'
+            echo 'backend suite ran against its own, and `scripts/check-lockfile.mjs`, the'
+            echo 'root build and the root suite all ran as well.'
+            echo
+            echo '### What was deliberately NOT done'
+            echo
+            echo 'No major bump, so `@capacitor/cli` 6 to 8 and its critical `tar` advisory'
+            echo 'are untouched: that is a native migration needing a Mac with Xcode 26 and'
+            echo 'a coordinated iOS release, and a green unit suite would prove nothing'
+            echo 'about it. Nothing touching `supabase/migrations`. Nothing that sends a'
+            echo 'message. No page deleted for being unreachable.'
+            echo
+            echo "Run: $RUN_URL"
+          } > "$RUNNER_TEMP/pr.md"
+
+          OPEN=$(gh pr list --head "$BRANCH" --state open --json number --jq 'length')
+          if [ "$OPEN" = "0" ]; then
+            gh pr create --base main --head "$BRANCH" \
+              --title "Refresh the workspace lockfiles that had drifted" \
+              --body-file "$RUNNER_TEMP/pr.md"
+          else
+            echo "A pull request from $BRANCH is already open; the force push above updated it."
+            gh pr comment "$BRANCH" --body-file "$RUNNER_TEMP/pr.md"
+          fi
