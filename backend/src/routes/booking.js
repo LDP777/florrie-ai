@@ -25,6 +25,7 @@ import { combineTreatments, resolveDepositCents, salonRequiresDeposit } from '..
 import { recomputeTotals, endsAtWall } from '../lib/appointment-treatments.js';
 import { appointmentIcs, googleCalendarUrl, DEAD_STATUSES } from '../lib/ical.js';
 import { calendarLandingPage } from '../lib/calendar-page.js';
+import { patchTestEvidence } from '../lib/patch-test-status.js';
 
 const router = Router();
 const FRONTEND_URL = process.env.FRONTEND_URL;
@@ -1005,8 +1006,6 @@ router.get('/:slug/manage/:token', async (req, res) => {
     const beauticianId = appt.beauticians?.id;
 
     const expiryMonths = appt.beauticians?.patch_test_expiry_months || 6;
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - expiryMonths);
 
     const [{ data: patchTests }, { data: pendingForms }, { data: upfrontTxRows }] = await Promise.all([
       supabase
@@ -1036,19 +1035,6 @@ router.get('/:slug/manage/:token', async (req, res) => {
         .in('type', ['deposit', 'full_payment'])
         .limit(1),
     ]);
-
-    // Determine if a patch test is needed:
-    // Treatment requires one AND client has no passed patch test in the last 6 months
-    // AND no pending/confirmed patch test already exists for this appointment
-    const treatmentRequiresPatchTest = appt.treatments?.requires_patch_test === true;
-    const hasValidPatchTest = (patchTests || []).some(pt =>
-      pt.status === 'passed' && pt.test_date && new Date(pt.test_date) > sixMonthsAgo
-    );
-    const hasPendingPatchTest = (patchTests || []).some(pt =>
-      pt.status === 'pending' || pt.confirmed_at
-    );
-    const needsPatchTest = treatmentRequiresPatchTest && !hasValidPatchTest && !hasPendingPatchTest;
-    const blockBooking = needsPatchTest && (appt.beauticians?.patch_test_block_booking === true);
 
     // EVERYTHING SHE BOOKED, not just the first thing.
     //
@@ -1081,6 +1067,78 @@ router.get('/:slug/manage/:token', async (req, res) => {
 
     const allTreatments = [appt.treatments, ...extraTreatments].filter(Boolean);
     const combined = combineTreatments(allTreatments);
+
+    /* ---- does she owe a patch test for THIS booking, and who should be told
+     *
+     * This is the block that cost Sophie a slot and Ellie a message. It used
+     * to be three lines that between them could only ever produce one answer:
+     *
+     *   hasValidPatchTest  tested `pt.status === 'passed'`, a word nothing in
+     *                      this codebase writes and the schema does not know.
+     *                      Always false, for everybody, forever.
+     *   hasPendingPatchTest  needed a patch_tests ROW to exist, and a client
+     *                      tested in the chair has no row.
+     *
+     * so a returning client got a flat "you need a patch test" and booked one
+     * she did not need. The evidence rule lives in lib/patch-test-status.js
+     * now and is shared with the swap and add-treatment gates below.
+     *
+     * Two changes of substance beyond fixing the vocabulary:
+     *
+     *   The requirement is read off EVERY treatment on the booking, not just
+     *   the first. Extras have always lived in extra_treatment_ids and a lash
+     *   tint added as an extra needs a test exactly as much as one booked as
+     *   the main thing.
+     *
+     *   Evidence is judged against the APPOINTMENT's wall date, not today. A
+     *   test done in August covers a September booking and does not cover one
+     *   next April, and the question on this page is about the booking in
+     *   front of her.
+     */
+    const treatmentRequiresPatchTest = allTreatments.some(t => t?.requires_patch_test === true);
+    const evidence = treatmentRequiresPatchTest
+      ? await patchTestEvidence(supabase, beauticianId, clientId, {
+          expiryMonths,
+          asOf: appt.starts_at,
+          logger,
+        })
+      : { ok: false, kind: 'none', when: null, pending: false, completedVisits: 0 };
+
+    /* WHO GETS TOLD, when the evidence is merely ABSENT rather than negative.
+     *
+     * "You need a patch test" is an assertion. It is only true of a client we
+     * know has never sat in this chair, and for her it is worth saying plainly
+     * because she genuinely does need one and she can book it herself.
+     *
+     * For a returning client with nothing on file it is a guess, and it is the
+     * guess that goes wrong in the expensive direction: she books a slot she
+     * does not need, the diary loses it, and the owner spends her evening
+     * undoing it. The person who actually knows is Ellie, and she is also the
+     * only one who can fix it, in one tap, from the Patch Tests page. So the
+     * uncertain case is not asserted to the client at all: the client is told
+     * the truth, which is that the salon will check, and the ASKING happens on
+     * the owner's side (GET /api/appointments/patch-test-alerts).
+     *
+     * A recorded reaction is not an absence and never becomes a booking
+     * button. That one goes straight to the owner too.
+     */
+    let patchTestCertainty = 'not_required';
+    let patchTestAsk = null;
+    if (treatmentRequiresPatchTest) {
+      if (evidence.kind === 'unknown') { patchTestCertainty = 'unknown'; patchTestAsk = 'owner'; }
+      else if (evidence.ok) { patchTestCertainty = 'satisfied'; }
+      else if (evidence.kind === 'adverse') { patchTestCertainty = 'adverse'; patchTestAsk = 'owner'; }
+      else if (evidence.pending) { patchTestCertainty = 'booked'; }
+      else if (evidence.completedVisits === 0) { patchTestCertainty = 'never_visited'; patchTestAsk = 'client'; }
+      else { patchTestCertainty = 'uncertain'; patchTestAsk = 'owner'; }
+    }
+
+    // needsPatchTest keeps its name and its meaning to the page: show her the
+    // demand and the booking button. It is now only true when the demand is a
+    // true statement rather than a guess.
+    const needsPatchTest = patchTestCertainty === 'never_visited';
+    // And a client is never locked out of her own booking on a guess.
+    const blockBooking = needsPatchTest && (appt.beauticians?.patch_test_block_booking === true);
 
     const policy = appt.policy_snapshot || appt.beauticians?.booking_policy || {};
     const now = new Date();
@@ -1175,6 +1233,17 @@ router.get('/:slug/manage/:token', async (req, res) => {
       patchTests: patchTests || [],
       needsPatchTest,
       blockBooking,
+      // The whole picture, so the page can be honest instead of flat. See the
+      // block above for what each certainty means and why the uncertain case
+      // is addressed to the owner rather than to the client.
+      patchTest: {
+        required: treatmentRequiresPatchTest,
+        certainty: patchTestCertainty,
+        ask: patchTestAsk,
+        evidence: evidence.kind,
+        evidenceDate: evidence.when,
+        expiryMonths,
+      },
       pendingForms: (pendingForms || []).map(f => ({
         ...f,
         // Compute form_url from token if not stored in DB
@@ -1287,7 +1356,7 @@ router.get('/:slug/manage/:token/treatments', async (req, res) => {
   try {
     const { data: appt } = await supabase
       .from('appointments')
-      .select('id, starts_at, client_id, treatment_id, extra_treatment_ids, treatments(requires_patch_test), beauticians(id, booking_slug)')
+      .select('id, starts_at, client_id, treatment_id, extra_treatment_ids, treatments(requires_patch_test), beauticians(id, booking_slug, patch_test_expiry_months)')
       .eq('management_token', req.params.token)
       .single();
     if (!appt || appt.beauticians?.booking_slug !== req.params.slug) {
@@ -1302,16 +1371,20 @@ router.get('/:slug/manage/:token/treatments', async (req, res) => {
       .gt('price_cents', 0)
       .order('sort_order', { ascending: true });
 
-    // A treatment needing a patch test they have not passed is not a valid
-    // swap: it would quietly put them into an appointment they cannot have.
-    const { data: pts } = await supabase
-      .from('patch_tests')
-      .select('status, test_date')
-      .eq('client_id', appt.client_id)
-      .eq('beautician_id', appt.beauticians.id);
-    const sixMonthsAgo = new Date(Date.now() - 182 * 24 * 60 * 60 * 1000);
-    const hasValidPatchTest = (pts || []).some(pt =>
-      pt.status === 'passed' && pt.test_date && new Date(pt.test_date) > sixMonthsAgo);
+    // A treatment needing a patch test she has no evidence of is not a valid
+    // swap: it would quietly put her into an appointment she cannot have.
+    //
+    // This used to read `pt.status === 'passed'`, a value nothing has ever
+    // written to that column, so it was false for everyone and the only
+    // treatments offered here were the ones needing no test at all. The one
+    // rule now lives in lib/patch-test-status.js and counts a completed
+    // treatment that required a test as the evidence it plainly is.
+    const evidence = await patchTestEvidence(supabase, appt.beauticians.id, appt.client_id, {
+      expiryMonths: appt.beauticians.patch_test_expiry_months || 6,
+      asOf: appt.starts_at,
+      logger,
+    });
+    const hasValidPatchTest = evidence.ok;
     // If what they ALREADY booked needs a patch test, they are in that lane
     // and a test is either done or on the way, so swapping to another
     // patch-test treatment adds no new requirement. Without this, the exact
@@ -1347,7 +1420,7 @@ router.post('/:slug/manage/:token/change-treatment', async (req, res) => {
         price_cents, deposit_cents, deposit_paid, buffer_minutes, extra_padding_minutes,
         clients(first_name),
         treatments(requires_patch_test),
-        beauticians(id, booking_slug, working_hours, timezone)
+        beauticians(id, booking_slug, working_hours, timezone, patch_test_expiry_months)
       `)
       .eq('management_token', req.params.token)
       .single();
@@ -1373,14 +1446,12 @@ router.post('/:slug/manage/:token/change-treatment', async (req, res) => {
     // Same rule as the list above: already booked into a patch-test treatment
     // means swapping to another one adds no new requirement.
     if (treat.requires_patch_test && appt.treatments?.requires_patch_test !== true) {
-      const sixMonthsAgo = new Date(Date.now() - 182 * 24 * 60 * 60 * 1000);
-      const { data: pts } = await supabase
-        .from('patch_tests')
-        .select('status, test_date')
-        .eq('client_id', appt.client_id)
-        .eq('beautician_id', appt.beauticians.id);
-      const ok = (pts || []).some(pt => pt.status === 'passed' && pt.test_date && new Date(pt.test_date) > sixMonthsAgo);
-      if (!ok) {
+      const evidence = await patchTestEvidence(supabase, appt.beauticians.id, appt.client_id, {
+        expiryMonths: appt.beauticians.patch_test_expiry_months || 6,
+        asOf: appt.starts_at,
+        logger,
+      });
+      if (!evidence.ok) {
         return res.status(409).json({ error: 'That treatment needs a patch test first. Please message me and we will sort it.' });
       }
     }
@@ -1511,7 +1582,7 @@ router.post('/:slug/manage/:token/add-treatment', async (req, res) => {
         buffer_minutes, extra_padding_minutes,
         clients(first_name),
         treatments(id, name, duration_minutes, price_cents, requires_patch_test),
-        beauticians(id, booking_slug, working_hours, timezone)
+        beauticians(id, booking_slug, working_hours, timezone, patch_test_expiry_months)
       `)
       .eq('management_token', req.params.token)
       .single();
@@ -1549,14 +1620,12 @@ router.post('/:slug/manage/:token/add-treatment', async (req, res) => {
     // treatment means they are in that lane and adding another needs no new
     // test. Otherwise a valid one has to be on file.
     if (treat.requires_patch_test && appt.treatments?.requires_patch_test !== true) {
-      const sixMonthsAgo = new Date(Date.now() - 182 * 24 * 60 * 60 * 1000);
-      const { data: pts } = await supabase
-        .from('patch_tests')
-        .select('status, test_date')
-        .eq('client_id', appt.client_id)
-        .eq('beautician_id', appt.beauticians.id);
-      const ok = (pts || []).some(pt => pt.status === 'passed' && pt.test_date && new Date(pt.test_date) > sixMonthsAgo);
-      if (!ok) {
+      const evidence = await patchTestEvidence(supabase, appt.beauticians.id, appt.client_id, {
+        expiryMonths: appt.beauticians.patch_test_expiry_months || 6,
+        asOf: appt.starts_at,
+        logger,
+      });
+      if (!evidence.ok) {
         return res.status(409).json({ error: 'That treatment needs a patch test first. Please message me and we will sort it.' });
       }
     }

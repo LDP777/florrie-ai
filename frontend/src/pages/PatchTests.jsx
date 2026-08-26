@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useBeautician, supabase, fetchRows, insertRow, updateRow } from '../lib/supabase.js';
+import { useBeautician, supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
@@ -9,57 +9,95 @@ import { todayLocal } from '../lib/dates.js';
 import Icon, { iconName } from '../components/ui/Icon';
 import PageHeader from '../components/ui/PageHeader.jsx';
 /**
- * Patch Test Tracker - Regulatory compliance for brow & lash treatments.
+ * Patch Test Tracker - the salon's own record, and the page that asks her.
  *
- * UK law requires a patch test 24-48h before tinting/lifting treatments.
- * This page tracks:
- *   - Which clients have a valid patch test
- *   - When it expires (typically 6 months)
- *   - Upcoming appointments that need one
- *   - One-tap reminder to clients who need testing
+ * WHY THIS PAGE WAS REWRITTEN. On 26 August a client, Sophie, moved her
+ * appointment on the manage page and was told she needed a patch test. She
+ * booked one. Ellie had to message her, cancel it by hand, and explain: "she's
+ * been to me before". Ellie patch tests people in the chair and always has,
+ * and this app had no way for her to write that down.
+ *
+ * It looked as though it did. That is the worse part. "Log Patch Test" wrote
+ * client_name and notes, two columns patch_tests has never had, with
+ * client_id NULL against a NOT NULL constraint. PostgREST rejects the whole
+ * statement for one unknown column and reports it by RESOLVING with
+ * { data: null, error }; insertRow throws, and the throw went into an empty
+ * `catch {}`. The row was then pushed into local state, so it appeared in the
+ * list, and vanished on refresh. No patch test has ever been logged by hand.
+ *
+ * The Alerts tab was wrong in a different way: it decided which treatments
+ * need a test by looking for 'tint' and 'lamination' in the NAME, ignoring
+ * treatments.requires_patch_test which exists for exactly that, and then
+ * matched clients to their tests on patch_tests.client_name, the column that
+ * does not exist. So it alerted on the wrong bookings and never found a test.
+ *
+ * WHAT IS AND IS NOT CLAIMED HERE. Nothing on this page says a client passed,
+ * is cleared, or is patch tested. The data does not know: not one of the 22
+ * rows in production has ever carried a result. What it says is what somebody
+ * actually did - the salon recorded one on a date, a slot is booked, a client
+ * came in - and what that means against Ellie's own expiry setting, which is
+ * arithmetic on her own rule rather than a verdict on anybody's skin.
  *
  * Tabs:
- *   Alerts    - clients with upcoming appointments but no valid test
- *   All Tests - full record of every patch test
- *   Settings  - expiry period, auto-remind, treatments requiring tests
+ *   Alerts    - upcoming bookings needing a test, with what the record says
+ *   All Tests - every patch test on file
+ *   Settings  - expiry period, auto-remind, block-booking
  */
 
+/* The age of a record against her own window. Deliberately not "Valid" and
+ * "Expired": nothing here knows whether a client passed, so a word that sounds
+ * like a verdict on the client is the wrong word. These describe the DATE. */
 const PATCH_STATUS = {
-  valid: { label: 'Valid', color: 'var(--success)', bg: 'var(--success-bg)', icon: 'check-circle' },
-  expiring: { label: 'Expiring soon', color: 'var(--warning)', bg: 'var(--warning-bg)', icon: 'alert-triangle' },
-  expired: { label: 'Expired', color: 'var(--danger)', bg: 'var(--danger-bg)', icon: 'x' },
-  none: { label: 'No test', color: 'var(--text-muted)', bg: 'var(--bg-subtle)', icon: 'info' },
+  current: { label: 'On record', color: 'var(--success)', bg: 'var(--success-bg)', icon: 'check-circle' },
+  ageing: { label: 'Due again soon', color: 'var(--warning)', bg: 'var(--warning-bg)', icon: 'alert-triangle' },
+  old: { label: 'Older than your window', color: 'var(--danger)', bg: 'var(--danger-bg)', icon: 'x' },
+  none: { label: 'Nothing on record', color: 'var(--text-muted)', bg: 'var(--bg-subtle)', icon: 'info' },
+};
+
+/* Why the ask is being made, in the backend's words. Never a claim about the
+ * client: "nothing written down" is a fact about our records, not about her. */
+const ALERT_REASON = {
+  never_been_in: 'New to you - no visits on record at all',
+  been_in_but_nothing_on_record: 'Been to you before, but no patch test written down',
+  booked_not_attended: 'Patch test booked, not marked as done',
+  reaction_on_record: 'A reaction is noted on her last patch test',
+  could_not_check: 'Could not check just now - worth a look yourself',
 };
 
 function getStatus(testDate, expiryMonths) {
   if (!testDate) return 'none';
-  const test = new Date(testDate);
+  const test = new Date(`${String(testDate).slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(test.getTime())) return 'none';
   const expiry = new Date(test);
-  expiry.setMonth(expiry.getMonth() + expiryMonths);
-  const now = new Date();
-  const daysLeft = Math.round((expiry - now) / 86400000);
-  if (daysLeft < 0) return 'expired';
-  if (daysLeft < 14) return 'expiring';
-  return 'valid';
+  expiry.setUTCMonth(expiry.getUTCMonth() + expiryMonths);
+  const daysLeft = Math.round((expiry - new Date()) / 86400000);
+  if (daysLeft < 0) return 'old';
+  if (daysLeft < 14) return 'ageing';
+  return 'current';
 }
 
 function daysUntilExpiry(testDate, expiryMonths) {
   if (!testDate) return null;
-  const expiry = new Date(testDate);
-  expiry.setMonth(expiry.getMonth() + expiryMonths);
+  const expiry = new Date(`${String(testDate).slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(expiry.getTime())) return null;
+  expiry.setUTCMonth(expiry.getUTCMonth() + expiryMonths);
   return Math.round((expiry - new Date()) / 86400000);
 }
 
-// Keyword check: does this treatment name require a patch test?
-function requiresPatchTest(treatmentName) {
-  if (!treatmentName) return false;
-  const n = treatmentName.toLowerCase();
-  return (
-    n.includes('tint') || n.includes('dye') || n.includes('lash lift') ||
-    n.includes('lamination') || n.includes('henna') || n.includes('hybrid') ||
-    n.includes('keratin') || n.includes('semi-permanent') || n.includes('ombre brow')
-  );
+/* What one row actually attests to. Not a result unless a person wrote one:
+ * `result` defaults to 'pending' on every insert, so treating 'pending' as an
+ * outcome would put "Pending" against every test Ellie has ever done. */
+function attests(t) {
+  if (t.result === 'pass') return 'No reaction recorded';
+  if (t.result === 'fail' || t.result === 'reaction') return 'Reaction recorded';
+  if (t.status === 'recorded_by_owner') return 'You recorded this one';
+  if (t.confirmed_at && t.appointment_id) return 'Slot booked';
+  return 'No slot booked yet';
 }
+
+const clientLabel = (t) => (
+  `${t.clients?.first_name || ''} ${t.clients?.last_name || ''}`.trim() || 'Client'
+);
 
 export default function PatchTests() {
   const { beautician, loading: bLoading } = useBeautician();
@@ -70,11 +108,17 @@ export default function PatchTests() {
   const [error, setError] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
   const [reminded, setReminded] = useState({});
-  const [expiryMonths, setExpiryMonths] = useState(6);
 
+  const [clients, setClients] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
+
+  /* result starts EMPTY, not 'pass'. A form that defaults to pass records a
+   * pass the salon never gave it, for every test she logs without thinking
+   * about the dropdown. Absent is the honest default and the honest value. */
   const [form, setForm] = useState({
-    client_name: '', test_date: todayLocal(),
-    result: 'pass', notes: '', treatment_id: '',
+    client_id: '', test_date: todayLocal(),
+    result: '', notes: '', treatment_id: '',
   });
 
   // Settings - seeded from beautician profile, saved back on change
@@ -134,65 +178,54 @@ export default function PatchTests() {
       return;
     }
     try {
-      // Fetch patch tests + upcoming appointments in parallel
-      const now = new Date();
-      const in14 = new Date(now); in14.setDate(now.getDate() + 14);
+      /* THE ALERTS COME FROM THE BACKEND NOW, and so does the rule behind
+       * them. It is the same evidence rule the client's manage page uses
+       * (backend/src/lib/patch-test-status.js), which is the point: a second
+       * copy of "does she owe a patch test" living in a React component is
+       * how the client and the owner end up being told opposite things. It
+       * also knows what this page could not - a completed appointment for a
+       * treatment that required a test is itself the evidence - and it reads
+       * requires_patch_test rather than hunting for 'tint' in a name.
+       *
+       * The rows come back with the client joined on, because patch_tests has
+       * a client_id and has never had a client_name. */
+      const session = await supabase.auth.getSession();
+      const jwt = session.data.session?.access_token;
 
-      // The name comes off the joined treatments row. appointments has never
-      // had a column of its own for it: that name lives on booking_suggestions.
-      // Asking for it here made PostgREST reject the whole select, so upcoming
-      // was undefined, every alert was filtered out of an empty array, and the
-      // page said no bookings needed a patch test when some did. Nothing read
-      // the error, so it never said anything at all.
-      const [rows, { data: upcoming, error: upcomingErr }] = await Promise.all([
-        fetchRows('patch_tests', beautician.id, { order: 'test_date', ascending: false }),
+      const [{ data: rows, error: rowsErr }, alertRes] = await Promise.all([
         supabase
-          .from('appointments')
-          .select('id, starts_at, treatments(name), clients(first_name, last_name)')
+          .from('patch_tests')
+          .select('id, test_date, result, status, confirmed_at, appointment_id, product_used, reaction_notes, clients(id, first_name, last_name), treatments(name)')
           .eq('beautician_id', beautician.id)
-          .gte('starts_at', now.toISOString())
-          .lte('starts_at', in14.toISOString())
-          .neq('status', 'cancelled')
-          .order('starts_at', { ascending: true }),
+          .order('test_date', { ascending: false }),
+        fetch(`${API_BASE}/api/appointments/patch-test-alerts?days=21`, {
+          headers: { Authorization: `Bearer ${jwt}` },
+        }),
       ]);
 
-      // A silent empty alert list on a page about patch tests is the one
-      // outcome worth shouting about, so a failed query is an error here, not
+      // A silent empty list on the page that exists to catch this is the one
+      // outcome worth shouting about, so a failed read is an error here, not
       // a quiet nothing.
-      if (upcomingErr) throw upcomingErr;
+      if (rowsErr) throw rowsErr;
+      if (!alertRes.ok) throw new Error('alerts');
+      const alertBody = await alertRes.json();
 
-      setTests(rows);
+      setTests(rows || []);
+      setUpcomingAlerts(alertBody.alerts || []);
+      // The backend read her window off her own profile. Keep the page's copy
+      // in step with it rather than letting two answers drift apart.
+      if (alertBody.expiryMonths) {
+        setSettings(prev => ({ ...prev, expiry_months: alertBody.expiryMonths }));
+      }
 
-      // Build alerts: upcoming appointments that need a patch test and don't have a valid one
-      const expiryMs = settings.expiry_months * 30 * 24 * 60 * 60 * 1000;
-      const alerts = (upcoming || [])
-        .filter(a => requiresPatchTest(a.treatments?.name))
-        .map(a => {
-          const clientName = a.clients
-            ? `${a.clients.first_name || ''} ${a.clients.last_name || ''}`.trim()
-            : 'Unknown';
-          // Find latest patch test for this client (match by name, case-insensitive)
-          const latestTest = (rows || [])
-            .filter(t => t.client_name?.toLowerCase() === clientName.toLowerCase())
-            .sort((x, y) => new Date(y.test_date) - new Date(x.test_date))[0];
-
-          let status = 'none';
-          if (latestTest) {
-            const ageMs = now - new Date(latestTest.test_date);
-            status = ageMs > expiryMs ? 'expired' : ageMs > expiryMs * 0.86 ? 'expiring' : 'valid';
-          }
-          // Only include if no valid test
-          if (status === 'valid') return null;
-          return {
-            client_name: clientName,
-            appointment_date: a.starts_at.slice(0, 10),
-            treatment: a.treatments?.name,
-            status,
-          };
-        })
-        .filter(Boolean);
-
-      setUpcomingAlerts(alerts);
+      // The picker needs somebody to pick. Archived clients are still people
+      // she patch tested, so they stay in the list.
+      const { data: people } = await supabase
+        .from('clients')
+        .select('id, first_name, last_name')
+        .eq('beautician_id', beautician.id)
+        .order('first_name', { ascending: true });
+      setClients(people || []);
     } catch (err) {
       logger.error({ err }, 'Failed to load patch tests');
       setError('Something went wrong');
@@ -200,31 +233,68 @@ export default function PatchTests() {
     setLoading(false);
   }
 
+  /**
+   * Record a patch test Ellie did herself, on a date she picks, with no slot.
+   *
+   * This is the thing the app has never been able to do, and the reason a
+   * client who had been tested in the chair was asked for another one forever.
+   *
+   * It goes through the backend rather than straight at the table, so the
+   * write path is one honest place: it stamps status 'recorded_by_owner',
+   * leaves result at the column default unless a person actually states an
+   * outcome, and leaves expires_at alone because validity is a calculation
+   * from the date and her own setting, not a column to freeze a second answer
+   * into. See backend/src/routes/appointments.js.
+   *
+   * And it no longer pretends. The old version put the row into local state
+   * whether or not the insert worked - it never worked - so the list showed a
+   * test that did not exist until the next refresh.
+   */
   async function handleSave() {
-    if (!form.client_name.trim() || !form.test_date) return;
-    const test = {
-      id: crypto.randomUUID(),
-      client_id: null,
-      client_name: form.client_name.trim(),
-      test_date: form.test_date,
-      result: form.result,
-      notes: form.notes.trim(),
-      treatment_id: form.treatment_id || null,
-    };
+    if (!form.client_id || !form.test_date) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const session = await supabase.auth.getSession();
+      const jwt = session.data.session?.access_token;
+      const res = await fetch(`${API_BASE}/api/appointments/patch-test-records`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${jwt}` },
+        body: JSON.stringify({
+          client_id: form.client_id,
+          test_date: form.test_date,
+          treatment_id: form.treatment_id || undefined,
+          // Only sent when she actually chose one. Empty means nobody stated
+          // an outcome, and nothing is written for it.
+          result: form.result || undefined,
+          notes: form.notes.trim() || undefined,
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || 'Could not save that just then.');
 
-    if (beautician) {
-      try {
-        const saved = await insertRow('patch_tests', { beautician_id: beautician.id, ...test });
-        test.id = saved.id;
-      } catch {}
+      setForm({ client_id: '', test_date: todayLocal(), result: '', notes: '', treatment_id: '' });
+      setShowAdd(false);
+      // Reload rather than guess: the alert this clears is computed server
+      // side, and a list that disagrees with it is worse than a short wait.
+      await loadData();
+    } catch (err) {
+      logger.error({ err }, 'Failed to record the patch test');
+      setSaveError(err.message || 'Could not save that just then. Please try again.');
     }
-
-    setTests(prev => [test, ...prev]);
-    setForm({ client_name: '', test_date: todayLocal(), result: 'pass', notes: '', treatment_id: '' });
-    setShowAdd(false);
+    setSaving(false);
   }
 
-  async function handleRemind(clientName) {
+  /**
+   * Ask the client to book one. Keyed on client_id now, because two clients
+   * called Sophie are two people and the reminded map was keyed on a name.
+   *
+   * The message says she needs one, so it is only ever sent by Ellie tapping
+   * it, about a client Ellie has decided does need one. That is the whole
+   * difference between this and the sentence the manage page used to put in
+   * front of everybody.
+   */
+  async function handleRemind(clientId, clientName) {
     try {
       const session = await supabase.auth.getSession();
       const token = session.data.session?.access_token;
@@ -244,11 +314,11 @@ export default function PatchTests() {
         throw new Error(data.error || 'Failed to send reminder');
       }
 
-      setReminded(prev => ({ ...prev, [clientName]: true }));
+      setReminded(prev => ({ ...prev, [clientId]: true }));
     } catch (err) {
       logger.error({ err }, 'Failed to send patch test reminder');
       // Still mark locally so user isn't stuck, but warn them
-      setReminded(prev => ({ ...prev, [clientName]: true }));
+      setReminded(prev => ({ ...prev, [clientId]: true }));
       alert(`Reminder queued for ${clientName} (delivery may be delayed)`);
     }
   }
@@ -260,9 +330,9 @@ export default function PatchTests() {
     daysLeft: daysUntilExpiry(t.test_date, settings.expiry_months),
   }));
 
-  const validCount = testsWithStatus.filter(t => t.status === 'valid').length;
-  const expiringCount = testsWithStatus.filter(t => t.status === 'expiring').length;
-  const expiredCount = testsWithStatus.filter(t => t.status === 'expired').length;
+  const currentCount = testsWithStatus.filter(t => t.status === 'current').length;
+  const ageingCount = testsWithStatus.filter(t => t.status === 'ageing').length;
+  const oldCount = testsWithStatus.filter(t => t.status === 'old').length;
   const alertCount = upcomingAlerts.length;
 
   if (bLoading || loading) {
@@ -280,45 +350,66 @@ export default function PatchTests() {
       {/* Status summary */}
       <div style={styles.summaryRow}>
         <div style={{ ...styles.summaryChip, background: 'var(--success-bg)' }}>
-          <span style={{ color: 'var(--success)', fontWeight: 700 }}>{validCount}</span>
-          <span style={{ fontSize: 10, color: 'var(--success)' }}>Valid</span>
+          <span style={{ color: 'var(--success)', fontWeight: 700 }}>{currentCount}</span>
+          <span style={{ fontSize: 10, color: 'var(--success)' }}>On record</span>
         </div>
         <div style={{ ...styles.summaryChip, background: 'var(--warning-bg)' }}>
-          <span style={{ color: 'var(--warning)', fontWeight: 700 }}>{expiringCount}</span>
-          <span style={{ fontSize: 10, color: 'var(--warning)' }}>Expiring</span>
+          <span style={{ color: 'var(--warning)', fontWeight: 700 }}>{ageingCount}</span>
+          <span style={{ fontSize: 10, color: 'var(--warning)' }}>Due again</span>
         </div>
         <div style={{ ...styles.summaryChip, background: 'var(--danger-bg)' }}>
-          <span style={{ color: 'var(--danger)', fontWeight: 700 }}>{expiredCount}</span>
-          <span style={{ fontSize: 10, color: 'var(--danger)' }}>Expired</span>
+          <span style={{ color: 'var(--danger)', fontWeight: 700 }}>{oldCount}</span>
+          <span style={{ fontSize: 10, color: 'var(--danger)' }}>Out of window</span>
         </div>
         {alertCount > 0 && (
           <div style={{ ...styles.summaryChip, background: 'var(--accent-light)' }}>
             <span style={{ color: 'var(--accent)', fontWeight: 700 }}>{alertCount}</span>
-            <span style={{ fontSize: 10, color: 'var(--accent)' }}>Need test</span>
+            <span style={{ fontSize: 10, color: 'var(--accent)' }}>To check</span>
           </div>
         )}
       </div>
+
+      {/* Said once, at the top, so none of the numbers above can be read as a
+          verdict on anybody. Nothing in this app records a pass or a fail
+          unless a person types one, and these are dates against her window. */}
+      <p style={{ fontSize: 11, lineHeight: 1.5, color: 'var(--text-muted)', margin: '0 0 12px' }}>
+        These are dates measured against your {settings.expiry_months} month window.
+        Florrie never decides that a client passed or failed a patch test - only you do.
+      </p>
 
       <button onClick={() => setShowAdd(!showAdd)} style={styles.addBtn}>+ Log Patch Test</button>
 
       {/* Add form */}
       {showAdd && (
         <div style={styles.formCard}>
-          <h3 style={styles.formTitle}>Log Patch Test</h3>
+          <h3 style={styles.formTitle}>Record a patch test you did</h3>
+          <p style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--text-muted)', margin: '0 0 14px' }}>
+            For a test you did in the salon, with no slot booked for it. Pick the day it
+            actually happened. This is what stops the booking page asking a client for
+            another one she has already had.
+          </p>
           <div style={styles.formRow}>
             <div style={{ flex: 1 }}>
               <label style={styles.formLabel}>Client</label>
-              <input
-                type="text" placeholder="Client name"
-                value={form.client_name}
-                onChange={e => setForm(p => ({ ...p, client_name: e.target.value }))}
+              {/* A name typed into a box matched nothing: patch_tests keys on
+                  client_id, and the column this used to write does not exist. */}
+              <select
+                value={form.client_id}
+                onChange={e => setForm(p => ({ ...p, client_id: e.target.value }))}
                 style={styles.formInput}
-              />
+              >
+                <option value="">Choose a client</option>
+                {clients.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {`${c.first_name || ''} ${c.last_name || ''}`.trim() || 'Client'}
+                  </option>
+                ))}
+              </select>
             </div>
             <div style={{ flex: 1 }}>
-              <label style={styles.formLabel}>Date</label>
+              <label style={styles.formLabel}>Date it was done</label>
               <input
-                type="date" value={form.test_date}
+                type="date" value={form.test_date} max={todayLocal()}
                 onChange={e => setForm(p => ({ ...p, test_date: e.target.value }))}
                 style={styles.formInput}
               />
@@ -326,19 +417,24 @@ export default function PatchTests() {
           </div>
 
           <div style={styles.formGroup}>
-            <label style={styles.formLabel}>Result</label>
+            <label style={styles.formLabel}>Outcome (only if you want to note one)</label>
+            {/* Nothing is preselected. A dropdown that starts on "Pass" writes
+                a pass for every test she logs without looking at it, and this
+                app does not get to decide that about anybody's skin. The two
+                values are the schema's own words, from
+                CHECK (result IN ('pending','pass','fail','reaction')). */}
             <div style={styles.resultRow}>
               {[
-                { value: 'pass', label: 'Pass - no reaction', icon: 'check-circle' },
-                { value: 'fail', label: 'Fail - reaction', icon: 'x' },
-                { value: 'pending', label: 'Pending (24h)', icon: '⏳' },
+                { value: '', label: 'Not noted', icon: 'info' },
+                { value: 'pass', label: 'No reaction', icon: 'check-circle' },
+                { value: 'reaction', label: 'Reaction', icon: 'x' },
               ].map(r => (
                 <button
-                  key={r.value}
+                  key={r.value || 'none'}
                   onClick={() => setForm(p => ({ ...p, result: r.value }))}
                   style={{ ...styles.resultBtn,
-                    background: form.result === r.value ? (r.value === 'pass' ? 'var(--success-bg)' : r.value === 'fail' ? 'var(--danger-bg)' : 'var(--warning-bg)') : 'var(--bg-card)',
-                    borderColor: form.result === r.value ? (r.value === 'pass' ? 'var(--success)' : r.value === 'fail' ? 'var(--danger)' : 'var(--warning)') : 'var(--border)',
+                    background: form.result === r.value ? (r.value === 'pass' ? 'var(--success-bg)' : r.value === 'reaction' ? 'var(--danger-bg)' : 'var(--bg-hover)') : 'var(--bg-card)',
+                    borderColor: form.result === r.value ? (r.value === 'pass' ? 'var(--success)' : r.value === 'reaction' ? 'var(--danger)' : 'var(--text-muted)') : 'var(--border)',
                   }}
                 >
                   <span><Icon name={iconName(r.icon)} inline /></span>
@@ -358,9 +454,18 @@ export default function PatchTests() {
             />
           </div>
 
+          {saveError && (
+            <p style={{ fontSize: 12, color: 'var(--danger)', margin: '0 0 10px' }}>{saveError}</p>
+          )}
           <div style={styles.formActions}>
-            <button onClick={handleSave} style={styles.saveBtn}>Save Test</button>
-            <button onClick={() => setShowAdd(false)} style={styles.cancelBtn}>Cancel</button>
+            <button
+              onClick={handleSave}
+              disabled={saving || !form.client_id || !form.test_date}
+              style={{ ...styles.saveBtn, opacity: (saving || !form.client_id || !form.test_date) ? 0.5 : 1 }}
+            >
+              {saving ? 'Saving...' : 'Record it'}
+            </button>
+            <button onClick={() => { setShowAdd(false); setSaveError(null); }} style={styles.cancelBtn}>Cancel</button>
           </div>
         </div>
       )}
@@ -387,59 +492,80 @@ export default function PatchTests() {
           {alertCount === 0 ? (
             <div style={styles.emptyState}>
               <span style={{ fontSize: 32, display: 'block', marginBottom: 8 }}><Icon name="check-circle" size={32} /></span>
-              <p style={styles.emptyTitle}>All clear!</p>
-              <p style={styles.emptyDesc}>Every upcoming appointment has a valid patch test on file.</p>
+              <p style={styles.emptyTitle}>Nothing to check</p>
+              <p style={styles.emptyDesc}>
+                Every upcoming booking that needs a patch test has one on record, or a
+                completed treatment that could not have gone ahead without one.
+              </p>
             </div>
           ) : (
             <div style={styles.alertList}>
-              <p style={styles.alertIntro}>These clients have upcoming appointments but need a patch test:</p>
-              {upcomingAlerts.map((alert, i) => {
-                const status = PATCH_STATUS[alert.status];
-                return (
-                  <div key={i} style={styles.alertCard}>
-                    <div style={styles.alertTop}>
-                      <div style={styles.alertAvatar}>{alert.client_name[0]}</div>
-                      <div style={styles.alertInfo}>
-                        <span style={styles.alertName}>{alert.client_name}</span>
-                        <span style={styles.alertDetail}>
-                          {alert.treatment} - {new Date(alert.appointment_date + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
-                        </span>
-                      </div>
-                      <div style={{ ...styles.alertBadge, background: status.bg, color: status.color }}>
-                        <Icon name={iconName(status.icon)} inline /> {status.label}
-                      </div>
+              {/* THE ASK. This is the half of the fix the client never sees.
+                  Sophie was told flatly that she needed a patch test and
+                  booked a slot she did not need. When our records are simply
+                  silent about a client who has been here before, she is not
+                  the person to ask: Ellie was in the room, and Ellie can
+                  settle it in one tap from this card. */}
+              <p style={styles.alertIntro}>
+                These bookings need a patch test and I have not got one written down.
+                If you did one in the salon, record it here and I will stop asking.
+              </p>
+              {upcomingAlerts.map((alert) => (
+                <div key={alert.client_id} style={styles.alertCard}>
+                  <div style={styles.alertTop}>
+                    <div style={styles.alertAvatar}>{(alert.client_name || 'C')[0]}</div>
+                    <div style={styles.alertInfo}>
+                      <span style={styles.alertName}>{alert.client_name}</span>
+                      <span style={styles.alertDetail}>
+                        {alert.treatment ? `${alert.treatment} - ` : ''}
+                        {alert.appointment_date
+                          ? new Date(`${alert.appointment_date}T12:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
+                          : 'Date TBC'}
+                        {alert.bookings > 1 ? ` (+${alert.bookings - 1} more)` : ''}
+                      </span>
                     </div>
-                    {reminded[alert.client_name] ? (
-                      <span style={styles.sentLabel}>Reminder sent ✓</span>
-                    ) : (
-                      <div style={styles.alertActions}>
-                        <button onClick={() => handleRemind(alert.client_name)} style={styles.remindBtn}>
-                          Send patch test reminder
-                        </button>
-                        <button onClick={() => { setForm(p => ({ ...p, client_name: alert.client_name })); setShowAdd(true); }} style={styles.logBtn}>
-                          Log test
-                        </button>
-                      </div>
-                    )}
                   </div>
-                );
-              })}
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '6px 0 10px', lineHeight: 1.5 }}>
+                    {ALERT_REASON[alert.reason] || 'No patch test on record'}
+                  </p>
+                  {reminded[alert.client_id] ? (
+                    <span style={styles.sentLabel}>Reminder sent ✓</span>
+                  ) : (
+                    <div style={styles.alertActions}>
+                      <button onClick={() => handleRemind(alert.client_id, alert.client_name)} style={styles.remindBtn}>
+                        Ask her to book one
+                      </button>
+                      <button
+                        onClick={() => {
+                          setForm(p => ({ ...p, client_id: alert.client_id }));
+                          setSaveError(null);
+                          setShowAdd(true);
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
+                        style={styles.logBtn}
+                      >
+                        I did one
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           )}
 
-          {/* Expiring soon */}
-          {testsWithStatus.filter(t => t.status === 'expiring').length > 0 && (
+          {/* Coming up to her window again */}
+          {testsWithStatus.filter(t => t.status === 'ageing').length > 0 && (
             <div style={{ marginTop: 20 }}>
-              <h3 style={styles.sectionTitle}>Expiring soon</h3>
-              {testsWithStatus.filter(t => t.status === 'expiring').map(t => (
+              <h3 style={styles.sectionTitle}>Due again soon</h3>
+              {testsWithStatus.filter(t => t.status === 'ageing').map(t => (
                 <div key={t.id} style={styles.testRow}>
-                  <div style={styles.testAvatar}>{t.client_name[0]}</div>
+                  <div style={styles.testAvatar}>{clientLabel(t)[0]}</div>
                   <div style={styles.testInfo}>
-                    <span style={styles.testName}>{t.client_name}</span>
-                    <span style={styles.testMeta}>Expires in {t.daysLeft} days</span>
+                    <span style={styles.testName}>{clientLabel(t)}</span>
+                    <span style={styles.testMeta}>{t.daysLeft} days left of your {settings.expiry_months} month window</span>
                   </div>
-                  <button onClick={() => handleRemind(t.client_name)} style={styles.smallRemindBtn}>
-                    {reminded[t.client_name] ? 'Sent ✓' : 'Remind'}
+                  <button onClick={() => handleRemind(t.clients?.id, clientLabel(t))} style={styles.smallRemindBtn}>
+                    {reminded[t.clients?.id] ? 'Sent ✓' : 'Remind'}
                   </button>
                 </div>
               ))}
@@ -452,7 +578,7 @@ export default function PatchTests() {
       {tab === 'all' && (
         <div>
           {testsWithStatus.length === 0 ? (
-            <EmptyState title="No patch tests logged" subtitle='Tap "+ Log Patch Test" to start tracking.' />
+            <EmptyState title="No patch tests on file" subtitle='Tap "+ Log Patch Test" to record one you did.' />
           ) : (
             <div style={styles.testList}>
               {testsWithStatus.map(t => {
@@ -464,9 +590,14 @@ export default function PatchTests() {
                         <span><Icon name={iconName(status.icon)} inline /></span>
                       </div>
                       <div style={styles.testCardInfo}>
-                        <span style={styles.testCardName}>{t.client_name}</span>
+                        {/* clientLabel, not t.client_name. That column does
+                            not exist, so every card was blank and the avatar
+                            beside it threw on undefined[0]. */}
+                        <span style={styles.testCardName}>{clientLabel(t)}</span>
                         <span style={styles.testCardDate}>
-                          Tested {new Date(t.test_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          {t.test_date
+                            ? `Done ${new Date(`${String(t.test_date).slice(0, 10)}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })}`
+                            : 'No date on this one'}
                         </span>
                       </div>
                       <div style={{ ...styles.statusBadge, background: status.bg, color: status.color }}>
@@ -474,14 +605,17 @@ export default function PatchTests() {
                       </div>
                     </div>
                     <div style={styles.testCardBody}>
-                      <span style={styles.testResult}>
-                        Result: {t.result === 'pass' ? 'Pass ✅' : t.result === 'fail' ? 'Fail ❌' : 'Pending ⏳'}
-                      </span>
-                      {t.daysLeft !== null && t.status === 'valid' && (
-                        <span style={styles.testExpiry}>{t.daysLeft} days until expiry</span>
+                      {/* What the row attests to. It used to print "Pending"
+                          for anything that was not 'pass' or 'fail', which is
+                          every row in production, so a page about compliance
+                          told her that every test she had ever done was
+                          unfinished. */}
+                      <span style={styles.testResult}>{attests(t)}</span>
+                      {t.daysLeft !== null && t.status === 'current' && (
+                        <span style={styles.testExpiry}>{t.daysLeft} days left of your window</span>
                       )}
                     </div>
-                    {t.notes && <p style={styles.testNotes}>{t.notes}</p>}
+                    {t.reaction_notes && <p style={styles.testNotes}>{t.reaction_notes}</p>}
                   </div>
                 );
               })}

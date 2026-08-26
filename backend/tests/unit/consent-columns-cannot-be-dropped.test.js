@@ -162,15 +162,19 @@ describe('no new sender joins clients without the consent columns', () => {
   const KNOWN = new Set([
     'src/routes/appointments.js:66',
     'src/routes/appointments.js:431',
-    'src/routes/appointments.js:1598',
-    // All five moved down again, by the resend-confirmation idempotency guard
-    // added above them in routes/booking.js. Same five joins, same file, new
-    // line numbers. (Previously 857 / 1572 / 2126 / 2392 / 2803.)
-    'src/routes/booking.js:993',
-    'src/routes/booking.js:1708',
-    'src/routes/booking.js:2262',
-    'src/routes/booking.js:2528',
-    'src/routes/booking.js:2939',
+    // Moved down by the patch-test record and alert routes added above it in
+    // routes/appointments.js. Same join, same file. (Previously 1598.)
+    'src/routes/appointments.js:1826',
+    // All five moved down again, by the patch-test evidence rule replacing the
+    // `status === 'passed'` test in routes/booking.js. Same five joins, same
+    // file, new line numbers.
+    // (Previously 857 / 1572 / 2126 / 2392 / 2803, then 993 / 1708 / 2262 /
+    // 2528 / 2939.)
+    'src/routes/booking.js:994',
+    'src/routes/booking.js:1777',
+    'src/routes/booking.js:2331',
+    'src/routes/booking.js:2597',
+    'src/routes/booking.js:3008',
     'src/routes/features.js:132',
     'src/routes/features.js:169',
     'src/routes/features.js:194',

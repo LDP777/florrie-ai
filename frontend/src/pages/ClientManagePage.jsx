@@ -210,7 +210,11 @@ export default function ClientManagePage() {
   useEffect(() => {
     if (deepLinkedPatch.current || !data) return;
     const wantsPatch = new URLSearchParams(window.location.search).get('book') === 'patch';
-    if (wantsPatch && data.needsPatchTest) {
+    // Not gated on needsPatchTest any more. That flag is now narrow on
+    // purpose, and the link in the confirmation text has already told her to
+    // come here and book one; landing on a page with no picker on it would be
+    // the same dead end from the other direction.
+    if (wantsPatch && (data.needsPatchTest || data.patchTest?.required)) {
       deepLinkedPatch.current = true;
       loadPatchTestSlots();
       setTimeout(() => {
@@ -405,10 +409,35 @@ export default function ClientManagePage() {
   );
 
   const { appointment, policy, patchTests, needsPatchTest, pendingForms, payment } = data;
+  /* What the salon actually knows about her patch test, and how sure it is.
+   *
+   * On 26 August Sophie moved her appointment with this page and was then
+   * told, flatly, that she needed a patch test. She booked one. Ellie had to
+   * message her to say she did not need it and cancel it by hand. Sophie had
+   * been to her before: the demand was not a fact, it was a gap in our own
+   * records read out loud as though it were one.
+   *
+   * needsPatchTest now means only "we know she has never been in", which is
+   * the one case where the sentence is true and the one case where she can do
+   * anything about it herself. Everything softer arrives here instead, and
+   * says so in the client's own terms. `certainty` is one of:
+   *   not_required | satisfied | booked | never_visited | uncertain
+   *   | adverse | unknown
+   */
+  const patchTest = data.patchTest || { required: false, certainty: 'not_required', ask: null };
+  // She has not been ruled out, but nothing on file rules her in either. The
+  // page does not assert anything: the salon is asked, on her Patch Tests
+  // page, and the client is told the truth, which is that it is being checked.
+  const patchTestUnsure = ['uncertain', 'unknown'].includes(patchTest.certainty);
+  const patchTestReaction = patchTest.certainty === 'adverse';
   const apptDate = new Date(appointment.startsAt);
   const isCancelled = appointment.status === 'cancelled';
   const isCompleted = appointment.status === 'completed';
   const isPast = apptDate < new Date() && !isCancelled;
+  // A client who knows perfectly well she needs one can still book it, from
+  // any of these states. What changes is whether we DEMAND it of her.
+  const canOfferPatchTest = patchTest.required &&
+    (needsPatchTest || patchTestUnsure) && !isCancelled && !isPast;
   // Everything already on this booking, so the add picker never offers
   // something they have got. The backend refuses a duplicate anyway; this is
   // so they never see the option and wonder why it failed.
@@ -482,8 +511,66 @@ export default function ClientManagePage() {
       </div>
 
       <div style={S.content}>
-        {/* The one thing they MUST do. It sat far below the fold in a section
-            called "Patch tests", so it read as small print and got ignored. */}
+        {/* THE UNCERTAIN CASE, WHICH IS NOT A DEMAND.
+            Nothing on file either way, and she has been here before. The app
+            does not know, so it does not say it does. Ellie is asked instead,
+            on her Patch Tests page, because she was the one in the room and
+            she can settle it in a tap. Sophie got the flat version of this and
+            booked a slot she did not need. */}
+        {patchTestUnsure && !needsPatchTest && !patchTestBooked && !isCancelled && !isPast && (
+          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start',
+            padding: '14px 16px', borderRadius: 16, marginBottom: 16,
+            background: 'var(--bg-card, #FFFCF9)', border: '1px solid var(--border, #E8DDD4)',
+          }}>
+            <span style={{ fontSize: 20, lineHeight: 1.1 }}><Icon name="syringe" size={15} /></span>
+            <span style={{ flex: 1 }}>
+              <span style={{ display: 'block', fontSize: 15, fontWeight: 700, marginBottom: 3 }}>
+                Patch test
+              </span>
+              <span style={{ display: 'block', fontSize: 13, lineHeight: 1.5, color: 'var(--text-secondary, #574A42)' }}>
+                This treatment needs one within the last {patchTest.expiryMonths || 6} months.
+                I have not got yours written down, which does not mean you have not had it.
+                I will check my notes and message you if you need another one.
+              </span>
+              <Button
+                variant="quiet"
+                size="sm"
+                onClick={() => {
+                  if (!showSlotPicker) loadPatchTestSlots();
+                  document.getElementById('patch-test-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }}
+                style={{ marginTop: 6, marginLeft: -8, color: brandInk }}
+              >
+                Book one anyway
+              </Button>
+            </span>
+          </div>
+        )}
+
+        {/* A reaction is on record. That is not an absence and it is not
+            something to hand her a booking button for. */}
+        {patchTestReaction && !isCancelled && !isPast && (
+          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start',
+            padding: '14px 16px', borderRadius: 16, marginBottom: 16,
+            background: 'var(--bg-card, #FFFCF9)', border: '1px solid var(--border, #E8DDD4)',
+          }}>
+            <span style={{ fontSize: 20, lineHeight: 1.1 }}><Icon name="syringe" size={15} /></span>
+            <span style={{ flex: 1 }}>
+              <span style={{ display: 'block', fontSize: 15, fontWeight: 700, marginBottom: 3 }}>
+                Let us have a chat before this one
+              </span>
+              <span style={{ display: 'block', fontSize: 13, lineHeight: 1.5, color: 'var(--text-secondary, #574A42)' }}>
+                There is a note on your last patch test. Give me a message and we will sort out
+                what is best for you before your appointment.
+              </span>
+            </span>
+          </div>
+        )}
+
+        {/* The one thing they MUST do, and only when it is true of her: we
+            have no record of her ever having been in. It sat far below the
+            fold in a section called "Patch tests", so it read as small print
+            and got ignored. */}
         {needsPatchTest && !patchTestBooked && !isCancelled && !isPast && (
           <button
             type="button"
@@ -820,8 +907,9 @@ export default function ClientManagePage() {
           </div>
         )}
 
-        {/* Patch tests section - shown when treatment requires it OR existing patch test records exist */}
-        {(needsPatchTest || (patchTests && patchTests.length > 0)) && (
+        {/* Patch tests section - shown when the treatment requires one and we
+            are either asking or offering, OR there are records to show. */}
+        {(canOfferPatchTest || (patchTests && patchTests.length > 0)) && (
           <div id="patch-test-section" style={S.card}>
             <p style={S.sectionLabel}>Patch tests</p>
 
@@ -838,17 +926,22 @@ export default function ClientManagePage() {
               </div>
             )}
 
-            {/* No existing patch test row but treatment requires one */}
-            {needsPatchTest && (
+            {/* No patch test on record and the treatment needs one. The
+                heading and the sentence under it both change with how sure we
+                actually are: "required" is a claim, and it is only made of a
+                client we know has never been in. */}
+            {canOfferPatchTest && (
               <div style={S.patchTestBooking}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                   <span style={{ fontSize: 20 }}><Icon name="syringe" size={15} /></span>
                   <div style={{ flex: 1 }}>
                     <p style={{ margin: '0 0 2px', fontSize: 14, fontWeight: 600, color: '#2D1B1B' }}>
-                      Patch test required
+                      {needsPatchTest ? 'Patch test required' : 'Book a patch test'}
                     </p>
                     <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)' }}>
-                      Before your {appointment.treatment?.name} on {apptDate.toLocaleDateString('en-GB', { timeZone: 'UTC' })} - must be done at least 24 hours before
+                      {needsPatchTest
+                        ? `Before your ${appointment.treatment?.name} on ${apptDate.toLocaleDateString('en-GB', { timeZone: 'UTC' })} - must be done at least 24 hours before`
+                        : `If you would rather not wait for me to check, pick a time before your ${appointment.treatment?.name} on ${apptDate.toLocaleDateString('en-GB', { timeZone: 'UTC' })}.`}
                     </p>
                   </div>
                 </div>
@@ -879,8 +972,12 @@ export default function ClientManagePage() {
             )}
 
             {patchTests && patchTests.map(pt => {
-              // Check if this patch test needs auto-booking (pending, not confirmed)
-              const needsBooking = pt.status === 'pending' && !pt.confirmed_at;
+              // Check if this patch test needs auto-booking (pending, not confirmed).
+              // A row Ellie recorded herself is neither pending nor bookable:
+              // it already happened, in her chair, and asking the client to
+              // book it is the whole bug this page is being fixed for.
+              const recordedByOwner = pt.status === 'recorded_by_owner';
+              const needsBooking = pt.status === 'pending' && !pt.confirmed_at && !recordedByOwner;
               const isSuggested = pt.suggested_slot && !pt.confirmed_at;
 
               if (needsBooking) {
@@ -952,23 +1049,40 @@ export default function ClientManagePage() {
                 );
               }
 
-              // Display past/confirmed patch tests
+              /* Display past/confirmed patch tests.
+               *
+               * This used to print a green tick and the word "passed" for
+               * `pt.status === 'passed'`, a value the database has never held
+               * and, on the result column, could not hold: the CHECK
+               * constraint knows 'pending', 'pass', 'fail' and 'reaction'. So
+               * it painted every real row amber and captioned it "pending",
+               * which reads to a client as though something were wrong.
+               *
+               * What is said now is only what the row actually attests to:
+               * the salon wrote it down, or a slot is booked, or a result was
+               * recorded by a person. Never a pass this app decided on. */
+              const outcome = pt.result === 'pass' ? 'No reaction'
+                : pt.result === 'fail' || pt.result === 'reaction' ? 'Reaction noted'
+                  : null;
+              const caption = recordedByOwner ? 'Done in the salon'
+                : outcome || (pt.confirmed_at ? 'Booked' : 'To be booked');
+              const dot = outcome === 'Reaction noted' ? 'var(--danger)'
+                : (recordedByOwner || outcome) ? '#5BA67F'
+                  : 'var(--warning)';
+              const when = pt.test_date || pt.suggested_slot;
               return (
                 <div key={pt.id} style={S.patchTestRow}>
-                  <div style={{ width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
-                    background: pt.status === 'passed' ? '#5BA67F' : pt.status === 'failed' ? 'var(--danger)' : 'var(--warning)',
-                  }} />
+                  <div style={{ width: 10, height: 10, borderRadius: '50%', flexShrink: 0, background: dot }} />
                   <div style={{ flex: 1 }}>
                     <p style={S.patchTestName}>
-                      {pt.status === 'passed' ? '✓ ' : ''}
                       {pt.treatments?.name || 'Patch test'}
                     </p>
                     <p style={S.patchTestMeta}>
-                      {pt.test_date ? new Date(pt.test_date).toLocaleDateString('en-GB', { timeZone: 'UTC' }) : pt.suggested_slot ? new Date(pt.suggested_slot).toLocaleDateString('en-GB', { timeZone: 'UTC' }) : 'Date TBC'}
-                      {' · '}
-                      <span style={{ textTransform: 'capitalize' }}>
-                        {pt.confirmed_at ? 'Booked' : pt.status}
-                      </span>
+                      {when
+                        ? new Date(`${String(when).slice(0, 10)}T00:00:00Z`).toLocaleDateString('en-GB', { timeZone: 'UTC' })
+                        : 'Date TBC'}
+                      {' \u00b7 '}
+                      <span>{caption}</span>
                     </p>
                   </div>
                 </div>

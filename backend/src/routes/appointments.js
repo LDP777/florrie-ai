@@ -14,7 +14,7 @@ import { logAssumedTakings } from '../lib/takings.js';
 import { onlyFlipped } from '../lib/money-guards.js';
 import { recomputeTotals, endsAtWall, parseExtraTreatmentIds } from '../lib/appointment-treatments.js';
 import logger from '../lib/logger.js';
-import { needsPatchTest } from '../lib/patch-test-status.js';
+import { needsPatchTest, patchTestEvidence, patchTestWindowStart, RECORDED_BY_OWNER, todayWall, wallDate } from '../lib/patch-test-status.js';
 import { parsePagination, buildPaginationMeta, handleQueryError } from '../lib/queries.js';
 import { completeDaySchema, manualAppointmentSchema } from '../lib/schemas.js';
 import { notifyBookingConfirmed, sendWhatsApp, sendSMS, sendMessage, pickChannel } from '../services/notifications.js';
@@ -1579,6 +1579,234 @@ export async function clientNeedsPatchTest(beauticianId, clientId) {
   // callers that lives inside an HTTP route grows a second copy.
   return needsPatchTest(supabase, beauticianId, clientId, logger);
 }
+
+/* ==========================================================================
+ * THE OWNER'S OWN RECORD
+ *
+ * Ellie patch tests people in the chair. She always has. Nothing in this app
+ * has ever let her write that down, so as far as the software was concerned
+ * every one of those clients had never been tested, and the manage page went
+ * on demanding a test from them forever. On 26 August that cost Sophie a slot
+ * she did not need and Ellie an evening's tidying up.
+ *
+ * The one route that looked like it could record a test, POST
+ * /api/features/patch-tests, needs a treatment_id and offers a `result`
+ * dropdown, and the page that calls it wrote to two columns patch_tests does
+ * not have (client_name, notes) with client_id NULL against a NOT NULL
+ * constraint. PostgREST rejected the whole statement every time and the
+ * frontend swallowed the throw, so the row appeared in the list and was never
+ * saved. Nobody has ever successfully logged a patch test by hand.
+ *
+ * WHAT THIS WRITES, AND WHAT IT REFUSES TO WRITE.
+ *
+ *   status       'recorded_by_owner'. Legal without a migration: 078 created
+ *                patch_tests.status as unconstrained text. It says who said
+ *                so, which is the only thing anybody actually knows.
+ *   test_date    the date SHE picks. Not today, not created_at: she is
+ *                usually recording something that happened weeks ago.
+ *   confirmed_at now. Every reader in this codebase uses confirmed_at for
+ *                exactly one thing, "this patch test is settled rather than
+ *                outstanding", and a recorded one is settled. What keeps it
+ *                distinguishable from a slot a client booked is
+ *                appointment_id being NULL and status not being 'pending'.
+ *   result       left at the column default, 'pending'. THIS IS THE POINT.
+ *                Nobody has told us the outcome, so nothing is written for
+ *                it. The row says "Ellie recorded a patch test on the 7th"
+ *                and never "she passed". If she wants to record an actual
+ *                outcome she has to say so, and even then it is written in
+ *                the schema's own vocabulary: 'pass' or 'reaction', the words
+ *                in the CHECK constraint, never the invented 'passed'.
+ *   expires_at   left NULL, as it is on every row in production. Validity is
+ *                one calculation from test_date against her own
+ *                patch_test_expiry_months setting, in one place, and a second
+ *                copy of it frozen into a column would be a second answer.
+ * ======================================================================== */
+
+/** The outcomes a human may state, in the schema's own words. */
+const STATEABLE_RESULTS = new Set(['pass', 'reaction', 'fail']);
+
+/**
+ * POST /api/appointments/patch-test-records
+ * Body: { client_id, test_date, treatment_id?, result?, product_used?, notes? }
+ *
+ * Record that a client had a patch test on a date, with no slot booked and no
+ * appointment behind it, because there was not one: it happened in the chair.
+ */
+router.post('/patch-test-records', requireAuth, async (req, res) => {
+  const { client_id, test_date, treatment_id, result, product_used, notes } = req.body || {};
+
+  if (!client_id) return res.status(400).json({ error: 'Please choose a client.' });
+  if (!test_date || !/^\d{4}-\d{2}-\d{2}$/.test(String(test_date))) {
+    return res.status(400).json({ error: 'Please pick the date of the patch test.' });
+  }
+  // A test dated next week has not happened. Wall frame, same as everything
+  // else that talks about days rather than instants.
+  if (String(test_date) > todayWall()) {
+    return res.status(400).json({ error: 'That date is in the future. Record it after it has happened.' });
+  }
+  if (result != null && result !== '' && !STATEABLE_RESULTS.has(String(result))) {
+    return res.status(400).json({ error: 'That is not a result this can record.' });
+  }
+
+  // Hers, or nobody's. Same check the rest of this router makes before it
+  // touches a row it was handed an id for.
+  if (!await requireOwned(req, res, [
+    { table: 'clients', id: client_id },
+    { table: 'treatments', id: treatment_id },
+  ])) return;
+
+  const row = {
+    beautician_id: req.beautician.id,
+    client_id,
+    treatment_id: treatment_id || null,
+    test_date: String(test_date),
+    status: RECORDED_BY_OWNER,
+    // No slot, no appointment. That is the whole point of this route.
+    appointment_id: null,
+    auto_booked: false,
+    confirmed_at: new Date().toISOString(),
+    product_used: product_used ? String(product_used).slice(0, 500) : null,
+  };
+  // Only if a human actually stated one. Absent means absent, not pass.
+  if (result && STATEABLE_RESULTS.has(String(result))) row.result = String(result);
+  // reaction_notes, not `notes`: patch_tests has never had a column called
+  // notes, and naming one made PostgREST throw the whole insert away.
+  if (notes) row.reaction_notes = String(notes).slice(0, 2000);
+
+  const { data, error } = await supabase
+    .from('patch_tests')
+    .insert(row)
+    .select('id, client_id, treatment_id, test_date, status, result, confirmed_at, appointment_id')
+    .single();
+
+  if (error) {
+    logger.error({ err: error, clientId: client_id }, 'Could not record the patch test');
+    return res.status(500).json({ error: 'Could not save that just then. Please try again.' });
+  }
+
+  res.status(201).json({ patchTest: data });
+});
+
+/**
+ * GET /api/appointments/patch-test-alerts?days=21
+ *
+ * WHO IS ASKED WHEN NOBODY KNOWS.
+ *
+ * The client is not the right person to ask about a gap in our own records.
+ * She was told "you need a patch test", which is an assertion, and for a
+ * returning client it is a guess: she books a slot she does not need, the
+ * diary loses it, and the owner spends her evening undoing it. Ellie is the
+ * one who was in the room, and she is the one who can settle it in a tap.
+ *
+ * So this is the ask, and it lands on the owner's Patch Tests page. Each row
+ * says what the evidence actually is, in the vocabulary of
+ * lib/patch-test-status.js, and never pretends absence is a negative.
+ *
+ * The old version of that page could not do this. It decided which treatments
+ * needed a test by looking for 'tint' and 'lamination' in the NAME, ignoring
+ * the requires_patch_test column that exists for it, and then matched clients
+ * to tests on patch_tests.client_name, a column that does not exist.
+ */
+router.get('/patch-test-alerts', requireAuth, async (req, res) => {
+  const days = Math.min(90, Math.max(1, Number(req.query.days) || 21));
+  const from = todayWall();
+  const [fy, fm, fd] = from.split('-').map(Number);
+  const to = new Date(Date.UTC(fy, fm - 1, fd + days));
+  const until = to.toISOString().slice(0, 10);
+
+  const { data: appts, error } = await supabase
+    .from('appointments')
+    .select('id, starts_at, status, client_id, treatment_id, extra_treatment_ids, clients(id, first_name, last_name), treatments(id, name, requires_patch_test)')
+    .eq('beautician_id', req.beautician.id)
+    .gte('starts_at', `${from}T00:00:00`)
+    .lte('starts_at', `${until}T23:59:59`)
+    .in('status', ['confirmed', 'pending', 'in_progress'])
+    .order('starts_at', { ascending: true })
+    .limit(300);
+
+  // A silent empty list on the page that exists to catch this is the one
+  // outcome worth shouting about.
+  if (error) {
+    logger.error({ err: error }, 'Could not read the diary for patch-test alerts');
+    return res.status(500).json({ error: 'Could not check the diary just then.' });
+  }
+
+  const rows = appts || [];
+
+  // Extras count. A lash tint added to a booking needs a test exactly as much
+  // as one booked as the main thing, and only extra_treatment_ids knows.
+  const extraIds = new Set();
+  for (const a of rows) {
+    const extras = Array.isArray(a.extra_treatment_ids) ? a.extra_treatment_ids : [];
+    for (const id of extras) if (id) extraIds.add(id);
+  }
+  let extraNeeds = new Set();
+  if (extraIds.size > 0) {
+    const { data: extras, error: exErr } = await supabase
+      .from('treatments')
+      .select('id, requires_patch_test')
+      .eq('beautician_id', req.beautician.id)
+      .in('id', [...extraIds]);
+    if (exErr) {
+      logger.error({ err: exErr }, 'Could not read the extra treatments for patch-test alerts');
+      return res.status(500).json({ error: 'Could not check the diary just then.' });
+    }
+    extraNeeds = new Set((extras || []).filter(t => t.requires_patch_test === true).map(t => t.id));
+  }
+
+  const needing = rows.filter((a) => {
+    if (a.treatments?.requires_patch_test === true) return true;
+    const extras = Array.isArray(a.extra_treatment_ids) ? a.extra_treatment_ids : [];
+    return extras.some(id => extraNeeds.has(id));
+  });
+
+  const expiryMonths = req.beautician.patch_test_expiry_months || 6;
+
+  // One evidence read per CLIENT, not per booking: she may have four in.
+  const byClient = new Map();
+  for (const a of needing) {
+    if (!a.client_id) continue;
+    if (!byClient.has(a.client_id)) byClient.set(a.client_id, []);
+    byClient.get(a.client_id).push(a);
+  }
+
+  const alerts = [];
+  for (const [clientId, bookings] of byClient) {
+    const soonest = bookings[0];
+    const evidence = await patchTestEvidence(supabase, req.beautician.id, clientId, {
+      expiryMonths,
+      asOf: soonest.starts_at,
+      logger,
+    });
+    if (evidence.ok) continue;
+
+    // What the owner is actually being asked. Never a verdict on her client.
+    const askedBecause =
+      evidence.kind === 'unknown' ? 'could_not_check'
+        : evidence.kind === 'adverse' ? 'reaction_on_record'
+          : evidence.pending ? 'booked_not_attended'
+            : evidence.completedVisits === 0 ? 'never_been_in'
+              : 'been_in_but_nothing_on_record';
+
+    alerts.push({
+      client_id: clientId,
+      client_name: `${soonest.clients?.first_name || ''} ${soonest.clients?.last_name || ''}`.trim() || 'Client',
+      appointment_id: soonest.id,
+      // Wall date, read the way the rest of this file reads starts_at.
+      appointment_date: wallDate(soonest.starts_at),
+      treatment: soonest.treatments?.name || null,
+      bookings: bookings.length,
+      evidence: evidence.kind,
+      evidence_date: evidence.when,
+      completed_visits: evidence.completedVisits,
+      reason: askedBecause,
+      // So the page can say "anything before this is too old" in her words.
+      window_from: patchTestWindowStart(wallDate(soonest.starts_at), expiryMonths),
+    });
+  }
+
+  res.json({ alerts, expiryMonths, checkedUntil: until });
+});
 
 /**
  * POST /api/appointments/:id/send-manage-link

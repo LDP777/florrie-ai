@@ -21,7 +21,7 @@
  * messages.created_at is a REAL INSTANT, not the salon wall time convention
  * that appointments.starts_at uses, so ordinary Date arithmetic is right here.
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 let inboundMessages = [];
 const freeform = [];
@@ -54,6 +54,28 @@ function builder(table) {
   };
   return b;
 }
+
+/**
+ * PINNED TO A WORKING TUESDAY AFTERNOON, AND THE REASON MATTERS.
+ *
+ * rebook_nudge is a MARKETING template, so sendNudge routes it through the
+ * PECR gate, and inMarketingQuietHours refuses anything from 21:00 to 08:00 UK
+ * time. Against the real clock these tests therefore PASSED ALL DAY AND FAILED
+ * ALL EVENING, which is worse than failing outright: the suite is green when
+ * you write the code and red when somebody else runs it after dinner, and the
+ * natural reading of that is "the last commit broke it".
+ *
+ * This is the third clock-dependent test found in one day. The rule: if the
+ * code under test reads the wall clock, the test fixes the wall clock. What is
+ * being tested here is which WhatsApp path is taken, not what time it is.
+ */
+beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-08-25T13:00:00Z'));
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 vi.mock('../../src/config.js', () => ({
   supabase: { from: builder },
