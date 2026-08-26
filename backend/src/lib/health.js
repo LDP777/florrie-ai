@@ -376,7 +376,7 @@ export function judgeConfirmationLinks({ confirmations, links, windowDays = CONF
       + 'so those clients cannot add the appointment to a calendar, add a treatment, reschedule or cancel it themselves. '
       + 'The approved confirmation template cannot hold a url, so the link travels in a second generic_message send: '
       + 'check that template is APPROVED on the WABA the sending number is parented to '
-      + '(GET /api/whatsapp-config/template-debug?name=generic_message says which).',
+      + '(GET /api/whatsapp/template-debug?name=generic_message says which).',
   };
 }
 
