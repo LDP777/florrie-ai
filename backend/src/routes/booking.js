@@ -96,34 +96,170 @@ function packageIsRedeemable(clientPkg, now = Date.now()) {
  * the Stripe webhook does not fire. Idempotent (skips if already paid).
  */
 /**
- * GET /api/booking/:slug/manage/:token/resend-confirmation
- * Re-send a booking confirmation to the client (used when the original did not
- * go out). Authed by the unguessable per-appointment management token.
+ * RESEND CONFIRMATION, AND WHY IT REFUSES.
+ *
+ * This endpoint SENDS MESSAGES, and it was a GET with no idempotency of any
+ * kind. A GET is re-fired by browser prefetch, by refreshes and retries, by
+ * link unfurlers, and by WhatsApp itself, which fetches a url the moment
+ * somebody pastes it in order to draw the preview card. Fired twice seven
+ * seconds apart by accident on 26 August, a real client received two identical
+ * confirmations on two channels.
+ *
+ * The guard is modelled on the Stripe refund one in routes/stripe.js, and the
+ * shape it copies is the important part: do not trust the caller's intent,
+ * OBSERVE whether the thing already happened. There the witness is the
+ * charge's amount_refunded; here it is appointments.confirmation_sent_at,
+ * which notifyBookingConfirmed stamps only when something really left (see
+ * services/notifications.js, and confirmation-honesty.test.js for why the
+ * "only" matters). A run that delivered nothing leaves no stamp and is
+ * therefore never refused, which is exactly right: the whole point of this
+ * endpoint is the case where nothing arrived.
+ *
+ * The refusal is answered honestly and with a time, not swallowed and not
+ * reported as a send: `sent: false, duplicate: true, already_sent_at`, plus
+ * when it can be tried again. Same as the refund route answering
+ * `success: false, duplicate: true` rather than handing back the first
+ * refund's id and calling it a second one.
+ *
+ * confirmation_sent_at is a REAL INSTANT (like created_at), not the salon wall
+ * time convention that appointments.starts_at follows, so Date.parse is the
+ * right way to read it.
  */
-router.get('/:slug/manage/:token/resend-confirmation', async (req, res) => {
+export const RESEND_IDEMPOTENCY_WINDOW_MS = 2 * 60 * 1000;
+
+/**
+ * Did a confirmation for this appointment already go out inside the window?
+ * Returns null when it is fine to send, or the evidence when it is not.
+ */
+export function resendReplay(confirmationSentAt, now = Date.now()) {
+  const ms = Date.parse(confirmationSentAt || '');
+  if (!Number.isFinite(ms)) return null;
+  const ageMs = now - ms;
+  // A stamp in the future is a clock problem, not a duplicate. Do not refuse
+  // on it: a client who got nothing must always be able to ask again.
+  if (ageMs < 0 || ageMs > RESEND_IDEMPOTENCY_WINDOW_MS) return null;
+  return {
+    sentAt: new Date(ms).toISOString(),
+    secondsAgo: Math.round(ageMs / 1000),
+    retryAfterSeconds: Math.max(1, Math.ceil((RESEND_IDEMPOTENCY_WINDOW_MS - ageMs) / 1000)),
+  };
+}
+
+/**
+ * The stamp is the authority, but it only exists once the send has FINISHED,
+ * and notifyBookingConfirmed talks to Meta, Bird and Resend in turn, which can
+ * take seconds. Two fires inside that gap both read a null stamp and both send.
+ * A browser that prefetches and then navigates does exactly that.
+ *
+ * So the claim is taken the moment we decide to send, and a live claim counts
+ * as the same evidence the stamp does. Per process and deliberately so: it is a
+ * narrowing of the same guard, not a second one, and the durable answer is
+ * still confirmation_sent_at. Entries are dropped once they age past the
+ * window, so this cannot grow.
+ */
+const resendClaims = new Map(); // appointmentId -> ISO string of when we started
+
+function claimResend(appointmentId, now = Date.now()) {
+  for (const [id, at] of resendClaims) {
+    if (now - Date.parse(at) > RESEND_IDEMPOTENCY_WINDOW_MS) resendClaims.delete(id);
+  }
+  const held = resendClaims.get(appointmentId);
+  if (held && resendReplay(held, now)) return held;
+  resendClaims.set(appointmentId, new Date(now).toISOString());
+  return null;
+}
+
+async function resendConfirmationHandler(req, res) {
   try {
+    // no-store, because the other half of "a GET that sends" is a GET whose
+    // answer gets cached and replayed by something that is not the client.
+    res.set('Cache-Control', 'no-store');
+
     const { data: appt } = await supabase
       .from('appointments')
-      .select('id, beauticians(booking_slug)')
+      .select('id, confirmation_sent_at, beauticians(booking_slug)')
       .eq('management_token', req.params.token)
       .maybeSingle();
     if (!appt || appt.beauticians?.booking_slug !== req.params.slug) {
       return res.status(404).json({ error: 'not_found' });
     }
+
+    // Either the durable evidence, or a send already in flight for this
+    // booking. Same window, same answer.
+    const replay = resendReplay(appt.confirmation_sent_at) || resendReplay(claimResend(appt.id));
+    if (replay) {
+      logger.warn(
+        { appointmentId: appt.id, method: req.method, secondsAgo: replay.secondsAgo },
+        'resend-confirmation refused: a confirmation for this booking went out moments ago',
+      );
+      // confirmation_sent_at is a real instant, so it is CONVERTED for display,
+      // the opposite of what starts_at needs. Europe/London is the salon clock
+      // this product assumes everywhere else (see lib/marketing-guard.js), and
+      // showing a BST send as a UTC time would put it an hour in the past.
+      const whenLabel = new Date(replay.sentAt).toLocaleTimeString('en-GB', {
+        hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London',
+      });
+      const agoLabel = replay.secondsAgo < 5 ? 'moments ago' : `${replay.secondsAgo} seconds ago`;
+      return res.json({
+        ok: true,
+        sent: false,
+        duplicate: true,
+        channels: [],
+        reason: 'already_sent',
+        already_sent_at: replay.sentAt,
+        seconds_ago: replay.secondsAgo,
+        retry_after_seconds: replay.retryAfterSeconds,
+        message: `This confirmation already went out ${agoLabel}, at ${whenLabel}. Nothing new was sent just now, so the client will not receive it twice. If it genuinely has not arrived, try again in ${replay.retryAfterSeconds} seconds.`,
+      });
+    }
+
     const { notifyBookingConfirmed } = await import('../services/notifications.js');
     // Report what actually happened. This used to answer `sent: true`
     // unconditionally, without reading the return value — which was fair
     // enough when there was no return value to read, and is exactly the class
     // of untrue reassurance that put two consultation forms on one client's
     // phone.
-    const result = await notifyBookingConfirmed(appt.id);
-    logger.info({ appointmentId: appt.id, sent: !!result?.sent, reason: result?.reason }, 'Booking confirmation re-sent');
-    return res.json({ ok: true, sent: !!result?.sent, channels: result?.channels || [], reason: result?.reason || null });
+    let result;
+    try {
+      result = await notifyBookingConfirmed(appt.id);
+    } finally {
+      // Nothing delivered means nothing to be idempotent about, and this
+      // client is by definition the one waiting for a message that never
+      // arrived. Give the claim straight back so she can ask again now. Same
+      // rule as the stamp, which notifyBookingConfirmed also withholds when
+      // every channel declined.
+      if (!result?.sent) resendClaims.delete(appt.id);
+    }
+    logger.info(
+      { appointmentId: appt.id, method: req.method, sent: !!result?.sent, reason: result?.reason, link: result?.link || null },
+      'Booking confirmation re-sent',
+    );
+    return res.json({
+      ok: true,
+      sent: !!result?.sent,
+      duplicate: false,
+      channels: result?.channels || [],
+      reason: result?.reason || null,
+      // Whether she can actually act on the booking she was just sent.
+      link: result?.link || null,
+    });
   } catch (err) {
     logger.error({ err }, 'resend-confirmation failed');
     return res.status(500).json({ error: 'failed' });
   }
-});
+}
+
+/**
+ * POST /api/booking/:slug/manage/:token/resend-confirmation
+ * The one that should be used: a send is not a safe method.
+ *
+ * GET /api/booking/:slug/manage/:token/resend-confirmation
+ * Kept, because this url is pasted into browsers and support threads by hand
+ * and there is no way to know it has stopped being. It is now guarded rather
+ * than removed. Authed by the unguessable per-appointment management token.
+ */
+router.post('/:slug/manage/:token/resend-confirmation', resendConfirmationHandler);
+router.get('/:slug/manage/:token/resend-confirmation', resendConfirmationHandler);
 
 /**
  * GET /api/booking/:slug/manage/:token/calendar.ics

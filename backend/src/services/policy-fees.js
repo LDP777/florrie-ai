@@ -147,7 +147,12 @@ export async function chargePolicyFee(appointmentId, kind) {
       await logAction({
         appt, kind,
         actionType: 'policy_fee_uncollectable',
-        outcome: 'failure',
+        // Was 'failure', which the CHECK from 001_initial_schema.sql does not
+        // allow: success, pending, failed, escalated. Every one of these four
+        // inserts was rejected 23514 and swallowed by its own catch, so the
+        // record of a policy fee that could not be charged has never once
+        // existed. Same typo, same day, as the one in notifications.js.
+        outcome: 'failed',
         summary: `Could not charge ${clientName} the ${poundsLabel(feeCents)} ${label}, Stripe payouts are not set up yet`,
         details: { fee_cents: feeCents, percent, reason: 'stripe_not_onboarded' },
       });
@@ -167,7 +172,7 @@ export async function chargePolicyFee(appointmentId, kind) {
       await logAction({
         appt, kind,
         actionType: 'policy_fee_uncollectable',
-        outcome: 'failure',
+        outcome: 'failed',
         summary: `No card on file, could not charge the ${label} for ${clientName}`,
         details: { fee_cents: feeCents, percent, reason: 'no_card_on_file' },
       });
@@ -208,7 +213,7 @@ export async function chargePolicyFee(appointmentId, kind) {
       await logAction({
         appt, kind,
         actionType: 'policy_fee_uncollectable',
-        outcome: 'failure',
+        outcome: 'failed',
         summary: declined
           ? `${clientName}'s card would not accept the ${poundsLabel(feeCents)} ${label} (${err.code || 'card declined'}). You could send a payment link instead`
           : `Charging ${clientName} the ${poundsLabel(feeCents)} ${label} failed, I will not retry automatically`,
@@ -223,7 +228,7 @@ export async function chargePolicyFee(appointmentId, kind) {
       await logAction({
         appt, kind,
         actionType: 'policy_fee_uncollectable',
-        outcome: 'failure',
+        outcome: 'failed',
         summary: `The ${poundsLabel(feeCents)} ${label} for ${clientName} did not go through (status ${paymentIntent.status})`,
         details: { fee_cents: feeCents, percent, payment_intent_id: paymentIntent.id, status: paymentIntent.status },
       });

@@ -163,13 +163,14 @@ describe('no new sender joins clients without the consent columns', () => {
     'src/routes/appointments.js:66',
     'src/routes/appointments.js:431',
     'src/routes/appointments.js:1598',
-    // All five moved down by the general reschedule-slots mode added above
-    // them in routes/booking.js. Same five joins, same file, new line numbers.
-    'src/routes/booking.js:857',
-    'src/routes/booking.js:1572',
-    'src/routes/booking.js:2126',
-    'src/routes/booking.js:2392',
-    'src/routes/booking.js:2803',
+    // All five moved down again, by the resend-confirmation idempotency guard
+    // added above them in routes/booking.js. Same five joins, same file, new
+    // line numbers. (Previously 857 / 1572 / 2126 / 2392 / 2803.)
+    'src/routes/booking.js:993',
+    'src/routes/booking.js:1708',
+    'src/routes/booking.js:2262',
+    'src/routes/booking.js:2528',
+    'src/routes/booking.js:2939',
     'src/routes/features.js:132',
     'src/routes/features.js:169',
     'src/routes/features.js:194',
@@ -186,10 +187,11 @@ describe('no new sender joins clients without the consent columns', () => {
     'src/routes/features.js:2791',
     'src/routes/features.js:2832',
     'src/routes/features.js:3317',
-    // Both moved down by the SMS routing split added above them in
+    // Both moved down again, by sendBookingLink added above them in
     // services/notifications.js. Same two joins, same file, new line numbers.
-    'src/services/notifications.js:1236',
-    'src/services/notifications.js:1514',
+    // (Previously 1236 / 1514.)
+    'src/services/notifications.js:1393',
+    'src/services/notifications.js:1685',
   ]);
 
   function walk(dir) {

@@ -7,6 +7,7 @@
 import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
 import { isMarketingTemplate, isMarketingSmsType, canSendMarketing, findClientByPhone } from '../lib/marketing-guard.js';
+import { guardedSend } from '../lib/outbound-guard.js';
 import { trackSMSUsage } from './sms-metering.js';
 import { checkWhatsAppQuota, trackWhatsAppMessage, trackSmsInMonthlyQuota } from './whatsapp-metering.js';
 import { twilioConfigured, twilioSendText, twilioSendTemplate, twilioContentSid } from './whatsapp-twilio.js';
@@ -522,6 +523,17 @@ function resolveTemplateForSend({ templateName, templateParams, businessName, is
 /**
  * Surface a permanent send failure in "What Florrie did" so the beautician
  * finds out from Florrie, in plain English, not from a confused client.
+ *
+ * THIS ROW HAS NEVER BEEN WRITTEN. `outcome` carries a CHECK constraint from
+ * 001_initial_schema.sql:370 allowing exactly success | pending | failed |
+ * escalated, and this insert said 'failure'. PostgREST rejected every one with
+ * 23514 and the catch below turned that into a logger.warn nobody reads. So
+ * the ONE place a permanent send failure was supposed to become visible to a
+ * human has been silently discarding them for as long as it has existed, on
+ * every channel, which is the largest single reason a dead WhatsApp template
+ * could run for fourteen days without anybody knowing.
+ *
+ * The same typo is still live in services/policy-fees.js (four inserts).
  */
 async function logSendFailure({ beauticianId, to, channel, detail }) {
   try {
@@ -537,11 +549,44 @@ async function logSendFailure({ beauticianId, to, channel, detail }) {
       details: { channel, to_last4: String(to || '').replace(/\D/g, '').slice(-4), detail: String(detail || '').slice(0, 300) },
       confidence: 1.0,
       autonomous: true,
-      outcome: 'failure',
+      outcome: 'failed',
       notification_sent: false,
     });
   } catch (err) {
     logger.warn({ err }, 'logSendFailure insert failed');
+  }
+}
+
+/**
+ * The worst outcome this file can produce, recorded where a person will see it.
+ *
+ * A confirmation that went out with no link is not a failed send: the client
+ * got a message, so nothing else in the system considers anything wrong. She
+ * simply has no way to add the booking to a calendar, add a treatment, move it
+ * or cancel it, and the first anyone hears of it is her asking. Lucy Walker on
+ * 21 August, Sophie on 26 August. That deserves its own row rather than being
+ * folded into the generic send_failed one, because the send that failed is not
+ * the one the beautician will be asked about.
+ */
+async function logBookingLinkFailure({ beauticianId, clientId, appointmentId, firstName, reason }) {
+  try {
+    if (!beauticianId) return;
+    await supabase.from('ai_actions').insert({
+      beautician_id: beauticianId,
+      client_id: clientId || null,
+      appointment_id: appointmentId || null,
+      action_type: 'booking_link_not_delivered',
+      digital_employee: 'front_desk',
+      summary: `${firstName || 'A client'} got her confirmation but not her booking link, so she can't add it to her calendar, change it or cancel it herself`,
+      details: { reason: String(reason || '').slice(0, 300), channels_tried: ['whatsapp', 'sms'] },
+      confidence: 1.0,
+      autonomous: true,
+      // success | pending | failed | escalated. See logSendFailure above.
+      outcome: 'failed',
+      notification_sent: false,
+    });
+  } catch (err) {
+    logger.warn({ err, beauticianId, appointmentId }, 'logBookingLinkFailure insert failed');
   }
 }
 
@@ -1214,6 +1259,114 @@ function emailTemplate({ bizName, brandColor, tagline, content, logoUrl, signOff
 </html>`;
 }
 
+/* ------------------------------------------------------------------------- *
+ * THE LINK, DELIVERED, AND THE RESULT READ.
+ *
+ * A Meta-approved template body cannot carry a url. booking_confirmation_v2
+ * has three fixed parameters and no url button, and a body cannot be edited
+ * after approval, so the link has to travel in a SECOND message on
+ * generic_message_v2, the only template in the registry with a free-text slot.
+ *
+ * That second send existed. Its result was never read: `await sendWhatsApp(...)`
+ * with nothing on the left of it. sendWhatsApp returns null on a quota block
+ * (warn), a missing token (debug), a missing phone_number_id (debug), a PECR
+ * block (info) and on anything Meta rejects (error), so at the call site every
+ * one of those is the same thing: nothing. In production that second message
+ * has never been delivered once.
+ *
+ * Which of those it is can be narrowed from the code alone. The FIRST message
+ * arrived, on the same call, same beautician, same number, so the quota gate,
+ * the token and the phone_number_id were all fine at that instant. `transactional`
+ * skips the PECR gate. The only thing that differs between the two sends is the
+ * template name. It is Meta refusing generic_message, which is 132001 territory
+ * and is why routes/whatsapp-config.js carries a /template-debug endpoint that
+ * defaults to name=generic_message.
+ *
+ * The gate that the `transactional` flag CANNOT reach is Meta's own. Our PECR
+ * guard is opted out of by the flag; Meta's is decided by the CATEGORY baked
+ * into the approved template, and lib/whatsapp-templates.js declares
+ * generic_message as MARKETING. Nothing we pass at send time changes that. So
+ * this send can be refused for reasons no flag of ours can argue with, and it
+ * therefore must have somewhere else to go.
+ *
+ * Somewhere else is SMS. She has a phone number, and a link that arrives by
+ * text beats a link that arrives nowhere. It goes through guardedSend typed
+ * `booking_confirmation`, which is in outbound-guard's TRANSACTIONAL set, so
+ * it passes the gate rather than being held for approval or binned by
+ * marketing quiet hours. Note that `transactional: true` is not what does that
+ * work here: the outbound guard reads the messageType STRING and has never
+ * seen the flag. Three separate vocabularies for one idea, and typing this
+ * fallback anything else would put it straight back into the quiet-hours bin
+ * the flag exists to escape.
+ *
+ * Returns { delivered, attempts, reason }. delivered is 'whatsapp', 'sms' or
+ * null, and null is loud: an error log AND a row a human can find.
+ * ------------------------------------------------------------------------- */
+export async function sendBookingLink({
+  beauticianId, clientId, appointmentId, firstName, phone, bizName, url, isCalendarLink = false,
+}) {
+  const attempts = [];
+  if (!url) return { delivered: null, attempts, reason: 'no_link' };
+  if (!phone) return { delivered: null, attempts, reason: 'no_phone' };
+
+  // Say what the page DOES. "Manage or reschedule" is the wording nobody
+  // tapped, and it does not hint that adding a treatment is possible at all,
+  // which is the exact thing Lucy wanted and messaged about instead.
+  const blurb = isCalendarLink
+    ? `Add your appointment to your calendar so you don't lose it, or change it if you need to: ${url}`
+    : `Need to change your appointment, add another treatment, or cancel? You can do it all here: ${url}`;
+
+  const wa = await sendWhatsApp({
+    to: phone,
+    templateName: 'generic_message_v2',
+    templateParams: [firstName, blurb],
+    beauticianId,
+    clientId,
+    // A client's own booking link is a service message, not marketing. Without
+    // this the PECR quiet-hours gate silently binned it after 21:00, which is
+    // precisely when somebody books an evening appointment.
+    transactional: true,
+  });
+  attempts.push({ channel: 'whatsapp', ok: !!wa });
+  if (wa) return { delivered: 'whatsapp', attempts, reason: null };
+
+  logger.warn(
+    { beauticianId, clientId, appointmentId, template: 'generic_message_v2' },
+    'Booking link: the WhatsApp follow-up did not send, falling back to SMS',
+  );
+
+  const smsBody = isCalendarLink
+    ? `Hi ${firstName}, here's your booking with ${bizName || 'us'}. Add it to your calendar, or change it if you need to: ${url}`
+    : `Hi ${firstName}, here's your booking with ${bizName || 'us'}. You can view it, add another treatment, reschedule or cancel here: ${url}`;
+
+  const verdict = await guardedSend({
+    beauticianId,
+    clientId,
+    messageType: 'booking_confirmation',
+    channel: 'sms',
+    body: smsBody,
+    send: () => sendSMS({
+      to: phone,
+      body: smsBody,
+      beauticianId,
+      clientId,
+      // Not in MARKETING_SMS_TYPES, so sendSMS's own PECR gate lets a service
+      // message through. See lib/marketing-guard.js.
+      messageType: 'booking_confirmation',
+    }),
+  });
+  attempts.push({ channel: 'sms', ok: !!verdict.delivered, reason: verdict.reason || null });
+  if (verdict.delivered) return { delivered: 'sms', attempts, reason: null };
+
+  const reason = verdict.decision === 'send' ? 'sms_send_failed' : (verdict.reason || 'sms_blocked');
+  logger.error(
+    { beauticianId, clientId, appointmentId, attempts, reason },
+    'Booking link not delivered on any channel: this client has a confirmation she cannot act on',
+  );
+  await logBookingLinkFailure({ beauticianId, clientId, appointmentId, firstName, reason });
+  return { delivered: null, attempts, reason };
+}
+
 /**
  * Send a booking confirmation to the client.
  * Email sends by default unless explicitly disabled.
@@ -1231,6 +1384,10 @@ function emailTemplate({ bizName, brandColor, tagline, content, logoUrl, signOff
  */
 export async function notifyBookingConfirmed(appointmentId) {
   const channels = [];
+  // What happened to the manage/calendar link on the WhatsApp path, reported
+  // back rather than left in a log. { delivered, attempts, reason }, or null
+  // when this run never had a link to send.
+  let linkOutcome = null;
   const { data: appt } = await supabase
     .from('appointments')
     .select('*, clients(first_name, phone, email), treatments(name, duration_minutes), beauticians(business_name, first_name, client_reminder_prefs, brand_color, booking_slug, tagline, logo_url)')
@@ -1390,23 +1547,30 @@ export async function notifyBookingConfirmed(appointmentId) {
       // So: prefer the calendar page, fall back to the manage page, and only
       // send nothing if there is genuinely nothing to send. An unset
       // environment variable may cost a nicety. It may not cost the link.
+      //
+      // AND ITS RESULT IS READ. That send was `await sendWhatsApp(...)` with
+      // nothing on the left of it, so a template Meta has been refusing for a
+      // fortnight looked exactly like a template Meta was accepting. See
+      // sendBookingLink above: WhatsApp first, SMS with the same link if that
+      // fails, and a loud, findable record if neither works.
       const waLink = calendarUrl || manageUrl;
       if (waResult && waLink) {
-        // Say what the page DOES. "Manage or reschedule" is the wording that
-        // nobody tapped — the note above linkLine says so — and it does not
-        // hint that adding a treatment is possible at all, which is the exact
-        // thing Lucy wanted and messaged about instead.
-        const blurb = calendarUrl
-          ? `Add your appointment to your calendar so you don't lose it, or change it if you need to: ${calendarUrl}`
-          : `Need to change your appointment, add another treatment, or cancel? You can do it all here: ${manageUrl}`;
-        await sendWhatsApp({
-          to: client.phone,
-          templateName: 'generic_message_v2',
-          templateParams: [client.first_name, blurb],
+        linkOutcome = await sendBookingLink({
           beauticianId: appt.beautician_id,
           clientId: appt.client_id,
-          transactional: true,
+          appointmentId,
+          firstName: client.first_name,
+          phone: client.phone,
+          bizName,
+          url: waLink,
+          isCalendarLink: !!calendarUrl,
         });
+        // A text really was sent to her, so say so. `channels` is what the
+        // caller reports and what the app shows; leaving the SMS out of it
+        // would be the same species of untruth as the unread return value.
+        if (linkOutcome.delivered && !channels.includes(linkOutcome.delivered)) {
+          channels.push(linkOutcome.delivered);
+        }
       }
       // Fall through to SMS if WhatsApp not available
       if (!waResult && client.phone && BIRD_API_KEY) {
@@ -1501,7 +1665,14 @@ export async function notifyBookingConfirmed(appointmentId) {
   } catch (err) {
     logger.warn({ err, appointmentId }, 'Could not stamp confirmation_sent_at');
   }
-  return { sent: true, channels };
+  // `link` says whether she can actually act on this booking. null means the
+  // WhatsApp path never ran (SMS or email only), where the link is already in
+  // the body of the message she got.
+  return {
+    sent: true,
+    channels,
+    link: linkOutcome ? { channel: linkOutcome.delivered, reason: linkOutcome.reason } : null,
+  };
 }
 
 /**

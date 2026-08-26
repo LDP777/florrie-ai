@@ -280,6 +280,136 @@ async function checkInstagramTokens() {
   };
 }
 
+/* ------------------------------------------------------------------------- *
+ * ARE CONFIRMATIONS GOING OUT WITH A LINK?
+ *
+ * A WhatsApp booking confirmation goes out as TWO messages, because a
+ * Meta-approved template body cannot carry a url: the approved
+ * booking_confirmation template, then a generic_message carrying the manage or
+ * calendar link. The second one failed permanently for a fortnight and nothing
+ * anywhere could see it, because the first one kept arriving. The client gets a
+ * message, so no send fails, no alert fires, and the only symptom is a client
+ * asking where her link is.
+ *
+ * The signal is a RATIO between two counts of rows that already exist, in the
+ * same table, over the same window: outbound WhatsApp messages that read like a
+ * confirmation, against outbound WhatsApp messages that carry a booking link.
+ * Both are written by logOutboundToThread on a confirmed send, so they measure
+ * what clients actually received rather than what we intended to send. No new
+ * column, no new write, and it works retrospectively over the fortnight that is
+ * already in the table.
+ *
+ * Why not count appointments.confirmation_sent_at instead: that stamp says a
+ * confirmation went out on SOME channel, and says nothing about whether the
+ * link was in it. Email and SMS confirmations carry the link in the body and
+ * are fine; this fault is specific to WhatsApp, so the check has to be too.
+ *
+ * WARN, not critical. Nothing is down, the API is healthy, and paging at 3am
+ * would not help: the fix is a template approval in the Meta dashboard.
+ * ------------------------------------------------------------------------- */
+
+// Long enough that a quiet salon still produces a countable number of
+// confirmations, short enough that a fault fixed last week stops warning.
+const CONFIRMATION_WINDOW_DAYS = 14;
+// Below this many confirmations there is nothing to judge. A ratio computed
+// from three messages is noise, and a monitor that cries wolf gets muted.
+const CONFIRMATION_MIN_SAMPLE = 5;
+// The real fault reads as zero. Half is deliberately generous, so an ordinary
+// mix of failures never trips it and a trip means something is really wrong.
+const CONFIRMATION_LINK_MIN_RATIO = 0.5;
+
+/**
+ * The words that identify a booking confirmation in the thread log.
+ *
+ * From TEMPLATE_SPECS.booking_confirmation.render in lib/whatsapp-templates.js:
+ * "Hi {{1}}! It's {{2}} 🌸 Your appointment is confirmed for {{3}} at {{4}}."
+ * It is a literal rather than a rendered template because a health check must
+ * not depend on the send path it is checking. tests/unit assert that the
+ * registry still renders this phrase, so the copy cannot drift away from it
+ * silently.
+ */
+export const CONFIRMATION_BODY_MARKER = 'is confirmed for';
+
+/**
+ * The words that identify a booking link.
+ *
+ * Every manage url is FRONTEND_URL/book/<slug>/manage/<token> and every
+ * calendar url is PUBLIC_API_URL/api/booking/<slug>/manage/<token>/calendar, so
+ * "/manage/" is structural: it is in both by construction, in a way a wording
+ * change cannot remove.
+ */
+export const BOOKING_LINK_MARKER = '/manage/';
+
+/**
+ * Decide, given two counts. Split out from the query so the judgement can be
+ * tested without a database.
+ */
+export function judgeConfirmationLinks({ confirmations, links, windowDays = CONFIRMATION_WINDOW_DAYS }) {
+  const base = {
+    critical: false,
+    window_days: windowDays,
+    whatsapp_confirmations: confirmations,
+    link_follow_ups: links,
+  };
+
+  if (confirmations < CONFIRMATION_MIN_SAMPLE) {
+    return {
+      ok: true,
+      status: 'ok',
+      ...base,
+      detail: `only ${confirmations} WhatsApp confirmation(s) in ${windowDays} days, too few to judge`,
+    };
+  }
+
+  const ratio = links / confirmations;
+  if (ratio >= CONFIRMATION_LINK_MIN_RATIO) {
+    return { ok: true, status: 'ok', ...base, link_ratio: Number(ratio.toFixed(2)) };
+  }
+
+  return {
+    ok: false,
+    status: 'warn',
+    ...base,
+    link_ratio: Number(ratio.toFixed(2)),
+    detail:
+      `${confirmations} WhatsApp booking confirmations went out in the last ${windowDays} days and only ${links} carried a booking link, `
+      + 'so those clients cannot add the appointment to a calendar, add a treatment, reschedule or cancel it themselves. '
+      + 'The approved confirmation template cannot hold a url, so the link travels in a second generic_message send: '
+      + 'check that template is APPROVED on the WABA the sending number is parented to '
+      + '(GET /api/whatsapp-config/template-debug?name=generic_message says which).',
+  };
+}
+
+async function checkConfirmationLinks() {
+  // created_at is a real instant, so an ISO comparison is the right one here.
+  // (appointments.starts_at is the opposite and is not read by this check.)
+  const sinceIso = new Date(Date.now() - CONFIRMATION_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
+
+  const countWhatsApp = (marker) => supabase
+    .from('messages')
+    .select('id', { count: 'exact', head: true })
+    .eq('direction', 'outbound')
+    .eq('channel', 'whatsapp')
+    .gte('created_at', sinceIso)
+    .ilike('content', `%${marker}%`);
+
+  const [confirmations, links] = await Promise.all([
+    countWhatsApp(CONFIRMATION_BODY_MARKER),
+    countWhatsApp(BOOKING_LINK_MARKER),
+  ]);
+
+  const unreadable = confirmations.error || links.error;
+  if (unreadable) {
+    // Unknown, never failing. Same rule as every other check in this file.
+    return { ok: true, status: 'unknown', critical: false, detail: unreadable.message || 'messages unreadable' };
+  }
+
+  return judgeConfirmationLinks({
+    confirmations: confirmations.count || 0,
+    links: links.count || 0,
+  });
+}
+
 /**
  * Cron heartbeats. Reads job_runs (migration 020). If the migration has not
  * been applied the answer is "unknown", never "failing".
@@ -348,12 +478,13 @@ export async function runHealthChecks({ stripe = null, timeoutMs = DEFAULT_TIMEO
     label,
   );
 
-  const [database, stripeApi, webhookSecret, webhookActivity, instagram, jobs] = await Promise.all([
+  const [database, stripeApi, webhookSecret, webhookActivity, instagram, confirmationLinks, jobs] = await Promise.all([
     guarded('database', checkSupabase),
     guarded('stripe_api', () => checkStripeApi(stripe)),
     guarded('stripe_webhook_secret', () => checkStripeWebhookSecret(stripeConfigured)),
     guarded('stripe_webhook_activity', () => checkStripeWebhookActivity(stripeConfigured)),
     guarded('instagram_tokens', checkInstagramTokens),
+    guarded('confirmation_links', checkConfirmationLinks),
     guarded('crons', () => checkJobs(jobSpecs)),
   ]);
 
@@ -363,6 +494,7 @@ export async function runHealthChecks({ stripe = null, timeoutMs = DEFAULT_TIMEO
     stripe_webhook_secret: webhookSecret,
     stripe_webhook_activity: webhookActivity,
     instagram_tokens: instagram,
+    confirmation_links: confirmationLinks,
     crons: jobs,
   };
 
