@@ -206,11 +206,29 @@ export function asksForHuman(message, beauticianFirstName) {
 
 /** "I'll get her to call you" in any of the forms a model writes it. */
 function promisesAHumanAction(text, beauticianFirstName) {
-  const who = ["i'?ll", 'i will', "she'?ll", 'she will', "we'?ll", 'we will'];
+  const body = String(text || '');
+
+  // Verbs that are always somebody else's job. Florrie cannot make a phone
+  // ring, so "I'll get her to call you" is a promise she cannot keep whoever
+  // the subject is.
+  const HUMAN_VERBS = 'call|ring|text|check|get back|confirm|sort';
+
+  // Sending is different: since 26 August Florrie CAN resend a confirmation,
+  // and when she has actually done it the sentence is true and must stand.
+  // The claims guard decides that, on evidence, for the first person. What it
+  // cannot evidence is a promise about somebody ELSE: "Ellie will send that
+  // over" is a commitment nobody made, and that is caught here.
+  const SEND_VERBS = 'send|sends|sending|email|emails|emailing|forward|forwards|resend|resends';
+
+  const firstPerson = ["i'?ll", 'i will'];
+  const thirdPerson = ["she'?ll", 'she will', "we'?ll", 'we will'];
   const first = displayName(fold(beauticianFirstName)).split(' ')[0];
-  if (first) who.push(`${escapeRe(first)}\\s+will`);
-  const re = new RegExp(`\\b(?:${who.join('|')})\\b.*\\b(call|ring|text|check|get back|confirm|sort)\\b`, 'i');
-  return re.test(String(text || ''));
+  if (first) thirdPerson.push(`${escapeRe(first)}\\s+will`);
+
+  const own = new RegExp(`\\b(?:${firstPerson.join('|')})\\b.*\\b(?:${HUMAN_VERBS})\\b`, 'i');
+  const other = new RegExp(`\\b(?:${thirdPerson.join('|')})\\b.*\\b(?:${HUMAN_VERBS}|${SEND_VERBS})\\b`, 'i');
+
+  return own.test(body) || other.test(body);
 }
 
 /**

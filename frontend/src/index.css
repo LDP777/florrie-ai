@@ -267,5 +267,13 @@ body {
      white and put the toasts back where they started. The pair is repeated
      verbatim in both maps in lib/theme.jsx so nothing can flip it by accident. */
   --surface-inverse:#241B17; --text-on-inverse:#FBF6F1;
+  /* The colour of text sitting ON --danger. Both maps in lib/theme.jsx define
+     it (white on the light maroon-red, ink on the dark salmon), but the
+     first-paint token block in index.html predates it, so anything painted on
+     a --danger fill before the theme effect runs had no colour at all. Same
+     reasoning as the inverse pair above: declared here so it can never be
+     undefined on one side. The light value, because :root is light; applyTheme
+     sets an inline var that wins in dark mode. */
+  --on-danger:#ffffff;
   --dur-fast:140ms; --dur-base:220ms; --dur-slow:320ms; --ease-out:cubic-bezier(.22,1,.36,1);
 }

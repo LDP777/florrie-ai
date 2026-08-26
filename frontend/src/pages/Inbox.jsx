@@ -120,6 +120,27 @@ function formatBubbleTime(iso) {
   return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 }
 
+/**
+ * When an action was carried out.
+ *
+ * The summary sentence is already written for her and it never carries a clock
+ * time, so this is the one thing the receipt adds. Usually that is just the
+ * hour and minute, because the action sits under the message it belongs to and
+ * the day is obvious. A retry the next morning is the exception worth naming,
+ * so when the action lands on a different day from the message the date comes
+ * with it rather than showing a bare "09:12" under yesterday's promise.
+ */
+function formatActionTime(actionIso, messageIso) {
+  if (!actionIso) return '';
+  const t = new Date(actionIso);
+  if (Number.isNaN(t.getTime())) return '';
+  const clock = t.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  const sameDay = messageIso
+    && new Date(messageIso).toLocaleDateString('en-GB') === t.toLocaleDateString('en-GB');
+  if (sameDay) return clock;
+  return `${t.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} ${clock}`;
+}
+
 function readClientFromUrl() {
   if (typeof window === 'undefined') return null;
   const u = new URL(window.location.href);
@@ -1597,6 +1618,53 @@ function DateDivider({ iso }) {
   return <div style={S.dateDivider}><span style={S.dateChip}>{label}</span></div>;
 }
 
+/**
+ * A receipt: what Florrie actually DID, hanging off the message that claimed it.
+ *
+ * Ellie's question was "how will I know if it actioned this?", and the honest
+ * answer used to be that she could not: the thread showed the sentence ("i'll
+ * send you a new one now") and nothing at all about whether anything left the
+ * building. So the backend logs every attempt and this renders it.
+ *
+ * Three rules shape the look, and all three are the same rule: a receipt is a
+ * record, not a remark.
+ *
+ *  - It is not a bubble. Bubbles are 22px rounded, bordered, shadowed and
+ *    capped at 78% of the column. This is a flat 6px slab with a rule down its
+ *    left edge, no shadow, and it runs WIDER than the bubble above it, so it
+ *    reads as something stamped under the message rather than another thing
+ *    she said.
+ *  - The failure is the loud one. A resend that did not go is the case where
+ *    Ellie has to pick up the phone herself, so it floods the whole slab with
+ *    --danger and puts --on-danger on top (7.38:1 light, 5.81:1 dark), where a
+ *    success is a tinted strip with a green rule. A grey line for a failed
+ *    send would be exactly the silence this feature exists to end.
+ *  - It does not talk. `summary` is already a sentence written for her, so the
+ *    only thing added is the clock time, which the sentence never carries.
+ *
+ * Nothing here is pressable, so nothing here is maroon.
+ */
+function ActionReceipt({ action, messageIso }) {
+  const ok = action?.ok === true;
+  const time = formatActionTime(action?.created_at, messageIso);
+  const summary = (action?.summary || '').trim();
+  if (!summary) return null;
+
+  return (
+    <div style={ok ? S.receiptOk : S.receiptFailed}>
+      <Icon
+        name={ok ? 'check-circle' : 'alert-triangle'}
+        size={15}
+        strokeWidth={ok ? 1.9 : 2.2}
+        style={S.receiptIcon}
+        title={ok ? 'Done' : 'Not done'}
+      />
+      <span style={ok ? S.receiptTextOk : S.receiptTextFailed}>{summary}</span>
+      {time && <span style={ok ? S.receiptTimeOk : S.receiptTimeFailed}>{time}</span>}
+    </div>
+  );
+}
+
 function Bubble({ msg, threadChannel, onRetry }) {
   const out = msg.direction === 'outbound';
   const type = msg.message_type;
@@ -1606,7 +1674,12 @@ function Bubble({ msg, threadChannel, onRetry }) {
   // (maroon), Florrie right (quiet tonal). No loud per-bubble stamp any more.
   const florrieSent = out && (type === 'auto_reply' || type === 'proactive' || msg.ai_generated);
   const bubbleBg = failed ? '#fdeceb' : !out ? 'var(--bg-card, #FFFCF9)' : florrieSent ? 'var(--tone-2, #f6e7dd)' : 'var(--accent, #92405e)';
-  const bubbleFg = failed ? '#9a2a22' : out && !florrieSent ? '#fff' : 'var(--text-primary, #241B17)';
+  // '#fff' was hardcoded here. In dark mode the accent inverts to a light rose
+  // and white text on it measures 1.70:1, so her own sent messages became
+  // unreadable. --on-accent is the token that follows the fill, and it measures
+  // 9.95:1 there. Same text-token-as-a-fill class that was swept out of the
+  // rest of the app.
+  const bubbleFg = failed ? 'var(--danger, #9a2a22)' : out && !florrieSent ? 'var(--on-accent, #fff)' : 'var(--text-primary, #241B17)';
   const metaFg = failed ? '#c0665e' : out && !florrieSent ? 'rgba(255,255,255,0.78)' : '#9B8A8E';
 
   const mediaStub = !msg.body && !msg.image_url
@@ -1616,7 +1689,12 @@ function Bubble({ msg, threadChannel, onRetry }) {
       : 'No text')
     : null;
 
+  // Always an array on the wire, but a cached thread from before the backend
+  // shipped this is not, and neither is an optimistic bubble we just made up.
+  const actions = Array.isArray(msg.actions) ? msg.actions.filter(Boolean) : [];
+
   return (
+    <div style={S.msgGroup}>
     <div style={{ ...S.bubbleRow, justifyContent: out ? 'flex-end' : 'flex-start' }}>
       <div style={{ ...S.bubbleStack, alignItems: out ? 'flex-end' : 'flex-start' }}>
         <div
@@ -1646,6 +1724,19 @@ function Bubble({ msg, threadChannel, onRetry }) {
           </button>
         )}
       </div>
+    </div>
+    {/* Receipts sit in their own row under the bubble, not inside the bubble
+        stack, so a slab can run wider than the 78% the bubble is capped at.
+        No actions renders no row, so an empty array costs no space at all. */}
+    {actions.length > 0 && (
+      <div style={{ ...S.receiptRow, justifyContent: out ? 'flex-end' : 'flex-start' }}>
+        <div style={S.receiptStack}>
+          {actions.map((a, i) => (
+            <ActionReceipt key={a.id ?? `${msg.id}-act-${i}`} action={a} messageIso={msg.created_at} />
+          ))}
+        </div>
+      </div>
+    )}
     </div>
   );
 }
@@ -2050,6 +2141,49 @@ const S = {
   },
   bubbleText: { fontSize: 14, lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word' },
   bubbleMeta: { fontSize: 10, marginTop: 4, display: 'flex', alignItems: 'center', gap: 5, justifyContent: 'flex-end' },
+
+  /* --- Action receipts -------------------------------------------------
+     A message and the record of what it actually did, as one group. The gap
+     only exists between children, so a message with no actions renders a
+     single-child group and takes exactly the space it always did. */
+  msgGroup: { display: 'flex', flexDirection: 'column', gap: 6, width: '100%' },
+  receiptRow: { display: 'flex', width: '100%' },
+  // 88%, against the bubble's 78%. The overhang is the point: a receipt that
+  // lined up with the bubble edge would read as part of the bubble.
+  receiptStack: { display: 'flex', flexDirection: 'column', gap: 6, width: '88%', minWidth: 0 },
+  receiptOk: {
+    display: 'flex', alignItems: 'flex-start', gap: 8, minWidth: 0,
+    padding: '9px 12px 9px 10px', borderRadius: 'var(--radius-xs)',
+    borderLeftWidth: 4, borderLeftStyle: 'solid', boxShadow: 'none',
+    background: 'var(--success-bg)', borderLeftColor: 'var(--success)',
+    color: 'var(--success)',
+  },
+  // The failure floods. Same geometry as the success so they read as one kind
+  // of object, and the whole slab carries --danger so it cannot be skimmed past.
+  receiptFailed: {
+    display: 'flex', alignItems: 'flex-start', gap: 8, minWidth: 0,
+    padding: '9px 12px 9px 10px', borderRadius: 'var(--radius-xs)',
+    borderLeftWidth: 4, borderLeftStyle: 'solid', boxShadow: 'none',
+    background: 'var(--danger)', borderLeftColor: 'var(--danger)',
+    color: 'var(--on-danger)',
+  },
+  receiptIcon: { marginTop: 1 },
+  receiptTextOk: {
+    flex: 1, minWidth: 0, fontSize: 12.5, lineHeight: 1.4, fontWeight: 500,
+    color: 'var(--text-primary)', wordBreak: 'break-word',
+  },
+  receiptTextFailed: {
+    flex: 1, minWidth: 0, fontSize: 13, lineHeight: 1.4, fontWeight: 600,
+    color: 'var(--on-danger)', wordBreak: 'break-word',
+  },
+  receiptTimeOk: {
+    flexShrink: 0, marginTop: 1, fontSize: 11, fontWeight: 600,
+    color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums',
+  },
+  receiptTimeFailed: {
+    flexShrink: 0, marginTop: 1, fontSize: 11, fontWeight: 600,
+    color: 'var(--on-danger)', fontVariantNumeric: 'tabular-nums',
+  },
 
   waHint: {
     margin: '0 14px 8px', padding: '10px 12px', background: '#FFF8E1', border: '1px solid #FFE082',

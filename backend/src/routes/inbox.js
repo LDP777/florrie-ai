@@ -578,6 +578,48 @@ router.get('/thread/:client_id', requireAuth, async (req, res) => {
       .is('read_at', null)
       .then(() => {}, (err) => logger.warn({ err }, 'inbox.thread mark-read failed'));
 
+    // WHAT FLORRIE ACTUALLY DID, attached to the message that claimed it.
+    //
+    // On 26 August a client was told "i'll send you a new one now" and nothing
+    // was sent, because nothing in the reply path could send anything. Ellie's
+    // question was "How will I know if it actioned this?" and the honest
+    // answer was that she could not: the only evidence anything happened, or
+    // failed to happen, is an ai_actions row, and the thread never showed it.
+    //
+    // ONE query for the whole thread, keyed on message_id, not one per
+    // message: a 200-message thread would otherwise be 200 round trips.
+    // `ok` is the plain reading the UI needs -- true when the action completed,
+    // false when it was attempted and did not. A failed resend has to be as
+    // visible as a successful one, because a silent failure here is the exact
+    // bug being fixed.
+    const messageIds = (data || []).map(m => m.id).filter(Boolean);
+    const actionsByMessage = new Map();
+    if (messageIds.length) {
+      const { data: actionRows, error: actErr } = await supabase
+        .from('ai_actions')
+        .select('id, action_type, summary, created_at, outcome, message_id')
+        .eq('beautician_id', req.beautician.id)
+        .in('message_id', messageIds)
+        .order('created_at', { ascending: true });
+      if (actErr) {
+        // Never 500 the thread over the action strip. An inbox that will not
+        // open is worse than an inbox with no badges on it.
+        logger.warn({ err: actErr }, 'inbox.thread actions lookup failed, rendering without them');
+      } else {
+        for (const a of actionRows || []) {
+          if (!a?.message_id) continue;
+          if (!actionsByMessage.has(a.message_id)) actionsByMessage.set(a.message_id, []);
+          actionsByMessage.get(a.message_id).push({
+            id: a.id,
+            action_type: a.action_type,
+            summary: a.summary,
+            created_at: a.created_at,
+            ok: a.outcome === 'success',
+          });
+        }
+      }
+    }
+
     // Re-sort ascending (we queried desc + limit to get the most recent N,
     // then flip for display).
     const messages = (data || [])
@@ -588,6 +630,9 @@ router.get('/thread/:client_id', requireAuth, async (req, res) => {
         message_type: messageType(row),
         digital_employee: row.digital_employee || null,
         escalated_reason: row.escalated && !row.resolved ? (row.escalated_reason || null) : null,
+        // Always an array. The frontend renders straight off it, so a message
+        // with nothing logged against it must not be undefined.
+        actions: actionsByMessage.get(row.id) || [],
       }));
 
     // Compute the default channel the UI should preselect: the channel of

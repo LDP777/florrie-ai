@@ -175,3 +175,57 @@ describe('every message Florrie sends says it is Florrie', () => {
     expect(signAsFlorrie('Hi', 'Priya')).toContain("Priya's assistant");
   });
 });
+
+/**
+ * 26 AUGUST: "i'll send you a new one now. should come through in a min xx"
+ *
+ * Nothing was sent, because Florrie had no ability to send anything, and the
+ * client replied "Thanks" and went on waiting for an email that was not
+ * coming. The claims guard now catches the FIRST person form on evidence: if a
+ * confirmation really was resent in that same request the sentence is true and
+ * must stand, and if it was not, the draft is held.
+ *
+ * promisesAHumanAction is the other half, and it had the same blind spot from
+ * the other direction. Its verb list was call, ring, text, check, get back,
+ * confirm, sort. "Ellie will send that over" matched nothing, so a promise
+ * about a HUMAN sending something was caught by no guard at all.
+ *
+ * The two halves must not be merged. A first person "I'll send" is evidenced
+ * by the send actually happening; a third person one never can be, because
+ * Florrie cannot commit somebody else's afternoon.
+ */
+describe('a promise that somebody else will send something', () => {
+  const grounded = (reply) => isGroundedReply({
+    intent: 'greeting',
+    message: 'Hey, did my confirmation come through?',
+    context: { clientUpcoming: [], treatments: [], knowledge: [] },
+    reply,
+    beauticianFirstName: 'Ellie',
+  });
+
+  it('holds "Ellie will send that over", which nobody promised', () => {
+    expect(grounded('No problem, Ellie will send that over shortly.').grounded).toBe(false);
+  });
+
+  it('holds it for she and we as well', () => {
+    expect(grounded("She'll email it across to you tonight.").grounded).toBe(false);
+    expect(grounded("We'll resend it in the morning.").grounded).toBe(false);
+  });
+
+  it('still holds the original human promises', () => {
+    expect(grounded("I'll get Ellie to call you back.").grounded).toBe(false);
+    expect(grounded('Ellie will ring you this afternoon.').grounded).toBe(false);
+  });
+
+  it('does not hold Florrie describing her own send, which the claims guard judges on evidence', () => {
+    // If this became false, the fix for 26 August would have broken the case
+    // where the resend genuinely happened, and Florrie would be refusing to
+    // describe something she had just done.
+    const v = grounded("I'll send you a new one now, it should come through in a minute.");
+    expect(v.reason).not.toMatch(/human/i);
+  });
+
+  it('leaves the sanctioned holding reply alone', () => {
+    expect(grounded('Let me check my book and come straight back to you.').grounded).toBe(true);
+  });
+});

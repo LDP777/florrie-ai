@@ -14,15 +14,16 @@ import {
 import { getFreeSlots } from '../lib/free-slots.js';
 import { retrieveKnowledge, renderKnowledgeBlock } from '../lib/knowledge.js';
 import { createBookingSuggestion } from './automations.js';
-import { sendMessage, sendInstagramDM, sendWhatsAppText, sendSMS } from './notifications.js';
+import { sendMessage, sendInstagramDM, sendWhatsAppText, sendSMS, notifyBookingConfirmed } from './notifications.js';
 import { pushEscalation, pushTeamUpdate } from './push-notifications.js';
 import { refreshLiveActivity } from './live-activity.js';
-import { isKnownClient, clientAutonomyOverride } from '../lib/outbound-guard.js';
+import { isKnownClient, clientAutonomyOverride, guardedSend, classifyTier } from '../lib/outbound-guard.js';
 import { getLoyaltyConfig, getClientPoints, loyaltyProximity } from './loyalty.js';
 import { getActivePromos, describePromo } from '../lib/promos.js';
 import { advanceBookingConversation } from './conversational-booking.js';
 import { authorship } from '../lib/authorship.js';
 import { isGroundedReply, asksForHuman, signAsFlorrie } from '../lib/grounded-reply.js';
+import { normaliseOutcome } from '../lib/ai-actions.js';
 
 /**
  * AI Front Desk — The core agentic service.
@@ -291,12 +292,37 @@ export async function processInboundMessage(messageId, beautician, client, messa
     // free, asked twice already) is exactly the case where Ellie should see it.
     if (convo?.handOver) shouldAct = false;
 
+    // 3c. THE RESEND, and it sits HERE for exactly the reason 3b does.
+    //
+    // "I don't think I got a confirmation" is the one request in this file
+    // Florrie can now actually satisfy, because notifyBookingConfirmed already
+    // exists and does it properly. Everything about where this line is placed
+    // is deliberate: below the three gates, so a thread Ellie has set to "just
+    // me" gets no send; below the booking conversation, so a handover stops it;
+    // and BEFORE the reply is generated, so the reply is written knowing
+    // whether the send really happened rather than promising that it will.
+    //
+    // If it could not be done (no upcoming booking, more than one and no way
+    // to tell which, or the send bounced) shouldAct goes false and the whole
+    // thing becomes an ordinary draft for Ellie. The guard then holds every
+    // sentence that would claim otherwise, because sendPerformed stays false.
+    let resend = null;
+    if (shouldAct && !convo && wantsConfirmationResent(messageContent)) {
+      try {
+        resend = await resendConfirmation({ beautician, client, messageContent, classification, context, messageId });
+      } catch (err) {
+        logger.error({ err, beauticianId: beautician.id, clientId: client?.id }, 'Confirmation resend threw');
+        resend = { sent: false, escalate: true, reason: 'resend_threw', appointment: null, channels: [] };
+      }
+      if (resend.escalate) shouldAct = false;
+    }
+
     if (shouldAct) {
       // 4a. Generate response and take action
       const result = convo
         ? { response: convo.reply, toneScore: null, actions: [], intent: classification.intent }
         : await generateResponseAndAct(
-          messageContent, classification, context, beautician, client
+          messageContent, classification, context, beautician, client, { resend }
         );
 
       // The SECOND grounding check, and it is on the text rather than the
@@ -367,7 +393,7 @@ export async function processInboundMessage(messageId, beautician, client, messa
       logger.info({ handled: sent, drafted: !sent, intent: classification.intent }, sent ? 'AI Front Desk sent reply' : 'AI Front Desk drafted reply for one-tap send');
       return { handled: sent, drafted: !sent, intent: classification.intent, response: result.response };
 
-    } else if (!convo && !replyIsOwed(messageContent, classification)) {
+    } else if (!convo && !resend?.escalate && !replyIsOwed(messageContent, classification)) {
       // 4c. Nothing is owed. She said thanks, or see you Tuesday, or sent a
       // heart. Florrie reads it, records what it was, and stays quiet. No
       // escalation, no badge, no draft for Ellie to approve. This is the single
@@ -396,9 +422,14 @@ export async function processInboundMessage(messageId, beautician, client, messa
         // sends whoever reads it looking in the wrong place — and for months
         // that string was on 43 messages whose confidence had nothing to do
         // with why they were held.
-        reason: (autonomyOverride === 'just_me' || autonomyOverride === 'drafts')
-          ? `client_set_to:${autonomyOverride}`
-          : (groundedDecision && !groundedDecision.grounded ? groundedDecision.reason : null),
+        // A held resend is the most specific reason there is, so it wins.
+        // "Low confidence (85%)" on a message that actually failed to resend
+        // a confirmation sends whoever reads it looking in the wrong place.
+        reason: resend?.escalate
+          ? `confirmation_resend:${resend.reason}`
+          : (autonomyOverride === 'just_me' || autonomyOverride === 'drafts')
+            ? `client_set_to:${autonomyOverride}`
+            : (groundedDecision && !groundedDecision.grounded ? groundedDecision.reason : null),
       });
     }
 
@@ -413,6 +444,267 @@ export async function processInboundMessage(messageId, beautician, client, messa
 
     return { handled: false, error: err.message };
   }
+}
+
+
+// RESENDING A CONFIRMATION
+//
+// 26 August 2026, in production, to a real client. Sophie wrote:
+//
+//   "...don't think I got a confirmation. Do you know what the email is called?"
+//
+// and Florrie answered, on her own, signed and sent:
+//
+//   "Hey, i'll send you a new one now. should come through in a min xx"
+//
+// Nothing was sent. There was no code path that COULD have sent it:
+// notifyBookingConfirmed exists and works, and is called from Stripe, the
+// booking flow, routes/appointments.js and a Resend button in the app, but it
+// was never called from this file, and Florrie has no tools. So she described
+// the action instead of taking it and the client sat waiting for an email that
+// was never coming. Ellie's question afterwards was the right one: "How will I
+// know if it actioned this?"
+//
+// Two halves to the fix and they are separate on purpose. The guard
+// (lib/reply-claims-guard.js) stops the sentence being said when it is false.
+// This is the half that makes it true.
+//
+// EVERYTHING HERE SITS BELOW THE GATE. It is called from inside
+// `if (shouldAct)`, next to the booking conversation, for the reason written
+// out at step 3b: a feature that WRITES above the gate once put a real
+// appointment in the diary for a client who was never offered it. If Florrie
+// may not speak in this thread she may not send in it either, and the draft
+// Ellie gets must not claim a send that never happened.
+
+/** The word for the thing. Everything else is a cue about it. */
+const CONFIRMATION_NOUN = /\b(?:confirmation|confirmations|booking email|booking text)\b/i;
+
+/**
+ * Cues that the client has not got it, or wants it again. Read together with
+ * the noun above: a cue on its own ("I never got the shade I wanted") means
+ * nothing here.
+ */
+const CONFIRMATION_MISSING_CUES = [
+  // "didn't get", "haven't received", "never came through", "hasn't arrived"
+  /\b(?:did\s*n(?:'|’)?t|didnt|have\s*n(?:'|’)?t|havent|has\s*n(?:'|’)?t|hasnt|never|not)\s+(?:\w+\s+){0,3}?(?:get|got|receive|received|have|had|come|came|arrive|arrived|seen|see|show|turn)/i,
+  // "don't think I got", "do not think I have had"
+  /\b(?:do\s*n(?:'|’)?t|dont|do not|did\s*n(?:'|’)?t)\s+think\s+i\s+(?:\w+\s+){0,3}?(?:get|got|receive|received|have|had|ever)/i,
+  // "can't find it", "couldn't see it"
+  /\b(?:can\s*n?(?:'|’)?t|cannot|could\s*n(?:'|’)?t|couldnt)\s+(?:\w+\s+){0,2}?(?:find|see|locate)/i,
+  /\bno\s+(?:sign\s+of\s+(?:a|an|my|the)\s+)?(?:confirmation|email|text)\b/i,
+  /\bnothing\s+(?:came|arrived|through|has come)\b/i,
+  /\bstill\s+(?:waiting|nothing)\b/i,
+  /\bre-?send\b/i,
+  /\bsend\s+(?:it|that|me|another|a\s+new|the)\b/i,
+  /\b(?:missing|lost)\b/i,
+];
+
+/**
+ * Is this client telling us she has not got her confirmation?
+ *
+ * Deliberately NOT a job for the classifier. The intent taxonomy has no slot
+ * for this, and today's message classified as an ordinary question, which is
+ * part of why nothing happened. A regex over the client's own words is
+ * evidence; a model's label is a guess.
+ */
+export function wantsConfirmationResent(text) {
+  const body = String(text || '');
+  if (!CONFIRMATION_NOUN.test(body)) return false;
+  return CONFIRMATION_MISSING_CUES.some(p => p.test(body));
+}
+
+// starts_at is SALON WALL TIME parked in the UTC slot, so the weekday is read
+// with getUTCDay. Converting locally shifts the day by an hour in BST.
+const WALL_WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+function wallWeekday(startsAt) {
+  const d = new Date(startsAt);
+  return Number.isNaN(d.getTime()) ? null : WALL_WEEKDAYS[d.getUTCDay()];
+}
+function wallLabel(startsAt) {
+  const d = new Date(startsAt);
+  if (Number.isNaN(d.getTime())) return 'her appointment';
+  const day = d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+  const time = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
+  return `${day} at ${time}`;
+}
+
+/**
+ * WHICH booking is "my confirmation"?
+ *
+ * The rows are context.clientUpcoming, which the rest of this file already
+ * uses to answer "am I booked in?": this client, this beautician, confirmed or
+ * pending, from twelve hours ago to ninety days out, oldest first. Reusing it
+ * means the appointment Florrie resends is the same one she would name.
+ *
+ * The rule: the NEXT one, unless the conversation says otherwise. When it says
+ * otherwise, we do not guess. There is no half-right resend, and sending a
+ * client the confirmation for the wrong appointment is a new wrong fact rather
+ * than a fix for an old one.
+ *
+ * @returns {{appointment: object|null, reason: string}}
+ */
+export function pickConfirmationAppointment(upcoming, messageText = '') {
+  const rows = (upcoming || [])
+    .filter(r => r && r.id && r.starts_at)
+    .slice()
+    .sort((a, b) => String(a.starts_at).localeCompare(String(b.starts_at)));
+
+  if (!rows.length) return { appointment: null, reason: 'no_upcoming_booking' };
+  const next = rows[0];
+  if (rows.length === 1) return { appointment: next, reason: 'only_upcoming_booking' };
+
+  const body = String(messageText || '');
+
+  // She named a day, and it is not the next one's day. She is talking about a
+  // different booking, so this is Ellie's.
+  const namedDays = WALL_WEEKDAYS.filter(d => new RegExp(`\\b${d}\\b`, 'i').test(body));
+  if (namedDays.length && !namedDays.includes(wallWeekday(next.starts_at))) {
+    return { appointment: null, reason: 'ambiguous_named_another_day' };
+  }
+
+  // Same for a treatment: "my lash lift confirmation" when the next one is a
+  // pedicure means the lash lift, and we are not going to work out which.
+  const namedHere = rows
+    .map(r => r.treatments?.name)
+    .filter(Boolean)
+    .filter(n => body.toLowerCase().includes(String(n).toLowerCase()));
+  if (namedHere.length && !namedHere.includes(next.treatments?.name)) {
+    return { appointment: null, reason: 'ambiguous_named_another_treatment' };
+  }
+
+  return { appointment: next, reason: 'next_upcoming_booking' };
+}
+
+/**
+ * One ai_actions row per attempt, success or failure.
+ *
+ * The owner has to be able to see it: that was Ellie's actual question. A
+ * silent failure here recreates the exact bug we are fixing, so a bounce is
+ * logged as loudly as a send. action_type has no CHECK any more (migration
+ * 051 dropped it); outcome still does, so it goes through normaliseOutcome.
+ * message_id ties the row to the message that claimed it, which is what
+ * GET /api/inbox/thread joins on.
+ */
+async function logResendAction({
+  beauticianId, clientId, messageId, appointmentId,
+  status, summary, details, confidence,
+}) {
+  try {
+    const { error } = await supabase.from('ai_actions').insert({
+      beautician_id: beauticianId,
+      client_id: clientId || null,
+      message_id: messageId || null,
+      appointment_id: appointmentId || null,
+      action_type: 'booking_confirmation_resent',
+      digital_employee: 'front_desk',
+      summary,
+      details: details || {},
+      confidence: typeof confidence === 'number' ? confidence : null,
+      autonomous: true,
+      outcome: normaliseOutcome(status),
+      status: status === 'sent' ? 'executed' : null,
+      // The escalation path pushes its own notification; a second push for the
+      // same message is the noise problem this file spent a quarter fixing.
+      notification_sent: false,
+    });
+    if (error) throw error;
+  } catch (err) {
+    logger.error({ err, beauticianId, messageId, appointmentId }, 'Could not log the confirmation resend to ai_actions');
+  }
+}
+
+/**
+ * Actually resend the confirmation, then report honestly what happened.
+ *
+ * The send itself is notifyBookingConfirmed, the SAME function Stripe, the
+ * booking flow and Ellie's own Resend button call. There is deliberately no
+ * second sender: a copy would drift from the template, the calendar link and
+ * the receipt line, and the client would get a different email depending on
+ * who asked for it.
+ *
+ * It goes through guardedSend so consent, quiet hours, the frequency cap, the
+ * per-client monthly cap and the allowance reserve all get their say, and so
+ * the outbound_sends row exists for every other engine's caps to read. The
+ * tier is TRANSACTIONAL, and that is not an opinion: classifyTier
+ * ('booking_confirmation') returns it from the guard's own list, alongside
+ * appointment_reminder and receipt. It re-sends a message about a booking this
+ * client already made and already agreed to, carrying nothing she has not
+ * already seen. Holding it behind an approval queue IS the failure being
+ * fixed: she is waiting for it right now.
+ *
+ * @returns {{sent: boolean, escalate: boolean, reason: string, appointment: object|null, channels: string[]}}
+ */
+async function resendConfirmation({ beautician, client, messageContent, classification, context, messageId }) {
+  const who = client?.first_name || 'A client';
+  const { appointment, reason } = pickConfirmationAppointment(context?.clientUpcoming, messageContent);
+
+  // Nothing to resend, or more than one candidate and the conversation does
+  // not say which. Do not guess, do not send, hand it to Ellie.
+  if (!appointment) {
+    const summary = reason === 'no_upcoming_booking'
+      ? `${who} asked about her confirmation but I could not find a booking to resend, so this is for you`
+      : `${who} asked about her confirmation and she has more than one booking, so I did not guess which one`;
+    await logResendAction({
+      beauticianId: beautician.id, clientId: client?.id, messageId, appointmentId: null,
+      status: 'escalated', summary, confidence: classification?.confidence,
+      details: { reason, upcoming_count: (context?.clientUpcoming || []).length, asked: truncate(messageContent, 120) },
+    });
+    logger.info({ beauticianId: beautician.id, clientId: client?.id, reason }, 'Confirmation resend not attempted');
+    return { sent: false, escalate: true, reason, appointment: null, channels: [] };
+  }
+
+  let result = null;
+  const verdict = await guardedSend({
+    beauticianId: beautician.id,
+    clientId: client?.id || null,
+    messageType: 'booking_confirmation',
+    // What the confirmation itself travels on is decided by her reminder
+    // prefs inside notifyBookingConfirmed. This is the thread it was asked
+    // for in, which is what makes the outbound_sends row readable later.
+    channel: client?.preferred_channel || 'whatsapp',
+    client,
+    body: `Booking confirmation resent for ${wallLabel(appointment.starts_at)}`,
+    send: async () => {
+      // notifyBookingConfirmed resolves with an OBJECT on failure as well as
+      // on success ({sent:false, reason:'no_contact_details'}), and an object
+      // is truthy. Returning it raw would report every bounce as a send.
+      result = await notifyBookingConfirmed(appointment.id);
+      return result?.sent === true;
+    },
+  });
+
+  const sent = verdict?.delivered === true;
+  const channels = result?.channels || [];
+  const failure = result?.reason || (verdict?.decision !== 'send' ? verdict?.reason : null) || 'send_failed';
+
+  await logResendAction({
+    beauticianId: beautician.id, clientId: client?.id, messageId, appointmentId: appointment.id,
+    status: sent ? 'sent' : 'failed',
+    confidence: classification?.confidence,
+    summary: sent
+      ? `Resent ${who}'s booking confirmation for ${wallLabel(appointment.starts_at)}${channels.length ? ` by ${channels.join(' and ')}` : ''}`
+      : `Tried to resend ${who}'s booking confirmation for ${wallLabel(appointment.starts_at)} and it did not go (${failure})`,
+    details: {
+      reason,
+      appointment_id: appointment.id,
+      starts_at: appointment.starts_at,
+      channels,
+      outbound_decision: verdict?.decision || null,
+      outbound_tier: verdict?.tier || classifyTier('booking_confirmation'),
+      failure: sent ? null : failure,
+      asked: truncate(messageContent, 120),
+    },
+  });
+
+  if (!sent) {
+    logger.error({ beauticianId: beautician.id, clientId: client?.id, appointmentId: appointment.id, failure },
+      'Confirmation resend FAILED; the reply must not say it was sent');
+  }
+
+  // A failed send is escalated as well as logged. The client asked for
+  // something and it did not happen, and the only person who can fix a missing
+  // phone number or a paused account is Ellie.
+  return { sent, escalate: !sent, reason: sent ? reason : failure, appointment, channels };
 }
 
 // STEP 1: GATHER CONTEXT
@@ -842,8 +1134,10 @@ function getEscalationReason(classification, threshold = 0.9) {
 
 // STEP 4a: GENERATE RESPONSE + TAKE ACTION
 
-async function generateResponseAndAct(message, classification, context, beautician, client) {
+async function generateResponseAndAct(message, classification, context, beautician, client, opts = {}) {
   const { intent, extracted } = classification;
+  // Evidence of a real send in THIS request. Nothing else may set it.
+  const sendPerformed = opts?.resend?.sent === true;
 
   // Build the action-specific prompt
   let actionPrompt = '';
@@ -873,6 +1167,18 @@ async function generateResponseAndAct(message, classification, context, beautici
 
     default:
       actionPrompt = 'Respond helpfully based on what you know about the business.';
+  }
+
+  // The confirmation really did go out a moment ago, so the reply is allowed
+  // to say so, and should: the client asked a question and the answer is now a
+  // fact. This block is only ever reached when sendPerformed is true, which
+  // means notifyBookingConfirmed reported a delivered channel.
+  if (sendPerformed) {
+    const appt = opts.resend.appointment;
+    const chans = (opts.resend.channels || []).join(' and ');
+    actionPrompt = `${actionPrompt}
+
+YOU HAVE JUST RESENT THIS CLIENT'S BOOKING CONFIRMATION. It really did go out${chans ? ` by ${chans}` : ''}, just now, for ${wallLabel(appt?.starts_at)}. This is a fact, not a plan. Tell her plainly that you have sent it again and roughly where it will land. Suggest she checks her junk folder if she cannot see it. Do not promise anything else and do not offer any times.`;
   }
 
   const voiceSection = buildVoiceInstructions(beautician, message);
@@ -936,7 +1242,12 @@ Respond with the WhatsApp message only. No quotes, no JSON, no explanation.`;
   // booking, so actionPerformed stays false and any "you're moved" claim is
   // still refused outright. See lib/reply-claims-guard.js and the 28 Jul incident.
   // Style repair runs BEFORE this on purpose: the guard gets the last word.
-  const guarded = safeReply(fit.text, { allowedTimes });
+  // sendPerformed is the sibling of actionPerformed, not the same flag. A
+  // real resend must not license "you're all moved to Thursday": that is a
+  // different claim, evidenced by different code, and folding the two into one
+  // flag would wave the 28 July incident through on the strength of the fix
+  // for the 26 August one.
+  const guarded = safeReply(fit.text, { allowedTimes, sendPerformed });
   let replyText = guarded.text;
   if (guarded.rejected) {
     logger.warn({
@@ -952,7 +1263,7 @@ Respond with the WhatsApp message only. No quotes, no JSON, no explanation.`;
     // it cannot introduce a time or a claim. Re-checked anyway: if the styled
     // version fails for any reason the plain one goes instead.
     const styledFallback = styleFit(replyText, style).text;
-    if (checkReplyClaims(styledFallback, { allowedTimes }).ok) replyText = styledFallback;
+    if (checkReplyClaims(styledFallback, { allowedTimes, sendPerformed }).ok) replyText = styledFallback;
   }
 
   // Calculate tone match score by comparing against beautician's correction history
