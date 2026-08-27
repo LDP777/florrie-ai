@@ -1860,12 +1860,16 @@ router.post('/:id/send-manage-link', requireAuth, async (req, res) => {
     let sentOn = null;
 
     if (channel === 'whatsapp') {
-      // generic_message_v2 takes [first_name, message], so the link travels in
-      // the body. booking_confirmation_v2 has nowhere to put it.
+      // generic_message is the only template with a free-text slot, so the
+      // link travels in its body. booking_confirmation_v2 has nowhere to put
+      // it. Named fields, both essential: generic_message_v2's approved body
+      // turned out to have ONE slot and no room for a url (27 August 2026), so
+      // a version that cannot carry `message` refuses the send and control
+      // falls to the SMS below rather than sending a link-less hello.
       const wa = await sendWhatsApp({
         to: client.phone,
         templateName: 'generic_message_v2',
-        templateParams: [client.first_name, body],
+        templateFields: { first_name: client.first_name, message: body },
         beauticianId: req.beautician.id,
         clientId: appt.client_id,
         // Her own booking link is a service message, not marketing. Without

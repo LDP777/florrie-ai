@@ -1,5 +1,16 @@
 # Template Send 132001 Investigation
 
+> **Addendum, 27 August 2026.** This document is about error **132001**, a name
+> or locale that does not resolve. Do not reach for it to explain the booking
+> link that never arrived: that was error **132000**, a parameter count that did
+> not match the approved body, and it had nothing to do with a WABA mismatch, a
+> language enum or `name_status`. The registry in
+> `backend/src/lib/whatsapp-templates.js` claimed `generic_message_v2` took two
+> parameters and Meta's approved body takes one. Nothing here lists parameter
+> count as a hypothesis, because at the time nothing had ever asked Meta what
+> the bodies said. `backend/src/lib/health.js` `template_params` now asks,
+> nightly and on every `/health` poll. Everything below stands as it was.
+
 Date: 2026-05-18
 Owner: Florrie backend
 Pilot impact: Blocks the WhatsApp half of the Ellie pilot. SMS is unaffected.

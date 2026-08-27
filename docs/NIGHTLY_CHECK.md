@@ -37,6 +37,7 @@ So the new one is built to three rules.
 | --- | --- | --- |
 | `api_*` | `GET https://api.florrie.ai/health/live` and `/health` for real, parsing the exact shape `backend/src/lib/health.js` returns | Cannot see anything `/health` does not check |
 | `cron_stale` | Each cron by name out of `checks.crons.jobs`, not the word "crons" | Reports what the API believes about `job_runs` |
+| `api_warning` → `template_params` | The registry's declared WhatsApp parameter counts against the bodies Meta has actually approved, asked by the API and reported through `/health` | Silent if the API cannot reach Meta, which it reports as `unknown` rather than as a fault |
 | `lock_manifest` | Does each tracked lockfile still describe the `package.json` beside it | None. Offline and exact |
 | `lock_parity` | Does a workspace lockfile carry advisories the root lock does not, runtime or dev | Needs the npm registry |
 | `lock_platform*` | The darwin binaries are still in the lockfiles | None |
@@ -48,6 +49,28 @@ So the new one is built to three rules.
 | `boot` | First contentful paint and bytes before paint, from `check:boot`, against last night | Not checked if the build failed |
 | `suite` | The frontend build and the backend suite, run as their own workflow steps | None. They are the real gates |
 
+## The WhatsApp template check, and why it arrives by this route
+
+Added 27 August 2026, after the registry in `backend/src/lib/whatsapp-templates.js`
+was found to be wrong about two of the five approved templates. It declares, per
+template and per version, how many `{{n}}` slots the approved body has. Meta
+rejects any send whose parameter count disagrees, silently as far as this
+codebase is concerned: no bounce, no complaint, no missing row. `reminder_24h_v2`
+claimed three slots against a two-slot body, so no WhatsApp reminder had ever
+been delivered. `generic_message_v2` claimed two against one, so no client had
+ever received her booking link.
+
+`checks.template_params` in `/health` asks Meta what the bodies actually say and
+warns, naming the template, both counts and what it breaks. It is cached for six
+hours (`/health` is polled every thirty seconds) and it answers `unknown`, never
+`warn`, when Meta cannot be reached.
+
+Nothing was added to `scripts/nightly-check.mjs` for it, and that is the point.
+`judgeHealthPayload` already forwards every entry of `payload.warnings` with the
+API's own detail, so a warning under a name this script has never heard of
+reaches the morning report intact. `backend/tests/unit/nightly-check-judgements.test.js`
+pins that, so the route cannot quietly close.
+
 ## What it cannot check, and why
 
 * **Anything about production without a credential.** The migration ledger needs
@@ -56,6 +79,17 @@ So the new one is built to three rules.
 * **Anything `/health` does not already cover.** The API check reads what
   `runHealthChecks` returns. Adding a dependency to the report means adding it to
   `backend/src/lib/health.js` first.
+* **Anything needing the Meta token, directly.** The WhatsApp template check
+  (added 27 August 2026, see the section above) is exactly the shape of thing that looks like
+  it wants its own step here, and it must not have one. It needs
+  `WHATSAPP_TOKEN`, a long-lived credential for the shared WABA that can read and
+  create templates for every tenant. Putting it in the Actions secrets of a
+  **public** repository buys a nightly report a credential the API already holds,
+  and secrets are not exposed to fork-triggered runs anyway, so half the runs
+  would report `not_checked` regardless. The check therefore lives in
+  `backend/src/lib/health.js`, where the token already is, and reaches this
+  report as an ordinary `/health` warning with no new secret and no new code
+  here.
 * **Whether an unreachable page is wanted.** Reachability finds pages nothing
   links to. `frontend/src/pages/More.jsx` lines 123 to 139 record most of them as
   deliberately parked on 2026-06-10. That is a product decision, so the check

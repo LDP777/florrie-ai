@@ -13,10 +13,11 @@ import { checkWhatsAppQuota, trackWhatsAppMessage, trackSmsInMonthlyQuota } from
 import { twilioConfigured, twilioSendText, twilioSendTemplate, twilioContentSid } from './whatsapp-twilio.js';
 import {
   chooseTemplateVersion,
-  adaptParams,
   renderTemplateBody,
   fieldsFromParams,
+  fieldsWithoutSlots,
   paramFieldsFor,
+  paramsFor,
   specFor,
 } from '../lib/whatsapp-templates.js';
 import { authorship } from '../lib/authorship.js';
@@ -478,46 +479,113 @@ async function resolveTemplateLanguage(templateName, wabaId) {
 }
 
 /**
- * Pick the version of a template to send, and remap the parameters to match
- * it in the same breath.
+ * Pick the version of a template to send, work out its parameters, and REFUSE
+ * when the version we can actually send has nowhere to put something the
+ * caller said was essential.
  *
- * These two decisions CANNOT be separated. Every caller passes the params for
- * the _v2 shape, but _v4 carries the salon name as an extra parameter (see
- * lib/whatsapp-templates.js for why the name left the body). Send a v4 body
- * with v2 params and Meta rejects the whole message for parameter count, so
- * the client hears nothing at all.
+ * The version and the parameters CANNOT be decided separately. Every caller
+ * describes the message in the _v2 shape, but _v4 carries the salon name as an
+ * extra parameter (see lib/whatsapp-templates.js for why the name left the
+ * body). Send a v4 body with v2 params and Meta rejects the whole message for
+ * parameter count, so the client hears nothing at all.
  *
- * `isAvailable` is what makes the fallback safe: a version is only chosen
- * when it can actually be sent on this tenant's WABA (APPROVED on Meta, or
- * mapped to a ContentSid on Twilio). While _v4 sits in Meta review, everyone
- * keeps sending the version they already have.
+ * `isAvailable` is what makes the fallback safe: a version is only chosen when
+ * it can actually be sent on this tenant's WABA (APPROVED on Meta, or mapped
+ * to a ContentSid on Twilio). While _v4 sits in Meta review, everyone keeps
+ * sending the version they already have.
+ *
+ * WHY THIS REFUSES INSTEAD OF TRIMMING, 27 August 2026
+ * ---------------------------------------------------
+ * The registry claimed generic_message_v2 took [first_name, message]; Meta's
+ * approved body takes [first_name] and says "Hi {{1}}, hope to see you soon."
+ * Correcting the registry alone would have converted a send Meta REFUSED into
+ * a send Meta ACCEPTED with the booking link silently deleted from it. Sophie
+ * would have received a cheerful message with no link, sendBookingLink would
+ * have returned delivered:'whatsapp', and the SMS fallback that actually saves
+ * her would never have run. That is strictly worse than the outage, because
+ * the outage at least had a fallback.
+ *
+ * So a field the chosen body cannot carry is a REFUSAL, reported as `error`,
+ * and the caller takes its own fallback. Three separate ways to say what a
+ * message is, and only these two are load-bearing here:
+ *   templateFields / templateParams  ESSENTIAL. Every one must reach the
+ *                                    client or the send does not happen.
+ *   templateExtras                   optional detail a richer version can
+ *                                    show (the treatment name on _v4). Absent
+ *                                    from an older body without complaint,
+ *                                    because that body never promised it.
+ *
+ * Returns { name, params, fields, error }. `error` non-null means DO NOT SEND.
  */
-function resolveTemplateForSend({ templateName, templateParams, businessName, isAvailable, beauticianId }) {
-  const sendAs = chooseTemplateVersion(templateName, isAvailable);
-  if (sendAs === templateName) return { name: templateName, params: templateParams };
+function resolveTemplateForSend({
+  templateName, templateParams, templateFields, templateExtras, businessName, isAvailable, beauticianId,
+}) {
+  const declared = paramFieldsFor(templateName);
 
-  // A salon name is required by the v4 bodies and an empty WhatsApp parameter
-  // is rejected outright, so fall back to a neutral word rather than sending
-  // "It's ." to a real client.
-  const name = String(businessName || '').trim();
-  const needsName = (paramFieldsFor(sendAs) || []).includes('business_name');
-  if (!name && needsName) {
-    logger.warn({ beauticianId, templateName, sendAs }, 'resolveTemplateForSend: no business name on the beautician record, her clients will read a neutral one');
+  // What the caller means, by name. A positional array is only meaningful
+  // against the shape it was written for, so a length that disagrees with the
+  // registry is the caller and the registry believing different things about
+  // Meta, and at most one of them can be right.
+  let essential;
+  if (templateFields && typeof templateFields === 'object') {
+    essential = { ...templateFields };
+  } else if (Array.isArray(templateParams)) {
+    if (declared && templateParams.length !== declared.length) {
+      return {
+        name: templateName,
+        params: templateParams,
+        fields: fieldsFromParams(templateName, templateParams),
+        error: `${templateName} takes ${declared.length} parameter(s) (${declared.join(', ')}) and the caller passed ${templateParams.length}`,
+      };
+    }
+    essential = fieldsFromParams(templateName, templateParams);
+  } else {
+    essential = {};
   }
-  const params = adaptParams({
-    requestedName: templateName,
-    sendAsName: sendAs,
-    params: templateParams,
-    businessName: name || 'your salon',
-  });
-  if (!params) {
-    // Unknown template or params we cannot map: never gamble on a shape we
-    // do not understand, send exactly what the caller asked for.
-    logger.warn({ templateName, sendAs }, 'resolveTemplateForSend: could not remap params, sending the requested template');
-    return { name: templateName, params: templateParams };
+
+  const salon = String(businessName || '').trim();
+  const all = { ...(templateExtras || {}), ...essential };
+  // A v4 body needs the salon name and an empty WhatsApp parameter is rejected
+  // outright, so fall back to a neutral word rather than sending "It's ."
+  if (!all.business_name) all.business_name = salon || 'your salon';
+
+  const attempt = (name) => {
+    const order = paramFieldsFor(name);
+    // A template the beautician wrote herself. We do not know its shape, so we
+    // pass the caller's array through and judge nothing about it.
+    if (!order) return { params: templateParams, problem: null };
+    const dropped = fieldsWithoutSlots(name, essential);
+    if (dropped.length) {
+      return { problem: `${name} has no {{n}} slot for ${dropped.join(', ')}, and sending without it would leave the client the important half of the message missing` };
+    }
+    const blank = order.filter((f) => String(all[f] ?? '').trim() === '');
+    if (blank.length) {
+      return { problem: `${name} needs a value for ${blank.join(', ')} and none was supplied; Meta rejects an empty parameter` };
+    }
+    return { params: paramsFor(name, all), problem: null };
+  };
+
+  const sendAs = chooseTemplateVersion(templateName, isAvailable);
+  if (sendAs !== templateName) {
+    if (!salon && (paramFieldsFor(sendAs) || []).includes('business_name')) {
+      logger.warn({ beauticianId, templateName, sendAs }, 'resolveTemplateForSend: no business name on the beautician record, her clients will read a neutral one');
+    }
+    const upgraded = attempt(sendAs);
+    if (!upgraded.problem) {
+      logger.info({ templateName, sendAs, paramCount: upgraded.params?.length ?? 0 }, 'resolveTemplateForSend: using shared template');
+      return { name: sendAs, params: upgraded.params, fields: all, error: null };
+    }
+    // The newer body wants something this caller does not have (the treatment
+    // name, say, which the two-slot v2 reminder never carried). Not a failure:
+    // the version the caller asked for is still there and still correct.
+    logger.info({ templateName, sendAs, problem: upgraded.problem }, 'resolveTemplateForSend: staying on the requested version');
   }
-  logger.info({ templateName, sendAs, paramCount: params.length }, 'resolveTemplateForSend: using shared template');
-  return { name: sendAs, params };
+
+  const asked = attempt(templateName);
+  if (asked.problem) {
+    return { name: templateName, params: templateParams, fields: all, error: asked.problem };
+  }
+  return { name: templateName, params: asked.params, fields: all, error: null };
 }
 
 /**
@@ -674,19 +742,34 @@ async function logOutboundToThread({ beauticianId, to, clientId, channel, templa
  * map is fine now that the templates carry no salon name: the SIDs are per
  * template, not per tenant.
  */
-async function sendWhatsAppTemplateViaTwilio({ to, templateName, templateParams, sender, beauticianId, bizName, clientId = null, skipThreadLog = false }) {
+async function sendWhatsAppTemplateViaTwilio({
+  to, templateName, templateParams, templateFields, templateExtras, sender, beauticianId, bizName, clientId = null, skipThreadLog = false,
+}) {
   // Same version pick as the Meta path, with "can we send it" meaning "is
   // there a ContentSid for it" rather than "has Meta approved it".
-  const { name: sentAs, params } = resolveTemplateForSend({
+  const { name: sentAs, params, fields, error } = resolveTemplateForSend({
     templateName,
     templateParams,
+    templateFields,
+    templateExtras,
     businessName: bizName,
     isAvailable: (n) => !!twilioContentSid(n),
     beauticianId,
   });
   const contentSid = twilioContentSid(sentAs);
 
+  // The refusal applies to a TEMPLATE send only. The free-form branch below is
+  // not bound by an approved body at all, so it can carry the whole message
+  // and there is nothing for it to drop. Refusing there would delete a path
+  // that works.
+  if (error && contentSid) {
+    logger.error({ beauticianId, templateName, sentAs, error }, 'WhatsApp template send refused before it left: the approved body cannot carry this message');
+    await logSendFailure({ beauticianId, to, channel: 'WhatsApp', detail: error });
+    return null;
+  }
+
   let result = null;
+  let freeFormBody = null;
   if (contentSid) {
     result = await twilioSendTemplate({ to, contentSid, variables: params || [], sender });
   } else {
@@ -694,16 +777,18 @@ async function sendWhatsAppTemplateViaTwilio({ to, templateName, templateParams,
     // free-form. Note this only reaches the client inside the 24-hour customer
     // service window (Twilio error 63016 outside it), so proactive sends still
     // NEED the ContentSid mapping. See docs/TWILIO_GO_LIVE_CHECKLIST.md.
-    const fields = fieldsFromParams(sentAs, params, {});
-    if (!fields.business_name) fields.business_name = bizName || 'your salon';
-    const body = renderTemplateBody(sentAs, fields);
-    if (!body) {
+    //
+    // Rendered from the NAMED fields rather than the positional array, so a
+    // field the approved body has no slot for (the link on generic_message_v2)
+    // still reaches her here, where the 160-character body has room for it.
+    freeFormBody = renderTemplateBody(sentAs, { ...fields, business_name: fields?.business_name || bizName || 'your salon' });
+    if (!freeFormBody) {
       logger.warn({ templateName }, 'Twilio WhatsApp: no ContentSid mapped and no local fallback body');
       await logSendFailure({ beauticianId, to, channel: 'WhatsApp', detail: `No Twilio content template for ${templateName}` });
       return null;
     }
     logger.info({ templateName }, 'Twilio WhatsApp: no ContentSid mapped, sending free-form fallback (24h window only)');
-    result = await twilioSendText({ to, body, sender });
+    result = await twilioSendText({ to, body: freeFormBody, sender });
   }
 
   if (result) {
@@ -711,6 +796,9 @@ async function sendWhatsAppTemplateViaTwilio({ to, templateName, templateParams,
     if (beauticianId) await trackWhatsAppMessage(beauticianId);
     if (!skipThreadLog) logOutboundToThread({
       beauticianId, to, clientId, channel: 'whatsapp', templateName: sentAs, templateParams: params,
+      // The free-form branch sent words of its own, so log those rather than
+      // re-deriving the template wording it did not use.
+      body: freeFormBody,
       // Twilio calls it sid; it is the same thing to a receipt.
       providerMessageId: result?.sid || null,
     });
@@ -725,7 +813,10 @@ async function sendWhatsAppTemplateViaTwilio({ to, templateName, templateParams,
  * beauticianId is required — used to look up per-beautician provider config
  * (wa_provider: meta | twilio), phone_number_id / twilio_wa_sender, and quota.
  */
-export async function sendWhatsApp({ to, templateName, templateParams, beauticianId, clientId = null, skipThreadLog = false, transactional = false }) {
+export async function sendWhatsApp({
+  to, templateName, templateParams, templateFields, templateExtras,
+  beauticianId, clientId = null, skipThreadLog = false, transactional = false,
+}) {
   // Resolve provider + sender config from the beautician record. Twilio
   // tenants don't need the Meta token at all, so this runs before the
   // WA_TOKEN gate.
@@ -775,7 +866,10 @@ export async function sendWhatsApp({ to, templateName, templateParams, beauticia
   }
 
   if (useTwilio) {
-    return sendWhatsAppTemplateViaTwilio({ to, templateName, templateParams, sender: twilioSender, beauticianId, bizName, clientId, skipThreadLog });
+    return sendWhatsAppTemplateViaTwilio({
+      to, templateName, templateParams, templateFields, templateExtras,
+      sender: twilioSender, beauticianId, bizName, clientId, skipThreadLog,
+    });
   }
 
   if (!WA_TOKEN) {
@@ -798,10 +892,23 @@ export async function sendWhatsApp({ to, templateName, templateParams, beauticia
   const resolved = resolveTemplateForSend({
     templateName,
     templateParams,
+    templateFields,
+    templateExtras,
     businessName: bizName,
     isAvailable: (n) => approved.has(n),
     beauticianId,
   });
+  if (resolved.error) {
+    // Nothing on this path can carry the message intact, so do not send a
+    // truncated one. The caller gets null and takes its own fallback, which
+    // for a booking link is the SMS that actually reaches her.
+    logger.error(
+      { beauticianId, templateName, sendAs: resolved.name, error: resolved.error },
+      'WhatsApp template send refused before it left: the approved body cannot carry this message',
+    );
+    await logSendFailure({ beauticianId, to, channel: 'WhatsApp', detail: resolved.error });
+    return null;
+  }
   templateName = resolved.name;
   templateParams = resolved.params;
   const resolvedLang = await resolveTemplateLanguage(templateName, sendingWaba);
@@ -1107,7 +1214,7 @@ async function inWhatsAppSession(client) {
  * @param {string} opts.beauticianId
  * @param {object} [opts.beauticianPrefs]
  */
-export async function sendNudge({ client, body, templateName, templateParams, beauticianId, beauticianPrefs = {} }) {
+export async function sendNudge({ client, body, templateName, templateParams, templateFields, templateExtras, beauticianId, beauticianPrefs = {} }) {
   // Master pause — no proactive outbound goes out on the beautician's behalf.
   if (beauticianPrefs?.paused) return { skipped: 'paused' };
   // Path 1: active WhatsApp session — send free-form, it'll land immediately
@@ -1121,7 +1228,7 @@ export async function sendNudge({ client, body, templateName, templateParams, be
 
   // Path 2: WhatsApp template (client has opted in, we have a template, session not required)
   if (client?.whatsapp_id && (WA_TOKEN || twilioConfigured()) && beauticianPrefs?.whatsapp_connected && templateName) {
-    const result = await sendWhatsApp({ to: client.whatsapp_id, templateName, templateParams, beauticianId, clientId: client.id, skipThreadLog: true });
+    const result = await sendWhatsApp({ to: client.whatsapp_id, templateName, templateParams, templateFields, templateExtras, beauticianId, clientId: client.id, skipThreadLog: true });
     if (result) {
       await logComms(beauticianId, client.id, 'whatsapp', 'outbound', body);
       return { channel: 'whatsapp_template', result };
@@ -1265,7 +1372,7 @@ function emailTemplate({ bizName, brandColor, tagline, content, logoUrl, signOff
  * A Meta-approved template body cannot carry a url. booking_confirmation_v2
  * has three fixed parameters and no url button, and a body cannot be edited
  * after approval, so the link has to travel in a SECOND message on
- * generic_message_v2, the only template in the registry with a free-text slot.
+ * generic_message, the only template in the registry with a free-text slot.
  *
  * That second send existed. Its result was never read: `await sendWhatsApp(...)`
  * with nothing on the left of it. sendWhatsApp returns null on a quota block
@@ -1274,20 +1381,43 @@ function emailTemplate({ bizName, brandColor, tagline, content, logoUrl, signOff
  * one of those is the same thing: nothing. In production that second message
  * has never been delivered once.
  *
- * Which of those it is can be narrowed from the code alone. The FIRST message
- * arrived, on the same call, same beautician, same number, so the quota gate,
- * the token and the phone_number_id were all fine at that instant. `transactional`
- * skips the PECR gate. The only thing that differs between the two sends is the
- * template name. It is Meta refusing generic_message, which is 132001 territory
- * and is why routes/whatsapp-config.js carries a /template-debug endpoint that
- * defaults to name=generic_message.
+ * WHY, ESTABLISHED 27 AUGUST 2026 BY READING THE LIVE WABA
+ * -------------------------------------------------------
+ * Parameter count. generic_message_v2's approved body is "Hi {{1}}, hope to
+ * see you soon." ONE slot. This call passed two, the second being the link.
+ * Meta rejects a send whose parameter count does not match the approved body,
+ * every time, for everyone, silently as far as this code was concerned.
  *
- * The gate that the `transactional` flag CANNOT reach is Meta's own. Our PECR
- * guard is opted out of by the flag; Meta's is decided by the CATEGORY baked
- * into the approved template, and lib/whatsapp-templates.js declares
- * generic_message as MARKETING. Nothing we pass at send time changes that. So
- * this send can be refused for reasons no flag of ours can argue with, and it
- * therefore must have somewhere else to go.
+ * WHAT THIS COMMENT USED TO SAY, AND WHY IT WAS WRONG
+ * --------------------------------------------------
+ * It reasoned, at length and with real evidence, that the cause must be Meta
+ * refusing the template on CATEGORY grounds: our PECR flag opts a send out of
+ * OUR marketing gate, Meta's gate is decided by the category baked into the
+ * approved template, lib/whatsapp-templates.js declares generic_message as
+ * MARKETING, and nothing we pass at send time can argue with that.
+ *
+ * Every sentence of that was true. The conclusion was still wrong, and it is
+ * worth understanding why it was so convincing. It explained the whole
+ * observation: only the second message fails, the two sends differ only in
+ * template name, and the difference between the names really is a category.
+ * It named a mechanism that really exists. And it was unfalsifiable from
+ * inside the repository, because the one fact that separates the two theories
+ * (how many {{n}} the approved body has) lives on Meta's servers and nothing
+ * here had ever asked. So the theory that fitted the evidence became the
+ * answer, a /template-debug endpoint was built around it, and a fortnight
+ * passed.
+ *
+ * The lesson, which is the shape of most of this codebase's incidents: when
+ * the repository asserts something about the outside world and nothing checks
+ * the assertion, the failure looks exactly like silence. lib/health.js
+ * `template_params` now reads the live bodies and compares them against the
+ * registry, so the next time this claim goes stale a monitor says so instead
+ * of a comment reasoning beautifully in the wrong direction.
+ *
+ * The link therefore travels as a NAMED field, `message`, which resolves
+ * against whichever version can actually be sent. If none of them has a slot
+ * for it, the send is refused outright rather than delivered with the link
+ * quietly removed, and control reaches the SMS branch below.
  *
  * Somewhere else is SMS. She has a phone number, and a link that arrives by
  * text beats a link that arrives nowhere. It goes through guardedSend typed
@@ -1319,7 +1449,10 @@ export async function sendBookingLink({
   const wa = await sendWhatsApp({
     to: phone,
     templateName: 'generic_message_v2',
-    templateParams: [firstName, blurb],
+    // Named, not positional, and both are ESSENTIAL: a version with no slot
+    // for `message` refuses the send rather than posting a friendly hello with
+    // the link deleted from it. See resolveTemplateForSend.
+    templateFields: { first_name: firstName, message: blurb },
     beauticianId,
     clientId,
     // A client's own booking link is a service message, not marketing. Without
@@ -1736,7 +1869,23 @@ export async function notifyReminder24h(appointmentId) {
   if (prefs.reminder_24h !== false) {
     const channel = prefs.channel || 'whatsapp';
     if (channel === 'whatsapp' && client.phone) {
-      const waResult = await sendWhatsApp({ to: client.phone, templateName: 'reminder_24h_v2', templateParams: [client.first_name, treatmentName, timeStr], beauticianId: appt.beautician_id });
+      // TWO parameters, not three. reminder_24h_v2's approved body is "Hi
+      // {{1}}, just a reminder that your appointment is tomorrow at {{2}}." and
+      // has never had a treatment slot, so every reminder sent as three params
+      // was rejected by Meta for parameter count and reached nobody. Found on
+      // 27 August 2026 by reading the live WABA; see lib/whatsapp-templates.js.
+      //
+      // The treatment name goes in templateExtras: _v4 does have a slot for it
+      // and will use it the moment Meta approves _v4, and until then its
+      // absence costs the client nothing, because the body she gets never
+      // promised to name her treatment.
+      const waResult = await sendWhatsApp({
+        to: client.phone,
+        templateName: 'reminder_24h_v2',
+        templateParams: [client.first_name, timeStr],
+        templateExtras: { treatment: treatmentName },
+        beauticianId: appt.beautician_id,
+      });
       // Fall through to SMS if WhatsApp not available
       if (!waResult && client.phone && BIRD_API_KEY) {
         await sendSMS({ to: client.phone, body: textMsg, beauticianId: appt.beautician_id, messageType: 'appointment_reminder' });

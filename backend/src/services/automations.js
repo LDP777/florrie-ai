@@ -111,7 +111,13 @@ async function sendOnChannel({ beautician, client, body, beauticianId, messageTy
     results.push(await sendWhatsApp({
       to: client.phone,
       templateName: 'generic_message_v2',
-      templateParams: [client.first_name, message],
+      // Named and essential, both of them. generic_message_v2's approved body
+      // has ONE slot ("Hi {{1}}, hope to see you soon.") and no room for the
+      // aftercare, the review request or the win-back this carries, so a
+      // version that cannot hold `message` refuses the send instead of
+      // delivering a greeting with the content deleted. Found 27 August 2026,
+      // see lib/whatsapp-templates.js.
+      templateFields: { first_name: client.first_name, message },
       beauticianId,
       clientId,
     }));

@@ -178,13 +178,20 @@ const bird = { ok: true };
 const PHONE_ID = 'phone_1';
 const WABA_ID = 'waba_1';
 
-// booking_confirmation_v2 is approved on this WABA. generic_message is not, in
-// ANY version, which is what Meta error 132001 means and what the pilot's
-// /template-debug endpoint exists to diagnose.
+// What this WABA has approved.
+//
+// generic_message_v4 is here because it is the ONLY version of that template
+// with a slot the booking link can go in. The _v2 body Meta approved is "Hi
+// {{1}}, hope to see you soon." and takes one parameter, which is the whole
+// reason the link never arrived (27 August 2026, read off the live WABA). A
+// send that cannot carry the link is now refused before it leaves rather than
+// delivered with the link removed, so the only interesting question left is
+// what happens when an adequate version IS approved and Meta still says no.
 const CATALOGUE = {
   data: [
     { name: 'booking_confirmation_v2', language: 'en_GB', status: 'APPROVED' },
     { name: 'reminder_24h_v2', language: 'en_GB', status: 'APPROVED' },
+    { name: 'generic_message_v4', language: 'en_GB', status: 'APPROVED' },
   ],
 };
 
@@ -304,7 +311,7 @@ describe('when the WhatsApp link follow-up fails', () => {
     // The confirmation itself went, exactly as it did in production.
     expect(metaTemplatesSent()).toContain('booking_confirmation_v2');
     // The link template was refused, exactly as it was in production.
-    expect(metaTemplatesSent()).not.toContain('generic_message_v2');
+    expect(metaTemplatesSent().some(n => n.startsWith('generic_message'))).toBe(false);
 
     // And this is the whole point of the change: something carrying the link
     // reached her anyway. Not a log line, not a return value. A message.
@@ -412,7 +419,7 @@ describe('when the WhatsApp link follow-up works', () => {
     seed();
     const result = await notifyBookingConfirmed('a1');
 
-    expect(metaTemplatesSent()).toEqual(['booking_confirmation_v2', 'generic_message_v2']);
+    expect(metaTemplatesSent()).toEqual(['booking_confirmation_v2', 'generic_message_v4']);
     expect(smsBodies()).toEqual([]);
     expect(result.link).toMatchObject({ channel: 'whatsapp' });
     expect(result.channels).toEqual(['whatsapp']);
@@ -422,11 +429,16 @@ describe('when the WhatsApp link follow-up works', () => {
     seed();
     await notifyBookingConfirmed('a1');
 
-    const link = sent.meta.find(m => m.template.name === 'generic_message_v2');
+    const link = sent.meta.find(m => m.template.name === 'generic_message_v4');
     const params = link.template.components[0].parameters.map(p => p.text);
+    // The shape the approved v4 body actually declares: name, salon, message.
+    // Meta rejects any other count outright, which is the fault this file's
+    // sibling check now watches for (lib/health.js template_params).
+    expect(params).toHaveLength(3);
     expect(params[0]).toBe('Sophie');
-    expect(params[1]).toContain(CALENDAR_URL);
-    expect(params[1]).not.toMatch(/[–—]/);
+    expect(params[1]).toBe('Ellindigo');
+    expect(params[2]).toContain(CALENDAR_URL);
+    expect(params[2]).not.toMatch(/[–—]/);
   });
 
   it('records nothing alarming', async () => {

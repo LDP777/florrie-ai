@@ -191,11 +191,12 @@ describe('no new sender joins clients without the consent columns', () => {
     'src/routes/features.js:2791',
     'src/routes/features.js:2832',
     'src/routes/features.js:3317',
-    // Both moved down again, by sendBookingLink added above them in
-    // services/notifications.js. Same two joins, same file, new line numbers.
-    // (Previously 1236 / 1514.)
-    'src/services/notifications.js:1393',
-    'src/services/notifications.js:1685',
+    // Both moved down again, by the 27 August 2026 template-parameter fix:
+    // resolveTemplateForSend grew the refusal path and sendBookingLink's
+    // comment was rewritten, both above these two joins. Same two joins, same
+    // file, new line numbers. (Previously 1236 / 1514, then 1393 / 1685.)
+    'src/services/notifications.js:1526',
+    'src/services/notifications.js:1818',
   ]);
 
   function walk(dir) {

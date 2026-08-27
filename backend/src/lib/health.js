@@ -23,6 +23,7 @@ import { supabase } from '../config.js';
 import logger from './logger.js';
 import { parseWebhookSecrets } from './stripe-webhook-secret.js';
 import { readJobRuns } from './job-runs.js';
+import { TEMPLATE_SPECS, splitTemplateName, paramFieldsFor } from './whatsapp-templates.js';
 
 const DEFAULT_TIMEOUT_MS = 3000;
 
@@ -410,6 +411,207 @@ async function checkConfirmationLinks() {
   });
 }
 
+/* ------------------------------------------------------------------------- *
+ * DOES THE REGISTRY STILL DESCRIBE THE TEMPLATES META ACTUALLY HAS?
+ *
+ * lib/whatsapp-templates.js declares, per template and per version, the ORDER
+ * and COUNT of the {{n}} slots in the body Meta approved. Every send is built
+ * from that declaration. It is a claim about somebody else's servers, and
+ * until 27 August 2026 nothing in this repository had ever checked it.
+ *
+ * Two of the five were wrong, both silently, both for as long as they had
+ * existed. reminder_24h_v2 claimed three parameters against a two-slot body,
+ * so no 24-hour reminder ever left on WhatsApp. generic_message_v2 claimed two
+ * against a one-slot body, so no client has ever received her booking link
+ * that way. Meta rejects a mismatched parameter count outright, which produces
+ * no bounce, no complaint and no missing row: the client simply gets nothing.
+ *
+ * confirmation_links above catches the CONSEQUENCE of that, but only after a
+ * fortnight of it and only for the one template it knows to count. This check
+ * catches the CAUSE, on the first poll after the drift appears, for every
+ * template in the registry, by asking Meta what the bodies say.
+ *
+ * WHY IT IS ALLOWED TO CALL META WHEN checkInstagramTokens IS NOT
+ * The Instagram check would need one Graph call PER TENANT. This is one call
+ * for the whole WABA, every template at once, and the answer changes only when
+ * somebody submits or edits a template. So it is cached for six hours and
+ * /health, polled every thirty seconds, makes four Graph calls a day.
+ *
+ * FAIL SOFT, ALWAYS. A Graph blip, an expired token, a timeout and a
+ * rate-limit all mean "we could not ask today", which is `unknown`. This check
+ * accuses the registry only when Meta has answered and the answer disagrees.
+ * A monitor that cries wolf when Facebook has a bad afternoon gets muted, and
+ * a muted monitor is how the Instagram token stayed dead for five weeks.
+ * ------------------------------------------------------------------------- */
+
+const WA_GRAPH = 'https://graph.facebook.com/v21.0';
+// Longer than the /health poll interval by three orders of magnitude on
+// purpose: template bodies change when a human submits one, not continuously.
+const TEMPLATE_AUDIT_TTL_MS = 6 * 60 * 60 * 1000;
+// A failed ask is remembered too, briefly, so a Graph outage does not turn
+// into a call every thirty seconds from every instance.
+const TEMPLATE_AUDIT_ERROR_TTL_MS = 5 * 60 * 1000;
+// Shorter than the 3000ms `guarded` wrapper in runHealthChecks, so a slow
+// Graph is OUR unknown rather than the wrapper's fail. A timeout that lands as
+// a warning is exactly the false alarm this check must never produce.
+const TEMPLATE_AUDIT_TIMEOUT_MS = 2500;
+
+/** What a client loses when this template cannot be sent. Keyed by base name. */
+const TEMPLATE_CONSEQUENCE = {
+  booking_confirmation: 'no WhatsApp booking confirmation reaches the client at all',
+  reminder_24h: 'the 24-hour reminder reaches nobody and the chair may sit empty',
+  gap_fill_offer: 'last-minute gap offers reach nobody, so the freed slot goes unfilled',
+  rebook_nudge: 'rebook invites reach nobody',
+  generic_message: "the client's booking link, patch-test prompt and every free-text send are refused, which is the fault that hid for a fortnight",
+};
+
+/** Distinct {{n}} placeholders in an approved body, as Meta counts them. */
+export function countBodyParams(body) {
+  const found = new Set(
+    [...String(body || '').matchAll(/\{\{\s*(\d+)\s*\}\}/g)].map((m) => Number(m[1])),
+  );
+  return found.size;
+}
+
+/** The BODY component of a Meta template row, or ''. */
+function bodyTextOf(template) {
+  const components = Array.isArray(template?.components) ? template.components : [];
+  const body = components.find((c) => String(c?.type || '').toUpperCase() === 'BODY');
+  return body?.text || '';
+}
+
+/**
+ * Compare what the registry claims against what Meta has approved.
+ *
+ * `templates` is Meta's own list: [{ name, status, components }]. Split out
+ * from the fetch so the judgement is testable without a network, the same way
+ * judgeConfirmationLinks is testable without a database.
+ *
+ * Only APPROVED templates are judged. A PENDING one carries the body we
+ * submitted, so it cannot disagree with us yet, and a REJECTED one cannot be
+ * sent at all. Templates the registry does not know (a beautician's own) are
+ * none of our business.
+ */
+export function judgeTemplateParams(templates) {
+  const rows = Array.isArray(templates) ? templates : [];
+  const mismatches = [];
+  let checked = 0;
+
+  for (const t of rows) {
+    const name = String(t?.name || '');
+    if (String(t?.status || '').toUpperCase() !== 'APPROVED') continue;
+    const declared = paramFieldsFor(name);
+    if (!declared) continue;
+    checked += 1;
+    const meta = countBodyParams(bodyTextOf(t));
+    if (meta === declared.length) continue;
+    const { base } = splitTemplateName(name);
+    mismatches.push({
+      template: name,
+      registry_params: declared.length,
+      registry_fields: declared,
+      meta_params: meta,
+      breaks: TEMPLATE_CONSEQUENCE[base] || 'every send of this template is refused by Meta',
+    });
+  }
+
+  const base = {
+    critical: false,
+    templates_checked: checked,
+    templates_declared: Object.keys(TEMPLATE_SPECS).length,
+  };
+
+  if (checked === 0) {
+    // Meta answered, and none of our templates is approved on this WABA. That
+    // is a real state (a brand new account, or a starter pack still in review)
+    // and it is not a mismatch, so it is not a warning.
+    return {
+      ok: true,
+      status: 'ok',
+      ...base,
+      detail: 'Meta has no approved template from this registry on the WABA yet, so there is nothing to compare',
+    };
+  }
+
+  if (mismatches.length === 0) {
+    return { ok: true, status: 'ok', ...base, mismatches: [] };
+  }
+
+  return {
+    ok: false,
+    status: 'warn',
+    ...base,
+    mismatches,
+    detail: mismatches
+      .map((m) => (
+        `${m.template}: the registry declares ${m.registry_params} ${m.registry_params === 1 ? 'parameter' : 'parameters'} `
+        + `(${m.registry_fields.join(', ')}) and the body Meta has approved takes ${m.meta_params}. `
+        + 'Meta rejects every send whose parameter count '
+        + `does not match, so ${m.breaks}. Fix lib/whatsapp-templates.js to match the approved body, or submit a `
+        + 'new version; an approved body cannot be edited.'
+      ))
+      .join(' '),
+  };
+}
+
+// Remembered between polls. { at, result } so a Graph hiccup costs one call,
+// not one call every thirty seconds.
+let _templateAudit = { at: 0, result: null, ok: false };
+
+async function fetchApprovedTemplates() {
+  // Read at call time, not at import: the same names are read by
+  // services/notifications.js and a test that has not set them must get the
+  // skipped branch rather than a live Graph call.
+  const token = process.env.WHATSAPP_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN;
+  const waba = process.env.WHATSAPP_WABA_ID || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
+  if (!token || !waba) return { skipped: 'WHATSAPP_TOKEN / WHATSAPP_WABA_ID not set' };
+
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), TEMPLATE_AUDIT_TIMEOUT_MS);
+  try {
+    const res = await fetch(
+      `${WA_GRAPH}/${waba}/message_templates?fields=name,status,components&limit=200`,
+      { headers: { Authorization: `Bearer ${token}` }, signal: ac.signal },
+    );
+    const data = await res.json();
+    if (!res.ok || !Array.isArray(data?.data)) {
+      return { error: data?.error?.message || `Graph returned HTTP ${res.status}` };
+    }
+    return { templates: data.data };
+  } catch (err) {
+    return { error: err?.name === 'AbortError' ? `no answer within ${TEMPLATE_AUDIT_TIMEOUT_MS}ms` : (err?.message || 'Graph call failed') };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function checkTemplateParams() {
+  const fresh = Date.now() - _templateAudit.at < (_templateAudit.ok ? TEMPLATE_AUDIT_TTL_MS : TEMPLATE_AUDIT_ERROR_TTL_MS);
+  if (_templateAudit.result && fresh) return _templateAudit.result;
+
+  const answer = await fetchApprovedTemplates();
+
+  let result;
+  if (answer.skipped) {
+    // Not configured is a deployment choice, not a fault. Same rule as Stripe.
+    result = { ok: true, status: 'skipped', critical: false, detail: answer.skipped };
+  } else if (answer.error) {
+    // Never a warning. We could not ask, so we know nothing, and saying
+    // otherwise would be inventing an outage out of somebody else's bad day.
+    result = {
+      ok: true,
+      status: 'unknown',
+      critical: false,
+      detail: `the approved template bodies could not be read from Meta: ${answer.error}`,
+    };
+  } else {
+    result = judgeTemplateParams(answer.templates);
+  }
+
+  _templateAudit = { at: Date.now(), result, ok: !answer.error };
+  return result;
+}
+
 /**
  * Cron heartbeats. Reads job_runs (migration 020). If the migration has not
  * been applied the answer is "unknown", never "failing".
@@ -478,13 +680,14 @@ export async function runHealthChecks({ stripe = null, timeoutMs = DEFAULT_TIMEO
     label,
   );
 
-  const [database, stripeApi, webhookSecret, webhookActivity, instagram, confirmationLinks, jobs] = await Promise.all([
+  const [database, stripeApi, webhookSecret, webhookActivity, instagram, confirmationLinks, templateParams, jobs] = await Promise.all([
     guarded('database', checkSupabase),
     guarded('stripe_api', () => checkStripeApi(stripe)),
     guarded('stripe_webhook_secret', () => checkStripeWebhookSecret(stripeConfigured)),
     guarded('stripe_webhook_activity', () => checkStripeWebhookActivity(stripeConfigured)),
     guarded('instagram_tokens', checkInstagramTokens),
     guarded('confirmation_links', checkConfirmationLinks),
+    guarded('template_params', checkTemplateParams),
     guarded('crons', () => checkJobs(jobSpecs)),
   ]);
 
@@ -495,6 +698,7 @@ export async function runHealthChecks({ stripe = null, timeoutMs = DEFAULT_TIMEO
     stripe_webhook_activity: webhookActivity,
     instagram_tokens: instagram,
     confirmation_links: confirmationLinks,
+    template_params: templateParams,
     crons: jobs,
   };
 

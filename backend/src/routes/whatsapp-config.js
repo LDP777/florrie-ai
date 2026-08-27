@@ -2668,6 +2668,14 @@ router.delete('/disconnect', async (req, res) => {
  *
  * Query params:
  *   name      template name (defaults to "generic_message" for the Ellie pilot)
+ *
+ * NOTE, 27 August 2026: the default is a fossil of a wrong diagnosis. The
+ * booking link on generic_message was not failing on 132001 at all, it was
+ * failing on 132000, a parameter count that did not match the approved body
+ * (the registry claimed two slots, Meta's body has one). This endpoint is
+ * still the right tool for a genuine name or locale problem; it was simply
+ * never going to find that one. lib/health.js `template_params` is what looks
+ * for that, by reading the approved bodies rather than reasoning about them.
  *   language  optional. If supplied, only this exact language code is tried.
  *             If omitted, we try a sweep: ["en", "en_US", "en_GB"] plus
  *             whatever language(s) the WABA list reports for that template.

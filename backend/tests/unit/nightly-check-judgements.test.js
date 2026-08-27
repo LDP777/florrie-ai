@@ -109,6 +109,49 @@ describe('the API health payload', () => {
     expect(out[0].title).toMatch(/harness/);
   });
 
+  /*
+   * THE WIRING FOR THE 27 AUGUST 2026 TEMPLATE DRIFT.
+   *
+   * lib/health.js `template_params` reads the approved bodies off the live
+   * WABA and warns when the registry's declared parameter counts have stopped
+   * matching them. The nightly needs no Meta credential of its own for that,
+   * and must not have one: the API already holds the token, the runner is a
+   * public repository's runner, and a check that needs a secret nobody will
+   * grant is a check that reports not_checked for ever.
+   *
+   * So the route is /health, and this pins that a warning arriving under a
+   * name nothing in nightly-check.mjs has ever heard of still reaches the
+   * morning report with its detail intact.
+   */
+  it('carries a warning about a check it has never heard of, detail and all', () => {
+    const out = judgeHealthPayload({
+      status: 200,
+      requireNetwork: true,
+      payload: {
+        status: 'ok',
+        failing: [],
+        warnings: ['template_params'],
+        checks: {
+          template_params: {
+            ok: false,
+            status: 'warn',
+            critical: false,
+            detail: 'generic_message_v2: the registry declares 1 parameter(s) (first_name) and the body Meta has '
+              + 'approved takes 2. Meta rejects every send whose parameter count does not match.',
+          },
+        },
+      },
+    });
+    const warns = sev(out, 'warn');
+    expect(warns).toHaveLength(1);
+    expect(warns[0].title).toContain('template_params');
+    expect(warns[0].detail).toContain('generic_message_v2');
+    expect(warns[0].detail).toContain('the body Meta has approved takes 2');
+    // Not a failure: nothing is down, and the fix is a code change or a Meta
+    // submission, neither of which is helped by paging anybody.
+    expect(sev(out, 'fail')).toHaveLength(0);
+  });
+
   it('names the stale cron rather than saying "crons"', () => {
     const out = judgeHealthPayload({
       status: 503,

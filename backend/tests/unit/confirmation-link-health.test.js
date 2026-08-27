@@ -69,6 +69,17 @@ vi.mock('../../src/lib/logger.js', () => ({ default: { info() {}, warn() {}, err
 vi.mock('@sentry/node', () => ({ captureMessage: () => {}, captureException: () => {} }));
 vi.mock('../../src/lib/job-runs.js', () => ({ readJobRuns: async () => ({ available: false, rows: [], reason: 'not in this test' }) }));
 
+// tests/setup.js sets WHATSAPP_TOKEN and WHATSAPP_WABA_ID for every file, so
+// the template_params check would otherwise call graph.facebook.com for real
+// from a unit test. It answers with nothing our registry knows, which is the
+// "ok, nothing to compare" branch and leaves this file's assertions alone.
+global.fetch = vi.fn(async () => ({
+  ok: true,
+  status: 200,
+  json: async () => ({ data: [] }),
+  text: async () => '{"data":[]}',
+}));
+
 const {
   runHealthChecks,
   judgeConfirmationLinks,

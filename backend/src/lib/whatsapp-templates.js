@@ -47,6 +47,36 @@
  * historical shapes that still exist on the WABA: v2 is the plain original,
  * v3 has the salon name written into the body (so it is absent from the
  * params). Only v4 is created from now on.
+ *
+ * WHAT versions[x] IS, AND WHAT IT IS NOT
+ * --------------------------------------
+ * It is a claim about the OUTSIDE WORLD: "the body Meta has approved under
+ * this name takes exactly these slots, in this order". Nothing in this file
+ * can make that claim true, and until 27 August 2026 nothing checked it.
+ *
+ * On 27 August the live WABA (1458055882486306) was read and compared against
+ * this table. Two entries were wrong, and both had been wrong in production
+ * for as long as they had existed:
+ *
+ *   reminder_24h   v2  claimed [first_name, treatment, time], Meta has 2 slots
+ *                      ("Hi {{1}}, just a reminder that your appointment is
+ *                      tomorrow at {{2}}."). Every 24-hour reminder sent on
+ *                      WhatsApp was rejected for parameter count.
+ *   generic_message v2 claimed [first_name, message], Meta has 1 slot
+ *                      ("Hi {{1}}, hope to see you soon."). That is the
+ *                      template the booking link travels on, so no client has
+ *                      ever received a manage link on WhatsApp.
+ *
+ * Meta rejects a send whose parameter count does not match the approved body,
+ * so the client gets NOTHING and the send path sees a null it cannot explain.
+ * lib/health.js `template_params` now reads the live bodies and says which of
+ * these claims has stopped being true, because a person reading a ratio two
+ * months later is not a monitor.
+ *
+ * The `render` wording below is the wording of v4 onwards. The v2 bodies Meta
+ * approved are older and word things differently, and an approved body cannot
+ * be edited, so for v2 this table is authoritative about the SLOTS and not
+ * about the sentence. FIELD_LITERALS keeps a v2 rendering readable anyway.
  */
 export const TEMPLATE_SPECS = {
   booking_confirmation: {
@@ -66,7 +96,12 @@ export const TEMPLATE_SPECS = {
     label: '24-hour reminder',
     blurb: 'Reminds a client the day before',
     versions: {
-      v2: ['first_name', 'treatment', 'time'],
+      // v2 has TWO slots on the WABA, not three. Its approved body is "Hi
+      // {{1}}, just a reminder that your appointment is tomorrow at {{2}}." and
+      // names no treatment at all. The extra `treatment` claimed here made
+      // every WhatsApp reminder a 3-into-2 send that Meta refused outright.
+      // Verified against the live WABA on 27 August 2026.
+      v2: ['first_name', 'time'],
       v3: ['first_name', 'treatment', 'time'],
       v4: ['first_name', 'business_name', 'treatment', 'time'],
     },
@@ -98,15 +133,51 @@ export const TEMPLATE_SPECS = {
       `Hi ${f.first_name}, it's ${f.business_name} 🌸 It's been a little while! Fancy getting booked back in? Reply here and I'll find you a time.`,
   },
   generic_message: {
+    /*
+     * WHY THIS STAYS MARKETING, ASKED AGAIN ON 27 AUGUST 2026.
+     *
+     * It carries a client's own booking link (services/notifications.js
+     * sendBookingLink) and her patch-test prompt (routes/appointments.js),
+     * which are service messages, so UTILITY looks right for those. It also
+     * carries aftercare, review requests and win-back copy, because
+     * services/automations.js sendOnChannel puts EVERY automated body through
+     * this one free-text template. Meta categorises the TEMPLATE, not the
+     * send. Asking for UTILITY on a template we then send campaigns through
+     * invites Meta to reclassify or revoke it, and losing this template takes
+     * the booking link down with it, which is the outage we are here to fix.
+     *
+     * Note also what this field does NOT do: lib/marketing-guard.js decides
+     * PECR by NAME (MARKETING_TEMPLATE_RE), not by this category, so changing
+     * it would not have loosened the UK opt-out gate. It would only have
+     * changed how Meta meters and throttles the template.
+     *
+     * The category was never the fault anyway. The manage link died on
+     * PARAMETER COUNT (see below), and the category theory in
+     * notifications.js was a confident wrong answer that cost a fortnight.
+     * The real fix for the service case is a separate UTILITY template with
+     * its own free-text slot (booking_link_v4), submitted on its own merits.
+     */
     category: 'MARKETING',
     label: 'General message',
     blurb: 'A friendly general message',
     versions: {
-      v2: ['first_name', 'message'],
+      // v2 has ONE slot on the WABA: "Hi {{1}}, hope to see you soon." There
+      // is nowhere in it for a message, which is why the booking link has
+      // never once arrived on WhatsApp. Verified live on 27 August 2026.
+      v2: ['first_name'],
       v3: ['first_name', 'message'],
       v4: ['first_name', 'business_name', 'message'],
     },
-    render: (f) => `Hi ${f.first_name}! It's ${f.business_name} 🌸 ${f.message} Reply here anytime.`,
+    /*
+     * Meta REJECTED generic_message_v4 on 27 August 2026: "This template has
+     * too many variables for its length. Reduce the number of variables or
+     * increase the message length." The old body was three variables and
+     * about thirty characters of fixed text, which reads to Meta's classifier
+     * as a blank cheque rather than a message. Same three fields, in the same
+     * order, with enough of Ellie's own words around them to be a message.
+     */
+    render: (f) =>
+      `Hi ${f.first_name}, it's ${f.business_name} here 🌸 ${f.message} If there is anything you are not sure about, or you would like to change or cancel anything, just reply to this message and I will get straight back to you as soon as I can. Speak soon!`,
   },
 };
 
@@ -191,6 +262,22 @@ const FIELD_EXAMPLES = {
   message: 'Your patch test is booked in for Monday at 10am.',
 };
 
+/**
+ * What a field reads as when the version being rendered has no {{n}} slot for
+ * it.
+ *
+ * A field a version does not carry as a parameter was a LITERAL in the body
+ * Meta approved for that version: v3 typed the salon name in, and the v2
+ * reminder says "your appointment" where v4 names the treatment. Without this
+ * the shared renderer produced "your  is tomorrow" in the inbox thread the
+ * moment reminder_24h_v2 was corrected to its real two slots on 27 August
+ * 2026, which is a worse lie than the one it replaced.
+ */
+const FIELD_LITERALS = {
+  business_name: 'your salon',
+  treatment: 'appointment',
+};
+
 /** Readable slot names for UI previews, keyed by field. */
 const FIELD_WORDS = {
   first_name: 'client name',
@@ -225,6 +312,30 @@ export function paramFieldsFor(name) {
   const spec = TEMPLATE_SPECS[base];
   if (!spec || !version) return null;
   return spec.versions[version] || null;
+}
+
+/**
+ * Which of these named values the approved body has NOWHERE to put.
+ *
+ * The failure this exists to prevent, 27 August 2026: generic_message_v2 was
+ * believed to take [first_name, message] and actually takes [first_name]. The
+ * obvious correction (shorten the list) would have turned a send Meta refused
+ * into a send Meta ACCEPTED with the url quietly removed, so Sophie would have
+ * received "Hi Sophie, hope to see you soon." and no link, and the SMS
+ * fallback that saves her would never have run. A message with the important
+ * half missing is worse than no message, because nothing downstream can tell.
+ *
+ * Returns the field names with no slot (empty array when all fit), or null
+ * when the template is not one of ours and there is nothing to judge.
+ * Blank values do not count: an empty string was never going to be read.
+ */
+export function fieldsWithoutSlots(name, fields) {
+  const order = paramFieldsFor(name);
+  if (!order) return null;
+  const slots = new Set(order);
+  return Object.entries(fields || {})
+    .filter(([field, value]) => !slots.has(field) && String(value ?? '').trim() !== '')
+    .map(([field]) => field);
 }
 
 /** Named values from a positional array, e.g. ["Sarah","Fri","2pm"] -> {first_name:...}. */
@@ -305,10 +416,16 @@ export function renderTemplateBody(name, fields) {
   if (!spec) return null;
   const order = paramFieldsFor(name) || spec.versions[CURRENT_TEMPLATE_VERSION];
   const values = {};
-  for (const f of new Set([...order, ...Object.keys(fields || {})])) {
+  // Every field ANY version of this template uses, not just this version's, so
+  // the renderer can never emit "undefined" for a slot an older body did not
+  // carry. generic_message_v2 has one slot and the renderer names three.
+  const known = Object.values(spec.versions).flat();
+  for (const f of new Set([...known, ...order, ...Object.keys(fields || {})])) {
     values[f] = fields?.[f] === undefined || fields[f] === null ? '' : String(fields[f]);
   }
-  if (!values.business_name) values.business_name = 'your salon';
+  for (const [field, literal] of Object.entries(FIELD_LITERALS)) {
+    if (!values[field]) values[field] = literal;
+  }
   // Tidy the double space an empty slot leaves behind, but only spaces: a
   // free-text message can carry line breaks and they must survive.
   return spec.render(values).replace(/ {2,}/g, ' ').trim();
@@ -325,7 +442,10 @@ export function metaBodyFor(name) {
   if (!order || !spec) return null;
   const slots = {};
   order.forEach((f, i) => { slots[f] = `{{${i + 1}}}`; });
-  return spec.render(slots);
+  // Anything this version does not carry as a parameter was a literal in its
+  // body, so render it as one. Only v4 is ever submitted; for v2 and v3 this
+  // is a reading aid and the SLOT COUNT is the part that has to be true.
+  return renderTemplateBody(name, slots);
 }
 
 /** Meta example values, in parameter order. */
