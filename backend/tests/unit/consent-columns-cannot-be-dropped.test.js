@@ -193,10 +193,14 @@ describe('no new sender joins clients without the consent columns', () => {
     'src/routes/features.js:3317',
     // Both moved down again, by the 27 August 2026 template-parameter fix:
     // resolveTemplateForSend grew the refusal path and sendBookingLink's
-    // comment was rewritten, both above these two joins. Same two joins, same
-    // file, new line numbers. (Previously 1236 / 1514, then 1393 / 1685.)
-    'src/services/notifications.js:1526',
-    'src/services/notifications.js:1818',
+    // comment was rewritten, both above these two joins. Then again by the
+    // shortened link blurb, once generic_message_v4 was approved and its own
+    // approved body started carrying the "reply if you want to change
+    // anything" line the blurb had been duplicating. Same two joins, same
+    // file, new line numbers.
+    // (Previously 1236 / 1514, then 1393 / 1685, then 1526 / 1818.)
+    'src/services/notifications.js:1532',
+    'src/services/notifications.js:1824',
   ]);
 
   function walk(dir) {

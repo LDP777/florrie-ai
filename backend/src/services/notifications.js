@@ -1442,9 +1442,15 @@ export async function sendBookingLink({
   // Say what the page DOES. "Manage or reschedule" is the wording nobody
   // tapped, and it does not hint that adding a treatment is possible at all,
   // which is the exact thing Lucy wanted and messaged about instead.
+  //
+  // Shorter than it was, because it is no longer the whole message. This text
+  // lands in the free-text slot of generic_message_v4, whose approved body
+  // already ends by inviting her to reply if she wants to change or cancel
+  // anything. Saying it here too gave her the same offer twice in four lines.
+  // An approved body cannot be edited, so this is the half that moves.
   const blurb = isCalendarLink
-    ? `Add your appointment to your calendar so you don't lose it, or change it if you need to: ${url}`
-    : `Need to change your appointment, add another treatment, or cancel? You can do it all here: ${url}`;
+    ? `Here is your appointment, ready to add to your calendar: ${url}`
+    : `Here is everything about your appointment, including adding another treatment: ${url}`;
 
   const wa = await sendWhatsApp({
     to: phone,
