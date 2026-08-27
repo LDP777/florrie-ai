@@ -1835,15 +1835,29 @@ export async function notifyReminder24h(appointmentId) {
   // guard: a concurrent/duplicate run hits a unique violation (23505), which we treat
   // as "already reminded" and bail out before sending. Insert-first beats the old
   // check-then-insert race where two overlapping runs could both pass the count check.
-  const { error: markerError } = await supabase.from('ai_actions').insert({
+  //
+  // CLAIMED AS 'pending', NOT 'success', AND THIS IS THE SECOND HALF OF THE FIX.
+  // The row has to be written before the send, for the race above. But it used
+  // to be written saying the send had already succeeded, and nothing ever went
+  // back to correct it. So on 27 August 2026, when the reminder was found to
+  // have been rejected by Meta for parameter count since the day it was
+  // written, every one of those failures had left a row reading "Sent Sophie's
+  // 24-hour reminder". The audit trail did not merely miss the outage, it
+  // asserted the opposite of it, to the one person who could have noticed.
+  //
+  // 'pending' claims the appointment just as well, because the unique index
+  // does not read this column. What actually happened is written below, once
+  // it is known.
+  const clientName = appt.clients?.first_name || 'the client';
+  const { data: marker, error: markerError } = await supabase.from('ai_actions').insert({
     beautician_id: appt.beautician_id,
     action_type: 'appointment_reminder',
     digital_employee: 'calendar',
-    outcome: 'success',
-    summary: `Sent ${appt.clients?.first_name || 'the client'}'s 24-hour reminder`,
+    outcome: 'pending',
+    summary: `Sending ${clientName}'s 24-hour reminder`,
     client_id: appt.client_id,
     appointment_id: appointmentId,
-  });
+  }).select('id').maybeSingle();
   if (markerError) {
     // 23505 = unique violation → another run already claimed this reminder. Skip silently.
     if (markerError.code === '23505') return;
@@ -1865,45 +1879,56 @@ export async function notifyReminder24h(appointmentId) {
 
   const textMsg = `Hi ${client.first_name}, just a reminder your ${treatmentName} with ${bizName} is tomorrow at ${timeStr}. Reply here if you need to change anything. See you then!`;
 
-  // SMS/WhatsApp — only if opted in
-  if (prefs.reminder_24h !== false) {
-    const channel = prefs.channel || 'whatsapp';
-    if (channel === 'whatsapp' && client.phone) {
-      // TWO parameters, not three. reminder_24h_v2's approved body is "Hi
-      // {{1}}, just a reminder that your appointment is tomorrow at {{2}}." and
-      // has never had a treatment slot, so every reminder sent as three params
-      // was rejected by Meta for parameter count and reached nobody. Found on
-      // 27 August 2026 by reading the live WABA; see lib/whatsapp-templates.js.
-      //
-      // The treatment name goes in templateExtras: _v4 does have a slot for it
-      // and will use it the moment Meta approves _v4, and until then its
-      // absence costs the client nothing, because the body she gets never
-      // promised to name her treatment.
-      const waResult = await sendWhatsApp({
-        to: client.phone,
-        templateName: 'reminder_24h_v2',
-        templateParams: [client.first_name, timeStr],
-        templateExtras: { treatment: treatmentName },
-        beauticianId: appt.beautician_id,
-      });
-      // Fall through to SMS if WhatsApp not available
-      if (!waResult && client.phone && BIRD_API_KEY) {
-        await sendSMS({ to: client.phone, body: textMsg, beauticianId: appt.beautician_id, messageType: 'appointment_reminder' });
-      }
-    } else if ((channel === 'sms' || !biz?.whatsapp_phone_id) && client.phone) {
-      await sendSMS({ to: client.phone, body: textMsg, beauticianId: appt.beautician_id, messageType: 'appointment_reminder' });
-    }
-  }
+  // What actually reached her, filled in as each channel answers, and written
+  // back to the claimed row at the end. `delivered` staying empty is the whole
+  // point of this: it is the state that used to be indistinguishable from a
+  // successful reminder.
+  const delivered = [];
+  let failure = null;
 
-  // Email — always send unless explicitly disabled
-  if (client.email && prefs.email_reminder !== false) {
-    const html = emailTemplate({
-      bizName,
-      brandColor: biz.brand_color,
-      tagline: biz.tagline,
-      logoUrl: biz.logo_url,
-      signOff: prefs.email_sign_off,
-      content: `
+  try {
+    // SMS/WhatsApp — only if opted in
+    if (prefs.reminder_24h !== false) {
+      const channel = prefs.channel || 'whatsapp';
+      if (channel === 'whatsapp' && client.phone) {
+        // TWO parameters, not three. reminder_24h_v2's approved body is "Hi
+        // {{1}}, just a reminder that your appointment is tomorrow at {{2}}." and
+        // has never had a treatment slot, so every reminder sent as three params
+        // was rejected by Meta for parameter count and reached nobody. Found on
+        // 27 August 2026 by reading the live WABA; see lib/whatsapp-templates.js.
+        //
+        // The treatment name goes in templateExtras: _v4 does have a slot for it
+        // and will use it the moment Meta approves _v4, and until then its
+        // absence costs the client nothing, because the body she gets never
+        // promised to name her treatment.
+        const waResult = await sendWhatsApp({
+          to: client.phone,
+          templateName: 'reminder_24h_v2',
+          templateParams: [client.first_name, timeStr],
+          templateExtras: { treatment: treatmentName },
+          beauticianId: appt.beautician_id,
+        });
+        if (waResult) delivered.push('whatsapp');
+        // Fall through to SMS if WhatsApp not available
+        if (!waResult && client.phone && BIRD_API_KEY) {
+          const sms = await sendSMS({ to: client.phone, body: textMsg, beauticianId: appt.beautician_id, messageType: 'appointment_reminder' });
+          if (sms) delivered.push('sms');
+        }
+      } else if ((channel === 'sms' || !biz?.whatsapp_phone_id) && client.phone) {
+        const sms = await sendSMS({ to: client.phone, body: textMsg, beauticianId: appt.beautician_id, messageType: 'appointment_reminder' });
+        if (sms) delivered.push('sms');
+      }
+    }
+
+    // Email — always send unless explicitly disabled
+    if (client.email && prefs.email_reminder !== false) {
+      const html = emailTemplate({
+        bizName,
+        brandColor: biz.brand_color,
+        tagline: biz.tagline,
+        logoUrl: biz.logo_url,
+        signOff: prefs.email_sign_off,
+        content: `
         <h2 style="margin:0 0 8px;color:#2d2a26;font-size:18px;font-weight:600">Appointment Tomorrow</h2>
         <p style="margin:0 0 20px;color:#6b6560;font-size:14px">Hi ${client.first_name}, just a quick reminder about your appointment.</p>
         <table width="100%" cellpadding="0" cellspacing="0" style="background:#faf9f7;border-radius:8px;padding:20px">
@@ -1913,22 +1938,44 @@ export async function notifyReminder24h(appointmentId) {
             <p style="margin:0;color:#a09a93;font-size:12px;text-transform:uppercase;letter-spacing:0.5px">When</p>
             <p style="margin:4px 0 16px;color:#2d2a26;font-size:16px;font-weight:600">${dateStr} at ${timeStr}</p>
             <p style="margin:0;color:#a09a93;font-size:12px;text-transform:uppercase;letter-spacing:0.5px">Duration</p>
-            <p style="margin:4px 0 0;color:#2d2a26;font-size:16px;font-weight:600">${treatment.duration_minutes} minutes</p>
+            <p style="margin:4px 0 0;color:#2d2a26;font-size:16px;font-weight:600">${treatment?.duration_minutes || appt.duration_minutes || 30} minutes</p>
           </td></tr>
         </table>
         <p style="margin:20px 0 0;color:#6b6560;font-size:14px">If you can't make it, please let ${bizName} know as soon as possible.</p>
       `,
-    });
+      });
 
-    await sendEmail({
-      to: client.email,
-      subject: `Reminder: ${treatmentName} tomorrow at ${timeStr}`,
-      text: textMsg,
-      html,
-    });
-    // Show the emailed reminder in the client's thread too, so the beautician
-    // can see exactly what went out (email sends were previously invisible here).
-    logOutboundToThread({ beauticianId: appt.beautician_id, clientId: appt.client_id, channel: 'email', body: textMsg });
+      await sendEmail({
+        to: client.email,
+        subject: `Reminder: ${treatmentName} tomorrow at ${timeStr}`,
+        text: textMsg,
+        html,
+      });
+      // Show the emailed reminder in the client's thread too, so the beautician
+      // can see exactly what went out (email sends were previously invisible here).
+      logOutboundToThread({ beauticianId: appt.beautician_id, clientId: appt.client_id, channel: 'email', body: textMsg });
+      delivered.push('email');
+    }
+  } catch (err) {
+    // A throw here used to be the worst outcome available: the claim row stayed
+    // behind saying the reminder was sent, and the unique index meant no later
+    // run would ever try again. The client's one reminder was spent on an
+    // exception. Now the throw is recorded and rethrown, so processReminders
+    // still logs it and the row tells the truth.
+    failure = err.message || String(err);
+    throw err;
+  } finally {
+    if (marker?.id) {
+      const ok = delivered.length > 0;
+      await supabase.from('ai_actions').update({
+        // 'failed' and 'pending' are both legal here; the CHECK on this column
+        // allows success, pending, failed and escalated, and nothing else.
+        outcome: ok ? 'success' : 'failed',
+        summary: ok
+          ? `Sent ${clientName}'s 24-hour reminder by ${delivered.join(' and ')}`
+          : `Could not send ${clientName}'s 24-hour reminder${failure ? `: ${failure}` : ', no channel accepted it'}`,
+      }).eq('id', marker.id);
+    }
   }
 }
 
