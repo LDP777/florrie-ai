@@ -372,12 +372,19 @@ export function judgeConfirmationLinks({ confirmations, links, windowDays = CONF
     status: 'warn',
     ...base,
     link_ratio: Number(ratio.toFixed(2)),
+    // The advice this used to give was "check the template is APPROVED", which
+    // was the wrong end of it. On 27 August 2026 generic_message_v2 was found
+    // to have been APPROVED the whole time; it simply has ONE slot, and the
+    // send passed two, so Meta refused every one on parameter count. Anybody
+    // following the old sentence would have looked at the status column, seen
+    // APPROVED, and concluded the check was broken. Point at the count.
     detail:
       `${confirmations} WhatsApp booking confirmations went out in the last ${windowDays} days and only ${links} carried a booking link, `
       + 'so those clients cannot add the appointment to a calendar, add a treatment, reschedule or cancel it themselves. '
-      + 'The approved confirmation template cannot hold a url, so the link travels in a second generic_message send: '
-      + 'check that template is APPROVED on the WABA the sending number is parented to '
-      + '(GET /api/whatsapp/template-debug?name=generic_message says which).',
+      + 'The approved confirmation template cannot hold a url, so the link travels in a second generic_message send. '
+      + 'APPROVED is not enough: an approved body Meta refuses on PARAMETER COUNT looks identical from here. '
+      + 'Read the template_params check in this same payload, which compares every declared version against the body Meta actually holds. '
+      + 'Note also that this window is 14 days trailing, so it keeps warning for a fortnight after the fix lands.',
   };
 }
 
