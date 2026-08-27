@@ -11,12 +11,18 @@
  * supplied the time and nothing contradicts it. An instruction is a preference;
  * this file is the check.
  *
- * Three claims are refused unless they can be backed:
+ * Five claims are refused. Four of them can be backed by evidence:
  *   1. Naming a clock time that is not on the verified list of free slots.
  *   2. Saying a booking has been moved, changed or made, when no such write
  *      happened in the same request.
  *   3. Saying something has been, or is about to be, SENT to the client, when
  *      no send happened in the same request.
+ *   4. Telling somebody standing outside how to get in, where to park, where to
+ *      wait or which door it is, when the salon's own arrival note does not say
+ *      so. See ARRIVAL_FACETS.
+ * The fifth cannot be backed by anything, ever:
+ *   5. Claiming to be physically present, to be ready, or to perform a
+ *      physical act. Florrie is not in the building. See PRESENCE_CLAIMS.
  *
  * The third was added on 26 Aug 2026. A client wrote "...don't think I got a
  * confirmation. Do you know what the email is called?" and Florrie answered
@@ -145,12 +151,274 @@ const SEND_CLAIMS = [
   // The delivery promise with no verb of sending in it at all, which is the
   // half of the 26 August reply that would have survived on its own:
   // "should come through in a min xx".
-  /\bcomes?\s+through\b/i,
+  //
+  // A SUBJECT OR A MODAL IS REQUIRED, and that is the 27 August correction to
+  // this line. It used to be a bare /\bcomes?\s+through\b/, which also matched
+  // "Come through when you get here", the sentence Ellie herself sent to a
+  // client on her doorstep at 11:33 that morning. That is not an email
+  // arriving, it is an instruction to a person, and once the salon has written
+  // an arrival note it is the owner's own words and hers to send. It belongs to
+  // ARRIVAL_FACETS below, which evidences it against the note. Everything that
+  // genuinely reads as delivery still has something in front of it.
+  /\bcomes\s+through\b/i,
+  /\b(?:should|shall|will|would|may|might|must|to|it|that|this|they|one|email|e-?mail|text|link|receipt|invoice|reminder|reminders|confirmation|confirmations)(?:'?ll)?\s+(?:just\s+|all\s+|still\s+|soon\s+)?come\s+through\b/i,
   /\bcoming\s+through\b/i,
   /\bon\s+(?:its|it's|the)\s+way\b/i,
   /\bin\s+your\s+inbox\b/i,
   /\b(?:should|will|shall)\s+be\s+with\s+you\s+(?:shortly|in\b|any\b)/i,
   /\b(?:arrive|arrives|arriving|land|lands|landing)\s+(?:shortly|in\s+a\b|in\s+your\b|any\s+(?:minute|second|moment))/i,
+];
+
+/* ------------------------------------------------- the doorstep, 27 August --
+ * 27 August 2026, 11:32, to a client who was standing outside the door.
+ *
+ *   11:32  in   client  "Im 60 seconds away!"
+ *   11:32  out  ai      "Oh I'm ready! I'll come get you xx"
+ *   11:33  out  human   "Come through when you're here! It's a bit hecgiv"
+ *   11:33  out  human   "Hectic with the festival staff**"
+ *
+ * escalated: false. Nothing held it. One minute later Ellie had to contradict
+ * her own assistant to a client already on the step.
+ *
+ * READ ELLIE'S LINE AGAIN, because it is the whole design. "Come through when
+ * you're here" is a correct answer to a doorstep message, said by the person
+ * who owns the fact, and it is sayable in nine words. So speaking was not the
+ * mistake. Speaking FROM NOTHING was. Florrie said she was ready, when only the
+ * person in the room knows that and the person in the room was dealing with
+ * festival staff. And she said she would come and get her, which is a physical
+ * act performed by a body in a building, promised by software running
+ * somewhere else, and immediately contradicted.
+ *
+ * A first pass at this banned the whole category: never answer a message about
+ * the physical present moment. That leaves a client standing outside in silence
+ * until the owner picks up her phone, which is a worse product than the bug.
+ *
+ * So the category splits in two, and the split is the same one this file has
+ * made four times already: what can be evidenced, and what cannot.
+ *
+ *   PRESENCE_CLAIMS   refused always, no flag, because no note anybody can
+ *                     write makes software able to do these.
+ *   ARRIVAL_FACETS    refused only when the salon's own arrival note does not
+ *                     cover them. Ellie writes "Come through when you get here,
+ *                     no need to knock" once, and Florrie may then say it.
+ */
+
+// Getting a body to a person, and the person being fetched.
+const MOTION_VERB = '(?:come|comes|coming|comin|nip|nipping|pop|popping|head|heading|run|running|dash|dashing)';
+const FETCH_VERB = '(?:get|grab|collect|fetch|meet|greet)';
+// "get you booked in" and "get you sorted" are ordinary salon English about
+// admin, not about walking to a door, so the fetch only counts when nothing
+// like that follows.
+const NOT_A_FETCH = '(?!\\s+(?:sorted|booked|in\\b|down\\b|scheduled|penciled|pencilled|fixed|set\\s+up|started))';
+
+// First person, present or future. Florrie writes AS the beautician, so "we"
+// is her too. No third person subject on purpose (see the note below).
+const ME = "(?:i'?ll|i will|i'?m going to|i am going to|i'?m|im|i am|we'?ll|we will|we'?re|we are)";
+
+/* ---------------------------------------------------------- presence claims --
+ * NEVER TRUE, AND UNLIKE EVERY OTHER LIST IN THIS FILE THERE IS NO EVIDENCE
+ * FLAG. actionPerformed and sendPerformed exist because a booking write and a
+ * message dispatch are things this software can really do, so those sentences
+ * can become true. arrivalNote exists because the owner really can have written
+ * down where to park. There is nothing anybody can write that makes Florrie
+ * able to walk to a door, look at a room, or know she is ready.
+ *
+ * Both halves of the 27 August reply are in here, so the note cannot rescue it:
+ * a salon whose arrival note says "come through" still may not be told "I'm
+ * ready! I'll come get you", because that is a different claim about a
+ * different fact and the note does not hold it.
+ *
+ * WHAT IS DELIBERATELY LET THROUGH, because over-blocking is its own failure:
+ *
+ *   "I'll check my book and come straight back to you" is the sanctioned
+ *   holding reply and it contains the word "come". Every pattern below that
+ *   involves coming requires a person as the thing being fetched ("come get
+ *   YOU"), so the holding reply passes. There is a test that says so.
+ *
+ *   "Ellie will come and get you", "she's just finishing up" and anything else
+ *   in the THIRD person is not here. Reporting what the owner said or will do
+ *   is a different fact with a different owner, the draft goes to her, and she
+ *   reads it knowing she has to do it. lib/grounded-reply.js owns third party
+ *   promises (promisesAHumanAction) and its verb list was widened for this
+ *   incident instead. Duplicating it here would ban a legitimate handover.
+ *
+ *   "I'm here to help" / "I'm here if you need anything" is a figure of
+ *   speech, not a location, and is excluded by lookahead.
+ */
+const PRESENCE_CLAIMS = [
+  // "I'll come get you", "I'll come and get you", "I'm coming down to grab
+  // you", "I'll just nip out and meet you". HALF OF THE 27 AUGUST SENTENCE.
+  new RegExp(`\\b${ME}\\s+(?:just\\s+|quickly\\s+|now\\s+)?(?:be\\s+)?${MOTION_VERB}(?:\\s+\\w+){0,2}?\\s+${FETCH_VERB}\\s+(?:you|ya|u)\\b${NOT_A_FETCH}`, 'i'),
+  // Bare participle at the start of a sentence: "Coming to get you now!".
+  // Anchored, so "she is coming to get you" is left to grounded-reply.js.
+  new RegExp(`(?:^|[.!?]\\s*)(?:just\\s+)?(?:coming|comin|popping|nipping|heading|running)\\s+(?:\\w+\\s+){0,2}?${FETCH_VERB}\\s+(?:you|ya|u)\\b${NOT_A_FETCH}`, 'i'),
+
+  // On the way. "I'm on my way", "I'm coming out", "I'm just coming".
+  new RegExp(`\\b${ME}\\s+(?:just\\s+|now\\s+)?(?:on\\s+(?:my|our|the)\\s+way|coming\\s+(?:out|down|now|round|over|through|up)|coming\\b)`, 'i'),
+  // "I'll be right out", "I'll be with you in a moment", "I'll be there".
+  // "out of" excluded: "I'm out of that shade" is stock, not a doorway.
+  new RegExp(`\\b${ME}\\s+(?:just\\s+)?(?:be\\s+)?(?:right\\s+|straight\\s+|just\\s+)?(?:out(?!\\s+of\\b)|there|with\\s+you)\\b`, 'i'),
+  new RegExp(`\\b${ME}\\s+be\\s+(?:right\\s+|straight\\s+)?(?:down|over|through|round|up)\\b`, 'i'),
+
+  // Readiness. Only the person in the room knows this, and on 27 August she
+  // was not ready. THE OTHER HALF OF THE 27 AUGUST SENTENCE. "ready to" is
+  // excluded: "ready to get you booked in" is about admin, not about a door.
+  new RegExp(`\\b${ME}\\s+(?:all\\s+|just\\s+|nearly\\s+|almost\\s+|not\\s+quite\\s+|not\\s+)?(?:about\\s+)?ready\\b(?!\\s+to\\b)`, 'i'),
+  /(?:^|[.!?]\s*)(?:all\s+)?ready\s+(?:for\s+you|when\s+you)\b/i,
+
+  // Still with someone, nearly done. Same problem: she cannot see the room.
+  /\b(?:just\s+)?(?:finishing|wrapping)\s+(?:up|off|with\b|my\b|this\b)/i,
+  new RegExp(`\\b${ME}\\s+(?:just\\s+|currently\\s+)?(?:with|in\\s+with)\\s+(?:a|another|my|the)\\s+(?:client|customer|lady|girl)\\b`, 'i'),
+
+  // Working a door. She has no hands. Note that the DOOR'S STATE is a fact the
+  // owner can write down and lives in ARRIVAL_FACETS below; this is the act of
+  // operating it, which she cannot do however well documented the door is.
+  /\b(?:let|letting|buzz|buzzing|wave|waving)\s+you\s+(?:in|through|up)\b/i,
+  new RegExp(`\\b${ME}\\s+(?:come\\s+(?:and\\s+)?)?(?:open|unlock|prop|answer)\\s+(?:the\\s+)?door\\b`, 'i'),
+
+  // Seeing them. Software has no eyes on the street.
+  /\bi\s+can(?:'?t|not)?\s+see\s+you\b(?!\s*'|\s+(?:have|had|are|were|being|being))/i,
+  new RegExp(`\\b${ME}\\s+(?:just\\s+|right\\s+)?(?:here(?!\\s+(?:to|if|for|all|whenever|any))|outside|out\\s+the\\s+front|out\\s+front|at\\s+the\\s+door|in\\s+the\\s+(?:salon|studio|shop|room)|downstairs|upstairs)\\b`, 'i'),
+
+  // The kettle. There is no kettle. Any sentence about one from software is a
+  // claim to be standing in a room with a kettle in it.
+  /\bkettle\b/i,
+];
+
+/* ----------------------------------------------------------- arrival facets --
+ * TRUE IF SHE WROTE IT DOWN. These are the sentences Ellie herself sent at
+ * 11:33, and a salon that has written an arrival note is entitled to have
+ * Florrie say them in one second instead of five minutes.
+ *
+ * GATED BY FACET, NOT BY PHRASE, and that is the load bearing decision here.
+ * The obvious implementation is to check Florrie's wording against the note's
+ * wording, and it is too brittle to ship: "come on up" and "head up" mean the
+ * same thing to a person on a step, and Ellie will only ever have written one
+ * of them. Worse, the failure is silent and one-sided, so the salon that took
+ * the trouble to write a note is the one whose client gets nothing.
+ *
+ * So each facet is a small pair of pattern lists: what Florrie is CLAIMING, and
+ * what the note has to SAY for that claim to be hers. Florrie may make a claim
+ * in facet F only if the note also matches facet F. The facets are independent,
+ * which is the point:
+ *
+ *   note "Parking is on Mill Street"       -> may answer about parking
+ *                                          -> still refused "come through"
+ *   note "Come through when you get here"  -> may say come through
+ *                                          -> still refused "it's on the latch"
+ *
+ * FIVE FACETS, NOT ONE. Every one of these is a separate fact about a separate
+ * physical thing, and any coarser grouping licenses a sentence the owner never
+ * wrote. "Which buzzer" is deliberately its own facet rather than part of
+ * entry, because "come through when you get here" says nothing whatsoever about
+ * there being a buzzer, let alone which one.
+ *
+ * The claim patterns are kept tight on purpose. This guard runs on EVERY reply
+ * that leaves the building, not just doorstep ones (routes/escalations.js,
+ * routes/outbound.js, services/conversational-booking.js), so a loose pattern
+ * here refuses ordinary salon English on a message that had nothing to do with
+ * a door. Where they had to choose, they choose to miss rather than to over
+ * block: PRESENCE_CLAIMS above is the fence that has to be tight.
+ */
+
+// Where a clause can start, which is where an imperative lives. Anchored, so
+// the delivery sense of "it should come through in a min" (an email, owned by
+// SEND_CLAIMS above and evidenced there) is untouched by the entry patterns.
+const CLAUSE_OPEN = '(?:^|[.!?]\\s*|,\\s*|\\bso\\s+|\\band\\s+|\\bthen\\s+)(?:please\\s+|just\\s+|do\\s+)?';
+
+const ARRIVAL_FACETS = [
+  {
+    facet: 'entry',
+    what: 'how to get in',
+    // "Come through", "come on up", "head straight through", "walk right in".
+    claims: [
+      new RegExp(`${CLAUSE_OPEN}come\\s+(?:on\\s+|right\\s+|straight\\s+)?(?:through|in\\b|inside|up\\b|round\\b|on\\s+up)\\b`, 'i'),
+      // "pop", "head" and "walk" get THROUGH for free and everything else only
+      // with an adverb. "Pop in and we will get you sorted" and "walk in
+      // appointments" are ordinary salon English about visiting at some point;
+      // "pop through" and "walk straight in" are only ever said to somebody
+      // already on the step. There is a test for the difference.
+      new RegExp(`${CLAUSE_OPEN}(?:pop|head|walk|make\\s+your\\s+way)\\s+(?:on\\s+|right\\s+|straight\\s+)?through\\b`, 'i'),
+      new RegExp(`${CLAUSE_OPEN}(?:pop|head|walk|make\\s+your\\s+way)\\s+(?:right\\s+|straight\\s+)(?:in\\b|inside|up\\b)`, 'i'),
+      /\b(?:let|show)\s+yourself\s+in\b/i,
+      /\bno\s+need\s+to\s+(?:knock|buzz|ring|wait)\b/i,
+    ],
+    // Her own instruction, in any of the ways she might have phrased it.
+    note: [
+      /\b(?:come|pop|head|walk|make\s+your\s+way)\s+(?:on\s+|right\s+|straight\s+)?(?:through|in\b|inside|up\b|round\b|on\s+up)\b/i,
+      /\b(?:let|show)\s+yourself\s+in\b/i,
+      /\bstraight\s+(?:in|through|up)\b/i,
+      /\bno\s+need\s+to\s+(?:knock|buzz|ring)\b/i,
+      /\bdon'?t\s+(?:knock|buzz|ring)\b/i,
+    ],
+  },
+  {
+    facet: 'door_state',
+    what: 'whether the door is open',
+    claims: [
+      /\bdoor(?:'?s)?\s*(?:is|will\s+be|should\s+be|s)?\s*(?:open|unlocked|on\s+the\s+latch)\b/i,
+      // "it's open" is left out on purpose: it is far more often about opening
+      // hours ("are you open Saturday?" / "yes it's open till five") than about
+      // a door, and refusing that would be this guard leaking into a question
+      // it has nothing to do with. "unlocked" and "latch" are door words only.
+      /\b(?:it'?s|its)\s+(?:unlocked|on\s+the\s+latch)\b/i,
+      /\bon\s+the\s+latch\b/i,
+    ],
+    note: [
+      /\bdoor\b[^.!?]*\b(?:open|unlocked|latch|push)\b/i,
+      /\b(?:open|unlocked|on\s+the\s+latch)\b[^.!?]*\bdoor\b/i,
+      /\bon\s+the\s+latch\b/i,
+    ],
+  },
+  {
+    facet: 'parking',
+    what: 'where to park',
+    claims: [
+      /\bpark(?:ing)?\s+(?:is\s+|it\s+)?(?:on|in|at|outside|opposite|behind|round\s+the\s+back|out\s+(?:the\s+)?(?:front|back)|anywhere|free)\b/i,
+      /\b(?:you\s+can|feel\s+free\s+to|happy\s+for\s+you\s+to)\s+park\b/i,
+      /\bcar\s?park\b/i,
+      // Qualified, because the bare verb is a different word: "we do not permit
+      // refunds after 48 hours" is a policy sentence, not a parking one.
+      /\b(?:parking|resident'?s?|visitor'?s?)\s+permit\b/i,
+    ],
+    note: [/\bpark(?:ing|ed)?\b/i, /\bcar\s?park\b/i, /\bpermit\b/i],
+  },
+  {
+    facet: 'waiting',
+    what: 'where to wait',
+    claims: [
+      /\b(?:take|have|grab)\s+a\s+(?:seat|pew)\b/i,
+      /\bwait\s+(?:in|at|by|out|on)\s+(?:the\s+)?(?:reception|waiting\s+(?:area|room)|hall(?:way)?|lobby|front|car|sofa|chairs?)\b/i,
+      /\bmake\s+yourself\s+(?:comfortable|at\s+home)\b/i,
+      /\bhelp\s+yourself\s+to\b/i,
+    ],
+    note: [
+      /\bwait(?:ing)?\b/i,
+      /\b(?:seat|pew|sofa|reception|lobby|waiting\s+(?:area|room))\b/i,
+      /\bmake\s+yourself\s+(?:comfortable|at\s+home)\b/i,
+      /\bhelp\s+yourself\b/i,
+    ],
+  },
+  {
+    facet: 'directions',
+    what: 'which door, buzzer or floor it is',
+    claims: [
+      /\b(?:buzzer|intercom|door\s?bell)\b/i,
+      /\b(?:ring|press|push)\s+(?:the\s+)?(?:bell|buzzer|number|flat)\b/i,
+      /\b(?:first|second|third|ground|top|upper|lower)\s+floor\b/i,
+      /\b(?:flat|unit|studio|suite)\s+(?:number\s+)?\d+/i,
+      /\b(?:blue|red|green|black|white|side|back|rear|left|right|middle|glass)\s+door\b/i,
+      /\bdoor\s+(?:on\s+the\s+)?(?:left|right)\b/i,
+    ],
+    note: [
+      /\b(?:buzzer|intercom|door\s?bell|bell)\b/i,
+      /\b(?:first|second|third|ground|top|upper|lower)\s+floor\b/i,
+      /\b(?:flat|unit|studio|suite)\s+(?:number\s+)?\d+/i,
+      /\b(?:blue|red|green|black|white|side|back|rear|left|right|middle|glass)\s+door\b/i,
+      /\bdoor\s+(?:on\s+the\s+)?(?:left|right)\b/i,
+      /\bupstairs\b|\bdownstairs\b/i,
+    ],
+  },
 ];
 
 /**
@@ -249,20 +517,74 @@ export function timesMentionedIn(text) {
  * @param {boolean} opts.sendPerformed   true only if something really was SENT
  *                                      to this client in this same request,
  *                                      and the send reported success.
- * @returns {{ok: boolean, reason?: string, offending?: string[]}}
+ * @param {string} opts.arrivalNote      the salon's own written words about
+ *                                      arriving, from the Knowledge page.
+ *                                      Evidence for ARRIVAL_FACETS, and read
+ *                                      facet by facet: a note about parking
+ *                                      does not license "come through".
+ *                                      Callers pass everything she has written
+ *                                      that could back one of these facets, not
+ *                                      only the 'arrival' entry: a parking FAQ
+ *                                      she wrote in March is her word too, and
+ *                                      narrowing this to one category refuses
+ *                                      "free parking on Mill Road" on an
+ *                                      ordinary question about parking. See
+ *                                      writtenNotesFrom in lib/knowledge.js.
+ * @returns {{ok: boolean, reason?: string, offending?: string[], facet?: string}}
  */
 /*
- * WHY TWO FLAGS AND NOT ONE.
+ * WHY THREE FLAGS AND NOT ONE.
  *
  * They are different facts about different machinery, and a single flag would
  * launder one into the other. A request that genuinely resent a confirmation
  * would set the one flag, and the same reply could then say "you're all moved
  * to Thursday" and pass -- which is the 28 July incident, waved through by the
- * fix for the 26 August one. A booking write and a message dispatch have to be
- * evidenced separately because they are evidenced by separate code.
+ * fix for the 26 August one. A booking write, a message dispatch and a written
+ * arrival note have to be evidenced separately because they are evidenced by
+ * separate code, and the note goes further still: it is evidenced facet by
+ * facet within itself, because one sentence about parking is not permission to
+ * talk about a door.
  */
-export function checkReplyClaims(text, { allowedTimes = [], actionPerformed = false, sendPerformed = false } = {}) {
+export function checkReplyClaims(text, { allowedTimes = [], actionPerformed = false, sendPerformed = false, arrivalNote = '' } = {}) {
   const body = String(text || '');
+
+  // FIRST, and with no flag that can switch it off. Florrie is not in the
+  // building. Everything below this can in principle become true and is
+  // therefore gated on evidence; this cannot, so it is gated on nothing. Both
+  // halves of the 27 August reply are refused here, so a salon that HAS written
+  // an arrival note still never gets "I'm ready! I'll come get you".
+  for (const pattern of PRESENCE_CLAIMS) {
+    const hit = body.match(pattern);
+    if (hit) {
+      return {
+        ok: false,
+        reason: 'claimed to be present or to do something physical',
+        offending: [hit[0].trim()],
+      };
+    }
+  }
+
+  // Then the things Ellie's own note CAN make true. Kept here, above the time
+  // and action checks, so the doorstep verdicts stay together and read in the
+  // order the 27 August reply fails them.
+  const note = String(arrivalNote || '');
+  for (const { facet, what, claims, note: noteSays } of ARRIVAL_FACETS) {
+    let hit = null;
+    for (const pattern of claims) {
+      hit = body.match(pattern);
+      if (hit) break;
+    }
+    if (!hit) continue;
+    if (note && noteSays.some(p => p.test(note))) continue;
+    return {
+      ok: false,
+      // Names the facet, so the log explains itself rather than sending
+      // whoever reads it looking for a note that would not have helped.
+      reason: `said ${what}, and the salon's arrival note does not cover ${facet}`,
+      offending: [hit[0].trim()],
+      facet,
+    };
+  }
 
   const allowed = new Set(
     allowedTimes.map(normaliseTime).filter(Boolean),

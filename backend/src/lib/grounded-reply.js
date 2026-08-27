@@ -204,6 +204,98 @@ export function asksForHuman(message, beauticianFirstName) {
   return byName ? byName.test(m) : false;
 }
 
+/**
+ * SOMEBODY IS AT THE DOOR, and this is the half of the 27 August fix that
+ * decides who gets to answer them.
+ *
+ * A client wrote "Im 60 seconds away!" and Florrie answered on her own, in one
+ * second, "Oh I'm ready! I'll come get you xx". A minute later Ellie had to
+ * write over the top of her, to a client already on the step: "Come through
+ * when you're here! It's a bit hectic with the festival staff".
+ *
+ * Ellie's own sentence is the specification. A correct answer to a doorstep
+ * message EXISTS, it is nine words long, and she should not have to type it
+ * while she is holding a brush. Florrie's failure was not that she spoke. It
+ * was that she spoke from nothing: "I'm ready" about a room she cannot see, and
+ * "I'll come get you" about a body she does not have.
+ *
+ * So this function does not decide whether the message may be answered. It only
+ * spots the MOMENT, and hands the decision to the evidence: an arrival note the
+ * owner wrote herself (lib/knowledge.js, category 'arrival'). With a note,
+ * Florrie answers from it, in Ellie's words, and lib/reply-claims-guard.js
+ * holds her to the facets the note actually covers. With no note she says
+ * nothing and the owner is buzzed instead (services/push-notifications.js,
+ * pushAtTheDoor), which is the only honest thing left. Silence on the whole
+ * category was the first attempt at this fix and it is a worse product: it
+ * leaves a client standing outside with nothing while the owner finds her
+ * phone.
+ *
+ * Like looksLikeABookingOpening this reads the EVIDENCE IN THE WORDS rather
+ * than trusting a label. No intent, no confidence, and deliberately no clock: a
+ * message that says "I'm outside" is about the present moment at 9am and at
+ * 9pm, and a rule that reads the wall clock is a rule that behaves differently
+ * in a test at noon and at midnight.
+ *
+ * The cost of a false positive here is now small in both directions: the owner
+ * gets one alert about a message she would mostly have wanted to see, and
+ * Florrie answers from a note or not at all. The cost of a false negative is a
+ * client standing outside being told something invented by a machine. The
+ * patterns are tuned accordingly.
+ */
+const AT_THE_DOOR = [
+  // Arrived, or about to be.
+  /\b(?:i'?m|im|i am|we'?re|we are|were)\s+(?:just\s+|nearly\s+|almost\s+|right\s+|now\s+)?(?:here|outside|out\s+the\s+front|out\s+front|at\s+the\s+door|at\s+yours|at\s+the\s+salon|at\s+the\s+studio|downstairs|upstairs|in\s+reception|in\s+the\s+car\s?park|round\s+the\s+back|parked|pulling\s+(?:up|in)|on\s+my\s+way|omw|coming\s+up|waiting\s+(?:outside|in\s+the\s+car|out\s+front|by\s+the\s+door))\b/i,
+  /\b(?:i'?ve|ive|i have)\s+(?:just\s+)?(?:arrived|got\s+here|pulled\s+up|parked|landed)\b/i,
+  /\b(?:just\s+)?(?:arrived|pulled\s+up|pulling\s+up|parked\s+up|parked\s+outside)\b/i,
+  // "60 seconds away", "5 mins away", "two minutes out".
+  /\b(?:\d+|one|two|three|four|five|ten|fifteen|twenty|thirty|sixty)\s*(?:min(?:ute)?s?|secs?|seconds?)\s+(?:away|out|late|early)\b/i,
+  // "be there in 5", "with you in a couple of minutes".
+  /\b(?:be|there|here|with\s+you)\s+in\s+(?:a\s+)?(?:\d+|one|two|three|four|five|ten|couple|few)\b/i,
+  /\b(?:just\s+)?(?:around|round)\s+the\s+corner\b/i,
+  /\bon\s+(?:my|our|the)\s+way\b|\bomw\b|\b(?:nearly|almost|just about)\s+there\b|\bnearly\s+with\s+you\b/i,
+
+  // Late. Only the person in the room knows whether a late arrival still works,
+  // and the answer changes the client's next ten minutes.
+  /\b(?:running|gonna\s+be|going\s+to\s+be|will\s+be|might\s+be|may\s+be|i'?ll\s+be|im\s+gonna\s+be)\s+(?:a\s+bit\s+|a\s+little\s+|slightly\s+|about\s+|around\s+|like\s+)?(?:\d+\s*(?:min(?:ute)?s?|mins)?\s*)?(?:late|delayed)\b/i,
+  /\bstuck\s+in\s+(?:traffic|a\s+queue)\b|\btraffic\s+is\s+(?:awful|terrible|mad|bad)\b|\bheld\s+up\b/i,
+
+  // Cannot find it, cannot get in.
+  /\b(?:can'?t|cant|cannot|couldn'?t|could\s+not)\s+(?:find|see|work\s+out\s+where)\s+(?:you|the\s+(?:door|salon|studio|entrance|place|shop|buzzer)|it|where)\b/i,
+  /\bwhere\s+(?:are\s+you|abouts\s+are\s+you|is\s+it|do\s+i\s+(?:go|park|wait)|should\s+i\s+park)\b(?!\s*(?:based|located|situated))/i,
+  /\bwhich\s+(?:door|buzzer|floor|entrance|flat|number)\b/i,
+  /\b(?:door|buzzer|gate|bell)\s+(?:is\s+|'?s\s+)?(?:locked|shut|closed|not\s+working|isn'?t\s+working)\b/i,
+  /\bno(?:body|\s+one)?\s+(?:is\s+)?answer(?:ing)?\b/i,
+  /\b(?:i'?ve\s+|ive\s+|just\s+)?(?:knocked|knocking|buzzed|buzzing|rang\s+the\s+bell)\b/i,
+  // "shall I come in?", "am I ok to come up?", "do I just walk in?"
+  /\b(?:shall|should|can|do)\s+i\s+(?:just\s+)?(?:come\s+(?:in|up|through|round)|wait|knock|buzz|walk\s+(?:in|up)|park)\b/i,
+  /\bam\s+i\s+(?:ok|okay|alright)\s+to\s+(?:come|park|wait)\b/i,
+];
+
+/**
+ * Is this client talking about where they are RIGHT NOW?
+ *
+ * @param {string} message the client's own words
+ * @returns {string|null} the phrase that says so, for the escalation reason and
+ *                        the log, or null. A phrase rather than a boolean so a
+ *                        decision can be read back afterwards instead of
+ *                        reconstructed.
+ */
+export function atTheDoorPhrase(message) {
+  const body = String(message || '');
+  if (!body.trim()) return null;
+  for (const pattern of AT_THE_DOOR) {
+    const hit = body.match(pattern);
+    if (hit) return hit[0].trim();
+  }
+  return null;
+}
+
+/* A boolean twin of atTheDoorPhrase was written alongside it and exported for
+ * "the call sites that only need the yes or no". There are none: every caller
+ * puts the phrase in a log line or an escalation reason, which is the point of
+ * returning it. Removed rather than left, because an exported helper that names
+ * callers it does not have is the kind of thing the next person trusts. */
+
 /** "I'll get her to call you" in any of the forms a model writes it. */
 function promisesAHumanAction(text, beauticianFirstName) {
   const body = String(text || '');
@@ -220,13 +312,22 @@ function promisesAHumanAction(text, beauticianFirstName) {
   // over" is a commitment nobody made, and that is caught here.
   const SEND_VERBS = 'send|sends|sending|email|emails|emailing|forward|forwards|resend|resends';
 
+  // Presence, added 27 August. Florrie auto-sent "Oh I'm ready! I'll come get
+  // you xx" to a client on the doorstep. The first person half of that is
+  // refused outright by lib/reply-claims-guard.js, because no evidence can ever
+  // make it true. The THIRD person half is different and belongs here: "Ellie
+  // will come and get you" is a commitment made on somebody else's behalf, in
+  // a building this process cannot see, and it must reach her as a draft she
+  // reads rather than a message a client acts on.
+  const PRESENCE_VERBS = 'come|comes|coming|collect|collects|fetch|fetches|meet|meets|greet|greets|let you in|open the door|be out|be down|be with you|be ready';
+
   const firstPerson = ["i'?ll", 'i will'];
   const thirdPerson = ["she'?ll", 'she will', "we'?ll", 'we will'];
   const first = displayName(fold(beauticianFirstName)).split(' ')[0];
   if (first) thirdPerson.push(`${escapeRe(first)}\\s+will`);
 
   const own = new RegExp(`\\b(?:${firstPerson.join('|')})\\b.*\\b(?:${HUMAN_VERBS})\\b`, 'i');
-  const other = new RegExp(`\\b(?:${thirdPerson.join('|')})\\b.*\\b(?:${HUMAN_VERBS}|${SEND_VERBS})\\b`, 'i');
+  const other = new RegExp(`\\b(?:${thirdPerson.join('|')})\\b.*\\b(?:${HUMAN_VERBS}|${SEND_VERBS}|${PRESENCE_VERBS})\\b`, 'i');
 
   return own.test(body) || other.test(body);
 }
@@ -237,30 +338,52 @@ function promisesAHumanAction(text, beauticianFirstName) {
  * Returns { grounded, reason }. `reason` is logged and shown in the activity
  * feed, so a decision can always be explained after the fact.
  */
-export function isGroundedReply({ intent, message, context, reply, beauticianFirstName }) {
+export function isGroundedReply({ intent, message, context, reply, beauticianFirstName, arrivalNote = '' }) {
   if (asksForHuman(message, beauticianFirstName)) return { grounded: false, reason: 'asked_for_a_human' };
 
+  // THE DOORSTEP, and it is decided on the note rather than on the category.
+  //
+  // Checked before the intent, because the classifier will happily call "Im 60
+  // seconds away!" a greeting, and a greeting is grounded for reasons that have
+  // nothing to do with a client on a step. What makes it grounded or not is
+  // whether Ellie has written down what she wants said to somebody who has just
+  // arrived. If she has, that note IS the fact, exactly as the diary is the
+  // fact behind a booking lookup, and the claims guard holds the wording to it.
+  // If she has not, there is nothing here to answer from and it goes to her.
+  const doorstep = atTheDoorPhrase(message);
+  const note = String(arrivalNote || '').trim();
+  if (doorstep && !note) {
+    return { grounded: false, reason: `at_the_door_with_no_arrival_note:${doorstep}` };
+  }
+
   const key = String(intent || '').toLowerCase();
-  if (UNGROUNDED_INTENTS.has(key)) return { grounded: false, reason: `ungrounded_intent:${key}` };
-  if (!GROUNDED_INTENTS.has(key)) return { grounded: false, reason: `unknown_intent:${key}` };
 
-  // A general question is only grounded if the knowledge base actually had
-  // something to say. Otherwise the model is answering from the prompt, which
-  // is the definition of ungrounded however confident it sounds.
-  if (key === 'general_question' && !(context?.knowledge || []).length) {
-    return { grounded: false, reason: 'no_knowledge_match' };
-  }
+  // The intent gates are skipped for a doorstep message with a note, and only
+  // for that. The label is not the evidence here and never was: the same
+  // "I'm outside" gets called greeting, general_question or unknown depending
+  // on the day, and the note is true in all three cases.
+  if (!doorstep) {
+    if (UNGROUNDED_INTENTS.has(key)) return { grounded: false, reason: `ungrounded_intent:${key}` };
+    if (!GROUNDED_INTENTS.has(key)) return { grounded: false, reason: `unknown_intent:${key}` };
 
-  // A price reply with no price list behind it is a guess.
-  if (key === 'price_enquiry' && !(context?.treatments || []).length) {
-    return { grounded: false, reason: 'no_price_list' };
-  }
+    // A general question is only grounded if the knowledge base actually had
+    // something to say. Otherwise the model is answering from the prompt, which
+    // is the definition of ungrounded however confident it sounds.
+    if (key === 'general_question' && !(context?.knowledge || []).length) {
+      return { grounded: false, reason: 'no_knowledge_match' };
+    }
 
-  // A booking lookup with nothing in the diary is not a lookup — it is Florrie
-  // telling a client she has no appointment, which is a claim worth a human
-  // eye when the client clearly believes otherwise.
-  if (key === 'booking_lookup' && !(context?.clientUpcoming || []).length) {
-    return { grounded: false, reason: 'no_upcoming_booking_to_confirm' };
+    // A price reply with no price list behind it is a guess.
+    if (key === 'price_enquiry' && !(context?.treatments || []).length) {
+      return { grounded: false, reason: 'no_price_list' };
+    }
+
+    // A booking lookup with nothing in the diary is not a lookup. It is Florrie
+    // telling a client she has no appointment, which is a claim worth a human
+    // eye when the client clearly believes otherwise.
+    if (key === 'booking_lookup' && !(context?.clientUpcoming || []).length) {
+      return { grounded: false, reason: 'no_upcoming_booking_to_confirm' };
+    }
   }
 
   // Last line of defence, on the TEXT rather than the intent. A reply that
@@ -274,7 +397,13 @@ export function isGroundedReply({ intent, message, context, reply, beauticianFir
   if (promisesAHumanAction(t, beauticianFirstName)) {
     return { grounded: false, reason: 'reply_promises_a_human_action' };
   }
-  if (/\b(free|available|open|got a slot|squeeze you|fit you)\b/i.test(t) && !/\bnot\b/i.test(t)) {
+  // "open" means a door on a doorstep message, not a slot. Without this
+  // exception the one reply the arrival note exists to allow ("come through,
+  // the door is open") is refused here for claiming availability, and the salon
+  // that took the trouble to write the note is the one whose client gets
+  // nothing. Every other reading of "open" is still caught, and a doorstep
+  // reply that names an actual time is still refused by the claims guard.
+  if (!doorstep && /\b(free|available|open|got a slot|squeeze you|fit you)\b/i.test(t) && !/\bnot\b/i.test(t)) {
     return { grounded: false, reason: 'reply_claims_availability' };
   }
   // And the one that got Leanne: a reply that names a DAY has to name the
@@ -283,7 +412,7 @@ export function isGroundedReply({ intent, message, context, reply, beauticianFir
   const dates = dateClaimCheck(t, context?.clientUpcoming);
   if (!dates.ok) return { grounded: false, reason: dates.reason };
 
-  return { grounded: true, reason: `grounded:${key}` };
+  return { grounded: true, reason: doorstep ? 'grounded:arrival_note' : `grounded:${key}` };
 }
 
 /**

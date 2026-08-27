@@ -17,9 +17,17 @@ const router = Router();
 
 // 42P01 = relation does not exist, 42703 = column does not exist. Either
 // means migration 019 has not been run yet.
-const isPreMigration = (error) => error && (error.code === '42P01' || error.code === '42703');
+//
+// 23514 = a CHECK constraint refused the row, and for this table that means one
+// thing: the category column's CHECK is older than KNOWLEDGE_CATEGORIES. That
+// is exactly what saving an 'arrival' note does before migration 022 is run by
+// hand, and without this line the owner gets "Something went wrong" on the one
+// note the 27 August fix asks her to write. Same family of answer as the other
+// two: a migration nobody has run yet, said plainly.
+const isPreMigration = (error) =>
+  error && (error.code === '42P01' || error.code === '42703' || error.code === '23514');
 
-const MIGRATION_MESSAGE = 'The knowledge base is not switched on yet for this account. Nothing is lost, try again once it is enabled.';
+const MIGRATION_MESSAGE = 'That kind of note is not switched on yet for this account. Nothing is lost, try again once it is enabled.';
 
 function validateFields({ category, title, content }, { partial = false } = {}) {
   if (category !== undefined || !partial) {

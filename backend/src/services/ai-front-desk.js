@@ -12,17 +12,17 @@ import {
   AUTHOR,
 } from '../lib/idiolect.js';
 import { getFreeSlots } from '../lib/free-slots.js';
-import { retrieveKnowledge, renderKnowledgeBlock } from '../lib/knowledge.js';
+import { retrieveKnowledge, renderKnowledgeBlock, arrivalNoteFrom, writtenNotesFrom } from '../lib/knowledge.js';
 import { createBookingSuggestion } from './automations.js';
 import { sendMessage, sendInstagramDM, sendWhatsAppText, sendSMS, notifyBookingConfirmed } from './notifications.js';
-import { pushEscalation, pushTeamUpdate } from './push-notifications.js';
+import { pushEscalation, pushTeamUpdate, pushAtTheDoor } from './push-notifications.js';
 import { refreshLiveActivity } from './live-activity.js';
 import { isKnownClient, clientAutonomyOverride, guardedSend, classifyTier } from '../lib/outbound-guard.js';
 import { getLoyaltyConfig, getClientPoints, loyaltyProximity } from './loyalty.js';
 import { getActivePromos, describePromo } from '../lib/promos.js';
 import { advanceBookingConversation } from './conversational-booking.js';
 import { authorship } from '../lib/authorship.js';
-import { isGroundedReply, asksForHuman, signAsFlorrie } from '../lib/grounded-reply.js';
+import { isGroundedReply, asksForHuman, signAsFlorrie, atTheDoorPhrase } from '../lib/grounded-reply.js';
 import { normaliseOutcome } from '../lib/ai-actions.js';
 
 /**
@@ -110,6 +110,13 @@ const EMOJI_ONLY = /^[\p{Extended_Pictographic}\p{Emoji_Component}\s]+$/u;
 export function replyIsOwed(messageContent, classification) {
   const text = String(messageContent || '').trim();
 
+  // Somebody standing outside is owed an answer from the person inside, and
+  // this line is load bearing: "Im 60 seconds away!" has no question mark, and
+  // this classifier reads it as a greeting, and a short greeting falls through
+  // to the quiet branch below. Without this the 27 August message would not
+  // even have made it into her queue, let alone onto her lock screen.
+  if (atTheDoorPhrase(text)) return true;
+
   // A question mark is the clearest signal someone is waiting. Always owed,
   // whatever the classifier thinks the intent is.
   if (text.includes('?')) return true;
@@ -182,8 +189,61 @@ export async function processInboundMessage(messageId, beautician, client, messa
       return { handled: sent, drafted: !sent, intent: 'marketing_opt_out', response: confirmation };
     }
 
+    // 0b. SOMEBODY IS OUTSIDE, and this is the FIRST thing this function does
+    // after the opt-out check, on purpose.
+    //
+    // 27 August, 11:32. "Im 60 seconds away!" came in, Florrie replied on her
+    // own with "Oh I'm ready! I'll come get you xx", and a minute later Ellie
+    // was writing over the top of her to a client already on the step.
+    //
+    // THIS ALERT IS NOT CONDITIONAL ON HOLDING THE REPLY, and that is the
+    // point of it running here rather than down in the escalation branch. Even
+    // when Florrie can answer properly from the arrival note, Ellie still wants
+    // to know somebody is at her door: she is the one who has to look up.
+    //
+    // Everything below this line is slow on the scale that matters here.
+    // gatherContext reads five tables, classifyIntent is a model call, and the
+    // escalation path is a SECOND model call to write a draft before it pushes
+    // anything at all. That is comfortably several seconds, spent in front of
+    // the only part of this that a person outside a door can feel. So the
+    // doorstep alert jumps the whole queue: no context, no classifier, no
+    // draft, just her own words on Ellie's lock screen.
+    //
+    // It is awaited rather than fired and forgotten, because the answer to
+    // "did she actually get it" is the point, and this is the one push in the
+    // file allowed to fall back to a text when the answer is no.
+    const doorstep = atTheDoorPhrase(messageContent);
+    let doorstepAlert = null;
+    if (doorstep) {
+      doorstepAlert = await pushAtTheDoor(
+        beautician.id,
+        client?.first_name || 'Someone',
+        messageContent,
+        { clientId: client?.id || null }
+      );
+      logger.info(
+        { beauticianId: beautician.id, clientId: client?.id, phrase: doorstep, told: doorstepAlert?.channel },
+        'Client is at the door: alerted the owner before any other work'
+      );
+    }
+
     // 1. Gather context
     const context = await gatherContext(beautician, client, messageContent);
+
+    // WHAT ELLIE HAS WRITTEN DOWN ABOUT ARRIVING, or ''. Read once here and
+    // carried through every decision below, so the gate that lets Florrie
+    // speak, the guard that checks her wording and the prompt that writes it
+    // are all looking at the same sentence. Only read on a doorstep message:
+    // an arrival note is not permission to say "come through" in the middle of
+    // a reply about the price of a lash lift.
+    const arrivalNote = doorstep ? arrivalNoteFrom(context.knowledge) : '';
+
+    // And everything she has written, for the CLAIMS GUARD, which asks a wider
+    // question than the gate does. The gate wants to know whether she has
+    // written an arrival instruction. The guard wants to know whether any
+    // particular sentence is hers, and a parking FAQ she wrote in March is
+    // hers too. See writtenNotesFrom for why the two are not the same string.
+    const writtenNotes = writtenNotesFrom(context.knowledge);
 
     // 2. Classify intent
     const classification = await classifyIntent(messageContent, context);
@@ -221,7 +281,7 @@ export async function processInboundMessage(messageId, beautician, client, messa
     // One switch, so this is reversible without a deploy: autonomy.grounded_replies.
     const groundedRepliesOn = beautician.autonomy?.grounded_replies !== false;
     let groundedDecision = groundedRepliesOn
-      ? isGroundedReply({ intent: classification.intent, message: messageContent, context, beauticianFirstName: beautician.first_name })
+      ? isGroundedReply({ intent: classification.intent, message: messageContent, context, beauticianFirstName: beautician.first_name, arrivalNote })
       : { grounded: false, reason: 'grounded_replies_switched_off' };
 
     // A client Ellie already knows is a relationship she manages personally, so
@@ -241,6 +301,8 @@ export async function processInboundMessage(messageId, beautician, client, messa
       known,
       autonomyOverride,
       threshold: beautician.confidence_threshold,
+      message: messageContent,
+      arrivalNote,
     });
 
     // Asking for a human is answered by a human, full stop — and the thread is
@@ -322,7 +384,7 @@ export async function processInboundMessage(messageId, beautician, client, messa
       const result = convo
         ? { response: convo.reply, toneScore: null, actions: [], intent: classification.intent }
         : await generateResponseAndAct(
-          messageContent, classification, context, beautician, client, { resend }
+          messageContent, classification, context, beautician, client, { resend, arrivalNote, writtenNotes }
         );
 
       // The SECOND grounding check, and it is on the text rather than the
@@ -333,7 +395,7 @@ export async function processInboundMessage(messageId, beautician, client, messa
       if (groundedDecision?.grounded) {
         const onText = isGroundedReply({
           intent: classification.intent, message: messageContent, context, reply: result.response,
-          beauticianFirstName: beautician.first_name,
+          beauticianFirstName: beautician.first_name, arrivalNote,
         });
         if (!onText.grounded) {
           logger.info({ beauticianId: beautician.id, clientId: client?.id, reason: onText.reason },
@@ -343,12 +405,33 @@ export async function processInboundMessage(messageId, beautician, client, messa
         }
       }
 
+      // A DOORSTEP REPLY THE GUARD REFUSED MUST NOT GO OUT AS THE HOLDING REPLY.
+      //
+      // safeReply swaps a refused sentence for "let me check my book and come
+      // straight back to you", and everywhere else in this file that is the
+      // right trade: it is warm, it is always true, and Ellie picks the thread
+      // up from her inbox. To somebody standing outside the door it is a
+      // non-answer that reads as a brush-off, and it costs her the one thing
+      // she came here for. So the message is held instead and the draft path
+      // decides, on the same rule, whether there is anything worth offering.
+      if (doorstep && result.blocked) {
+        logger.info({ beauticianId: beautician.id, clientId: client?.id },
+          'Doorstep reply refused by the claims guard, holding it rather than sending the fallback');
+        groundedDecision = { grounded: false, reason: 'doorstep_reply_failed_the_claims_guard' };
+        shouldAct = false;
+      }
+
       if (!shouldAct) {
         // Fall through to the draft path with the reply we already generated,
         // rather than generating a second one.
         return await escalateWithDraft({
           beautician, client, messageContent, classification, context, messageId,
-          draft: result.response, reason: groundedDecision?.reason || 'held_after_generation',
+          // Except when that reply is the holding reply standing in for one the
+          // guard refused: offering it as a one-tap is the same non-answer with
+          // an extra step, so the draft path writes a fresh one or none.
+          draft: result.blocked ? null : result.response,
+          reason: groundedDecision?.reason || 'held_after_generation',
+          doorstep: !!doorstep, arrivalNote, writtenNotes, skipPush: !!doorstep, alert: doorstepAlert,
         });
       }
 
@@ -417,6 +500,23 @@ export async function processInboundMessage(messageId, beautician, client, messa
       return await escalateWithDraft({
         beautician, client, messageContent, classification, context, messageId,
         draft: convo?.reply || null,
+        // A doorstep escalation still gets a draft. An earlier version of this
+        // fix skipped it, reasoning that every sentence worth sending to
+        // somebody outside is a fact only the person in the room holds. That is
+        // true of what Florrie can INVENT and false of what Ellie has written
+        // down, and it is the wrong trade even with nothing written down: she
+        // would still rather tap than type while a client waits. What she must
+        // never get is a one-tap suggestion Florrie is not allowed to send, so
+        // the draft is written under the doorstep tone rule and re-checked, and
+        // a draft that fails the guard becomes no draft at all.
+        doorstep: !!doorstep,
+        arrivalNote,
+        writtenNotes,
+        // pushAtTheDoor has already buzzed her, louder and sooner than
+        // pushEscalation would. A second notification for the same message
+        // would teach her to ignore both.
+        skipPush: !!doorstep,
+        alert: doorstepAlert,
         // Say the real reason. An escalation logged as "Low confidence (85%)"
         // when the truth is "she set this thread to just me" is a reason that
         // sends whoever reads it looking in the wrong place — and for months
@@ -425,7 +525,11 @@ export async function processInboundMessage(messageId, beautician, client, messa
         // A held resend is the most specific reason there is, so it wins.
         // "Low confidence (85%)" on a message that actually failed to resend
         // a confirmation sends whoever reads it looking in the wrong place.
-        reason: resend?.escalate
+        // The doorstep wins outright. It is the most specific thing that can be
+        // true about a message and it is the reason she is being interrupted.
+        reason: doorstep
+          ? `client_is_at_the_door:${doorstep}`
+          : resend?.escalate
           ? `confirmation_resend:${resend.reason}`
           : (autonomyOverride === 'just_me' || autonomyOverride === 'drafts')
             ? `client_set_to:${autonomyOverride}`
@@ -828,7 +932,15 @@ async function gatherContext(beautician, client, messageContent = '') {
     // model to answer ONLY from them, and to say it will check and come back
     // rather than guess: same shape as the free-slots fix. Fails soft to []
     // so a knowledge hiccup makes Florrie cautious, never wrong.
-    retrieveKnowledge(beautician.id, messageContent).catch(err => {
+    //
+    // The arrival note is FORCED in for a client who has just turned up, and it
+    // has to be. Scoring is keyword overlap, and "Im 60 seconds away!" shares
+    // not one word with "Come through when you get here, no need to knock", so
+    // the single entry that answers the message scores zero and is dropped
+    // before it is ranked. See the 27 August incident, and lib/knowledge.js.
+    retrieveKnowledge(beautician.id, messageContent, {
+      alwaysInclude: atTheDoorPhrase(messageContent) ? ['arrival'] : [],
+    }).catch(err => {
       logger.warn({ err, beauticianId: beautician.id }, 'Knowledge lookup failed, replying without knowledge');
       return [];
     })
@@ -993,10 +1105,31 @@ Only include extracted fields if they're mentioned in the message. Confidence is
  * `draft` is a reply we already have; when it is null one is generated.
  * `reason` is the grounding verdict, recorded so a decision can be explained
  * after the fact rather than guessed at from the intent.
+ * `doorstep` says a client is standing outside. It changes one thing here: a
+ * draft the claims guard refuses becomes NO draft, instead of the usual
+ * "let me check my book and come straight back to you" holding reply. That
+ * fallback is a fine thing to say about a diary question and a useless thing to
+ * offer somebody already on the step, and a one-tap she cannot send is worse
+ * than an empty box.
+ * `arrivalNote` is what she has written down about arriving, which is what
+ * makes a doorstep draft sayable at all, and what the draft is written FROM.
+ * `writtenNotes` is everything she has written, which is what the claims guard
+ * checks the finished draft AGAINST. See lib/knowledge.js for why those are two
+ * strings rather than one.
+ * `skipPush` is for when she has ALREADY been notified, louder and sooner, by
+ * something that ran before this. Two buzzes for one message teaches her to
+ * ignore both.
+ * `alert` is the verdict from that earlier notification, recorded so "she was
+ * never actually told" is discoverable rather than silent.
  */
-async function escalateWithDraft({ beautician, client, messageContent, classification, context, messageId, draft = null, reason = null }) {
+async function escalateWithDraft({
+  beautician, client, messageContent, classification, context, messageId,
+  draft = null, reason = null, doorstep = false, arrivalNote = '', writtenNotes = '',
+  skipPush = false, alert = null,
+}) {
   const suggestion = draft || await generateSuggestedResponse(
-    messageContent, classification, context, beautician
+    messageContent, classification, context, beautician,
+    { arrivalNote, writtenNotes, holdingFallback: !doorstep },
   );
   const escalationReason = reason || getEscalationReason(classification);
 
@@ -1020,6 +1153,12 @@ async function escalateWithDraft({ beautician, client, messageContent, classific
       confidence: classification.confidence,
       reason: escalationReason,
       suggested_response: suggestion,
+      // How she was told, and whether it actually landed. 'push' means at least
+      // one device took it, 'sms' means push reached nothing and a text went to
+      // her own mobile instead, 'none' means neither worked and she has NOT
+      // been told by this system. Recorded so that last case is discoverable
+      // rather than silent.
+      ...(alert ? { alerted_by: alert.channel, alert_delivered: alert.delivered } : {}),
     },
     client_id: client?.id,
     message_id: messageId,
@@ -1027,10 +1166,17 @@ async function escalateWithDraft({ beautician, client, messageContent, classific
     autonomous: false,
     outcome: 'escalated',
     notification_sent: true,
-    notification_text: `New message from ${client?.first_name || 'someone'} needs your attention`,
+    // Read off the flag rather than sniffed out of the reason string. A
+    // doorstep message reaches this function by two routes, and only one of
+    // them carries a reason that starts with client_is_at_the_door: the other
+    // is a reply that was written, refused by the guard and held, whose reason
+    // says so instead. Both are somebody standing at her door.
+    notification_text: doorstep
+      ? `${client?.first_name || 'A client'} is at the door now`
+      : `New message from ${client?.first_name || 'someone'} needs your attention`,
   });
 
-  pushEscalation(beautician.id, client?.first_name || 'Someone', messageContent).catch(() => {});
+  if (!skipPush) pushEscalation(beautician.id, client?.first_name || 'Someone', messageContent).catch(() => {});
   refreshLiveActivity(beautician.id).catch(() => {});
 
   logger.info({ handled: false, intent: classification.intent, escalated: true, reason: escalationReason }, 'AI Front Desk escalated message');
@@ -1077,8 +1223,29 @@ NEVER say when an appointment is unless it is in that list, and say the day that
  * @param {boolean} a.known has this client ever booked
  * @param {string|null} a.autonomyOverride 'just_me' | 'drafts' | 'florrie' | null
  * @param {number} a.threshold her confidence threshold, for the old path
+ * @param {string} a.message the client's own words, for the doorstep check
+ * @param {string} a.arrivalNote what she has written down about arriving
  */
-export function mayFlorrieSend({ classification, groundedDecision, known, autonomyOverride, threshold }) {
+export function mayFlorrieSend({ classification, groundedDecision, known, autonomyOverride, threshold, message, arrivalNote = '' }) {
+  // ABOVE EVERY DIAL, INCLUDING THE ONE THAT SAYS YES, AND ONLY WHEN SHE HAS
+  // WRITTEN NOTHING DOWN.
+  //
+  // 27 August: a client sixty seconds from the door was told "Oh I'm ready!
+  // I'll come get you xx" at 0.99 confidence, and a minute later Ellie was
+  // contradicting her own assistant to somebody already on the step. What was
+  // missing was not caution, it was a fact. Nobody had written down what
+  // happens when a client arrives, so every word of that reply was invented.
+  //
+  // With an arrival note on file this falls straight through to the ordinary
+  // dials below, because the note IS the fact and it is the owner's own
+  // sentence. A thread she set to 'just me' still gets a draft rather than a
+  // send, which is exactly what she asked for and is handled two lines down.
+  //
+  // This sits first, and inside this function rather than beside it, because
+  // this is the one decision that decides whether a machine speaks to Ellie's
+  // clients. A check anywhere else is a check the next call site can forget.
+  if (atTheDoorPhrase(message) && !String(arrivalNote || '').trim()) return false;
+
   // She said not in this thread. Nothing else matters.
   if (autonomyOverride === 'just_me' || autonomyOverride === 'drafts') return false;
 
@@ -1132,12 +1299,42 @@ function getEscalationReason(classification, threshold = 0.9) {
   return `Held for you to check`;
 }
 
+/**
+ * The extra paragraph a reply gets when the client is standing outside.
+ *
+ * TWO THINGS WENT WRONG AT 11:32 ON 27 AUGUST and only one of them was a lie.
+ * The other was the voice. "Oh I'm ready! I'll come get you xx" is gushing, and
+ * Ellie does not write like that: her own reply a minute later was "Come
+ * through when you're here! It's a bit hectic with the festival staff". A
+ * client on a doorstep has about four seconds of attention and wants one fact.
+ *
+ * So the note supplies the fact and this supplies the shape. Written as an
+ * instruction rather than trusted as one: lib/reply-claims-guard.js still
+ * refuses every sentence below whatever the model does with this.
+ */
+function doorstepInstruction(message, arrivalNote) {
+  if (!atTheDoorPhrase(message)) return '';
+  const note = String(arrivalNote || '').trim();
+  return `
+THIS CLIENT IS AT YOUR DOOR RIGHT NOW.
+${note
+    ? `Your own note about arriving says: "${note}"\nAnswer from that note and nothing else, in its own words wherever you can.`
+    : 'You have no note about what happens when a client arrives, so you have nothing true to tell them about getting in. Do not invent anything: where to go, where to park, whether the door is open and whether you are ready are all things you cannot see.'}
+- ONE short sentence. Nothing else.
+- Never say what you are doing or are about to do, never say you are ready, never offer to come and get them, never describe the room.
+- No kisses, no exclamation marks, no "Oh".`;
+}
+
 // STEP 4a: GENERATE RESPONSE + TAKE ACTION
 
 async function generateResponseAndAct(message, classification, context, beautician, client, opts = {}) {
   const { intent, extracted } = classification;
   // Evidence of a real send in THIS request. Nothing else may set it.
   const sendPerformed = opts?.resend?.sent === true;
+  // Her arrival instruction, which is what a doorstep reply is written FROM,
+  // and everything she has written, which is what the guard checks it AGAINST.
+  const arrivalNote = String(opts?.arrivalNote || '');
+  const writtenNotes = String(opts?.writtenNotes || arrivalNote);
 
   // Build the action-specific prompt
   let actionPrompt = '';
@@ -1180,6 +1377,12 @@ async function generateResponseAndAct(message, classification, context, beautici
 
 YOU HAVE JUST RESENT THIS CLIENT'S BOOKING CONFIRMATION. It really did go out${chans ? ` by ${chans}` : ''}, just now, for ${wallLabel(appt?.starts_at)}. This is a fact, not a plan. Tell her plainly that you have sent it again and roughly where it will land. Suggest she checks her junk folder if she cannot see it. Do not promise anything else and do not offer any times.`;
   }
+
+  // Last onto actionPrompt, so it wins the argument with whatever the intent
+  // asked for. "Respond warmly and briefly. Ask how you can help today" is the
+  // greeting prompt, and a greeting prompt is what wrote the 27 August reply.
+  const doorstepBlock = doorstepInstruction(message, arrivalNote);
+  if (doorstepBlock) actionPrompt = `${actionPrompt}\n${doorstepBlock}`;
 
   const voiceSection = buildVoiceInstructions(beautician, message);
   const style = beautician.voice_profile?.style || null;
@@ -1247,7 +1450,7 @@ Respond with the WhatsApp message only. No quotes, no JSON, no explanation.`;
   // different claim, evidenced by different code, and folding the two into one
   // flag would wave the 28 July incident through on the strength of the fix
   // for the 26 August one.
-  const guarded = safeReply(fit.text, { allowedTimes, sendPerformed });
+  const guarded = safeReply(fit.text, { allowedTimes, sendPerformed, arrivalNote: writtenNotes });
   let replyText = guarded.text;
   if (guarded.rejected) {
     logger.warn({
@@ -1263,7 +1466,7 @@ Respond with the WhatsApp message only. No quotes, no JSON, no explanation.`;
     // it cannot introduce a time or a claim. Re-checked anyway: if the styled
     // version fails for any reason the plain one goes instead.
     const styledFallback = styleFit(replyText, style).text;
-    if (checkReplyClaims(styledFallback, { allowedTimes, sendPerformed }).ok) replyText = styledFallback;
+    if (checkReplyClaims(styledFallback, { allowedTimes, sendPerformed, arrivalNote: writtenNotes }).ok) replyText = styledFallback;
   }
 
   // Calculate tone match score by comparing against beautician's correction history
@@ -1288,7 +1491,12 @@ Respond with the WhatsApp message only. No quotes, no JSON, no explanation.`;
     response: replyText,
     toneScore,
     actions,
-    intent
+    intent,
+    // The guard threw the model's sentence away and replaced it. Carried out of
+    // here because the caller has to know: for most messages the holding reply
+    // is a perfectly good thing to send, and for a client standing at a door it
+    // is not. See processInboundMessage.
+    blocked: guarded.rejected === true,
   };
 }
 
@@ -1351,9 +1559,26 @@ Respond with ONLY a number between 0.0 and 1.0 (e.g., 0.78). No explanation.`,
 
 // STEP 4b: GENERATE SUGGESTED RESPONSE (for escalated messages)
 
-async function generateSuggestedResponse(message, classification, context, beautician) {
+/**
+ * @param {object} opts
+ * @param {string} opts.arrivalNote what the owner wrote about clients arriving,
+ *   quoted into the prompt so the draft is written from her words.
+ * @param {string} opts.writtenNotes everything she has written, which is what
+ *   the claims guard checks the finished draft against.
+ * @param {boolean} opts.holdingFallback whether a draft the guard refuses may be
+ *   replaced by the holding reply. False for a doorstep message: "let me check
+ *   my book and come straight back to you" is a sensible thing to offer about a
+ *   diary question and nonsense to offer somebody standing outside, and a
+ *   one-tap she cannot use costs her a tap and the client a minute. Returns
+ *   null instead, and escalateWithDraft ships no draft.
+ */
+async function generateSuggestedResponse(message, classification, context, beautician, opts = {}) {
+  const arrivalNote = String(opts.arrivalNote || '');
+  const writtenNotes = String(opts.writtenNotes || arrivalNote);
+  const holdingFallback = opts.holdingFallback !== false;
   const voiceSection = buildVoiceInstructions(beautician, message);
   const style = beautician.voice_profile?.style || null;
+  const doorstepBlock = doorstepInstruction(message, arrivalNote);
 
   const systemPrompt = (extra = '') => `You are ${context.beautician.name}, a beautician, replying to your client${context.client?.name ? ' ' + context.client.name : ''} on WhatsApp. Write the message you would send them, ready to send word for word.
 
@@ -1368,7 +1593,7 @@ Hard rules:
 - Keep it short and natural, WhatsApp style. Length and sign off come from the voice notes above, not from what reads as complete.
 
 Never use em dashes (—) or en dashes (–). Use commas, full stops, colons or line breaks instead.
-
+${doorstepBlock}
 Treatments: ${context.treatments.map(t => `${t.name} (£${(t.price_cents/100).toFixed(2)})`).join(', ')}
 ${renderClientBookings(context.clientUpcoming)}
 ${renderFreeSlots(context.freeSlots)}
@@ -1396,14 +1621,16 @@ Write only the message to send.`;
   const allowedTimes = (context.freeSlots || []).map(s => s.time);
   // Ellie sends this from a card without opening the thread, so it has to be
   // safe on its own. Same guard, same verified list, as the auto path.
-  const guarded = safeReply(fit.text, { allowedTimes });
+  const guarded = safeReply(fit.text, { allowedTimes, arrivalNote: writtenNotes });
   if (guarded.rejected) {
     logger.warn({
       reason: guarded.reason,
       offending: guarded.offending,
+      facet: guarded.facet,
     }, 'AI Front Desk BLOCKED an unverifiable claim in a drafted reply');
+    if (!holdingFallback) return null;
     const styledFallback = styleFit(guarded.text, style).text;
-    if (checkReplyClaims(styledFallback, { allowedTimes }).ok) return styledFallback;
+    if (checkReplyClaims(styledFallback, { allowedTimes, arrivalNote: writtenNotes }).ok) return styledFallback;
   }
   return guarded.text;
 }
@@ -1815,5 +2042,9 @@ Respond with ONLY a JSON array of exactly 3 objects: [{"label":"...","text":"...
     text: styleFit(String(sug.text || '').replace(/[\u2013\u2014]/g, '-').trim(), style).text,
   })).filter(s => s.text && !safeReply(s.text, {
     allowedTimes: (context.freeSlots || []).map(s2 => s2.time),
+    // gatherContext forces the arrival note in when the last inbound message
+    // was somebody at the door, so a chip saying what Ellie herself wrote
+    // survives instead of being dropped a tap before she sends it.
+    arrivalNote: writtenNotesFrom(context.knowledge),
   }).rejected);
 }

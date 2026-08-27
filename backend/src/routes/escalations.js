@@ -8,6 +8,7 @@ import { sendSMS, sendInstagramDM, sendWhatsAppText } from '../services/notifica
 import logger from '../lib/logger.js';
 import { isSocialLead, clientsEverBooked, hasContactIdentity } from '../lib/inbox-space.js';
 import { heldBookingClaimContext } from '../services/conversational-booking.js';
+import { fetchWrittenNotes } from '../lib/knowledge.js';
 import { authorship } from '../lib/authorship.js';
 import { escalationCutoff } from '../services/escalation-expiry.js';
 
@@ -131,9 +132,16 @@ router.post('/:messageId/resolve', requireAuth, async (req, res) => {
     // off the appointment and actionPerformed is true only while that row is
     // still live, so a hold released by the cleanup goes back to being refused.
     const held = await heldBookingClaimContext(req.beautician.id, message.client_id);
+    // Her own arrival instruction, re-read here rather than trusted from when
+    // the draft was written. Without it the one doorstep draft in the system
+    // that IS backed by something she wrote ("come through when you get here")
+    // is the one refused on the way out, which is the salon that took the
+    // trouble punished for it. See the 27 August incident and lib/knowledge.js.
+    const arrivalNote = await fetchWrittenNotes(req.beautician.id);
     const guarded = safeReply(finalResponse, {
       allowedTimes: [...allowedTimes, ...held.allowedTimes],
       actionPerformed: held.actionPerformed,
+      arrivalNote,
     });
     if (guarded.rejected) {
       logger.warn({

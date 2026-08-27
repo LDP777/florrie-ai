@@ -210,6 +210,14 @@ vi.mock('../../src/lib/knowledge.js', () => ({
   // which is a real behaviour but not the one under test here.
   retrieveKnowledge: async () => [{ title: 'Confirmations', body: 'Confirmations arrive by email.' }],
   renderKnowledgeBlock: () => 'Knowledge: confirmations arrive by email.',
+  // Added 27 Aug with the arrival note. Nothing here is about a doorstep, so
+  // both return nothing: no arrival instruction on file, and no written notes
+  // for the claims guard to check an arrival claim against. A factory mock
+  // replaces the WHOLE module, so an export the caller reaches for and this
+  // object does not have is a thrown error rather than an undefined, which is
+  // how eight passing tests in this file went red at once.
+  arrivalNoteFrom: () => '',
+  writtenNotesFrom: () => '',
 }));
 vi.mock('../../src/lib/free-slots.js', () => ({ getFreeSlots: async () => [] }));
 

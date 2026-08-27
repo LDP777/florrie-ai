@@ -19,6 +19,14 @@ import Icon, { iconName } from '../components/ui/Icon';
 import PageHeader from '../components/ui/PageHeader.jsx';
 
 const CATEGORIES = [
+  // Arriving is first because it is the highest value note a salon can write.
+  // On 27 August a client sent "Im 60 seconds away!" and Florrie invented an
+  // answer, because nobody had ever written down what happens when somebody
+  // turns up. One entry here and every client at the door gets the owner's own
+  // words back in one second. 'place' rather than 'door_front': the icon set
+  // has no door, and iconName falls back to a flower for a name it does not
+  // know, which would read as a mistake. See components/ui/Icon.
+  { key: 'arrival',   label: 'Arriving',  matIcon: 'place' },
   { key: 'aftercare', label: 'Aftercare', matIcon: 'self_care' },
   { key: 'policy',    label: 'Policies',  matIcon: 'gavel' },
   { key: 'treatment', label: 'Treatments', matIcon: 'spa' },
@@ -31,6 +39,7 @@ const CATEGORY_LABELS = Object.fromEntries(CATEGORIES.map(c => [c.key, c.label])
 
 // Empty-state starters: one tap prefills the form so the first save is easy.
 const STARTERS = [
+  { category: 'arrival',   title: 'When you arrive', hint: 'What to do when a client gets here: knock, come through, where to park' },
   { category: 'aftercare', title: 'Lash lift aftercare', hint: 'What to avoid and for how long' },
   { category: 'policy',    title: 'Cancellation policy', hint: 'Notice needed, what happens to deposits' },
   { category: 'prep',      title: 'Patch test explainer', hint: 'Why it matters and when to come in' },

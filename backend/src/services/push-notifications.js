@@ -43,8 +43,9 @@ export async function sendPush(beauticianId, { title, body, icon, url, tag, data
   }
 
   // Native iOS (APNs): same title/body, deep-link url carried in data.
+  let apnsResult = null;
   try {
-    await sendApnsToBeautician(beauticianId, {
+    apnsResult = await sendApnsToBeautician(beauticianId, {
       title: title || 'florrie.ai',
       body,
       data: { ...(data || {}), url: url || '/' },
@@ -54,7 +55,15 @@ export async function sendPush(beauticianId, { title, body, icon, url, tag, data
     logger.warn({ err, beauticianId }, 'APNs fan-out failed');
   }
 
-  return webResult;
+  // "delivered" is how many devices actually took the notification, across both
+  // legs. It used to be thrown away: this function returned the web leg and
+  // dropped the APNs answer on the floor, so no caller could tell the
+  // difference between "her phone buzzed" and "she has nothing registered and
+  // nothing happened at all". For most pushes that is a curiosity. For a client
+  // standing outside the door it is the entire question, so pushAtTheDoor reads
+  // this number and falls back to a text message when it is 0.
+  const delivered = (webResult?.sent || 0) + (apnsResult?.sent || 0);
+  return { ...(webResult || { sent: 0, expired: 0 }), apns: apnsResult, delivered };
 }
 
 /**
@@ -126,6 +135,7 @@ const AGENT_PUSH = {
  */
 const ACTION_TO_AGENT = {
   message_replied: 'front_desk',
+  client_at_the_door: 'front_desk',
   message_escalated: 'front_desk',
   booking_confirmed: 'front_desk',
   booking_pending: 'front_desk',
@@ -171,14 +181,14 @@ const ACTION_TO_PREF = {
 };
 
 // Pushes that may wake her up regardless of quiet hours.
-const URGENT_ACTIONS = new Set(['message_escalated']);
+const URGENT_ACTIONS = new Set(['message_escalated', 'client_at_the_door']);
 
 // The signature sound language: she learns to feel the difference in her
 // pocket without looking. Good news = soft two-note bloom; needs-you = a
 // gentler single note. Files must be bundled in the iOS target (see
 // docs/NOTIFICATION_SOUNDS.md); env-gated in apns.js until they are.
 const GOOD_NEWS = new Set(['booking_confirmed', 'booking_rescheduled', 'patch_test_booked', 'gap_post', 'review_request', 'daily_money_summary', 'milestone', 'weekly_review', 'value_coaching', 'income_logged']);
-const NEEDS_YOU = new Set(['message_escalated', 'booking_pending', 'booking_cancelled', 'booking_auto_cancelled', 'channel_failover']);
+const NEEDS_YOU = new Set(['message_escalated', 'client_at_the_door', 'booking_pending', 'booking_cancelled', 'booking_auto_cancelled', 'channel_failover']);
 function soundFor(actionType) {
   if (GOOD_NEWS.has(actionType)) return 'bloom-good.caf';
   if (NEEDS_YOU.has(actionType)) return 'bloom-needsyou.caf';
@@ -243,6 +253,10 @@ const ACTION_TITLES = {
   booking_cancelled: 'Booking cancelled',
   booking_auto_cancelled: 'Slot released',
   message_escalated: '💬 Needs you',
+  // Its own headline, on purpose. "Needs you" is on 142 escalations a month and
+  // has stopped meaning anything urgent. Somebody on the doorstep is a
+  // different kind of moment and has to look like one on the lock screen.
+  client_at_the_door: '🚪 At your door now',
   daily_money_summary: '💷 Today\u2019s takings',
   milestone: '🌸 Milestone',
   weekly_review: '🌸 Your week with Florrie',
@@ -350,6 +364,149 @@ export async function pushEscalation(beauticianId, clientName, preview) {
     `${clientName}: ${body}`,
     { url: '/inbox', clientName }
   );
+}
+
+/* ------------------------------------------------------- somebody is here --
+ * 27 August 2026, 11:32. A client wrote "Im 60 seconds away!" and Florrie
+ * answered her by herself. The fix is that she must not: only the person in
+ * the room knows whether she is ready. But holding the reply is only half a
+ * fix, because the client is still outside. A draft in a queue is worth
+ * nothing to somebody already on the step.
+ *
+ * WHY THIS IS NOT pushMessagesWaiting. That one is throttled to one push per
+ * channel per fifteen minutes, deliberately, so a burst of chat yields one calm
+ * buzz. Fifteen minutes is roughly fourteen and a half minutes longer than this
+ * client will stand there. A throttle is the correct design for "you have
+ * messages" and the wrong design for "somebody is at your door".
+ *
+ * WHY THIS IS NOT pushEscalation either, which is the other thing already
+ * wired up here. Three differences, and each one cost us something:
+ *
+ *   1. Its title is "💬 Needs you", which is the same headline as the other
+ *      142 escalations a month. Ellie has learned to read that as "later".
+ *   2. It routes through shouldPush, which reads notification_prefs, and a
+ *      beautician who has turned the ai_escalation toggle off gets silence.
+ *      That is a reasonable choice about a queue and an unreasonable one about
+ *      a person on the doorstep, so this type is not in ACTION_TO_PREF at all
+ *      and no toggle can suppress it.
+ *   3. It is fired and forgotten with .catch(() => {}) AFTER the escalation
+ *      has generated a draft from the model and written two rows. That is
+ *      several seconds of work in front of the only part that matters, and if
+ *      the push fails nobody ever learns. This one is awaited, it is called
+ *      before any model call, and it returns what actually happened.
+ *
+ * HOW SURE ARE WE THAT SHE ACTUALLY GETS IT. Push is the fastest channel we
+ * have and it is not guaranteed: it needs a registered web subscription or an
+ * iOS device token, and a beautician who never granted notification permission
+ * has neither. That is exactly why sendPush now counts what it delivered.
+ * When the count is zero, nothing reached her and saying otherwise would be
+ * the same species of lie this whole change is about, so we fall back to a
+ * text to her own mobile, which needs no permission and no app.
+ */
+
+// A webhook redelivery must not buzz her twice for the same words. This is a
+// duplicate suppressor, NOT a throttle: a SECOND, DIFFERENT message from the
+// same client ("I'm outside" then "I can't find you") is new information and
+// buzzes again, every time, by design.
+const _doorstepSeen = new Map(); // `${beauticianId}:${clientId}:${text}` -> ms
+const DOORSTEP_DUPLICATE_WINDOW_MS = 2 * 60 * 1000;
+
+function forgetOldDoorsteps(now) {
+  if (_doorstepSeen.size < 200) return;
+  for (const [key, at] of _doorstepSeen) {
+    if (now - at > DOORSTEP_DUPLICATE_WINDOW_MS) _doorstepSeen.delete(key);
+  }
+}
+
+/**
+ * Tell the owner, now, that somebody is outside.
+ *
+ * @param {string} beauticianId
+ * @param {string} clientName    whose door it is
+ * @param {string} preview       the client's own words, which are the message
+ * @param {object} opts
+ * @param {string|null} opts.clientId  for the deep link and the duplicate key
+ * @param {string|null} opts.url       where tapping it should land
+ * @returns {Promise<{delivered: number, channel: string, duplicate?: boolean}>}
+ *          channel is 'push', 'sms', 'none' or 'duplicate'. Never throws:
+ *          telling her is important enough that it must not be able to break
+ *          the escalation that follows it.
+ */
+export async function pushAtTheDoor(beauticianId, clientName, preview, { clientId = null, url = null } = {}) {
+  if (!beauticianId) return { delivered: 0, channel: 'none' };
+  const words = String(preview || '').trim();
+
+  const key = `${beauticianId}:${clientId || 'anon'}:${words}`;
+  const now = Date.now();
+  forgetOldDoorsteps(now);
+  if (now - (_doorstepSeen.get(key) || 0) < DOORSTEP_DUPLICATE_WINDOW_MS) {
+    return { delivered: 0, channel: 'duplicate', duplicate: true };
+  }
+  _doorstepSeen.set(key, now);
+
+  // Her words, not ours. "Im 60 seconds away!" tells Ellie everything she needs
+  // in the two seconds she has, and a summary of it would not.
+  const body = words.length > 100 ? `${words.slice(0, 97)}...` : words;
+  const target = url || (clientId ? `/inbox?client=${clientId}` : '/inbox');
+
+  let result = null;
+  try {
+    // Straight to sendPush, around shouldPush. No per-event toggle and no quiet
+    // hours window may hold this one: see the note above.
+    result = await sendPush(beauticianId, {
+      title: ACTION_TITLES.client_at_the_door,
+      body: `${clientName || 'A client'}: ${body}`,
+      url: target,
+      tag: `at-the-door-${clientId || 'anon'}`,
+      data: { agentId: 'front_desk', actionType: 'client_at_the_door', clientName, clientId },
+      sound: soundFor('client_at_the_door'),
+    });
+  } catch (err) {
+    logger.error({ err, beauticianId }, 'At-the-door push threw');
+  }
+
+  const delivered = result?.delivered || 0;
+  if (delivered > 0) {
+    logger.info({ beauticianId, clientId, delivered }, 'At-the-door push delivered');
+    return { delivered, channel: 'push' };
+  }
+
+  // Nothing reached her. This is the honest branch: a push to no devices is
+  // silence, and a client is standing outside.
+  logger.error({ beauticianId, clientId },
+    'At-the-door push reached NO devices, falling back to a text to her own mobile');
+
+  try {
+    const { data: b } = await supabase
+      .from('beauticians')
+      .select('phone')
+      .eq('id', beauticianId)
+      .maybeSingle();
+    if (!b?.phone) {
+      logger.error({ beauticianId }, 'At-the-door: no devices and no mobile number on file, she has NOT been told');
+      return { delivered: 0, channel: 'none' };
+    }
+    // Imported here rather than at the top so the ordinary push path never
+    // pulls the whole messaging stack in behind it.
+    const { sendSMS } = await import('./notifications.js');
+    const sms = await sendSMS({
+      to: b.phone,
+      body: `${clientName || 'A client'} says: "${body}". They are outside now. Florrie has not replied.`,
+      beauticianId,
+      messageType: 'at_the_door',
+      clientId: null,
+      // Her own phone is not a client thread and must never appear in one.
+      skipThreadLog: true,
+    });
+    if (sms) {
+      logger.warn({ beauticianId, clientId }, 'At-the-door fell back to SMS');
+      return { delivered: 1, channel: 'sms' };
+    }
+  } catch (err) {
+    logger.error({ err, beauticianId }, 'At-the-door SMS fallback failed');
+  }
+
+  return { delivered: 0, channel: 'none' };
 }
 
 export async function pushDailySummary(beauticianId, earnings, bookingsCount) {

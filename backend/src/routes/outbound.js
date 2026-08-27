@@ -17,6 +17,7 @@ import { AUTHOR } from '../lib/idiolect.js';
 import logger from '../lib/logger.js';
 import { deDash } from '../lib/text.js';
 import { heldBookingClaimContext } from '../services/conversational-booking.js';
+import { fetchWrittenNotes } from '../lib/knowledge.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -187,9 +188,14 @@ async function deliverQueued(row, beauticianId) {
   // Same reason as routes/escalations.js: a slot Florrie holds for this client
   // is no longer free, so it has to be named from the appointment row instead.
   const held = await heldBookingClaimContext(beauticianId, row.client_id);
+  // Same reason as routes/escalations.js: a queued doorstep reply is backed by
+  // what she wrote in the Knowledge page, and the boundary has to be able to
+  // see it or it refuses her own words back at her.
+  const arrivalNote = await fetchWrittenNotes(beauticianId);
   const guarded = safeReply(row.body, {
     allowedTimes: [...allowedTimes, ...held.allowedTimes],
     actionPerformed: held.actionPerformed,
+    arrivalNote,
   });
   if (guarded.rejected) {
     logger.warn({

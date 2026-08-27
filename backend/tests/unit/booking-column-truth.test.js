@@ -380,6 +380,16 @@ const bookBody = (over = {}) => ({
 /* ============================================================== A. closures == */
 
 describe('a closure is a range, not the first day of one', () => {
+  /* The dates below are fixed, so the clock has to be too. Run this file on the
+   * 27th of August with a real clock and the booking under test is refused for
+   * being in the past, which is a 400, and the holiday guard it exists to prove
+   * is never reached. A test that reads the wall clock fixes the wall clock. */
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-08-20T09:00:00.000Z'));
+  });
+  afterEach(() => { vi.useRealTimers(); });
+
   // Ellie blocks out 24 to 30 August. That is one row: date 24th, end_date 30th.
   const holiday = (over = {}) => {
     db.hours_exceptions.push({
