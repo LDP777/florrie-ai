@@ -913,6 +913,10 @@ export default function BookingPage() {
   const brandLight = brand + '18';
   const brandMedium = brand + '40';
   const bizName = beautician?.business_name || beautician?.first_name || 'Book';
+  // bizName falls back to 'Book' for the header monogram, which reads as
+  // nonsense inside a sentence ("so Book can charge your card"). Anything that
+  // names the salon in prose uses this instead.
+  const salonName = beautician?.business_name || beautician?.first_name || 'your beautician';
   const logoUrl = beautician?.logo_url || beautician?.avatar_url || null;
   const monogram = bizName.trim().charAt(0).toUpperCase();
   const headerTagline = beautician?.tagline || 'Book your appointment';
@@ -995,7 +999,7 @@ export default function BookingPage() {
           </div>
           <p style={styles.confirmText}>
             {success.depositPaid
-              ? 'Your card has been saved for faster checkout next time.'
+              ? `Your card is saved for next time, and so ${salonName} can charge anything still owed on this appointment, or a fee from the cancellation policy you agreed to.`
               : success.depositPending
               ? "Your slot is held, we'll confirm once the deposit is received."
               : "You'll receive a confirmation message shortly."}
@@ -2142,18 +2146,33 @@ export default function BookingPage() {
               const notice = bp.cancellation_notice_hours || 48;
               const lateP = Math.min(Number(bp.late_cancel_charge_percent) || 0, 100);
               const noShowP = Math.min(Number(bp.no_show_charge_percent) || 0, 100);
-              if (lateP <= 0 && noShowP <= 0) return null;
+              // Paying the deposit by card stores that card against the client
+              // (Checkout runs with setup_future_usage 'off_session'), and the
+              // salon can charge it afterwards for the rest of the appointment,
+              // not only for the fees below. Until 27 August 2026 nothing on
+              // this page said so: the only card sentence was on the screen
+              // AFTER payment, and it said "saved for faster checkout next
+              // time". Consent belongs before the card is handed over, and it
+              // has to describe what the software can actually do.
+              const cardWillBeSaved = hasDeposit && beautician?.stripe_onboarding_complete === true;
+              if (lateP <= 0 && noShowP <= 0 && !cardWillBeSaved) return null;
               return (
                 <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.55,
                   margin: '0 0 16px', padding: '10px 14px', borderRadius: 10,
                   background: 'var(--bg-subtle, #ede7e3)', border: '1px solid var(--border-light)',
                 }}>
-                  Cancellation policy: free to cancel or move your appointment up to {notice} hours before.
-                  {lateP > 0
-                    ? ` Cancelling later than that may mean a fee of up to ${lateP}% of the treatment price charged to your card.`
-                    : ' Cancelling later than that means your deposit is not refunded.'}
-                  {noShowP > 0 && ` If you do not turn up at all, the full ${noShowP}% of the treatment price may be charged to your card.`}
-                  {' '}By booking you agree to this.
+                  {(lateP > 0 || noShowP > 0) && (
+                    <>
+                      Cancellation policy: free to cancel or move your appointment up to {notice} hours before.
+                      {lateP > 0
+                        ? ` Cancelling later than that may mean a fee of up to ${lateP}% of the treatment price charged to your card.`
+                        : ' Cancelling later than that means your deposit is not refunded.'}
+                      {noShowP > 0 && ` If you do not turn up at all, the full ${noShowP}% of the treatment price may be charged to your card.`}
+                      {' '}
+                    </>
+                  )}
+                  {cardWillBeSaved && `Your card is saved securely with Stripe when you pay, so ${salonName} can charge it later for what you owe on this appointment${(lateP > 0 || noShowP > 0) ? ', and for the fees above, which are applied automatically if they apply to you' : ''}. Nothing else is ever charged without ${salonName} choosing to. `}
+                  By booking you agree to this.
                 </p>
               );
             })()}

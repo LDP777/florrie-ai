@@ -230,3 +230,123 @@ export const INCOME_TYPES = Object.freeze([
   'product_sale',
   'refund',
 ]);
+
+// ─────────────────────────────────────────────────────────────
+// Assumed money vs money that really landed
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * WHY THIS EXISTS
+ *
+ * 27 August 2026. The pilot salon owner asked her founder: "how do I charge
+ * someone's card on Florrie after it says it's completed?" She could not, and
+ * two separate things were in the way.
+ *
+ * Finishing a booking writes a type 'payment' row (lib/takings.js) so the Money
+ * tab counts the day. Nobody handed over anything at that moment: the row is
+ * Florrie ASSUMING she was paid in the room because the appointment ended. It
+ * carries no payment_method and no Stripe payment intent, and that shape is the
+ * whole of its identity.
+ *
+ * PRICE_SETTLED_TYPES could not see the difference, so:
+ *   - "Charge the balance to card" answered "already charged" for money that
+ *     had never touched a card, on every completed booking;
+ *   - the Money tab printed an assumption in the same ink as a real payment, so
+ *     a week could read GBP 400 taken when nothing had left a client's account.
+ *
+ * NO NEW COLUMN. The difference is already derivable from the row that is
+ * there, and a migration on the live money table to store something derivable
+ * buys a backfill and a second source of truth for nothing.
+ */
+
+/**
+ * The row lib/takings.js writes at completion: a price row that is nothing but
+ * an assumption. No Stripe intent (no card was charged) and no payment_method
+ * (nobody keyed in cash or a transfer either).
+ *
+ * The no_show reversal in routes/appointments.js has always matched exactly
+ * this shape by hand; this is the same test, named, so every site agrees.
+ */
+export function isAssumedTakingsRow(row) {
+  if (!row) return false;
+  if (!PRICE_SETTLED_TYPES.includes(String(row.type || '').toLowerCase())) return false;
+  if (row.stripe_payment_intent_id) return false;
+  if (row.payment_method) return false;
+  return true;
+}
+
+/**
+ * A price row that is EVIDENCE rather than a guess: it carries a Stripe payment
+ * intent (the card really was charged) or a payment_method (she keyed in the
+ * cash or the transfer herself). Either way a human or a bank stands behind it.
+ *
+ * This, not "any payment row", is what must refuse a second charge.
+ */
+export function isSettledPriceRow(row) {
+  if (!row) return false;
+  if (!PRICE_SETTLED_TYPES.includes(String(row.type || '').toLowerCase())) return false;
+  return !isAssumedTakingsRow(row);
+}
+
+const sumAmounts = (rows) => (rows || []).reduce((total, r) => total + Math.max(0, Number(r?.amount_cents) || 0), 0);
+
+/** How much of this appointment's price is only assumed to have been paid. */
+export function assumedTakingsCents(rows) {
+  return sumAmounts((rows || []).filter(isAssumedTakingsRow));
+}
+
+/** How much of this appointment's price has really been settled. */
+export function settledPriceCents(rows) {
+  return sumAmounts((rows || []).filter(isSettledPriceRow));
+}
+
+/**
+ * What could still HONESTLY be collected: the price that is not covered by a
+ * deposit, less anything actually settled. An assumed row deliberately does not
+ * reduce it, because an assumption is not a payment; that is the entire point
+ * of the split, and it is what lets the charge button exist after completion.
+ */
+export function uncollectedCents(outstandingCents, rows) {
+  const outstanding = Math.max(0, Math.round(Number(outstandingCents) || 0));
+  return Math.max(0, outstanding - settledPriceCents(rows));
+}
+
+/**
+ * What to do with the assumed rows when a real charge lands.
+ *
+ * A charge converts assumption into fact, pound for pound. Keeping both records
+ * the same money twice and only one of the two ever happened, so her income,
+ * and the tax she sets aside against it, would be overstated by the price of
+ * every booking she chased. So the assumed row gives way to the real one:
+ * consumed in full where the charge covers it, reduced where the charge covers
+ * only part of it, never taken below zero.
+ *
+ * Capped at what was assumed on purpose. A charge larger than the assumption
+ * (a top-up, a second treatment) still adds its own income row; it just cannot
+ * delete more guesswork than there was.
+ *
+ * Oldest first, so a booking that somehow carries two assumed rows loses the
+ * stale one before the fresh one.
+ *
+ * Pure: returns the plan, writes nothing. lib/takings.js applies it.
+ */
+export function supersedeAssumedPlan(assumedRows, chargedCents) {
+  const charged = Math.max(0, Math.round(Number(chargedCents) || 0));
+  let budget = charged;
+  const deleteIds = [];
+  const reduce = [];
+  for (const row of (assumedRows || [])) {
+    if (budget <= 0) break;
+    if (!isAssumedTakingsRow(row)) continue;
+    const amount = Math.max(0, Number(row.amount_cents) || 0);
+    if (amount <= budget) {
+      deleteIds.push(row.id);
+      budget -= amount;
+    } else {
+      reduce.push({ id: row.id, amountCents: amount - budget });
+      budget = 0;
+    }
+  }
+  // What the charge actually cancelled: everything it consumed of the budget.
+  return { deleteIds, reduce, supersededCents: charged - budget };
+}

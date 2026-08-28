@@ -7,6 +7,7 @@ import { isSocialLead, clientsEverBooked, hasContactIdentity } from '../lib/inbo
 import { getGapFillSuggestions } from '../services/gap-fill-engine.js';
 import { clientNeedsPatchTest } from './appointments.js';
 import { rankCards, dropExpired } from '../lib/florrie-thinks-rank.js';
+import { PRICE_SETTLED_TYPES, isAssumedTakingsRow, isSettledPriceRow } from '../lib/money-guards.js';
 
 const router = Router();
 
@@ -152,18 +153,34 @@ async function leadCard(beauticianId, timezone) {
 
 /**
  * MONEY: a completed visit in the last 14 days whose remainder is unsettled
- * and whose client has a saved card. Mirrors the exact eligibility the charge
- * path enforces (chargeRemainingBalance): pay-in-full excluded, remainder of
- * at least 30p, and no payment / full_payment / payment_link transaction on
- * record. The card only ever OPENS the appointment sheet; money moves solely
- * from Ellie's tap on the sheet's existing charge button.
+ * and whose client has a saved card. Mirrors the eligibility the charge path
+ * enforces (chargeRemainingBalance): pay-in-full excluded, remainder of at
+ * least 30p, and nothing on record saying the price was settled.
+ *
+ * The card only ever OPENS the appointment sheet; money moves solely from
+ * Ellie's tap on the sheet's charge button. As of 27 August 2026 that is true:
+ * she asked "how do I charge someone's card after it says completed?", and the
+ * answer was that the entire payment cluster was gated behind a predicate that
+ * excluded 'completed', so this card pointed her at a sheet with no way to
+ * collect. CalendarView now shows the charge controls on a completed booking,
+ * so tapping through actually leads somewhere.
+ *
+ * WHAT COUNTS AS UNSETTLED, and why it is not simply "no payment row".
+ * Completion writes an assumed payment row (lib/takings.js) on every booking,
+ * so testing for any payment row silenced this card almost everywhere. Testing
+ * for no SETTLED row alone would swing it the other way and nag her about every
+ * client who paid cash in the room, which is most of them: the assumed row is
+ * usually right. So the card speaks only when the books hold no evidence of
+ * payment AND nothing was ever assumed either (an auto-completed booking whose
+ * takings row never landed), or when she herself recorded the appointment as
+ * not paid. Those are the two cases where a nag is welcome rather than wrong.
  */
 async function moneyCard(beauticianId, wallNow) {
   try {
     const sinceWall = new Date(wallNow.getTime() - 14 * 24 * 60 * 60 * 1000).toISOString();
     const { data, error } = await supabase
       .from('appointments')
-      .select('id, client_id, starts_at, price_cents, deposit_cents, deposit_paid, payment_type, stripe_payment_method_id, clients(id, first_name, archived_at, blocked_at, stripe_customer_id)')
+      .select('id, client_id, starts_at, price_cents, deposit_cents, deposit_paid, payment_type, payment_method, stripe_payment_method_id, clients(id, first_name, archived_at, blocked_at, stripe_customer_id)')
       .eq('beautician_id', beauticianId)
       .eq('status', 'completed')
       .gte('starts_at', sinceWall)
@@ -190,13 +207,19 @@ async function moneyCard(beauticianId, wallNow) {
     // path refuses to charge blind.
     const { data: paid, error: txErr } = await supabase
       .from('transactions')
-      .select('appointment_id')
+      .select('appointment_id, type, amount_cents, payment_method, stripe_payment_intent_id')
       .in('appointment_id', candidates.map(a => a.id))
-      .in('type', ['payment', 'full_payment', 'payment_link']);
+      .in('type', PRICE_SETTLED_TYPES);
     if (txErr) return [];
-    const settled = new Set((paid || []).map(t => t.appointment_id));
 
-    const owed = candidates.filter(a => !settled.has(a.id));
+    const settled = new Set((paid || []).filter(isSettledPriceRow).map(t => t.appointment_id));
+    const assumed = new Set((paid || []).filter(isAssumedTakingsRow).map(t => t.appointment_id));
+
+    // Real money on record ends the conversation. Otherwise speak only where
+    // the assumption is absent or she has contradicted it herself; see the
+    // note above on why an assumed row alone must stay quiet.
+    const owed = candidates.filter(a =>
+      !settled.has(a.id) && (!assumed.has(a.id) || a.payment_method === 'unpaid'));
     if (!owed.length) return [];
 
     // The biggest unsettled remainder is the one worth her tap first.

@@ -20,6 +20,7 @@
  * their own with no special case.
  */
 import { getTaxYear } from './time-utils.js';
+import { isAssumedTakingsRow } from './money-guards.js';
 
 /**
  * The UK tax year runs 6 April to 5 April, NOT the calendar year. Every "year
@@ -145,6 +146,12 @@ export function buildLedger({ expenses = [], transactions = [] } = {}) {
       // Left as stored: a refund is already negative and must stay negative.
       amount_cents: Number(t.amount_cents) || 0,
       category: t.type || 'payment',
+      // Money nobody confirmed. Completion writes a 'payment' row so the Money
+      // tab adds up, and until 27 August 2026 this list printed that guess in
+      // the same ink as a card charge that really happened. The tax year total
+      // she reads off the bottom of this screen is the last place that should
+      // be quietly optimistic. See isAssumedTakingsRow.
+      assumed: isAssumedTakingsRow(t),
       vendor: null,
       description: t.description || null,
       recurring_expense_id: null,

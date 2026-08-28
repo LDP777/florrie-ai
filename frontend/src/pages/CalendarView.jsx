@@ -177,6 +177,23 @@ const COLORS = {
   stone400: 'var(--text-muted, #6B5D54)',   // was #78716b, 4.3:1 on cream
 };
 
+// How Ellie NOTES a payment when she finishes a booking. These write
+// appointments.payment_method and move no money whatsoever: the labels used to
+// be the raw column values next to a stray icon name ("pound cash"), under a
+// heading that read "Payment". On 27 August 2026 the salon owner asked how to
+// charge a card after a booking says completed, which is a fair question to ask
+// of a screen whose button said "Complete - £45.00 card". Recording and
+// charging now read as the different things they are.
+const PAYMENT_NOTE_OPTIONS = [
+  { value: 'card', label: 'Card', icon: 'card' },
+  { value: 'cash', label: 'Cash', icon: 'pound' },
+  { value: 'transfer', label: 'Transfer', icon: 'wallet' },
+  { value: 'unpaid', label: 'Not paid yet', icon: 'clock' },
+];
+function paymentNoteLabel(value) {
+  return (PAYMENT_NOTE_OPTIONS.find(o => o.value === value) || PAYMENT_NOTE_OPTIONS[0]).label;
+}
+
 // Controls on the treatments list. Pulled out because the same select and the
 // same button appear three times on that row and inline styles drift.
 // 44px minimums throughout: this is tapped with a thumb, mid-appointment.
@@ -1529,6 +1546,12 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
   const [chargeAmount, setChargeAmount] = useState('');
   const [chargeReason, setChargeReason] = useState('');
   const [chargingCard, setChargingCard] = useState(false);
+  // Bumped after any charge. This endpoint now reports what the BOOKS say, not
+  // just what arithmetic says, so a charge changes its answer: the assumed row
+  // it supersedes disappears and the collectable figure drops. Without a
+  // refetch the panel would still be offering to collect money she has just
+  // taken, on a sheet she is looking at.
+  const [cardReload, setCardReload] = useState(0);
   useEffect(() => {
     let off = false;
     (async () => {
@@ -1541,7 +1564,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
       } catch { /* leave it unknown */ }
     })();
     return () => { off = true; };
-  }, [appointment.id]);
+  }, [appointment.id, cardReload]);
   // No card on file: get a link the client can use to add one WITHOUT being
   // charged. This is what makes no-show protection possible on the bookings
   // Ellie adds herself, which never went through the online deposit.
@@ -1586,6 +1609,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
       hapticSuccess();
       alert(`Charged £${((data.amountCents || cents) / 100).toFixed(2)}.`);
       setChargeOpen(false); setChargeAmount(''); setChargeReason('');
+      setCardReload(n => n + 1);
       onUpdate && onUpdate();
     } catch (err) {
       alert(err.message || 'Could not charge the card');
@@ -2078,7 +2102,11 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
   // they haven't paid the rest by bank transfer. Off-session, confirmed first.
   async function handleChargeBalance() {
     if (appointment.payment_type === 'full') { alert('This booking was paid in full at booking.'); return; }
-    const remaining = (appointment.price_cents || 0) - (appointment.deposit_paid ? (appointment.deposit_cents || 0) : 0);
+    // The same figure the button prints and the server will charge: what is
+    // left after money that REALLY landed, not after Florrie's own assumption
+    // that she was paid in the room. Three places computing this separately is
+    // how a client who had paid in full was offered "charge 10 to card".
+    const remaining = collectableCents;
     if (remaining < 30) { alert('There is no balance left to charge.'); return; }
     if (!confirm(`Charge the remaining £${(remaining / 100).toFixed(2)} to ${appointment.clients?.first_name || 'this client'}'s saved card?`)) return;
     setChargingBalance(true);
@@ -2092,6 +2120,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
       if (!res.ok) throw new Error(data.error || 'Could not charge the balance');
       hapticSuccess();
       alert(`Charged £${((data.amountCents || 0) / 100).toFixed(2)} to the saved card.`);
+      setCardReload(n => n + 1);
       onUpdate && onUpdate();
     } catch (err) {
       logger.error('Charge balance error:', err);
@@ -2227,6 +2256,40 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
   }
   const isCompleted = appointment.status === 'completed';
   const canComplete = ['confirmed', 'pending', 'in_progress'].includes(appointment.status);
+  // 27 August 2026: the salon owner asked her founder "how do I charge someone's
+  // card on Florrie after it says it's completed?" She could not. Every payment
+  // control on this sheet sat inside canComplete, which excludes 'completed', so
+  // finishing a booking took away the only ways to collect for it. Finishing a
+  // treatment is the moment collecting becomes MORE likely, not less.
+  //
+  // Two different questions, so two predicates. canComplete is about whether the
+  // appointment can still be finished or moved. canTakeMoney is about whether
+  // money can still be collected for it, and a completed booking plainly can.
+  // The dead statuses stay out: nothing is owed on a cancellation, and a no-show
+  // collects through its own policy-fee path rather than this one.
+  const canTakeMoney = !DEAD_STATUSES.includes(appointment.status);
+  // The three money figures the sheet talks about, all from the same /card
+  // endpoint the charge buttons hit, so the panel, the buttons and the actual
+  // charge can never contradict each other.
+  //
+  //   outstanding   price minus the deposit already paid. Arithmetic only.
+  //   assumed       recorded as taken at completion and never confirmed by
+  //                 anybody. Florrie's guess that she was paid in the room.
+  //   collectable   outstanding minus money that REALLY landed. An assumption
+  //                 does not reduce it, which is why the charge controls still
+  //                 have something to offer on a completed booking.
+  //
+  // takings_readable false means the server could not read the transactions
+  // table. Then we fall back to bare arithmetic and say nothing about what has
+  // been paid, rather than something confident and wrong.
+  const localOutstandingCents = appointment.payment_type === 'full'
+    ? 0
+    : Math.max(0, (appointment.price_cents || 0) - (appointment.deposit_paid ? (appointment.deposit_cents || 0) : 0));
+  const takingsKnown = Boolean(cardInfo?.takings_readable);
+  const assumedCents = takingsKnown ? (cardInfo.assumed_cents || 0) : 0;
+  const collectableCents = takingsKnown
+    ? (cardInfo.uncollected_cents ?? localOutstandingCents)
+    : (cardInfo?.outstanding_cents ?? localOutstandingCents);
   return (
     <div style={styles.detailPanel}>
       <div style={styles.detailHeader}>
@@ -2591,8 +2654,16 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
             const paidCents = paidInFull
               ? (appointment.price_cents || 0)
               : (appointment.deposit_paid ? (appointment.deposit_cents || 0) : 0);
-            const owed = cardInfo?.outstanding_cents
-              ?? (paidInFull ? 0 : Math.max(0, (appointment.price_cents || 0) - paidCents));
+            // What is genuinely still out there, not what the arithmetic says.
+            // 27 August 2026: this line read outstanding_cents, which is pure
+            // price-minus-deposit and never looks at the books, so a completed
+            // booking shouted "To collect 45" in bold pink whether the money had
+            // arrived or not. collectableCents subtracts payments that really
+            // landed; an assumed completion row deliberately does not count.
+            const owed = collectableCents;
+            // Recorded as taken at completion, confirmed by nobody. The whole
+            // reason "To collect" was the wrong words on a completed booking.
+            const assumedOnly = assumedCents > 0;
             const fees = cardInfo?.fees;
             return (
               <div style={{ marginTop: 14, border: `1.5px solid ${COLORS.outlineVariant}`, borderRadius: 10, padding: '10px 12px' }}>
@@ -2607,13 +2678,30 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                     <span style={{ fontVariantNumeric: 'tabular-nums' }}>{'\u2212'}<Money pence={paidCents} /></span>
                   </div>
                 )}
+                {/* Three different states, three different sets of words. The
+                    dangerous one is the middle: a completed booking whose only
+                    record of payment is Florrie's own assumption. Calling that
+                    "To collect" overstated the case, and calling it "Paid" would
+                    understate it. It is neither, so it says what it is. */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0 0', marginTop: 3, borderTop: `1px solid ${COLORS.outlineVariant}66`, fontSize: 14 }}>
-                  <span style={{ fontWeight: 700, color: owed > 0 ? COLORS.primary : '#2E7D32', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ fontWeight: 700, color: owed <= 0 ? '#2E7D32' : assumedOnly ? '#8A5A22' : COLORS.primary, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                     {owed <= 0 && <Icon name={iconName('check_circle')} size={16} inline />}
-                    {owed > 0 ? 'To collect' : paidInFull ? 'Paid in full' : 'Nothing to collect'}
+                    {owed <= 0
+                      ? (paidInFull ? 'Paid in full' : 'Nothing to collect')
+                      : assumedOnly ? 'Down as taken, not confirmed' : 'To collect'}
                   </span>
-                  {owed > 0 && <span style={{ fontWeight: 700, color: COLORS.primary, fontVariantNumeric: 'tabular-nums' }}><Money pence={owed} /></span>}
+                  {owed > 0 && (
+                    <span style={{ fontWeight: 700, color: assumedOnly ? '#8A5A22' : COLORS.primary, fontVariantNumeric: 'tabular-nums' }}>
+                      <Money pence={owed} />
+                    </span>
+                  )}
                 </div>
+                {assumedOnly && owed > 0 && (
+                  <p style={{ fontSize: 11, color: '#6B4E2E', background: '#FDF3E7', border: '1px solid #E9D3B4', borderRadius: 8, padding: '7px 9px', margin: '7px 0 0', lineHeight: 1.45 }}>
+                    Florrie put <Money pence={assumedCents} /> down as taken when this booking finished. No card was
+                    charged and nobody ticked it off, so if they have not actually paid you, take it below.
+                  </p>
+                )}
                 {/* The question Ellie actually asks in front of this sheet is
                     "if they no-show, am I covered?". For a paid-in-full booking
                     the answer is yes BY DEFINITION: the money is already hers,
@@ -2657,21 +2745,18 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
             />
             <p style={{ fontSize: 11, color: 'var(--text-muted, #6B5D54)', margin: '4px 0 0' }}>⌘S to save · notes shown next time this client books</p>
           </div>
+          {/* Finishing, calling it off, or moving it. Only for a booking that
+              has not happened yet: none of these three mean anything on one
+              that is already done. */}
           {canComplete && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
               <button onClick={handleQuickComplete} disabled={saving} style={{ ...styles.completeBtn, opacity: saving ? 0.7 : 1 }}>
                 {saving ? 'Saving…' : 'Mark as complete'}
               </button>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button className="fl-tap" onClick={() => { hapticTap(); handleMarkNoShow(); }} disabled={saving}
-                  style={{ ...styles.completeBtn, flex: 1, background: 'var(--danger)', fontSize: 12, padding: '8px 0' }}>
-                  No-show
-                </button>
-                <button className="fl-tap" onClick={() => { hapticTap(); handleSendPaymentLink(); }} disabled={linkLoading}
-                  style={{ ...styles.completeBtn, flex: 1, background: 'var(--accent)', fontSize: 12, padding: '8px 0' }}>
-                  {linkLoading ? 'Creating...' : 'Send payment link'}
-                </button>
-              </div>
+              <button className="fl-tap" onClick={() => { hapticTap(); handleMarkNoShow(); }} disabled={saving}
+                style={{ ...styles.completeBtn, marginTop: 0, background: 'var(--danger)', fontSize: 12, padding: '8px 0' }}>
+                No-show
+              </button>
               {/* Reschedule: move the client to another day/time instead of
                   marking them a no-show (traffic, swapped to Friday, etc.). */}
               <button className="fl-tap" onClick={openTimeEdit} disabled={saving}
@@ -2679,19 +2764,47 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                 <Icon name={iconName('event_repeat')} size={16} inline />
                 Reschedule
               </button>
-              {/* Card fallback: only shows when there's an unpaid balance (price
-                  minus the deposit they paid). NEVER for a pay-in-full booking:
-                  deposit_cents still carries the standard deposit on those rows,
-                  so the arithmetic would offer to charge a paid client again.
-                  That is exactly the "says charge 10 to card" complaint, and one
-                  tap from a double charge. The backend refuses too; this stops
-                  the button existing at all. */}
-              {appointment.payment_type !== 'full'
-                && (((appointment.price_cents || 0) - (appointment.deposit_paid ? (appointment.deposit_cents || 0) : 0)) >= 30) && (
+              {/* STAYS behind canComplete, unlike everything below it. It leads
+                  to setMode('completing'), and that screen's save re-PATCHes
+                  status:'completed', which the backend answers by calling
+                  increment_client_visit again. On an appointment that is already
+                  completed that would count the visit twice and add the price to
+                  the client's lifetime spend a second time. Correcting a wrongly
+                  recorded payment method after the fact is worth having, but not
+                  at the cost of inventing visits, so it waits for a guarded
+                  complete path. */}
+              <button className="fl-tap" onClick={() => setMode('completing')}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted, #6B5D54)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: '2px 0' }}>
+                Add a payment note or photo
+              </button>
+            </div>
+          )}
+          {/* MONEY, on its own predicate. 27 August 2026: all of this used to
+              live inside canComplete, so the moment Ellie marked a booking
+              complete every way of collecting for it disappeared. She asked her
+              founder how to charge a card after a booking says completed, and
+              the honest answer was that she could not. A finished treatment is
+              when she is MOST likely to need these. */}
+          {canTakeMoney && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+              <button className="fl-tap" onClick={() => { hapticTap(); handleSendPaymentLink(); }} disabled={linkLoading}
+                style={{ ...styles.completeBtn, marginTop: 0, background: 'var(--accent)', fontSize: 12, padding: '8px 0' }}>
+                {linkLoading ? 'Creating...' : 'Send payment link'}
+              </button>
+              {/* Card fallback: only when there is genuinely something left to
+                  take. NEVER for a pay-in-full booking: deposit_cents still
+                  carries the standard deposit on those rows, so the arithmetic
+                  would offer to charge a paid client again. That is exactly the
+                  "says charge 10 to card" complaint, and one tap from a double
+                  charge. collectableCents comes from the same /card endpoint the
+                  charge performs, and it subtracts money that REALLY landed, so
+                  this button disappears the moment a card is actually charged
+                  and stays put when completion merely assumed she was paid. */}
+              {appointment.payment_type !== 'full' && collectableCents >= 30 && (
                 <button className="fl-tap" onClick={() => { hapticTap(); handleChargeBalance(); }} disabled={chargingBalance}
                   style={{ ...styles.completeBtn, marginTop: 0, background: 'var(--bg-input, #F4EDE6)', color: COLORS.primary, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 13, padding: '10px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                   <Icon name={iconName('credit_card')} size={16} inline />
-                  {chargingBalance ? 'Charging...' : `Charge £${(((appointment.price_cents || 0) - (appointment.deposit_paid ? (appointment.deposit_cents || 0) : 0)) / 100).toFixed(2)} balance to card`}
+                  {chargingBalance ? 'Charging...' : `Charge £${(collectableCents / 100).toFixed(2)} balance to card`}
                 </button>
               )}
               {/* Charge any amount to the saved card. Shows the card so she knows
@@ -2700,15 +2813,24 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                 <button className="fl-tap" onClick={() => { hapticTap(); setChargeOpen(true); }}
                   style={{ ...styles.completeBtn, marginTop: 0, background: 'var(--bg-input, #F4EDE6)', color: COLORS.primary, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 13, padding: '10px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                   <Icon name={iconName('payments')} size={16} inline />
-                  Charge their card{cardInfo.last4 ? ` \u00b7\u00b7\u00b7\u00b7 ${cardInfo.last4}` : ''}
+                  Charge their card{cardInfo.last4 ? ` ···· ${cardInfo.last4}` : ''}
                 </button>
               )}
               {chargeOpen && (
                 <div style={{ border: `1.5px solid ${COLORS.outlineVariant}`, borderRadius: 10, padding: 12, background: 'var(--bg-card)' }}>
                   <p style={{ margin: '0 0 8px', fontSize: 12, color: COLORS.stone400 }}>
                     Charging {appointment.clients?.first_name || 'this client'}'s saved card
-                    {cardInfo?.brand ? ` (${cardInfo.brand}${cardInfo.last4 ? ` \u00b7\u00b7\u00b7\u00b7 ${cardInfo.last4}` : ''})` : ''}.
+                    {cardInfo?.brand ? ` (${cardInfo.brand}${cardInfo.last4 ? ` ···· ${cardInfo.last4}` : ''})` : ''}.
                   </p>
+                  {/* She is about to turn a guess into a fact, and the books
+                      will drop the guess. Say so before she taps, so the Money
+                      tab not going up by the full amount is expected. */}
+                  {assumedCents > 0 && (
+                    <p style={{ margin: '0 0 8px', fontSize: 11, color: '#6B4E2E', background: '#FDF3E7', border: '1px solid #E9D3B4', borderRadius: 8, padding: '7px 9px', lineHeight: 1.45 }}>
+                      You already have <Money pence={assumedCents} /> down as taken for this booking, which nobody has
+                      confirmed. What you charge here replaces that, so your takings will not count it twice.
+                    </p>
+                  )}
                   <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
                     <input
                       type="number" inputMode="decimal" step="0.01" min="0"
@@ -2759,7 +2881,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                   </p>
                   <button className="fl-tap" onClick={() => { hapticTap(); handleGetCardLink(); }} disabled={cardLinkBusy}
                     style={{ width: '100%', minHeight: 40, padding: '9px 12px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, background: 'var(--bg-card)', color: COLORS.primary, fontSize: 13, fontWeight: 600, cursor: cardLinkBusy ? 'wait' : 'pointer', fontFamily: 'inherit' }}>
-                    {cardLinkBusy ? '\u2026' : (cardLink ? '\u2713 Link copied, paste it to them' : 'Get a card-on-file link')}
+                    {cardLinkBusy ? '…' : (cardLink ? '✓ Link copied, paste it to them' : 'Get a card-on-file link')}
                   </button>
                   {cardLink && (
                     <input readOnly value={cardLink}
@@ -2768,10 +2890,6 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                   )}
                 </div>
               )}
-              <button className="fl-tap" onClick={() => setMode('completing')}
-                style={{ background: 'none', border: 'none', color: 'var(--text-muted, #6B5D54)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: '2px 0' }}>
-                Add payment method or photo
-              </button>
             </div>
           )}
           {/* Delete a mistaken booking. Destructive, confirmed, and the backend
@@ -2894,17 +3012,26 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
       )}
       {mode === 'completing' && (
         <div style={styles.completionFlow}>
-          {/* Payment method */}
+          {/* How she was paid, for her own records. These chips write
+              appointments.payment_method and take NOTHING. 27 August 2026: the
+              section was headed "Payment" and the button below it read
+              "Complete - £45.00 card", which any reasonable person reads as
+              taking £45 off a card. It never has. The words now say what the
+              buttons do, and point at the one control that does move money. */}
           <div style={styles.completionSection}>
-            <span style={styles.completionLabel}>Payment</span>
+            <span style={styles.completionLabel}>How they paid</span>
             <div style={styles.paymentOptions}>
-              {['card', 'cash', 'transfer', 'unpaid'].map(m => (
-                <button key={m} onClick={() => setPaymentMethod(m)}
-                  style={{ ...styles.paymentChip, background: paymentMethod === m ? 'var(--accent)' : 'var(--border-light)', color: paymentMethod === m ? '#fff' : 'var(--text-secondary)' }}>
-                  {m === 'card' ? 'card' : m === 'cash' ? 'pound' : m === 'transfer' ? 'wallet' : 'clock'} {m}
+              {PAYMENT_NOTE_OPTIONS.map(m => (
+                <button key={m.value} onClick={() => setPaymentMethod(m.value)}
+                  style={{ ...styles.paymentChip, background: paymentMethod === m.value ? 'var(--accent)' : 'var(--border-light)', color: paymentMethod === m.value ? '#fff' : 'var(--text-secondary)' }}>
+                  <Icon name={iconName(m.icon)} size={14} inline /> {m.label}
                 </button>
               ))}
             </div>
+            <p style={styles.photoHint}>
+              A note for your records. Nothing is charged here. To take money from their card, close this and
+              tap Charge their card.
+            </p>
           </div>
           {/* Notes */}
           <div style={styles.completionSection}>
@@ -2939,7 +3066,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
             )}
           </div>
           <button onClick={handleComplete} disabled={saving} style={styles.confirmCompleteBtn}>
-            {saving ? 'Saving...' : `Complete - £${(appointment.price_cents / 100).toFixed(2)} ${paymentMethod}`}
+            {saving ? 'Saving...' : `Mark complete, noted as ${paymentNoteLabel(paymentMethod).toLowerCase()}`}
           </button>
         </div>
       )}
@@ -2947,8 +3074,13 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
         <div style={styles.doneScreen}>
           <span style={{ fontSize: 40 }}><Icon name="check-circle" size={40} /></span>
           <h3 style={{ fontSize: 18, fontWeight: 700, margin: '12px 0 4px' }}>Done!</h3>
-          <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 16 }}>
-            <Money pence={appointment.price_cents} /> logged via {paymentMethod}
+          {/* "£45.00 logged via card" read as money banked. Nothing was
+              banked: the only write was appointments.payment_method. */}
+          <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 6 }}>
+            <Money pence={appointment.price_cents} /> noted as {paymentNoteLabel(paymentMethod).toLowerCase()}
+          </p>
+          <p style={{ fontSize: 12, color: 'var(--text-muted, #6B5D54)', marginBottom: 16, lineHeight: 1.45 }}>
+            That is a note, not a payment. To take it from their card, open the booking and tap Charge their card.
           </p>
           {/* Rebook prompt */}
           <div style={styles.rebookSection}>

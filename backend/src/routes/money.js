@@ -812,8 +812,12 @@ router.get('/ledger', requireAuth, async (req, res) => {
     let transactions = [];
     if (wantIncome) {
       let q = supabase
+        // payment_method and stripe_payment_intent_id are what separate money
+        // that really landed from the row completion writes on an assumption
+        // (27 August 2026). buildLedger turns them into one `assumed` flag so
+        // the year total she reads here is not quietly optimistic.
         .from('transactions')
-        .select('id, amount_cents, type, description, created_at')
+        .select('id, amount_cents, type, description, created_at, payment_method, stripe_payment_intent_id')
         .eq('beautician_id', beauticianId)
         .eq('status', 'completed')
         // INCOME_TYPES, never a hand-written list. Four copies of this list is

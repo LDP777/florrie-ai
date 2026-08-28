@@ -56,6 +56,41 @@ const CATEGORIES = [
 
 const getCategoryMeta = (val) => CATEGORIES.find(c => c.value === val) || CATEGORIES[CATEGORIES.length - 1];
 
+/**
+ * Money that really landed, versus money Florrie ASSUMED.
+ *
+ * 27 August 2026. Finishing a booking writes a type 'payment' row so this page
+ * adds up (backend lib/takings.js). Nobody handed anything over at that moment:
+ * the row is Florrie guessing Ellie was paid in the room because the treatment
+ * ended. It carries no payment_method and no Stripe payment intent, and that
+ * shape is the whole of its identity. A real card charge writes the same type
+ * with 'card_online' and an intent id; cash or a transfer she keys in herself
+ * carries a method too.
+ *
+ * This page printed all of them identically as "Payment". So a week could read
+ * £400 taken when nothing had left a single client's account, and there was
+ * nothing on any screen that would tell her. That is the most dangerous thing
+ * in the app, and it is now the difference between two words.
+ *
+ * No new column: the row already says which it is. Same test as
+ * backend/src/lib/money-guards.js isAssumedTakingsRow, deliberately.
+ */
+export function isAssumedPayment(tx) {
+  if (!tx) return false;
+  if (!['payment', 'full_payment', 'payment_link'].includes(tx.type)) return false;
+  return !tx.stripe_payment_intent_id && !tx.payment_method;
+}
+
+/** What actually happened to this money, in her words rather than the schema's. */
+function paymentStory(tx) {
+  if (isAssumedPayment(tx)) return 'Assumed, not confirmed';
+  if (tx?.stripe_payment_intent_id) return 'Paid by card';
+  if (tx?.payment_method === 'cash') return 'Paid in cash';
+  if (tx?.payment_method === 'bank_transfer') return 'Paid by transfer';
+  if (tx?.payment_method) return 'Paid';
+  return null;
+}
+
 /** transactions.type in plain English. The vocabulary is the one in the live
  *  CHECK constraint, so a type with no label here is a schema change nobody
  *  told the UI about, and it falls back to the raw value rather than hiding. */
@@ -1436,6 +1471,9 @@ export default function MoneyTracker() {
                       const initial = isTipOrSale ? (tx.type === 'tip' ? 'heart' : 'shopping-bag') : name.charAt(0).toUpperCase();
                       const time = new Date(tx.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
                       const isIncome = tx.amount_cents >= 0;
+                      // Same split as the Income tab: an assumption must never
+                      // sit in this list looking exactly like money that landed.
+                      const assumed = isAssumedPayment(tx);
                       const clientId = tx.appointments?.client_id;
                       const apptDate = tx.appointments?.starts_at?.slice(0, 10);
                       return (
@@ -1455,7 +1493,7 @@ export default function MoneyTracker() {
                                 </button>
                               ) : name}
                             </p>
-                            <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>
+                            <p style={{ fontSize: 11, color: assumed ? '#8A5A22' : 'var(--text-muted)', margin: 0 }}>
                               {treatment}{treatment ? ' · ' : ''}
                               {apptDate ? (
                                 <button className="fl-tap"
@@ -1465,12 +1503,13 @@ export default function MoneyTracker() {
                                   {time}
                                 </button>
                               ) : time}
+                              {assumed ? ' · Assumed, not confirmed' : ''}
                             </p>
                           </div>
                           <span style={{ fontSize: 14, fontWeight: 700,
-                            color: isIncome ? 'var(--success)' : 'var(--danger)',
+                            color: assumed ? '#8A5A22' : isIncome ? 'var(--success)' : 'var(--danger)',
                           }}>
-                            {isIncome ? '+' : '-'}{fmt(tx.amount_cents)}
+                            {assumed ? '' : isIncome ? '+' : '-'}{fmt(tx.amount_cents)}
                           </span>
                         </div>
                       );
@@ -2063,10 +2102,14 @@ export default function MoneyTracker() {
               const label = isExpense
                 ? (row.vendor || row.description || meta.label)
                 : (row.description || INCOME_LABELS[row.category] || 'Payment');
+              // row.assumed: a completion row nobody confirmed. This is the
+              // screen she reads at tax time, so it is the last place that
+              // should print a guess as though it were a receipt.
+              const assumed = !isExpense && row.assumed === true;
               return (
                 <div key={`${row.kind}-${row.id}`} style={S.txRow}>
                   <div style={{ ...S.catBubble,
-                    background: isExpense ? meta.color : 'rgba(91, 169, 123, 0.15)',
+                    background: isExpense ? meta.color : assumed ? '#FDF3E7' : 'rgba(91, 169, 123, 0.15)',
                   }}>
                     <span><Icon name={isExpense ? meta.icon : 'pound'} size={16} /></span>
                   </div>
@@ -2074,9 +2117,11 @@ export default function MoneyTracker() {
                     <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {label}
                     </p>
-                    <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>
+                    <p style={{ fontSize: 11, color: assumed ? '#8A5A22' : 'var(--text-muted)', margin: 0 }}>
                       {prettyDate(row.date)}
-                      {isExpense ? ` · ${meta.label}` : ` · ${INCOME_LABELS[row.category] || row.category}`}
+                      {isExpense
+                        ? ` · ${meta.label}`
+                        : assumed ? ' · Assumed, not confirmed' : ` · ${INCOME_LABELS[row.category] || row.category}`}
                       {row.recurring_expense_id ? ' · repeats' : ''}
                     </p>
                   </div>
@@ -2086,7 +2131,7 @@ export default function MoneyTracker() {
                       signed
                       size={15}
                       style={{ display: 'block',
-                        color: row.amount_cents < 0 ? 'var(--danger)' : 'var(--success)',
+                        color: assumed ? '#8A5A22' : row.amount_cents < 0 ? 'var(--danger)' : 'var(--success)',
                       }}
                     />
                     <span style={{ fontSize: 10, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
@@ -2133,29 +2178,44 @@ export default function MoneyTracker() {
           {transactions.length === 0 && (
             <EmptyState message="Payments from completed appointments will show here." icon="card" />
           )}
+          {transactions.some(isAssumedPayment) && (
+            <p style={{ fontSize: 12, color: '#6B4E2E', background: '#FDF3E7', border: '1px solid #E9D3B4',
+              borderRadius: 10, padding: '10px 12px', margin: '0 0 4px', lineHeight: 1.5 }}>
+              <strong>Assumed means nobody confirmed it.</strong> Florrie counts a booking's price as taken when you
+              finish it, so if a client walked out without paying it is still sitting in here. Open the booking to
+              charge their card, or mark it as a no-show.
+            </p>
+          )}
           {transactions.map(tx => {
             const isTipOrSale = tx.type === 'tip' || tx.type === 'product_sale';
             const name = isTipOrSale ? (tx.description || (tx.type === 'tip' ? 'Tip' : 'Product Sale')) : (tx.appointments?.clients?.first_name || 'Payment');
             const treatment = isTipOrSale ? '' : (tx.appointments?.treatments?.name || '');
             const initial = isTipOrSale ? (tx.type === 'tip' ? 'heart' : 'shopping-bag') : name.charAt(0).toUpperCase();
-            const typeLabel = { payment: 'Payment', deposit: 'Deposit', no_show_fee: 'No-show fee', tip: 'Tip', product_sale: 'Product sale' }[tx.type] || tx.type;
+            // An assumption and a real payment used to print the same word in
+            // the same green. They are different facts about her money, so they
+            // get different words and the assumption does not get the green.
+            const assumed = isAssumedPayment(tx);
+            const typeLabel = paymentStory(tx)
+              || { payment: 'Payment', deposit: 'Deposit', no_show_fee: 'No-show fee', tip: 'Tip', product_sale: 'Product sale' }[tx.type]
+              || tx.type;
             return (
               <div key={tx.id} style={S.txRow}>
                 <div style={{ ...S.txAvatar,
                   ...(tx.type === 'tip' ? { background: 'linear-gradient(135deg, #d4f5e0 0%, #a3e4b8 100%)' } :
                       tx.type === 'product_sale' ? { background: 'linear-gradient(135deg, #fedb9b 0%, #f5c563 100%)' } : {}),
+                  ...(assumed ? { background: '#FDF3E7', color: '#6B4E2E' } : {}),
                 }}>{initial}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
                     {name}{treatment ? ` - ${treatment}` : ''}
                   </p>
-                  <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>
+                  <p style={{ fontSize: 11, color: assumed ? '#8A5A22' : 'var(--text-muted)', margin: 0 }}>
                     {new Date(tx.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
                     {' · '}{typeLabel}
                   </p>
                 </div>
-                <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--success)', marginLeft: 12 }}>
-                  +{fmt(tx.amount_cents)}
+                <span style={{ fontSize: 14, fontWeight: 700, color: assumed ? '#8A5A22' : 'var(--success)', marginLeft: 12 }}>
+                  {assumed ? '' : '+'}{fmt(tx.amount_cents)}
                 </span>
               </div>
             );

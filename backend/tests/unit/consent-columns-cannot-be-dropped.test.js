@@ -163,8 +163,10 @@ describe('no new sender joins clients without the consent columns', () => {
     'src/routes/appointments.js:66',
     'src/routes/appointments.js:431',
     // Moved down by the patch-test record and alert routes added above it in
-    // routes/appointments.js. Same join, same file. (Previously 1598.)
-    'src/routes/appointments.js:1826',
+    // routes/appointments.js, then again by the assumed-versus-settled takings
+    // read added to GET /:id/card on 27 August 2026. Same join, same file.
+    // (Previously 1598, then 1826.)
+    'src/routes/appointments.js:1873',
     // All five moved down again, by the patch-test evidence rule replacing the
     // `status === 'passed'` test in routes/booking.js. Same five joins, same
     // file, new line numbers.

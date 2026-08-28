@@ -11,7 +11,7 @@ import { awardLoyaltyPoints } from '../services/loyalty.js';
 import { chargePolicyFee, chargeRemainingBalance, chargeCardAmount, getCardOnFile } from '../services/policy-fees.js';
 import { feePreview } from '../lib/platform-fees.js';
 import { logAssumedTakings } from '../lib/takings.js';
-import { onlyFlipped } from '../lib/money-guards.js';
+import { onlyFlipped, PRICE_SETTLED_TYPES, assumedTakingsCents, settledPriceCents, uncollectedCents } from '../lib/money-guards.js';
 import { recomputeTotals, endsAtWall, parseExtraTreatmentIds } from '../lib/appointment-treatments.js';
 import logger from '../lib/logger.js';
 import { needsPatchTest, patchTestEvidence, patchTestWindowStart, RECORDED_BY_OWNER, todayWall, wallDate } from '../lib/patch-test-status.js';
@@ -956,12 +956,18 @@ router.patch('/:id', requireAuth, async (req, res) => {
     // method; real card charges (deposits, balance) keep a method and are left
     // alone. This is what makes "mark a no-show at the end of the day" update
     // everything, even for appointments that already auto-completed.
+    // The shape here IS the assumed row, and it is now named: see
+    // isAssumedTakingsRow in lib/money-guards.js. The intent-id clause is new
+    // (27 August 2026): a real charge always carries one, so this can never
+    // delete money that actually moved even if its method column is somehow
+    // empty. Belt and braces on a delete against the money table.
     const { error: revErr } = await supabase
       .from('transactions')
       .delete()
       .eq('appointment_id', req.params.id)
       .eq('type', 'payment')
-      .is('payment_method', null);
+      .is('payment_method', null)
+      .is('stripe_payment_intent_id', null);
     if (revErr) logger.error({ err: revErr, appointmentId: req.params.id }, 'no_show takings reversal failed');
 
     // Fire-and-forget: auto-charge the no-show fee to the saved card when the
@@ -1159,10 +1165,12 @@ router.post('/:id/charge-balance', requireAuth, async (req, res) => {
   }
   const messages = {
     nothing_due: 'There is no balance left to charge.',
-    // 'already_charged' includes the assumed takings row that completion
-    // writes, so it fires for money never actually carded. The wording stays
-    // honest about that rather than claiming a card was charged.
-    already_charged: 'This balance is already recorded as settled, so nothing was charged.',
+    // 'already_charged' now means what it says. It used to include the assumed
+    // takings row completion writes, so it fired on every completed booking for
+    // money that had never touched a card, which is exactly what stopped the
+    // salon owner charging a card after a booking said completed (27 August
+    // 2026). Only a real payment reaches this message now.
+    already_charged: 'This has already been paid, so nothing was charged.',
     paid_in_full: 'This booking was paid in full at booking. There is nothing left to charge.',
     guard_unreadable: 'Could not verify what has already been paid, so nothing was charged. Try again in a moment.',
     no_card_on_file: 'No saved card on file for this client. Cards are only saved when deposits (card required at booking) are turned on in Settings. For a client with no card, send them a payment link instead.',
@@ -1197,13 +1205,52 @@ router.get('/:id/card', requireAuth, async (req, res) => {
     ? 0
     : Math.max(0, (appt.price_cents || 0) - (appt.deposit_paid ? (appt.deposit_cents || 0) : 0));
 
+  // What the books actually say about this booking's price, split into the two
+  // things that were indistinguishable until 27 August 2026, when the salon
+  // owner asked how to charge a card after a booking says completed:
+  //
+  //   assumed  a row completion wrote to make the Money tab add up. Nobody
+  //            handed over anything; Florrie guessed she was paid in the room.
+  //   settled  a row with a Stripe intent, or a cash/transfer she keyed in.
+  //            Money that really moved.
+  //
+  // outstanding_cents keeps its old meaning (price minus deposit) because it is
+  // the arithmetic chargeRemainingBalance performs, and the two must never
+  // disagree. uncollected_cents is the honest figure to put in front of her:
+  // what could still be taken. An assumption does not reduce it.
+  const { data: priceRows, error: priceRowsError } = await supabase
+    .from('transactions')
+    .select('id, type, amount_cents, payment_method, stripe_payment_intent_id')
+    .eq('appointment_id', req.params.id)
+    .in('type', PRICE_SETTLED_TYPES);
+
+  // Read the error: PostgREST resolves with { data: null, error }, and a silent
+  // null here would tell the sheet "nothing is assumed", which is the one wrong
+  // answer. takings_readable false means the app says nothing rather than
+  // something confident and false.
+  if (priceRowsError) {
+    logger.error({ err: priceRowsError, appointmentId: req.params.id }, 'card: could not read what has been paid');
+  }
+
+  const assumedCents = priceRowsError ? 0 : assumedTakingsCents(priceRows);
+  const settledCents = priceRowsError ? 0 : settledPriceCents(priceRows);
+  const uncollected = priceRowsError ? outstandingCents : uncollectedCents(outstandingCents, priceRows);
+
   // Fee preview so the app can say what actually reaches the beautician.
-  // ?amount_cents previews a custom figure; default is the outstanding balance.
+  // ?amount_cents previews a custom figure; default is what is still collectable.
   const q = Number.parseInt(req.query.amount_cents, 10);
-  const previewCents = Number.isFinite(q) && q > 0 ? q : outstandingCents;
+  const previewCents = Number.isFinite(q) && q > 0 ? q : uncollected;
 
   const card = await getCardOnFile(req.params.id);
-  res.json({ ...card, outstanding_cents: outstandingCents, fees: feePreview(previewCents) });
+  res.json({
+    ...card,
+    outstanding_cents: outstandingCents,
+    takings_readable: !priceRowsError,
+    assumed_cents: assumedCents,
+    settled_cents: settledCents,
+    uncollected_cents: uncollected,
+    fees: feePreview(previewCents),
+  });
 });
 
 /**

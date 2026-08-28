@@ -1,7 +1,7 @@
 import * as Sentry from '@sentry/node';
 import { supabase } from '../config.js';
 import { getTaxYear } from './time-utils.js';
-import { PRICE_SETTLED_TYPES, completionTakingsCents } from './money-guards.js';
+import { PRICE_SETTLED_TYPES, completionTakingsCents, isAssumedTakingsRow, supersedeAssumedPlan } from './money-guards.js';
 import logger from './logger.js';
 
 /**
@@ -83,4 +83,88 @@ export async function logAssumedTakings(beauticianId, appt) {
   }
 
   return { logged: true, takings };
+}
+
+/**
+ * A real charge has landed, so retract the guess it replaces.
+ *
+ * 27 August 2026, the incident this whole change comes from: the salon owner
+ * asked how to charge a card after a booking says completed. Completion has
+ * already written an assumed takings row (above) claiming she was paid in the
+ * room. If the charge she then makes simply adds a second row, the same GBP 45
+ * is counted twice: once as a guess, once as fact. Her Money tab, her Pulse and
+ * the tax she sets aside against them would all be overstated by the price of
+ * every booking she ever chased.
+ *
+ * So the assumption gives way to the evidence, pound for pound and no further
+ * (supersedeAssumedPlan). Call this only AFTER the real transaction row is
+ * safely inserted: retract first and lose the insert, and the books would show
+ * nothing at all for money that has left a client's card.
+ *
+ * Returns { superseded, reason }. Never throws.
+ */
+export async function supersedeAssumedTakings(appointmentId, chargedCents) {
+  const charged = Math.max(0, Math.round(Number(chargedCents) || 0));
+  if (!appointmentId || charged <= 0) return { superseded: 0, reason: 'nothing_to_supersede' };
+
+  // Read the error. PostgREST resolves with { data: null, error } rather than
+  // throwing, and an unread error here would look exactly like "no assumed row
+  // to worry about", which is the one wrong answer.
+  const { data: rows, error } = await supabase
+    .from('transactions')
+    .select('id, type, amount_cents, payment_method, stripe_payment_intent_id')
+    .eq('appointment_id', appointmentId)
+    .in('type', PRICE_SETTLED_TYPES)
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    logger.error({ err: error, appointmentId, charged }, 'assumed takings not superseded: read failed, income may be double counted');
+    Sentry.captureMessage('Assumed takings not superseded: read failed', {
+      level: 'error',
+      tags: { area: 'payments', check: 'assumed_supersede' },
+      extra: { appointmentId, chargedPence: charged, dbError: error.message, dbCode: error.code },
+    });
+    return { superseded: 0, reason: 'read_failed' };
+  }
+
+  const assumed = (rows || []).filter(isAssumedTakingsRow);
+  if (!assumed.length) return { superseded: 0, reason: 'no_assumed_row' };
+
+  const plan = supersedeAssumedPlan(assumed, charged);
+
+  if (plan.deleteIds.length) {
+    const { error: delErr } = await supabase
+      .from('transactions')
+      .delete()
+      .in('id', plan.deleteIds);
+    if (delErr) {
+      logger.error({ err: delErr, appointmentId, ids: plan.deleteIds }, 'assumed takings row could not be removed, income is double counted');
+      Sentry.captureMessage('Assumed takings not superseded: delete failed', {
+        level: 'error',
+        tags: { area: 'payments', check: 'assumed_supersede' },
+        extra: { appointmentId, chargedPence: charged, dbError: delErr.message, dbCode: delErr.code },
+      });
+      return { superseded: 0, reason: 'delete_failed' };
+    }
+  }
+
+  for (const row of plan.reduce) {
+    const { error: updErr } = await supabase
+      .from('transactions')
+      .update({ amount_cents: row.amountCents })
+      .eq('id', row.id);
+    if (updErr) {
+      logger.error({ err: updErr, appointmentId, transactionId: row.id }, 'assumed takings row could not be reduced, income is double counted');
+      Sentry.captureMessage('Assumed takings not superseded: reduce failed', {
+        level: 'error',
+        tags: { area: 'payments', check: 'assumed_supersede' },
+        extra: { appointmentId, chargedPence: charged, dbError: updErr.message, dbCode: updErr.code },
+      });
+      return { superseded: 0, reason: 'reduce_failed' };
+    }
+  }
+
+  logger.info({ appointmentId, chargedPence: charged, supersededPence: plan.supersededCents },
+    'Assumed takings superseded by a real charge');
+  return { superseded: plan.supersededCents, reason: 'superseded' };
 }

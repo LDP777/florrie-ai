@@ -2,7 +2,8 @@ import Stripe from 'stripe';
 import * as Sentry from '@sentry/node';
 import { supabase } from '../config.js';
 import { totalApplicationFee } from '../lib/platform-fees.js';
-import { PRICE_SETTLED_TYPES } from '../lib/money-guards.js';
+import { PRICE_SETTLED_TYPES, isSettledPriceRow } from '../lib/money-guards.js';
+import { supersedeAssumedTakings } from '../lib/takings.js';
 import logger from '../lib/logger.js';
 
 /**
@@ -504,16 +505,24 @@ export async function chargeRemainingBalance(appointmentId) {
 
     // Already charged or already settled? full_payment counts: a client who
     // paid everything at booking must trip this guard, and until now did not.
+    //
+    // ASSUMED ROWS DO NOT COUNT. 27 August 2026: the salon owner asked how to
+    // charge a card after a booking says completed, and the answer was that she
+    // could not. Completing a booking writes a type 'payment' row with no
+    // method and no payment intent (lib/takings.js) purely to make the Money
+    // tab add up, so this guard refused every completed appointment with
+    // "already charged" for money that had never touched a card. Only a row
+    // with a Stripe intent, or a cash/transfer she keyed in herself, is
+    // evidence that the price is settled. See isSettledPriceRow.
     const { data: prior, error: priorError } = await supabase
       .from('transactions')
-      .select('id')
+      .select('id, type, amount_cents, payment_method, stripe_payment_intent_id')
       .eq('appointment_id', appt.id)
-      .in('type', PRICE_SETTLED_TYPES)
-      .limit(1);
+      .in('type', PRICE_SETTLED_TYPES);
     // If the guard itself cannot be read, refuse to charge. Charging blind is
     // exactly the double-charge this guard exists to prevent.
     if (priorError) return { charged: false, reason: 'guard_unreadable' };
-    if (prior && prior.length) return { charged: false, reason: 'already_charged' };
+    if ((prior || []).some(isSettledPriceRow)) return { charged: false, reason: 'already_charged' };
 
     if (!stripe) return { charged: false, reason: 'stripe_not_configured' };
 
@@ -597,6 +606,12 @@ export async function chargeRemainingBalance(appointmentId) {
         },
       });
     }
+
+    // The money is now real, so the guess that stood in for it must go, or the
+    // same GBP 45 sits in her books twice. Only after a clean insert: if the
+    // row above failed we still have the assumed row, and that is strictly
+    // better than an empty ledger for money that has left a card.
+    if (!txErr) await supersedeAssumedTakings(appt.id, amountCents);
 
     logger.info({ appointmentId, amountCents, paymentIntentId: paymentIntent.id }, 'Remaining balance charged');
     return { charged: true, amountCents, paymentIntentId: paymentIntent.id };
@@ -717,6 +732,11 @@ export async function chargeCardAmount(appointmentId, amountCents, reason = '') 
         },
       });
     }
+
+    // Same retraction as the balance path. She types the amount here, so the
+    // charge may be larger or smaller than what completion assumed; the plan
+    // cancels the assumption pound for pound and never more than there was.
+    if (!txErr) await supersedeAssumedTakings(appt.id, amount);
 
     logger.info({ appointmentId, amount, reason, paymentIntentId: paymentIntent.id }, 'Manual card charge taken');
     return { charged: true, amountCents: amount, paymentIntentId: paymentIntent.id };
