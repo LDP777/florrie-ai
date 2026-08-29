@@ -60,7 +60,39 @@ function TurnstileWidget({ onToken }) {
  * Flow: Select treatment → Pick date → Pick time slot → Enter details → Confirm
  * Target: Complete booking in under 90 seconds.
  */
-const STEPS = ['Treatment', 'Date & Time', 'Your Details', 'Confirm'];
+/**
+ * The four steps everybody sees, and the one that used to appear from nowhere.
+ *
+ * Step 2.5 is the consultation form. It had no dot and no label here, so a
+ * client who tapped "Next" on her details landed on a page of medical
+ * questions with the progress indicator still saying she was on step three of
+ * four. `at` is the step number each dot stands for, so the health form can
+ * be slotted in without renumbering anything around it.
+ */
+const STEPS = [
+  { label: 'Treatment', at: 0 },
+  { label: 'Date & Time', at: 1 },
+  { label: 'Your Details', at: 2 },
+  { label: 'Confirm', at: 3 },
+];
+const CONSULTATION_STEP = { label: 'Health form', at: 2.5 };
+/**
+ * How long the page waits for lookup-client before deciding without it.
+ * Short enough that nobody sits on a spinner, long enough that a normal
+ * connection always answers first. See resolveConsultationDecision.
+ */
+const LOOKUP_TIMEOUT_MS = 4000;
+/**
+ * What the page does when it cannot get an answer out of lookup-client at all.
+ *
+ * ASK, NEVER BLOCK. Asking a client who has already answered costs her one
+ * screen she can walk straight past. Refusing to book a regular because a
+ * network call failed loses Ellie the booking, and treating an unknown as a
+ * stranger is exactly the mistake this whole change is about. The stranger
+ * wall is not weakened by this: POST /book enforces it again server side,
+ * where it actually holds.
+ */
+const CONSULTATION_UNKNOWN = { ask: true, block: false, reason: 'lookup_unavailable' };
 /**
  * PaymentCountdown, shows a live countdown to the payment deadline.
  * If the slot will be released in <10min, client sees how long they have.
@@ -182,8 +214,25 @@ export default function BookingPage() {
   // Payment method: 'card', 'cash', 'bank_transfer'
   const [paymentMethod, setPaymentMethod] = useState('card');
   // Client recognition, returning client lookup
-  const [recognisedClient, setRecognisedClient] = useState(null); // the lookup-client payload: { found, client, returningClient, priorVisits, hasPendingPatchTest, hasPendingForm, ... }
+  const [recognisedClient, setRecognisedClient] = useState(null); // the lookup-client payload: { found, client, returningClient, priorVisits, hasPendingPatchTest, hasPendingForm, consultation, ... }
   const [lookingUpClient, setLookingUpClient] = useState(false);
+  /* THE CONSULTATION VERDICT, decided by the server and obeyed here.
+   *
+   * { ask, block, reason, forKey }. The page does not own this rule and must
+   * not grow a second copy of it: lookup-client answers it from
+   * backend/src/lib/consultation-status.js, which is the same function
+   * services/conversational-booking.js uses, so Florrie and this page cannot
+   * disagree about the same client and the same treatment.
+   *
+   * `forKey` is who she is plus what is in her basket. A verdict about a
+   * different phone number or a different treatment is not an answer to this
+   * question, and is thrown away rather than trusted.
+   */
+  const [consultationDecision, setConsultationDecision] = useState(null);
+  const [decidingConsultation, setDecidingConsultation] = useState(false);
+  // The lookup currently in flight, so the Next button can wait for the answer
+  // it depends on instead of reading a null that has not been filled in yet.
+  const lookupInFlight = useRef(null);
   // Membership detection
   const [memberInfo, setMemberInfo] = useState(null); // { is_member, plan_name, client_name }
   // Package redemption
@@ -224,7 +273,6 @@ export default function BookingPage() {
     return String(raw).trim() !== '';
   }
 
-  const needsConsultation = selectedTreatments.some(t => t.requires_consultation);
   /* THE TREATMENT needs a patch test. This says nothing about the person
    * reading the page, and until 27 August 2026 the page acted as though it did.
    *
@@ -390,36 +438,110 @@ export default function BookingPage() {
     }, 600);
     return () => clearTimeout(timer);
   }, [clientDetails.phone, slug, selectedTreatment?.id]);
+  /* Who is being looked up, and for what.
+   *
+   * Both halves matter. "Has this client got her consultation on file" is a
+   * question about a TREATMENT as much as about a person: a completed brow
+   * form is not an answer about a lash lift. So a verdict is only reused when
+   * the number, the email and the basket are all still the same ones it was
+   * given.
+   */
+  const selectedTreatmentIds = selectedTreatments.map(t => t.id);
+  const consultationKey = `${(clientDetails.email || '').trim().toLowerCase()}|${(clientDetails.phone || '').trim()}|${selectedTreatmentIds.join(',')}`;
+
   // Client recognition, trigger when the email OR phone field loses focus.
-  // A match on EITHER field means a returning client — skips consultation/patch test.
-  async function lookupClient() {
-    const email = clientDetails.email?.trim();
-    const phone = clientDetails.phone?.trim();
-    if (!email && !phone) return;
-    setLookingUpClient(true);
-    try {
-      const res = await fetch(`${API_BASE}/api/booking/${slug}/lookup-client`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, phone }),
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data.found && data.client) {
-        setRecognisedClient(data);
-        // Pre-fill name and phone if not already entered
-        setClientDetails(prev => ({
-          ...prev,
-          name: prev.name || data.client.name,
-          phone: prev.phone || data.client.phone || '',
-        }));
-      } else {
-        setRecognisedClient(null);
+  // Returns the consultation verdict so the caller can act on THIS lookup
+  // rather than on whatever state happens to have landed by then.
+  function lookupClient() {
+    const forKey = consultationKey;
+    const run = (async () => {
+      const email = clientDetails.email?.trim();
+      const phone = clientDetails.phone?.trim();
+      if (!email && !phone) {
+        setConsultationDecision(null);
+        return { ...CONSULTATION_UNKNOWN, forKey };
       }
+      setLookingUpClient(true);
+      // A lookup that never comes back must not leave her holding a spinner.
+      // After LOOKUP_TIMEOUT_MS the page answers without it, on the safe side.
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), LOOKUP_TIMEOUT_MS);
+      try {
+        const res = await fetch(`${API_BASE}/api/booking/${slug}/lookup-client`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, phone, treatment_ids: selectedTreatmentIds }),
+          signal: controller.signal,
+        });
+        if (!res.ok) return { ...CONSULTATION_UNKNOWN, forKey };
+        const data = await res.json();
+        if (data.found && data.client) {
+          setRecognisedClient(data);
+          // Pre-fill name and phone if not already entered
+          setClientDetails(prev => ({
+            ...prev,
+            name: prev.name || data.client.name,
+            phone: prev.phone || data.client.phone || '',
+          }));
+        } else {
+          setRecognisedClient(null);
+        }
+        // The server decided. The page just does as it is told, so that the
+        // rule has one home and Florrie and this page cannot drift apart.
+        const decision = data.consultation
+          ? {
+              ask: data.consultation.ask !== false,
+              block: data.consultation.block === true,
+              reason: data.consultation.reason || null,
+              forKey,
+            }
+          : { ...CONSULTATION_UNKNOWN, forKey };
+        setConsultationDecision(decision);
+        return decision;
+      } catch {
+        // An abort or a dead network, never a reason to block a booking.
+        return { ...CONSULTATION_UNKNOWN, forKey };
+      } finally {
+        clearTimeout(timer);
+        setLookingUpClient(false);
+      }
+    })();
+    lookupInFlight.current = run;
+    return run;
+  }
+
+  /**
+   * THE ANSWER THE NEXT BUTTON IS WAITING FOR.
+   *
+   * THE RACE THIS FIXES. lookupClient fires on blur and is async. Every
+   * keystroke in the phone or email box resets recognisedClient to null. The
+   * Next handler read that state synchronously. So a regular whose last action
+   * was typing in the phone box and tapping Next was treated as unrecognised,
+   * nondeterministically, depending on whether the blur's fetch had come back
+   * in the few milliseconds between the two taps.
+   *
+   * WHICH WAY IT FAILS: towards ASKING and away from BLOCKING. If the lookup
+   * cannot be completed she is shown the form (which she can walk past) and is
+   * never refused the booking. The one population that is genuinely refused,
+   * somebody with no clients row at all booking a treatment that requires a
+   * consultation, is refused again by POST /book server side, so nothing here
+   * can let her through by failing.
+   */
+  async function resolveConsultationDecision() {
+    const forKey = consultationKey;
+    if (consultationDecision?.forKey === forKey) return consultationDecision;
+    setDecidingConsultation(true);
+    try {
+      const inFlight = lookupInFlight.current;
+      if (inFlight) {
+        const settled = await inFlight;
+        if (settled?.forKey === forKey) return settled;
+      }
+      return await lookupClient();
     } catch {
-      // silent, never block the booking flow
+      return { ...CONSULTATION_UNKNOWN, forKey };
     } finally {
-      setLookingUpClient(false);
+      setDecidingConsultation(false);
     }
   }
   // "Booked before?" quick path: phone-only lookup on step 0. On a match we
@@ -468,12 +590,22 @@ export default function BookingPage() {
    * A text_block is a paragraph to read, not a question, so it is never
    * "unanswered". A signature is: it is the thing that makes the rest consent.
    */
-  const missingConsultation = !needsConsultation || recognisedClient?.found
-    ? []
-    : consultationQuestions.filter(q =>
-        q.type !== 'text_block'
-        && q.required !== false
-        && !isAnswered(q, consultationAnswers[q.key]));
+  const unansweredConsultation = consultationQuestions.filter(q =>
+    q.type !== 'text_block'
+    && q.required !== false
+    && !isAnswered(q, consultationAnswers[q.key]));
+
+  /* WHO IS ACTUALLY STOPPED, which since 29 August 2026 is not the same as who
+   * is asked.
+   *
+   * Everybody newly brought into scope is CHASED, not blocked: she sees the
+   * form, she can carry on without finishing it, the form is texted to her and
+   * the 24 to 72 hour pre-appointment reminder chases it. The one exception is
+   * a client with no clients row at all booking a treatment that requires a
+   * consultation, and that wall is older than this change and stays exactly as
+   * it was. `block` comes from the server and is true for nobody else.
+   */
+  const missingConsultation = consultationDecision?.block === true ? unansweredConsultation : [];
 
 
   function rebookSameAgain() {
@@ -793,6 +925,21 @@ export default function BookingPage() {
   }, [calMonth]);
   const canGoPrev = calMonth ? !sameMonth(calMonth, todayMid) : false;
   const canGoNext = calMonth ? !sameMonth(calMonth, horizonDate) && calMonth < startOfMonth(horizonDate) : false;
+  /* The dots along the top. The health form earns one the moment we know she
+   * is going to be asked for it, and keeps it while she is on it. */
+  const showFormStep = step === 2.5 || (consultationDecision?.forKey === consultationKey && consultationDecision.ask);
+  const progressSteps = showFormStep
+    ? [...STEPS.slice(0, 3), CONSULTATION_STEP, ...STEPS.slice(3)]
+    : STEPS;
+
+  /* The answers, if there is a whole set of them. See the comment at the call
+   * site below for why a partial set is deliberately not sent. */
+  const consultationSubmission = (
+    consultationDecision?.ask === true
+    && unansweredConsultation.length === 0
+    && Object.keys(consultationAnswers).length > 0
+  ) ? consultationAnswers : null;
+
   // Submit booking via backend API (handles client creation, conflict checks, deposits)
   async function handleBook() {
     // Refuse before anything is created. A booking that skips the medical
@@ -825,9 +972,21 @@ export default function BookingPage() {
           client_email: clientDetails.email || null,
           client_phone: clientDetails.phone,
           notes: clientDetails.notes || null,
-          // Only new clients submit consultation/patch-test answers; returning
-          // clients skip the form entirely so we never send (or require) it.
-          consultation: !recognisedClient?.found ? consultationAnswers : null,
+          // WHAT SHE ACTUALLY TYPED, sent whenever she was asked and finished.
+          //
+          // This used to read `!recognisedClient?.found ? consultationAnswers
+          // : null`, so all 926 clients imported from Timely had their answers
+          // discarded on the way out even in the cases where the page had
+          // collected them. Nothing reached consultation_responses and nobody
+          // could have had a form on file.
+          //
+          // Complete or nothing, deliberately. recordBookingConsultation files
+          // these as a COMPLETED response, and a completed response suppresses
+          // the question for good, so half a form filed as a whole one would
+          // silence the very ask this change exists to make. A half-finished
+          // form sends null, which lets the form SMS go out and the reminder
+          // chase it, which is the point of chasing rather than blocking.
+          consultation: consultationSubmission,
           add_ons: selectedAddOns.map(ao => ({ id: ao.id, price_cents: ao.price_cents })),
           products: cartItems.map(item => ({ id: item.id, quantity: item.qty, price_cents: item.price_cents })),
           payment_type: paymentType,
@@ -846,6 +1005,19 @@ export default function BookingPage() {
         // just need a moment. Never surface a scary technical error here.
         if (res.status === 429) {
           throw new Error('Lots of people are booking right now. Wait a minute and tap confirm again, your details are saved.');
+        }
+        // The stranger wall on POST /book. It fires when the page could not
+        // reach lookup-client and therefore did not know to require the form,
+        // so send her back to it rather than leaving her on the review screen
+        // reading a refusal with nothing on it to act on.
+        if (data.code === 'consultation_required') {
+          // The server knows something the page did not: she has no clients
+          // row at all. Take it as the verdict, so the questions go red and
+          // the Review button holds until they are answered.
+          setConsultationDecision({ ask: true, block: true, reason: 'server_required', forKey: consultationKey });
+          setShowConsultationErrors(true);
+          setStep(2.5);
+          throw new Error(data.error);
         }
         const detail = data.details?.length ? ` (${data.details.join(', ')})` : '';
         throw new Error((data.error || 'Booking failed') + detail);
@@ -1128,17 +1300,20 @@ export default function BookingPage() {
         <h1 style={styles.businessName}>{bizName}</h1>
         <p style={{ ...styles.subtitle, color: onBrandColour, opacity: 0.85 }}>{headerTagline}</p>
       </div>
-      {/* Progress */}
-      <div style={styles.progressContainer}>
-        {STEPS.map((label, i) => (
+      {/* Progress. The health form gets a dot and a label of its own as soon as
+          we know she is going to be asked for it, so it stops arriving from
+          nowhere between "Your Details" and "Confirm". */}
+      <div style={{ ...styles.progressContainer, gap: progressSteps.length > 4 ? 14 : 24 }}>
+        {progressSteps.map(({ label, at }) => (
           <div key={label} style={styles.progressStep}>
             <div style={{ ...styles.progressDot,
-              background: i <= step ? brand : 'var(--border-light)',
-              transform: i === step ? 'scale(1.2)' : 'scale(1)'
+              background: at <= step ? brand : 'var(--border-light)',
+              transform: at === step ? 'scale(1.2)' : 'scale(1)'
             }} />
             <span style={{ ...styles.progressLabel,
-              color: i <= step ? brandInk : 'var(--text-muted)',
-              fontWeight: i === step ? 600 : 400
+              color: at <= step ? brandInk : 'var(--text-muted)',
+              fontWeight: at === step ? 600 : 400,
+              whiteSpace: 'nowrap',
             }}>{label}</span>
           </div>
         ))}
@@ -1661,22 +1836,33 @@ export default function BookingPage() {
             <div style={styles.buttonRow}>
               <button onClick={() => setStep(1)} style={styles.backBtn}>← Back</button>
               <button
-                onClick={() => {
-                  if (validateStep(2)) {
-                    // Consultation form + patch test are ONLY for new clients.
-                    // A recognised (returning) client always skips straight to review,
-                    // never re-asked for a form or patch test they've already done.
-                    const askForms = !recognisedClient?.found /* every first visit gets the form (Ellie's rule) */;
-                    setStep(askForms ? 2.5 : 3);
-                  }
+                onClick={async () => {
+                  if (!validateStep(2)) return;
+                  /* WAIT FOR THE ANSWER THIS DECISION DEPENDS ON.
+                   *
+                   * This used to read `!recognisedClient?.found`, synchronously,
+                   * against state a blur handler was still filling in, and
+                   * `found` only ever meant "a clients row matched on email or
+                   * the last nine digits of the phone". After the Timely import
+                   * that was true of 926 of 1,151 clients, 277 of whom have
+                   * never once been in, so the health questions were skipped
+                   * for all of them. The rule is now the server's, it is
+                   * hybrid, and the button waits for it.
+                   */
+                  const decision = await resolveConsultationDecision();
+                  setStep(decision.ask ? 2.5 : 3);
                 }}
-                disabled={!clientDetails.name || !clientDetails.phone}
+                disabled={!clientDetails.name || !clientDetails.phone || decidingConsultation}
                 style={{ ...styles.primaryBtn,
-                  background: (!clientDetails.name || !clientDetails.phone) ? '#ccc' : brand,
-                  cursor: (!clientDetails.name || !clientDetails.phone) ? 'not-allowed' : 'pointer'
+                  background: (!clientDetails.name || !clientDetails.phone || decidingConsultation) ? '#ccc' : brand,
+                  cursor: (!clientDetails.name || !clientDetails.phone || decidingConsultation) ? 'not-allowed' : 'pointer'
                 }}
               >
-                {!recognisedClient?.found /* every first visit gets the form (Ellie's rule) */ ? 'Next: Consultation form' : 'Review booking'}
+                {decidingConsultation
+                  ? 'Just a moment...'
+                  : consultationDecision?.forKey === consultationKey
+                    ? (consultationDecision.ask ? 'Next: Health form' : 'Review booking')
+                    : 'Next'}
               </button>
             </div>
           </div>
@@ -1687,10 +1873,23 @@ export default function BookingPage() {
             <h2 style={styles.stepTitle}>
               {consultationForms.length > 1 ? 'Consultation forms' : (consultationForm?.name || 'Consultation form')}
             </h2>
+            {/* WHAT THIS PAGE MAY SAY.
+              *
+              * It used to end both sentences with "and is kept for insurance
+              * records", which is an unsourced claim about what the salon does
+              * with her answers, written in the same week the patch test claim
+              * elsewhere had to be corrected from a flatly false "UK law
+              * requires 48h". What is actually true is that the answers go on
+              * her record with her beautician, so that is what it says now.
+              *
+              * And it may only say "required" to the one client for whom it is
+              * true. Since 29 August 2026 everybody else is asked and chased,
+              * not stopped, so telling her the form is required would be a
+              * second untruth on the same screen. */}
             <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
-              {needsConsultation
-                ? `Required for ${selectedTreatment?.name}. This information helps your beautician prepare and is kept for insurance records.`
-                : 'A few quick questions for your first visit. It helps your beautician look after you properly and is kept for insurance records.'}
+              {consultationDecision?.block
+                ? `Needed before your ${selectedTreatment?.name}. Your answers go on your record so your beautician knows how to look after you.`
+                : `A few quick questions before your ${selectedTreatment?.name}. Your answers go on your record so your beautician knows how to look after you. You can carry on without finishing this and fill it in from the link we text you.`}
             </p>
             {/* Consent paragraph moved to just before the signature (below), matching what the form editor promises. */}
             <div style={styles.formFields}>
@@ -1856,7 +2055,9 @@ export default function BookingPage() {
                 }}
                 style={{ ...styles.primaryBtn, background: brand }}
               >
-                Review booking
+                {consultationDecision?.block || unansweredConsultation.length === 0
+                  ? 'Review booking'
+                  : 'Finish later, review booking'}
               </button>
             </div>
           </div>

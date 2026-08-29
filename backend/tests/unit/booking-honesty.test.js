@@ -126,9 +126,20 @@ vi.mock('../../src/services/push-notifications.js', () => ({
   pushClientCancelled: async () => true, pushTeamUpdate: async () => true,
 }));
 vi.mock('../../src/services/live-activity.js', () => ({ refreshLiveActivity: async () => true }));
+/* RECORDED, NOT SWALLOWED.
+ *
+ * These two used to return `true` and `{}` and nothing ever looked at them, so
+ * no test in this suite could see whether a consultation form was sent or
+ * whether a client's answers were filed anywhere. That is how the booking page
+ * came to decide who needed the health questions from
+ * `recognisedClient?.found` and wave through all 926 clients imported from
+ * Timely, 277 of whom have never once been in, without a single test noticing.
+ * The rule itself is pinned in tests/unit/consultation-gate.test.js; these
+ * arrays are so this file can no longer be blind to it. */
+const consultation = { sent: [], filed: [] };
 vi.mock('../../src/routes/consultation-forms.js', () => ({
-  sendConsultationFormSMS: async () => true,
-  recordBookingConsultation: async () => ({ unrecorded: {}, failed: false }),
+  sendConsultationFormSMS: async (args) => { consultation.sent.push(args); return { id: 'cr_1' }; },
+  recordBookingConsultation: async (args) => { consultation.filed.push(args); return { unrecorded: {}, failed: false }; },
 }));
 vi.mock('../../src/services/policy-fees.js', () => ({
   chargePolicyFee: async () => ({ charged: false }),
@@ -196,6 +207,8 @@ beforeEach(() => {
   failing.clear();
   deletes.length = 0;
   told.confirmed.length = 0;
+  consultation.sent.length = 0;
+  consultation.filed.length = 0;
   stripeState.checkoutThrows = false;
   stripeState.sessions.length = 0;
   stripeState.piStatus.clear();
@@ -255,6 +268,16 @@ describe('a failed checkout must not tell the client she is booked', () => {
     expect(db.appointments[0].stripe_payment_intent_id).toBe('pi_fake');
     // A deposit booking is not confirmed by this route, whatever happens.
     expect(told.confirmed).toHaveLength(0);
+
+    // And Charlotte has never been here: no clients row, no history, nothing
+    // on file. Since 29 August 2026 that is what decides she gets the health
+    // questions, not whether a row happened to match her phone number. She
+    // answered nothing inline, so the form is texted to her once and there is
+    // nothing to file.
+    await new Promise(r => setTimeout(r, 0));
+    expect(consultation.sent).toHaveLength(1);
+    expect(consultation.sent[0].clientPhone).toBe('07700900123');
+    expect(consultation.filed).toHaveLength(0);
   });
 });
 

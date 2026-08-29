@@ -619,16 +619,41 @@ async function checkPreAppointmentRequirements(beauticianId) {
       }
     }
 
-    // Outstanding consultation form (a pending response for this client).
-    if (t.requires_consultation) {
-      const { data: forms } = await supabase
+    /* Outstanding consultation form: a pending response row for this client.
+     *
+     * WIDENED 29 August 2026. This only ran when the treatment itself carried
+     * requires_consultation, which was the last link in a chain that ended with
+     * nobody being chased at all: the booking page decided who to ask from
+     * `recognisedClient?.found`, so all 926 clients imported from Timely were
+     * waved past the form, no pending row was ever written for them, and this
+     * had nothing to find even when it did look.
+     *
+     * The rule for who gets ASKED now lives in lib/consultation-status.js and
+     * is hybrid: a requires_consultation treatment asks unless a completed
+     * response is on file, anything else asks only a client with no prior
+     * history. That second arm means a pending form can now exist against an
+     * ordinary treatment, and a form we asked for and never chased is the
+     * whole defect repeated one step later. So: a row raised for THIS
+     * appointment is always chased, and for a consultation treatment any
+     * outstanding row is, exactly as before.
+     *
+     * The error is read. Unread it says "no form outstanding", which is the
+     * answer that stays silent.
+     */
+    {
+      const { data: forms, error: formsErr } = await supabase
         .from('consultation_responses')
-        .select('token, form_url')
+        .select('token, form_url, appointment_id')
         .eq('client_id', client.id)
         .eq('beautician_id', beauticianId)
         .eq('status', 'pending')
-        .limit(1);
-      const form = (forms || [])[0];
+        .limit(20);
+      if (formsErr) {
+        logger.warn({ err: formsErr, apptId: appt.id }, 'Pre-appointment consultation form lookup failed');
+      }
+      const rows = forms || [];
+      const form = rows.find(r => r.appointment_id === appt.id)
+        || (t.requires_consultation ? rows[0] : null);
       if (form) {
         const formLink = form.form_url || (form.token ? `${FRONTEND}/form/${form.token}` : null);
         parts.push(`please fill in your consultation form${formLink ? `: ${formLink}` : ''}`);

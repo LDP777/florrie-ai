@@ -25,7 +25,8 @@ import { combineTreatments, resolveDepositCents, salonRequiresDeposit } from '..
 import { recomputeTotals, endsAtWall } from '../lib/appointment-treatments.js';
 import { appointmentIcs, googleCalendarUrl, DEAD_STATUSES } from '../lib/ical.js';
 import { calendarLandingPage } from '../lib/calendar-page.js';
-import { patchTestEvidence, readPriorHistory } from '../lib/patch-test-status.js';
+import { patchTestEvidence } from '../lib/patch-test-status.js';
+import { readConsultationStatus, hasPriorHistory } from '../lib/consultation-status.js';
 
 const router = Router();
 const FRONTEND_URL = process.env.FRONTEND_URL;
@@ -856,7 +857,7 @@ router.get('/:slug/policy', async (req, res) => {
  */
 router.post('/:slug/lookup-client', async (req, res) => {
   try {
-    const { email, phone } = req.body;
+    const { email, phone, treatment_ids } = req.body;
     if (!email && !phone) return res.json({ found: false });
 
     // Get beautician ID
@@ -897,7 +898,69 @@ router.post('/:slug/lookup-client', async (req, res) => {
       }
     }
 
-    if (!client) return res.json({ found: false });
+    /* WHAT SHE IS BOOKING, resolved before the not-found return, because the
+     * page needs an answer about the form either way and the answer for
+     * somebody with no row at all is the one that still walls.
+     *
+     * treatment_ids is what she has in her basket right now. The page sends it
+     * with every lookup and re-asks when the basket changes, because "does she
+     * need a form" is a question about a treatment, not about a person.
+     */
+    const wantedTreatments = [...new Set((Array.isArray(treatment_ids) ? treatment_ids : [])
+      .filter(t => typeof t === 'string' && t))].slice(0, 10);
+    let consultationTreatments = [];
+    if (wantedTreatments.length > 0) {
+      const { data: tRows, error: tErr } = await supabase
+        .from('treatments')
+        .select('id, requires_consultation, consultation_form_id')
+        .eq('beautician_id', b.id)
+        .in('id', wantedTreatments);
+      // Unread, this error would say "no treatment needs a consultation" and
+      // the page would skip the form for everybody. Read, it says we do not
+      // know, and not knowing asks.
+      if (tErr) {
+        logger.warn({ err: tErr, beauticianId: b.id }, 'lookup-client: treatment read failed');
+        consultationTreatments = wantedTreatments.map(id => ({ id, requires_consultation: true, consultation_form_id: null }));
+      } else {
+        consultationTreatments = tRows || [];
+      }
+    }
+
+    /* WHETHER TO ASK HER THE HEALTH QUESTIONS, decided here rather than on the
+     * page.
+     *
+     * Until 29 August 2026 the page decided it itself, from
+     * `recognisedClient?.found`, which means only "a clients row matched on
+     * email or the last nine digits of the phone". Of 1,151 clients, 926 came
+     * in from Timely and every one of them is `found`; 277 of those have no
+     * history of any kind and had never once been asked about allergies,
+     * medication or pregnancy. The page now asks the server, the server
+     * answers with lib/consultation-status.js, and services/
+     * conversational-booking.js answers from the same function, so the booking
+     * page and Florrie cannot reach different verdicts about the same client
+     * and the same treatment.
+     */
+    const shapeConsultation = (status) => ({
+      ask: status.ask,
+      block: status.block,
+      reason: status.reason,
+      needsConsultation: status.needsConsultation,
+      formOnFile: status.formOnFile,
+      // Echoed so a page holding a verdict from an older basket can tell.
+      treatmentIds: wantedTreatments,
+    });
+
+    if (!client) {
+      // Nobody in the book by this email or number. This is the ONE population
+      // that is refused rather than chased, and it is refused exactly as it
+      // was before 29 August 2026. POST /book enforces it again server side,
+      // which is where it actually holds.
+      const strangerStatus = await readConsultationStatus(supabase, {
+        beauticianId: b.id, clientId: null, treatments: consultationTreatments,
+        inDatabase: false, logger,
+      });
+      return res.json({ found: false, consultation: shapeConsultation(strangerStatus) });
+    }
 
     // Anything still owed from previous visits (unpaid policy fee or an
     // unsettled remainder). The confirm step shows a warm heads-up so the
@@ -919,7 +982,7 @@ router.post('/:slug/lookup-client', async (req, res) => {
      * OR a completed appointment inside it. Returning, or not. It says nothing
      * about patch tests and is used only to stop the page asserting one.
      */
-    const [{ data: upcoming }, { data: pendingTests }, { data: pendingForms }, { data: lastVisit }, priorHistory, { count: completedCount }] = await Promise.all([
+    const [{ data: upcoming }, { data: pendingTests }, { data: pendingForms }, { data: lastVisit }, priorHistory] = await Promise.all([
       supabase
         .from('appointments')
         .select('id, starts_at, status')
@@ -955,15 +1018,25 @@ router.post('/:slug/lookup-client', async (req, res) => {
         .order('starts_at', { ascending: false })
         .limit(1),
 
-      readPriorHistory(supabase, b.id, client.id, logger),
-
-      supabase
-        .from('appointments')
-        .select('id', { count: 'exact', head: true })
-        .eq('beautician_id', b.id)
-        .eq('client_id', client.id)
-        .eq('status', 'completed'),
+      // One definition of "has she been here before", shared with the
+      // consultation rule and with lib/patch-test-status.js rather than
+      // rebuilt here. See lib/consultation-status.js.
+      hasPriorHistory(supabase, { beauticianId: b.id, clientId: client.id, logger }),
     ]);
+
+    const consultation = await readConsultationStatus(supabase, {
+      beauticianId: b.id,
+      clientId: client.id,
+      treatments: consultationTreatments,
+      // She matched a clients row, so she is in the book. This is the fact
+      // that keeps `block` false for her: the wall is for people who are not.
+      inDatabase: true,
+      // Already read, a few lines up, for the same client. This page calls
+      // lookup-client on every blur of the phone and email boxes, so reading
+      // it twice per keystroke-and-tab is a cost for nothing.
+      knownPriorHistory: priorHistory,
+      logger,
+    });
 
     // Booking-safe: treatment name/price is already public on this page.
     const lastRow = (lastVisit || [])[0];
@@ -990,8 +1063,11 @@ router.post('/:slug/lookup-client', async (req, res) => {
       hasPendingForm: (pendingForms || []).length > 0,
       // She has been here before. Never a claim that she has had a patch test:
       // it only stops the page telling a regular she needs one.
-      returningClient: !!priorHistory?.known || (completedCount || 0) > 0,
+      returningClient: !!priorHistory?.known,
       priorVisits: priorHistory?.totalVisits || 0,
+      // What the booking page obeys. `ask` shows the form, `block` refuses to
+      // book without it, and `block` is never true here: she is in the book.
+      consultation: shapeConsultation(consultation),
       lastTreatment,
       outstandingBalanceCents: owesCents || 0,
     });
@@ -1477,6 +1553,106 @@ router.get('/:slug/manage/:token/treatments', async (req, res) => {
   }
 });
 
+/**
+ * She has just changed what she is booked in for from her confirmation link.
+ * Does the new treatment need a consultation form, and if so, get one to her.
+ *
+ * WHY THIS EXISTS. change-treatment and add-treatment both handled patch tests
+ * and did nothing whatsoever about consultation forms. So a client could book
+ * a wax, open the link in her confirmation text, swap it for a tint, and no
+ * consultation was asked of anybody, stranger or regular. That is a bigger
+ * hole than the one on the booking page: on the page at least the true first
+ * timer was stopped. Here nobody was.
+ *
+ * CHASE, NOT BLOCK, and here there is nothing to argue about: everybody
+ * holding a management token is in the book by definition, so the stranger
+ * wall on POST /book cannot apply to them. The swap goes through and the form
+ * follows. The rule is the shared one in lib/consultation-status.js.
+ *
+ * Never throws, never fails a change. A swap that failed because a text could
+ * not be sent would be a worse bug than the one being fixed.
+ *
+ * @param {object} appt the appointment row, with clients(first_name) and
+ *   beauticians(id, business_name, first_name) joined
+ * @param {Array<object>} treatments the treatment(s) newly on the booking
+ * @returns {Promise<{sent: boolean, reason: string}>}
+ */
+async function chaseConsultationAfterChange(appt, treatments) {
+  const beauticianId = appt?.beauticians?.id;
+  const clientId = appt?.client_id;
+  if (!beauticianId || !clientId) return { sent: false, reason: 'no_client' };
+
+  try {
+    const status = await readConsultationStatus(supabase, {
+      beauticianId, clientId, treatments, inDatabase: true, logger,
+    });
+    if (!status.ask) return { sent: false, reason: status.reason };
+
+    /* Do not text her the same form twice. A pending row means one is already
+     * on its way and the 24 to 72 hour reminder is already chasing it; a
+     * completed row on the OTHER arm of the rule (no prior history, ordinary
+     * treatment) means she filled it in at booking half an hour ago. Scoped to
+     * the form this treatment asks for, the same way the rule itself is.
+     *
+     * On an unreadable answer this sends anyway. A duplicate text is the
+     * double-ask annoyance Ellie has complained about before and she can say
+     * so; a consultation nobody asked for is the thing that put this work on
+     * the list at all.
+     */
+    const formId = treatments.find(t => t?.consultation_form_id)?.consultation_form_id || null;
+    let existing = supabase
+      .from('consultation_responses')
+      .select('id')
+      .eq('beautician_id', beauticianId)
+      .eq('client_id', clientId)
+      .in('status', ['pending', 'completed']);
+    if (formId) existing = existing.eq('form_id', formId);
+    const { data: already, error: alreadyErr } = await existing.limit(1);
+    if (alreadyErr) {
+      logger.warn({ err: alreadyErr, appointmentId: appt.id }, 'manage: consultation form lookup failed, sending anyway');
+    } else if ((already || []).length > 0) {
+      return { sent: false, reason: 'already_asked' };
+    }
+
+    /* Her number, read here rather than joined onto the appointment select.
+     *
+     * Adding `phone` to the clients(...) join would have handed a routing file
+     * a client row with contact details and no consent columns, which is the
+     * exact shape tests/unit/consent-columns-cannot-be-dropped.js exists to
+     * stop. This is a transactional text about a booking she just changed
+     * herself, so it does not need her marketing consent, and it should not be
+     * carrying it around either.
+     */
+    const { data: clientRow, error: clientErr } = await supabase
+      .from('clients')
+      .select('phone')
+      .eq('id', clientId)
+      .eq('beautician_id', beauticianId)
+      .maybeSingle();
+    if (clientErr) {
+      logger.warn({ err: clientErr, appointmentId: appt.id }, 'manage: could not read the client to send a consultation form');
+      return { sent: false, reason: 'no_phone' };
+    }
+    const phone = clientRow?.phone;
+    if (!phone) return { sent: false, reason: 'no_phone' };
+
+    await sendConsultationFormSMS({
+      beauticianId,
+      clientId,
+      appointmentId: appt.id,
+      clientPhone: phone,
+      clientFirstName: appt.clients?.first_name || 'there',
+      treatmentId: (treatments.find(t => t?.consultation_form_id) || treatments[0])?.id || null,
+      beauticianName: appt.beauticians.business_name || appt.beauticians.first_name,
+    });
+    logger.info({ appointmentId: appt.id, clientId, reason: status.reason }, 'Consultation form sent after a manage-page treatment change');
+    return { sent: true, reason: status.reason };
+  } catch (err) {
+    logger.warn({ err, appointmentId: appt?.id }, 'Consultation form after a treatment change failed (non-fatal)');
+    return { sent: false, reason: 'failed' };
+  }
+}
+
 router.post('/:slug/manage/:token/change-treatment', async (req, res) => {
   try {
     const { treatment_id } = req.body || {};
@@ -1489,7 +1665,7 @@ router.post('/:slug/manage/:token/change-treatment', async (req, res) => {
         price_cents, deposit_cents, deposit_paid, buffer_minutes, extra_padding_minutes,
         clients(first_name),
         treatments(requires_patch_test),
-        beauticians(id, booking_slug, working_hours, timezone, patch_test_expiry_months)
+        beauticians(id, booking_slug, business_name, first_name, working_hours, timezone, patch_test_expiry_months)
       `)
       .eq('management_token', req.params.token)
       .single();
@@ -1505,7 +1681,7 @@ router.post('/:slug/manage/:token/change-treatment', async (req, res) => {
 
     const { data: treat } = await supabase
       .from('treatments')
-      .select('id, name, duration_minutes, price_cents, requires_patch_test')
+      .select('id, name, duration_minutes, price_cents, requires_patch_test, requires_consultation, consultation_form_id')
       .eq('id', treatment_id)
       .eq('beautician_id', appt.beauticians.id)
       .eq('is_active', true)
@@ -1586,6 +1762,10 @@ router.post('/:slug/manage/:token/change-treatment', async (req, res) => {
       return res.status(500).json({ error: 'Something went wrong' });
     }
 
+    // The swap is done and stays done. The form follows it, it does not gate
+    // it. See chaseConsultationAfterChange above.
+    const chased = await chaseConsultationAfterChange(appt, [treat]);
+
     const depositPaid = appt.deposit_paid ? (appt.deposit_cents || 0) : 0;
     const remaining = Math.max(0, (treat.price_cents || 0) - depositPaid);
 
@@ -1602,7 +1782,8 @@ router.post('/:slug/manage/:token/change-treatment', async (req, res) => {
       treatment: { id: treat.id, name: treat.name, duration_minutes: treat.duration_minutes, price_cents: treat.price_cents },
       depositPaidCents: depositPaid,
       remainingCents: remaining,
-      message: `Changed to ${treat.name}. Your deposit stays as it is${remaining > 0 ? `, with £${(remaining / 100).toFixed(2)} to pay on the day` : ''}.`,
+      consultationFormSent: chased.sent,
+      message: `Changed to ${treat.name}. Your deposit stays as it is${remaining > 0 ? `, with £${(remaining / 100).toFixed(2)} to pay on the day` : ''}.${chased.sent ? ' I have texted you a quick health form for that one, it takes about two minutes.' : ''}`,
     });
   } catch (err) {
     logger.error({ err }, 'change-treatment failed');
@@ -1651,7 +1832,7 @@ router.post('/:slug/manage/:token/add-treatment', async (req, res) => {
         buffer_minutes, extra_padding_minutes,
         clients(first_name),
         treatments(id, name, duration_minutes, price_cents, requires_patch_test),
-        beauticians(id, booking_slug, working_hours, timezone, patch_test_expiry_months)
+        beauticians(id, booking_slug, business_name, first_name, working_hours, timezone, patch_test_expiry_months)
       `)
       .eq('management_token', req.params.token)
       .single();
@@ -1678,7 +1859,7 @@ router.post('/:slug/manage/:token/add-treatment', async (req, res) => {
 
     const { data: treat } = await supabase
       .from('treatments')
-      .select('id, name, duration_minutes, price_cents, requires_patch_test')
+      .select('id, name, duration_minutes, price_cents, requires_patch_test, requires_consultation, consultation_form_id')
       .eq('id', treatment_id)
       .eq('beautician_id', appt.beauticians.id)
       .eq('is_active', true)
@@ -1776,6 +1957,10 @@ router.post('/:slug/manage/:token/add-treatment', async (req, res) => {
       return res.status(500).json({ error: 'Something went wrong' });
     }
 
+    // Added and staying added. Same rule as the swap: the form follows, it
+    // does not gate. See chaseConsultationAfterChange above.
+    const chased = await chaseConsultationAfterChange(appt, [treat]);
+
     const depositPaid = appt.deposit_paid ? (appt.deposit_cents || 0) : 0;
     const remaining = Math.max(0, (totals.priceCents || 0) - depositPaid);
     const endLabel = newEnds.slice(11, 16);
@@ -1799,7 +1984,8 @@ router.post('/:slug/manage/:token/add-treatment', async (req, res) => {
       ends_at: newEnds,
       depositPaidCents: depositPaid,
       remainingCents: remaining,
-      message: `${treat.name} added. Your appointment now finishes at ${endLabel}${remaining > 0 ? `, with £${(remaining / 100).toFixed(2)} to pay on the day` : ''}.`,
+      consultationFormSent: chased.sent,
+      message: `${treat.name} added. Your appointment now finishes at ${endLabel}${remaining > 0 ? `, with £${(remaining / 100).toFixed(2)} to pay on the day` : ''}.${chased.sent ? ' I have texted you a quick health form for that one, it takes about two minutes.' : ''}`,
     });
   } catch (err) {
     logger.error({ err }, 'add-treatment failed');
@@ -3750,11 +3936,46 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
     }
   }
 
-  // First visit + a treatment that asks for consultation answers: the form is
-  // not optional. The page always collects it; this stops anything skipping it.
-  const gateNeedsConsultation = isNewClient && allTreatments.some(t => t.requires_consultation === true);
-  if (gateNeedsConsultation && (!consultation || Object.keys(consultation).length === 0)) {
-    return res.status(400).json({ error: 'Please fill in the quick consultation form to book this treatment.' });
+  /* CONSULTATION: WHO GETS ASKED, AND WHO ACTUALLY GETS REFUSED.
+   *
+   * These are two different questions and until 29 August 2026 this route only
+   * had one answer for both, keyed on isNewClient, which is true only when the
+   * insert above created a clients row. After the Timely import 926 of 1,151
+   * clients already had one, so for every one of them the gate was off and the
+   * form SMS below never fired. 277 of those 926 have no history of any kind:
+   * total_visits 0, last_visit_at NULL, no completed appointment. They had a
+   * phone number in an old address book and nothing else, and this route
+   * treated that as "she has been here before".
+   *
+   * The rule now comes from lib/consultation-status.js, the same function
+   * POST /lookup-client answers the booking page with and the same one
+   * services/conversational-booking.js has used since it was written.
+   *
+   * WHO IS REFUSED IS DELIBERATELY UNCHANGED. `block` is true only when
+   * inDatabase is false, and inDatabase here is !isNewClient, so this refuses
+   * exactly the population the old expression refused: somebody with no
+   * clients row at all, booking a treatment that requires a consultation.
+   * That wall predates this change and works. Everybody NEWLY brought into
+   * scope is asked and then chased, never refused: she sees the form, she can
+   * carry on without it, the SMS goes out below, and the 24 to 72 hour
+   * pre-appointment reminder chases the pending row it leaves behind.
+   */
+  const consultationStatus = await readConsultationStatus(supabase, {
+    beauticianId: beautician.id,
+    clientId: client.id,
+    treatments: allTreatments,
+    inDatabase: !isNewClient,
+    logger,
+  });
+  const consultationAnswered = !!consultation && Object.keys(consultation).length > 0;
+
+  if (consultationStatus.block && !consultationAnswered) {
+    return res.status(400).json({
+      error: 'Please fill in the quick consultation form to book this treatment.',
+      // The page sends her back to the form rather than leaving her on the
+      // review screen reading a refusal with nothing to act on.
+      code: 'consultation_required',
+    });
   }
 
   // A free text note and a set of consultation answers stop sharing a column
@@ -4188,9 +4409,11 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
       appointmentId: appointment.id, beauticianId: beautician.id, depositCents,
     }, 'Deposit could not be collected online (no Stripe connection), booking confirmed instead of held');
 
-    // Send consultation form to first-time clients (non-blocking).
-    // Skipped when they already answered inline during booking (double-ask bug).
-    if (isNewClient && client_phone && !(consultation && Object.keys(consultation).length > 0)) {
+    // Send the consultation form (non-blocking). CHASE, NOT BLOCK: this is how
+    // everybody newly in scope since 29 August 2026 gets asked without being
+    // stopped. Skipped when they answered inline during booking, which was
+    // Ellie's double-ask bug.
+    if (consultationStatus.ask && client_phone && !consultationAnswered) {
       sendConsultationFormSMS({
         beauticianId: beautician.id,
         clientId: client.id,
@@ -4403,11 +4626,10 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
         );
       }
 
-      // Send consultation form to first-time clients (non-blocking).
-      // SKIPPED when they already answered inline during booking - texting the
-      // same form again straight after was Ellie's double-ask bug.
-      const answeredInline = consultation && Object.keys(consultation).length > 0;
-      if (isNewClient && client_phone && !answeredInline) {
+      // Send the consultation form (non-blocking). CHASE, NOT BLOCK, exactly as
+      // in the branch above. SKIPPED when they answered inline during booking:
+      // texting the same form again straight after was Ellie's double-ask bug.
+      if (consultationStatus.ask && client_phone && !consultationAnswered) {
         sendConsultationFormSMS({
           beauticianId: beautician.id,
           clientId: client.id,
@@ -4511,9 +4733,10 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
     logger.warn({ err }, 'Booking confirmation notification failed (non-fatal)')
   );
 
-  // Send consultation form to first-time clients (non-blocking).
-  // Skipped when they already answered inline during booking (double-ask bug).
-  if (isNewClient && client_phone && !(consultation && Object.keys(consultation).length > 0)) {
+  // Send the consultation form (non-blocking). CHASE, NOT BLOCK, exactly as in
+  // the two branches above. Skipped when they answered inline during booking
+  // (the double-ask bug).
+  if (consultationStatus.ask && client_phone && !consultationAnswered) {
     sendConsultationFormSMS({
       beauticianId: beautician.id,
       clientId: client.id,

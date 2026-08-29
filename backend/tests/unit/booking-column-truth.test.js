@@ -260,9 +260,20 @@ vi.mock('../../src/services/push-notifications.js', () => ({
   pushClientCancelled: async () => true, pushTeamUpdate: async () => true,
 }));
 vi.mock('../../src/services/live-activity.js', () => ({ refreshLiveActivity: async () => true }));
+/* RECORDED, NOT SWALLOWED.
+ *
+ * These two used to return `true` and `{}` and nothing ever looked at them, so
+ * no test in this suite could see whether a consultation form was sent or
+ * whether a client's answers were filed anywhere. That is how the booking page
+ * came to decide who needed the health questions from
+ * `recognisedClient?.found` and wave through all 926 clients imported from
+ * Timely, 277 of whom have never once been in, without a single test noticing.
+ * The rule itself is pinned in tests/unit/consultation-gate.test.js; these
+ * arrays are so this file can no longer be blind to it. */
+const consultation = { sent: [], filed: [] };
 vi.mock('../../src/routes/consultation-forms.js', () => ({
-  sendConsultationFormSMS: async () => true,
-  recordBookingConsultation: async () => ({ unrecorded: {}, failed: false }),
+  sendConsultationFormSMS: async (args) => { consultation.sent.push(args); return { id: 'cr_1' }; },
+  recordBookingConsultation: async (args) => { consultation.filed.push(args); return { unrecorded: {}, failed: false }; },
 }));
 vi.mock('../../src/services/policy-fees.js', () => ({
   chargePolicyFee: async () => ({ charged: false }),
@@ -347,6 +358,8 @@ beforeEach(() => {
   idCounter = 0;
   sent.sms.length = 0;
   sent.email.length = 0;
+  consultation.sent.length = 0;
+  consultation.filed.length = 0;
   stripeState.sessions.length = 0;
   db.beauticians.push({
     id: 'b1', booking_slug: 'ellindigo', business_name: 'Ellindigo', first_name: 'Ellie',
@@ -816,6 +829,13 @@ describe('the past is the past on the salon clock, not the server clock', () => 
     });
 
     expect(out.status).toBe(201);
+    // Nobody in this file's fixture has ever been in, so the health questions
+    // are asked and the form is texted. It is asserted here rather than left
+    // to a mock returning true, because a consultation nothing can observe is
+    // how the 926 imported clients went unasked for four months. The rule
+    // itself is pinned in tests/unit/consultation-gate.test.js.
+    await new Promise(r => setTimeout(r, 0));
+    expect(consultation.sent).toHaveLength(1);
   });
 
   it('measures the notice period on the same clock', async () => {

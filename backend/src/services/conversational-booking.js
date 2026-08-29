@@ -31,6 +31,7 @@ import logger from '../lib/logger.js';
 import * as Sentry from '@sentry/node';
 import { getFreeSlots, nowInSalonWall } from '../lib/free-slots.js';
 import { safeReply, HOLDING_REPLY } from '../lib/reply-claims-guard.js';
+import { hasCompletedConsultation } from '../lib/consultation-status.js';
 import { totalApplicationFee } from '../lib/platform-fees.js';
 import {
   combineTreatments, resolveDepositCents, formatWallTime, describeSlot,
@@ -426,26 +427,21 @@ function needsPatchTest(treatment, context) {
   return true;
 }
 
+/**
+ * Scoped to the form THIS treatment asks for, because "any completed form,
+ * ever" is not a consultation. A client who filled in a brow tint form in
+ * April would have sailed through a lash lift booking with no allergy answers
+ * on file for it.
+ *
+ * The body of this function moved to lib/consultation-status.js on 29 August
+ * 2026 and now has four callers instead of one. Florrie got this right while
+ * the booking page was waving through all 926 imported clients on
+ * `recognisedClient?.found`; rather than write a third copy of the rule, the
+ * page and the /book gate were pointed at Florrie's. This wrapper stays so the
+ * two call sites below read the way they always did.
+ */
 async function hasConsultationOnRecord(beauticianId, clientId, treatment) {
-  // Scoped to the form THIS treatment asks for, because "any completed form,
-  // ever" is not a consultation. A client who filled in a brow tint form in
-  // April would have sailed through a lash lift booking with no allergy answers
-  // on file for it. The booking page keys on treatments.consultation_form_id
-  // and so does this.
-  let query = supabase
-    .from('consultation_responses')
-    .select('id')
-    .eq('beautician_id', beauticianId)
-    .eq('client_id', clientId)
-    .eq('status', 'completed');
-  if (treatment?.consultation_form_id) query = query.eq('form_id', treatment.consultation_form_id);
-
-  const { data, error } = await query.limit(1);
-  if (error) {
-    logger.warn({ err: error, beauticianId, clientId }, 'consultation lookup failed, treating as not on record');
-    return false;
-  }
-  return (data || []).length > 0;
+  return hasCompletedConsultation(supabase, { beauticianId, clientId, treatment, logger });
 }
 
 async function freeSlotsFor({ beautician, treatment, salonNow, extraLeadHours = 0 }) {

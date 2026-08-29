@@ -101,7 +101,7 @@ export default function Compliance() {
       <div style={S.explainerCard}>
         <Icon name={iconName('info')} size={16} inline color="#C9A96E" />
         <p style={S.explainerText}>
-          Required for <strong>all beauty professionals</strong> - whether you do brows, lashes, nails, waxing, facials or anything else. Your insurer and the brands you use require a patch test before chemical treatments, and Florrie asks for one 24 hours ahead. Check the notice period on your own policy, because it varies, and change it in Settings if yours says longer. Consultation forms protect you legally for every client.
+          Required for <strong>all beauty professionals</strong> - whether you do brows, lashes, nails, waxing, facials or anything else. Your insurer and the brands you use require a patch test before chemical treatments, and Florrie asks for one 24 hours ahead. Check the notice period on your own policy, because it varies, and change it in Settings if yours says longer. Consultation forms are what your insurer expects you to hold, and they are your record of what the client told you. Check what yours asks for, because that varies too.
         </p>
       </div>
 
