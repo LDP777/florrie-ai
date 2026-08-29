@@ -24,6 +24,7 @@ import { advanceBookingConversation } from './conversational-booking.js';
 import { authorship } from '../lib/authorship.js';
 import { isGroundedReply, asksForHuman, signAsFlorrie, atTheDoorPhrase } from '../lib/grounded-reply.js';
 import { normaliseOutcome } from '../lib/ai-actions.js';
+import { patchTestEvidence, patchTestStance } from '../lib/patch-test-status.js';
 
 /**
  * AI Front Desk — The core agentic service.
@@ -818,7 +819,7 @@ async function gatherContext(beautician, client, messageContent = '') {
   const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
   // Parallel fetches for speed
-  const [treatments, upcomingAppointments, clientUpcoming, clientHistory, clientIntelligence, conversation, loyaltyConfig, clientPoints, patchTests, activePromos, freeSlots, knowledge] = await Promise.all([
+  const [treatments, upcomingAppointments, clientUpcoming, clientHistory, clientIntelligence, conversation, loyaltyConfig, clientPoints, activePromos, freeSlots, knowledge] = await Promise.all([
     // Treatment menu
     // deposit_percent, buffer_minutes and requires_consultation are here
     // because lib/booking-rules.js needs them to price and length a booking
@@ -893,17 +894,6 @@ async function gatherContext(beautician, client, messageContent = '') {
     getLoyaltyConfig(beautician.id),
     client?.id ? getClientPoints(beautician.id, client.id) : 0,
 
-    // Patch test history so Florrie can sell the patch-test visit instead of
-    // stalling when a new or lapsed client asks for a treatment that needs one.
-    // Read only, conversational; the /book endpoint keeps its own hard gates.
-    client?.id ? supabase
-      .from('patch_tests')
-      .select('status, result, test_date, expires_at, confirmed_at')
-      .eq('client_id', client.id)
-      .eq('beautician_id', beautician.id)
-      .order('created_at', { ascending: false })
-      .limit(5) : { data: [] },
-
     // Live promo codes so Florrie can answer "any offers?" truthfully. Fail
     // soft to [] so a promo hiccup never blanks the brain.
     getActivePromos(beautician.id, 3),
@@ -957,24 +947,44 @@ async function gatherContext(beautician, client, messageContent = '') {
     : null;
   const loyalty = client?.id ? loyaltyProximity(loyaltyConfig, clientPoints, avgSpendPounds) : null;
 
-  // Guardian: which treatments need a patch test, and where this client stands.
+  /* Guardian: which treatments need a patch test, and where this client stands.
+   *
+   * THIS USED TO BE ITS OWN COPY OF THE RULE, AND IT WAS BROKEN IN TWO WAYS.
+   *
+   * It tested `pt.status === 'passed'`, a spelling nothing in this codebase
+   * writes and the CHECK constraint on patch_tests.result rejects with 23514.
+   * So `hasValid` was false for every client alive, including one whose test
+   * the owner had recorded herself from the Patch Tests page: Florrie went on
+   * offering to book her another one.
+   *
+   * And it had no idea who it was talking to. On 27 August 2026 at 01:18 a
+   * client wrote "hey I have a appointment on the 3rd of September and I just
+   * went onto the website and it said about a patch test do I need to book one
+   * in or not x". She was one of 277 true first timers, so yes. But 673 of the
+   * 854 clients imported from Timely with a real total_visits have no completed
+   * appointment inside Florrie at all, and this block would have offered every
+   * one of them a patch test as though she had never been in.
+   *
+   * There is one implementation of the rule now, in lib/patch-test-status.js,
+   * and the three prompts below are handed the population rather than a status
+   * word they have to interpret.
+   */
   const treatmentsNeedingTest = (treatments.data || [])
     .filter(t => t.requires_patch_test)
     .map(t => t.name);
   let patchTest = null;
   if (treatmentsNeedingTest.length) {
-    const ptRows = patchTests.data || [];
-    const nowMs = Date.now();
-    const sixMonthsMs = 1000 * 60 * 60 * 24 * 183;
-    const hasValid = ptRows.some(pt =>
-      (pt.status === 'passed' || pt.result === 'pass') && (
-        (pt.expires_at && new Date(pt.expires_at).getTime() > nowMs) ||
-        (pt.test_date && (nowMs - new Date(pt.test_date).getTime()) < sixMonthsMs)
-      )
-    );
-    const hasPending = ptRows.some(pt => pt.status === 'pending' || pt.confirmed_at);
-    const status = hasValid ? 'completed' : (hasPending ? 'pending' : 'none');
-    patchTest = { status, treatmentsNeedingTest };
+    // No appointment is on the table yet in a conversation, so the window runs
+    // to today. patchTestEvidence keeps its asOf contract for every caller that
+    // DOES have a date (the manage page judges against the booking).
+    const evidence = client?.id
+      ? await patchTestEvidence(supabase, beautician.id, client.id, {
+          expiryMonths: beautician.patch_test_expiry_months || 6,
+          logger,
+        })
+      : null;
+
+    patchTest = { ...patchTestStance(evidence), treatmentsNeedingTest };
   }
 
   const offers = (activePromos || []).map(describePromo).filter(Boolean);
@@ -1011,6 +1021,45 @@ async function gatherContext(beautician, client, messageContent = '') {
       notes: client.notes
     } : null
   };
+}
+
+/**
+ * THE ONE PATCH TEST PARAGRAPH THE MODEL EVER SEES.
+ *
+ * Three prompts carried three slightly different versions of the same
+ * sentence, and all three said the same wrong thing: "if their status is none
+ * or pending, warmly explain they need a quick patch test". Status was
+ * computed by a block that could never return anything else (it tested for
+ * 'passed'), and it knew nothing about who it was talking to, so a returning
+ * client was offered a patch test she had had years ago and, on 27 August
+ * 2026, one of the 673 imported regulars asked at 01:18 whether she needed to
+ * book one.
+ *
+ * Written once, here, off patchTestStance in lib/patch-test-status.js. Terse
+ * on purpose: it is pasted into a Haiku system prompt three times.
+ */
+function renderPatchTestBlock(patchTest) {
+  if (!patchTest) return '';
+  const head = `Patch test: these treatments need one at least 24h before the first visit: ${patchTest.treatmentsNeedingTest.join(', ')}.`;
+  const never = 'Never invent a patch test, a result, or a date.';
+
+  switch (patchTest.status) {
+    case 'satisfied':
+      return `${head} This client is covered, it is on record. Book as normal and do not raise a patch test. ${never}`;
+    case 'booked':
+      return `${head} She already has one booked, so do not offer another. Book as normal. ${never}`;
+    case 'first_timer':
+      return `${head} We have no record of this client ever visiting, so she does need one. Warmly explain it and offer to pop her in at a real available time before the main appointment, rather than stalling. ${never}`;
+    case 'returning_recent':
+    case 'returning_stale':
+      return `${head} She has been here before, and we simply have nothing written down. Do NOT tell her she needs one and do NOT offer to book one. Book as normal. If she asks about a patch test, say you will check her notes and come back to her, and leave it there. ${never}`;
+    case 'reaction':
+      return `${head} There is a note on her last patch test. Do not offer a booking and do not reassure her. Say you want a quick chat before this one and that you will come back to her. ${never}`;
+    case 'unidentified':
+      return `${head} You have not matched this person to a client record, so say nothing about HER: state the condition instead, that a first visit needs a quick patch test at least 24h before, and offer a real time for it if that is her. If she says she has been in before, do not argue, say you will check her notes and come back to her. ${never}`;
+    default:
+      return `${head} You could not check her record just now, so claim nothing either way. Do not tell her she needs one. Say you will check and come straight back to her. ${never}`;
+  }
 }
 
 // Render the recent message thread as a short transcript so the AI classifies and
@@ -1410,7 +1459,7 @@ Treatments: ${context.treatments.map(t => `${t.name} (${t.duration_minutes}min, 
 ${context.client ? `Client: ${context.client.name}, ${context.client.totalVisits || 0} previous visits` : 'New client'}
 ${context.clientIntelligence?.favourite_treatments?.length ? `Favourite treatments: ${context.clientIntelligence.favourite_treatments.join(', ')}` : ''}
 ${context.loyalty ? `LOYALTY: ${context.loyalty.summary} If it fits this message, you may mention it once, warmly and naturally, never pushy. Never invent points or rewards beyond what is stated here.` : ''}
-${context.patchTest ? `PATCH TEST: These treatments need a patch test at least 24 hours before the first appointment: ${context.patchTest.treatmentsNeedingTest.join(', ')}. This client's patch test status: ${context.patchTest.status}. If they want to book one of these and their status is none or pending, warmly explain they need a quick patch test first and offer to pop them in for it at a real available time before the main appointment, rather than stalling. If their status is completed, treat it as a normal booking. Never invent a patch test result.` : ''}
+${renderPatchTestBlock(context.patchTest)}
 ${context.offers?.length ? `OFFERS: ${context.offers.join('; ')}. Only mention an offer if the client asks about price or offers, or is hesitating on cost. Never volunteer it otherwise, and never invent a code.` : `OFFERS: none running right now. If the client asks about offers or discounts, tell them there is nothing on at the moment. Never invent an offer, discount, or code.`}
 ${renderKnowledgeBlock(context.knowledge)}
 ${buildTranscript(context, message) ? `\nConversation so far (oldest first). Continue it naturally, do not repeat yourself or reintroduce yourself:\n${buildTranscript(context, message)}` : ''}
@@ -1598,7 +1647,7 @@ Treatments: ${context.treatments.map(t => `${t.name} (£${(t.price_cents/100).to
 ${renderClientBookings(context.clientUpcoming)}
 ${renderFreeSlots(context.freeSlots)}
 ${context.loyalty ? `Loyalty: ${context.loyalty.summary} If it fits, you may mention it once, warmly, never pushy. Never invent points or rewards beyond this.` : ''}
-${context.patchTest ? `Patch test: these treatments need one at least 24h before the first visit: ${context.patchTest.treatmentsNeedingTest.join(', ')}. This client's status: ${context.patchTest.status}. If they want one of these and status is none or pending, offer to book the quick patch test first at a real time; if completed, book as normal. Never invent a result.` : ''}
+${renderPatchTestBlock(context.patchTest)}
 ${context.offers?.length ? `Offers: ${context.offers.join('; ')}. Mention only if they ask about price or offers, or hesitate on cost. Never volunteer, never invent a code.` : `Offers: none running right now. If they ask about offers, say there is nothing on at the moment. Never invent an offer, discount, or code.`}
 ${renderKnowledgeBlock(context.knowledge)}
 ${buildTranscript(context, message) ? `\nConversation so far (oldest first), so your draft fits the thread:\n${buildTranscript(context, message)}` : ''}
@@ -2017,7 +2066,7 @@ Rules:
 Treatments: ${context.treatments.map(t => `${t.name} (£${(t.price_cents/100).toFixed(2)})`).join(', ') || 'none listed'}.
 ${renderFreeSlots(context.freeSlots)}
 ${context.loyalty ? `Loyalty: ${context.loyalty.summary} One of the 3 options may nod to this if it fits, warmly and never pushy.` : ''}
-${context.patchTest ? `Patch test: these treatments need one at least 24h before the first visit: ${context.patchTest.treatmentsNeedingTest.join(', ')}. This client's status: ${context.patchTest.status}. If they want one of these and status is none or pending, offer to book the quick patch test first at a real time; if completed, book as normal. Never invent a result.` : ''}
+${renderPatchTestBlock(context.patchTest)}
 ${context.offers?.length ? `Offers: ${context.offers.join('; ')}. Mention only if they ask about price or offers, or hesitate on cost. Never volunteer, never invent a code.` : `Offers: none running right now. If they ask about offers, say there is nothing on at the moment. Never invent an offer, discount, or code.`}
 
 Respond with ONLY a JSON array of exactly 3 objects: [{"label":"...","text":"..."}].`,

@@ -25,7 +25,7 @@ import { combineTreatments, resolveDepositCents, salonRequiresDeposit } from '..
 import { recomputeTotals, endsAtWall } from '../lib/appointment-treatments.js';
 import { appointmentIcs, googleCalendarUrl, DEAD_STATUSES } from '../lib/ical.js';
 import { calendarLandingPage } from '../lib/calendar-page.js';
-import { patchTestEvidence } from '../lib/patch-test-status.js';
+import { patchTestEvidence, readPriorHistory } from '../lib/patch-test-status.js';
 
 const router = Router();
 const FRONTEND_URL = process.env.FRONTEND_URL;
@@ -905,9 +905,21 @@ router.post('/:slug/lookup-client', async (req, res) => {
     // any error means zero, and zero means no notice. Never blocks booking.
     const { owesCents } = await getOutstandingBalanceCents(b.id, client.id);
 
-    // Fetch their upcoming appointment count + patch test status + what they
-    // had last time (for the one-tap "same again?" rebook path)
-    const [{ data: upcoming }, { data: pendingTests }, { data: pendingForms }, { data: lastVisit }] = await Promise.all([
+    /* HAS SHE ACTUALLY BEEN HERE BEFORE, which is NOT the same question as
+     * `found`. `found` means "there is a row for her", and after the Timely
+     * import there is a row for 926 people including all 277 who have never
+     * once sat in the chair. One of them wrote at 01:18 on 27 August 2026:
+     * "hey I have a appointment on the 3rd of September and I just went onto
+     * the website and it said about a patch test do I need to book one in or
+     * not x". She did need one. The 673 imported regulars reading the same
+     * banner did not, and had no way to tell.
+     *
+     * So the booking page gets the real distinction: prior history from before
+     * Florrie (clients.total_visits / last_visit_at, written by the importer)
+     * OR a completed appointment inside it. Returning, or not. It says nothing
+     * about patch tests and is used only to stop the page asserting one.
+     */
+    const [{ data: upcoming }, { data: pendingTests }, { data: pendingForms }, { data: lastVisit }, priorHistory, { count: completedCount }] = await Promise.all([
       supabase
         .from('appointments')
         .select('id, starts_at, status')
@@ -942,6 +954,15 @@ router.post('/:slug/lookup-client', async (req, res) => {
         .not('treatment_id', 'is', null)
         .order('starts_at', { ascending: false })
         .limit(1),
+
+      readPriorHistory(supabase, b.id, client.id, logger),
+
+      supabase
+        .from('appointments')
+        .select('id', { count: 'exact', head: true })
+        .eq('beautician_id', b.id)
+        .eq('client_id', client.id)
+        .eq('status', 'completed'),
     ]);
 
     // Booking-safe: treatment name/price is already public on this page.
@@ -967,6 +988,10 @@ router.post('/:slug/lookup-client', async (req, res) => {
       upcomingAppointments: (upcoming || []).length,
       hasPendingPatchTest: (pendingTests || []).length > 0,
       hasPendingForm: (pendingForms || []).length > 0,
+      // She has been here before. Never a claim that she has had a patch test:
+      // it only stops the page telling a regular she needs one.
+      returningClient: !!priorHistory?.known || (completedCount || 0) > 0,
+      priorVisits: priorHistory?.totalVisits || 0,
       lastTreatment,
       outstandingBalanceCents: owesCents || 0,
     });
@@ -1102,7 +1127,10 @@ router.get('/:slug/manage/:token', async (req, res) => {
           asOf: appt.starts_at,
           logger,
         })
-      : { ok: false, kind: 'none', when: null, pending: false, completedVisits: 0 };
+      : {
+          ok: false, kind: 'none', when: null, pending: false, completedVisits: 0,
+          priorHistory: { known: false, inWindow: false, totalVisits: 0, lastVisit: null, importedFrom: null, failed: false },
+        };
 
     /* WHO GETS TOLD, when the evidence is merely ABSENT rather than negative.
      *
@@ -1122,13 +1150,51 @@ router.get('/:slug/manage/:token', async (req, res) => {
      * A recorded reaction is not an absence and never becomes a booking
      * button. That one goes straight to the owner too.
      */
+    /* AND WHO COUNTS AS "NEVER BEEN IN", WHICH WAS THE 27 AUGUST DEFECT.
+     *
+     * At 01:18 on 27 August 2026 a client wrote: "hey I have a appointment on
+     * the 3rd of September and I just went onto the website and it said about
+     * a patch test do I need to book one in or not x". She was one of the 277
+     * genuine first timers, so the system was right about her. It was wrong
+     * about 673 other people, and it could not tell them apart.
+     *
+     * `evidence.completedVisits === 0` used to be the whole test for "she has
+     * never been here", and it counts Florrie-era completed appointments only.
+     * The Timely import writes clients.total_visits and clients.last_visit_at
+     * and creates no appointments, so of 854 imported clients carrying a real
+     * total_visits, 673 had zero completed appointments inside Florrie and
+     * every one of them was told flatly that she needed a patch test.
+     *
+     * Three populations, three behaviours, and this ladder is where they part:
+     *
+     *   recent regular   prior history, last visit inside her own expiry
+     *                    window. 52 of the 673. She is told nothing and
+     *                    nobody is asked: she was in this salon inside the
+     *                    very window the setting defines.
+     *   stale regular    prior history, last visit outside the window or no
+     *                    usable date at all. 621 of the 673, and the reason a
+     *                    blanket "regulars are fine" would be dangerous: her
+     *                    last recorded visit predates the salon's own six
+     *                    month expiry and the next thing she sits down for is
+     *                    a chemical tint. The CLIENT is told nothing; the
+     *                    OWNER is asked, on the Patch Tests page.
+     *   true first timer no history of any kind. 277 of them. Told plainly,
+     *                    exactly as before, because it is true of her.
+     *
+     * Prior history buys a returning client out of being TOLD something this
+     * app does not know. It is never read as a patch test. See the
+     * PRIOR HISTORY block in lib/patch-test-status.js.
+     */
     let patchTestCertainty = 'not_required';
     let patchTestAsk = null;
     if (treatmentRequiresPatchTest) {
+      const prior = evidence.priorHistory || { known: false, inWindow: false };
       if (evidence.kind === 'unknown') { patchTestCertainty = 'unknown'; patchTestAsk = 'owner'; }
       else if (evidence.ok) { patchTestCertainty = 'satisfied'; }
       else if (evidence.kind === 'adverse') { patchTestCertainty = 'adverse'; patchTestAsk = 'owner'; }
       else if (evidence.pending) { patchTestCertainty = 'booked'; }
+      else if (prior.known && prior.inWindow) { patchTestCertainty = 'recent_regular'; }
+      else if (prior.known) { patchTestCertainty = 'uncertain'; patchTestAsk = 'owner'; }
       else if (evidence.completedVisits === 0) { patchTestCertainty = 'never_visited'; patchTestAsk = 'client'; }
       else { patchTestCertainty = 'uncertain'; patchTestAsk = 'owner'; }
     }
@@ -1243,6 +1309,9 @@ router.get('/:slug/manage/:token', async (req, res) => {
         evidence: evidence.kind,
         evidenceDate: evidence.when,
         expiryMonths,
+        // Whether she is a returning client, and nothing more than that. The
+        // page uses it to keep quiet, never to claim she is cleared.
+        returningClient: !!(evidence.priorHistory?.known) || evidence.completedVisits > 0,
       },
       pendingForms: (pendingForms || []).map(f => ({
         ...f,

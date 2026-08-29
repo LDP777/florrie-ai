@@ -23,6 +23,7 @@ import { pushTeamUpdate } from './push-notifications.js';
 import { checkGapFillOpportunities } from './gap-fill-engine.js';
 import { guardedSend } from '../lib/outbound-guard.js';
 import { getFutureBookedClientIds } from '../lib/future-bookings.js';
+import { patchTestEvidence, patchTestStance, wallDate } from '../lib/patch-test-status.js';
 import logger from '../lib/logger.js';
 
 const DEFAULT_CONFIDENCE = 0.90;
@@ -361,14 +362,32 @@ async function checkPatchTestsExpiring(beauticianId, beautician) {
   const lowerBound = new Date(cutoffDate);
   lowerBound.setDate(lowerBound.getDate() - 1);
 
-  const { data: expiringTests } = await supabase
+  /* THE FILTER THAT MEANT THIS REMINDER HAD NEVER FIRED FOR ANYBODY.
+   *
+   * This selected `.eq('result', 'pass')`. Every patch_tests row in production
+   * says result = 'pending': nothing in this codebase has ever written 'pass'
+   * except the one form where a human types it, and nobody has. So the query
+   * matched zero rows on every run since it shipped and not one client has
+   * ever been told her patch test was about to lapse.
+   *
+   * The filter is gone. A row is a candidate on its DATE, which is the thing
+   * this function is actually about, and whether it counts as a patch test at
+   * all is then decided by the one implementation of that rule, below. The
+   * error is read too: PostgREST reports a bad select by RESOLVING with
+   * { data: null, error }, and a swallowed error here looks exactly like
+   * "nobody is due", which is how this went unnoticed for so long.
+   */
+  const { data: expiringTests, error: expiringErr } = await supabase
     .from('patch_tests')
     .select('id, client_id, test_date, clients(id, first_name, last_name, phone, whatsapp_id, email, marketing_consent, marketing_opted_out_at, messaging_autonomy)')
     .eq('beautician_id', beauticianId)
-    .eq('result', 'pass')
     .gte('test_date', lowerBound.toISOString().split('T')[0])
     .lte('test_date', cutoffDate.toISOString().split('T')[0]);
 
+  if (expiringErr) {
+    logger.warn({ err: expiringErr, beauticianId }, 'Patch test expiry sweep could not read patch_tests; nobody reminded');
+    return 0;
+  }
   if (!expiringTests?.length) return 0;
 
   const beauticianPrefs = {
@@ -378,9 +397,34 @@ async function checkPatchTestsExpiring(beauticianId, beautician) {
 
   let sent = 0;
 
+  const remindedClients = new Set();
+
   for (const test of expiringTests) {
     const client = test.clients;
     if (!client) continue;
+    // One row per client, not per test: she may have several on file.
+    if (remindedClients.has(client.id)) continue;
+
+    /* IS THIS ACTUALLY A PATCH TEST THAT IS ABOUT TO LAPSE?
+     *
+     * The date window above found a row. Only the shared rule can say whether
+     * it counts, and the shared rule is also the only thing that knows the
+     * owner may have recorded a NEWER one herself, in which case there is
+     * nothing lapsing and this message would be wrong.
+     *
+     * Judged as of today, because "your patch test is expiring" is a statement
+     * about now. patchTestEvidence keeps its asOf contract for the callers
+     * that are asking about a specific booking.
+     */
+    const stance = patchTestStance(await patchTestEvidence(supabase, beauticianId, client.id, {
+      expiryMonths, logger,
+    }));
+    // Covered today and lapsing shortly is exactly who this is for. Anything
+    // else (no record, a reaction, a failed read) is not a client to text a
+    // cheerful expiry note to, and the ones with nothing on file are already
+    // the owner's list on the Patch Tests page.
+    if (stance.status !== 'satisfied') continue;
+    remindedClients.add(client.id);
 
     // Dedup: check if we've already sent a patch test reminder in the last 7 days
     const { count } = await supabase
@@ -393,9 +437,16 @@ async function checkPatchTestsExpiring(beauticianId, beautician) {
 
     if ((count || 0) > 0) continue;
 
-    const expiryDate = new Date(test.test_date);
+    // Count from the most recent thing ON RECORD, not from the row the date
+    // window happened to match. If Ellie recorded a fresher test last week,
+    // that is the one that expires, and it is not expiring this month.
+    const expiryDate = new Date(stance.evidenceDate || test.test_date);
     expiryDate.setMonth(expiryDate.getMonth() + expiryMonths);
     const daysLeft = Math.ceil((expiryDate.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+    // The date window matched a row; the record may hold a fresher one. Only
+    // send when the thing actually on record is the thing actually lapsing, so
+    // "expiring in 4 days" is never said about a test with five months left.
+    if (daysLeft < 0 || daysLeft > remindDaysBefore) continue;
 
     const nudgeBody = `Hi ${client.first_name}! Just a heads up, your patch test is expiring in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}. You'll need a fresh one before your next tint or lift appointment. Give us a message to book one in 💕`;
 
@@ -497,7 +548,6 @@ async function checkPreAppointmentRequirements(beauticianId) {
   if (!appts?.length) return 0;
 
   const expiryMonths = b.patch_test_expiry_months || 6;
-  const sixMonthsAgo = new Date(); sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - expiryMonths);
   const beauticianPrefs = { whatsapp_connected: !!b.whatsapp_phone_id, ...(b.client_reminder_prefs || {}) };
   const FRONTEND = process.env.FRONTEND_URL || 'https://florrie.ai';
   let sent = 0;
@@ -506,20 +556,35 @@ async function checkPreAppointmentRequirements(beauticianId) {
     const client = appt.clients;
     const t = appt.treatments;
     if (!client || !t) continue;
-    // Never remind imported clients (Timely/Fresha/CSV): they're established
-    // clients from the old system, already past patch tests / forms.
-    if (client.imported_from) continue;
     if (!t.requires_patch_test && !t.requires_consultation) continue;
 
-    // ONLY new clients (this is their first appointment). Returning clients have
-    // already done their patch test / forms, so skip anyone with a prior visit.
-    const { count: priorVisits } = await supabase
-      .from('appointments')
-      .select('id', { count: 'exact', head: true })
-      .eq('beautician_id', beauticianId)
-      .eq('client_id', client.id)
-      .eq('status', 'completed');
-    if ((priorVisits || 0) > 0) continue;
+    /* WHO IS ACTUALLY NEW, AND WHY BOTH OF THE OLD TESTS WERE WRONG.
+     *
+     * This used to skip on `client.imported_from`, with the comment "they're
+     * established clients from the old system, already past patch tests /
+     * forms". 926 of the pilot salon's 1,151 clients are imported from Timely
+     * and 277 of them have no history of any kind: total_visits = 0,
+     * last_visit_at NULL, no completed appointment. They are first timers, and
+     * this line silently withheld the one safety reminder they needed. One of
+     * them wrote at 01:18 on 27 August 2026 asking whether she needed a patch
+     * test for the 3rd of September, because nothing had told her.
+     *
+     * Then it skipped anyone with a completed appointment, which counts
+     * Florrie-era appointments only. 673 imported regulars have none, so that
+     * test called every one of them new.
+     *
+     * The right question is the one lib/patch-test-status.js answers: has she
+     * been here before, on ANY history, pre-Florrie included. Only a true
+     * first timer gets a "just so you are set" message.
+     */
+    const stance = patchTestStance(await patchTestEvidence(supabase, beauticianId, client.id, {
+      expiryMonths,
+      // Judged against HER APPOINTMENT, not today: a test has to cover the day
+      // she is booked in for. starts_at is salon wall time in a UTC slot.
+      asOf: wallDate(appt.starts_at),
+      logger,
+    }));
+    if (stance.returningClient) continue;
 
     // Dedup: one pre-appointment reminder per appointment.
     const { count } = await supabase
@@ -533,23 +598,21 @@ async function checkPreAppointmentRequirements(beauticianId) {
     const parts = [];
     let needsPatchTest = false;
 
-    // Patch test gap (gated on the same toggle as expiry reminders).
+    /* Patch test gap (gated on the same toggle as expiry reminders).
+     *
+     * THE SECOND BROKEN COPY OF THE RULE. It tested `p.status === 'passed'`,
+     * a spelling nothing writes and the CHECK constraint on patch_tests.result
+     * rejects with 23514, so `hasValid` was false for everybody. An owner could
+     * record a patch test herself, on the page built for it, and this would
+     * still text the client telling her to book one. It also missed a test the
+     * client had come in and had, because a completed patch test appointment
+     * was never read as evidence.
+     *
+     * One implementation now, and `tellClient` is true for exactly one
+     * population: the client we know has never been here.
+     */
     if (t.requires_patch_test && b.patch_test_auto_remind) {
-      const { data: pts } = await supabase
-        .from('patch_tests')
-        .select('status, result, test_date, confirmed_at')
-        .eq('client_id', client.id)
-        .eq('beautician_id', beauticianId);
-      // Cover both schemas in use: status 'passed' (manage page) and result 'pass'
-      // (expiry reminder), so a client with a valid test is never wrongly nudged.
-      const hasValid = (pts || []).some(p =>
-        (p.status === 'passed' || p.result === 'pass') && p.test_date && new Date(p.test_date) > sixMonthsAgo);
-      // A bare 'pending' row is created the instant they book the treatment,
-      // BEFORE they book the actual patch-test slot. Only a booked slot
-      // (confirmed_at) or a valid passed test means they're sorted; a pending
-      // row on its own is exactly the client we need to chase to book one.
-      const hasBookedSlot = (pts || []).some(p => p.confirmed_at);
-      if (!hasValid && !hasBookedSlot) {
+      if (stance.tellClient) {
         needsPatchTest = true;
         const link = appt.management_token ? `${FRONTEND}/book/${b.booking_slug}/manage/${appt.management_token}?book=patch` : null;
         parts.push(`you'll need a quick patch test beforehand${link ? `, you can book one here: ${link}` : ''}`);

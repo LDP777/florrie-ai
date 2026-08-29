@@ -171,13 +171,58 @@ describe('the first-time client booked in for a lash lift on Thursday', () => {
 });
 
 describe('the clients who should still be left alone', () => {
-  it('a client imported from her old system is not chased', async () => {
+  /* WHAT "IMPORTED" TURNED OUT NOT TO MEAN, 27 AUGUST 2026.
+   *
+   * This block used to skip on `client.imported_from` alone, on the reasoning
+   * that anyone from the old system is an established client already past her
+   * patch test. The live numbers say otherwise: of 1,151 clients, 926 are
+   * imported from Timely, and 277 of those have no history of any kind
+   * (total_visits = 0, last_visit_at NULL, no completed appointment). They are
+   * first timers with an imported row, and this line withheld the one safety
+   * reminder they needed.
+   *
+   * One of them wrote at 01:18 that morning: "hey I have a appointment on the
+   * 3rd of September and I just went onto the website and it said about a
+   * patch test do I need to book one in or not x". Nothing had told her.
+   *
+   * What is skipped now is PRIOR HISTORY, not the import flag.
+   */
+  it('an imported client with no history behind her IS told, because she is a first timer', async () => {
+    db.clients.push({
+      id: 'c1', beautician_id: 'b1', first_name: 'Jo', phone: '+447700900003',
+      imported_from: 'timely', total_visits: 0, last_visit_at: null,
+    });
     db.appointments.push({
       id: 'a1', beautician_id: 'b1', client_id: 'c1', status: 'confirmed',
       starts_at: inHours(48), management_token: 'tok-1',
       treatments: { name: 'lash lift', requires_patch_test: true, requires_consultation: false },
       clients: { id: 'c1', first_name: 'Jo', phone: '+447700900003', imported_from: 'timely' },
     });
+
+    await runAutonomousCycle();
+    expect(nudges).toHaveLength(1);
+    expect(nudges[0].body).toMatch(/patch test/i);
+  });
+
+  it('an imported REGULAR is left alone, whether her last visit is recent or stale', async () => {
+    // The 673: a real total_visits from Timely and not one completed
+    // appointment inside Florrie. Two months ago (one of the 52) and fourteen
+    // months ago (one of the 621) are both silence towards the client. The
+    // stale one is not dropped, she is handed to the owner instead, on
+    // GET /api/appointments/patch-test-alerts.
+    const daysAgo = (n) => new Date(Date.now() - n * 24 * 60 * 60 * 1000).toISOString();
+    for (const [id, when] of [['c-recent', daysAgo(60)], ['c-stale', daysAgo(420)]]) {
+      db.clients.push({
+        id, beautician_id: 'b1', first_name: 'Jo', phone: '+447700900003',
+        imported_from: 'timely', total_visits: 10, last_visit_at: when,
+      });
+      db.appointments.push({
+        id: `a-${id}`, beautician_id: 'b1', client_id: id, status: 'confirmed',
+        starts_at: inHours(48), management_token: 'tok-1',
+        treatments: { name: 'lash lift', requires_patch_test: true, requires_consultation: false },
+        clients: { id, first_name: 'Jo', phone: '+447700900003', imported_from: 'timely' },
+      });
+    }
 
     await runAutonomousCycle();
     expect(nudges).toHaveLength(0);
@@ -193,6 +238,35 @@ describe('the clients who should still be left alone', () => {
     db.patch_tests.push({
       id: 'pt1', client_id: 'c2', beautician_id: 'b1', status: 'passed', result: 'pass',
       test_date: new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10), confirmed_at: null,
+    });
+
+    await runAutonomousCycle();
+    expect(nudges).toHaveLength(0);
+  });
+
+  /* THE CASE BOTH BROKEN COPIES OF THE RULE IGNORED.
+   *
+   * autonomous-scheduler.js tested `p.status === 'passed'`, a spelling nothing
+   * writes and the CHECK constraint on patch_tests.result rejects with 23514.
+   * So the owner could sit a client down, do the patch test herself, record it
+   * on her own Patch Tests page, and Florrie would still text the client the
+   * next morning telling her to go and book one.
+   *
+   * RECORDED_BY_OWNER is what that page actually writes.
+   */
+  it("a patch test the OWNER recorded herself stops the nudge, which 'passed' never did", async () => {
+    db.clients.push({ id: 'c9', beautician_id: 'b1', first_name: 'Amara', phone: '+447700900009' });
+    db.appointments.push({
+      id: 'a1', beautician_id: 'b1', client_id: 'c9', status: 'confirmed',
+      starts_at: inHours(48), management_token: 'tok-9',
+      treatments: { name: 'lash lift', requires_patch_test: true, requires_consultation: false },
+      clients: { id: 'c9', first_name: 'Amara', phone: '+447700900009', imported_from: null },
+    });
+    db.patch_tests.push({
+      id: 'pt9', client_id: 'c9', beautician_id: 'b1', status: 'recorded_by_owner',
+      result: 'pending', appointment_id: null,
+      test_date: new Date(Date.now() - 20 * 86400000).toISOString().slice(0, 10),
+      confirmed_at: new Date().toISOString(),
     });
 
     await runAutonomousCycle();

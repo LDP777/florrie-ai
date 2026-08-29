@@ -207,6 +207,7 @@ export default function ClientManagePage() {
   // Deep link from the booking confirmation ("Book my patch test") opens the
   // slot picker straight away and scrolls to it, so it's one tap not three.
   const deepLinkedPatch = useRef(false);
+  const [askedForPatchPicker, setAskedForPatchPicker] = useState(false);
   useEffect(() => {
     if (deepLinkedPatch.current || !data) return;
     const wantsPatch = new URLSearchParams(window.location.search).get('book') === 'patch';
@@ -216,6 +217,10 @@ export default function ClientManagePage() {
     // the same dead end from the other direction.
     if (wantsPatch && (data.needsPatchTest || data.patchTest?.required)) {
       deepLinkedPatch.current = true;
+      // A returning client is shown nothing about patch tests, so if she has
+      // followed a link that asks for the picker she would otherwise land on a
+      // page with no picker on it. Asking for it counts as wanting it.
+      setAskedForPatchPicker(true);
       loadPatchTestSlots();
       setTimeout(() => {
         document.getElementById('patch-test-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -421,8 +426,22 @@ export default function ClientManagePage() {
    * the one case where the sentence is true and the one case where she can do
    * anything about it herself. Everything softer arrives here instead, and
    * says so in the client's own terms. `certainty` is one of:
-   *   not_required | satisfied | booked | never_visited | uncertain
-   *   | adverse | unknown
+   *   not_required | satisfied | booked | never_visited | recent_regular
+   *   | uncertain | adverse | unknown
+   *
+   * AND THEN, ON 27 AUGUST 2026 AT 01:18, another client wrote: "hey I have a
+   * appointment on the 3rd of September and I just went onto the website and
+   * it said about a patch test do I need to book one in or not x". She was one
+   * of the 277 genuine first timers, so the answer to her was yes. But of
+   * 1,151 clients, 854 imported from Timely carry a real total_visits and 673
+   * of those have no completed appointment inside Florrie at all, so "she has
+   * never been in" was being said to 673 established regulars.
+   *
+   * The backend now separates them. `recent_regular` (52 of the 673: last seen
+   * inside the salon's own expiry window) renders NOTHING here on purpose, and
+   * nobody is chased. `uncertain` (the other 621, last seen before it) keeps
+   * the soft block below and sends the real question to the owner, who was in
+   * the room. Being a returning client is never read as having had a test.
    */
   const patchTest = data.patchTest || { required: false, certainty: 'not_required', ask: null };
   // She has not been ruled out, but nothing on file rules her in either. The
@@ -437,7 +456,7 @@ export default function ClientManagePage() {
   // A client who knows perfectly well she needs one can still book it, from
   // any of these states. What changes is whether we DEMAND it of her.
   const canOfferPatchTest = patchTest.required &&
-    (needsPatchTest || patchTestUnsure) && !isCancelled && !isPast;
+    (needsPatchTest || patchTestUnsure || askedForPatchPicker) && !isCancelled && !isPast;
   // Everything already on this booking, so the add picker never offers
   // something they have got. The backend refuses a duplicate anyway; this is
   // so they never see the option and wonder why it failed.

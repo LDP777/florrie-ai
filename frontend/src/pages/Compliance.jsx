@@ -2,7 +2,7 @@
  * Compliance - landing page for Guardian agent.
  *
  * Covers the two pillars of compliance for UK beauty professionals:
- *   1. Patch tests  - legally required 48h before chemical treatments
+ *   1. Patch tests  - required by her insurer before chemical treatments, 24h in this app
  *   2. Consultation forms - informed consent for all treatments
  *
  * Relevant for all treatment types: brows, lashes, nails, waxing, facials, etc.
@@ -101,7 +101,7 @@ export default function Compliance() {
       <div style={S.explainerCard}>
         <Icon name={iconName('info')} size={16} inline color="#C9A96E" />
         <p style={S.explainerText}>
-          Required for <strong>all beauty professionals</strong> - whether you do brows, lashes, nails, waxing, facials or anything else. UK law requires patch tests 48h before chemical treatments. Consultation forms protect you legally for every client.
+          Required for <strong>all beauty professionals</strong> - whether you do brows, lashes, nails, waxing, facials or anything else. Your insurer and the brands you use require a patch test before chemical treatments, and Florrie asks for one 24 hours ahead. Check the notice period on your own policy, because it varies, and change it in Settings if yours says longer. Consultation forms protect you legally for every client.
         </p>
       </div>
 
@@ -113,7 +113,7 @@ export default function Compliance() {
           </div>
           <div style={S.pillarInfo}>
             <div style={S.pillarTitle}>Patch Tests</div>
-            <div style={S.pillarDesc}>48h allergy checks before chemical treatments</div>
+            <div style={S.pillarDesc}>Allergy checks before chemical treatments</div>
           </div>
           <Icon name={iconName('chevron_right')} size={20} inline color="#C5B8B2" />
         </div>

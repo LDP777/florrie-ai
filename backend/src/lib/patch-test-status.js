@@ -221,6 +221,130 @@ export async function patchTestPicture(supabase, beauticianId, clientId, logger 
  * deliberately never used as the date of a test.
  * ======================================================================== */
 
+/* ==========================================================================
+ * PRIOR HISTORY: THE 673 WHO LOOKED LIKE FIRST TIMERS
+ *
+ * 27 AUGUST 2026, 01:18. A client of the pilot salon wrote:
+ *
+ *   "hey I have a appointment on the 3rd of September and I just went onto
+ *    the website and it said about a patch test do I need to book one in or
+ *    not x"
+ *
+ * She was right to ask, and the system was right about HER. She was imported
+ * from Timely but carries total_visits = 0, last_visit_at NULL and no patch
+ * test row, so she is a genuine first timer and she genuinely needs one. What
+ * the database showed underneath that message is the defect:
+ *
+ *   1,151 clients. 926 imported from Timely. 854 carry a real total_visits > 0.
+ *   673 of those 854 have ZERO appointments with status 'completed' inside
+ *   Florrie, so every rule in this codebase believed each of them had never
+ *   once sat in the chair. Only 52 of the 673 have a last_visit_at inside six
+ *   months; the other 621 were last seen before the salon's own expiry window.
+ *   277 clients have no history of any kind: total_visits = 0, last_visit_at
+ *   NULL, no completed appointment. Those 277 are the true first timers.
+ *
+ * So 673 established regulars were indistinguishable from 277 true first
+ * timers, because the Timely import writes clients.total_visits and
+ * clients.last_visit_at and creates NO appointments, while every patch test
+ * decision in this codebase counted Florrie-era completed appointments only.
+ *
+ * WHAT PRIOR HISTORY IS, AND WHAT IT IS NOT, AND THIS IS THE WHOLE POINT.
+ * Prior history is evidence that somebody is a RETURNING CLIENT. It is NOT
+ * evidence that she has ever had a patch test, and it is never converted into
+ * one. It is deliberately absent from rowSignal and from SATISFYING below, so
+ * it can never set `ok` and never set `kind`. All it may ever do is buy a
+ * returning client out of being TOLD something this system does not know. The
+ * ask then goes to the owner, who was in the room. A blanket "regulars never
+ * need one" would be dangerous precisely here: 621 of the 673 were last seen
+ * before the six month expiry, and the next thing they sit down for is a tint.
+ *
+ * THE TWO COLUMNS, AND HOW FAR EACH CAN BE TRUSTED.
+ *   total_visits   written ONCE by the importer (routes/migrate.js:238) and
+ *                  never incremented afterwards. No trigger touches it. It is
+ *                  a fact about the OLD system, not a live counter, and it is
+ *                  read here as nothing more than "there was a before".
+ *   last_visit_at  written by the importer AND kept current by the trigger in
+ *                  067_last_visit_accuracy.sql:22-25, which bumps it whenever
+ *                  an appointment reaches 'completed'. It is the more
+ *                  trustworthy of the two, so it is the one the window is
+ *                  measured against.
+ *   imported_from  which old system she came from, or NULL for somebody who
+ *                  started inside Florrie.
+ *
+ * All three exist: clients is created with them in 001_initial_schema.sql at
+ * :139, :143 and :151. That matters, because PostgREST rejects the WHOLE
+ * select for one unknown column and reports it by RESOLVING with
+ * { data: null, error }, which reads exactly like "she has no history".
+ * ======================================================================== */
+
+/**
+ * 'YYYY-MM-DD' for a REAL INSTANT: last_visit_at and created_at are timestamptz
+ * and mean a moment in time, which is the opposite of appointments.starts_at
+ * (salon wall time parked in a UTC slot, read with a string slice). Parsing is
+ * the correct read for an instant. The process is pinned to UTC by src/index.js,
+ * so a London evening visit can land on the previous UTC day; against a three
+ * to twelve MONTH window that is a rounding error, and it rounds towards the
+ * visit looking slightly older, which is the side that asks rather than
+ * reassures.
+ */
+export function instantDate(value) {
+  if (!value) return null;
+  const d = value instanceof Date ? value : new Date(String(value));
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString().slice(0, 10);
+}
+
+/** Nobody has been here before, as far as anything predating Florrie knows. */
+const NO_PRIOR_HISTORY = Object.freeze({
+  known: false, totalVisits: 0, lastVisit: null, importedFrom: null, failed: false,
+});
+
+/**
+ * Has this client been here before, on history that predates Florrie?
+ *
+ * Named for what it is, not for what it licenses. It answers "returning client
+ * or not"; it says nothing whatsoever about patch tests.
+ *
+ * `failed` is carried rather than swallowed for the reason the rest of this
+ * file checks every error: not being able to tell a regular from a first timer
+ * is exactly the thing that must not be guessed, and the guess that goes wrong
+ * sends 673 established clients off to book a patch test at one in the morning.
+ *
+ * @returns {Promise<{known: boolean, totalVisits: number, lastVisit: string|null,
+ *   importedFrom: string|null, failed: boolean}>}
+ */
+export async function readPriorHistory(supabase, beauticianId, clientId, logger = null) {
+  if (!clientId || !beauticianId) return { ...NO_PRIOR_HISTORY };
+
+  const { data, error } = await supabase
+    .from('clients')
+    .select('id, total_visits, last_visit_at, imported_from')
+    .eq('id', clientId)
+    .eq('beautician_id', beauticianId)
+    .maybeSingle();
+
+  if (error) {
+    logger?.warn?.({ err: error, clientId }, 'prior-history lookup failed');
+    return { ...NO_PRIOR_HISTORY, failed: true };
+  }
+  if (!data) return { ...NO_PRIOR_HISTORY };
+
+  const totalVisits = Number(data.total_visits) || 0;
+  const lastVisit = instantDate(data.last_visit_at);
+  const importedFrom = data.imported_from || null;
+
+  return {
+    // total_visits > 0 is the importer's own mark and the one the 854 carry.
+    // The second arm catches an imported row that arrived with a date but no
+    // count: she still came from somewhere, and that somewhere saw her.
+    known: totalVisits > 0 || (!!importedFrom && !!lastVisit),
+    totalVisits,
+    lastVisit,
+    importedFrom,
+    failed: false,
+  };
+}
+
 /**
  * patch_tests.status for a test the owner recorded herself, with no slot.
  *
@@ -276,6 +400,11 @@ function rowSignal(row) {
   return null;
 }
 
+/* The four things that actually satisfy the requirement. Prior history is NOT
+ * one of them and must never be added: "she has been here before" is not "she
+ * has had a patch test", and turning the first into the second is how 673
+ * regulars would get silently cleared for a chemical tint on the strength of a
+ * number the Timely importer wrote once in 2026 and never touched again. */
 const SATISFYING = new Set(['recorded', 'result', 'attended', 'treatment']);
 
 /**
@@ -294,20 +423,34 @@ const SATISFYING = new Set(['recorded', 'result', 'attended', 'treatment']);
  * @returns {Promise<{
  *   ok: boolean, kind: string, when: string|null, pending: boolean,
  *   completedVisits: number, windowFrom: string, windowTo: string,
+ *   priorHistory: {known: boolean, inWindow: boolean, totalVisits: number,
+ *     lastVisit: string|null, importedFrom: string|null, failed: boolean},
  * }>} kind is one of recorded | result | attended | treatment | adverse |
  *   none | unknown. `ok` is true only for the four that satisfy the
  *   requirement. `unknown` means the lookup failed and NOTHING may be
  *   claimed either way, which is not the same as "she has none".
+ *
+ *   priorHistory says whether she is a RETURNING CLIENT, on history that
+ *   predates Florrie. Read the block above before using it: it is not a patch
+ *   test, it never sets `ok` or `kind`, and its only job is to stop the app
+ *   asserting "you need a patch test" at one of the 673 regulars the Timely
+ *   import left looking like first timers. `inWindow` means her last recorded
+ *   visit falls inside this booking's patch test window, which is the 52; the
+ *   other 621 were last seen before it and are the owner's question, not hers.
  */
 export async function patchTestEvidence(supabase, beauticianId, clientId, opts = {}) {
   const { expiryMonths = 6, asOf = null, logger = null } = opts;
   const windowTo = wallDate(asOf) || todayWall();
   const windowFrom = patchTestWindowStart(windowTo, expiryMonths);
-  const base = { ok: false, kind: 'none', when: null, pending: false, completedVisits: 0, windowFrom, windowTo };
+  const base = {
+    ok: false, kind: 'none', when: null, pending: false, completedVisits: 0,
+    windowFrom, windowTo,
+    priorHistory: { ...NO_PRIOR_HISTORY, inWindow: false },
+  };
 
   if (!clientId || !beauticianId) return base;
 
-  const [ptRes, apptRes] = await Promise.all([
+  const [ptRes, apptRes, history] = await Promise.all([
     supabase
       .from('patch_tests')
       .select('id, status, result, test_date, confirmed_at, appointment_id, appointments(starts_at, status)')
@@ -323,6 +466,11 @@ export async function patchTestEvidence(supabase, beauticianId, clientId, opts =
       .eq('status', 'completed')
       .order('starts_at', { ascending: false })
       .limit(100),
+    // The client row itself, which this function never used to read at all.
+    // That omission IS the 27 August defect: 673 regulars imported from Timely
+    // have no completed appointment inside Florrie, so counting appointments
+    // alone made every one of them look like one of the 277 first timers.
+    readPriorHistory(supabase, beauticianId, clientId, logger),
   ]);
 
   // Checked, both. PostgREST reports a bad select by RESOLVING with
@@ -337,8 +485,26 @@ export async function patchTestEvidence(supabase, beauticianId, clientId, opts =
     return { ...base, kind: 'unknown' };
   }
 
+  // A failed CLIENT read is 'unknown' for the same reason. Without that row we
+  // cannot tell one of the 673 returning clients from one of the 277 who have
+  // genuinely never been in, and those two get opposite messages. Not knowing
+  // goes to the owner; it never goes to the client as an assertion.
+  if (history.failed) {
+    logger?.warn?.({ clientId }, 'patch-test evidence: prior history unreadable');
+    return { ...base, kind: 'unknown' };
+  }
+
   const rows = ptRes.data || [];
   const completed = apptRes.data || [];
+
+  // Her last recorded visit against THIS booking's window. Same comparison the
+  // patch test rows get: 'YYYY-MM-DD' strings, exclusive at the old end.
+  const priorHistory = {
+    ...history,
+    inWindow: !!(history.known && history.lastVisit
+      && history.lastVisit > windowFrom && history.lastVisit <= windowTo),
+  };
+  base.priorHistory = priorHistory;
 
   // A row that attests to nothing yet but shows a test is in hand: on record
   // with no slot ('pending'), or a slot booked and not yet attended. Not
@@ -421,4 +587,68 @@ export async function patchTestEvidence(supabase, beauticianId, clientId, opts =
   }
 
   return { ...base, pending, completedVisits: completed.length };
+}
+
+/* ==========================================================================
+ * ONE STANCE, FOR EVERY CALLER THAT TALKS TO A CLIENT
+ *
+ * There were four copies of this rule. ai-front-desk.js and
+ * autonomous-scheduler.js each carried their own, and BOTH still tested
+ * `pt.status === 'passed'`, a spelling nothing writes and the CHECK constraint
+ * on patch_tests.result rejects with 23514. The practical consequence: the
+ * owner could record a patch test herself, from the page built for exactly
+ * that, and Florrie would still tell the client to go and book one.
+ *
+ * This turns evidence plus prior history into the one thing every caller
+ * actually wants to know: MAY I SAY THIS OUT LOUD TO HER, and if not, who is
+ * the right person to ask. It is the same three populations the whole 27
+ * August 2026 fix is built on.
+ *
+ * @param {object|null} evidence  the result of patchTestEvidence, or null when
+ *   there is no client to ask about (an unknown number messaging in).
+ * @returns {{status: string, tellClient: boolean, askOwner: boolean,
+ *   returningClient: boolean, evidence: string, evidenceDate: string|null}}
+ *
+ *   satisfied         a test is on record inside the window. Nothing to do.
+ *   booked            one is booked and not attended yet. Do not ask twice.
+ *   first_timer       no history of ANY kind. The 277. She is told plainly,
+ *                     because it is true of her and she can act on it.
+ *   returning_recent  prior history, last seen inside the window. The 52.
+ *                     Nothing said to her, nobody chased.
+ *   returning_stale   prior history, last seen before the window, or no usable
+ *                     date. The 621. The client is told NOTHING; the owner is
+ *                     asked, on the Patch Tests page.
+ *   reaction          an adverse result is on record. Never a booking link.
+ *   unknown           the lookup failed. Nothing may be claimed either way.
+ *   unidentified      there is no client to be right or wrong about: an
+ *                     unknown number messaging in. Not a first timer, because
+ *                     that is a claim about somebody we have not matched. The
+ *                     copy for this one states the CONDITION ("if it is your
+ *                     first time with us") rather than asserting it at her,
+ *                     the same register the public booking page now uses at
+ *                     step 1, before anybody has been identified.
+ *
+ * `tellClient` is true for exactly one of them. That is the rule: Florrie never
+ * tells a client she needs a patch test unless it genuinely knows.
+ * ======================================================================== */
+export function patchTestStance(evidence) {
+  const base = {
+    status: 'unknown', tellClient: false, askOwner: true,
+    returningClient: false, evidence: 'unknown', evidenceDate: null,
+  };
+  if (!evidence) return { ...base, status: 'unidentified', askOwner: false };
+
+  const prior = evidence.priorHistory || { known: false, inWindow: false };
+  const returningClient = !!prior.known || (evidence.completedVisits || 0) > 0;
+  const out = {
+    ...base, returningClient, evidence: evidence.kind, evidenceDate: evidence.when || null,
+  };
+
+  if (evidence.kind === 'unknown') return out;
+  if (evidence.ok) return { ...out, status: 'satisfied', askOwner: false };
+  if (evidence.kind === 'adverse') return { ...out, status: 'reaction' };
+  if (evidence.pending) return { ...out, status: 'booked', askOwner: false };
+  if (prior.known && prior.inWindow) return { ...out, status: 'returning_recent', askOwner: false };
+  if (returningClient) return { ...out, status: 'returning_stale' };
+  return { ...out, status: 'first_timer', tellClient: true, askOwner: false };
 }

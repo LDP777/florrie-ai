@@ -491,7 +491,7 @@ export default function Treatments() {
               >
                 {form.requires_patch_test ? 'Required' : 'Not needed'}
               </button>
-              <span style={styles.formHint}>For dye treatments - client must patch test 48h before</span>
+              <span style={styles.formHint}>For dye treatments - client must patch test 24h before</span>
             </div>
           </div>
 

@@ -164,19 +164,21 @@ describe('no new sender joins clients without the consent columns', () => {
     'src/routes/appointments.js:431',
     // Moved down by the patch-test record and alert routes added above it in
     // routes/appointments.js, then again by the assumed-versus-settled takings
-    // read added to GET /:id/card on 27 August 2026. Same join, same file.
-    // (Previously 1598, then 1826.)
-    'src/routes/appointments.js:1873',
+    // read added to GET /:id/card on 27 August 2026, then again by the prior
+    // history rule added to the patch-test alerts route the same day. Same
+    // join, same file. (Previously 1598, 1826, then 1873.)
+    'src/routes/appointments.js:1897',
     // All five moved down again, by the patch-test evidence rule replacing the
-    // `status === 'passed'` test in routes/booking.js. Same five joins, same
-    // file, new line numbers.
+    // `status === 'passed'` test in routes/booking.js, and again by the prior
+    // history rule that separated the 673 imported regulars from the 277 true
+    // first timers. Same five joins, same file, new line numbers.
     // (Previously 857 / 1572 / 2126 / 2392 / 2803, then 993 / 1708 / 2262 /
-    // 2528 / 2939.)
-    'src/routes/booking.js:994',
-    'src/routes/booking.js:1777',
-    'src/routes/booking.js:2331',
-    'src/routes/booking.js:2597',
-    'src/routes/booking.js:3008',
+    // 2528 / 2939, then 994 / 1777 / 2331 / 2597 / 3008.)
+    'src/routes/booking.js:1019',
+    'src/routes/booking.js:1846',
+    'src/routes/booking.js:2400',
+    'src/routes/booking.js:2666',
+    'src/routes/booking.js:3077',
     'src/routes/features.js:132',
     'src/routes/features.js:169',
     'src/routes/features.js:194',

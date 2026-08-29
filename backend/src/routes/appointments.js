@@ -1827,13 +1827,33 @@ router.get('/patch-test-alerts', requireAuth, async (req, res) => {
     });
     if (evidence.ok) continue;
 
+    /* THE 27 AUGUST 2026 POPULATIONS, on the owner's side of the same rule.
+     *
+     * A client who was last in inside her own expiry window is not a question:
+     * she sat in this chair more recently than the salon's patch test window
+     * is long. She is one of the 52 (of 673 imported regulars with no Florrie
+     * appointment at all), and putting her on this list buries the 621 who
+     * matter. She is not told anything either, so nobody is chasing her.
+     *
+     * Prior history is NOT read as a patch test here any more than anywhere
+     * else. It only decides whether there is a question worth the owner's
+     * evening. Flip this one line back if the salon would rather see them all.
+     */
+    const prior = evidence.priorHistory || { known: false, inWindow: false };
+    if (prior.known && prior.inWindow && evidence.kind !== 'adverse' && evidence.kind !== 'unknown') continue;
+
     // What the owner is actually being asked. Never a verdict on her client.
+    //
+    // 'never_been_in' used to fire on completedVisits === 0, which counts
+    // Florrie-era completed appointments and nothing else. That is what made
+    // 673 established regulars read as brand new. A client with prior history
+    // has been in; we simply have no patch test written down for her.
     const askedBecause =
       evidence.kind === 'unknown' ? 'could_not_check'
         : evidence.kind === 'adverse' ? 'reaction_on_record'
           : evidence.pending ? 'booked_not_attended'
-            : evidence.completedVisits === 0 ? 'never_been_in'
-              : 'been_in_but_nothing_on_record';
+            : (prior.known || evidence.completedVisits > 0) ? 'been_in_but_nothing_on_record'
+              : 'never_been_in';
 
     alerts.push({
       client_id: clientId,
@@ -1846,6 +1866,10 @@ router.get('/patch-test-alerts', requireAuth, async (req, res) => {
       evidence: evidence.kind,
       evidence_date: evidence.when,
       completed_visits: evidence.completedVisits,
+      // What the old system knew about her, so the card can say "last seen
+      // March 2026, from Timely" instead of pretending she is new.
+      prior_visits: prior.totalVisits || 0,
+      prior_last_visit: prior.lastVisit || null,
       reason: askedBecause,
       // So the page can say "anything before this is too old" in her words.
       window_from: patchTestWindowStart(wallDate(soonest.starts_at), expiryMonths),

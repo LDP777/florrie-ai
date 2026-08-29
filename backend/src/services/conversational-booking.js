@@ -399,13 +399,31 @@ async function handleTreatmentAnswer({ beautician, client, message, state, conte
 // ---------------------------------------------------------------------------
 
 /**
- * Does this booking need a patch test the client has not got?
- * Deliberately stricter than the booking page, which only gates FIRST time
- * clients: a lapsed test is the same risk as no test at all.
+ * Does this booking need a patch test the client has not got, and may Florrie
+ * SAY SO to her?
+ *
+ * This used to be `status !== 'completed'`, on a status computed by a block
+ * that tested for the word 'passed' and could therefore never say 'completed'
+ * about anybody. Every client got the patch test line and the 24 hour lead.
+ *
+ * Since 27 August 2026 the stance comes from lib/patch-test-status.js, and the
+ * governing rule is that Florrie never tells a client she needs a patch test
+ * unless it genuinely knows. Only the true first timer is told. A returning
+ * client is not: the ask goes to the owner, on her Patch Tests page, and the
+ * pending patch_tests row this function guards is still written for the client
+ * it IS true of. An unrecognised or missing stance still returns true, so the
+ * cautious answer remains the default.
  */
 function needsPatchTest(treatment, context) {
   if (!treatment?.requires_patch_test) return false;
-  return (context?.patchTest?.status || 'none') !== 'completed';
+  const pt = context?.patchTest;
+  if (!pt) return true;
+  // 'completed' is the dead spelling this file used to compare against; it is
+  // read here so nothing that still sends it regresses into being nagged.
+  if (pt.status === 'satisfied' || pt.status === 'completed' || pt.status === 'booked') return false;
+  // She has been here before. We do not know, so we do not say.
+  if (pt.returningClient === true) return false;
+  return true;
 }
 
 async function hasConsultationOnRecord(beauticianId, clientId, treatment) {

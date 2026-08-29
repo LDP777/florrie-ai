@@ -57,6 +57,10 @@ const PATCH_STATUS = {
 /* Why the ask is being made, in the backend's words. Never a claim about the
  * client: "nothing written down" is a fact about our records, not about her. */
 const ALERT_REASON = {
+  // 'never_been_in' used to fire on Florrie-era completed appointments alone,
+  // which is why 673 clients imported from Timely with a real visit count read
+  // as brand new. One of them asked at 01:18 on 27 August 2026 whether she
+  // needed to book a patch test. It now means what it says.
   never_been_in: 'New to you - no visits on record at all',
   been_in_but_nothing_on_record: 'Been to you before, but no patch test written down',
   booked_not_attended: 'Patch test booked, not marked as done',
@@ -527,6 +531,18 @@ export default function PatchTests() {
                   </div>
                   <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '6px 0 10px', lineHeight: 1.5 }}>
                     {ALERT_REASON[alert.reason] || 'No patch test on record'}
+                    {/* What her old system knew, so "been to you before" is a
+                        fact you can check rather than something to take on
+                        trust. Nothing here claims she has had a patch test. */}
+                    {alert.prior_visits > 0 && (
+                      <>
+                        <br />
+                        {alert.prior_visits} visit{alert.prior_visits === 1 ? '' : 's'} on her imported history
+                        {alert.prior_last_visit
+                          ? `, last one ${new Date(`${alert.prior_last_visit}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })}`
+                          : ', no date recorded'}
+                      </>
+                    )}
                   </p>
                   {reminded[alert.client_id] ? (
                     <span style={styles.sentLabel}>Reminder sent ✓</span>

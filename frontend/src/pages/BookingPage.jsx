@@ -182,7 +182,7 @@ export default function BookingPage() {
   // Payment method: 'card', 'cash', 'bank_transfer'
   const [paymentMethod, setPaymentMethod] = useState('card');
   // Client recognition, returning client lookup
-  const [recognisedClient, setRecognisedClient] = useState(null); // { name, email, phone, hasPendingPatchTest, hasPendingForm }
+  const [recognisedClient, setRecognisedClient] = useState(null); // the lookup-client payload: { found, client, returningClient, priorVisits, hasPendingPatchTest, hasPendingForm, ... }
   const [lookingUpClient, setLookingUpClient] = useState(false);
   // Membership detection
   const [memberInfo, setMemberInfo] = useState(null); // { is_member, plan_name, client_name }
@@ -225,7 +225,26 @@ export default function BookingPage() {
   }
 
   const needsConsultation = selectedTreatments.some(t => t.requires_consultation);
+  /* THE TREATMENT needs a patch test. This says nothing about the person
+   * reading the page, and until 27 August 2026 the page acted as though it did.
+   *
+   * At 01:18 that morning a client wrote: "hey I have a appointment on the 3rd
+   * of September and I just went onto the website and it said about a patch
+   * test do I need to book one in or not x". She was right to ask: she is one
+   * of 277 clients with no history of any kind, so she genuinely needed one.
+   * But of 1,151 clients, 854 imported from Timely carry a real total_visits
+   * and 673 of those have no completed appointment inside Florrie, so every
+   * one of those regulars read the same banner and had no way to tell it was
+   * not about her.
+   *
+   * `returningClient` comes back from lookup-client and means only that: she
+   * has been here before, on pre-Florrie history or a completed booking. It is
+   * never read as "she has had a patch test". At step 1 nobody has been
+   * identified yet, so the copy there states the CONDITION and never asserts
+   * the requirement at whoever is reading.
+   */
   const needsPatchTest = selectedTreatments.some(t => t.requires_patch_test);
+  const returningClient = recognisedClient?.found === true && recognisedClient?.returningClient === true;
   // The questions to render, dynamic form fields if available, else defaults
   // Filter out the patch_test question for treatments that don't require it (wax, microblading, etc.)
   const consultationQuestionsRaw = consultationForms.some(f => f.consultation_form_fields?.length)
@@ -1004,8 +1023,11 @@ export default function BookingPage() {
               ? "Your slot is held, we'll confirm once the deposit is received."
               : "You'll receive a confirmation message shortly."}
           </p>
-          {/* Patch test prompt, the moment they book a treatment that needs one */}
-          {needsPatchTest && success.manageUrl && (
+          {/* Patch test prompt, the moment they book a treatment that needs one.
+              Not shown to a recognised returning client: for her this was a
+              "Book my patch test" button under a booking she had just made,
+              for a test she may well have had years ago. */}
+          {needsPatchTest && !returningClient && success.manageUrl && (
             <div style={{ marginTop: 16, padding: '14px 16px', borderRadius: 10, background: brandLight, border: `1.5px solid ${brandMedium}`, textAlign: 'left' }}>
               <p style={{ fontSize: 14, fontWeight: 700, color: brand, margin: '0 0 4px' }}>One more step: your patch test 🩹</p>
               <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 10px', lineHeight: 1.5 }}>
@@ -1396,9 +1418,13 @@ export default function BookingPage() {
         {step === 1 && (
           <div>
             <h2 style={styles.stepTitle}>Pick a date and time</h2>
-            {needsPatchTest && (
+            {/* Step 1 is BEFORE we know who is reading. So this states the
+                condition and lets her decide whether it is about her, rather
+                than telling a regular she needs something she does not. A
+                client who has already been recognised is told nothing. */}
+            {needsPatchTest && !returningClient && (
               <div style={{ margin: '0 0 12px', padding: '11px 13px', borderRadius: 10, background: brandLight, border: `1px solid ${brandMedium}`, fontSize: 12.5, lineHeight: 1.5, color: 'var(--text-secondary)' }}>
-                <strong style={{ color: brand }}>Heads up:</strong> new clients need a quick patch test at least 24 hours before this treatment. Pick a time from tomorrow onwards and we'll set the patch test up right after you book.
+                <strong style={{ color: brand }}>Heads up:</strong> if this is your first time with us, this treatment needs a quick patch test at least 24 hours beforehand, so pick a time from tomorrow onwards and we'll sort it right after you book. If you have been in before, you are already sorted and there is nothing to do.
               </div>
             )}
             {fieldErrors.date && (
@@ -1548,7 +1574,10 @@ export default function BookingPage() {
         {step === 2 && (
           <div>
             <h2 style={styles.stepTitle}>Your details</h2>
-            {needsPatchTest && !recognisedClient?.found && selectedSlot &&
+            {/* By step 2 we DO know her, so use it. This used to test `found`,
+                which is only "there is a row for her" and is true of all 277
+                imported first timers as well as the 673 regulars. */}
+            {needsPatchTest && !returningClient && selectedSlot &&
               ((new Date(selectedSlot.starts_at).getTime() - Date.now()) / 3600000) < 24 && (
               <div style={{ margin: '0 0 12px', padding: '11px 13px', borderRadius: 10, background: '#FEF3C7', border: '1px solid #F5D67E', fontSize: 12.5, lineHeight: 1.5, color: '#8A5A00' }}>
                 That time is under 24 hours away. As a new client you'll need a quick patch test first, so please <button className="fl-tap" type="button" onClick={() => setStep(1)} style={{ background: 'none', border: 'none', padding: 0, color: '#8A5A00', fontWeight: 700, textDecoration: 'underline', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5 }}>pick a time from tomorrow onwards</button>.

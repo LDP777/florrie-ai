@@ -65,6 +65,31 @@ const COLUMNS = {
     'confirmation_deadline', 'auto_booked',
     'status',
   ],
+  /* clients  001_initial_schema.sql:107 plus every ALTER that has touched it:
+   *          006 stripe_customer_id, 048 import_batch_id, 052 tags and
+   *          date_of_birth, 055 marketing_opted_out_at, 077 messaging_autonomy,
+   *          backend015 blocked_at, backend016 instagram_username,
+   *          backend018 archived_at.
+   *
+   * Enforced from 27 August 2026, when patchTestEvidence started reading the
+   * client row. total_visits (:139), last_visit_at (:143) and imported_from
+   * (:151) are the three columns the whole fix rests on, and a select naming
+   * one that did not exist would make PostgREST reject the WHOLE select and
+   * resolve with { data: null, error }: indistinguishable, to every caller,
+   * from "she has never been here". Which is the sentence that started this. */
+  clients: [
+    'id', 'beautician_id', 'first_name', 'last_name', 'email', 'phone',
+    'whatsapp_id', 'instagram_id', 'preferred_channel',
+    'marketing_consent', 'marketing_consent_at', 'health_data_consent',
+    'health_data_consent_at', 'preferences', 'life_events',
+    'communication_patterns', 'avg_rebooking_days', 'lateness_score',
+    'lateness_count', 'no_show_count', 'total_spend_cents', 'total_visits',
+    'status', 'last_visit_at', 'next_expected_visit', 'dormant_since', 'notes',
+    'imported_from', 'external_id', 'created_at', 'updated_at',
+    'stripe_customer_id', 'import_batch_id', 'tags', 'date_of_birth',
+    'marketing_opted_out_at', 'messaging_autonomy', 'blocked_at',
+    'instagram_username', 'archived_at',
+  ],
   treatments: [
     'id', 'beautician_id', 'name', 'description', 'duration_minutes',
     'buffer_minutes', 'price_cents', 'deposit_cents', 'category',
@@ -178,6 +203,12 @@ function makeBuilder(table) {
   let embeds = [];
   let selectError = null;
   let filterError = null;
+  // PostgREST's { count: 'exact', head: true }: no rows come back, a number
+  // does. Modelled because the booking page's "has she ever been in" read is
+  // a head count, and a fake that silently returned undefined for it would
+  // have called every returning client a first timer.
+  let headOnly = false;
+  let wantCount = false;
 
   const known = COLUMNS[table];
   const guard = (c) => {
@@ -236,14 +267,20 @@ function makeBuilder(table) {
       return { data: gone, error: null };
     }
 
-    return { data: withEmbeds(matching()), error: null };
+    const rows = matching();
+    if (headOnly || wantCount) {
+      return { data: headOnly ? null : withEmbeds(rows), error: null, count: rows.length };
+    }
+    return { data: withEmbeds(rows), error: null };
   };
 
   const b = {
-    select(spec = '*') {
+    select(spec = '*', opts = undefined) {
       const parsed = parseSelect(table, spec);
       selectError = parsed.error;
       embeds = parsed.embeds;
+      if (opts?.head) headOnly = true;
+      if (opts?.count) wantCount = true;
       return b;
     },
     insert(p) { pending = { op: 'insert', payload: p }; return b; },
@@ -334,7 +371,7 @@ process.env.FRONTEND_URL = 'https://florrie.ai';
 
 const bookingRouter = (await import('../../src/routes/booking.js')).default;
 const appointmentsRouter = (await import('../../src/routes/appointments.js')).default;
-const { patchTestEvidence, patchTestPicture, RECORDED_BY_OWNER, patchTestWindowStart } =
+const { patchTestEvidence, patchTestPicture, RECORDED_BY_OWNER, patchTestWindowStart, patchTestStance } =
   await import('../../src/lib/patch-test-status.js');
 
 /** Drive one route handler straight, no HTTP server, no middleware. */
@@ -920,5 +957,328 @@ describe('a treatment added as an extra is not invisible to the rule', () => {
     expect(res.body.patchTest.required).toBe(false);
     expect(res.body.patchTest.certainty).toBe('not_required');
     expect(res.body.needsPatchTest).toBe(false);
+  });
+});
+
+/* ==========================================================================
+ * 5. 27 AUGUST 2026, 01:18. THE 673 WHO LOOKED LIKE FIRST TIMERS.
+ *
+ * A client of the pilot salon wrote:
+ *
+ *   "hey I have a appointment on the 3rd of September and I just went onto
+ *    the website and it said about a patch test do I need to book one in or
+ *    not x"
+ *
+ * She was right to ask, and the system was RIGHT ABOUT HER: imported from
+ * Timely, but total_visits = 0, last_visit_at NULL, no patch test row. She is
+ * one of the 277 genuine first timers and she genuinely needed one.
+ *
+ * What the live database showed underneath that message is the defect:
+ *
+ *   1,151 clients. 926 imported from Timely. 854 carry a real total_visits > 0.
+ *   673 of those 854 have ZERO appointments with status 'completed' inside
+ *   Florrie, so every rule in this codebase believed each of them had never
+ *   been in. Only 52 of the 673 were last seen inside six months; the other
+ *   621 were last seen before the salon's own expiry window.
+ *   277 clients have no history at all. Those are the first timers.
+ *
+ * The Timely import writes clients.total_visits and clients.last_visit_at and
+ * creates no appointments. Every patch test decision counted Florrie-era
+ * completed appointments. So 673 established regulars were indistinguishable
+ * from 277 people who had never walked in.
+ *
+ * Three populations, three behaviours, and nothing here ever turns "she has
+ * been here before" into "she has had a patch test".
+ * ======================================================================== */
+
+/** An instant, which is what clients.last_visit_at is. Never a wall date. */
+const instant = (offsetDays) => new Date(Date.now() + offsetDays * 86400000).toISOString();
+
+/**
+ * What Timely left behind: a visit count and a last visit, and not one
+ * appointment row to go with them.
+ */
+function seedPriorHistory({ totalVisits = 10, lastVisitDaysAgo = null, from = 'timely' } = {}) {
+  const row = db.clients.find(c => c.id === SOPHIE);
+  row.total_visits = totalVisits;
+  row.last_visit_at = lastVisitDaysAgo === null ? null : instant(-lastVisitDaysAgo);
+  row.imported_from = from;
+}
+
+describe('an established regular whose history predates Florrie', () => {
+  it('last seen two months ago is not told anything, and is not called never visited', async () => {
+    // One of the 52. Ten visits at the old salon, nothing inside Florrie.
+    seedPriorHistory({ totalVisits: 10, lastVisitDaysAgo: 60 });
+    seedTheBookingSheMoved();
+
+    const res = await manage();
+
+    expect(res.status).toBe(200);
+    expect(res.body.needsPatchTest).toBe(false);
+    expect(res.body.patchTest.certainty).not.toBe('never_visited');
+    expect(res.body.patchTest.certainty).toBe('recent_regular');
+    // Nobody is chased, in either direction.
+    expect(res.body.patchTest.ask).toBeNull();
+    expect(res.body.patchTest.returningClient).toBe(true);
+    // And she is NOT claimed to have a patch test. The demand is withheld,
+    // not answered.
+    expect(res.body.patchTest.evidence).toBe('none');
+  });
+
+  it('drops off the owner\'s alert list too, because there is no question to put to her', async () => {
+    seedPriorHistory({ totalVisits: 10, lastVisitDaysAgo: 60 });
+    seedTheBookingSheMoved();
+
+    const res = await run(appointmentsRouter, 'get', '/patch-test-alerts', {
+      beautician: { id: BIZ, patch_test_expiry_months: 6 }, query: {},
+    });
+    expect(res.body.alerts).toHaveLength(0);
+  });
+
+  it('last seen eight months ago: the CLIENT is told nothing, and the OWNER is asked', async () => {
+    // One of the 621, and the reason a blanket "regulars are fine" would be
+    // dangerous. Her last recorded visit predates the salon's own six month
+    // expiry, and the next thing she sits down for is a chemical tint.
+    seedPriorHistory({ totalVisits: 10, lastVisitDaysAgo: 240 });
+    seedTheBookingSheMoved();
+
+    // Half one: nothing is asserted at her.
+    const res = await manage();
+    expect(res.body.needsPatchTest).toBe(false);
+    expect(res.body.blockBooking).toBe(false);
+    expect(res.body.patchTest.certainty).toBe('uncertain');
+    expect(res.body.patchTest.ask).toBe('owner');
+
+    // Half two: the question actually reaches Ellie, on the page built for it.
+    const alerts = await run(appointmentsRouter, 'get', '/patch-test-alerts', {
+      beautician: { id: BIZ, patch_test_expiry_months: 6 }, query: {},
+    });
+    expect(alerts.body.alerts).toHaveLength(1);
+    expect(alerts.body.alerts[0]).toMatchObject({
+      client_id: SOPHIE,
+      reason: 'been_in_but_nothing_on_record',
+      prior_visits: 10,
+    });
+    // Not 'never_been_in'. That was the sentence that was wrong about 673 people.
+    expect(alerts.body.alerts[0].reason).not.toBe('never_been_in');
+  });
+
+  it('with a visit count but no usable date is treated as stale, not as recent', async () => {
+    // Some imported rows carry a count and no date at all. Absence of a date
+    // is not evidence that she was here lately.
+    seedPriorHistory({ totalVisits: 4, lastVisitDaysAgo: null });
+    seedTheBookingSheMoved();
+
+    const res = await manage();
+    expect(res.body.patchTest.certainty).toBe('uncertain');
+    expect(res.body.patchTest.ask).toBe('owner');
+    expect(res.body.needsPatchTest).toBe(false);
+  });
+});
+
+/* ------------------------------------------------------------------------- *
+ * DO NOT DELETE THIS DESCRIBE. It is the one that stops the fix from turning
+ * into "nobody is ever asked for a patch test again". 277 clients have no
+ * history of any kind, the woman who messaged at 01:18 on 27 August 2026 is
+ * one of them, and for her the sentence is true and she can act on it.
+ * ------------------------------------------------------------------------- */
+describe('SAFETY: a true first timer is still told, exactly as before', () => {
+  it('total_visits 0, last_visit_at NULL, no rows: she is told plainly and given the button', async () => {
+    const row = db.clients.find(c => c.id === SOPHIE);
+    row.total_visits = 0;
+    row.last_visit_at = null;
+    row.imported_from = 'timely';   // an imported row is not a history
+    seedTheBookingSheMoved();
+
+    const res = await manage();
+    expect(res.body.needsPatchTest).toBe(true);
+    expect(res.body.patchTest.certainty).toBe('never_visited');
+    expect(res.body.patchTest.ask).toBe('client');
+    expect(res.body.patchTest.returningClient).toBe(false);
+  });
+
+  it('and the owner still sees her as somebody who has never been in', async () => {
+    const row = db.clients.find(c => c.id === SOPHIE);
+    row.total_visits = 0;
+    row.last_visit_at = null;
+    seedTheBookingSheMoved();
+
+    const res = await run(appointmentsRouter, 'get', '/patch-test-alerts', {
+      beautician: { id: BIZ, patch_test_expiry_months: 6 }, query: {},
+    });
+    expect(res.body.alerts[0].reason).toBe('never_been_in');
+  });
+
+  it('and is still blocked from moving it when Ellie has switched that on', async () => {
+    db.beauticians[0].patch_test_block_booking = true;
+    const row = db.clients.find(c => c.id === SOPHIE);
+    row.total_visits = 0;
+    row.last_visit_at = null;
+    seedTheBookingSheMoved();
+    expect((await manage()).body.blockBooking).toBe(true);
+  });
+});
+
+describe('prior history is NEVER evidence of a patch test', () => {
+  const evidence = (opts = {}) => patchTestEvidence(fakeSupabase, BIZ, SOPHIE, { asOf: at(21), ...opts });
+
+  it('a returning client with no patch test row does not come back as having one', async () => {
+    seedPriorHistory({ totalVisits: 40, lastVisitDaysAgo: 7 });   // as recent as it gets
+
+    const e = await evidence();
+    expect(e.ok).toBe(false);
+    expect(e.kind).toBe('none');
+    expect(e.when).toBeNull();
+    // She IS recognised as returning. That is a different fact and it lives in
+    // a differently named place on purpose.
+    expect(e.priorHistory.known).toBe(true);
+    expect(e.priorHistory.inWindow).toBe(true);
+    expect(e.priorHistory.totalVisits).toBe(40);
+  });
+
+  it('forty visits at the old salon do not let her swap into a patch-test treatment', async () => {
+    // The swap list is gated on evidence, not on being known. If prior history
+    // ever leaked into `ok`, this is where it would show up as a client being
+    // silently cleared for a tint.
+    seedPriorHistory({ totalVisits: 40, lastVisitDaysAgo: 7 });
+    seedTheBookingSheMoved(WAX);
+
+    const res = await run(bookingRouter, 'get', '/:slug/manage/:token/treatments', {
+      params: { slug: SLUG, token: TOKEN },
+    });
+    expect(res.body.treatments.map(t => t.id)).not.toContain(LAMINATION);
+  });
+
+  it('and the window is still measured against the APPOINTMENT, not against today', async () => {
+    // Last seen 100 days ago. Inside the window for a booking three weeks out,
+    // outside it for one next April.
+    seedPriorHistory({ totalVisits: 10, lastVisitDaysAgo: 100 });
+    expect((await evidence({ asOf: at(21) })).priorHistory.inWindow).toBe(true);
+    expect((await evidence({ asOf: at(240) })).priorHistory.inWindow).toBe(false);
+  });
+
+  it('an unreadable client row is "unknown", never "she has never been here"', async () => {
+    // PostgREST resolves a bad select with { data: null, error }. Not being
+    // able to tell a regular from a first timer is exactly the thing that must
+    // not be guessed, so it goes to the owner.
+    seedTheBookingSheMoved();
+    failing.set('clients', { code: '42703', message: 'boom' });
+    const res = await manage();
+    failing.clear();
+    expect(res.body.patchTest.certainty).toBe('unknown');
+    expect(res.body.patchTest.ask).toBe('owner');
+    expect(res.body.needsPatchTest).toBe(false);
+  });
+});
+
+/* ============ 6. one implementation of the rule, not four ================== */
+
+describe('the stance every caller shares, including the two that had their own', () => {
+  const stanceFor = async (opts = {}) => patchTestStance(
+    await patchTestEvidence(fakeSupabase, BIZ, SOPHIE, { asOf: at(21), ...opts }),
+  );
+
+  it('a patch test the OWNER recorded suppresses the offer, which "passed" never did', async () => {
+    // ai-front-desk.js and autonomous-scheduler.js both tested
+    // `pt.status === 'passed'`, a word nothing writes and the CHECK constraint
+    // on patch_tests.result rejects with 23514. ai-front-desk then mapped the
+    // owner's own row to 'pending' (it has confirmed_at set) and the prompt
+    // said: if status is none or pending, offer to book one. So Ellie could do
+    // the patch test herself, write it down, and Florrie would still tell the
+    // client to book one.
+    const rec = await run(appointmentsRouter, 'post', '/patch-test-records', {
+      beautician: { id: BIZ, patch_test_expiry_months: 6 },
+      body: { client_id: SOPHIE, test_date: day(-19) },
+    });
+    expect(rec.status).toBe(201);
+    expect(db.patch_tests[0].status).toBe(RECORDED_BY_OWNER);
+    expect(db.patch_tests[0].result).toBe('pending');   // nothing invents a pass
+
+    const stance = await stanceFor();
+    expect(stance.status).toBe('satisfied');
+    expect(stance.tellClient).toBe(false);
+    expect(stance.askOwner).toBe(false);
+  });
+
+  it('tells the client only when she is the one it is true of', async () => {
+    // first timer
+    expect((await stanceFor()).status).toBe('first_timer');
+    expect((await stanceFor()).tellClient).toBe(true);
+
+    // recent regular
+    seedPriorHistory({ totalVisits: 10, lastVisitDaysAgo: 60 });
+    expect((await stanceFor()).status).toBe('returning_recent');
+    expect((await stanceFor()).tellClient).toBe(false);
+    expect((await stanceFor()).askOwner).toBe(false);
+
+    // stale regular
+    seedPriorHistory({ totalVisits: 10, lastVisitDaysAgo: 240 });
+    expect((await stanceFor()).status).toBe('returning_stale');
+    expect((await stanceFor()).tellClient).toBe(false);
+    expect((await stanceFor()).askOwner).toBe(true);
+  });
+
+  it('never tells the client anything when it could not check', async () => {
+    failing.set('patch_tests', { code: '42703', message: 'boom' });
+    const stance = await stanceFor();
+    failing.clear();
+    expect(stance.status).toBe('unknown');
+    expect(stance.tellClient).toBe(false);
+    expect(stance.askOwner).toBe(true);
+  });
+
+  it('and never offers a booking link off the back of a reaction', async () => {
+    db.patch_tests.push({ id: 'p1', beautician_id: BIZ, client_id: SOPHIE, result: 'reaction', test_date: day(-5) });
+    const stance = await stanceFor();
+    expect(stance.status).toBe('reaction');
+    expect(stance.tellClient).toBe(false);
+    expect(stance.askOwner).toBe(true);
+  });
+
+  it('asserts nothing when there is no client to be right or wrong about', () => {
+    // An unknown number messaging in. Calling her a first timer would be a
+    // guess about somebody the salon has not matched, and calling her a
+    // regular would be worse. The copy for this state names the condition and
+    // lets her decide whether it is about her, exactly as the public booking
+    // page now does at step 1.
+    const stance = patchTestStance(null);
+    expect(stance.status).toBe('unidentified');
+    expect(stance.tellClient).toBe(false);
+    expect(stance.askOwner).toBe(false);
+  });
+});
+
+/* ============ the public booking page, before anybody is identified ======== */
+
+describe('lookup-client tells the booking page who is actually returning', () => {
+  const lookup = (body) => run(bookingRouter, 'post', '/:slug/lookup-client', {
+    params: { slug: SLUG }, body,
+  });
+
+  it('an imported row with no history behind it is NOT a returning client', async () => {
+    // `found` has always meant "there is a row for her", and after the Timely
+    // import there is a row for 926 people including all 277 who have never
+    // been in. That is why the banner read the same to everybody.
+    const row = db.clients.find(c => c.id === SOPHIE);
+    row.total_visits = 0;
+    row.last_visit_at = null;
+    row.imported_from = 'timely';
+
+    const res = await lookup({ email: 'sophie@example.com' });
+    expect(res.body.found).toBe(true);
+    expect(res.body.returningClient).toBe(false);
+  });
+
+  it('and one with prior history from the old system is', async () => {
+    seedPriorHistory({ totalVisits: 10, lastVisitDaysAgo: 240 });
+    const res = await lookup({ email: 'sophie@example.com' });
+    expect(res.body.returningClient).toBe(true);
+    expect(res.body.priorVisits).toBe(10);
+  });
+
+  it('as is one whose history is entirely inside Florrie', async () => {
+    seedPriorVisit(WAX);
+    const res = await lookup({ email: 'sophie@example.com' });
+    expect(res.body.returningClient).toBe(true);
   });
 });
