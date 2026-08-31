@@ -384,7 +384,18 @@ router.get('/callback', async (req, res) => {
   // One place decides how this request ends, so no branch below can forget.
   const finish = (ok, detail) => (isNative
     ? res.status(200).type('html').send(nativeReturnPage(ok, detail))
-    : res.redirect(`${redirectBase}&ig=${ok ? 'success' : 'error'}`));
+    : res.redirect(
+      `${redirectBase}&ig=${ok ? 'success' : 'error'}`
+      // WHY THE REASON TRAVELS, added 31 August 2026. The owner spent a week
+      // completing this flow in Safari and coming back to a card that still
+      // said "Not connected", and there was no way for her, or for me, to tell
+      // which of five failures it was: the reason was written to a server log
+      // nobody reads and the browser was handed the single word "error". The
+      // native branch has always shown the detail on its own page. The web
+      // branch threw it away. Same failure, half the truth, and the half that
+      // reached the person who could act on it was the useless half.
+      + (!ok && detail ? `&ig_detail=${encodeURIComponent(String(detail).slice(0, 120))}` : '')
+    ));
 
   if (oauthError || !rawCode) {
     logger.warn({ oauthError, error_description, hasCode: !!rawCode }, 'Instagram OAuth callback rejected');
@@ -553,7 +564,7 @@ router.get('/callback', async (req, res) => {
 
   } catch (err) {
     logger.error({ err }, 'Instagram OAuth callback error');
-    finish(false);
+    finish(false, err?.message ? `something went wrong: ${err.message}` : 'something went wrong');
   }
 });
 

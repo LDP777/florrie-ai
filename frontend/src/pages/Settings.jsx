@@ -68,6 +68,10 @@ export default function Settings({ onLogout }) {
   const [stripeBanner, setStripeBanner] = useState(null); // 'success' | 'refresh' | 'pending' | null
   const [igConnecting, setIgConnecting] = useState(false);
   const [igBanner, setIgBanner] = useState(null); // 'success' | 'error' | 'no_page' | 'no_ig_account' | null
+  // What actually went wrong, straight from the callback. Before 31 Aug 2026
+  // the web branch was handed the bare word 'error' and the reason went to a
+  // server log, so a week of failed connections all looked identical.
+  const [igDetail, setIgDetail] = useState(null);
   // Native only: the OAuth is finishing in Safari, so this screen is waiting
   // for her to come back rather than for a redirect that will never arrive.
   const [igAwaitingReturn, setIgAwaitingReturn] = useState(false);
@@ -100,6 +104,7 @@ export default function Settings({ onLogout }) {
     if (sectionParam && validSections.includes(sectionParam)) setSection(sectionParam);
     if (igStatus) {
       setIgBanner(igStatus);
+      setIgDetail(params.get('ig_detail') || null);
       setSection('ai');
       window.history.replaceState({}, '', window.location.pathname);
       if (igStatus === 'success') refresh();
@@ -1790,7 +1795,9 @@ export default function Settings({ onLogout }) {
               <p style={{ fontSize: 12, color: 'var(--success)', marginTop: 8, marginBottom: 0 }}><Icon name="check" size={14} inline /> Instagram connected, Content Studio can now post directly</p>
             )}
             {igBanner === 'error' && (
-              <p style={{ fontSize: 12, color: 'var(--danger, #9E2B32)', marginTop: 8, marginBottom: 0 }}>Connection failed, try again or contact support</p>
+              <p style={{ fontSize: 12, color: 'var(--danger, #9E2B32)', marginTop: 8, marginBottom: 0 }}>
+                {igDetail ? `Instagram did not connect: ${igDetail}` : 'Instagram did not connect. Try again, and tell Levi if it keeps happening.'}
+              </p>
             )}
             {igBanner === 'no_page' && (
               <p style={{ fontSize: 12, color: 'var(--warning, #79581C)', marginTop: 8, marginBottom: 0 }}>No Facebook Page found. You need a Facebook Page with an Instagram Business account connected.</p>
