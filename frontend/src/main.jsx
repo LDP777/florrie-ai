@@ -117,4 +117,4 @@ try {
   }
 }
 
-if (typeof window !== 'undefined') { window.__FLORRIE_BUILD__ = '20260630-rehash-1'; console.info('florrie build marker', window.__FLORRIE_BUILD__); }
+if (typeof window !== 'undefined') { window.__FLORRIE_BUILD__ = '20260630-rehash-1'; }
