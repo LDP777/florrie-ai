@@ -90,6 +90,38 @@ const DEFAULT_HASHTAGS = {
   lashes: ['#lashes', '#lashlift', '#lashlifttint', '#lashgoals', '#lashspecialist', '#beautysalon'],
   other: ['#beauty', '#beautysalon', '#treatyourself', '#selfcare', '#beautytreatment'],
 };
+/**
+ * A photo that will not load must not leave a broken-image glyph in her feed
+ * preview.
+ *
+ * 31 August 2026: none of the nine <img> tags on this page had an onError.
+ * Instagram's own CDN urls expire, a Supabase object can be deleted, and a
+ * draft written before the public bucket existed can hold a blob: url that is
+ * dead the moment the tab is closed. All of those rendered as the browser's
+ * torn-paper icon inside a card that otherwise looked fine.
+ */
+function hideBrokenImage(e) {
+  e.currentTarget.style.display = 'none';
+}
+
+/** Gallery pairs live in content_posts but are not posts. They never belong in
+ *  Drafts, Scheduled, Posted or the calendar. */
+const isGalleryRow = (p) => p?.post_type === 'gallery';
+
+/**
+ * What a card should SAY about a post, in the owner's words.
+ *
+ * 31 August 2026: a post Instagram had rejected looked exactly like a draft
+ * nobody had touched, and content_posts.failure_reason, which the backend has
+ * been writing for weeks, was read nowhere in the frontend at all. So the one
+ * thing she needed to know, that this did not go out and here is why, was on
+ * the row and on no screen.
+ */
+const STATUS_BADGES = {
+  failed:   { label: 'Did not post', bg: 'var(--danger-bg, #F7E4E4)', color: 'var(--danger, #9E2B32)' },
+  approved: { label: 'Approved, not posted', bg: 'var(--warning-bg, #F7EEDD)', color: 'var(--warning-text, #79581C)' },
+};
+
 export default function ContentAutopilot() {
   const { beautician, loading: bLoading } = useBeautician();
   const [drafts, setDrafts] = useState([]);
@@ -139,6 +171,22 @@ export default function ContentAutopilot() {
   const [showStreamForm, setShowStreamForm] = useState(false);
   const [newStreamForm, setNewStreamForm] = useState({ name: '', type: 'personal', monthly_target: '', brand_notes: '' });
   const [savingStream, setSavingStream] = useState(false);
+  // Is Instagram actually connected? This page publishes to it, schedules to
+  // it and drafts for it, and until 31 August 2026 it never once asked. Every
+  // Publish tap against a disconnected account came back "saved as approved
+  // rather than posted", which reads like a success, and Plan-my-week happily
+  // scheduled seven posts that nothing could ever send. /api/instagram/status
+  // already existed and already answers this honestly.
+  const [igStatus, setIgStatus] = useState(null);
+  const [igChecking, setIgChecking] = useState(true);
+  // Blocked only when we KNOW: no account at all, or an account whose token
+  // Instagram has rejected. /api/instagram/status answers token_valid: null
+  // for "could not check", and an unreachable status endpoint must never
+  // grey out her Publish button. Anything we are unsure about, she gets to
+  // try; publishPost then tells her the truth about what happened.
+  const igBlocked = !igChecking && !!igStatus
+    && (igStatus.connected === false || igStatus.needs_reconnect === true);
+
   // Calendar view
   const [calendarDate, setCalendarDate] = useState(new Date());
   // Cancelled appointment prompt
@@ -151,8 +199,28 @@ export default function ContentAutopilot() {
       loadSuggestions();
       loadStreams();
       loadCancelledAppointments();
+      loadInstagramStatus();
     }
   }, [beautician]);
+
+  async function loadInstagramStatus() {
+    setIgChecking(true);
+    try {
+      const token = getToken();
+      const res = await fetch(`${API_BASE}/api/instagram/status`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      });
+      // A failed check is not a disconnection. Saying so keeps the banner off
+      // when the API is merely unreachable, which is the same honesty rule
+      // Settings.jsx and Integrations.jsx follow.
+      setIgStatus(res.ok ? await res.json() : null);
+    } catch (err) {
+      logger.warn('Instagram status check failed:', err);
+      setIgStatus(null);
+    } finally {
+      setIgChecking(false);
+    }
+  }
 
   // A review-to-post card from the Hub navigates here with a prefilled caption
   // in router state. Open the composer on it once, then clear the state so a
@@ -254,9 +322,13 @@ export default function ContentAutopilot() {
       // here, so fixing the photo or reconnecting and tapping again is the
       // whole recovery.
       const PENDING = ['draft', 'failed', 'approved'];
-      setDrafts(allPosts.filter(p => PENDING.includes(p.status)).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
-      setPosted(allPosts.filter(p => p.status === 'posted').sort((a, b) => new Date(b.posted_at) - new Date(a.posted_at)));
-      setScheduled(allPosts.filter(p => p.status === 'scheduled').sort((a, b) => new Date(a.scheduled_for || 0) - new Date(b.scheduled_for || 0)));
+      // Gallery pairs are stored in this table but are not posts. Excluded so
+      // a before/after she saved to her portfolio does not turn up in Drafts
+      // with a Publish button under it.
+      const feed = allPosts.filter(p => !isGalleryRow(p));
+      setDrafts(feed.filter(p => PENDING.includes(p.status)).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
+      setPosted(feed.filter(p => p.status === 'posted').sort((a, b) => new Date(b.posted_at) - new Date(a.posted_at)));
+      setScheduled(feed.filter(p => p.status === 'scheduled').sort((a, b) => new Date(a.scheduled_for || 0) - new Date(b.scheduled_for || 0)));
     } catch (err) {
       logger.error('Load content error:', err);
       setError(err.message || 'Failed to load content');
@@ -425,16 +497,32 @@ export default function ContentAutopilot() {
       setGeneratingAI(false);
     }
   }
+  /**
+   * The grid, starting on MONDAY, because the headers say Mon.
+   *
+   * 31 August 2026. The headers row is ['Mon'..'Sun'] and this function
+   * started the grid on the Sunday before the 1st, so every single date in
+   * every month sat one column to the left of its own weekday name. On the
+   * calendar tab of a content planner, that is the whole feature: she looks at
+   * the column under "Sat", and it is Friday's posts.
+   *
+   * getDay() is 0 for Sunday. Shifting by (getDay() + 6) % 7 makes Monday 0,
+   * and the trailing fill runs until the row is complete, which is now the
+   * Sunday cell rather than the Saturday one.
+   */
   function getCalendarDays() {
     const year = calendarDate.getFullYear();
     const month = calendarDate.getMonth();
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
+    const mondayOffset = (firstDay.getDay() + 6) % 7;
     const startDate = new Date(firstDay);
-    startDate.setDate(startDate.getDate() - firstDay.getDay());
+    startDate.setDate(startDate.getDate() - mondayOffset);
     const daysArray = [];
     const current = new Date(startDate);
-    while (current <= lastDay || current.getDay() !== 0) {
+    // Keep going past the last of the month until the week is finished, i.e.
+    // until we are back on a Monday.
+    while (current <= lastDay || current.getDay() !== 1) {
       daysArray.push(new Date(current));
       current.setDate(current.getDate() + 1);
     }
@@ -442,7 +530,7 @@ export default function ContentAutopilot() {
   }
   function getPostsForDate(date) {
     const dateStr = localDateStr(date);
-    return drafts.concat(scheduled).concat(posted).filter(post => {
+    return drafts.concat(scheduled).concat(posted).filter(post => !isGalleryRow(post)).filter(post => {
       const postDate = (post.scheduled_for || post.posted_at || post.created_at).split('T')[0];
       return postDate === dateStr;
     });
@@ -508,7 +596,31 @@ export default function ContentAutopilot() {
         if (label === 'before') beforeUrl = url;
         else afterUrl = url;
       }
-      const item = {
+      // THE PAIR IS SAVED, NOT JUST THE AFTER PHOTO.
+      //
+      // 31 August 2026. This insert wrote image_url and caption and nothing
+      // else, while the card below renders item.before_url, item.after_url and
+      // item.treatment_name. So the "before" photo was uploaded and then
+      // dropped on the floor, and every pair came back from a page reload as
+      // two broken images with no name under them. (It never got that far in
+      // practice: post_type 'gallery' was not on the CHECK constraint, so the
+      // insert itself failed every time, AFTER both uploads. Both halves are
+      // fixed together, here and in migration 20260831_backend026.)
+      //
+      // image_url stays the AFTER photo so a gallery pair can still be
+      // published as an ordinary post with no special case in the publish path.
+      const saved = await insertRow('content_posts', {
+        beautician_id: beautician.id,
+        platform: 'instagram',
+        post_type: 'gallery',
+        image_url: afterUrl,
+        before_url: beforeUrl,
+        after_url: afterUrl,
+        treatment_name: galleryForm.treatment || 'Treatment',
+        caption: galleryForm.notes || '',
+        status: 'draft',
+      });
+      const item = saved || {
         id: crypto.randomUUID(),
         post_type: 'gallery',
         before_url: beforeUrl,
@@ -517,13 +629,6 @@ export default function ContentAutopilot() {
         caption: galleryForm.notes,
         created_at: new Date().toISOString(),
       };
-      await insertRow('content_posts', {
-        beautician_id: beautician.id,
-        post_type: 'gallery',
-        image_url: afterUrl,
-        caption: `Before/After: ${galleryForm.treatment}${galleryForm.notes ? ', ' + galleryForm.notes : ''}`,
-        status: 'draft',
-      });
       setGallery(prev => [item, ...prev]);
       setShowGalleryAdd(false);
       setGalleryForm({ treatment: '', notes: '' });
@@ -627,7 +732,11 @@ export default function ContentAutopilot() {
       setDrafts(prev => prev.filter(p => p.id !== postId));
       // Reload posted
       const p = await fetchRows('content_posts', beautician.id, { eq: { status: 'posted' }, order: 'posted_at', ascending: false });
-      setPosted(p);
+      setPosted((p || []).filter(row => !isGalleryRow(row)));
+      // publishPost refuses a post that is already on Instagram rather than
+      // putting it up a second time. Say so, otherwise a refusal that saved
+      // her from a duplicate is indistinguishable from a fresh publish.
+      if (result.already_posted) setPlanNote('That one was already on Instagram, so nothing was posted again.');
       logger.info('Post published to Instagram', result.instagramId);
     } catch (err) {
       logger.error('Approve error:', err);
@@ -721,6 +830,24 @@ export default function ContentAutopilot() {
         </div>
       )}
 
+      {/* Instagram is not connected, or its token is dead. Said once, at the
+          top, because every publish and schedule button below it is about to
+          be disabled and she deserves to know why before she taps one. */}
+      {igBlocked && (
+        <div style={styles.igDisconnectedBanner}>
+          <span style={{ fontSize: 16, flexShrink: 0 }}><Icon name="warning" size={15} /></span>
+          <div style={{ flex: 1 }}>
+            <span style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--warning-text, #79581C)' }}>
+              {igStatus?.needs_reconnect ? 'Instagram has signed you out' : 'Instagram is not connected'}
+            </span>
+            <p style={{ margin: '2px 0 0', fontSize: 12, lineHeight: 1.5, color: 'var(--text-secondary, #574A42)' }}>
+              You can still write and save drafts. Nothing can be posted or scheduled until
+              you connect Instagram in Settings.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Feed grid preview — see your Instagram feed before it goes out (hero) */}
       {!composing && (scheduled.length + posted.length + drafts.length) > 0 && (
         <div style={{ marginBottom: 18 }}>
@@ -730,19 +857,27 @@ export default function ContentAutopilot() {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, borderRadius: 16, overflow: 'hidden' }}>
             {[...scheduled, ...drafts, ...posted].slice(0, 12).map(post => {
+              // 'failed' and 'approved' were both rendered as an unlabelled
+              // tile, identical to a draft. A post Instagram refused is the
+              // one tile on this grid she most needs to be able to pick out.
               const badge = post.status === 'scheduled'
                 ? (post.scheduled_for ? new Date(post.scheduled_for).toLocaleDateString('en-GB', { weekday: 'short' }) : 'Soon')
-                : post.status === 'draft' ? 'Draft' : null;
+                : post.status === 'draft' ? 'Draft'
+                : post.status === 'failed' ? 'Failed'
+                : post.status === 'approved' ? 'Not posted' : null;
+              const badgeBg = post.status === 'failed'
+                ? 'var(--danger, #9E2B32)'
+                : post.status === 'approved' ? 'var(--warning-text, #79581C)' : 'rgba(146,64,94,0.92)';
               return (
                 <button className="fl-tap"
                   key={post.id}
                   onClick={() => { setEditingId(post.id); setEditCaption(post.caption || ''); setTab(post.status === 'posted' ? 'posted' : 'drafts'); }}
-                  style={{ position: 'relative', aspectRatio: '1', border: 'none', padding: 0, cursor: 'pointer', overflow: 'hidden', background: post.image_url ? '#efe7df' : 'rgba(146,64,94,0.05)', WebkitTapHighlightColor: 'transparent' }}
+                  style={{ position: 'relative', aspectRatio: '1', border: 'none', padding: 0, cursor: 'pointer', overflow: 'hidden', background: post.image_url ? 'var(--bg-subtle, #ede7e3)' : 'var(--accent-bg, rgba(146,64,94,0.05))', WebkitTapHighlightColor: 'transparent' }}
                 >
                   {post.image_url
-                    ? <img src={post.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                    ? <img src={post.image_url} alt="" onError={hideBrokenImage} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                     : <span style={{ display: 'flex', width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', fontSize: 10.5, lineHeight: 1.35, color: 'var(--text-secondary, #574A42)', padding: 7, textAlign: 'center', overflow: 'hidden', fontFamily: 'inherit' }}>{(post.caption || 'Untitled').slice(0, 52)}</span>}
-                  {badge && <span style={{ position: 'absolute', left: 5, bottom: 5, fontSize: 9, fontWeight: 700, color: '#fff', background: 'rgba(146,64,94,0.92)', padding: '1px 6px', borderRadius: 999, letterSpacing: '0.02em' }}>{badge}</span>}
+                  {badge && <span style={{ position: 'absolute', left: 5, bottom: 5, fontSize: 9, fontWeight: 700, color: '#FFFFFF', background: badgeBg, padding: '1px 6px', borderRadius: 999, letterSpacing: '0.02em' }}>{badge}</span>}
                 </button>
               );
             })}
@@ -852,7 +987,7 @@ export default function ContentAutopilot() {
               {new Date(cancelledPrompt.starts_at).toLocaleDateString('en-GB', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })} was cancelled
             </p>
           </div>
-          <button onClick={handleGenerateAvailabilityPost} disabled={generatingAI} style={styles.promptActionBtn}>
+          <button className="fl-tap" onClick={handleGenerateAvailabilityPost} disabled={generatingAI} style={styles.promptActionBtn}>
             {generatingAI ? 'Generating...' : 'Generate post'}
           </button>
         </div>
@@ -860,12 +995,15 @@ export default function ContentAutopilot() {
       {/* Tabs */}
       <div style={styles.tabs}>
         {['ideas', 'drafts', 'posted', 'calendar', 'gallery'].map(t => (
-          <button
+          <button className="fl-tap"
             key={t}
             onClick={() => { setTab(t); setComposing(false); }}
             style={{ ...styles.tab,
               background: (tab === t || (tab === 'compose' && t === 'drafts')) ? 'var(--accent, #92405E)' : 'transparent',
-              color: (tab === t || (tab === 'compose' && t === 'drafts')) ? '#fff' : 'var(--text-secondary, #574A42)',
+              // --on-accent, not '#fff'. In dark mode --accent is #ffb1c8 and
+              // white on it measures 1.70:1, so the selected tab's own name
+              // became the least readable word on the screen.
+              color: (tab === t || (tab === 'compose' && t === 'drafts')) ? 'var(--on-accent, #fff)' : 'var(--text-secondary, #574A42)',
             }}
           >
             {t === 'ideas' ? 'Ideas' : t === 'drafts' ? `Drafts${drafts.length ? ` (${drafts.length})` : ''}` : t === 'posted' ? 'Posted' : t === 'calendar' ? 'Calendar' : 'Gallery'}
@@ -917,17 +1055,20 @@ export default function ContentAutopilot() {
       {tab === 'compose' && composing && (
         <div style={styles.composeArea}>
           {/* Live Instagram-style preview — updates as she builds the post */}
-          <div style={{ background: '#fff', border: '1px solid rgba(146,64,94,0.12)', borderRadius: 16, overflow: 'hidden', marginBottom: 14, boxShadow: 'var(--elev-1)' }}>
+          {/* Hardcoded '#fff' here put a white card behind themed text in dark
+              mode, so the caption preview read as ink on ink. Every surface in
+              this preview is a token now. */}
+          <div style={{ background: 'var(--bg-card, #FFFCF9)', border: '1px solid var(--border-light, #ede7e3)', borderRadius: 16, overflow: 'hidden', marginBottom: 14, boxShadow: 'var(--elev-1)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px' }}>
-              <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--accent, #92405E)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, overflow: 'hidden', flexShrink: 0 }}>
-                {beautician?.logo_url ? <img src={beautician.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (beautician?.first_name?.[0] || beautician?.business_name?.[0] || 'F').toUpperCase()}
+              <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--accent, #92405E)', color: 'var(--on-accent, #fff)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, overflow: 'hidden', flexShrink: 0 }}>
+                {beautician?.logo_url ? <img src={beautician.logo_url} alt="" onError={hideBrokenImage} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (beautician?.first_name?.[0] || beautician?.business_name?.[0] || 'F').toUpperCase()}
               </div>
               <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary, #241B17)' }}>{beautician?.booking_slug || beautician?.business_name || 'your_salon'}</span>
               <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-secondary, #574A42)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>live preview</span>
             </div>
-            <div style={{ ...(composeImagePreview ? { aspectRatio: composeMediaKind === 'story' ? '9 / 16' : '1', maxHeight: composeMediaKind === 'story' ? 380 : 460 } : { height: 190 }), background: composeImagePreview ? '#efe7df' : 'rgba(146,64,94,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ ...(composeImagePreview ? { aspectRatio: composeMediaKind === 'story' ? '9 / 16' : '1', maxHeight: composeMediaKind === 'story' ? 380 : 460 } : { height: 190 }), background: composeImagePreview ? 'var(--bg-subtle, #ede7e3)' : 'var(--accent-bg, rgba(146,64,94,0.04))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               {composeImagePreview
-                ? <img src={composeImagePreview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                ? <img src={composeImagePreview} alt="" onError={hideBrokenImage} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                 : <span style={{ fontSize: 12, color: 'var(--text-secondary, #574A42)' }}>Add a photo to see it here</span>}
             </div>
             <div style={{ padding: '8px 12px 12px' }}>
@@ -1010,7 +1151,12 @@ export default function ContentAutopilot() {
               disabled={generatingAI}
               style={{ ...styles.shuffleBtn,
                 flex: 2,
-                background: 'linear-gradient(135deg, #FBF0F3, #F3EEFF)',
+                // Was a fixed pale rose-to-lilac gradient with themed accent
+                // text on it. In dark mode --accent is #ffb1c8 and that
+                // gradient stays pale, so the label vanished into it.
+                // --accent-light follows the theme (rose wash light, deep
+                // maroon dark) and the accent reads on both.
+                background: 'var(--accent-light, #F6E7EC)',
                 color: 'var(--accent, #92405e)',
                 fontWeight: 600,
                 opacity: generatingAI ? 0.7 : 1,
@@ -1052,16 +1198,22 @@ export default function ContentAutopilot() {
               </p>
               {scheduled.map(sp => (
                 <div key={sp.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderTop: '1px solid rgba(146,64,94,0.08)' }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#3B82F6', whiteSpace: 'nowrap' }}>
+                  {/* #3B82F6 on --tone-2 measured 3.05:1, which fails in LIGHT
+                      mode as well as dark. The accent is the branded colour
+                      for "this is scheduled" and reads on tone-2 either way. */}
+                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent, #92405e)', whiteSpace: 'nowrap' }}>
                     {sp.scheduled_for ? `${new Date(sp.scheduled_for).toLocaleDateString('en-GB', { weekday: 'short' })} ${new Date(sp.scheduled_for).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}` : 'Soon'}
                   </span>
                   <span style={{ fontSize: 12.5, color: 'var(--text-primary, #241B17)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
                     {sp.caption}
                   </span>
-                  {!sp.image_url && <span style={{ fontSize: 10.5, color: '#B45309', whiteSpace: 'nowrap' }}>needs photo</span>}
+                  {/* #B45309 at 10.5px measured 4.16:1, under the 4.5 a
+                      caption-sized string needs. --warning-text is the token
+                      built for this and 11.5px is above the floor. */}
+                  {!sp.image_url && <span style={{ fontSize: 11.5, color: 'var(--warning-text, #79581C)', whiteSpace: 'nowrap' }}>needs photo</span>}
                   <button className="fl-tap"
                     onClick={() => handleUnschedule(sp.id)}
-                    style={{ background: 'none', border: 'none', color: 'var(--text-muted, #6B5D54)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', padding: '2px 4px' }}
+                    style={{ background: 'none', border: 'none', color: 'var(--text-muted, #6B5D54)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', padding: '10px 8px', minHeight: 44 }}
                   >
                     Undo
                   </button>
@@ -1089,7 +1241,7 @@ export default function ContentAutopilot() {
               <div style={{ display: 'flex', gap: 10 }}>
                 <Button variant="quiet" size="sm" onClick={() => setDeckIndex(i => Math.max(0, i - 1))} disabled={deckIndex === 0}>‹ Back</Button>
                 <Button variant="quiet" size="sm" onClick={() => setDeckIndex(i => (i + 1 < drafts.length ? i + 1 : i))} disabled={deckIndex + 1 >= drafts.length}>Skip ›</Button>
-                <button onClick={() => setDeckIndex(null)} style={{ background: 'none', border: 'none', color: 'var(--text-muted, #6B5D54)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>List</button>
+                <button className="fl-tap" onClick={() => setDeckIndex(null)} style={{ background: 'none', border: 'none', color: 'var(--text-muted, #6B5D54)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', minHeight: 44, padding: '0 8px' }}>List</button>
               </div>
             </div>
           )}
@@ -1097,22 +1249,45 @@ export default function ContentAutopilot() {
             <div key={post.id} style={styles.postCard}>
               {/* Type badge */}
               <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                {/* Fixed pale fills with themed text on them: in dark mode the
+                    fill stayed cream and the text turned light. Both halves are
+                    tokens now, so the pair moves together. */}
                 <div style={{ ...styles.typeBadge,
-                  background: post.post_type === 'last_minute_availability' ? '#FEF3C7' : '#FBF0F3',
-                  color: post.post_type === 'last_minute_availability' ? '#B45309' : 'var(--accent, #92405e)'
+                  background: post.post_type === 'last_minute_availability' ? 'var(--warning-bg, #F7EEDD)' : 'var(--accent-light, #F6E7EC)',
+                  color: post.post_type === 'last_minute_availability' ? 'var(--warning-text, #79581C)' : 'var(--accent, #92405e)'
                 }}>
                   {POST_TYPE_LABELS[post.post_type] || 'Post'}
                 </div>
+                {/* What actually happened to this post, and why. See
+                    STATUS_BADGES: 'failed' and 'approved' used to render
+                    identically to an untouched draft. */}
+                {STATUS_BADGES[post.status] && (
+                  <div style={{ ...styles.typeBadge, background: STATUS_BADGES[post.status].bg, color: STATUS_BADGES[post.status].color }}>
+                    {STATUS_BADGES[post.status].label}
+                  </div>
+                )}
                 {post.scheduled_for && (
-                  <Button variant="secondary" size="xs" onClick={() => handleApproveSchedule(post)}>
-                    Approve for {new Date(post.scheduled_for).toLocaleDateString('en-GB', { weekday: 'short' })} {new Date(post.scheduled_for).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                  <Button variant="secondary" size="xs" onClick={() => handleApproveSchedule(post)} disabled={igBlocked}>
+                    {igBlocked
+                      ? 'Connect Instagram to schedule'
+                      : `Approve for ${new Date(post.scheduled_for).toLocaleDateString('en-GB', { weekday: 'short' })} ${new Date(post.scheduled_for).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`}
                   </Button>
                 )}
               </div>
+              {/* WHY IT DID NOT GO OUT, in Meta's own words.
+                  content_posts.failure_reason has been written by the backend
+                  since the launch sweep and was read nowhere in the frontend,
+                  so "Approve & Post" quietly turned a draft into a failure and
+                  the only difference on screen was nothing. */}
+              {post.status === 'failed' && (
+                <p style={styles.failureReason}>
+                  {post.failure_reason || 'Instagram would not accept this post. Check the photo and try again.'}
+                </p>
+              )}
               {/* Image */}
               {post.image_url && (
                 <div style={styles.imageContainer}>
-                  <img src={post.image_url} alt="" style={styles.postImage} />
+                  <img src={post.image_url} alt="" onError={hideBrokenImage} style={styles.postImage} />
                 </div>
               )}
               {/* Caption */}
@@ -1127,7 +1302,7 @@ export default function ContentAutopilot() {
                   />
                   <div style={styles.editActions}>
                     <Button size="sm" onClick={() => handleEditSave(post.id)}>Save</Button>
-                    <button onClick={() => setEditingId(null)} style={styles.cancelEditBtn}>Cancel</button>
+                    <button className="fl-tap" onClick={() => setEditingId(null)} style={styles.cancelEditBtn}>Cancel</button>
                   </div>
                 </div>
               ) : (
@@ -1144,13 +1319,26 @@ export default function ContentAutopilot() {
               {/* Actions */}
               {editingId !== post.id && (
                 <div style={styles.actions}>
+                  {/* A PHOTOLESS DRAFT CANNOT BE PUBLISHED, so the button no
+                      longer offers to.
+                      31 August 2026: Instagram feed posts require an image.
+                      Tapping this on a draft with no photo called the publish
+                      endpoint, which failed at imageUrlProblem and marked the
+                      row 'failed' permanently. All seven of Plan-my-week's
+                      drafts arrive without a photo, so the most likely first
+                      thing anybody did on this screen was destroy one.
+                      And with Instagram disconnected nothing can post at all,
+                      which the banner at the top of the page has already said. */}
                   <Button
                     size="sm"
                     onClick={() => handleApprove(post.id)}
-                    disabled={publishing === post.id}
+                    disabled={publishing === post.id || !post.image_url || igBlocked}
                     style={{ flex: 1 }}
                   >
-                    {publishing === post.id ? 'Posting...' : 'Approve & Post'}
+                    {publishing === post.id ? 'Posting...'
+                      : !post.image_url ? 'Add a photo first'
+                      : igBlocked ? 'Connect Instagram to post'
+                      : 'Approve & Post'}
                   </Button>
                   <Button
                     variant="tonal"
@@ -1159,7 +1347,7 @@ export default function ContentAutopilot() {
                   >
                     Edit
                   </Button>
-                  <button
+                  <button className="fl-tap"
                     onClick={() => handleDiscard(post.id)}
                     style={styles.discardBtn}
                   >
@@ -1178,32 +1366,25 @@ export default function ContentAutopilot() {
             <EmptyState
               icon="sparkles"
               title="Nothing posted yet"
-              subtitle="Approved posts will appear here with engagement stats once Instagram is connected."
+              subtitle="Posts that reach your Instagram will appear here."
             />
           )}
           {posted.map(post => (
             <div key={post.id} style={styles.postCard}>
               {post.image_url && (
                 <div style={styles.imageContainer}>
-                  <img src={post.image_url} alt="" style={styles.postImage} />
+                  <img src={post.image_url} alt="" onError={hideBrokenImage} style={styles.postImage} />
                 </div>
               )}
               <p style={styles.caption}>{post.caption}</p>
-              {/* Engagement stats */}
-              <div style={styles.statsRow}>
-                <div style={styles.stat}>
-                  <span style={styles.statNum}>{post.likes || 0}</span>
-                  <span style={styles.statLabel}>Likes</span>
-                </div>
-                <div style={styles.stat}>
-                  <span style={styles.statNum}>{post.comments || 0}</span>
-                  <span style={styles.statLabel}>Comments</span>
-                </div>
-                <div style={styles.stat}>
-                  <span style={styles.statNum}>{post.bookings_attributed || 0}</span>
-                  <span style={styles.statLabel}>Bookings</span>
-                </div>
-              </div>
+              {/* NOTHING COLLECTS LIKES OR COMMENTS.
+                  content_posts.likes, .comments and .bookings_attributed
+                  default to 0 and no code anywhere ever updates them, so this
+                  row presented three zeros as if they had been measured: every
+                  post she had ever published looked like it had flopped. The
+                  numbers are gone until something real fills them in. Building
+                  that collection is a separate piece of work; presenting an
+                  unwritten default as a measurement is not. */}
               <span style={styles.postedDate}>
                 Posted {new Date(post.posted_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
               </span>
@@ -1215,11 +1396,11 @@ export default function ContentAutopilot() {
       {tab === 'calendar' && (
         <div style={styles.postList}>
           <div style={styles.calendarHeader}>
-            <button onClick={() => setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() - 1))} style={styles.calendarNav}>←</button>
+            <button className="fl-tap" onClick={() => setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() - 1))} style={styles.calendarNav}>←</button>
             <span style={{ fontSize: 14, fontWeight: 600 }}>
               {calendarDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}
             </span>
-            <button onClick={() => setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1))} style={styles.calendarNav}>→</button>
+            <button className="fl-tap" onClick={() => setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1))} style={styles.calendarNav}>→</button>
           </div>
           <div style={{ display: 'flex', gap: 14, justifyContent: 'center', margin: '2px 0 10px', fontSize: 11, color: 'var(--text-secondary, #574A42)' }}>
             <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 'var(--radius-xs)', background: '#D1D5DB', marginRight: 4 }} />draft</span>
@@ -1248,6 +1429,7 @@ export default function ContentAutopilot() {
                     <div style={styles.calendarChips}>
                       {postsOnDay.slice(0, 2).map(post => (
                         <div
+                          className="fl-tap"
                           key={post.id}
                           onClick={(e) => { e.stopPropagation(); setEditingId(post.id); setEditCaption(post.caption); }}
                           style={{ ...styles.calendarChip,
@@ -1281,7 +1463,7 @@ export default function ContentAutopilot() {
               <div style={styles.galleryPhotoPair}>
                 <div style={styles.galleryPhotoSlot} onClick={() => beforeRef.current?.click()}>
                   {galleryBeforePreview ? (
-                    <img src={galleryBeforePreview} alt="Before" style={styles.galleryThumb} />
+                    <img src={galleryBeforePreview} alt="Before" onError={hideBrokenImage} style={styles.galleryThumb} />
                   ) : (
                     <div style={styles.galleryPlaceholder}>
                       <span style={{ fontSize: 20 }}><Icon name="camera" size={15} /></span>
@@ -1293,7 +1475,7 @@ export default function ContentAutopilot() {
                 <span style={styles.galleryArrow}>→</span>
                 <div style={styles.galleryPhotoSlot} onClick={() => afterRef.current?.click()}>
                   {galleryAfterPreview ? (
-                    <img src={galleryAfterPreview} alt="After" style={styles.galleryThumb} />
+                    <img src={galleryAfterPreview} alt="After" onError={hideBrokenImage} style={styles.galleryThumb} />
                   ) : (
                     <div style={styles.galleryPlaceholder}>
                       <span style={{ fontSize: 20 }}><Icon name="sparkles" size={15} /></span>
@@ -1352,11 +1534,11 @@ export default function ContentAutopilot() {
             <div key={item.id} style={styles.galleryCard}>
               <div style={styles.galleryPhotoPairView}>
                 <div style={styles.galleryPhotoView}>
-                  <img src={item.before_url} alt="Before" style={styles.galleryViewImg} />
+                  <img src={item.before_url} alt="Before" onError={hideBrokenImage} style={styles.galleryViewImg} />
                   <span style={styles.galleryLabel}>Before</span>
                 </div>
                 <div style={styles.galleryPhotoView}>
-                  <img src={item.after_url} alt="After" style={styles.galleryViewImg} />
+                  <img src={item.after_url} alt="After" onError={hideBrokenImage} style={styles.galleryViewImg} />
                   <span style={styles.galleryLabel}>After</span>
                 </div>
               </div>
@@ -1442,7 +1624,9 @@ const styles = {
     overflowX: 'auto',
   },
   tab: {
-    flex: '1 0 auto', minHeight: 40, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    // 40 was under the 44px floor, on the control every visit to this page
+    // starts with.
+    flex: '1 0 auto', minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     padding: '8px 14px',
     background: 'transparent',
     border: 'none',
@@ -1533,6 +1717,25 @@ const styles = {
     cursor: 'pointer',
     fontFamily: 'inherit',
   },
+  igDisconnectedBanner: {
+    display: 'flex',
+    gap: 10,
+    alignItems: 'flex-start',
+    padding: 12,
+    borderRadius: 10,
+    background: 'var(--warning-bg, #F7EEDD)',
+    border: '1px solid var(--warning, #79581C)',
+    marginBottom: 14,
+  },
+  failureReason: {
+    margin: '0 0 10px',
+    fontSize: 12.5,
+    lineHeight: 1.5,
+    color: 'var(--danger-text, #9E2B32)',
+    background: 'var(--danger-bg, #F7E4E4)',
+    padding: '8px 10px',
+    borderRadius: 8,
+  },
   // Posts
   postList: { display: 'flex', flexDirection: 'column', gap: 14 },
   postCard: {
@@ -1583,6 +1786,10 @@ const styles = {
     background: 'var(--bg-hover, var(--bg-subtle, #ede7e3))', color: 'var(--text-secondary, #574A42)', fontSize: 13,
     cursor: 'pointer', fontFamily: 'inherit'
   },
+  // statsRow/stat/statNum/statLabel are kept, unused, on purpose: the moment
+  // something actually collects likes and comments from Instagram this row
+  // goes back on the Posted card. Until then it presented three unwritten
+  // database defaults as measurements. See the note at its old call site.
   statsRow: {
     display: 'flex',
     gap: 16,
@@ -1646,14 +1853,19 @@ const styles = {
   aiSuggestionsSection: { marginBottom: 4 },
   aiSuggestionsHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   refreshBtn: { minWidth: 44, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '2px 8px', borderRadius: 'var(--radius-xs)', border: '1px solid var(--border, #E8DDD4)', background: 'transparent', cursor: 'pointer', fontSize: 14, color: 'var(--text-muted, #6B5D54)', fontFamily: 'inherit' },
-  aiLoadingCard: { padding: 14, borderRadius: 10, background: 'linear-gradient(135deg, #FBF0F3, #F3EEFF)', textAlign: 'center' },
+  // Both of these were a fixed pale rose-to-lilac gradient carrying themed
+  // text (--text-muted, --text-primary, --accent). In dark mode the fill stayed
+  // pale and the text turned pale with the theme, so the whole card washed out.
+  // --accent-light is the token that already means "a wash of the brand
+  // colour" and it inverts to a deep maroon in dark, where the same text reads.
+  aiLoadingCard: { padding: 14, borderRadius: 10, background: 'var(--accent-light, #F6E7EC)', textAlign: 'center' },
   aiSuggestionCard: {
-    background: 'linear-gradient(135deg, #FBF0F3, #F3EEFF)',
+    background: 'var(--accent-light, #F6E7EC)',
     borderRadius: 10,
     padding: '12px 14px',
     marginBottom: 8,
     cursor: 'pointer',
-    border: '1px solid rgba(199,107,138,0.15)',
+    border: '1px solid var(--border-light, rgba(199,107,138,0.15))',
   },
   aiSuggestionTreatment: { display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--accent, #92405e)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 },
   aiSuggestionCaption: { margin: '0 0 6px', fontSize: 13, lineHeight: 1.55, color: 'var(--text-primary, #241B17)' },
@@ -1712,8 +1924,8 @@ const styles = {
     alignItems: 'center',
     padding: 12,
     borderRadius: 10,
-    background: 'linear-gradient(135deg, #FEF3C7, #FEF9E7)',
-    border: '1px solid #FCD34D',
+    background: 'var(--warning-bg, #F7EEDD)',
+    border: '1px solid var(--warning, #79581C)',
     marginBottom: 12,
   },
   promptActionBtn: {
@@ -1721,8 +1933,12 @@ const styles = {
     padding: '6px 12px',
     borderRadius: 10,
     border: 'none',
+    // WHITE ON #F59E0B MEASURES 2.15:1, in light mode as well as dark. The
+    // amber is a fixed literal, so the text on it has to be a fixed literal
+    // too: --text-primary would be right in light and white again in dark.
+    // Brand ink on the amber measures a little over 8:1 in both.
     background: '#F59E0B',
-    color: 'white',
+    color: '#241B17',
     fontSize: 12,
     fontWeight: 600,
     cursor: 'pointer',
@@ -1783,8 +1999,14 @@ const styles = {
     gap: 2,
   },
   calendarChip: {
-    width: 6,
-    height: 6,
+    // A 6x6 dot was a 6px tap target inside a clickable cell. Widened to a
+    // full-width bar so it can actually be aimed at, and given fl-tap at the
+    // call site for the vertical floor. It cannot be given the horizontal
+    // floor as well: two chips sit side by side inside one calendar cell, and
+    // a 44px wide hit area would cover its neighbour and the cell beside it.
+    width: '100%',
+    minWidth: 10,
+    height: 10,
     borderRadius: 'var(--radius-xs)',
     cursor: 'pointer',
   },

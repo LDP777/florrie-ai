@@ -639,9 +639,19 @@ router.get('/thread/:client_id', requireAuth, async (req, res) => {
     // the most recent inbound message, falling back to the client's
     // preferred channel implied by which contact info exists.
     const lastInbound = data?.find(m => m.direction === 'inbound');
+    // Instagram goes at the HEAD of the fallback chain. 31 August 2026: an
+    // Instagram-only client has no whatsapp_id and often no phone at all, and
+    // this chain ended at 'sms' for her, so the composer preselected a channel
+    // there was no way to reach her on. The chain only runs when there is no
+    // inbound message to read a channel off, which is exactly the case where
+    // the contact details on file are all we have.
     const defaultChannel =
       lastInbound?.channel
-      || (client.whatsapp_id ? 'whatsapp' : client.phone ? 'sms' : client.email ? 'email' : 'sms');
+      || (client.instagram_id ? 'instagram'
+        : client.whatsapp_id ? 'whatsapp'
+        : client.phone ? 'sms'
+        : client.email ? 'email'
+        : 'sms');
 
     // Visits meta. starts_at is SALON WALL TIME in the UTC slot - compare on
     // the ISO string against "now" rendered in the same convention, never

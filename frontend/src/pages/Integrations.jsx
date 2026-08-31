@@ -10,6 +10,7 @@ import EmptyState from '../components/EmptyState.jsx';
 import logger from '../lib/logger.js';
 import Icon, { iconName } from '../components/ui/Icon';
 import PageHeader from '../components/ui/PageHeader.jsx';
+import Button from '../components/ui/Button.jsx';
 // Static integration catalog - connection status is computed dynamically from real data
 const CATALOG = [
   {
@@ -90,7 +91,7 @@ const CATALOG = [
 
 const categories = ['All', 'Payments', 'Calendar', 'Social', 'Accounting', 'Reviews'];
 
-function getIntegrationStatus(id, beautician, smsConfig, igStatus) {
+function getIntegrationStatus(id, beautician, smsConfig, igStatus, igChecking) {
   switch (id) {
     case 'stripe':
       return beautician?.stripe_account_id && beautician?.stripe_onboarding_complete
@@ -110,8 +111,19 @@ function getIntegrationStatus(id, beautician, smsConfig, igStatus) {
         : 'available';
     case 'instagram':
       if (!beautician?.instagram_page_id) return 'available';
-      // igStatus is passed in; null means we haven't checked yet, so stay optimistic.
-      return igStatus?.needs_reconnect ? 'needs_reconnect' : 'connected';
+      // THE HONEST LADDER, the same one Settings.jsx shows.
+      //
+      // 31 August 2026. This line said "stay optimistic": anything that was
+      // not an explicit needs_reconnect read as Connected, including the whole
+      // second before the status call comes back and every case where it never
+      // comes back at all (offline, API down, a 500). So an account with a
+      // dead token said "Connected" in green on the one screen whose entire
+      // job is to tell her what is working. An id in the database proves she
+      // connected once. Only a live check proves it still works.
+      if (igChecking || !igStatus) return 'checking';
+      if (igStatus.needs_reconnect) return 'needs_reconnect';
+      if (igStatus.token_valid) return 'connected';
+      return 'unknown';
     default:
       return 'coming_soon';
   }
@@ -153,20 +165,28 @@ export default function Integrations() {
   // Storing an Instagram id is not the same as being connected. Ask the API
   // whether the token still works, so an expired one stops showing "Connected".
   const [igStatus, setIgStatus] = useState(null);
+  // "Not checked yet" and "checked, and it failed" are different answers and
+  // the card has to be able to tell them apart. Before 31 August 2026 both
+  // left igStatus null and both rendered as Connected.
+  const [igChecking, setIgChecking] = useState(true);
 
   useEffect(() => {
     if (beautician) { fetchSmsConfig(); fetchIgStatus(); }
   }, [beautician]);
 
   async function fetchIgStatus() {
+    setIgChecking(true);
     try {
       const token = (await supabase.auth.getSession())?.data?.session?.access_token;
       const res = await fetch(`${API_BASE}/api/instagram/status`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-      if (res.ok) setIgStatus(await res.json());
+      setIgStatus(res.ok ? await res.json() : { check_failed: true });
     } catch (err) {
       logger.debug('IG status fetch failed:', err);
+      setIgStatus({ check_failed: true });
+    } finally {
+      setIgChecking(false);
     }
   }
 
@@ -243,7 +263,7 @@ export default function Integrations() {
 
   const integrations = CATALOG.map(item => ({
     ...item,
-    status: item.comingSoon ? 'coming_soon' : getIntegrationStatus(item.id, beautician, smsConfig, igStatus),
+    status: item.comingSoon ? 'coming_soon' : getIntegrationStatus(item.id, beautician, smsConfig, igStatus, igChecking),
     stats: getConnectedStats(item.id, beautician, smsConfig),
   }));
 
@@ -256,6 +276,10 @@ export default function Integrations() {
     available: { bg: 'var(--accent-light)', color: 'var(--accent)', label: 'Available' },
     coming_soon: { bg: 'var(--bg-subtle)', color: 'var(--text-muted)', label: 'Coming Soon' },
     needs_reconnect: { bg: 'var(--danger-bg, #F7E4E4)', color: 'var(--danger)', label: 'Reconnect needed' },
+    // Neither of these is a failure. They are the two ways of saying "we do
+    // not know yet", which is a thing this screen has to be able to say.
+    checking: { bg: 'var(--bg-subtle)', color: 'var(--text-muted)', label: 'Checking…' },
+    unknown: { bg: 'var(--bg-subtle)', color: 'var(--text-muted)', label: 'Could not check' },
   };
 
   return (
@@ -406,6 +430,31 @@ export default function Integrations() {
                         disabled={connecting === integ.id}
                       >{connecting === integ.id ? 'Reconnecting…' : `Reconnect ${integ.name} →`}</button>
                     </>
+                  )}
+
+                  {/* We could not reach the status check. Say that, rather
+                      than guessing in either direction, and still offer the
+                      button that would fix it if the token really is dead. */}
+                  {integ.status === 'unknown' && (
+                    <>
+                      <p style={{ ...type.bodySmall, fontSize: 12, lineHeight: 1.5, margin: '0 0 10px' }}>
+                        We could not check {integ.name} just now, so we cannot tell you whether
+                        it is still working. Pull down to try again in a moment. If your DMs have
+                        stopped going out, reconnecting is the fix.
+                      </p>
+                      <Button
+                        variant="secondary"
+                        fullWidth
+                        onClick={e => { e.stopPropagation(); handleConnect(integ.id); }}
+                        disabled={connecting === integ.id}
+                      >{connecting === integ.id ? 'Reconnecting…' : `Reconnect ${integ.name} →`}</Button>
+                    </>
+                  )}
+
+                  {integ.status === 'checking' && (
+                    <div style={{ ...type.bodySmall, fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', padding: '8px 0' }}>
+                      Checking whether {integ.name} is still connected…
+                    </div>
                   )}
 
                   {/* Say it out loud when the connect could not even start. */}

@@ -25,6 +25,8 @@ import logger from '../lib/logger.js';
 import { autoUnarchiveClient } from '../lib/client-archive.js';
 import { authorship } from '../lib/authorship.js';
 import { deDash } from '../lib/text.js';
+import { guardedSend } from '../lib/outbound-guard.js';
+import { isOptOutMessage, applyOptOut, OPT_OUT_CONFIRMATION } from '../lib/opt-out.js';
 
 const router = Router();
 
@@ -201,14 +203,32 @@ async function handleInstagramMessage(event, pageId) {
   // Skip echo messages (messages sent by us)
   if (event.message?.is_echo) return;
 
-  // Skip non-message events (read receipts, reactions, etc.)
-  if (!event.message?.text) return;
+  // Skip events that are not a message at all: read receipts, reactions,
+  // delivery confirmations. Those carry event.read / event.reaction /
+  // event.delivery and no event.message.
+  if (!event.message) return;
 
   const senderId = event.sender?.id;
-  const messageText = event.message.text;
+  const messageText = typeof event.message.text === 'string' ? event.message.text : '';
   const messageId = event.message.mid;
 
-  if (!senderId || !messageText) return;
+  // EVERY NON TEXT DM USED TO BE BINNED HERE.
+  //
+  // 31 August 2026, the night @ellindigo connected. The gate on this line was
+  // `if (!event.message?.text) return;`, so a photo, a reel share, a voice
+  // note, a story mention or a sticker produced no message row, no thread, no
+  // push and no log line. On Instagram that is not an edge case: sending a
+  // picture of the lashes you want is how people ask for an appointment. The
+  // client saw a delivered message and the salon owner saw nothing at all.
+  //
+  // messages already carries media_url and media_type (migration 001), the
+  // WhatsApp webhook already writes them, the Inbox already renders that
+  // shape, so storing it is the whole fix.
+  const media = describeInstagramAttachment((event.message.attachments || [])[0]);
+
+  if (!senderId) return;
+  // Genuinely nothing to store: no words and no attachment.
+  if (!messageText && !media) return;
 
   const candidateIds = receivingAccountIds(event, pageId);
   const { beautician, matchedOn } = await findBeauticianForIds(candidateIds);
@@ -232,7 +252,7 @@ async function handleInstagramMessage(event, pageId) {
       'Instagram DM: routed on a secondary account id, not instagram_page_id');
   }
 
-  await processInstagramDM(beautician, senderId, messageText, messageId);
+  await processInstagramDM(beautician, senderId, messageText, messageId, media);
 }
 
 /**
@@ -301,6 +321,49 @@ async function sendInstagramReply(recipientId, text, token) {
   }
 }
 
+/**
+ * Meta's attachment types, mapped onto the media vocabulary the rest of the
+ * product already speaks: routes/webhooks.js writes these same strings for
+ * WhatsApp, routes/inbox.js turns them into thread previews ("Sent a photo"),
+ * and services/messaging.js renders media_type 'image' inline in the thread.
+ *
+ * The label is what goes in messages.content, because a row with no text at
+ * all reads as a bug in the Inbox. Same reasoning as the WhatsApp path's
+ * "[Video]" placeholders.
+ */
+const IG_ATTACHMENT_KINDS = {
+  image: ['image', '[Photo]'],
+  video: ['video', '[Video]'],
+  audio: ['audio', '[Voice note]'],
+  file: ['document', '[File]'],
+  share: ['share', '[Shared a post]'],
+  story_mention: ['story_mention', '[Mentioned you in a story]'],
+  ig_reel: ['video', '[Shared a reel]'],
+  reel: ['video', '[Shared a reel]'],
+  like_heart: ['sticker', '[Sent a like]'],
+  sticker: ['sticker', '[Sticker]'],
+  template: ['share', '[Shared something]'],
+  fallback: ['attachment', '[Attachment]'],
+};
+
+/**
+ * Turn Meta's attachments[0] into { media_type, media_url, label }, or null
+ * when there is no attachment. Exported so the shape can be pinned by a test
+ * without posting a whole webhook.
+ */
+export function describeInstagramAttachment(attachment) {
+  if (!attachment) return null;
+  const key = String(attachment.type || '').toLowerCase();
+  const [mediaType, label] = IG_ATTACHMENT_KINDS[key] || ['attachment', '[Attachment]'];
+  return {
+    media_type: mediaType,
+    // Meta's CDN urls are short lived. Stored anyway: an expired thumbnail is
+    // recoverable, a message that was never written down is not.
+    media_url: attachment.payload?.url || null,
+    label,
+  };
+}
+
 const PLACEHOLDER_NAME = 'Instagram User';
 
 /**
@@ -343,23 +406,47 @@ async function flagMessageAsJunk(messageId, reason) {
 /**
  * Find or create client, store message, and pass to AI Front Desk.
  */
-async function processInstagramDM(beautician, senderId, messageText, messageId) {
-  const dmMode = beautician.instagram_dm_mode || 'redirect';
+async function processInstagramDM(beautician, senderId, messageText, messageId, media = null) {
+  // A NULL MODE MEANS SILENCE, NOT A REDIRECT.
+  //
+  // 31 August 2026. This line read `|| 'redirect'`, so a salon that had never
+  // opened the Instagram DM setting at all auto-replied "message me on
+  // WhatsApp" to every person who wrote in. Nobody chose that. routes/
+  // instagram.js already settled the question for the connect flow: an unset
+  // mode is treated as not chosen, and not chosen means Florrie says nothing.
+  // frontend/src/pages/Settings.jsx shows the same default so the screen and
+  // the server agree about what is switched on.
+  const dmMode = beautician.instagram_dm_mode || 'off';
 
-  // Find client by Instagram sender ID
-  let { data: client } = await supabase
+  // Find client by Instagram sender ID.
+  //
+  // maybeSingle, not single. `single` resolves with { data: null, error } the
+  // moment there are two matching rows, and there could be two: migration 021
+  // built a NON unique index on (beautician_id, instagram_id), so two DMs
+  // arriving together both missed the lookup and both inserted. From that
+  // point on EVERY message from that person found two rows, read as "no
+  // client", and inserted a third. The unique index in migration
+  // 20260831_backend024 stops it happening; maybeSingle stops the existing
+  // duplicates from making it worse. 053_clients_whatsapp_id_unique.sql is the
+  // same fix for the same defect on WhatsApp.
+  let { data: client, error: clientLookupErr } = await supabase
     .from('clients')
     .select('*')
     .eq('beautician_id', beautician.id)
     .eq('instagram_id', senderId)
-    .single();
+    .maybeSingle();
+
+  if (clientLookupErr) {
+    logger.error({ err: clientLookupErr, beauticianId: beautician.id, instagramId: senderId },
+      'Instagram DM: client lookup failed. A new client row is about to be created for somebody who may already have one.');
+  }
 
   if (!client) {
     // Try to get profile info from Instagram
     const { name, username } = await fetchInstagramIdentity(senderId, beautician.instagram_page_token);
 
     // Create new client
-    const { data: newClient } = await supabase
+    const { data: newClient, error: clientInsertErr } = await supabase
       .from('clients')
       .insert({
         beautician_id: beautician.id,
@@ -370,6 +457,16 @@ async function processInstagramDM(beautician, senderId, messageText, messageId) 
       })
       .select()
       .single();
+
+    if (clientInsertErr) {
+      // This error was swallowed until 31 August 2026, and swallowing it was
+      // expensive: the message below was then written with client_id
+      // undefined, and routes/inbox.js:233 skips every row with no client_id,
+      // so the DM existed in the table and nowhere in the product. Say it out
+      // loud instead.
+      logger.error({ err: clientInsertErr, beauticianId: beautician.id, instagramId: senderId },
+        'Instagram DM: could not create the client. The message will be stored with no client attached and will NOT appear in the Inbox.');
+    }
 
     client = newClient;
     if (newClient) {
@@ -418,15 +515,19 @@ async function processInstagramDM(beautician, senderId, messageText, messageId) 
     isKnownClient: looksLikeKnownClient(client, { channel: 'instagram' }),
   });
 
-  // Store the inbound message
-  const { data: storedMessage } = await supabase
+  // Store the inbound message. A media DM carries a placeholder in `content`
+  // (never blank, see describeInstagramAttachment) plus the media columns, so
+  // the thread preview and the inline image both have something to read.
+  const { data: storedMessage, error: storeErr } = await supabase
     .from('messages')
     .insert({
       beautician_id: beautician.id,
       client_id: client?.id,
       channel: 'instagram',
       direction: 'inbound',
-      content: messageText,
+      content: messageText || media?.label || '[Message]',
+      media_url: media?.media_url || null,
+      media_type: media?.media_type || null,
       external_message_id: messageId,
       ai_handled: false,
       ...authorship('client'),
@@ -434,6 +535,14 @@ async function processInstagramDM(beautician, senderId, messageText, messageId) 
     })
     .select()
     .single();
+
+  if (storeErr) {
+    // Also swallowed until 31 August 2026. A failed insert here means the DM
+    // is gone: no row, no thread, nothing to escalate later. It has to be
+    // findable in the logs, because it is findable nowhere else.
+    logger.error({ err: storeErr, beauticianId: beautician.id, clientId: client?.id, instagramId: senderId, mediaType: media?.media_type || null },
+      'Instagram DM: could not store the inbound message. This DM is lost.');
+  }
 
   if (junk.isJunk) {
     await flagMessageAsJunk(storedMessage?.id, junk.reason);
@@ -445,8 +554,54 @@ async function processInstagramDM(beautician, senderId, messageText, messageId) 
   // (throttled to at most one per 15 min inside the helper). Fire-and-forget.
   pushMessagesWaiting(beautician.id, 'instagram').catch(() => {});
 
+  // STOP, BEFORE THE MODE BRANCH, BECAUSE TWO OF THE THREE MODES END HERE.
+  //
+  // 31 August 2026. The only opt-out handler in the codebase lived inside
+  // processInboundMessage, and 'redirect' and 'off' both return below without
+  // ever calling it. So a client who replied STOP to the WhatsApp redirect,
+  // which is the single most likely message to be replied to with STOP, never
+  // got marketing_opted_out_at set, and every marketing engine went on
+  // treating her as opted in. The word does not mean something different
+  // because it arrived on Instagram.
+  if (isOptOutMessage(messageText)) {
+    await applyOptOut({ beautician, client });
+    logger.info({ beauticianId: beautician.id, clientId: client?.id, senderId, mode: dmMode },
+      'Instagram DM: marketing opt-out honoured');
+
+    // Confirm it, unless the owner has asked for total silence on Instagram.
+    // The confirmation goes through the same gate as everything else: it is
+    // typed transactional in lib/outbound-guard.js precisely so a person who
+    // has just opted out still gets told that it worked.
+    if (dmMode !== 'off') {
+      await guardedSend({
+        beauticianId: beautician.id,
+        clientId: client?.id || null,
+        messageType: 'marketing_opt_out',
+        channel: 'instagram',
+        client,
+        body: OPT_OUT_CONFIRMATION,
+        send: () => sendInstagramReply(senderId, OPT_OUT_CONFIRMATION, beautician.instagram_page_token),
+      });
+    }
+    return;
+  }
+
   if (dmMode === 'off') {
     logger.info({ senderId, mode: 'off' }, 'Instagram DM stored, no reply (mode=off)');
+    return;
+  }
+
+  // A PHOTO IS NOT A QUESTION FLORRIE CAN ANSWER.
+  //
+  // 31 August 2026: media DMs are stored from today (see
+  // describeInstagramAttachment), which means for the first time they reach
+  // this point. Neither auto-reply below has seen the picture: the front desk
+  // classifier is handed text only, and the redirect would answer a photo of
+  // somebody's lashes with "message me on WhatsApp". Store it, push it, let
+  // Ellie look at it herself.
+  if (media) {
+    logger.info({ beauticianId: beautician.id, senderId, mediaType: media.media_type, mode: dmMode },
+      'Instagram DM with an attachment: stored and pushed, no automatic reply');
     return;
   }
 
@@ -459,19 +614,49 @@ async function processInstagramDM(beautician, senderId, messageText, messageId) 
 
     if (!alreadySent) {
       const redirectMsg = buildRedirectMessage(beautician);
-      const sent = await sendInstagramReply(senderId, redirectMsg, beautician.instagram_page_token);
 
-      if (sent) {
+      // THE ONLY AUTO-SEND IN THE CODEBASE THAT REACHED A CLIENT WITH NOTHING
+      // ON THE PATH. Until 31 August 2026 this called sendInstagramReply
+      // directly: no consent check, no opt-out check, no outbound_sends row,
+      // so it was invisible to the outbox, invisible to the caps, and it kept
+      // talking to people who had asked it to stop.
+      //
+      // messageType 'instagram_redirect' is typed TRANSACTIONAL in
+      // lib/outbound-guard.js on purpose: it answers a message the client sent
+      // seconds ago, so quiet hours and the 7 day proactive cap are the wrong
+      // shape for it, and the trust dial would turn a reply the owner switched
+      // on herself into something she has to approve. What it does get is the
+      // opt-out check, which is the gate that was actually missing.
+      const verdict = await guardedSend({
+        beauticianId: beautician.id,
+        clientId: client?.id || null,
+        messageType: 'instagram_redirect',
+        channel: 'instagram',
+        client,
+        body: redirectMsg,
+        send: () => sendInstagramReply(senderId, redirectMsg, beautician.instagram_page_token),
+      });
+
+      if (verdict.delivered) {
         // Record redirect sent time on client
         if (client?.id) {
-          await supabase
+          const { error: throttleErr } = await supabase
             .from('clients')
             .update({ instagram_redirect_sent_at: new Date().toISOString() })
             .eq('id', client.id);
+          if (throttleErr) {
+            // Unread until 31 August 2026. This write IS the throttle: if it
+            // silently fails, the redirect fires again on the client's very
+            // next DM, and on the one after that, forever. Loud, because the
+            // symptom (a client being told to use WhatsApp five times in an
+            // afternoon) looks like nothing at all from the server side.
+            logger.error({ err: throttleErr, clientId: client.id, beauticianId: beautician.id },
+              'Instagram redirect throttle NOT saved. This client will be sent the redirect again on their next DM.');
+          }
         }
 
         // Store outbound redirect message for the inbox
-        await supabase.from('messages').insert({
+        const { error: outboundErr } = await supabase.from('messages').insert({
           beautician_id: beautician.id,
           client_id: client?.id,
           channel: 'instagram',
@@ -481,8 +666,15 @@ async function processInstagramDM(beautician, senderId, messageText, messageId) 
           ...authorship('template'),
           escalated: false,
         });
+        if (outboundErr) {
+          logger.error({ err: outboundErr, clientId: client?.id, beauticianId: beautician.id },
+            'Instagram redirect was sent but not written to the thread; the Inbox will not show it');
+        }
 
         logger.info({ senderId, clientName: client?.first_name }, 'Sent WhatsApp redirect via Instagram DM');
+      } else {
+        logger.info({ senderId, clientId: client?.id, decision: verdict.decision, reason: verdict.reason },
+          'Instagram redirect not sent');
       }
     } else {
       logger.info({ senderId }, 'Instagram redirect already sent recently, skipping');
@@ -497,7 +689,7 @@ async function processInstagramDM(beautician, senderId, messageText, messageId) 
   // Requires the instagram_manage_messages permission to be live on the app.
   if ((dmMode === 'ai' || dmMode === 'reply') && storedMessage?.id) {
     try {
-      const result = await processInboundMessage(storedMessage.id, beautician, client, messageText);
+      const result = await processInboundMessage(storedMessage.id, beautician, client, messageText, 'instagram');
       logger.info({ handled: result?.handled, intent: result?.intent, client: client?.first_name || senderId }, 'Front Desk answered Instagram DM');
     } catch (err) {
       logger.error({ err, messageId }, 'AI Front Desk failed on Instagram DM');
@@ -508,7 +700,7 @@ async function processInstagramDM(beautician, senderId, messageText, messageId) 
   // Legacy: honour the older auto_reply_enabled flag for any other mode.
   if (beautician.auto_reply_enabled && messageText && storedMessage?.id) {
     try {
-      const result = await processInboundMessage(storedMessage.id, beautician, client, messageText);
+      const result = await processInboundMessage(storedMessage.id, beautician, client, messageText, 'instagram');
       logger.info({ handled: result?.handled, intent: result?.intent, client: client?.first_name || senderId }, 'Front Desk processed Instagram DM');
     } catch (err) {
       logger.error({ err, messageId }, 'AI Front Desk failed on Instagram DM');

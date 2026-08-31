@@ -4,6 +4,8 @@ import { buildVoiceGuide } from './voice-profile.js';
 import { ensureNoSlop } from '../lib/anti-slop.js';
 import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
+import { getActivePromos, describePromo } from '../lib/promos.js';
+import { nowInSalonWall } from '../lib/free-slots.js';
 
 /**
  * Content Autopilot — the "Content" digital employee.
@@ -21,8 +23,53 @@ import logger from '../lib/logger.js';
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 /**
+ * One model call, with the photo, falling back to the same call without it.
+ *
+ * A vision call has more ways to fail than a text one: the url can 404 by the
+ * time Anthropic reaches it, the file can be a format the API will not take,
+ * it can be too large. None of those are reasons for the owner to end up
+ * staring at an error instead of a caption, so the picture is the part that
+ * gets dropped, not the caption.
+ */
+async function captionCall(request, { beauticianId, hasImage } = {}) {
+  try {
+    return await anthropic.messages.create(request);
+  } catch (err) {
+    if (!hasImage) throw err;
+    logger.warn({ err, beauticianId }, 'Caption with the photo failed; writing one without it');
+    const textOnly = {
+      ...request,
+      messages: request.messages.map(m => ({
+        ...m,
+        content: Array.isArray(m.content) ? m.content.filter(part => part.type !== 'image') : m.content,
+      })),
+    };
+    return anthropic.messages.create(textOnly);
+  }
+}
+
+/**
  * Generate a caption from an uploaded before/after photo.
- * Uses Claude Vision to understand the image, then Sonnet for the caption.
+ *
+ * THE PHOTO IS ACTUALLY LOOKED AT NOW.
+ *
+ * 31 August 2026. This docstring said "Uses Claude Vision to understand the
+ * image", `imageUrl` was the second parameter, and the word imageUrl appeared
+ * nowhere else in the function. Every caption in the product was written from
+ * the treatment name and nothing else, which is why they all read like the
+ * templates: the model had no idea whether it was looking at brows, a set of
+ * nails, or a photo of the salon door.
+ *
+ * The image is passed as a url source, the same shape routes/money.js already
+ * uses in production for receipt scanning. Anthropic fetches the url from its
+ * own servers, exactly as Meta does at publish time, so the url has to clear
+ * the same bar: imageUrlProblem is reused rather than a second, subtly
+ * different check. A blob:, a localhost address or a signed Supabase link is
+ * skipped rather than sent to fail.
+ *
+ * And if the vision call fails for any reason, the caption is written without
+ * the picture rather than not at all. A plainer caption is a small loss; an
+ * error where a draft should be is the screen she is standing in front of.
  */
 export async function generateCaption(beauticianId, imageUrl, treatmentType, additionalContext) {
   const { data: beautician } = await supabase
@@ -49,7 +96,14 @@ export async function generateCaption(beauticianId, imageUrl, treatmentType, add
   const businessName = beautician.business_name || beautician.first_name;
   const toneNotes = beautician.tone_model?.formality || 'warm-professional';
 
-  const response = await anthropic.messages.create({
+  // Only a url Anthropic can actually fetch. See imageUrlProblem.
+  const imageProblem = imageUrl ? imageUrlProblem(imageUrl) : 'no photo';
+  const canSeePhoto = !imageProblem;
+  if (imageUrl && imageProblem) {
+    logger.info({ beauticianId, imageProblem }, 'Caption written without looking at the photo: the image url cannot be fetched');
+  }
+
+  const response = await captionCall({
     model: 'claude-sonnet-4-6',
     max_tokens: 400,
     system: `You write Instagram captions for a beauty professional called ${businessName}.
@@ -70,9 +124,17 @@ ${performanceContext}
 Return ONLY the caption text. No quotes, no explanation, no hashtag suggestions (those come separately).`,
     messages: [{
       role: 'user',
-      content: `Write an Instagram caption for a ${treatmentType || 'beauty treatment'} before/after photo.${additionalContext ? ` Context: ${additionalContext}` : ''}`
-    }]
-  });
+      content: [
+        ...(canSeePhoto ? [{ type: 'image', source: { type: 'url', url: imageUrl } }] : []),
+        {
+          type: 'text',
+          text: canSeePhoto
+            ? `Write an Instagram caption for this ${treatmentType || 'beauty treatment'} photo. Describe what you can actually see in it: the shape, the colour, the finish. Never describe anything that is not in the picture.${additionalContext ? ` Context: ${additionalContext}` : ''}`
+            : `Write an Instagram caption for a ${treatmentType || 'beauty treatment'} before/after photo.${additionalContext ? ` Context: ${additionalContext}` : ''}`,
+        },
+      ],
+    }],
+  }, { beauticianId, hasImage: canSeePhoto });
 
   const caption = await ensureNoSlop(response.content[0].text, { neverSay: beautician.voice_profile?.never_say });
 
@@ -142,7 +204,7 @@ ${bookingLink ? `Include booking link: ${bookingLink}` : 'Tell them to DM to boo
   const caption = await ensureNoSlop(response.content[0].text, { neverSay: beautician.voice_profile?.never_say });
 
   // Store as draft
-  const { data: post } = await supabase
+  const { data: post, error: draftErr } = await supabase
     .from('content_posts')
     .insert({
       beautician_id: beauticianId,
@@ -155,7 +217,20 @@ ${bookingLink ? `Include booking link: ${bookingLink}` : 'Tell them to DM to boo
     .select()
     .single();
 
-  // Log AI action
+  // 31 August 2026: this error was unread, and the ai_actions row below then
+  // told her a post had been drafted for a gap when nothing had been written
+  // at all. She would go looking for it in Drafts and find an empty tab.
+  if (draftErr) {
+    logger.error({ err: draftErr, beauticianId, gapDate, gapTime },
+      'Could not save the last-minute availability draft');
+    throw new Error(`Could not draft the availability post: ${draftErr.message}`);
+  }
+
+  // Log AI action.
+  //
+  // notification_sent is gone rather than false: nothing in this function
+  // sends a notification, and it said `true`. Nothing reads the column, so the
+  // only thing the claim ever did was make the row untrue.
   await supabase.from('ai_actions').insert({
     beautician_id: beauticianId,
     action_type: 'content_drafted',
@@ -165,8 +240,6 @@ ${bookingLink ? `Include booking link: ${bookingLink}` : 'Tell them to DM to boo
     confidence: 0.95,
     autonomous: true,
     outcome: 'success',
-    notification_sent: true,
-    notification_text: `Gap on ${dayLabel}. I've drafted an availability post. One tap to share.`
   });
 
   return post;
@@ -207,8 +280,7 @@ export async function createPostFromPhoto(beauticianId, imageUrl, treatmentType,
     confidence: 0.92,
     autonomous: true,
     outcome: 'success',
-    notification_sent: true,
-    notification_text: `New post ready from your ${treatmentType || 'treatment'} photo. Tap to review.`
+    // No notification_sent: nothing here sends one. See draftAvailabilityPost.
   });
 
   return post;
@@ -330,14 +402,44 @@ function metaError(body, res, fallback) {
  * Uses the Instagram Graph API to publish.
  */
 export async function publishPost(beauticianId, postId) {
-  const { data: post } = await supabase
+  const { data: post, error: postErr } = await supabase
     .from('content_posts')
     .select('*')
     .eq('id', postId)
     .eq('beautician_id', beauticianId)
-    .single();
+    .maybeSingle();
 
+  if (postErr) {
+    logger.error({ err: postErr, beauticianId, postId }, 'Instagram publish: could not read the post');
+    return { published: false, reason: 'Could not read that post just now. Try again in a moment.' };
+  }
   if (!post) throw new Error('Post not found');
+
+  // NOTHING PUBLISHES TWICE.
+  //
+  // 31 August 2026. This function read post.status and post.external_post_id
+  // and then ignored both. Two ways that reached the profile twice:
+  //
+  //   - the 'posted' update at the end had its error unread, so a write that
+  //     failed left the row on 'approved', which ContentAutopilot.jsx shows in
+  //     Drafts with a live "Approve & Post" button underneath it. One tap and
+  //     the same photo and caption go up again.
+  //   - a restart, a retry or a double tap between media_publish returning and
+  //     that update landing did the same thing with no failure at all.
+  //
+  // Public duplicates on a salon's own Instagram grid are not recoverable by
+  // us: she has to go and delete one. So the check is first, and it trusts
+  // external_post_id as much as status, because an id means Meta has it.
+  if (post.status === 'posted' || post.external_post_id) {
+    logger.info({ postId, beauticianId, status: post.status, externalPostId: post.external_post_id || null },
+      'Instagram publish refused: this post is already on Instagram');
+    return {
+      published: true,
+      already_posted: true,
+      instagramId: post.external_post_id || null,
+      reason: 'This one is already on Instagram.',
+    };
+  }
 
   const isStory = post.media_kind === 'story';
   const { data: beautician, error: beauticianErr } = await supabase
@@ -356,10 +458,13 @@ export async function publishPost(beauticianId, postId) {
 
   if (!beautician?.instagram_page_id || !beautician?.instagram_page_token) {
     // No Instagram connected — mark as approved but can't publish
-    await supabase.from('content_posts').update({
+    const { error: approveErr } = await supabase.from('content_posts').update({
       status: 'approved',
       approved_at: new Date().toISOString()
     }).eq('id', postId);
+    if (approveErr) {
+      logger.error({ err: approveErr, postId, beauticianId }, 'Could not mark an unpublishable post approved');
+    }
 
     return {
       published: false,
@@ -378,6 +483,20 @@ export async function publishPost(beauticianId, postId) {
   }
 
   const token = beautician.instagram_page_token;
+
+  // Atomic claim, taken immediately before the first call to Meta. Mirrors the
+  // claim in services/content-scheduler.js: only the caller whose UPDATE
+  // actually matched a row is allowed to carry on. Two overlapping publishes
+  // of the same post (the cron and a tap, or two taps) therefore create one
+  // container, not two.
+  //
+  // A claim older than STALE_CLAIM_MS is reclaimable, because a process that
+  // died mid-publish must not lock a post out of ever being published again.
+  const claim = await claimForPublish(postId, beauticianId);
+  if (!claim.claimed) {
+    logger.warn({ postId, beauticianId, reason: claim.reason }, 'Instagram publish: another publish of this post is already in flight');
+    return { published: false, reason: 'This post is already being published. Give it a moment.' };
+  }
 
   try {
     // Step 1: Create media container
@@ -456,13 +575,27 @@ export async function publishPost(beauticianId, postId) {
       throw new Error(metaError(published, publishRes, 'Instagram accepted the photo but would not publish it'));
     }
 
-    // Update post record
-    await supabase.from('content_posts').update({
+    // Update post record.
+    //
+    // The error on this update was unread until 31 August 2026, and this is
+    // the single most dangerous unread error on the page: the post IS on
+    // Instagram at this point. A failed write here leaves the row saying
+    // 'approved', which the Drafts tab renders with a live "Approve & Post"
+    // button, and the next tap posts it to her grid a second time.
+    //
+    // The claim is deliberately NOT released in this branch, precisely so that
+    // a second attempt is refused rather than duplicating the post.
+    const { error: postedErr } = await supabase.from('content_posts').update({
       status: 'posted',
       approved_at: new Date().toISOString(),
       posted_at: new Date().toISOString(),
       external_post_id: published.id
     }).eq('id', postId);
+
+    if (postedErr) {
+      logger.error({ err: postedErr, postId, beauticianId, instagramId: published.id },
+        'PUBLISHED TO INSTAGRAM BUT COULD NOT MARK THE POST POSTED. The post is live and the row still says it is not. Set status=posted and external_post_id by hand before anyone taps publish again.');
+    }
 
     // Log action
     await supabase.from('ai_actions').insert({
@@ -474,16 +607,63 @@ export async function publishPost(beauticianId, postId) {
       confidence: 1.0,
       autonomous: false,
       outcome: 'success',
-      notification_sent: true,
-      notification_text: 'Your post is live on Instagram!'
+      // No notification_sent: nothing here sends one. See draftAvailabilityPost.
     });
 
     return { published: true, instagramId: published.id };
 
   } catch (err) {
     logger.error({ err, postId, beauticianId }, 'Instagram publish error');
+    // Nothing reached the profile, so let her try again once she has fixed
+    // whatever it was.
+    await releasePublishClaim(postId);
     await markPostFailed(postId, err.message);
     return { published: false, reason: err.message };
+  }
+}
+
+// A publish that has been claimed for longer than this is assumed dead, not in
+// flight. Generous: waitForContainer alone can spend 24 seconds.
+const STALE_CLAIM_MS = 10 * 60 * 1000;
+
+/**
+ * Take the publish claim, or say why we could not.
+ *
+ * publish_claimed_at arrives in migration 20260831_backend025. Where that has
+ * not been applied the update is rejected whole by PostgREST, and the honest
+ * answer then is to carry on: the status / external_post_id check above is the
+ * primary guard and it still holds. Refusing to publish because a nice-to-have
+ * column is missing would be a worse product than publishing without the
+ * belt to go with the braces.
+ */
+async function claimForPublish(postId, beauticianId) {
+  const staleBefore = new Date(Date.now() - STALE_CLAIM_MS).toISOString();
+  const { data, error } = await supabase
+    .from('content_posts')
+    .update({ publish_claimed_at: new Date().toISOString() })
+    .eq('id', postId)
+    .eq('beautician_id', beauticianId)
+    .or(`publish_claimed_at.is.null,publish_claimed_at.lt.${staleBefore}`)
+    .select('id');
+
+  if (error) {
+    logger.warn({ err: error, postId },
+      'Could not take the publish claim (is content_posts.publish_claimed_at there?); relying on the status check alone');
+    return { claimed: true, reason: 'claim_column_missing' };
+  }
+  if (!data?.length) return { claimed: false, reason: 'already_claimed' };
+  return { claimed: true, reason: 'claimed' };
+}
+
+/** Hand the claim back so a fixed post can be published on the next tap. */
+async function releasePublishClaim(postId) {
+  if (!postId) return;
+  const { error } = await supabase
+    .from('content_posts')
+    .update({ publish_claimed_at: null })
+    .eq('id', postId);
+  if (error) {
+    logger.warn({ err: error, postId }, 'Could not release the publish claim; it expires on its own after 10 minutes');
   }
 }
 
@@ -513,6 +693,12 @@ export async function markPostFailed(postId, reason) {
   if (reasonErr) {
     logger.warn({ err: reasonErr, postId, reason }, 'Could not save content_posts.failure_reason (is the column there?)');
   }
+
+  // Nothing reached Instagram, so this post is publishable again the moment
+  // she fixes whatever failed. Its own statement, for the same reason the
+  // reason is: two optional columns from two hand-applied migrations must not
+  // be able to take each other, or the status write, down with them.
+  await releasePublishClaim(postId);
 }
 
 /**
@@ -523,11 +709,15 @@ export async function markPostFailed(postId, reason) {
  * approves it (POST /api/content/:id/schedule flips it live).
  */
 export async function planWeek(beauticianId) {
-  const { data: beautician } = await supabase
+  const { data: beautician, error: beauticianErr } = await supabase
     .from('beauticians')
-    .select('first_name, business_name, tone_model, voice_profile, booking_slug')
+    .select('first_name, business_name, tone_model, voice_profile, booking_slug, timezone')
     .eq('id', beauticianId)
-    .single();
+    .maybeSingle();
+  if (beauticianErr) {
+    logger.error({ err: beauticianErr, beauticianId }, 'planWeek: could not read the beautician');
+    throw new Error('Could not draft the week, try again');
+  }
   if (!beautician) throw new Error('Beautician not found');
 
   // Real material only.
@@ -543,14 +733,27 @@ export async function planWeek(beauticianId) {
       .select('comment, rating')
       .eq('beautician_id', beauticianId)
       .gte('rating', 5)
+      // A PRIVATE REVIEW IS NOT A TESTIMONIAL.
+      //
+      // 31 August 2026. reviews.is_public has existed since migration 007 and
+      // this filter did not, so a five star review a client left privately,
+      // or one Ellie had deliberately unpublished, could be quoted "lightly"
+      // in a public Instagram caption by a machine, without anybody being
+      // asked. There is no undo for that.
+      .eq('is_public', true)
       .not('comment', 'is', null)
       .order('created_at', { ascending: false })
       .limit(3),
-    supabase.from('promo_codes')
-      .select('code, discount_type, discount_value, valid_until, is_active')
-      .eq('beautician_id', beauticianId)
-      .eq('is_active', true)
-      .limit(3),
+    // PROMOS: use the one function that already knows what "live" means.
+    //
+    // The query here filtered on is_active alone, so an offer that expired in
+    // June, one that does not start until October, and one whose 20 uses were
+    // all claimed last week were all equally eligible to be broadcast to her
+    // whole following. lib/promos.js getActivePromos checks the valid_from and
+    // valid_until window and max_uses against current_uses, and describePromo
+    // formats it, and both were written for exactly this and used everywhere
+    // else already.
+    getActivePromos(beauticianId, 3),
     supabase.from('content_posts')
       .select('caption, likes')
       .eq('beautician_id', beauticianId)
@@ -566,8 +769,8 @@ export async function planWeek(beauticianId) {
   }
   const topTreatments = Object.entries(treatmentCounts).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([n, c]) => `${n} (${c} recent)`);
   const reviews = (reviewsRes.data || []).map(r => r.comment).filter(c => c && c.length > 20);
-  const now = new Date();
-  const promos = (promosRes.data || []).filter(p => !p.valid_until || new Date(p.valid_until) > now);
+  // Already filtered, already only the live ones. No second, weaker check here.
+  const promos = promosRes || [];
   const topCaptions = (topRes.data || []).map(pst => pst.caption).filter(Boolean);
 
   const businessName = beautician.business_name || beautician.first_name;
@@ -591,7 +794,7 @@ ${buildVoiceGuide(beautician.voice_profile)}
 ${topCaptions.length ? `\nHer top-performing captions for rhythm reference:\n${topCaptions.map(c => `- "${c}"`).join('\n')}` : ''}`,
     messages: [{
       role: 'user',
-      content: `Plan this week.\nRecent work: ${topTreatments.join(', ') || 'general beauty treatments'}.\nReal reviews available: ${reviews.length ? reviews.map(r => `"${r}"`).join(' | ') : 'none'}.\nReal promos running: ${promos.length ? promos.map(pr => `${pr.code} (${pr.discount_type === 'percentage' ? pr.discount_value + '% off' : '£' + (pr.discount_value / 100).toFixed(2) + ' off'})`).join(', ') : 'none'}.`
+      content: `Plan this week.\nRecent work: ${topTreatments.join(', ') || 'general beauty treatments'}.\nReal reviews available: ${reviews.length ? reviews.map(r => `"${r}"`).join(' | ') : 'none'}.\nReal promos running: ${promos.length ? promos.map(describePromo).join(', ') : 'none'}.`
     }]
   });
 
@@ -605,16 +808,32 @@ ${topCaptions.length ? `\nHer top-performing captions for rhythm reference:\n${t
     throw new Error('Could not draft the week, try again');
   }
 
-  // Suggested slot: next occurrence of each day at 18:30 (good IG time).
+  // Suggested slot: the next occurrence of each day at 18:30 IN THE SALON'S
+  // OWN CLOCK.
+  //
+  // 31 August 2026. This used to be `new Date()` plus `setHours(18, 30)`, which
+  // is 18:30 in whatever timezone the container happens to be running in. The
+  // container runs on UTC, so every "18:30" suggestion was really 19:30 in
+  // British Summer Time, and worse, `d.getDay()` was read in container time
+  // too, so between midnight and 01:00 BST the weekday itself was a day
+  // behind and "Saturday" was scheduled for Friday.
+  //
+  // content_posts.scheduled_for is a REAL INSTANT (content-scheduler.js
+  // compares it against new Date().toISOString()), not a wall time in a UTC
+  // slot like appointments.starts_at. So the wall time is built in the salon
+  // frame and then converted back to the instant it actually names.
   const dayIdx = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
+  const salonTz = beautician.timezone || 'Europe/London';
   const created = [];
+  const insertErrors = [];
   for (const item of plan.slice(0, 7)) {
     const target = dayIdx[item.day] ?? 1;
-    const d = new Date();
-    let add = (target - d.getDay() + 7) % 7;
+    const wall = nowInSalonWall(salonTz);
+    let add = (target - wall.getUTCDay() + 7) % 7;
     if (add === 0) add = 7; // never "today in the past", always the coming one
-    d.setDate(d.getDate() + add);
-    d.setHours(18, 30, 0, 0);
+    wall.setUTCDate(wall.getUTCDate() + add);
+    wall.setUTCHours(18, 30, 0, 0);
+    const scheduledFor = salonWallToInstant(wall, salonTz);
 
     const validTypes = ['before_after', 'last_minute_availability', 'promotion', 'testimonial', 'general'];
     const { data: post, error } = await supabase
@@ -626,11 +845,21 @@ ${topCaptions.length ? `\nHer top-performing captions for rhythm reference:\n${t
         platform: 'instagram',
         post_type: validTypes.includes(item.post_type) ? item.post_type : 'general',
         status: 'draft',
-        scheduled_for: d.toISOString(),
+        scheduled_for: scheduledFor.toISOString(),
       })
       .select()
       .single();
-    if (!error && post) created.push(post);
+    if (error) {
+      // SWALLOWED UNTIL 31 AUGUST 2026, and then reported as a success.
+      // Every insert could fail, `created` would be empty, and the owner was
+      // told "0 posts drafted" on a green card with an ai_actions row saying
+      // outcome: 'success'. Nothing anywhere said what had gone wrong.
+      insertErrors.push(error.message || String(error));
+      logger.error({ err: error, beauticianId, day: item.day, postType: item.post_type },
+        'planWeek: could not save a drafted post');
+      continue;
+    }
+    if (post) created.push(post);
   }
 
   await supabase.from('ai_actions').insert({
@@ -642,12 +871,57 @@ ${topCaptions.length ? `\nHer top-performing captions for rhythm reference:\n${t
     // it, so every plan-a-week run silently failed to log anything at all: the
     // insert error was never read.
     digital_employee: 'content',
-    summary: `Drafted ${created.length} posts for the week ahead`,
-    details: { post_ids: created.map(c => c.id) },
+    summary: created.length
+      ? `Drafted ${created.length} posts for the week ahead`
+      : 'Could not draft any posts for the week ahead',
+    details: { post_ids: created.map(c => c.id), errors: insertErrors.slice(0, 7) },
     confidence: 1.0,
     autonomous: false,
-    outcome: 'success',
+    // ai_actions.outcome allows success | pending | failed | escalated. It said
+    // 'success' unconditionally, including for a run that saved nothing.
+    outcome: created.length ? 'success' : 'failed',
   });
 
+  // Nothing was drafted and we know why: say so, rather than answering "0
+  // posts drafted" on a card that looks like it worked.
+  if (!created.length) {
+    throw new Error(
+      insertErrors.length
+        ? `Could not save the drafted posts: ${insertErrors[0]}`
+        : 'Could not draft the week, try again',
+    );
+  }
+
   return created;
+}
+
+/**
+ * The real instant at which the salon's wall clock reads what `wall` says.
+ *
+ * `wall` is a Date in the WALL FRAME: its UTC fields are the salon's local
+ * year, month, day, hour and minute (which is what nowInSalonWall in
+ * lib/free-slots.js produces, and the convention appointments.starts_at is
+ * stored in). This converts back the other way, to the instant that wall time
+ * actually names, so it can be compared against a real clock.
+ *
+ * Solved by correction rather than by table lookup: guess that the wall time
+ * IS the instant, read the guess back in the salon's timezone, and shift by
+ * the difference. Two passes settle it even across a DST boundary, where the
+ * offset at the guess differs from the offset at the answer. A third is run
+ * for the pathological case and costs nothing.
+ */
+export function salonWallToInstant(wall, timezone = 'Europe/London') {
+  const want = wall.getTime();
+  let guess = new Date(want);
+  for (let i = 0; i < 3; i++) {
+    const p = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+    }).formatToParts(guess).reduce((a, x) => (a[x.type] = x.value, a), {});
+    const readBack = Date.parse(`${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}Z`);
+    const drift = want - readBack;
+    if (drift === 0) break;
+    guess = new Date(guess.getTime() + drift);
+  }
+  return guess;
 }

@@ -1248,7 +1248,22 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
 
   const lastInbound = [...messages].reverse().find(m => m.direction === 'inbound');
   const lastInboundAge = lastInbound ? Date.now() - new Date(lastInbound.created_at).getTime() : Infinity;
-  const showWaWindowHint = channel === 'whatsapp' && lastInboundAge > 24 * 60 * 60 * 1000;
+  // THE 24 HOUR WINDOW IS NOT A WHATSAPP THING, IT IS A META THING.
+  //
+  // 31 August 2026, the night Instagram went live. This hint was gated on
+  // WhatsApp alone, and services/messaging.js, which is the code behind this
+  // very composer, has no window check on the Instagram path at all: it posts
+  // to /me/messages and reports whatever Meta says back. So on Instagram, a
+  // day after the client's last message, she typed a reply, tapped send, and
+  // got a raw Graph error with no idea why.
+  //
+  // The two channels do NOT have the same way out, which is why the copy is
+  // different rather than shared. On WhatsApp there is a template escape
+  // hatch. On Instagram there is none: outside the window Meta will not
+  // deliver anything at all until the client messages first.
+  const outsideMetaWindow = lastInboundAge > 24 * 60 * 60 * 1000;
+  const showWaWindowHint = channel === 'whatsapp' && outsideMetaWindow;
+  const showIgWindowHint = channel === 'instagram' && outsideMetaWindow;
 
   const channels = ['instagram', 'whatsapp', 'sms', 'email'].filter(c => {
     if (c === 'instagram') return !!client?.has_instagram;
@@ -1295,6 +1310,14 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
         </div>
       )}
 
+      {showIgWindowHint && (
+        <div style={S.waHint}>
+          Instagram has closed this conversation. Instagram only lets you reply for 24
+          hours after someone messages you, and there are no templates to get round it,
+          so this will not send until she messages you again. Try another channel.
+        </div>
+      )}
+
       {channels.length === 0 ? (
         <div style={S.noContact}>
           No contact info on file for this client. Add a phone or email on their profile.
@@ -1313,13 +1336,19 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
                   role="tab"
                   aria-selected={on}
                   onClick={() => setChannel(c)}
+                  /* --on-accent, not '#fff'. In dark mode --accent is #ffb1c8
+                     and white on it measures 1.70:1, so the selected channel's
+                     own name became unreadable the moment it was selected. The
+                     message bubble above already had this fix and the pill did
+                     not. 31 August 2026: with Instagram live, the pill this
+                     lands on most is the Instagram one. */
                   style={{ ...S.channelPill,
                     background: on ? 'var(--accent, #92405e)' : 'var(--bg-card, #FFFCF9)',
-                    color: on ? '#fff' : 'var(--accent, #92405e)',
+                    color: on ? 'var(--on-accent, #fff)' : 'var(--accent, #92405e)',
                     borderColor: on ? 'var(--accent, #92405e)' : 'var(--border-light, #ede7e3)',
                   }}
                 >
-                  <Icon name={iconName(meta.icon)} size={15} inline style={{ color: on ? '#fff' : meta.tint }} />
+                  <Icon name={iconName(meta.icon)} size={15} inline style={{ color: on ? 'var(--on-accent, #fff)' : meta.tint }} />
                   {meta.label}
                 </button>
               );
@@ -1829,13 +1858,18 @@ const S = {
     transition: 'background 0.15s ease, color 0.15s ease',
     WebkitTapHighlightColor: 'transparent',
   },
-  spaceTabActive: { background: 'var(--accent, #92405e)', color: '#fff' },
+  // Same 1.70:1 defect as the channel pills and the sent bubble: white on
+  // --accent, which is #ffb1c8 in dark mode. Selecting the Instagram space tab
+  // made the word "Instagram" unreadable. --on-accent follows the fill.
+  spaceTabActive: { background: 'var(--accent, #92405e)', color: 'var(--on-accent, #fff)' },
   spaceTabIcon: { fontSize: 18, lineHeight: 1 },
   spaceTabCount: {
     fontSize: 11.5, fontWeight: 700, padding: '1px 8px', borderRadius: 999,
     background: 'var(--accent-light, rgba(146,64,94,0.10))', color: 'var(--accent, #92405e)',
   },
-  spaceTabCountActive: { background: 'rgba(255,255,255,0.24)', color: '#fff' },
+  // The translucent white washes the accent lighter in both themes, which is
+  // right either way; only the text on top had to stop being hardcoded white.
+  spaceTabCountActive: { background: 'rgba(255,255,255,0.24)', color: 'var(--on-accent, #fff)' },
 
   igNoLeads: {
     margin: 0, padding: '10px 18px', fontSize: 13,

@@ -1952,15 +1952,24 @@ export default function Settings({ onLogout }) {
 
                 The effective mode is resolved exactly the way the webhook
                 resolves it (routes/instagram-webhooks.js: `instagram_dm_mode ||
-                'redirect'`), so what is ticked here is what will actually
-                happen to the next DM. */}
+                'off'`), so what is ticked here is what will actually happen to
+                the next DM.
+
+                THAT DEFAULT CHANGED ON 31 AUGUST 2026, in both places at once.
+                It used to be 'redirect' here and 'redirect' in the webhook, so
+                a salon that had never opened this screen sent an automatic
+                "message me on WhatsApp" to every stranger who wrote in, and
+                the screen ticked a box the owner had never touched. Nobody
+                chose that. routes/instagram.js already treats an unset mode as
+                not chosen and writes 'off' at connect time; this is the same
+                rule applied to rows that predate it. */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
               {[
                 { key: 'ai', label: 'Florrie replies for you', desc: 'Florrie answers DMs herself, in your voice, and can book people in. Replies send without you seeing them first.', icon: 'sparkle' },
                 { key: 'redirect', label: 'Reply with your WhatsApp link', desc: 'One automatic reply pointing them to WhatsApp, then nothing else to that person for 7 days.', icon: 'message' },
                 { key: 'off', label: 'Store only, never reply', desc: 'The message lands in your inbox and nothing is sent back. Florrie stays quiet until you write yourself.', icon: 'bell' },
               ].map(opt => {
-                const mode = beautician.instagram_dm_mode || 'redirect';
+                const mode = beautician.instagram_dm_mode || 'off';
                 const active = mode === opt.key;
                 return (
                   <button className="fl-tap"
@@ -1989,7 +1998,7 @@ export default function Settings({ onLogout }) {
                 the point where it is switched on. This is also the state a Meta
                 reviewer's test DM hits: their message gets an automatic reply
                 before the account owner has typed anything. */}
-            {(beautician.instagram_dm_mode || 'redirect') === 'ai' && (
+            {(beautician.instagram_dm_mode || 'off') === 'ai' && (
               <div style={{ marginBottom: 16, padding: '12px 14px', borderRadius: 10, background: 'var(--warning-bg, #FAF0DC)' }}>
                 <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
                   {beautician.instagram_page_id
@@ -2004,7 +2013,7 @@ export default function Settings({ onLogout }) {
             {/* Redirect message editor, only shown in redirect mode. It used to
                 show in 'ai' mode too, offering to edit a message that mode
                 never sends. */}
-            {(beautician.instagram_dm_mode || 'redirect') === 'redirect' && (() => {
+            {(beautician.instagram_dm_mode || 'off') === 'redirect' && (() => {
               const phone = beautician.phone || '';
               const digits = phone.replace(/\D/g, '');
               const waNumber = digits.startsWith('44') ? digits : digits.startsWith('0') ? `44${digits.slice(1)}` : digits;

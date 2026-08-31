@@ -29,7 +29,64 @@ const TRANSACTIONAL = new Set([
   'booking_confirmation', 'appointment_reminder', 'reminder', 'payment_request',
   'payment_link', 'cancellation', 'reschedule', 'patch_test', 'consultation_form',
   'ai_reply', 'receipt',
+  // 31 August 2026, Instagram's first night live. Both of these answer a
+  // message the client sent seconds earlier, so the proactive machinery is the
+  // wrong shape for them: quiet hours would hold a reply to somebody who is
+  // awake and typing, the 7 day frequency cap would swallow it, and the trust
+  // dial would turn an auto-reply the owner deliberately switched on into a
+  // draft she has to approve. They are still gated, by the opt-out check
+  // below; they were previously sent with no gate of any kind.
+  'instagram_redirect', 'marketing_opt_out',
 ]);
+
+/**
+ * Transactional message types that Florrie GENERATES, rather than ones a human
+ * action produced.
+ *
+ * A booking confirmation exists because the client booked. The Instagram
+ * redirect exists because a bot decided to speak. Somebody who replied STOP to
+ * that bot must not get another one, and before 31 August 2026 they did: the
+ * redirect never passed through this file at all, and the only opt-out check
+ * in the codebase lived in a function the redirect path never called.
+ *
+ * Deliberately NOT the whole transactional set. A client who opts out of
+ * marketing is still owed the confirmation for the appointment she just made.
+ */
+const HONOURS_OPT_OUT = new Set(['instagram_redirect']);
+
+/**
+ * Has this client opted out of marketing? Reads the row we were handed when it
+ * actually carries the column, and goes and looks when it does not: a select
+ * that never asked for marketing_opted_out_at hands back undefined, which is
+ * falsy, which reads as "no opt-out" and is how three senders shipped wrong.
+ */
+async function hasOptedOut(beauticianId, clientId, client) {
+  if (client && typeof client === 'object' && 'marketing_opted_out_at' in client) {
+    return !!client.marketing_opted_out_at;
+  }
+  const id = clientId || client?.id;
+  if (!id) return false;
+  try {
+    const { data, error } = await supabase
+      .from('clients')
+      .select('marketing_opted_out_at')
+      .eq('id', id)
+      .eq('beautician_id', beauticianId)
+      .maybeSingle();
+    if (error) {
+      // Cannot tell. An auto-reply is never worth the risk of speaking to
+      // somebody who asked us to stop, so treat unknown as opted out.
+      logger.warn({ err: error, beauticianId, clientId: id },
+        'Could not read marketing_opted_out_at; treating as opted out and holding the auto-reply');
+      return true;
+    }
+    return !!data?.marketing_opted_out_at;
+  } catch (err) {
+    logger.warn({ err, beauticianId, clientId: id },
+      'Opt-out lookup threw; treating as opted out and holding the auto-reply');
+    return true;
+  }
+}
 
 // Tunables (kept here so they are easy to find and adjust).
 export const GUARD = {
@@ -114,6 +171,11 @@ export async function evaluateOutbound({ beauticianId, clientId, messageType, ch
     // reminders, receipts, payment links) still go straight through.
     if (messageType === 'ai_reply' && await isKnownClient(beauticianId, clientId, client)) {
       return decision('approve', tier, 'known_client_reply');
+    }
+    // A message Florrie writes on her own initiative, even a transactional
+    // one, stops when the client says STOP. See HONOURS_OPT_OUT above.
+    if (HONOURS_OPT_OUT.has(messageType) && await hasOptedOut(beauticianId, clientId, client)) {
+      return decision('block', tier, 'opted_out');
     }
     return decision('send', tier, 'transactional');
   }

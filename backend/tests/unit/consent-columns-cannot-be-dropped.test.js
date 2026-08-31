@@ -208,9 +208,15 @@ describe('no new sender joins clients without the consent columns', () => {
     // approved body started carrying the "reply if you want to change
     // anything" line the blurb had been duplicating. Same two joins, same
     // file, new line numbers.
-    // (Previously 1236 / 1514, then 1393 / 1685, then 1526 / 1818.)
-    'src/services/notifications.js:1532',
-    'src/services/notifications.js:1824',
+    // And down eight more on 31 August 2026: sendOnPreferredChannel's Instagram
+    // branch and its all-channels-exhausted tail both grew a logChannelFailover
+    // call, and pickChannel lost its global INSTAGRAM_PAGE_TOKEN fallback and
+    // gained the comment explaining why. Same two joins, same file, new line
+    // numbers.
+    // (Previously 1236 / 1514, then 1393 / 1685, then 1526 / 1818, then
+    // 1532 / 1824.)
+    'src/services/notifications.js:1540',
+    'src/services/notifications.js:1832',
   ]);
 
   function walk(dir) {

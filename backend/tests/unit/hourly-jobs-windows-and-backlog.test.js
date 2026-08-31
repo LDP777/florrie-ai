@@ -194,6 +194,20 @@ afterEach(() => { vi.useRealTimers(); });
 
 /* ================================================== 1. the first-boot backlog */
 describe('the rebook queue on the morning it is first switched on', () => {
+  // FIX THE CLOCK. processRebookNudges works out "today" in the SALON's
+  // timezone (Europe/London) while dayAgo below works it out in UTC, so
+  // between 23:00 and midnight UTC in British Summer Time the two disagree by
+  // a day and the fortnight floor lands on 13 rows instead of 14. Found on
+  // 31 August 2026 at 23:10 UTC, when this file failed on a run that had
+  // passed half an hour earlier and nothing in between had touched it.
+  //
+  // Midday, so no reading of "today" on either side of the code can land on a
+  // different date from the other.
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-31T12:00:00Z'));   // 13:00 in the salon
+  });
+
   const dayAgo = (n) => new Date(Date.now() - n * 86400_000).toISOString().slice(0, 10);
 
   /** A year of rows nobody has ever read back, one client each so they can

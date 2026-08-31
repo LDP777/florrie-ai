@@ -19,9 +19,20 @@ router.get('/', requireAuth, async (req, res) => {
     .limit(30);
 
   if (req.query.status) {
-    const validStatuses = ['draft', 'approved', 'published', 'rejected', 'scheduled'];
+    // THE REAL FIVE, from the CHECK on content_posts.status in migration 001:
+    //   draft, approved, scheduled, posted, failed
+    //
+    // 31 August 2026. This list said 'published' and 'rejected', neither of
+    // which any row can ever hold, and omitted 'posted' and 'failed', which
+    // are the two most worth filtering on. So ?status=posted was silently
+    // ignored and returned every post of every status, and ?status=published
+    // was silently ignored and looked like it worked. Silently, because an
+    // unrecognised value falls through without applying a filter at all.
+    const validStatuses = ['draft', 'approved', 'scheduled', 'posted', 'failed'];
     if (validStatuses.includes(req.query.status)) {
       query = query.eq('status', req.query.status);
+    } else {
+      return res.status(400).json({ error: `Unknown status filter. Use one of: ${validStatuses.join(', ')}` });
     }
   }
 

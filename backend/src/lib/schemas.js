@@ -14,7 +14,7 @@ import { z } from 'zod';
  * @property {string} [last_name] - Client's last name (optional, max 100 chars)
  * @property {string} [email] - Client's email (optional, must be valid)
  * @property {string} [phone] - Client's phone (optional, max 30 chars)
- * @property {'whatsapp'|'sms'|'email'} [preferred_channel] - Preferred contact method
+ * @property {'whatsapp'|'sms'|'email'|'instagram'} [preferred_channel] - Preferred contact method
  * @property {string} [notes] - Client notes (optional, max 5000 chars)
  */
 export const createClientSchema = z.object({
@@ -22,7 +22,12 @@ export const createClientSchema = z.object({
   last_name: z.string().max(100).trim().optional().nullable(),
   email: z.string().email('Invalid email').optional().nullable(),
   phone: z.string().max(30).trim().optional().nullable(),
-  preferred_channel: z.enum(['whatsapp', 'sms', 'email']).optional().default('whatsapp'),
+  // 'instagram' belongs here. 31 August 2026: Instagram DMs create clients
+  // with preferred_channel 'instagram' (routes/instagram-webhooks.js), and the
+  // enum did not allow it, so the ONE screen the owner could have used to fix
+  // a client who was being replied to on the wrong channel rejected the only
+  // value that would have fixed it.
+  preferred_channel: z.enum(['whatsapp', 'sms', 'email', 'instagram']).optional().default('whatsapp'),
   notes: z.string().max(5000).optional().nullable(),
 });
 
@@ -32,7 +37,7 @@ export const createClientSchema = z.object({
  * @property {string} [last_name] - Client's last name (optional)
  * @property {string} [email] - Client's email (optional)
  * @property {string} [phone] - Client's phone (optional)
- * @property {'whatsapp'|'sms'|'email'} [preferred_channel] - Preferred contact method
+ * @property {'whatsapp'|'sms'|'email'|'instagram'} [preferred_channel] - Preferred contact method
  * @property {boolean} [marketing_consent] - Whether client opted in to marketing
  * @property {boolean} [health_data_consent] - Whether client consented to health data usage
  * @property {string} [notes] - Client notes (optional)
@@ -45,7 +50,7 @@ export const updateClientSchema = z.object({
   last_name: z.string().max(100).trim().optional().nullable(),
   email: z.string().email().optional().nullable(),
   phone: z.string().max(30).trim().optional().nullable(),
-  preferred_channel: z.enum(['whatsapp', 'sms', 'email']).optional(),
+  preferred_channel: z.enum(['whatsapp', 'sms', 'email', 'instagram']).optional(),
   marketing_consent: z.boolean().optional(),
   health_data_consent: z.boolean().optional(),
   notes: z.string().max(5000).optional().nullable(),

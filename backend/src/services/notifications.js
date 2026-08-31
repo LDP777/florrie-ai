@@ -1136,8 +1136,16 @@ export function pickChannel(client, beauticianPrefs = {}) {
   const override = beauticianPrefs.channel;
   if (override && override !== 'auto') return override;
 
-  // Instagram: client came via Instagram DM and token is available
-  if (client?.instagram_id && (beauticianPrefs.instagram_page_token || process.env.INSTAGRAM_PAGE_TOKEN)) {
+  // Instagram: client came via Instagram DM and THIS SALON's token is on file.
+  //
+  // The `|| process.env.INSTAGRAM_PAGE_TOKEN` that used to be here was a
+  // multi-tenant leak: a global env token belongs to whichever account was
+  // connected when it was set, so on a salon with no Instagram of its own this
+  // returned 'instagram' and the message would go out from somebody else's
+  // account, to somebody else's follower id. Removed 31 August 2026, the night
+  // real Instagram accounts started arriving. A token per beautician or
+  // nothing.
+  if (client?.instagram_id && beauticianPrefs.instagram_page_token) {
     return 'instagram';
   }
 
@@ -2074,6 +2082,13 @@ export async function sendOnPreferredChannel({ client, body, beautician, message
         });
         attempts.push({ channel, ok: !!sent });
         if (sent) return { ok: true, channel, attempts };
+        // 31 August 2026, the night Instagram went live. This branch just
+        // `continue`d, so an Instagram send that failed for a reachable client
+        // (expired token, closed 24h window, Meta refusing the account) was
+        // visible nowhere: not in the activity feed, not on her phone, not in
+        // the thread. The WhatsApp branch below has logged its failovers since
+        // June and there was never a reason for Instagram not to.
+        logChannelFailover(beautician?.id, client, 'instagram', messageType).catch(() => {});
         continue;
       }
 
@@ -2109,7 +2124,12 @@ export async function sendOnPreferredChannel({ client, body, beautician, message
     }
   }
 
+  // Every channel refused. Until 31 August 2026 this was a logger.warn and
+  // nothing else, so a message that reached the client on NO channel at all
+  // looked, from inside the app, exactly like one that had been delivered. The
+  // one case that most needs a human is the one that told nobody.
   logger.warn({ clientId: client?.id, attempts }, 'sendOnPreferredChannel: all channels exhausted');
+  logChannelFailover(beautician?.id, client, order[0] || 'sms', messageType).catch(() => {});
   return { ok: false, channel: order[0] || 'sms', attempts };
 }
 

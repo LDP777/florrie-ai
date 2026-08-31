@@ -18,6 +18,7 @@ import { sendMessage, sendInstagramDM, sendWhatsAppText, sendSMS, notifyBookingC
 import { pushEscalation, pushTeamUpdate, pushAtTheDoor } from './push-notifications.js';
 import { refreshLiveActivity } from './live-activity.js';
 import { isKnownClient, clientAutonomyOverride, guardedSend, classifyTier } from '../lib/outbound-guard.js';
+import { isOptOutMessage, applyOptOut, OPT_OUT_CONFIRMATION } from '../lib/opt-out.js';
 import { getLoyaltyConfig, getClientPoints, loyaltyProximity } from './loyalty.js';
 import { getActivePromos, describePromo } from '../lib/promos.js';
 import { advanceBookingConversation } from './conversational-booking.js';
@@ -158,35 +159,35 @@ const ALWAYS_ESCALATE = [
  * Process an inbound message through the AI Front Desk.
  * Called by the webhook handler after storing the raw message.
  */
-export async function processInboundMessage(messageId, beautician, client, messageContent) {
+export async function processInboundMessage(messageId, beautician, client, messageContent, channel = null) {
   const startTime = Date.now();
+
+  // WHICH TRANSPORT THE MESSAGE CAME IN ON, not which one the client record
+  // says she prefers.
+  //
+  // 31 August 2026, the night Instagram went live for @ellindigo. sendResponse
+  // read clients.preferred_channel, and preferred_channel is only ever set to
+  // 'instagram' when the client row is CREATED from an Instagram DM. An
+  // existing WhatsApp or SMS client who DMs on Instagram therefore had
+  // Florrie's reply sent as a text, to a conversation that was happening
+  // somewhere else, and the outbound row was logged with the wrong channel on
+  // it too. routes/escalations.js already had the right shape and this now
+  // matches it: the channel of the message, then the stored preference, then
+  // sms. Callers that do not pass one are unchanged.
+  const replyChannel = channel || client?.preferred_channel || 'sms';
 
   try {
     // 0. PECR opt-out: STOP and friends are honoured instantly, on any channel,
     // before any AI processing. Service messages (confirmations, reminders)
     // still go out; marketing never does again (see lib/marketing-guard.js).
-    if (/^\s*(stop|unsubscribe|opt\s?-?out)\s*[.!]*\s*$/i.test(String(messageContent || ''))) {
-      await supabase.from('clients').update({
-        marketing_consent: false,
-        marketing_opted_out_at: new Date().toISOString(),
-      }).eq('id', client.id);
-      const confirmation = "No problem, you won't get any more promotional messages from us. Booking confirmations and reminders still come through. Reply here anytime to book.";
-      const sent = await sendResponse(beautician, client, confirmation, { intent: 'marketing_opt_out', confidence: 1.0 }, messageId);
-      try {
-        await supabase.from('ai_actions').insert({
-          beautician_id: beautician.id,
-          client_id: client?.id || null,
-          action_type: 'marketing_opt_out',
-          digital_employee: 'front_desk',
-          summary: `${client?.first_name || 'A client'} opted out of marketing messages, I've stopped offers and nudges to them`,
-          confidence: 1.0,
-          autonomous: true,
-          outcome: 'success',
-          notification_sent: false,
-        });
-      } catch (logErr) {
-        logger.warn({ err: logErr }, 'opt-out ai_action insert failed');
-      }
+    //
+    // The recogniser and the consent write moved to lib/opt-out.js on
+    // 31 August 2026 so that Instagram's `redirect` and `off` modes, which
+    // never reach this function, can honour STOP too.
+    if (isOptOutMessage(messageContent)) {
+      await applyOptOut({ beautician, client });
+      const confirmation = OPT_OUT_CONFIRMATION;
+      const sent = await sendResponse(beautician, client, confirmation, { intent: 'marketing_opt_out', confidence: 1.0 }, messageId, replyChannel);
       return { handled: sent, drafted: !sent, intent: 'marketing_opt_out', response: confirmation };
     }
 
@@ -453,7 +454,7 @@ export async function processInboundMessage(messageId, beautician, client, messa
       // Florrie never silently auto-sends a phantom message; if delivery does not
       // happen the reply is surfaced as a one-tap draft (the "every send is one
       // human tap" thesis), and we never record it as sent.
-      const sent = await sendResponse(beautician, client, outgoing, classification, messageId);
+      const sent = await sendResponse(beautician, client, outgoing, classification, messageId, replyChannel);
 
       // 6a. Update message record honestly based on whether it actually sent.
       await supabase.from('messages').update({
@@ -1894,9 +1895,12 @@ function renderFreeSlots(freeSlots) {
   return `Free slots (ONLY offer times from this list, never invent one): ${shown}${more}`;
 }
 
-async function sendResponse(beautician, client, responseText, classification, messageId) {
-  // Detect which channel the client came in on
-  const inboundChannel = client?.preferred_channel || 'sms';
+async function sendResponse(beautician, client, responseText, classification, messageId, channel = null) {
+  // The channel the message ARRIVED on, passed down from processInboundMessage.
+  // See the note on replyChannel there for why reading preferred_channel here
+  // was sending Instagram replies out as texts on 31 August 2026. The fallback
+  // chain is kept for the few callers that still do not know their channel.
+  const inboundChannel = channel || client?.preferred_channel || 'sms';
   let sent = false;
 
   if (inboundChannel === 'instagram' && client?.instagram_id) {
