@@ -33,6 +33,8 @@ import { getFreeSlots, nowInSalonWall } from '../lib/free-slots.js';
 import { safeReply, HOLDING_REPLY } from '../lib/reply-claims-guard.js';
 import { hasCompletedConsultation } from '../lib/consultation-status.js';
 import { totalApplicationFee } from '../lib/platform-fees.js';
+import { apiPublicBase } from '../lib/public-url.js';
+import { announceBookingConfirmed } from './booking-confirmed-alert.js';
 import {
   combineTreatments, resolveDepositCents, formatWallTime, describeSlot,
   matchTreatment, dayPreferenceFrom, chooseOffers, matchSlotChoice,
@@ -740,6 +742,22 @@ async function holdAndCharge({ beautician, client, treatment, slot, state, conte
     const { notifyBookingConfirmed } = await import('./notifications.js');
     notifyBookingConfirmed(appointment.id).catch(err =>
       logger.warn({ err, appointmentId: appointment.id }, 'Booking confirmation notification failed (non-fatal)'));
+
+    // AND THE OWNER. This file has never told her about a single booking since
+    // it was written on 5 August 2026: it imported no push helper at all, so a
+    // client could book herself in over WhatsApp and the only person who did
+    // not find out was the person whose diary it is. (31 August 2026, the
+    // owner reported being told only about bookings that had not been paid
+    // for.)
+    //
+    // claim:false because the row above was INSERTED already confirmed, so
+    // there is no transition left to win. The ledger check inside
+    // announceBookingConfirmed is what keeps it to one announcement.
+    announceBookingConfirmed(appointment.id, {
+      source: 'conversational_no_deposit',
+      claim: false,
+    }).catch(err =>
+      logger.warn({ err, appointmentId: appointment.id }, 'Owner booking alert failed (non-fatal)'));
     const reply = `Lovely, I've got you in for ${treatment.name} on ${when}.${patchLine}`;
     return speak(
       guarded(reply, { allowedTimes: [slot.time], actionPerformed: true, fallback: `Lovely, that's you booked in for ${treatment.name}.`, context: { stage: 'confirmed_no_deposit' } }),
@@ -936,7 +954,22 @@ async function createDepositCheckout({ beautician, client, treatment, appointmen
         payment_type: 'deposit',
       },
     },
-    success_url: `${FRONTEND_URL}/book/${beautician.booking_slug}/confirmed?mt=${appointment.management_token}`,
+    // LAND ON OUR OWN CONFIRM ENDPOINT, not straight back on the SPA.
+    //
+    // This pointed at the frontend from the day the file was written, which
+    // made the redirect fallback in routes/booking.js structurally unreachable
+    // for every conversational booking: that route is what retrieves the
+    // session, checks payment_status server side, records the deposit and
+    // tells the owner. With the SPA as the success_url the ONLY thing that
+    // could ever confirm one of these was the Stripe webhook, which is the very
+    // thing that had died for six weeks. It forwards to the same confirmed
+    // page afterwards, so the client sees no difference.
+    //
+    // Falls back to the SPA when no public API base is configured, because a
+    // success_url built from nothing would break Checkout outright.
+    success_url: apiPublicBase()
+      ? `${apiPublicBase()}/api/booking/confirm/{CHECKOUT_SESSION_ID}?slug=${beautician.booking_slug}&mt=${appointment.management_token}`
+      : `${FRONTEND_URL}/book/${beautician.booking_slug}/confirmed?mt=${appointment.management_token}`,
     cancel_url: `${FRONTEND_URL}/book/${beautician.booking_slug}`,
     metadata: {
       appointment_id: appointment.id,

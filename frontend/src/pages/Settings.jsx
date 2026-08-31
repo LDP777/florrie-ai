@@ -1134,12 +1134,26 @@ export default function Settings({ onLogout }) {
           <div style={styles.card}>
             <h3 style={styles.cardTitle}>Your notifications</h3>
             <p style={styles.cardDesc}>Choose how you want to be notified about activity.</p>
+            {/* Two rows, not one. Until 31 August 2026 both of these read the
+                single key booking_confirmed, so turning off the buzz for
+                somebody who started a booking and walked away also turned off
+                the one for a booking that was actually paid for. The owner had
+                been getting only the second kind and asked for the first. */}
             <NotificationToggle
-              label="New bookings"
-              desc="When a client books an appointment"
+              label="Bookings paid and confirmed"
+              desc="A client has booked and the deposit is in"
               prefs={beautician.notification_prefs?.booking_confirmed || { email: true, push: true }}
               onChange={v => {
                 const np = { ...(beautician.notification_prefs || {}), booking_confirmed: v };
+                saveProfile({ notification_prefs: np });
+              }}
+            />
+            <NotificationToggle
+              label="Deposits not completed"
+              desc="Someone started a booking and stopped at the payment screen"
+              prefs={beautician.notification_prefs?.booking_pending || { email: true, push: true }}
+              onChange={v => {
+                const np = { ...(beautician.notification_prefs || {}), booking_pending: v };
                 saveProfile({ notification_prefs: np });
               }}
             />

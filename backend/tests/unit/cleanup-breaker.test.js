@@ -43,6 +43,13 @@ function builder(table) {
     update(p) { pending = { op: 'update', payload: p }; return b; },
     insert(p) { pending = { op: 'insert', payload: p }; return b; },
     eq(c, v) { filters.push(r => r[c] === v); return b; },
+    // neq and limit arrived with the rescue alert on 31 August 2026: the
+    // rescue now claims the status transition with
+    // `.update({status:'confirmed'}).neq('status','confirmed').select('id')`
+    // and reads the ai_actions ledger with `.limit(1)`, so the fake has to
+    // understand both or the rescue silently stops confirming anything.
+    neq(c, v) { filters.push(r => r[c] !== v); return b; },
+    limit(n) { filters.push(() => true); b._limit = n; return b; },
     in(c, v) { filters.push(r => v.includes(r[c])); return b; },
     is(c, v) { filters.push(r => (r[c] ?? null) === v); return b; },
     or() { return b; },
@@ -80,6 +87,9 @@ vi.mock('../../src/lib/outbound-guard.js', () => ({
 vi.mock('../../src/services/messaging.js', () => ({ sendOnChannel: async () => true }));
 vi.mock('../../src/services/push-notifications.js', () => ({
   pushTeamUpdate: async (...args) => { toldEllie.push(args); return true; },
+  // The rescue was the quietest path in the product: it repaired a paid
+  // booking, raised a Sentry message and told the owner nothing at all.
+  pushBookingConfirmed: async (...args) => { toldEllie.push(['booking_confirmed', ...args]); return { delivered: 1, sent: 1 }; },
 }));
 vi.mock('@sentry/node', () => ({ captureMessage: () => {}, captureException: () => {} }));
 
@@ -187,6 +197,11 @@ describe('asking Stripe before taking a slot away', () => {
     expect(db.appointments[0].status).toBe('confirmed');
     expect(db.appointments[0].deposit_paid).toBe(true);
     expect(db.appointments[0].deposit_status).toBe('paid');
+    // AND SHE IS TOLD. Until 31 August 2026 this branch repaired the booking
+    // in complete silence: the only trace was a Sentry message, and the owner
+    // ended up with a paid appointment in her diary she had heard nothing
+    // about. That is the case where she most needs telling.
+    expect(toldEllie.some(a => a[0] === 'booking_confirmed')).toBe(true);
   });
 
   it('leaves it alone when Stripe cannot be reached, rather than guessing', async () => {

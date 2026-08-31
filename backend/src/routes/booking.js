@@ -5,7 +5,8 @@ import * as Sentry from '@sentry/node';
 import { supabase } from '../config.js';
 import { isMissingColumnError } from '../lib/junk-classifier.js';
 import { notifyBookingConfirmed } from '../services/notifications.js';
-import { pushNewBooking, pushBookingConfirmed, pushReschedule, pushPatchTestBooked, pushClientCancelled, pushTeamUpdate } from '../services/push-notifications.js';
+import { pushNewBooking, pushReschedule, pushPatchTestBooked, pushClientCancelled, pushTeamUpdate } from '../services/push-notifications.js';
+import { announceBookingConfirmed } from '../services/booking-confirmed-alert.js';
 import { refreshLiveActivity } from '../services/live-activity.js';
 import { sendConsultationFormSMS, recordBookingConsultation } from './consultation-forms.js';
 import { splitBookingSubmission } from '../lib/client-notes.js';
@@ -369,12 +370,18 @@ router.get('/confirm/:sessionId', async (req, res) => {
           .eq('id', appointmentId)
           .maybeSingle();
         if (appt && !appt.deposit_paid) {
+          // The status transition moved OUT of this update on 31 August 2026.
+          // It is now made by announceBookingConfirmed below, conditionally, so
+          // that whichever of this redirect and the Stripe webhook gets there
+          // first is the one and only writer that tells the owner. The guard
+          // that used to do that job (`!appt.deposit_paid`, just above) is
+          // one-shot: four other writers set deposit_paid true, so whichever
+          // landed first disarmed it for good.
           await supabase
             .from('appointments')
             .update({
               deposit_paid: true,
               deposit_status: 'paid',
-              status: 'confirmed',
               stripe_payment_intent_id: session.payment_intent || null,
             })
             .eq('id', appointmentId);
@@ -479,23 +486,14 @@ router.get('/confirm/:sessionId', async (req, res) => {
             logger.warn({ err, appointmentId }, 'confirm-redirect: notification failed (non-fatal)')
           );
           logger.info({ appointmentId, sessionId }, 'Booking confirmed via success-redirect (webhook fallback)');
-          // Push the beautician the "booked - deposit paid" confirmation too. The
-          // Stripe webhook also does this, but the deposit_paid guard above means
-          // only ONE path (whichever confirmed first) fires, so no duplicate.
-          (async () => {
-            try {
-              const { data: ca } = await supabase
-                .from('appointments')
-                .select('beautician_id, starts_at, clients(first_name), treatments(name)')
-                .eq('id', appointmentId).maybeSingle();
-              if (!ca) return;
-              const cday = String(ca.starts_at || '').slice(0, 10);
-              const ctime = String(ca.starts_at || '').slice(11, 16);
-              const clabel = cday ? `${new Date(`${cday}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} at ${ctime}` : 'their appointment';
-              await pushBookingConfirmed(ca.beautician_id, ca.clients?.first_name || 'A client', ca.treatments?.name || 'their treatment', clabel, { appointmentId, apptDate: ca.starts_at });
-            } catch (e) { logger.warn({ err: e, appointmentId }, 'confirm-redirect: beautician push failed (non-fatal)'); }
-          })();
         }
+
+        // Outside the deposit_paid gate on purpose. Stripe says this session is
+        // paid, so the booking is real whoever recorded it, and the claim
+        // inside announceBookingConfirmed is what stops a second buzz. If the
+        // webhook already confirmed it, this costs one no-op UPDATE and says
+        // nothing.
+        await announceBookingConfirmed(appointmentId, { source: 'confirm_redirect' });
       }
     }
   } catch (err) {
@@ -2580,7 +2578,7 @@ router.post('/:slug/manage/:token/resend-payment', async (req, res) => {
       .from('appointments')
       .select(`
         id, status, deposit_paid, stripe_payment_intent_id, client_email,
-        starts_at, treatment_id, beautician_id,
+        starts_at, treatment_id, beautician_id, client_id,
         beauticians(id, booking_slug, booking_policy, business_name, first_name, stripe_account_id, stripe_onboarding_complete, brand_color),
         treatments(name, price_cents),
         clients(first_name, email, stripe_customer_id)
@@ -2657,7 +2655,30 @@ router.post('/:slug/manage/:token/resend-payment', async (req, res) => {
       // confirmed it was the webhook, which is the very thing that had died.
       success_url: `${apiBase}/api/booking/confirm/{CHECKOUT_SESSION_ID}?slug=${req.params.slug}&mt=${req.params.token}`,
       cancel_url: `${FRONTEND_URL}/book/${req.params.slug}/manage/${req.params.token}`,
-      metadata: { appointment_id: appt.id, payment_type: 'deposit_resend' },
+      // SESSION-LEVEL metadata, and it must carry the salon.
+      //
+      // 31 August 2026. This object used to be
+      // `{ appointment_id, payment_type }` and nothing else, while the copy
+      // inside payment_intent_data above carried beautician_id all along. The
+      // webhook reads the SESSION one (routes/stripe.js, session.metadata),
+      // so every resent deposit paid gave it beauticianId === undefined, and
+      // that undefined went two places, both of them silent:
+      //
+      //   1. the confirmed push, which filtered devices on
+      //      .eq('beautician_id', undefined), matched nothing and told her
+      //      nothing;
+      //   2. the transactions insert, where beautician_id is NOT NULL, so the
+      //      row was rejected and the money the client actually paid never
+      //      reached her Money tab. A PAID BUT NOT RECORDED, every time.
+      //
+      // client_id is here for the same reason: the transaction and the
+      // customer save both read it off the session.
+      metadata: {
+        appointment_id: appt.id,
+        beautician_id: appt.beautician_id,
+        ...(appt.client_id ? { client_id: appt.client_id } : {}),
+        payment_type: 'deposit_resend',
+      },
     });
 
     // Move the appointment onto the intent the client is about to pay with.

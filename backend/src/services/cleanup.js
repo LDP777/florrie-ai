@@ -12,6 +12,7 @@ import { guardedSend } from '../lib/outbound-guard.js';
 import { encrypt, decrypt, isEncrypted } from '../lib/crypto.js';
 import { sendOnChannel } from './messaging.js';
 import { pushTeamUpdate } from './push-notifications.js';
+import { announceBookingConfirmed } from './booking-confirmed-alert.js';
 
 
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
@@ -319,9 +320,17 @@ export async function cleanupStaleBookings() {
     if (appt.stripe_payment_intent_id) {
       const paid = await stripeSaysPaid(appt.stripe_payment_intent_id);
       if (paid === true) {
+        // The deposit fields, then the status transition, in that order and
+        // separately. The transition is made by announceBookingConfirmed so
+        // that the rescue TELLS HER, which it never did: it repaired the
+        // booking, raised a Sentry message nobody's phone rings for, and left
+        // the owner with a paid appointment she had heard nothing about.
+        // That is precisely the case where she most needs telling, and it was
+        // the quietest path of the lot. (31 August 2026, the owner reported
+        // being told only about bookings that had not been paid for.)
         const { error: fixErr } = await supabase
           .from('appointments')
-          .update({ deposit_paid: true, deposit_status: 'paid', status: 'confirmed' })
+          .update({ deposit_paid: true, deposit_status: 'paid' })
           .eq('id', appt.id)
           .eq('status', 'pending');
         logger.error({ appointmentId: appt.id, err: fixErr || undefined }, 'Cleanup RESCUED a paid booking that our records had as unpaid');
@@ -330,6 +339,9 @@ export async function cleanupStaleBookings() {
           tags: { area: 'payments', check: 'stale_cleanup_rescue' },
           extra: { appointmentId: appt.id },
         });
+        const alert = await announceBookingConfirmed(appt.id, { source: 'cleanup_rescue' });
+        logger.warn({ appointmentId: appt.id, announced: alert.announced, delivered: alert.delivered },
+          'Rescued booking: owner alert');
         if (!fixErr) rescued++;
         continue;
       }

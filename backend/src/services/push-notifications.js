@@ -171,7 +171,18 @@ const ACTION_TO_PREF = {
   milestone: 'milestones',
   weekly_review: 'weekly_review',
   booking_confirmed: 'booking_confirmed',
-  booking_pending: 'booking_confirmed',
+  // ITS OWN KEY, since 31 August 2026.
+  //
+  // These two shared 'booking_confirmed' and Settings showed ONE toggle for
+  // both, labelled "New bookings". That was harmless only for as long as
+  // beauticians.notification_prefs did not exist in production: shouldPush
+  // fails open on a missing column, so no toggle suppressed anything. The
+  // column is live now, and sharing the key means the owner cannot silence the
+  // "somebody is trying to book" buzz without also silencing the one she asked
+  // for. They are different moments with different copy and different sounds,
+  // so they get different switches. Missing key means send, so an existing row
+  // with no booking_pending in it keeps buzzing until she says otherwise.
+  booking_pending: 'booking_pending',
   booking_rescheduled: 'booking_confirmed',
   patch_test_booked: 'booking_confirmed',
   booking_cancelled: 'booking_cancelled',

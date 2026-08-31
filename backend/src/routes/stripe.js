@@ -5,7 +5,7 @@ import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireOwned } from '../lib/ownership.js';
 import { notifyBookingConfirmed } from '../services/notifications.js';
-import { pushBookingConfirmed } from '../services/push-notifications.js';
+import { announceBookingConfirmed } from '../services/booking-confirmed-alert.js';
 import { cleanupStripeEvents } from '../services/stripe-cleanup.js';
 import { totalApplicationFee, estimateStripeFee, getFeeDescription } from '../lib/platform-fees.js';
 import {
@@ -1309,11 +1309,16 @@ router.post('/webhook', async (req, res) => {
             payment_method: 'card_online',
           });
 
-          // If linked to an appointment, update its status
+          // If linked to an appointment, mark it paid and confirm it. A
+          // payment link against a still-pending booking is that booking
+          // becoming real, so it announces like any other confirmation and,
+          // like every other writer, leaves the status transition to
+          // announceBookingConfirmed so it can only be told once.
           if (appointmentId) {
             await supabase.from('appointments')
-              .update({ deposit_status: 'paid', deposit_paid: true, status: 'confirmed' })
+              .update({ deposit_status: 'paid', deposit_paid: true })
               .eq('id', appointmentId);
+            await announceBookingConfirmed(appointmentId, { source: 'stripe_payment_link' });
           }
 
           // Save customer for future use
@@ -1332,10 +1337,16 @@ router.post('/webhook', async (req, res) => {
           // Determine if this was a full payment or deposit from metadata
           const paymentType = session.metadata?.payment_type || 'deposit';
 
-          // Mark deposit as paid AND confirm the appointment (was 'pending' waiting for payment)
+          // Mark the deposit paid. The status transition is NOT written here
+          // any more: announceBookingConfirmed makes it, conditionally, and
+          // only the writer that actually moves the row into 'confirmed'
+          // tells the owner. See services/booking-confirmed-alert.js for why
+          // the transition is the idempotency key (31 August 2026: the owner
+          // reported being told only about bookings that had not been paid
+          // for, and the webhook and the /confirm redirect race).
           await supabase
             .from('appointments')
-            .update({ deposit_status: 'paid', deposit_paid: true, status: 'confirmed' })
+            .update({ deposit_status: 'paid', deposit_paid: true })
             .eq('id', appointmentId);
 
           // Log the transaction, ONCE. The confirmation redirect
@@ -1397,33 +1408,15 @@ router.post('/webhook', async (req, res) => {
             logger.warn({ err }, 'Post-payment confirmation notification failed (non-fatal)')
           );
 
-          // Tell the beautician the money landed. The push at booking time
-          // said "deposit not paid yet"; this is the confirming second beat.
-          (async () => {
-            try {
-              const { data: appt } = await supabase
-                .from('appointments')
-                .select('id, starts_at, clients(first_name), treatments(name)')
-                .eq('id', appointmentId)
-                .maybeSingle();
-              if (!appt) return;
-              // Wall-time convention: read the display time off the string.
-              const day = String(appt.starts_at || '').slice(0, 10);
-              const time = String(appt.starts_at || '').slice(11, 16);
-              const dateLabel = day
-                ? `${new Date(`${day}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} at ${time}`
-                : 'their appointment';
-              await pushBookingConfirmed(
-                beauticianId,
-                appt.clients?.first_name || 'A client',
-                appt.treatments?.name || 'their treatment',
-                dateLabel,
-                { appointmentId, apptDate: appt.starts_at }
-              );
-            } catch (err) {
-              logger.warn({ err }, 'Deposit-paid push failed (non-fatal)');
-            }
-          })();
+          // Tell the beautician the money landed, exactly once across the
+          // webhook / redirect race, and RECORD whether it reached a device.
+          // This used to be a detached async IIFE that swallowed its own
+          // errors and threw away sendPush's delivery count, so a push to zero
+          // devices and a push she actually felt were the same log line.
+          // Awaited now: the webhook has already done all its database work by
+          // this point, and Stripe retries on a non-2xx, which
+          // announceBookingConfirmed cannot cause because it never throws.
+          await announceBookingConfirmed(appointmentId, { source: 'stripe_webhook' });
         }
 
         // Course enrollment deposit payment

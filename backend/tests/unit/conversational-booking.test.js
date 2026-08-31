@@ -11,6 +11,10 @@
  * stub is a small in-memory PostgREST: enough filtering to make getFreeSlots
  * behave, and it records every write so the test can inspect what was booked.
  */
+// The public address of THIS api, which is what the Checkout success_url has
+// to point at. Set before any import so lib/public-url.js sees it.
+process.env.PUBLIC_API_URL = 'https://api.florrie.test';
+
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { checkReplyClaims } from '../../src/lib/reply-claims-guard.js';
 import { totalApplicationFee } from '../../src/lib/platform-fees.js';
@@ -150,6 +154,19 @@ vi.mock('../../src/services/notifications.js', () => ({
   notifyBookingConfirmed: async () => true,
 }));
 
+// Everything this module told anybody until 31 August 2026 went to the CLIENT.
+// It imported no push helper at all, so a client could book herself in over
+// WhatsApp and the only person who never found out was the owner.
+const ownerTold = [];
+vi.mock('../../src/services/booking-confirmed-alert.js', () => ({
+  announceBookingConfirmed: async (appointmentId, opts) => {
+    ownerTold.push({ appointmentId, ...opts });
+    return { announced: true, delivered: 1, channel: 'push' };
+  },
+  claimConfirmed: async () => ({ won: true, reason: 'transitioned' }),
+  BOOKING_CONFIRMED_ACTION: 'booking_confirmed',
+}));
+
 const { advanceBookingConversation, heldBookingClaimContext, HOLD_MINUTES, SESSION_GRACE_MINUTES } =
   await import('../../src/services/conversational-booking.js');
 
@@ -206,6 +223,7 @@ beforeEach(() => {
   stripeCalls.customers.length = 0;
   stripeThrows = false;
   idCounter = 0;
+  ownerTold.length = 0;
 });
 
 const state = () => db.booking_conversations[0];
@@ -550,5 +568,73 @@ describe('who Florrie will book', () => {
     db.clients[0].blocked_at = '2026-07-01T00:00:00.000Z';
     expect(await say('can I book a hybrid lash set friday')).toBeNull();
     expect(held()).toHaveLength(0);
+  });
+});
+
+/**
+ * THE OWNER, WHO WAS NEVER TOLD ANY OF THIS.
+ *
+ * 31 August 2026. The pilot salon owner: "there is no notification for when
+ * people book now, only when they try and haven't paid deposit yet." This file
+ * was written on 5 August and has never notified her once, by either of its two
+ * endings:
+ *
+ *   - the zero-deposit branch confirms the appointment outright and speaks only
+ *     to the client;
+ *   - the deposit branch's Checkout success_url pointed at the frontend SPA,
+ *     so /api/booking/confirm/:sessionId (which retrieves the session, checks
+ *     payment_status server side, records the deposit and tells the owner)
+ *     was structurally unreachable for every conversational booking. The only
+ *     thing that could ever confirm one was the Stripe webhook, which is the
+ *     very thing that had been dead for six weeks.
+ */
+describe('the owner finds out about a conversational booking', () => {
+  // A salon with no deposit configured and a treatment that asks for none:
+  // the booking is confirmed outright, exactly as the booking page does it.
+  const NO_DEPOSIT_SALON = { ...BEAUTICIAN, payment_settings: {} };
+  const FREE_TREATMENT = {
+    id: 't_free', name: 'Brow Tint', duration_minutes: 30, buffer_minutes: 0,
+    price_cents: 1500, deposit_cents: 0, deposit_percent: 0,
+    requires_patch_test: false, requires_consultation: false,
+  };
+
+  const sayFree = (message, intent = 'booking_request') =>
+    advanceBookingConversation({
+      beautician: NO_DEPOSIT_SALON, client: CLIENT, message,
+      classification: { intent, confidence: 1 },
+      context: ctx({ treatments: [FREE_TREATMENT] }),
+    });
+
+  it('tells her when a booking with no deposit is confirmed on the spot', async () => {
+    freezeSalonClock();
+    await sayFree('can I book a brow tint friday');
+    state().offered = [{ iso: '2026-08-07T16:00:00.000Z', date: '2026-08-07', time: '16:00' }];
+    const r = await sayFree('yes please', 'unknown');
+
+    const appt = db.appointments.find(a => a.booked_via === 'ai_front_desk');
+    expect(appt.status).toBe('confirmed');
+    expect(r.actionPerformed).toBe(true);
+
+    expect(ownerTold).toHaveLength(1);
+    expect(ownerTold[0].appointmentId).toBe(appt.id);
+    expect(ownerTold[0].source).toBe('conversational_no_deposit');
+    // The row was INSERTED already confirmed, so there is no transition left
+    // to claim and claiming one would silence the only alert she gets.
+    expect(ownerTold[0].claim).toBe(false);
+  });
+
+  it('sends the deposit Checkout back to our own confirm endpoint, not to the SPA', async () => {
+    freezeSalonClock();
+    await say('can I book a hybrid lash set friday');
+    state().offered = [{ iso: '2026-08-07T16:00:00.000Z', date: '2026-08-07', time: '16:00' }];
+    await say('yes please', 'unknown');
+
+    const session = stripeCalls.sessions[0];
+    expect(session.success_url).toContain('https://api.florrie.test/api/booking/confirm/{CHECKOUT_SESSION_ID}');
+    expect(session.success_url).toContain('slug=ellie');
+    expect(session.success_url).toContain(`mt=${held()[0].management_token}`);
+    // It still lands the client on the same confirmed page afterwards, so
+    // nothing she sees changes.
+    expect(session.cancel_url).toContain('https://florrie.ai/book/ellie');
   });
 });

@@ -173,16 +173,18 @@ describe('no new sender joins clients without the consent columns', () => {
     // history rule that separated the 673 imported regulars from the 277 true
     // first timers, and again on 29 August 2026 by the hybrid consultation
     // rule (lib/consultation-status.js) landing in lookup-client, in the /book
-    // gate and in the two manage-page treatment routes. Same five joins, same
-    // file, new line numbers.
+    // gate and in the two manage-page treatment routes, and again on 31 August
+    // 2026 by the booking-confirmed alert moving to the status transition
+    // (the /confirm redirect and the resent-deposit metadata both grew). Same
+    // five joins, same file, new line numbers.
     // (Previously 857 / 1572 / 2126 / 2392 / 2803, then 993 / 1708 / 2262 /
     // 2528 / 2939, then 994 / 1777 / 2331 / 2597 / 3008, then 1019 / 1846 /
-    // 2400 / 2666 / 3077.)
-    'src/routes/booking.js:1095',
-    'src/routes/booking.js:2032',
-    'src/routes/booking.js:2586',
-    'src/routes/booking.js:2852',
-    'src/routes/booking.js:3263',
+    // 2400 / 2666 / 3077, then 1095 / 2032 / 2586 / 2852 / 3263.)
+    'src/routes/booking.js:1093',
+    'src/routes/booking.js:2030',
+    'src/routes/booking.js:2584',
+    'src/routes/booking.js:2873',
+    'src/routes/booking.js:3284',
     'src/routes/features.js:132',
     'src/routes/features.js:169',
     'src/routes/features.js:194',
