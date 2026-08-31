@@ -418,7 +418,15 @@ router.get('/callback', async (req, res) => {
       },
       'Instagram OAuth callback refused: the state did not verify',
     );
-    return finish(false, 'that link expired, please try again from Florrie');
+    // NAME THE ACTUAL REASON. Until 31 August 2026 every state failure said
+    // "that link expired", including BAD_SIGNATURE, which is what was really
+    // happening: the app mints the state on one host and the callback verifies
+    // it on another, and the two do not share a signing key, so the signature
+    // never matched and the owner was told her link had expired seconds after
+    // it was made. A week was spent looking for a slow login.
+    return finish(false, checked.reason === 'EXPIRED'
+      ? 'that link expired, please try again from Florrie'
+      : `the sign in could not be verified (${checked.reason || 'unknown'}), please tell Levi`);
   }
   const beauticianId = checked.payload.beauticianId;
 
