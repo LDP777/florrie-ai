@@ -51,44 +51,123 @@ export async function hapticSuccess() {
 
 /**
  * Register for native push notifications.
- * Returns the device token (APNs/FCM) or null.
+ *
+ * THIS IS WHY NO BOOKING EVER BUZZED HER PHONE.
+ *
+ * It used to call `PushNotifications.register()` and THEN attach the
+ * 'registration' listener, inside a Promise executor:
+ *
+ *     await PushNotifications.register();
+ *     return new Promise((resolve) => {
+ *       PushNotifications.addListener('registration', t => resolve(t.value));
+ *
+ * register() is what asks APNs for the token, and APNs frequently answers
+ * before the next line runs, especially on a warm start where iOS already has
+ * one cached. The event then fires with nothing listening, the promise never
+ * settles, and registerNativePushToken() awaits it forever. No token is ever
+ * POSTed, so native_push_tokens stays empty for that salon, so
+ * sendApnsToBeautician finds no rows and returns null, so every push the
+ * backend sends reaches nobody. Silently, because a promise that never settles
+ * throws nothing and logs nothing.
+ *
+ * Capacitor's own documentation attaches the listeners first and awaits them,
+ * for exactly this reason: addListener returns a Promise<PluginListenerHandle>,
+ * so even attaching before register() is not enough on its own if you do not
+ * wait for the handle.
+ *
+ * Also fixed here:
+ *   - a TIMEOUT, so this settles even if neither event ever arrives. The old
+ *     shape could hang for the life of the app, which is indistinguishable
+ *     from "iOS is thinking about it".
+ *   - the one-shot handles are REMOVED afterwards. App.jsx calls this on every
+ *     session change, and the old code added a fresh set of four listeners
+ *     each time.
+ *   - the tap and receive handlers are attached ONCE and left alone, because
+ *     those are for the life of the app, not for this one registration.
+ *
+ * @returns {Promise<string|null>} the APNs/FCM device token
  */
+let lifetimeListenersAttached = false;
+
+async function attachLifetimeListeners(PushNotifications) {
+  if (lifetimeListenersAttached) return;
+  lifetimeListenersAttached = true;
+
+  await PushNotifications.addListener('pushNotificationReceived', (notification) => {
+    logger.info('Push received:', notification);
+  });
+
+  await PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
+    logger.info('Push action:', action);
+    const d = action.notification?.data || {};
+    const url = d.url || d.data?.url;
+    if (url && String(url).startsWith('/')) {
+      window.location.href = url;
+    }
+  });
+}
+
+// Long enough for a cold start on a poor connection, short enough that a
+// failure is a failure rather than a hang. APNs normally answers in under a
+// second.
+const REGISTRATION_TIMEOUT_MS = 20_000;
+
 export async function registerNativePush() {
   if (!isNative) return null;
   try {
     const { PushNotifications } = await import('@capacitor/push-notifications');
 
     const permission = await PushNotifications.requestPermissions();
-    if (permission.receive !== 'granted') return null;
+    if (permission.receive !== 'granted') {
+      logger.warn('Native push: permission not granted, no token will exist for this device');
+      return null;
+    }
 
-    await PushNotifications.register();
+    await attachLifetimeListeners(PushNotifications);
 
-    return new Promise((resolve) => {
-      PushNotifications.addListener('registration', (token) => {
-        logger.info('Native push token:', token.value);
-        resolve(token.value);
-      });
+    let onToken;
+    let onError;
+    let timer;
 
-      PushNotifications.addListener('registrationError', (err) => {
-        logger.warn('Native push registration error:', err);
-        resolve(null);
-      });
+    const token = await new Promise((resolve) => {
+      const settle = (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      };
 
-      // Handle received notifications
-      PushNotifications.addListener('pushNotificationReceived', (notification) => {
-        logger.info('Push received:', notification);
-      });
+      timer = setTimeout(() => {
+        logger.warn(`Native push: no registration event within ${REGISTRATION_TIMEOUT_MS}ms, giving up rather than hanging`);
+        settle(null);
+      }, REGISTRATION_TIMEOUT_MS);
 
-      // Handle notification tap
-      PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
-        logger.info('Push action:', action);
-        const d = action.notification?.data || {};
-        const url = d.url || d.data?.url;
-        if (url && String(url).startsWith('/')) {
-          window.location.href = url;
-        }
-      });
+      // BOTH listeners attached and awaited BEFORE register() is called.
+      Promise.all([
+        PushNotifications.addListener('registration', (t) => settle(t?.value || null)),
+        PushNotifications.addListener('registrationError', (err) => {
+          logger.warn('Native push registration error:', err);
+          settle(null);
+        }),
+      ])
+        .then(([tokenHandle, errorHandle]) => {
+          onToken = tokenHandle;
+          onError = errorHandle;
+          return PushNotifications.register();
+        })
+        .catch((err) => {
+          logger.warn('Native push register() failed:', err);
+          settle(null);
+        });
     });
+
+    // One-shot handles go away. This runs on every session change, and leaving
+    // them attached meant a new pair of listeners on each sign-in.
+    await Promise.all([
+      onToken?.remove?.(),
+      onError?.remove?.(),
+    ].filter(Boolean)).catch(() => {});
+
+    if (!token) logger.warn('Native push: registration produced no token');
+    return token;
   } catch (err) {
     logger.warn('Native push setup failed:', err);
     return null;

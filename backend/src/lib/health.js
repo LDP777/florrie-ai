@@ -25,6 +25,7 @@ import { parseWebhookSecrets } from './stripe-webhook-secret.js';
 import { readJobRuns } from './job-runs.js';
 import { TEMPLATE_SPECS, splitTemplateName, paramFieldsFor } from './whatsapp-templates.js';
 import { getPhoneParentWaba } from '../services/notifications.js';
+import { isApnsConfigured } from '../services/apns.js';
 
 const DEFAULT_TIMEOUT_MS = 3000;
 
@@ -767,6 +768,103 @@ async function fetchApprovedTemplates() {
 }
 
 /**
+ * Can a push actually reach the person who needs it.
+ *
+ * 1 September 2026. Ellie, after the booking alert was moved onto the status
+ * transition so it could not be missed: "i think there is still no ios
+ * notification when someone books in". She was right, and nothing anywhere
+ * could have told her why, because every way this fails looks the same.
+ *
+ * sendApnsToBeautician returned a bare null for three completely different
+ * situations:
+ *
+ *   APNs is not configured on this deployment at all
+ *   the token lookup errored
+ *   this salon has no device registered
+ *
+ * sendPush then added `0` to the delivered count in all three cases, so the
+ * logs, the ai_actions ledger and the health payload all said the same thing
+ * about a missing key, a broken query and a phone that never registered.
+ *
+ * The cause turned out to be the third one, and upstream of it: the iOS app
+ * called PushNotifications.register() BEFORE attaching the 'registration'
+ * listener, so the token arrived with nothing listening and the promise never
+ * settled. No token was ever sent to the server. See
+ * frontend/src/lib/native.js.
+ *
+ * This check exists so the next version of that question has an answer in one
+ * HTTP call: is push configured, and does the person expecting to be buzzed
+ * have anything registered to buzz.
+ */
+async function checkPushReach() {
+  const configured = isApnsConfigured();
+
+  const { data: rows, error } = await supabase
+    .from('beauticians')
+    .select('id, business_name, first_name');
+
+  if (error) {
+    // Unknown, never failing. Same rule as every other check in this file.
+    return { ok: true, status: 'unknown', critical: false, apns_configured: configured, detail: error.message || 'beauticians unreadable' };
+  }
+
+  const salons = rows || [];
+  if (salons.length === 0) {
+    return { ok: true, status: 'ok', critical: false, apns_configured: configured, salons: 0, detail: 'no salons yet' };
+  }
+
+  const { data: tokenRows, error: tokenErr } = await supabase
+    .from('native_push_tokens')
+    .select('beautician_id');
+
+  if (tokenErr) {
+    return {
+      ok: true,
+      status: 'unknown',
+      critical: false,
+      apns_configured: configured,
+      detail: `native_push_tokens unreadable: ${tokenErr.message || 'unknown error'}`,
+    };
+  }
+
+  const withDevice = new Set((tokenRows || []).map((r) => r.beautician_id));
+  const silent = salons.filter((b) => !withDevice.has(b.id));
+
+  const base = {
+    critical: false,
+    apns_configured: configured,
+    salons: salons.length,
+    salons_with_a_device: salons.length - silent.length,
+    devices_registered: (tokenRows || []).length,
+  };
+
+  // Not configured is a deployment choice everywhere else in this file, but not
+  // here: the iOS app is shipped and the whole booking alert depends on it, so
+  // a deployment with no APNs key cannot buzz anyone and should say so.
+  if (!configured) {
+    return {
+      ok: false,
+      status: 'warn',
+      ...base,
+      detail: 'APNS_KEY_ID, APNS_TEAM_ID and APNS_PRIVATE_KEY are not all set, so no iOS notification can be sent to anybody, whatever else is working.',
+    };
+  }
+
+  if (silent.length) {
+    return {
+      ok: false,
+      status: 'warn',
+      ...base,
+      detail: `${silent.length} of ${salons.length} salon(s) have no device registered, so every push sent to them reaches nobody and is recorded as delivered to zero: `
+        + silent.map((b) => b.business_name || b.first_name || b.id).join(', ')
+        + '. A device registers when the app is opened while signed in and notifications are allowed. If it has been opened and allowed and this still says zero, the token never reached the server.',
+    };
+  }
+
+  return { ok: true, status: 'ok', ...base };
+}
+
+/**
  * Reuses whatever checkTemplateParams already fetched. One Graph call answers
  * both questions, and asking twice in the same health poll would double the
  * rate-limit cost to say two things about one list.
@@ -902,7 +1000,7 @@ export async function runHealthChecks({ stripe = null, timeoutMs = DEFAULT_TIMEO
     label,
   );
 
-  const [database, stripeApi, webhookSecret, webhookActivity, instagram, confirmationLinks, templateParams, templateCoverage, jobs] = await Promise.all([
+  const [database, stripeApi, webhookSecret, webhookActivity, instagram, confirmationLinks, templateParams, templateCoverage, pushReach, jobs] = await Promise.all([
     guarded('database', checkSupabase),
     guarded('stripe_api', () => checkStripeApi(stripe)),
     guarded('stripe_webhook_secret', () => checkStripeWebhookSecret(stripeConfigured)),
@@ -911,6 +1009,7 @@ export async function runHealthChecks({ stripe = null, timeoutMs = DEFAULT_TIMEO
     guarded('confirmation_links', checkConfirmationLinks),
     guarded('template_params', checkTemplateParams),
     guarded('template_coverage', checkTemplateCoverage),
+    guarded('push_reach', checkPushReach),
     guarded('crons', () => checkJobs(jobSpecs)),
   ]);
 
@@ -923,6 +1022,7 @@ export async function runHealthChecks({ stripe = null, timeoutMs = DEFAULT_TIMEO
     confirmation_links: confirmationLinks,
     template_params: templateParams,
     template_coverage: templateCoverage,
+    push_reach: pushReach,
     crons: jobs,
   };
 

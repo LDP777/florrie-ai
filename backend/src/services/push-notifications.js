@@ -63,6 +63,19 @@ export async function sendPush(beauticianId, { title, body, icon, url, tag, data
   // standing outside the door it is the entire question, so pushAtTheDoor reads
   // this number and falls back to a text message when it is 0.
   const delivered = (webResult?.sent || 0) + (apnsResult?.sent || 0);
+
+  // A push that reached nobody is the single most common way this system fails
+  // quietly, and until 1 September it produced no log line at all. Said once,
+  // here, with the APNs leg's own reason attached, so "she got no notification"
+  // has an answer in the logs rather than requiring somebody to read the iOS
+  // registration code to find out.
+  if (delivered === 0) {
+    logger.warn(
+      { beauticianId, apnsReason: apnsResult?.reason || null, webSent: webResult?.sent || 0 },
+      'Push reached zero devices',
+    );
+  }
+
   return { ...(webResult || { sent: 0, expired: 0 }), apns: apnsResult, delivered };
 }
 

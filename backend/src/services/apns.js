@@ -185,8 +185,20 @@ export function sendApnsNotification(deviceToken, { title, body, badge, data, so
  * Dead tokens (410 / BadDeviceToken / Unregistered / ExpiredToken) are
  * deleted so the table self-cleans. Never throws.
  */
+/**
+ * Three different failures used to return the same bare `null` from here:
+ * APNs not configured, the token lookup erroring, and the salon simply having
+ * no device registered. sendPush added 0 to the delivered count in all three,
+ * so a missing signing key, a broken query and a phone that never registered
+ * were indistinguishable in the logs, in the ai_actions ledger and in
+ * /health. On 1 September the answer was the third one, and finding that out
+ * took reading the iOS registration code rather than anything the product said.
+ *
+ * Still returns an object with `sent`, so every existing caller's arithmetic
+ * is unchanged. It just also says which of the three happened.
+ */
 export async function sendApnsToBeautician(beauticianId, { title, body, badge, data, sound } = {}) {
-  if (!isApnsConfigured()) return null;
+  if (!isApnsConfigured()) return { sent: 0, removed: 0, reason: 'apns_not_configured' };
 
   let tokens;
   try {
@@ -196,15 +208,21 @@ export async function sendApnsToBeautician(beauticianId, { title, body, badge, d
       .eq('beautician_id', beauticianId);
     if (error) {
       logger.warn({ err: error, beauticianId }, 'APNs token lookup failed');
-      return null;
+      return { sent: 0, removed: 0, reason: 'token_lookup_failed' };
     }
     tokens = rows;
   } catch (err) {
     logger.warn({ err, beauticianId }, 'APNs token lookup threw');
-    return null;
+    return { sent: 0, removed: 0, reason: 'token_lookup_threw' };
   }
 
-  if (!tokens?.length) return null;
+  if (!tokens?.length) {
+    // The common one, and the one that looks like nothing at all. Logged at
+    // info rather than debug because "she has no device registered" is the
+    // answer to most of the questions that end up here.
+    logger.info({ beauticianId }, 'APNs: this salon has no device registered, so the push reaches nobody');
+    return { sent: 0, removed: 0, reason: 'no_device_registered' };
+  }
 
   let sent = 0;
   const dead = [];
@@ -234,7 +252,7 @@ export async function sendApnsToBeautician(beauticianId, { title, body, badge, d
     }
   }
 
-  return { sent, removed: dead.length };
+  return { sent, removed: dead.length, reason: sent > 0 ? null : 'all_sends_rejected' };
 }
 
 // ---------------------------------------------------------------------------
