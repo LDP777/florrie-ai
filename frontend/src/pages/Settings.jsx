@@ -1305,19 +1305,25 @@ export default function Settings({ onLogout }) {
             <h3 style={styles.cardTitle}>Client reminders</h3>
             <p style={styles.cardDesc}>What your clients receive automatically.</p>
 
-            {/* Master pause - one switch to stop everything going out on her behalf. */}
+            {/* THE SWITCH ELLIE REACHED FOR ON 1 SEPTEMBER.
+                It said "Nothing is being sent to clients right now", and that
+                was false in both directions: it stopped none of Florrie's
+                replies, which is what she wanted stopped, and it did stop her
+                clients' booking confirmations and reminders, which nobody
+                wanted and which neither she nor they could see. It now stops
+                Florrie talking and nothing else, and it says so. */}
             {(() => {
               const paused = beautician.client_reminder_prefs?.paused === true;
               return (
                 <div style={{ ...styles.pauseRow, ...(paused ? styles.pauseRowOn : {}) }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={styles.pauseTitle}>
-                      {paused ? 'Messages paused' : 'Messages on'}
+                      {paused ? 'Florrie is not replying' : 'Florrie is replying to clients'}
                     </div>
                     <div style={styles.pauseDesc}>
                       {paused
-                        ? 'Nothing is being sent to clients right now. Turn back on when you’re ready.'
-                        : 'Pause every automatic message to clients in one tap.'}
+                        ? 'Florrie is not answering anyone. She still writes every reply and leaves it for you. Confirmations, reminders and calendar links are going out as normal.'
+                        : 'Stop Florrie answering clients herself. Confirmations and reminders always carry on.'}
                     </div>
                   </div>
                   <button className="fl-tap"
@@ -1326,7 +1332,7 @@ export default function Settings({ onLogout }) {
                       saveProfile({ client_reminder_prefs: rp });
                     }}
                     style={{ ...styles.toggle, background: paused ? '#D4605C' : 'var(--accent)', width: 44, height: 24 }}
-                    aria-label={paused ? 'Resume client messages' : 'Pause client messages'}
+                    aria-label={paused ? 'Let Florrie reply to clients again' : 'Stop Florrie replying to clients'}
                   >
                     <div style={{ ...styles.toggleDot, transform: paused ? 'translateX(20px)' : 'translateX(2px)' }} />
                   </button>
@@ -1334,21 +1340,13 @@ export default function Settings({ onLogout }) {
               );
             })()}
 
-            <ClientReminderRow
+            <AlwaysOnRow
               label="Booking confirmation"
-              enabled={beautician.client_reminder_prefs?.booking_confirmation !== false}
-              onChange={v => {
-                const rp = { ...(beautician.client_reminder_prefs || {}), booking_confirmation: v };
-                saveProfile({ client_reminder_prefs: rp });
-              }}
+              note="With the calendar link, so they can add it, move it or cancel it themselves."
             />
-            <ClientReminderRow
+            <AlwaysOnRow
               label="24-hour reminder"
-              enabled={beautician.client_reminder_prefs?.reminder_24h !== false}
-              onChange={v => {
-                const rp = { ...(beautician.client_reminder_prefs || {}), reminder_24h: v };
-                saveProfile({ client_reminder_prefs: rp });
-              }}
+              note="The message that stops no-shows."
             />
             <ClientReminderRow
               label="1-hour reminder"
@@ -2242,6 +2240,28 @@ function NotificationToggle({ label, desc, prefs, onChange }) {
           }}
         ><Icon name="bell" size={15} /></button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * A message that always sends, shown so she can see it exists without being
+ * offered a switch that would break her clients' booking details.
+ *
+ * There was a real toggle here until 1 September 2026, and the backend stopped
+ * reading it on the same day: confirmations, the 24h reminder and the calendar
+ * link are always on now. Leaving the toggle in place would have been the
+ * exact bug this whole change is about, a control that looks like it does
+ * something and does nothing.
+ */
+function AlwaysOnRow({ label, note }) {
+  return (
+    <div style={styles.reminderRow}>
+      <span style={styles.reminderLabel}>
+        {label}
+        {note ? <span style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', marginTop: 2, lineHeight: 1.35 }}>{note}</span> : null}
+      </span>
+      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Always on</span>
     </div>
   );
 }

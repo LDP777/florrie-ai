@@ -52,37 +52,32 @@ export const SETTINGS = [
   },
   {
     id: 'pause_all_messages',
-    label: 'Pause everything Florrie sends',
-    says: ['pause all messages', 'stop all messages', 'go quiet', 'unpause', 'start messaging again'],
-    means: 'The master switch. Nothing automated goes out on your behalf at all, including reminders. Use it if you are away or something has gone wrong.',
+    label: 'Pause Florrie replying to clients',
+    says: [
+      'pause all messages', 'stop all messages', 'go quiet', 'unpause',
+      'start messaging again', 'turn florrie off', 'stop florrie messaging people',
+      'stop replying to people', 'florrie is talking nonsense',
+    ],
+    // 1 September 2026. This used to say "The master switch. Nothing automated
+    // goes out on your behalf at all, including reminders." Ellie read that,
+    // believed it, turned it on, and Florrie carried on replying to her clients
+    // while their booking confirmations and reminders silently stopped. It was
+    // wrong in both directions at once.
+    means: 'Stops Florrie answering your clients herself. Everything she would have said still gets written and waits for you, so nothing is lost. Booking confirmations, reminders and the calendar link are NOT affected: those are your clients\' own booking details and they always go out.',
     where: { json: 'client_reminder_prefs', key: 'paused' },
     type: 'boolean',
     default: false,
-    onSaid: 'Everything is paused. Nothing automated goes out until you turn it back on.',
-    offSaid: 'Messages are back on.',
+    onSaid: 'Florrie will stop replying to clients. Confirmations and reminders carry on as normal.',
+    offSaid: 'Florrie is answering clients again.',
   },
-  {
-    id: 'booking_confirmations',
-    label: 'Send booking confirmations',
-    says: ['send confirmations', 'stop sending confirmations', 'confirmation texts'],
-    means: 'The text or WhatsApp a client gets when a booking is made, with the calendar link in it.',
-    where: { json: 'client_reminder_prefs', key: 'booking_confirmation' },
-    type: 'boolean',
-    default: true,
-    onSaid: 'Clients will get a confirmation when they book.',
-    offSaid: 'No confirmation texts will go out. Email still will unless you turn that off too.',
-  },
-  {
-    id: 'confirmation_emails',
-    label: 'Send confirmation emails',
-    says: ['send confirmation emails', 'stop the emails', 'email confirmations'],
-    means: 'The confirmation email, which is the one that carries the calendar invite as an attachment.',
-    where: { json: 'client_reminder_prefs', key: 'email_confirmation' },
-    type: 'boolean',
-    default: true,
-    onSaid: 'Confirmation emails are on.',
-    offSaid: 'No confirmation emails. Worth knowing the calendar invite rides on that email, so clients lose the one-tap add.',
-  },
+  // REMOVED 1 September 2026: booking_confirmations and confirmation_emails.
+  //
+  // Both were switches for turning off a client's own booking confirmation,
+  // and the owner's instruction is that confirmations, 24h reminders and the
+  // calendar link are always enabled. A setting nobody should ever use is a
+  // setting somebody eventually uses by accident, at which point their clients
+  // stop being told when they are booked in and nothing anywhere says so.
+  // services/notifications.js no longer reads either key.
   {
     id: 'message_channel',
     label: 'How Florrie messages clients',

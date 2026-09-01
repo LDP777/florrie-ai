@@ -90,13 +90,17 @@ describe('notifyBookingConfirmed tells the truth about what it did', () => {
     expect(db.appointments[0].confirmation_sent_at).toBeUndefined();
   });
 
-  it('does not stamp when the beautician has paused all outbound', async () => {
+  it('still confirms the booking when the beautician has paused Florrie', async () => {
+    // REVERSED 1 September 2026. This test used to assert reason:'paused',
+    // which is the behaviour Ellie hit: she turned the pause on to stop
+    // Florrie replying to her clients, it did not stop a single reply, and it
+    // silently stopped this. A confirmation is the client's own record of a
+    // booking they made. The pause governs Florrie's voice and nothing else.
     seed({ phone: '07700900001' }, { paused: true });
 
     const result = await notifyBookingConfirmed('a1');
 
-    expect(result).toMatchObject({ sent: false, reason: 'paused' });
-    expect(updates.filter(u => 'confirmation_sent_at' in u)).toHaveLength(0);
+    expect(result.reason).not.toBe('paused');
   });
 
   it('says which appointment it could not find, rather than returning undefined', async () => {

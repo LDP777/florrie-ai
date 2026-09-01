@@ -788,7 +788,14 @@ async function processInstagramDM(beautician, senderId, messageText, messageId, 
     return;
   }
 
-  if (dmMode === 'redirect') {
+  // The pause switch stops Florrie SPEAKING, and the redirect is Florrie
+  // speaking: an unprompted "message me on WhatsApp instead" in Ellie's name.
+  // Booking confirmations and reminders are deliberately not affected by it,
+  // because those are the client's own booking admin. See the note in
+  // services/notifications.js notifyBookingConfirmed.
+  const florriePaused = beautician.client_reminder_prefs?.paused === true;
+
+  if (dmMode === 'redirect' && !florriePaused) {
     const lastSent = client?.instagram_redirect_sent_at
       ? new Date(client.instagram_redirect_sent_at)
       : null;

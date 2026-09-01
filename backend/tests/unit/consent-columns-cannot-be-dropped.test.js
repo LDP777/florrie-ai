@@ -167,7 +167,7 @@ describe('no new sender joins clients without the consent columns', () => {
     // read added to GET /:id/card on 27 August 2026, then again by the prior
     // history rule added to the patch-test alerts route the same day. Same
     // join, same file. (Previously 1598, 1826, then 1873.)
-    'src/routes/appointments.js:1897',
+    'src/routes/appointments.js:1896',
     // All five moved down again, by the patch-test evidence rule replacing the
     // `status === 'passed'` test in routes/booking.js, and again by the prior
     // history rule that separated the 673 imported regulars from the 277 true
@@ -216,7 +216,7 @@ describe('no new sender joins clients without the consent columns', () => {
     // (Previously 1236 / 1514, then 1393 / 1685, then 1526 / 1818, then
     // 1532 / 1824.)
     'src/services/notifications.js:1540',
-    'src/services/notifications.js:1832',
+    'src/services/notifications.js:1845',
   ]);
 
   function walk(dir) {

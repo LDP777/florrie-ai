@@ -234,17 +234,12 @@ const SETTING_LABELS = {
     off: 'Send every client message to you first, before anything goes out',
   },
   pause_all_messages: {
-    on: 'Pause everything Florrie sends, including reminders',
-    off: 'Start sending again',
+    on: 'Stop Florrie replying to clients (confirmations and reminders carry on)',
+    off: 'Let Florrie answer clients again',
   },
-  booking_confirmations: {
-    on: 'Send a confirmation when someone books',
-    off: 'Stop sending booking confirmation texts',
-  },
-  confirmation_emails: {
-    on: 'Send confirmation emails, with the calendar invite attached',
-    off: 'Stop sending confirmation emails (this is what carries the calendar invite)',
-  },
+  // booking_confirmations and confirmation_emails removed 1 September 2026:
+  // confirmations, reminders and the calendar link are always on. See the note
+  // in backend/src/lib/app-settings.js.
   promos_in_offers: {
     on: 'Let Florrie add a live promo code to gap offers',
     off: 'Keep promo codes out of gap offers',

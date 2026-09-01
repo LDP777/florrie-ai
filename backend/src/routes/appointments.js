@@ -542,11 +542,10 @@ async function notifyAppointmentMoved(beauticianId, appt) {
   }
   const prefs = biz?.client_reminder_prefs || {};
 
-  // Master pause: Florrie says nothing on her behalf while it is on.
-  if (prefs.paused) {
-    logger.info({ appointmentId: appt.id }, 'appointment moved: client not told, messages are paused');
-    return;
-  }
+  // ALWAYS SENDS. Telling a client their appointment moved is the client's own
+  // booking admin, not Florrie speaking on Ellie's behalf, and it is the one
+  // message where silence is most expensive: they turn up at the old time. See
+  // the note in services/notifications.js notifyBookingConfirmed.
 
   const { data: client } = await supabase
     .from('clients')
@@ -1904,8 +1903,10 @@ router.post('/:id/send-manage-link', requireAuth, async (req, res) => {
 
   const client = appt.clients;
   const biz = appt.beauticians;
-  const prefs = biz?.client_reminder_prefs || {};
-  if (prefs.paused) return res.status(409).json({ error: 'Messages are paused. Turn the pause off in Settings to send this.' });
+  // No pause check. Ellie pressed the button: that is her sending a message,
+  // not Florrie sending one on her behalf, and the switch only ever governs
+  // the second thing. Refusing here used to mean the pause silently blocked
+  // her own deliberate action and told her to go and change a setting first.
 
   if (!appt.management_token || !biz?.booking_slug || !process.env.FRONTEND_URL) {
     return res.status(422).json({ error: 'This booking has no manage link yet.' });

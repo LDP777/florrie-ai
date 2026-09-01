@@ -1547,8 +1547,20 @@ export async function notifyBookingConfirmed(appointmentId) {
   const treatment = appt.treatments;
   const biz = appt.beauticians;
   const prefs = biz?.client_reminder_prefs || {};
-  // Master pause — when on, nothing automated goes out on the beautician's behalf.
-  if (prefs.paused) return { sent: false, channels, reason: 'paused' };
+  // ALWAYS SENDS. There is no switch on this and there is not going to be one.
+  //
+  // 1 September 2026. Ellie went looking for a way to stop Florrie replying to
+  // her clients, found "Messages paused", and read the words under it:
+  // "Nothing is being sent to clients right now." It did not stop a single one
+  // of Florrie's replies, which is what she wanted. It did stop this, which
+  // nobody wanted: her clients quietly got no confirmation, no reminder and no
+  // calendar link, and neither she nor they had any way to notice.
+  //
+  // A confirmation is not a message Florrie sends on her behalf. It is the
+  // client's own record of a booking they made, with the calendar invite on
+  // it. Owner's instruction, same day: these are always enabled. The switch
+  // now points at Florrie's voice instead, which is the thing that needed one.
+
   // Nothing to send TO. Checked here rather than left to be discovered by
   // every branch below silently declining, because "she has no phone number
   // for this client" is much the most likely reason a manually-added booking
@@ -1659,7 +1671,7 @@ export async function notifyBookingConfirmed(appointmentId) {
   const textMsg = `Hi ${client.first_name}, your ${treatment.name} with ${bizName} is confirmed for ${shortDate} at ${timeStr}.${receiptLine ? ` ${receiptLine}` : ''}${linkLine}`;
 
   // SMS/WhatsApp — only if beautician has opted in
-  if (prefs.booking_confirmation !== false) {
+  {   // unconditional: see the note at the top of this function
     const channel = prefs.channel || 'whatsapp';
     if (channel === 'whatsapp' && client.phone) {
       const waResult = await sendWhatsApp({ to: client.phone, templateName: 'booking_confirmation_v2', templateParams: [client.first_name, shortDate, timeStr], beauticianId: appt.beautician_id });
@@ -1728,8 +1740,9 @@ export async function notifyBookingConfirmed(appointmentId) {
     }
   }
 
-  // Email — always send unless explicitly disabled (prefs.email_confirmation === false)
-  if (client.email && prefs.email_confirmation !== false) {
+  // Email carries the calendar invite as an attachment, so switching it off
+  // takes the one-tap add with it. Unconditional for the same reason as above.
+  if (client.email) {
     const accent = biz.brand_color || '#C4A882';
     // The row shows the receipt line built above (actual charge, not the
     // configured deposit), so the email can never claim a deposit that was
@@ -1840,7 +1853,10 @@ export async function notifyReminder24h(appointmentId) {
   const biz = appt.beauticians;
   const prefs = biz?.client_reminder_prefs || {};
   // Master pause — when on, nothing automated goes out on the beautician's behalf.
-  if (prefs.paused) return;
+  // ALWAYS SENDS, for the reason written out in full in notifyBookingConfirmed
+  // above: a reminder is the client's own booking admin, not Florrie speaking
+  // on Ellie's behalf, and the pause switch that used to stop it never stopped
+  // the thing Ellie was actually trying to stop.
 
   // Idempotency: one reminder per appointment, ever. The reminder job runs hourly
   // AND on every startup, with a 1-hour window — so each deploy re-ran it and the
@@ -1902,7 +1918,7 @@ export async function notifyReminder24h(appointmentId) {
 
   try {
     // SMS/WhatsApp — only if opted in
-    if (prefs.reminder_24h !== false) {
+    {   // unconditional: see notifyBookingConfirmed
       const channel = prefs.channel || 'whatsapp';
       if (channel === 'whatsapp' && client.phone) {
         // TWO parameters, not three. reminder_24h_v2's approved body is "Hi
@@ -1935,7 +1951,7 @@ export async function notifyReminder24h(appointmentId) {
     }
 
     // Email — always send unless explicitly disabled
-    if (client.email && prefs.email_reminder !== false) {
+    if (client.email) {
       const html = emailTemplate({
         bizName,
         brandColor: biz.brand_color,

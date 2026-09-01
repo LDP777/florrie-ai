@@ -56,6 +56,26 @@
  */
 export const OWNER_PRESENT_WINDOW_MS = 6 * 60 * 60 * 1000;
 
+/**
+ * How long a conversation stays a conversation.
+ *
+ * Six hours is right for an exchange happening now and wrong for the other
+ * shape this has to cover. Ellie, the same afternoon: "it's messing up me
+ * trying to get the training people enrolled". Enrolling people on a course is
+ * not one exchange, it is a thread per person that runs over days, and she
+ * opens every one of them herself. Under a six hour rule Florrie would keep
+ * out of those threads on day one and start answering them on day two, which
+ * is the same bug with a delay on it.
+ *
+ * So the second clause is about ownership rather than recency: if the last
+ * thing said from the salon's side was hers, the thread is hers. That has to
+ * expire eventually or Florrie would go permanently silent with every regular
+ * Ellie has ever replied to, and the product would be pointless. A week of
+ * nothing is a finished conversation, and a client coming back after that is
+ * starting a new one.
+ */
+export const THREAD_STAYS_HERS_MS = 7 * 24 * 60 * 60 * 1000;
+
 /** authored_by values that mean the owner typed it herself. */
 const HER_OWN_WORDS = new Set(['human', 'ai_edited']);
 
@@ -75,10 +95,19 @@ export function ownerIsInThread({ conversation, now = Date.now(), currentMessage
   const nowMs = now instanceof Date ? now.getTime() : Number(now);
   const rows = Array.isArray(conversation) ? conversation : [];
 
-  let latest = null;
+  let latest = null;          // her most recent message
+  let lastOutboundAt = null;  // the salon's most recent message, whoever wrote it
+  let lastOutboundIsHers = false;
+
   for (const m of rows) {
     if (!m || m.direction !== 'outbound') continue;
     if (currentMessageId && m.id === currentMessageId) continue;
+
+    const outAt = Date.parse(m.created_at || '');
+    if (Number.isFinite(outAt) && (lastOutboundAt === null || outAt > lastOutboundAt)) {
+      lastOutboundAt = outAt;
+      lastOutboundIsHers = HER_OWN_WORDS.has(m.authored_by);
+    }
 
     // 'ai_edited' counts. She read Florrie's draft, changed it, and sent it:
     // she is at her phone, in this thread, right now. That is the whole
@@ -92,19 +121,27 @@ export function ownerIsInThread({ conversation, now = Date.now(), currentMessage
     // cost is that this rule is blind to messages sent before 5 August, which
     // are far too old to be a live conversation anyway.
 
-    const at = Date.parse(m.created_at || '');
-    if (!Number.isFinite(at)) continue;
-    if (latest === null || at > latest) latest = at;
+    if (!Number.isFinite(outAt)) continue;
+    if (latest === null || outAt > latest) latest = outAt;
   }
 
   if (latest === null) return { present: false, at: null, reason: 'owner_not_in_thread' };
 
-  const age = nowMs - latest;
-  // A timestamp in the future is a clock problem, not evidence of absence.
-  // Treat it as present: the safe direction is silence.
-  if (age > OWNER_PRESENT_WINDOW_MS) {
-    return { present: false, at: new Date(latest).toISOString(), reason: 'owner_last_spoke_too_long_ago' };
+  const at = new Date(latest).toISOString();
+
+  // 1. She is in it now. A timestamp in the future is a clock problem rather
+  //    than evidence of absence, and negative age satisfies this anyway, which
+  //    is the safe direction.
+  if (nowMs - latest <= OWNER_PRESENT_WINDOW_MS) {
+    return { present: true, at, reason: 'owner_is_in_this_thread' };
   }
 
-  return { present: true, at: new Date(latest).toISOString(), reason: 'owner_is_in_this_thread' };
+  // 2. Or it is hers: she spoke last on the salon's side and the thread has not
+  //    gone cold. This is the training enrolment case, and the case of any
+  //    conversation she opened herself and is working through at her own pace.
+  if (lastOutboundIsHers && nowMs - lastOutboundAt <= THREAD_STAYS_HERS_MS) {
+    return { present: true, at, reason: 'thread_is_hers' };
+  }
+
+  return { present: false, at, reason: 'owner_last_spoke_too_long_ago' };
 }

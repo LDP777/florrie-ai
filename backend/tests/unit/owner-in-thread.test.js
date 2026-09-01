@@ -10,7 +10,7 @@
  * already answering.
  */
 import { describe, it, expect } from 'vitest';
-import { ownerIsInThread, OWNER_PRESENT_WINDOW_MS } from '../../src/lib/owner-in-thread.js';
+import { ownerIsInThread, OWNER_PRESENT_WINDOW_MS, THREAD_STAYS_HERS_MS } from '../../src/lib/owner-in-thread.js';
 import { mayFlorrieSend } from '../../src/services/ai-front-desk.js';
 
 const NOW = new Date('2026-09-01T14:30:00Z').getTime();
@@ -43,10 +43,15 @@ describe('ownerIsInThread', () => {
     expect(check([client(mins(1))]).present).toBe(false);
   });
 
-  it('lets go once she has been out of the thread for longer than the window', () => {
-    expect(check([her(hours(5))]).present).toBe(true);
-    expect(check([her(hours(7))]).present).toBe(false);
-    expect(check([her(OWNER_PRESENT_WINDOW_MS + 1000)]).reason).toBe('owner_last_spoke_too_long_ago');
+  it('counts her as present for six hours after she speaks', () => {
+    expect(check([her(hours(5)), florrie(hours(4))]).present).toBe(true);
+    expect(check([her(hours(5)), florrie(hours(4))]).reason).toBe('owner_is_in_this_thread');
+  });
+
+  it('lets go once she is out of the window AND Florrie has the thread', () => {
+    // Florrie spoke last, so the thread is not hers to hold.
+    expect(check([her(hours(9)), florrie(hours(8))]).present).toBe(false);
+    expect(check([her(hours(9)), florrie(hours(8))]).reason).toBe('owner_last_spoke_too_long_ago');
   });
 
   it('counts a draft she edited before sending: she is at her phone, in this thread', () => {
@@ -73,7 +78,6 @@ describe('ownerIsInThread', () => {
 
   it('takes the most recent of several messages from her', () => {
     expect(check([her(hours(20)), her(mins(10))]).present).toBe(true);
-    expect(check([her(hours(20)), her(hours(19))]).present).toBe(false);
   });
 
   it('survives rows with no timestamp or a broken one', () => {
@@ -138,5 +142,43 @@ describe('a thread Florrie cannot read', () => {
       message: 'how much is a lash lift',
       ownerPresent: unreadable,
     })).toBe(false);
+  });
+});
+
+describe('a thread Ellie opened herself: the training enrolment', () => {
+  // "& it's messing up me trying to get the training people enrolled", Ellie,
+  // the same afternoon. Enrolling people on a course is a thread per person
+  // that runs over days, and she opens every one of them.
+
+  it('stays hers across days, long after the six hour window has passed', () => {
+    const thread = [
+      her(hours(30), 'Hi lovely, are you still wanting the lash course in October? xx'),
+      client(hours(2), 'yes please! what do I need to bring'),
+    ];
+    const result = check(thread);
+    expect(result.present).toBe(true);
+    expect(result.reason).toBe('thread_is_hers');
+  });
+
+  it('a six hour rule alone would have let Florrie in on day two', () => {
+    // The point of the second clause, stated as a test so nobody removes it.
+    const dayTwo = [her(hours(30))];
+    expect(NOW - Date.parse(dayTwo[0].created_at)).toBeGreaterThan(OWNER_PRESENT_WINDOW_MS);
+    expect(check(dayTwo).present).toBe(true);
+  });
+
+  it('hands the thread back once Florrie is legitimately answering it', () => {
+    // Ellie opened it, then handed it over. Florrie spoke last, so it is hers
+    // to continue and the ownership clause does not apply.
+    expect(check([her(hours(30)), florrie(hours(20)), client(mins(5))]).present).toBe(false);
+  });
+
+  it('goes cold after a week, so an old thread does not mute Florrie forever', () => {
+    // Otherwise Florrie would be silent with every regular Ellie has ever
+    // replied to, which is most of them, and the product would be pointless.
+    const days = n => n * 24 * 60 * 60 * 1000;
+    expect(check([her(days(6))]).present).toBe(true);
+    expect(check([her(days(8))]).present).toBe(false);
+    expect(THREAD_STAYS_HERS_MS).toBe(days(7));
   });
 });

@@ -119,10 +119,16 @@ describe('it says back what it did, in her words', () => {
     expect(describeValue(s, false)).toBe('Every message will come to you first, like before.');
   });
 
-  it('warns that turning emails off loses the calendar invite', () => {
-    // She would not connect those two on her own, and it is the thing that
-    // just got built to stop clients losing their bookings.
-    expect(describeValue(byId('confirmation_emails'), false)).toMatch(/calendar invite/i);
+  it('offers no way to turn a client\'s booking confirmation off at all', () => {
+    // REPLACED 1 September 2026. This used to check that switching confirmation
+    // emails off warned her she was losing the calendar invite. The better
+    // answer, and the owner's instruction on the day, is not to offer the
+    // switch: confirmations, the 24h reminder and the calendar link always
+    // send. A warning still leaves a way to break a client's booking details
+    // by accident, and Ellie had just done exactly that by accident with a
+    // different switch.
+    expect(byId('confirmation_emails')).toBeFalsy();
+    expect(byId('booking_confirmations')).toBeFalsy();
   });
 
   it('pluralises the visit count', () => {

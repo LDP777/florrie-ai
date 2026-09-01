@@ -70,7 +70,7 @@ describe('reading it back', () => {
   it('answers in labels, not column names', async () => {
     const out = await executeTool('get_settings', {}, ellie(), supabase);
     expect(out.result).toContain('Let Florrie answer the easy ones: on');
-    expect(out.result).toContain('Pause everything Florrie sends: off');
+    expect(out.result).toContain('Pause Florrie replying to clients: off');
     expect(out.result).not.toContain('grounded_replies');
   });
 
@@ -104,7 +104,7 @@ describe('changing it', () => {
     const b = ellie();
     await executeTool('change_setting', { setting_id: 'pause_all_messages', value: true }, b, supabase);
     const after = await executeTool('get_settings', { setting_id: 'pause_all_messages' }, b, supabase);
-    expect(after.result).toBe('Pause everything Florrie sends: on');
+    expect(after.result).toBe('Pause Florrie replying to clients: on');
   });
 
   it('does nothing when it is already that way', async () => {

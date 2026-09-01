@@ -311,6 +311,8 @@ export async function processInboundMessage(messageId, beautician, client, messa
         currentMessageId: messageId,
       });
 
+    const florriePaused = beautician.client_reminder_prefs?.paused === true;
+
     let shouldAct = mayFlorrieSend({
       classification,
       groundedDecision,
@@ -320,7 +322,13 @@ export async function processInboundMessage(messageId, beautician, client, messa
       message: messageContent,
       arrivalNote,
       ownerPresent,
+      florriePaused,
     });
+
+    if (florriePaused) {
+      logger.info({ beauticianId: beautician.id, clientId: client?.id || null },
+        'AI Front Desk: Florrie is paused, drafting for her instead of sending');
+    }
 
     if (ownerPresent.present) {
       logger.info(
@@ -1317,7 +1325,20 @@ NEVER say when an appointment is unless it is in that list, and say the day that
  * @param {string} a.arrivalNote what she has written down about arriving
  * @param {{present: boolean, reason: string}} [a.ownerPresent] is Ellie already in this thread
  */
-export function mayFlorrieSend({ classification, groundedDecision, known, autonomyOverride, threshold, message, arrivalNote = '', ownerPresent = null }) {
+export function mayFlorrieSend({ classification, groundedDecision, known, autonomyOverride, threshold, message, arrivalNote = '', ownerPresent = null, florriePaused = false }) {
+  // THE SWITCH ELLIE WAS LOOKING FOR AND DID NOT HAVE.
+  //
+  // "How do I turn it off for now as it keeps messaging people things that
+  // don't make sense with our messages xx" ... "I thought i did in settings".
+  //
+  // She had. She found "Messages paused", which said "Nothing is being sent to
+  // clients right now", and it did not touch this line, because nothing on the
+  // reply path had ever read it. What it did instead was stop her clients'
+  // booking confirmations and reminders, which nobody wanted and which she had
+  // no way to see. The switch now means what she thought it meant: Florrie
+  // stops speaking, the booking admin carries on.
+  if (florriePaused) return false;
+
   // ABOVE EVERYTHING, INCLUDING THE DOORSTEP RULE BELOW.
   //
   // 1 September: Ellie answered a client's reschedule herself, the client said
