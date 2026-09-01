@@ -28,7 +28,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       # BEFORE npm ci, because npm ci passing here proves nothing about the
@@ -41,6 +41,15 @@ jobs:
       - run: npm run check:lockfile
 
       - run: npm ci
+
+      # AFTER npm ci, because this one reads what was actually installed. A
+      # dependency can raise the Node version it needs in a patch release, and
+      # the only warning is an EBADENGINE line that scrolls past during install.
+      # supabase-js 2.112.4 did exactly that on 1 September: floor moved to node
+      # 22, CI was pinned to 20, and what it printed three minutes later was
+      # "native WebSocket not found" in forty six tests and the frontend build.
+      - run: npm run check:node
+
       - run: npm test --workspace backend
 
   frontend-build:
@@ -50,9 +59,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm run check:node
       # The build catches broken imports and syntax errors. It does NOT catch an
       # undefined identifier: that is valid syntax and only fails when the line
       # runs, which is how `FROM_EMOJI is not defined` reached production with a

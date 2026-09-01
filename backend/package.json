@@ -2,11 +2,14 @@
   "name": "@florrie/backend",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "type": "module",
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
-    "build": "echo 'No build step — pure Node.js backend'",
+    "build": "echo 'No build step, pure Node.js backend'",
     "test": "vitest run",
     "migrate": "node scripts/migrate.js up",
     "migrate:status": "node scripts/migrate.js status",

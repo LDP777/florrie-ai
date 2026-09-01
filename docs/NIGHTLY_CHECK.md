@@ -14,6 +14,18 @@
 > files against source code and never opens a database, so it cannot see schema
 > drift at all.
 >
+> **A second finding is already sitting behind it, unread.** The `lock_manifest`
+> check in `scripts/nightly-check.mjs` reports that `backend/package-lock.json`
+> no longer describes `backend/package.json`: the lock pins `@sentry/node` at
+> `^8.0.0` while the manifest asks for `^10.70.0`, and `pg` and `vitest` are
+> absent from it entirely. That lockfile is the one the production image builds
+> from, and `backend/Dockerfile` installs with `npm install` rather than
+> `npm ci`, so npm silently re-resolves whatever the lock gets wrong instead of
+> failing. Production is running `@sentry/node` 10.73.0 against a lockfile that
+> says 8.55.2. Nobody chose that version, and no gate we have would have
+> objected. Confirmed by hand on 1 September 2026 by installing exactly what the
+> Dockerfile installs and reading the versions back.
+>
 > **Do this:** paste the block below over the prompt of the scheduled task
 > "Florrie nightly health check". Until that is done, treat every schema line in
 > its issues as unverified. The check that actually asks production is

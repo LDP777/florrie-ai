@@ -2,6 +2,9 @@
   "name": "florrie-ai",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "description": "AI-first salon operating system",
   "workspaces": [
     "frontend",
@@ -13,7 +16,8 @@
     "dev:frontend": "cd frontend && npm run dev",
     "dev:backend": "cd backend && npm run dev",
     "check:lockfile": "node scripts/check-lockfile.mjs",
-    "build": "npm run check:lockfile && npm run build:shared && npm run build:frontend && npm run build:backend",
+    "check:node": "node scripts/check-node-floor.mjs",
+    "build": "npm run check:lockfile && npm run check:node && npm run build:shared && npm run build:frontend && npm run build:backend",
     "build:frontend": "cd frontend && npm run build",
     "build:backend": "cd backend && npm run build",
     "build:shared": "cd shared && npm run build",
