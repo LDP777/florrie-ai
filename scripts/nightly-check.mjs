@@ -48,7 +48,8 @@
  *
  * ENVIRONMENT (all optional, all degrade to not_checked)
  *   NIGHTLY_API_URL         default https://api.florrie.ai
- *   NIGHTLY_DATABASE_URL    read only Postgres URL, for the migration ledger
+ *   NIGHTLY_DATABASE_URL    read only Postgres URL, for the migration ledger and for
+ *                           the live column check in section 9
  *   REPO_VISIBILITY         public | private, passed in by the workflow
  *   BOOT_REPORT             path to captured `npm run check:boot` output
  *   SUITE_<NAME>            success | failure, one per gate the workflow ran
@@ -1020,6 +1021,22 @@ function checkPublicRepo() {
 
 const LEDGER_CREATED_BY = '20260802_schema_migrations.sql';
 
+/**
+ * The one place the read only nightly credential becomes a client. Section 9
+ * uses this too, so the TLS decision and the timeouts are made once.
+ *
+ * Supabase terminates TLS with its own chain, the same reason every Supabase
+ * client in this repository does this. The connection is still encrypted.
+ */
+function nightlyClient(pg, url) {
+  return new pg.Client({
+    connectionString: url,
+    ssl: { rejectUnauthorized: false },
+    statement_timeout: 15_000,
+    connectionTimeoutMillis: 15_000,
+  });
+}
+
 export function judgeLedger({ files, ledger }) {
   const out = [];
   const byName = new Map(ledger.map((r) => [r.name, r]));
@@ -1109,15 +1126,7 @@ async function checkMigrations() {
       + 'repository root, so run `npm ci` at the root first.')];
   }
 
-  const client = new pg.Client({
-    connectionString: url,
-    // Supabase terminates TLS with its own chain, the same reason every
-    // Supabase client in this repository does this. The connection is still
-    // encrypted.
-    ssl: { rejectUnauthorized: false },
-    statement_timeout: 15_000,
-    connectionTimeoutMillis: 15_000,
-  });
+  const client = nightlyClient(pg, url);
   try {
     await client.connect();
     // Read only, deliberately. No CREATE TABLE IF NOT EXISTS, so this works
@@ -1289,6 +1298,533 @@ function checkSuites() {
     }
   }
   return out;
+}
+
+
+/* =========================================================================
+ * 9. THE COLUMNS PRODUCTION DOES NOT HAVE
+ *
+ * (This belongs beside section 6 and is numbered last only because it was
+ * written last, on 31 August 2026. Renumbering the file would have hidden
+ * when it arrived, and when it arrived is the point.)
+ *
+ * WHY THIS EXISTS
+ * The scheduled task filed issue #174, "Nightly Health Check 2026-08-31",
+ * carrying the line "Database Schema Drift: NO DRIFT DETECTED". On that exact
+ * night SEVEN columns the backend selects were missing from the production
+ * database:
+ *
+ *   beauticians.notification_prefs         a week of dead notification settings
+ *   beauticians.marketing_emails_enabled   a marketing opt out silently ignored
+ *   beauticians.default_location_id        suggestions could not resolve a location
+ *   beauticians.hmrc_access_token          HMRC dead, reporting itself "not linked"
+ *   beauticians.hmrc_nino                  the same
+ *   beauticians.hmrc_refresh_token         the same
+ *   content_posts.media_kind               Save as Draft failed outright
+ *
+ * Every one of those columns exists in a migration file on disk. That is
+ * precisely why nothing caught them:
+ *
+ *   - the check #174 came from compared supabase/migrations against
+ *     backend/src/routes. The two agreed, so it said "no drift". It had
+ *     compared two things that agreed while the third thing, production,
+ *     disagreed with both, and it never asked the third thing anything.
+ *   - the ledger check in section 6 is better and still cannot see this.
+ *     notification_prefs comes from migration 002, which predates
+ *     schema_migrations entirely (see LEDGER_CREATED_BY), and a migration
+ *     applied HALF WAY sits in the ledger as fully applied.
+ *   - backend/tests/unit/beauticians-column-truth.test.js compares code
+ *     against migrations and says in as many words that it cannot catch this
+ *     class.
+ *
+ * So there was nowhere in the system that could see "the code reads a column
+ * production does not have", and that single blind spot produced a week of
+ * dead notification settings, an ignored marketing opt out, a dead HMRC
+ * integration and a Content Studio save button that always failed.
+ *
+ * AND NO, THIS DOES NOT BREAK RULE ONE. Read this paragraph before you file a
+ * bug about it, because the next person here will see a check that parses
+ * backend/src and assume it does. Rule one is never to infer a DEPLOYMENT
+ * STATE from source code. This infers nothing whatsoever about migrations,
+ * about deploys, or about whether anything has been applied. It reads source
+ * only to learn which column NAMES the code asks for, which is a fact about
+ * the source and is entirely knowable from the source. Every claim about what
+ * production HAS comes from information_schema.columns in the live database,
+ * over the same read only credential section 6 uses. It never opens a
+ * migration file. If the credential is absent or the query fails it reports
+ * not_checked, which is this file's word for unknown, and says so.
+ *
+ * WHY A MISSING COLUMN IS SILENT, which is the whole reason it ran for a week.
+ * PostgREST rejects the WHOLE select when one column in it is unknown, and it
+ * reports that by RESOLVING with { data: null, error } rather than by
+ * throwing. At a call site that does not read `error`, "you asked for a column
+ * that does not exist" is indistinguishable from "there is nothing there", and
+ * every other column in the same statement comes back as nothing with it.
+ *
+ * ONE THING TO KNOW ABOUT information_schema.columns. It shows a role only the
+ * relations that role has some privilege on. The nightly_check role described
+ * in section 6 has SELECT on schema_migrations and nothing else, so it would
+ * see one table and could then "discover" that every column in the codebase is
+ * missing. Filing that would be the worst thing this check could possibly do.
+ * So a table for which the query returns NO rows at all is reported as
+ * not_checked and never as drift: "this table does not exist" and "this role
+ * cannot see this table" look identical from here, and this check will not
+ * guess between them. Grant the role SELECT on the tables you want covered, or
+ * point the query at pg_catalog.pg_attribute, which is readable by PUBLIC and
+ * exposes column names without exposing a single row.
+ * ========================================================================= */
+
+/**
+ * The seven found on 31 August 2026, each with what it breaks and whether the
+ * call site degrades, plus one older deliberate degrade that was already
+ * written down elsewhere. This list exists so that tonight's run is a short
+ * list of known damage rather than a wall of noise, and so that anything NOT
+ * on it is visibly a new regression.
+ *
+ * Shorten it, never lengthen it. Removing an entry is the fix landing; adding
+ * one is somebody deciding a broken feature is acceptable, which is a decision
+ * that belongs in a pull request and not in a nightly.
+ */
+export const KNOWN_MISSING_COLUMNS = new Map([
+  ['beauticians.notification_prefs', {
+    breaks: 'every per event push and SMS toggle in Settings. shouldPush reads it, gets null, falls into its '
+      + 'fail open catch, and a week of settings the owner had been changing did nothing at all. Unguarded. '
+      + 'Written by 002 and re-added idempotently by 20260831_backend023_notification_prefs.sql.',
+  }],
+  ['beauticians.marketing_emails_enabled', {
+    breaks: 'the owner marketing opt out. email-sequences.js reads it, gets null, and sends anyway, so an opt '
+      + 'out that was honoured in the UI is ignored at the point of sending. That is a PECR problem and not '
+      + 'only a bug. Unguarded. Written by 022_email_sends.sql.',
+  }],
+  ['beauticians.default_location_id', {
+    breaks: 'suggestions cannot resolve which location they are about, so the location lookup in '
+      + 'routes/suggestions.js is skipped every time. Unguarded. Written by 027_multi_location.sql.',
+  }],
+  ['beauticians.hmrc_access_token', {
+    breaks: 'the entire HMRC integration. GET /api/hmrc/status reads it, gets null, and answers linked:false, '
+      + 'so the feature reports itself as NOT LINKED rather than as broken and nobody files a bug. Unguarded. '
+      + 'Written by 025_hmrc_mtd.sql.',
+  }],
+  ['beauticians.hmrc_nino', {
+    breaks: 'the same HMRC status call and every quarterly submission, which needs the National Insurance '
+      + 'number to address itself. Unguarded. Written by 025_hmrc_mtd.sql.',
+  }],
+  ['beauticians.hmrc_refresh_token', {
+    breaks: 'HMRC token refresh, which therefore has nothing to refresh from even once the other two exist. '
+      + 'Unguarded. Written by 025_hmrc_mtd.sql.',
+  }],
+  // NOT one of the seven from #174, and the only entry added on purpose rather
+  // than by an incident. lib/health.js selects it, reads the error, and reports
+  // Instagram token expiry as untracked when it is not there. It is already
+  // recorded in backend/tests/unit/beauticians-column-truth.test.js as a
+  // deliberate degrade, so leaving it off this list would have meant the first
+  // run with a real credential opened an issue about a decision somebody had
+  // already made and written down. It is a warning, and it stays one.
+  ['beauticians.instagram_token_expires_at', {
+    breaks: 'nothing. The Instagram token monitor reports "expiry untracked" instead of a number of days left. '
+      + 'GUARDED: lib/health.js reads the error and asks again without the column. Nothing creates it, so this '
+      + 'is a permanent entry unless somebody writes the migration.',
+  }],
+  ['content_posts.media_kind', {
+    breaks: 'Save as Draft in Content Studio, which failed outright rather than silently. Note what this entry '
+      + 'is doing here: the backend only ever reads this column off a select("*"), and the name is written by '
+      + 'frontend/src/pages/ContentAutopilot.jsx, so THIS CHECK WOULD NOT HAVE FOUND IT. It is on the list as '
+      + 'the record of a known production gap, and as the reason somebody should one day point the extractor '
+      + 'at frontend/src and at writes as well as selects. Unguarded.',
+  }],
+]);
+
+/* ------------------------------------------------- reading what code asks -- */
+
+/** How far past a `from('x')` to look for that statement's `.select(`. */
+const STATEMENT_WINDOW = 2000;
+
+/**
+ * How far past a select to look for its error handling. inbox.js line 207 sits
+ * about 450 characters after its select and lib/health.js line 214 about 330,
+ * so this covers both with room to spare and stops well short of the next
+ * unrelated query.
+ */
+const GUARD_WINDOW = 900;
+
+/**
+ * Blank out comments, preserving every byte position so line numbers stay
+ * true. A column name written in prose above a query is not a column the code
+ * asks for, and section 1 of this file exists because a checker once read a
+ * comment as if it were an assertion.
+ */
+export function blankComments(src) {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
+    .replace(/(^|[^:\\])\/\/[^\n]*/g, (m, p1) => p1 + ' '.repeat(m.length - p1.length));
+}
+
+/** Split a select list on its top level commas, so an embed stays in one piece. */
+function splitTopLevel(list) {
+  const parts = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < list.length; i += 1) {
+    const ch = list[i];
+    if (ch === '(') depth += 1;
+    else if (ch === ')') depth -= 1;
+    else if (ch === ',' && depth === 0) { parts.push(list.slice(start, i)); start = i + 1; }
+  }
+  parts.push(list.slice(start));
+  return parts;
+}
+
+/**
+ * `clients ( id, first_name )`, `client:clients(id)`, `messages!inner(id)`.
+ * Group 1 is the RELATION, which is the table the bracketed columns belong to.
+ * An alias in front of it is a name for the result and never a column.
+ */
+const EMBED = /^(?:[A-Za-z_][A-Za-z0-9_]*\s*:\s*)?([A-Za-z_][A-Za-z0-9_]*)\s*(?:![A-Za-z0-9_]+\s*)*\(([\s\S]*)\)$/;
+
+/**
+ * Every (table, column) pair a PostgREST select string asks for.
+ *
+ * The rules, each of which is a thing that has been got wrong somewhere:
+ *   - an embed's columns belong to the EMBEDDED table, not to the parent, and
+ *     the embed name itself is a relationship rather than a column of either.
+ *     `clients(first_name, phone)` is two columns of clients and zero of the
+ *     table you selected from.
+ *   - `alias:real_column` names real_column. The alias is a key in the JSON
+ *     that comes back and does not exist in the database at all.
+ *   - `*` and `count` are not columns and cannot drift.
+ *   - a `::cast` or a `->>json` path hangs off a real column, so the column is
+ *     the part in front of it.
+ */
+export function parseSelect(list, table, into = []) {
+  for (const raw of splitTopLevel(list)) {
+    const part = raw.trim();
+    if (!part) continue;
+
+    const embed = EMBED.exec(part);
+    if (embed) {
+      parseSelect(embed[2], embed[1], into);
+      continue;
+    }
+
+    let col = part;
+    const alias = /^([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(?!:)([\s\S]+)$/.exec(col);
+    if (alias) col = alias[2].trim();
+    col = col.split('::')[0].split('->')[0].trim();
+
+    if (!col || col === '*' || col === 'count') continue;
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(col)) continue;
+    into.push({ table, column: col });
+  }
+  return into;
+}
+
+const FROM_CALL = /\bfrom\s*\(\s*(['"])([A-Za-z_][A-Za-z0-9_]*)\1\s*\)/g;
+
+/**
+ * `const SELECT = 'id, starts_at, clients(first_name)'` and then
+ * `.select(SELECT)` twice, which is what services/cleanup.js does. The column
+ * list is still a plain string sitting in the same file, so resolving the name
+ * is reading a literal and not guessing. Only same file, only a whole string
+ * literal, only when nothing is interpolated into it: anything cleverer than
+ * that belongs in `dynamic` where it can be counted honestly.
+ */
+const CONST_STRING = /\b(?:const|let|var)\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*(['"`])([\s\S]*?)\2\s*[;\n]/g;
+
+function literalConstants(text) {
+  const out = new Map();
+  for (const m of text.matchAll(CONST_STRING)) {
+    if (m[2] === '`' && m[3].includes('${')) continue;
+    if (!out.has(m[1])) out.set(m[1], m[3]);
+  }
+  return out;
+}
+
+/**
+ * Walk source text and collect every column reference, plus every select whose
+ * column list cannot be resolved without running the code.
+ *
+ * `files` is [{ file, text }] so that this is a pure function and the tests can
+ * feed it strings.
+ *
+ * WHAT IS COUNTED AND NOT COVERED. A select whose argument is an interpolated
+ * template literal, or a function call, or a name this file cannot resolve, has
+ * a column list that only exists at runtime. Those are collected into `dynamic`
+ * and REPORTED WITH A COUNT, because a check that quietly drops what it cannot
+ * read is how "no drift detected" got printed in the first place.
+ *
+ * Three things that LOOK dynamic and are not, each worth the handful of lines:
+ *   - a backtick with no `${` in it is an ordinary multi line string. Nearly
+ *     every long select in this codebase is written that way, and skipping
+ *     them would leave this covering almost nothing.
+ *   - `.select()` with no argument at all means every column, exactly like
+ *     `*`. It names nothing, so it can never name something missing. There are
+ *     about a hundred of these, and counting them as unreadable would bury the
+ *     nine that genuinely are.
+ *   - `.select(SELECT)` where SELECT is a plain string constant in the same
+ *     file. services/cleanup.js and routes/inbox.js both do this; resolving
+ *     the name is reading a literal, not guessing at one.
+ */
+export function extractColumnReferences(files) {
+  const references = [];
+  const dynamic = [];
+
+  for (const { file, text: raw } of files) {
+    const text = blankComments(raw);
+    const constants = literalConstants(text);
+    for (const m of text.matchAll(FROM_CALL)) {
+      const table = m[2];
+      const from = m.index + m[0].length;
+
+      // Look forward only as far as the next from(, so one statement can never
+      // borrow the select of the next one.
+      let window = text.slice(from, from + STATEMENT_WINDOW);
+      const nextFrom = window.search(/\bfrom\s*\(/);
+      if (nextFrom > -1) window = window.slice(0, nextFrom);
+
+      const sel = /\.select\s*\(\s*/.exec(window);
+      if (!sel) continue;
+
+      const argAt = sel.index + sel[0].length;
+      const line = text.slice(0, from + sel.index).split('\n').length;
+      const quote = window[argAt];
+
+      // `.select()` with no argument means every column, exactly like `*`. It
+      // names nothing, so it can never name something that is missing.
+      if (quote === ')') continue;
+
+      let body = null;
+      let end = argAt;
+      if (quote === "'" || quote === '"' || quote === '`') {
+        end = window.indexOf(quote, argAt + 1);
+        if (end === -1) {
+          dynamic.push({ file, line, table, why: 'the select argument does not terminate inside the window read here' });
+          continue;
+        }
+        body = window.slice(argAt + 1, end);
+        if (quote === '`' && body.includes('${')) {
+          dynamic.push({ file, line, table, why: 'a template literal with an interpolation, resolvable only at runtime' });
+          continue;
+        }
+      } else {
+        const name = /^([A-Za-z_$][A-Za-z0-9_$]*)\s*[,)]/.exec(window.slice(argAt));
+        if (!name || !constants.has(name[1])) {
+          dynamic.push({ file, line, table, why: 'the column list is an expression rather than a literal' });
+          continue;
+        }
+        body = constants.get(name[1]);
+        end = argAt + name[1].length;
+      }
+
+      const guarded = /isMissingColumnError\s*\(/.test(text.slice(from + end, from + end + GUARD_WINDOW));
+      const cols = parseSelect(body, table);
+      for (const ref of cols) {
+        references.push({
+          table: ref.table,
+          column: ref.column,
+          file,
+          line,
+          guarded,
+          // Everything else the same statement asks for, because PostgREST
+          // rejects the whole select and all of these come back as nothing too.
+          alsoLost: cols
+            .filter((c) => !(c.table === ref.table && c.column === ref.column))
+            .map((c) => `${c.table}.${c.column}`),
+        });
+      }
+    }
+  }
+  return { references, dynamic };
+}
+
+/* ----------------------------------------------------------- the judgement -- */
+
+function dynamicFinding(dynamic) {
+  return finding('info', 'column_drift_dynamic',
+    `${dynamic.length} select(s) build their column list at runtime and were not read`,
+    dynamic.map((d) => `  ${d.file}:${d.line}  from('${d.table}'): ${d.why}`).join('\n')
+    + '\n\nThese are counted rather than covered. Nothing above says anything about them either way, which is '
+    + 'the entire difference between this line and "no drift detected".',
+    { key: dynamic.map((d) => `${d.file}:${d.line}`).sort().join(',') });
+}
+
+/**
+ * Diff what the code asks for against what the database has.
+ *
+ * Pure on purpose: `live` is { table: [column] } read from
+ * information_schema.columns, `references` is what extractColumnReferences
+ * found, and nothing in here touches a network, a file or a clock. Pass
+ * live: null when the database could not be read, with `unreadable` saying
+ * why in words that finish the sentence "this run ...".
+ */
+export function judgeColumnDrift({ references = [], dynamic = [], live = null, unreadable = null, filesScanned = 0 }) {
+  const out = [];
+  const tables = [...new Set(references.map((r) => r.table))].sort();
+
+  if (!live) {
+    out.push(finding('not_checked', 'column_drift',
+      'the live schema was not read, so column drift was NOT checked',
+      `${references.length} column reference(s) across ${tables.length} table(s) were read out of backend/src. `
+      + 'Whether production HAS those columns is a question about a database, and this run '
+      + `${unreadable || 'could not read one'}, so it is NOT answered here and nothing else in this report `
+      + 'should be read as an answer to it.\n\n'
+      + 'That is a fact about this run. It is NOT evidence that the live schema matches the code, and this '
+      + 'check will not claim that it is. Issue #174 printed "Database Schema Drift: NO DRIFT DETECTED" on the '
+      + 'night seven columns the backend selects were missing from production, and the thing printing it had '
+      + 'never opened a connection to production. A check that could not look says it could not look.\n\n'
+      + 'To turn this into a real answer, NIGHTLY_DATABASE_URL has to be set AND the nightly_check role from '
+      + 'section 6 needs SELECT on the tables you want covered. information_schema.columns shows a role only the '
+      + 'relations it has a privilege on, so a role that can read nothing sees nothing, and this check reports '
+      + 'that as unchecked rather than as a schema full of missing columns.'));
+    if (dynamic.length) out.push(dynamicFinding(dynamic));
+    return out;
+  }
+
+  const has = (t) => Array.isArray(live[t]) && live[t].length > 0;
+  const invisible = tables.filter((t) => !has(t));
+  const compared = tables.filter(has);
+
+  // column -> the sites that ask for it, for every table we could actually see.
+  const missing = new Map();
+  for (const ref of references) {
+    if (!has(ref.table)) continue;
+    if (live[ref.table].includes(ref.column)) continue;
+    const key = `${ref.table}.${ref.column}`;
+    if (!missing.has(key)) missing.set(key, []);
+    missing.get(key).push(ref);
+  }
+
+  for (const [key, sites] of [...missing].sort((a, b) => a[0].localeCompare(b[0]))) {
+    const [table, column] = [key.slice(0, key.indexOf('.')), key.slice(key.indexOf('.') + 1)];
+    const known = KNOWN_MISSING_COLUMNS.get(key);
+    const guarded = sites.every((s) => s.guarded);
+
+    // Grading, and the one place the two rules here meet. A guarded select
+    // degrades to a smaller answer instead of to nothing, so a KNOWN one is a
+    // warning. Anything not on the 31 August 2026 list is a regression that
+    // arrived after the incident, and a regression is a failure whatever its
+    // call site does about it, because nobody has looked at it yet.
+    const severity = known ? (guarded ? 'warn' : 'fail') : 'fail';
+
+    const alsoLost = [...new Set(sites.flatMap((s) => s.alsoLost))].sort();
+    const handling = guarded
+      ? 'The call site reads the error: isMissingColumnError sends the query round again without the column, so '
+        + 'the feature loses that one field instead of the whole row.'
+      : 'Nothing at these call sites reads the error. PostgREST rejects the WHOLE select for one unknown column '
+        + 'and RESOLVES with { data: null, error }, so the call site cannot tell "you asked for a column that '
+        + 'does not exist" from "there is nothing there", and everything else in the same statement comes back '
+        + 'as nothing too.';
+
+    const grading = known
+      ? 'Already on KNOWN_MISSING_COLUMNS in scripts/nightly-check.mjs, recorded 31 August 2026. '
+        + `What it breaks: ${known.breaks}`
+        + (guarded ? ' Graded a warning rather than a failure because the call site degrades.' : '')
+      : 'This column is NOT on the list recorded on 31 August 2026, so it arrived after the incident this check '
+        + 'was written for. It is a failure for that reason'
+        + (guarded
+          ? ', even though the call site degrades: a degrade nobody has reviewed is still a feature quietly '
+            + 'missing a field. Put it on KNOWN_MISSING_COLUMNS with a note if that is the intention.'
+          : '.');
+
+    const detail = [
+      sites.map((s) => `  ${s.file}:${s.line}`).join('\n'),
+      grading,
+      alsoLost.length ? `${handling}\nTaken down with it in the same statement(s): ${alsoLost.join(', ')}.` : handling,
+      `Fix it in the database, not here: production has no ${table}.${column}, whatever the migrations folder `
+      + 'says. Apply the migration that creates it, or stop selecting it.',
+    ].join('\n\n');
+
+    out.push(finding(severity, 'column_drift', `production has no ${table}.${column}`, detail, { key }));
+  }
+
+  if (invisible.length) {
+    out.push(finding('not_checked', 'column_drift_invisible',
+      `${invisible.length} table(s) were not compared`,
+      invisible.map((t) => `  ${t}`).join('\n')
+      + '\n\ninformation_schema.columns returned no rows at all for these. Either they do not exist in the '
+      + 'public schema, or the role this check connects with has no privilege on them, and those two look '
+      + 'exactly alike from here. Neither is reported as drift. If the list is long, the role needs SELECT on '
+      + 'more tables.',
+      { key: invisible.join(',') }));
+  }
+
+  // Only ever say the clean sentence when the database was actually read.
+  if (missing.size === 0 && compared.length > 0) {
+    out.push(finding('info', 'column_drift',
+      'every column the backend selects exists in production',
+      `Read information_schema.columns in the live database and compared ${references.length} column `
+      + `reference(s) on ${compared.length} table(s), from ${filesScanned} file(s) in backend/src. Every one of `
+      + 'them exists.\n\n'
+      + 'Read that as "the database was opened tonight and agreed with the code". It is a different sentence '
+      + 'from "no drift detected", which is what issue #174 printed on 31 August 2026 while seven columns were '
+      + 'missing, because nothing behind that line had asked a database anything.'));
+  }
+
+  const fixed = [...KNOWN_MISSING_COLUMNS.keys()].filter((key) => {
+    const table = key.slice(0, key.indexOf('.'));
+    const column = key.slice(key.indexOf('.') + 1);
+    return has(table) && live[table].includes(column);
+  });
+  if (fixed.length) {
+    out.push(finding('info', 'column_drift_allowlist',
+      `${fixed.length} of the columns recorded on 31 August 2026 now exist in production`,
+      fixed.map((k) => `  ${k}`).join('\n')
+      + '\n\nDelete these from KNOWN_MISSING_COLUMNS in scripts/nightly-check.mjs. A list that still names a '
+      + 'column somebody fixed is a list nobody trusts.'));
+  }
+
+  if (dynamic.length) out.push(dynamicFinding(dynamic));
+  return out;
+}
+
+async function checkColumnDrift() {
+  let files;
+  try {
+    files = git('ls-files', 'backend/src')
+      .split('\n')
+      .filter((f) => f.endsWith('.js'))
+      .map((f) => ({ file: f, text: readFileSync(path.join(REPO, f), 'utf8') }));
+  } catch (err) {
+    return [finding('not_checked', 'column_drift', 'the backend source could not be read',
+      `${String(err?.message || err)}. That is a fact about this run, not about the schema.`)];
+  }
+
+  const { references, dynamic } = extractColumnReferences(files);
+  const tables = [...new Set(references.map((r) => r.table))].sort();
+  const soft = (unreadable) => judgeColumnDrift({ references, dynamic, live: null, unreadable, filesScanned: files.length });
+
+  const url = process.env.NIGHTLY_DATABASE_URL;
+  if (!url) return soft('had no database credential, because NIGHTLY_DATABASE_URL is not set');
+  if (tables.length === 0) return soft('found no resolvable select in backend/src to compare, which almost '
+    + 'certainly means the extractor has stopped matching this codebase rather than that the codebase stopped '
+    + 'selecting anything');
+
+  let pg;
+  try {
+    ({ default: pg } = await import('pg'));
+  } catch {
+    return soft('has NIGHTLY_DATABASE_URL set but no `pg` package installed, so run `npm ci` at the '
+      + 'repository root first');
+  }
+
+  const client = nightlyClient(pg, url);
+  try {
+    await client.connect();
+    // Read only, and narrowed to the tables the code actually names, so this
+    // never enumerates a schema it has no business enumerating. Column names
+    // only. No row of anybody's data crosses the wire.
+    const { rows } = await client.query(
+      'SELECT table_name, column_name FROM information_schema.columns '
+      + 'WHERE table_schema = $1 AND table_name = ANY($2::text[])',
+      ['public', tables],
+    );
+    const live = Object.fromEntries(tables.map((t) => [t, []]));
+    for (const r of rows) if (live[r.table_name]) live[r.table_name].push(r.column_name);
+    return judgeColumnDrift({ references, dynamic, live, filesScanned: files.length });
+  } catch (err) {
+    return soft(`could not read information_schema.columns: ${String(err?.message || err)}`);
+  } finally {
+    try { await client.end(); } catch { /* nothing useful to do about it */ }
+  }
 }
 
 /* =========================================================================
@@ -1542,6 +2078,7 @@ async function main() {
     requireNetwork: has('--require-network'),
   }));
   findings.push(...await checkMigrations());
+  findings.push(...await checkColumnDrift());
   findings.push(...checkLockfiles());
 
   const audit = checkAudit(state);

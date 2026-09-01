@@ -1,5 +1,26 @@
 # The nightly check
 
+> ## READ THIS FIRST: the old scheduled task is still live
+>
+> The replacement prompt under [The scheduled Claude task that sits on
+> top](#the-scheduled-claude-task-that-sits-on-top) has never been pasted in, so
+> the OLD task is still running and still filing issues.
+>
+> **Its line "Database Schema Drift: NO DRIFT DETECTED" is known to be false.**
+> It printed exactly that in issue #174 on 31 August 2026, the night seven
+> columns the backend selects were missing from production: a week of dead
+> notification settings, an ignored marketing opt out, a dead HMRC integration
+> and a Save as Draft button that always failed. That task compares migration
+> files against source code and never opens a database, so it cannot see schema
+> drift at all.
+>
+> **Do this:** paste the block below over the prompt of the scheduled task
+> "Florrie nightly health check". Until that is done, treat every schema line in
+> its issues as unverified. The check that actually asks production is
+> `column_drift` in `scripts/nightly-check.mjs`, and it needs
+> `NIGHTLY_DATABASE_URL` (see [Giving it database access,
+> safely](#giving-it-database-access-safely)).
+
 `.github/workflows/nightly-check.yml` runs at 03:00 UTC and can be started by hand
 from the Actions tab. The checks themselves live in `scripts/nightly-check.mjs`,
 so they can be read, run and tested without going near a runner. Their
@@ -44,6 +65,7 @@ So the new one is built to three rules.
 | `audit_*` | `npm audit`, reporting only what CHANGED since last night | Needs the registry, and needs the state cache to have survived |
 | `reachability` | Which routes have no inbound `to=`, `navigate(` or `href=` from anywhere | A link built entirely at runtime would be missed |
 | `migration_ledger` | `supabase/migrations/*.sql` against the `schema_migrations` rows | Not checked at all without a database credential |
+| `column_drift` | Every column `backend/src` selects, against `information_schema.columns` in the live database | Not checked at all without a database credential, and blind to a select whose column list is built at runtime, which it counts and names |
 | `tracked_secrets` | Secret shaped strings in tracked files | Current tree only, never history |
 | `guard_*` | Every `frontend/scripts/check-*.mjs` is still wired to something that runs it | None |
 | `boot` | First contentful paint and bytes before paint, from `check:boot`, against last night | Not checked if the build failed |
@@ -73,9 +95,18 @@ pins that, so the route cannot quietly close.
 
 ## What it cannot check, and why
 
-* **Anything about production without a credential.** The migration ledger needs
-  a database. Without `NIGHTLY_DATABASE_URL` it says the ledger was not read and
-  prints the SQL to create the role. It never guesses.
+* **Anything about production without a credential.** The migration ledger and
+  the column drift check both need a database. Without `NIGHTLY_DATABASE_URL`
+  they say so and print the SQL to create the role. Neither ever guesses, and
+  neither will print a clean line it did not earn.
+* **A select whose column list is built at runtime.** `column_drift` reads the
+  column names out of `backend/src`, and a select whose argument is an
+  interpolated template literal or a function call only has a column list while
+  the code is running. Those are counted and named in the report rather than
+  quietly dropped. It also reads selects only, not writes, and only the backend:
+  `content_posts.media_kind` broke Save as Draft from
+  `frontend/src/pages/ContentAutopilot.jsx` and is on the known list precisely
+  because this check would not have found it.
 * **Anything `/health` does not already cover.** The API check reads what
   `runHealthChecks` returns. Adding a dependency to the report means adding it to
   `backend/src/lib/health.js` first.
@@ -218,6 +249,22 @@ GRANT CONNECT ON DATABASE postgres TO nightly_check;
 GRANT USAGE ON SCHEMA public TO nightly_check;
 GRANT SELECT ON public.schema_migrations TO nightly_check;
 ```
+
+That is enough for `migration_ledger`. The `column_drift` check needs one more
+thing, because `information_schema.columns` shows a role only the relations that
+role has some privilege on:
+
+```sql
+GRANT SELECT ON public.beauticians, public.clients, public.appointments TO nightly_check;
+-- and any other table you want covered
+```
+
+A table the role cannot see is reported as **not checked**, never as drift: "the
+table does not exist" and "this role cannot see it" look identical from there,
+and guessing between them would file an issue claiming the whole schema is
+missing. If granting `SELECT` on real tables is not acceptable, point the query
+at `pg_catalog.pg_attribute` instead, which is readable by `PUBLIC` and exposes
+column names without exposing a single row.
 
 Then add the connection string as a GitHub Actions secret named
 `NIGHTLY_DATABASE_URL`, under Settings, Secrets and variables, Actions.
