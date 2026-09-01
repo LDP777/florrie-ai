@@ -62,7 +62,7 @@ vi.mock('../../src/lib/logger.js', () => ({ default: { info() {}, warn() {}, err
 vi.mock('@sentry/node', () => ({ captureMessage: () => {}, captureException: () => {} }));
 vi.mock('../../src/lib/job-runs.js', () => ({ readJobRuns: async () => ({ available: false, rows: [], reason: 'not in this test' }) }));
 
-const { judgeTemplateParams, countBodyParams } = await import('../../src/lib/health.js');
+const { judgeTemplateParams, judgeTemplateCoverage, countBodyParams } = await import('../../src/lib/health.js');
 
 /* -------------------------------------------------------------- the fixture --
  * The five bodies that were APPROVED on WABA 1458055882486306 on 27 August
@@ -200,11 +200,33 @@ describe('the judgement, without a network', () => {
     expect(v.templates_checked).toBe(1);
   });
 
-  it('treats a WABA with none of our templates as nothing to compare, not a fault', () => {
+  it('never calls an empty WABA a pass, because it compared nothing', () => {
+    // CHANGED 1 September 2026. This used to assert status 'ok'. On that day
+    // the health payload reported 53 of the last 55 confirmations going out
+    // with no manage link, told the reader to come and look at this check for
+    // the reason, and this check showed them a tick. Zero comparisons is
+    // 'not_checked', the same rule the nightly column drift check follows.
     const v = judgeTemplateParams([]);
+    expect(v.status).toBe('not_checked');
+    expect(v.templates_checked).toBe(0);
+    expect(v.detail).toMatch(/Nothing was compared, so this is not a pass/);
+    // Ambiguous (a new tenant looks identical to a wrong id), so not a warning.
     expect(v.ok).toBe(true);
-    expect(v.status).toBe('ok');
-    expect(v.detail).toMatch(/nothing to compare/);
+  });
+
+  it('warns, and names them, when the WABA holds only templates that are not ours', () => {
+    // Not ambiguous at all: we are pointed at the wrong account, or ours were
+    // approved under other names. Both need a person, so it goes in warnings.
+    const v = judgeTemplateParams([
+      { name: 'hello_world', status: 'APPROVED', components: [{ type: 'BODY', text: 'Hello {{1}}' }] },
+      { name: 'someone_promo', status: 'PENDING', components: [{ type: 'BODY', text: 'hi' }] },
+    ]);
+    expect(v.ok).toBe(false);
+    expect(v.status).toBe('warn');
+    expect(v.templates_on_waba).toBe(2);
+    expect(v.templates_approved_on_waba).toBe(1);
+    expect(v.detail).toMatch(/hello_world/);
+    expect(v.detail).toMatch(/WHATSAPP_WABA_ID points at a different account/);
   });
 
   it('reads the BODY component and not the header or the buttons', () => {
@@ -317,5 +339,54 @@ describe('/health asks Meta, and never invents an outage when it cannot', () => 
     await runHealthChecks({ stripe: null, jobs: [] });
     await runHealthChecks({ stripe: null, jobs: [] });
     expect(graph).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('a template the sender needs and the WABA does not have', () => {
+  // 1 September 2026. 53 of the last 55 booking confirmations went out with no
+  // manage link. The link rides in a second send on generic_message_v4, and
+  // when that version is absent the sender falls back to the _v2 body, which
+  // has one slot. A caller handing it a name AND a link is refused outright
+  // rather than shortened, so the client gets a confirmation she cannot act on.
+  //
+  // Nothing in the health payload said the word 'generic_message'. The
+  // mismatch list can only speak about templates that are present, and an
+  // absent one was silent here and loud everywhere else.
+  const approvedBody = (name, text) => ({ name, status: 'APPROVED', components: [{ type: 'BODY', text }] });
+
+  // Param counts match the registry exactly, so these rows are only ever about
+  // presence and absence. A fixture with the wrong count would fail the OTHER
+  // judgement and make this file look like it was testing something it is not.
+  const allFive = [
+    approvedBody('booking_confirmation_v4', 'Hi {{1}}, {{2}} on {{3}} at {{4}}'),
+    approvedBody('reminder_24h_v4', 'Hi {{1}}, {{2}} {{3}} at {{4}}'),
+    approvedBody('gap_fill_offer_v4', 'Hi {{1}}, {{2}} has {{3}} at {{4}}'),
+    approvedBody('rebook_nudge_v4', 'Hi {{1}}, from {{2}}'),
+    approvedBody('generic_message_v4', 'Hi {{1}}, {{2}} here. {{3}}'),
+  ];
+
+  it('says nothing when the WABA has every version the sender reaches for', () => {
+    const v = judgeTemplateCoverage(allFive);
+    expect(v.missing).toEqual([]);
+    expect(v.status).toBe('ok');
+  });
+
+  it('names the absent template and what breaks without it', () => {
+    const v = judgeTemplateCoverage(allFive.filter(t => t.name !== 'generic_message_v4'));
+    expect(v.ok).toBe(false);
+    expect(v.status).toBe('warn');
+    expect(v.missing).toEqual(['generic_message_v4']);
+    expect(v.detail).toMatch(/generic_message_v4/);
+    expect(v.detail).toMatch(/booking link/);
+  });
+
+  it('is a separate judgement from the parameter count, because the fixes differ', () => {
+    // A wrong count means Meta refuses the send. An absent template means the
+    // sender quietly uses an older body with fewer slots. Reporting them
+    // through one verdict meant a partial list of templates, which is normal
+    // in a unit test and never happens in production, read as five missing.
+    const rows = allFive.filter(t => t.name !== 'generic_message_v4');
+    expect(judgeTemplateParams(rows).status).toBe('ok');
+    expect(judgeTemplateCoverage(rows).status).toBe('warn');
   });
 });

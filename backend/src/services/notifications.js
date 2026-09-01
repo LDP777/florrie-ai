@@ -410,7 +410,7 @@ const WA_GRAPH = 'https://graph.facebook.com/v21.0';
 // the exact approved language for the template. Both are cached.
 
 const _phoneWabaCache = new Map(); // phoneNumberId -> { wabaId, at }
-async function getPhoneParentWaba(phoneNumberId) {
+export async function getPhoneParentWaba(phoneNumberId) {
   if (!WA_TOKEN || !phoneNumberId) return null;
   const hit = _phoneWabaCache.get(phoneNumberId);
   if (hit && Date.now() - hit.at < 30 * 60 * 1000) return hit.wabaId;

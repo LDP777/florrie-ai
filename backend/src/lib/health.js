@@ -24,6 +24,7 @@ import logger from './logger.js';
 import { parseWebhookSecrets } from './stripe-webhook-secret.js';
 import { readJobRuns } from './job-runs.js';
 import { TEMPLATE_SPECS, splitTemplateName, paramFieldsFor } from './whatsapp-templates.js';
+import { getPhoneParentWaba } from '../services/notifications.js';
 
 const DEFAULT_TIMEOUT_MS = 3000;
 
@@ -464,6 +465,11 @@ const TEMPLATE_AUDIT_ERROR_TTL_MS = 5 * 60 * 1000;
 const TEMPLATE_AUDIT_TIMEOUT_MS = 2500;
 
 /** What a client loses when this template cannot be sent. Keyed by base name. */
+// The versions the sender actually reaches for, highest preference first, and
+// it must track UPGRADE_ORDER in lib/whatsapp-templates.js. Checking a version
+// the sender would never choose would report a problem nobody has.
+const TEMPLATE_VERSIONS_THE_SENDER_PREFERS = ['v4'];
+
 const TEMPLATE_CONSEQUENCE = {
   booking_confirmation: 'no WhatsApp booking confirmation reaches the client at all',
   reminder_24h: 'the 24-hour reminder reaches nobody and the chair may sit empty',
@@ -504,6 +510,17 @@ export function judgeTemplateParams(templates) {
   const mismatches = [];
   let checked = 0;
 
+  // What Meta actually returned, kept rather than discarded. Without this the
+  // zero case below can only say "nothing to compare", which is true of a
+  // brand new account, of a WABA id pointing at somebody else's account, and
+  // of five templates approved on a different account, and those need
+  // completely different actions. See the note on that branch.
+  const seen = rows.map((t) => ({
+    name: String(t?.name || ''),
+    status: String(t?.status || '').toUpperCase(),
+  }));
+  const approved = seen.filter((t) => t.status === 'APPROVED');
+
   for (const t of rows) {
     const name = String(t?.name || '');
     if (String(t?.status || '').toUpperCase() !== 'APPROVED') continue;
@@ -529,14 +546,42 @@ export function judgeTemplateParams(templates) {
   };
 
   if (checked === 0) {
-    // Meta answered, and none of our templates is approved on this WABA. That
-    // is a real state (a brand new account, or a starter pack still in review)
-    // and it is not a mismatch, so it is not a warning.
+    // A CHECK THAT COMPARED NOTHING DOES NOT GET TO PRINT A PASS.
+    //
+    // 1 September 2026. This returned status 'ok' on templates_checked: 0
+    // while, in the same payload, confirmation_links reported that 53 of the
+    // last 55 booking confirmations went out with no manage link, and pointed
+    // the reader HERE to find out why. What the reader found was a tick.
+    //
+    // Zero is not one state, it is three, and they need different actions:
+    //   - a genuinely new WABA with nothing approved yet: wait
+    //   - a WABA id pointing at the wrong account: fix the config
+    //   - our templates approved somewhere else: point at that account
+    // Meta's own answer separates them instantly, and this used to throw it
+    // away. So the answer is reported, and the status is 'not_checked', which
+    // is the same rule the nightly column drift check follows: a table that
+    // returned no rows is never a clean result.
+    const names = approved.length
+      ? approved.map((t) => t.name).sort().join(', ')
+      : seen.map((t) => `${t.name} (${t.status || 'no status'})`).sort().join(', ');
+
+    // An EMPTY WABA is genuinely ambiguous (a new tenant with nothing
+    // submitted looks exactly like a wrong id), so it stays ok:true and says
+    // so. A WABA carrying templates that are all somebody else's is not
+    // ambiguous at all: we are pointed at the wrong account, or ours were
+    // approved under other names. That is a misconfiguration and it belongs in
+    // the warnings array where somebody will see it without reading the whole
+    // payload, because the last time it was buried nobody did.
     return {
-      ok: true,
-      status: 'ok',
+      ok: seen.length === 0,
+      status: seen.length === 0 ? 'not_checked' : 'warn',
       ...base,
-      detail: 'Meta has no approved template from this registry on the WABA yet, so there is nothing to compare',
+      templates_on_waba: seen.length,
+      templates_approved_on_waba: approved.length,
+      waba_template_names: names || null,
+      detail: seen.length === 0
+        ? 'Meta answered and this WABA has no message templates on it at all. Either it is a new account with nothing submitted, or WHATSAPP_WABA_ID is pointing at the wrong account. Nothing was compared, so this is not a pass.'
+        : `Meta answered with ${seen.length} template(s) on this WABA, ${approved.length} approved, and NONE of them is one of the ${base.templates_declared} in lib/whatsapp-templates.js. What is actually there: ${names}. Either WHATSAPP_WABA_ID points at a different account from the one the templates were approved on, or they were approved under different names. Nothing was compared, so this is not a pass.`,
     };
   }
 
@@ -561,17 +606,146 @@ export function judgeTemplateParams(templates) {
   };
 }
 
+/**
+ * Is the WABA missing a template the sender actually reaches for.
+ *
+ * A SEPARATE QUESTION from judgeTemplateParams above, deliberately. That one
+ * asks whether the bodies we have agree with the bodies Meta has, and it can
+ * only speak about templates that are PRESENT. This one asks whether they are
+ * there at all. Different fault, different fix, different consequence:
+ *
+ *   wrong parameter count   Meta refuses the send outright
+ *   template absent         the sender falls back down UPGRADE_ORDER to the
+ *                           older body, which has fewer slots, and a send
+ *                           carrying more than it holds is refused rather than
+ *                           shortened
+ *
+ * The second one is what 1 September looked like: 53 of the last 55 booking
+ * confirmations went out with no manage link, because the link rides in a
+ * second send on generic_message_v4 and the _v2 body it fell back to has one
+ * slot for a name and nowhere to put a url. Nothing in the health payload said
+ * the word 'generic_message'.
+ *
+ * @param {Array<{name:string,status:string}>} templates Meta's own list
+ */
+export function judgeTemplateCoverage(templates) {
+  const rows = Array.isArray(templates) ? templates : [];
+  const approved = new Set(
+    rows.filter((t) => String(t?.status || '').toUpperCase() === 'APPROVED')
+      .map((t) => String(t?.name || '').toLowerCase()),
+  );
+
+  const missing = [];
+  const present = [];
+  for (const [baseName, spec] of Object.entries(TEMPLATE_SPECS)) {
+    // Only the version the sender would actually choose. Reporting one it
+    // would never reach for is reporting a problem nobody has.
+    const version = TEMPLATE_VERSIONS_THE_SENDER_PREFERS.find((v) => spec.versions?.[v]);
+    if (!version) continue;
+    const wanted = `${baseName}_${version}`;
+    if (approved.has(wanted)) present.push(wanted);
+    else {
+      missing.push({
+        template: wanted,
+        breaks: TEMPLATE_CONSEQUENCE[baseName] || 'every send of this template falls back to an older body',
+      });
+    }
+  }
+
+  const base = {
+    critical: false,
+    templates_present: present.length,
+    templates_wanted: present.length + missing.length,
+  };
+
+  if (rows.length === 0) {
+    // Nothing on the WABA at all is the same ambiguity as in the params check:
+    // a new tenant and a wrong id look identical. Never a pass, never a fault.
+    return {
+      ok: true,
+      status: 'not_checked',
+      ...base,
+      missing: missing.map((m) => m.template),
+      detail: 'This WABA has no templates on it at all, so nothing could be looked for. Either it is a new account or WHATSAPP_WABA_ID is pointing at the wrong one.',
+    };
+  }
+
+  if (missing.length === 0) {
+    return { ok: true, status: 'ok', ...base, missing: [] };
+  }
+
+  return {
+    ok: false,
+    status: 'warn',
+    ...base,
+    missing: missing.map((m) => m.template),
+    detail: `${missing.length} template(s) the sender reaches for are not approved on the WABA it sends from: `
+      + missing.map((m) => `${m.template} (without it, ${m.breaks})`).join('; ')
+      + '. It falls back to the older body, which has fewer slots, so a send carrying more than that body holds is '
+      + 'refused rather than shortened. Submit the missing version, or point at the account where it is approved.',
+  };
+}
+
 // Remembered between polls. { at, result } so a Graph hiccup costs one call,
 // not one call every thirty seconds.
-let _templateAudit = { at: 0, result: null, ok: false };
+let _templateAudit = { at: 0, result: null, ok: false, inFlight: null };
+
+/**
+ * The WABA this check should be auditing: the one that actually sends.
+ *
+ * 1 September 2026, and the reason this function exists. The health payload
+ * said two things at once. confirmation_links: 53 of the last 55 booking
+ * confirmations carried no manage link. template_params, three lines below it:
+ * status ok, and "Meta has no approved template from this registry on the WABA
+ * yet". Both were true, and together they are impossible, because those 55
+ * confirmations WERE template sends and they went out fine.
+ *
+ * They were reading different accounts. services/notifications.js resolves the
+ * WABA that owns the sending phone number, per tenant, with
+ * getPhoneParentWaba, and loads the approved catalogue from that. This check
+ * read process.env.WHATSAPP_WABA_ID. So it was faithfully auditing an account
+ * nothing is sent from, and reporting its findings about the account that
+ * matters.
+ *
+ * Now it asks the same question the sender asks. The env var stays as a
+ * fallback for a deployment with no beautician connected yet.
+ */
+async function resolveAuditWaba() {
+  const envWaba = process.env.WHATSAPP_WABA_ID || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || null;
+  try {
+    const { data, error } = await supabase
+      .from('beauticians')
+      .select('whatsapp_phone_id')
+      .not('whatsapp_phone_id', 'is', null)
+      .limit(1);
+    // Read, because an unread error here would silently send us back to the
+    // env var, which is the exact wrong answer this function was written for.
+    if (error) {
+      logger.warn({ err: error }, 'template audit: could not read a sending phone id, falling back to the env WABA');
+      return { waba: envWaba, source: 'env_after_db_error' };
+    }
+    const phoneId = data?.[0]?.whatsapp_phone_id;
+    if (!phoneId) return { waba: envWaba, source: 'env_no_sender_connected' };
+
+    const parent = await getPhoneParentWaba(phoneId);
+    if (!parent) return { waba: envWaba, source: 'env_phone_parent_unknown', phoneId };
+    return { waba: parent, source: 'sending_phone', phoneId, envWaba };
+  } catch (err) {
+    logger.warn({ err }, 'template audit: WABA resolution threw, falling back to the env WABA');
+    return { waba: envWaba, source: 'env_after_throw' };
+  }
+}
 
 async function fetchApprovedTemplates() {
   // Read at call time, not at import: the same names are read by
   // services/notifications.js and a test that has not set them must get the
   // skipped branch rather than a live Graph call.
   const token = process.env.WHATSAPP_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN;
-  const waba = process.env.WHATSAPP_WABA_ID || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
-  if (!token || !waba) return { skipped: 'WHATSAPP_TOKEN / WHATSAPP_WABA_ID not set' };
+  if (!token) return { skipped: 'WHATSAPP_TOKEN not set' };
+
+  const resolved = await resolveAuditWaba();
+  const waba = resolved.waba;
+  if (!waba) return { skipped: 'no sending WhatsApp number connected and WHATSAPP_WABA_ID not set' };
 
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), TEMPLATE_AUDIT_TIMEOUT_MS);
@@ -584,7 +758,7 @@ async function fetchApprovedTemplates() {
     if (!res.ok || !Array.isArray(data?.data)) {
       return { error: data?.error?.message || `Graph returned HTTP ${res.status}` };
     }
-    return { templates: data.data };
+    return { templates: data.data, waba, wabaSource: resolved.source, envWaba: resolved.envWaba || null };
   } catch (err) {
     return { error: err?.name === 'AbortError' ? `no answer within ${TEMPLATE_AUDIT_TIMEOUT_MS}ms` : (err?.message || 'Graph call failed') };
   } finally {
@@ -592,10 +766,39 @@ async function fetchApprovedTemplates() {
   }
 }
 
+/**
+ * Reuses whatever checkTemplateParams already fetched. One Graph call answers
+ * both questions, and asking twice in the same health poll would double the
+ * rate-limit cost to say two things about one list.
+ */
+async function checkTemplateCoverage() {
+  const params = await checkTemplateParams();
+  if (params.coverage) return params.coverage;
+  // skipped / unknown: the params check already explains why, and repeating it
+  // as a second line does not add a fact.
+  return { ok: true, status: params.status, critical: false, detail: params.detail };
+}
+
 async function checkTemplateParams() {
   const fresh = Date.now() - _templateAudit.at < (_templateAudit.ok ? TEMPLATE_AUDIT_TTL_MS : TEMPLATE_AUDIT_ERROR_TTL_MS);
   if (_templateAudit.result && fresh) return _templateAudit.result;
 
+  // Two checks read this audit and runHealthChecks starts them in the same
+  // Promise.all, so both miss the cache in the same tick and both call Meta.
+  // The cache only helps the SECOND poll; this helps the second caller. One
+  // Graph call per poll, not one per question asked about it.
+  if (_templateAudit.inFlight) return _templateAudit.inFlight;
+  _templateAudit.inFlight = (async () => {
+    try {
+      return await runTemplateAudit();
+    } finally {
+      _templateAudit.inFlight = null;
+    }
+  })();
+  return _templateAudit.inFlight;
+}
+
+async function runTemplateAudit() {
   const answer = await fetchApprovedTemplates();
 
   let result;
@@ -613,9 +816,21 @@ async function checkTemplateParams() {
     };
   } else {
     result = judgeTemplateParams(answer.templates);
+    result.coverage = judgeTemplateCoverage(answer.templates);
+    // Which account this judgement is about. Without it a reader cannot tell a
+    // clean audit of the right WABA from a clean audit of the wrong one, which
+    // is the whole of the 1 September confusion.
+    result = {
+      ...result,
+      waba_audited: answer.waba,
+      waba_source: answer.wabaSource,
+      ...(answer.envWaba && answer.envWaba !== answer.waba
+        ? { waba_env_disagrees: answer.envWaba }
+        : {}),
+    };
   }
 
-  _templateAudit = { at: Date.now(), result, ok: !answer.error };
+  _templateAudit = { ..._templateAudit, at: Date.now(), result, ok: !answer.error };
   return result;
 }
 
@@ -687,7 +902,7 @@ export async function runHealthChecks({ stripe = null, timeoutMs = DEFAULT_TIMEO
     label,
   );
 
-  const [database, stripeApi, webhookSecret, webhookActivity, instagram, confirmationLinks, templateParams, jobs] = await Promise.all([
+  const [database, stripeApi, webhookSecret, webhookActivity, instagram, confirmationLinks, templateParams, templateCoverage, jobs] = await Promise.all([
     guarded('database', checkSupabase),
     guarded('stripe_api', () => checkStripeApi(stripe)),
     guarded('stripe_webhook_secret', () => checkStripeWebhookSecret(stripeConfigured)),
@@ -695,6 +910,7 @@ export async function runHealthChecks({ stripe = null, timeoutMs = DEFAULT_TIMEO
     guarded('instagram_tokens', checkInstagramTokens),
     guarded('confirmation_links', checkConfirmationLinks),
     guarded('template_params', checkTemplateParams),
+    guarded('template_coverage', checkTemplateCoverage),
     guarded('crons', () => checkJobs(jobSpecs)),
   ]);
 
@@ -706,6 +922,7 @@ export async function runHealthChecks({ stripe = null, timeoutMs = DEFAULT_TIMEO
     instagram_tokens: instagram,
     confirmation_links: confirmationLinks,
     template_params: templateParams,
+    template_coverage: templateCoverage,
     crons: jobs,
   };
 
