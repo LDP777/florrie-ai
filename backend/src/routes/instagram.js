@@ -550,10 +550,18 @@ router.get('/callback', async (req, res) => {
     // Step 5 — subscribe this account to the app's message webhooks so inbound
     // DMs reach POST /api/webhooks/instagram. Non-fatal: connection still counts
     // as successful if this fails (it can be retried).
+    //
+    // message_echoes was added on 1 September 2026, after Florrie replied into
+    // a thread Ellie was already handling and made no sense, because she could
+    // not see it. `messages` alone delivers only what the CLIENT sends. Ellie
+    // types her own replies in the Instagram app on her phone, and without
+    // echoes not one of them was ever written to the thread, so the transcript
+    // Florrie reasons over had the owner's half of the conversation missing
+    // entirely. See lib/owner-in-thread.js.
     try {
       const subRes = await fetch(
         `https://graph.instagram.com/v21.0/me/subscribed_apps` +
-        `?subscribed_fields=messages` +
+        `?subscribed_fields=messages,message_echoes` +
         `&access_token=${encodeURIComponent(userToken)}`,
         { method: 'POST' }
       );
@@ -650,6 +658,7 @@ router.get('/status', requireAuth, async (req, res) => {
     // a working setup right up until somebody sends a message and waits.
     // Asked here so it can be checked before it matters.
     let webhookSubscribed = null;   // null = could not check
+    let echoesSubscribed = null;    // null = could not check
     if (tokenValid) {
       try {
         const s = await fetch('https://graph.instagram.com/v21.0/me/subscribed_apps', {
@@ -658,8 +667,13 @@ router.get('/status', requireAuth, async (req, res) => {
         const sBody = await s.json().catch(() => ({}));
         if (s.ok) {
           const apps = Array.isArray(sBody?.data) ? sBody.data : [];
-          webhookSubscribed = apps.some(a =>
-            (a?.subscribed_fields || []).some(f => String(f?.name || f) === 'messages'));
+          const fields = new Set(apps.flatMap(a =>
+            (a?.subscribed_fields || []).map(f => String(f?.name || f))));
+          webhookSubscribed = fields.has('messages');
+          // Reported separately: an account connected before 1 September has
+          // `messages` and not `message_echoes`, which looks completely healthy
+          // and still leaves Florrie blind to everything Ellie writes herself.
+          echoesSubscribed = fields.has('message_echoes');
         }
       } catch (err) {
         // Leave it null. "We could not check" is not "it is broken".
@@ -674,6 +688,10 @@ router.get('/status', requireAuth, async (req, res) => {
       // true / false / null. Only ever false when Instagram positively said
       // this account is not subscribed to the messages field.
       webhook_subscribed: webhookSubscribed,
+      // An account connected before 1 September 2026 is subscribed to
+      // `messages` only, so nothing Ellie sends from the Instagram app reaches
+      // the thread and Florrie answers around her. Reconnecting fixes it.
+      echoes_subscribed: echoesSubscribed,
       account_id: data.instagram_page_id,
       token_valid: tokenValid,
       // The app should surface a reconnect prompt on this, not on `connected`.

@@ -18,6 +18,8 @@ import { sendMessage, sendInstagramDM, sendWhatsAppText, sendSMS, notifyBookingC
 import { pushEscalation, pushTeamUpdate, pushAtTheDoor } from './push-notifications.js';
 import { refreshLiveActivity } from './live-activity.js';
 import { isKnownClient, clientAutonomyOverride, guardedSend, classifyTier } from '../lib/outbound-guard.js';
+import { ownerIsInThread } from '../lib/owner-in-thread.js';
+import { authorshipAvailable } from '../lib/authorship.js';
 import { isOptOutMessage, applyOptOut, OPT_OUT_CONFIRMATION } from '../lib/opt-out.js';
 import { getLoyaltyConfig, getClientPoints, loyaltyProximity } from './loyalty.js';
 import { getActivePromos, describePromo } from '../lib/promos.js';
@@ -297,6 +299,18 @@ export async function processInboundMessage(messageId, beautician, client, messa
     // not to speak in this thread. 'florrie' is an explicit whitelist.
     const autonomyOverride = await clientAutonomyOverride(beautician.id, client?.id, client);
 
+    // Is Ellie already in this conversation herself. Read from the thread we
+    // just loaded, so it costs nothing extra.
+    const ownerPresent = context.conversationReadable === false
+      // Unknown, so assume she is. Silence costs a message Ellie was going to
+      // answer herself; speaking into a thread we cannot read is how Florrie
+      // ends up contradicting her in front of a client.
+      ? { present: true, at: null, reason: 'thread_unreadable' }
+      : ownerIsInThread({
+        conversation: context.conversation,
+        currentMessageId: messageId,
+      });
+
     let shouldAct = mayFlorrieSend({
       classification,
       groundedDecision,
@@ -305,7 +319,15 @@ export async function processInboundMessage(messageId, beautician, client, messa
       threshold: beautician.confidence_threshold,
       message: messageContent,
       arrivalNote,
+      ownerPresent,
     });
+
+    if (ownerPresent.present) {
+      logger.info(
+        { beauticianId: beautician.id, clientId: client?.id || null, ownerLastSpokeAt: ownerPresent.at },
+        'AI Front Desk: the owner is already in this thread, drafting for her instead of sending',
+      );
+    }
 
     // Asking for a human is answered by a human, full stop — and the thread is
     // marked so Florrie stays out of it from now on rather than making her ask
@@ -884,7 +906,11 @@ async function gatherContext(beautician, client, messageContent = '') {
     // main fix for out of context Instagram replies where we only saw one DM.
     client?.id ? supabase
       .from('messages')
-      .select('direction, content, channel, created_at')
+      // authored_by only when the column is really there. Naming it blind
+      // would reject the WHOLE select, and this select IS the conversation
+      // history, so the failure would be Florrie answering with no context at
+      // all: worse than the out-of-context replies it is here to prevent.
+      .select(`id, direction, content, channel, created_at${authorshipAvailable() ? ', authored_by' : ''}`)
       .eq('client_id', client.id)
       .order('created_at', { ascending: false })
       .limit(12) : { data: [] },
@@ -939,6 +965,19 @@ async function gatherContext(beautician, client, messageContent = '') {
 
   // Oldest to newest, ready to render as a transcript.
   const conversationThread = (conversation.data || []).slice().reverse();
+
+  // A failed read and an empty thread are the same shape here, and they mean
+  // opposite things. An empty thread is a new client; a failed read is Florrie
+  // about to answer a conversation she cannot see, which is precisely the
+  // 1 September incident arriving by a different route. Say so, and let the
+  // caller treat it as "somebody may already be handling this".
+  const conversationReadable = !conversation.error;
+  if (conversation.error) {
+    logger.error(
+      { err: conversation.error, beauticianId: beautician.id, clientId: client?.id || null },
+      'AI Front Desk: could not read the conversation history. Florrie will not auto-send into a thread she cannot see.',
+    );
+  }
 
   // Average spend from recent history lets us judge 'within one visit'.
   const historyRows = clientHistory.data || [];
@@ -1004,6 +1043,7 @@ async function gatherContext(beautician, client, messageContent = '') {
     clientHistory: clientHistory.data || [],
     clientIntelligence: clientIntelligence.data,
     conversation: conversationThread,
+    conversationReadable,
     freeSlots: freeSlots || [],
     knowledge: knowledge || [],
     loyalty,
@@ -1275,8 +1315,20 @@ NEVER say when an appointment is unless it is in that list, and say the day that
  * @param {number} a.threshold her confidence threshold, for the old path
  * @param {string} a.message the client's own words, for the doorstep check
  * @param {string} a.arrivalNote what she has written down about arriving
+ * @param {{present: boolean, reason: string}} [a.ownerPresent] is Ellie already in this thread
  */
-export function mayFlorrieSend({ classification, groundedDecision, known, autonomyOverride, threshold, message, arrivalNote = '' }) {
+export function mayFlorrieSend({ classification, groundedDecision, known, autonomyOverride, threshold, message, arrivalNote = '', ownerPresent = null }) {
+  // ABOVE EVERYTHING, INCLUDING THE DOORSTEP RULE BELOW.
+  //
+  // 1 September: Ellie answered a client's reschedule herself, the client said
+  // "Yes no problem!! Xxx", and Florrie then arrived to check about a patch
+  // test. The exchange was already finished. Every dial we had said yes,
+  // because every dial asks what Florrie may SAY and none of them asks whether
+  // a human being is already saying it.
+  //
+  // She still writes the draft; it still reaches Ellie. The only thing this
+  // changes is who presses send, and that is the whole of the complaint.
+  if (ownerPresent?.present) return false;
   // ABOVE EVERY DIAL, INCLUDING THE ONE THAT SAYS YES, AND ONLY WHEN SHE HAS
   // WRITTEN NOTHING DOWN.
   //

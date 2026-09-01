@@ -197,11 +197,183 @@ export async function findBeauticianForIds(candidateIds) {
 }
 
 /**
+ * Make sure this account is subscribed to message_echoes, not just messages.
+ *
+ * The subscription is made once, at connect time. Ellindigo connected on 31
+ * August, the day before echoes were added, so her account is subscribed to
+ * `messages` only and every /status check reports her as perfectly healthy
+ * while Florrie remains blind to everything Ellie writes herself. Shipping the
+ * code without this would fix the bug for salons that connect tomorrow and
+ * leave the one salon that has it exactly as broken as before.
+ *
+ * Subscribing is idempotent, so the safe thing is simply to do it, once per
+ * process, the first time a DM arrives from an account. Deliberately NOT done
+ * at boot: that would put a Meta API call on the startup path of a service
+ * whose whole job is to be up.
+ *
+ * Fire and forget. A failure here must never delay or break handling the
+ * message that triggered it.
+ */
+const echoSubscriptionEnsured = new Set();
+
+async function ensureEchoSubscription(beautician) {
+  if (!beautician?.id || !beautician.instagram_page_token) return;
+  if (echoSubscriptionEnsured.has(beautician.id)) return;
+  echoSubscriptionEnsured.add(beautician.id);
+
+  try {
+    const res = await fetch(
+      'https://graph.instagram.com/v21.0/me/subscribed_apps?subscribed_fields=messages,message_echoes',
+      { method: 'POST', headers: { Authorization: `Bearer ${beautician.instagram_page_token}` } },
+    );
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || body?.success === false) {
+      // Let it be retried next boot rather than remembering a failure forever.
+      echoSubscriptionEnsured.delete(beautician.id);
+      logger.warn({ beauticianId: beautician.id, body },
+        'Instagram: could not add message_echoes to this account. Florrie will not see the owner\'s own replies until this succeeds or she reconnects.');
+      return;
+    }
+    logger.info({ beauticianId: beautician.id }, 'Instagram: message_echoes subscription confirmed');
+  } catch (err) {
+    echoSubscriptionEnsured.delete(beautician.id);
+    logger.warn({ err, beauticianId: beautician.id }, 'Instagram: message_echoes subscribe threw');
+  }
+}
+
+/** Tests only. */
+export function __resetEchoSubscriptionCache() { echoSubscriptionEnsured.clear(); }
+
+/**
+ * Record a message the SALON sent, so the thread Florrie reads is the whole
+ * thread and not just the client's half of it.
+ *
+ * Two kinds of echo arrive here and they mean opposite things:
+ *
+ *   Florrie's own send, bounced back to us. Already in `messages` from the
+ *   moment we sent it. Recording it again would double it in the Inbox and,
+ *   worse, would look to lib/owner-in-thread.js like the owner had spoken,
+ *   muting Florrie in every thread she had ever replied to. Matched on the
+ *   message id Instagram gives back at send time, which we now store in
+ *   messages.external_message_id.
+ *
+ *   Ellie's own reply, typed on her phone in the Instagram app. This is the
+ *   one that was missing. Written as an outbound message authored_by 'human',
+ *   which is what makes it show up in her Inbox, count as her own words for
+ *   the voice profile, and tell Florrie to stay out of the conversation.
+ *
+ * Anything we cannot match is treated as HERS, deliberately. Getting it wrong
+ * that way makes Florrie quiet for a few hours in one thread. Getting it wrong
+ * the other way puts her back to talking over her owner, which is the bug.
+ */
+async function handleInstagramEcho(event, entryId) {
+  const mid = event.message?.mid;
+  const text = typeof event.message?.text === 'string' ? event.message.text : '';
+  const media = event.message?.attachments?.length
+    ? describeInstagramAttachment(event.message.attachments[0])
+    : null;
+  if (!text && !media) return;   // reactions, read receipts, nothing to record
+
+  // On an echo the business is the SENDER and the client is the RECIPIENT,
+  // which is the reverse of every other event in this file.
+  const clientIgId = event.recipient?.id;
+  if (!clientIgId) return;
+
+  const { beautician } = await findBeauticianForIds(receivingAccountIds(event, entryId));
+  if (!beautician) return;
+
+  // Ours already. Nothing to do, and doing something would be actively wrong.
+  if (mid) {
+    const { data: existing, error: dupeErr } = await supabase
+      .from('messages')
+      .select('id')
+      .eq('beautician_id', beautician.id)
+      .eq('external_message_id', mid)
+      .limit(1);
+    if (dupeErr) {
+      // Reading this error matters. Unread, a failed dedupe query looks
+      // identical to "no match", and every message Florrie sends would be
+      // written a second time as though Ellie had written it, which would
+      // silence Florrie permanently in exactly the threads she is working.
+      logger.error({ err: dupeErr, beauticianId: beautician.id, mid },
+        'Instagram echo: could not check whether this is our own send; skipping it rather than risk duplicating it');
+      return;
+    }
+    if (existing?.length) return;
+  }
+
+  // Belt and braces for a send whose id we never captured. Same salon, same
+  // words, sent by us in the last quarter of an hour: that is our own message
+  // coming back, not the owner writing the identical sentence by hand. Without
+  // this, one send path that forgets to store its id would quietly mute Florrie
+  // in every thread she works, and it would look like the new rule misfiring
+  // rather than a missing column value.
+  if (text) {
+    const since = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+    const { data: mine, error: mineErr } = await supabase
+      .from('messages')
+      .select('id, authored_by')
+      .eq('beautician_id', beautician.id)
+      .eq('direction', 'outbound')
+      .eq('content', text)
+      .gte('created_at', since)
+      .limit(5);
+    if (mineErr) {
+      logger.error({ err: mineErr, beauticianId: beautician.id },
+        'Instagram echo: recent-send lookup failed; recording this as the owner rather than guessing it is ours');
+    } else if ((mine || []).some(m => m.authored_by !== 'human')) {
+      return;
+    }
+  }
+
+  const { data: client } = await supabase
+    .from('clients')
+    .select('id')
+    .eq('beautician_id', beautician.id)
+    .eq('instagram_id', clientIgId)
+    .maybeSingle();
+
+  // No client row means she is talking to somebody who has never messaged us,
+  // so there is no thread for Florrie to interrupt. Nothing to record against.
+  if (!client?.id) return;
+
+  const { error: insErr } = await supabase.from('messages').insert({
+    beautician_id: beautician.id,
+    client_id: client.id,
+    channel: 'instagram',
+    direction: 'outbound',
+    content: text || media?.label || '[Message]',
+    media_url: media?.media_url || null,
+    media_type: media?.media_type || null,
+    external_message_id: mid || null,
+    ai_handled: false,
+    ...authorship('human'),
+    escalated: false,
+  });
+
+  if (insErr) {
+    logger.error({ err: insErr, beauticianId: beautician.id, clientId: client.id, mid },
+      'Instagram echo: the owner\'s own reply was not written to the thread. Florrie cannot see it and may answer around her.');
+    return;
+  }
+
+  logger.info({ beauticianId: beautician.id, clientId: client.id },
+    'Instagram echo: recorded the owner\'s own reply');
+}
+
+/**
  * Process a single Instagram messaging event.
  */
 async function handleInstagramMessage(event, pageId) {
-  // Skip echo messages (messages sent by us)
-  if (event.message?.is_echo) return;
+  // An echo is the business's own outgoing message coming back to us. Until
+  // 1 September 2026 we were not even subscribed to these, and this line threw
+  // away the few that arrived. That is why Florrie replied into a thread Ellie
+  // had already handled and made no sense: Ellie types in the Instagram app on
+  // her phone, so every word she wrote was invisible to us, and the transcript
+  // handed to the model had her half of the conversation missing.
+  //
+  // Now they are recorded, so the thread is the whole thread.
+  if (event.message?.is_echo) return handleInstagramEcho(event, pageId);
 
   // Skip events that are not a message at all: read receipts, reactions,
   // delivery confirmations. Those carry event.read / event.reaction /
@@ -251,6 +423,11 @@ async function handleInstagramMessage(event, pageId) {
     logger.info({ beauticianId: beautician.id, candidateIds, stored: beautician.instagram_page_id },
       'Instagram DM: routed on a secondary account id, not instagram_page_id');
   }
+
+  // Not awaited. Heals an account subscribed before message_echoes existed,
+  // at the first moment we know it is live, without putting a Meta round trip
+  // in front of answering the client.
+  ensureEchoSubscription(beautician).catch(() => {});
 
   await processInstagramDM(beautician, senderId, messageText, messageId, media);
 }
@@ -314,7 +491,13 @@ async function sendInstagramReply(recipientId, text, token) {
       return false;
     }
 
-    return true;
+    // Return the id Instagram assigns, not just true. It is what tells our own
+    // echo apart from one of Ellie's when it comes back to the webhook: see
+    // handleInstagramEcho. Truthy either way, so every existing
+    // `if (await sendInstagramReply(...))` caller behaves exactly as before,
+    // and a send that succeeds without an id still reads as a success.
+    const body = await res.json().catch(() => ({}));
+    return body?.message_id || true;
   } catch (err) {
     logger.error({ err, recipientId }, 'Instagram reply network error');
     return false;
@@ -662,6 +845,10 @@ async function processInstagramDM(beautician, senderId, messageText, messageId, 
           channel: 'instagram',
           direction: 'outbound',
           content: redirectMsg,
+          // Instagram's own id for this send. It is what handleInstagramEcho
+          // matches on to recognise this message when it bounces back, so it
+          // is not mistaken for something Ellie typed herself.
+          external_message_id: verdict.deliveryId || null,
           ai_handled: true,
           ...authorship('template'),
           escalated: false,

@@ -63,5 +63,16 @@ export function authorship(value) {
   return available && value ? { authored_by: value } : {};
 }
 
+/**
+ * For READS, not inserts. Same probe, same reason: naming authored_by in a
+ * select against a table that does not have it does not return a row without
+ * the field, it rejects the entire select and hands back a null with an error
+ * beside it. A reader that asks for it unconditionally loses the whole
+ * conversation history rather than one column, which is how a context window
+ * goes empty and Florrie starts answering messages out of context. Which is
+ * the exact bug the caller of this is trying to fix.
+ */
+export function authorshipAvailable() { return available; }
+
 /** Tests only. */
 export function __setAuthorshipAvailable(v) { available = v; }

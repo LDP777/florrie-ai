@@ -338,14 +338,24 @@ export async function guardedSend({ beauticianId, clientId, messageType, channel
   const verdict = await evaluateOutbound({ beauticianId, clientId, messageType, channel, client });
   if (verdict.decision === 'send') {
     let ok = false;
-    try { ok = !!(await send()); } catch (err) {
+    // Senders may return the provider's own message id instead of a bare true.
+    // Kept rather than collapsed to a boolean: on Instagram it is the only way
+    // to recognise our own message when the platform echoes it back to the
+    // webhook, and mistaking Florrie's echo for the owner's would silence her
+    // in every thread she has ever answered. See routes/instagram-webhooks.js.
+    let deliveryId = null;
+    try {
+      const result = await send();
+      ok = !!result;
+      if (typeof result === 'string') deliveryId = result;
+    } catch (err) {
       logger.error({ err, beauticianId, messageType }, 'guardedSend: delivery threw');
     }
     await recordOutbound({
       beauticianId, clientId, messageType, channel, tier: verdict.tier,
       status: ok ? 'sent' : 'blocked', reason: ok ? verdict.reason : 'send_failed', body,
     });
-    return { ...verdict, delivered: ok };
+    return { ...verdict, delivered: ok, deliveryId };
   }
   // approve or block: never deliver, just record intent.
   await recordOutbound({
@@ -353,5 +363,5 @@ export async function guardedSend({ beauticianId, clientId, messageType, channel
     status: verdict.decision === 'approve' ? 'pending_approval' : 'blocked',
     reason: verdict.reason, body,
   });
-  return { ...verdict, delivered: false };
+  return { ...verdict, delivered: false, deliveryId: null };
 }
