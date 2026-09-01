@@ -35,11 +35,12 @@ import { hasCompletedConsultation } from '../lib/consultation-status.js';
 import { totalApplicationFee } from '../lib/platform-fees.js';
 import { apiPublicBase } from '../lib/public-url.js';
 import { announceBookingConfirmed } from './booking-confirmed-alert.js';
+import { alreadyBookedForThis } from '../lib/already-booked.js';
 import {
   combineTreatments, resolveDepositCents, formatWallTime, describeSlot,
   matchTreatment, dayPreferenceFrom, chooseOffers, matchSlotChoice,
   isLive, looksLikeRejection,
-  looksLikeABookingOpening,
+  looksLikeABookingOpening, patchTestLine,
 } from '../lib/booking-rules.js';
 
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
@@ -307,6 +308,38 @@ export async function advanceBookingConversation({ beautician, client: inbound, 
   // See looksLikeABookingOpening in lib/booking-rules.js.
   if (!state && !looksLikeABookingOpening(message, bookableTreatments(context))) return null;
 
+  // SHE IS ALREADY BOOKED FOR THIS. Do not offer her times for it.
+  //
+  // 1 September 2026: a client opened with "I've just booked in for a Korean
+  // lash lift on the 9th Sept at 11am" and was offered 1.45pm or 2pm for a
+  // Korean lash lift. Read as a customer, that says her booking did not go
+  // through. The text gate above refuses "I'm booked" and "already booked" and
+  // she wrote "I've just booked in", so it missed by one phrase, and the next
+  // client would phrase it a third way. The diary does not have that problem.
+  //
+  // Returning null rather than speaking: the ordinary reply path can answer
+  // from her real booking, which is the true and useful answer, and when it
+  // cannot it escalates to Ellie. Either beats a slot list.
+  if (!state) {
+    const existing = alreadyBookedForThis({
+      message,
+      clientUpcoming: context?.clientUpcoming,
+      treatments: bookableTreatments(context),
+    });
+    if (existing.booked) {
+      logger.info(
+        {
+          beauticianId: beautician.id,
+          clientId: client.id,
+          appointmentId: existing.appointment?.id || null,
+          treatment: existing.treatmentName,
+        },
+        'Booking conversation not opened: this client is already booked for the treatment she named',
+      );
+      return null;
+    }
+  }
+
   const salonNow = nowInSalonWall(beautician.timezone || 'Europe/London');
 
   try {
@@ -499,9 +532,13 @@ async function offerSlots({ beautician, client, message, treatment, context, sal
   const lead = askedForADayIHaveNothingOn
     ? `I've not got anything left on the day you asked for, but for ${treatment.name} I've got`
     : `For ${treatment.name} I've got`;
-  const patchLine = patchTest
-    ? ` There's a quick patch test to do at least 24 hours before, I'll sort that with you once the deposit is in.`
-    : '';
+  // A deposit is only mentioned when this treatment really takes one. See
+  // patchTestLine: this sentence used to claim money was owed in every branch,
+  // including the branch that exists because no deposit is taken.
+  const patchLine = patchTestLine({
+    patchTest,
+    depositDue: resolveDepositCents(treatment, beautician) > 0,
+  });
 
   const reply = `${lead} ${describeOffers(offers, today)}. Which one suits you?${patchLine}`;
   return speak(guarded(reply, { allowedTimes, context: { stage: 'offer', beauticianId: beautician.id } }), {
@@ -727,7 +764,15 @@ async function holdAndCharge({ beautician, client, treatment, slot, state, conte
   if (logError) logger.warn({ err: logError, appointmentId: appointment.id }, 'Booking action log failed (non-fatal)');
 
   const when = describeSlot({ date: startsAt.slice(0, 10), time: startsAt.slice(11, 16) }, today);
-  const patchLine = patchTest ? ` There's a quick patch test to do at least 24 hours before, I'll sort that with you once the deposit is in.` : '';
+  // depositCents is what this booking actually charges: 0 on the branch just
+  // below, which is the branch that used to tell a client with no deposit to
+  // pay one. When there IS a deposit, the reply beside this already carries the
+  // link, so saying it here too says it twice in four lines.
+  const patchLine = patchTestLine({
+    patchTest,
+    depositDue: depositCents > 0,
+    depositAlreadyMentioned: depositCents > 0,
+  });
 
   // No deposit configured: the booking page confirms these outright, so this
   // one is confirmed too rather than inventing a different rule.

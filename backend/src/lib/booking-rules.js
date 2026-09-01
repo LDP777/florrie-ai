@@ -605,7 +605,24 @@ const ASKS_TO_BOOK = /\b(?:book|books|booking|bookings|rebook|appointments?|appt
  * About a booking they ALREADY have. "What time is my appointment on Friday"
  * contains the word appointment and is not a request for a new one.
  */
-const ABOUT_AN_EXISTING_BOOKING = /\b(?:my|our)\s+(?:appointment|appt|booking|slot)\b|\bwhat time (?:is|am|are)\b|\bi'?m\s+booked\b|\balready booked\b/i;
+const ABOUT_AN_EXISTING_BOOKING = new RegExp([
+  String.raw`\b(?:my|our)\s+(?:appointment|appt|booking|slot)\b`,
+  String.raw`\bwhat time (?:is|am|are)\b`,
+  String.raw`\bi'?m\s+booked\b`,
+  String.raw`\balready booked\b`,
+  // 1 September 2026. "I've just booked in for a Korean lash lift on the 9th
+  // Sept at 11am" matched none of the four above, so a client announcing a
+  // booking she had already made was read as asking to make one, and was
+  // offered different times on the same day. Past tense, first person, any of
+  // the ordinary ways somebody says they have done it.
+  String.raw`\bi(?:'| ha)?ve (?:just )?booked\b`,
+  String.raw`\bi (?:just )?booked\b`,
+  String.raw`\bjust booked in\b`,
+  String.raw`\bgot (?:myself )?booked in\b`,
+  // And the question that was actually asked, which is about the appointment
+  // BEFORE the appointment, never a request for the treatment itself.
+  String.raw`\bpatch test\b`,
+].join('|'), 'i');
 
 /**
  * Should a brand new booking conversation start from this message?
@@ -625,4 +642,40 @@ export function looksLikeABookingOpening(text, treatments = []) {
   // in one place rather than two that can drift.
   const m = matchTreatment(body, treatments);
   return Boolean(m?.treatment || m?.ambiguous);
+}
+
+/**
+ * The patch test sentence, which used to assert that money was owed.
+ *
+ * It read, in every branch, unconditionally:
+ *
+ *   "There's a quick patch test to do at least 24 hours before, I'll sort that
+ *    with you once the deposit is in."
+ *
+ * Three problems, in rising order of seriousness.
+ *
+ * It was SPECULATIVE at the offer stage, where nothing is held and no deposit
+ * has been asked for. It was REDUNDANT on the held branch, where the sentence
+ * beside it already carries the deposit link, so the client is told about the
+ * deposit twice in four lines. And it was FALSE on the no-deposit branch: that
+ * branch exists precisely because this salon takes no deposit for this
+ * treatment, and it still told the client to pay one.
+ *
+ * On 1 September it reached a client who had already booked and already paid,
+ * as part of a reply she should never have received, and what she read was
+ * that she owed money. A sentence about a patch test does not need to make a
+ * claim about somebody's bank account, so it only makes one when a deposit is
+ * genuinely still to come.
+ *
+ * @param {object} a
+ * @param {boolean} a.patchTest does this treatment need one
+ * @param {boolean} a.depositDue is there really a deposit still outstanding
+ * @param {boolean} [a.depositAlreadyMentioned] the surrounding copy says it
+ * @returns {string} leading space included, or '' for nothing to say
+ */
+export function patchTestLine({ patchTest, depositDue, depositAlreadyMentioned = false }) {
+  if (!patchTest) return '';
+  const base = " There's a quick patch test to do at least 24 hours before, I'll sort that with you";
+  if (depositDue && !depositAlreadyMentioned) return `${base} once the deposit is in.`;
+  return `${base}.`;
 }

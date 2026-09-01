@@ -19,6 +19,7 @@ import { pushEscalation, pushTeamUpdate, pushAtTheDoor } from './push-notificati
 import { refreshLiveActivity } from './live-activity.js';
 import { isKnownClient, clientAutonomyOverride, guardedSend, classifyTier } from '../lib/outbound-guard.js';
 import { ownerIsInThread } from '../lib/owner-in-thread.js';
+import { needsAPerson } from '../lib/needs-a-person.js';
 import { authorshipAvailable } from '../lib/authorship.js';
 import { isOptOutMessage, applyOptOut, OPT_OUT_CONFIRMATION } from '../lib/opt-out.js';
 import { getLoyaltyConfig, getClientPoints, loyaltyProximity } from './loyalty.js';
@@ -312,6 +313,12 @@ export async function processInboundMessage(messageId, beautician, client, messa
       });
 
     const florriePaused = beautician.client_reminder_prefs?.paused === true;
+    // Computed here as well as inside mayFlorrieSend so the escalation can say
+    // WHY it came to her. A reason of "low confidence" on a message that was
+    // actually held because the client said she was frightened sends Ellie
+    // looking in the wrong place, which is the mistake the reason field was
+    // added to stop making.
+    const personNeeded = needsAPerson(messageContent);
 
     let shouldAct = mayFlorrieSend({
       classification,
@@ -563,8 +570,19 @@ export async function processInboundMessage(messageId, beautician, client, messa
           ? `client_is_at_the_door:${doorstep}`
           : resend?.escalate
           ? `confirmation_resend:${resend.reason}`
+          // Ranked above the autonomy dial and above groundedness, because it
+          // is the most specific true thing about the message and it changes
+          // what Ellie does when she opens it. "Low confidence" would send her
+          // looking for a fact; this tells her somebody is nervous and wants
+          // her, not an answer.
+          : personNeeded?.yes
+            ? personNeeded.reason
           : (autonomyOverride === 'just_me' || autonomyOverride === 'drafts')
             ? `client_set_to:${autonomyOverride}`
+            : ownerPresent?.present
+              ? ownerPresent.reason
+            : florriePaused
+              ? 'florrie_paused'
             : (groundedDecision && !groundedDecision.grounded ? groundedDecision.reason : null),
       });
     }
@@ -1326,6 +1344,20 @@ NEVER say when an appointment is unless it is in that list, and say the day that
  * @param {{present: boolean, reason: string}} [a.ownerPresent] is Ellie already in this thread
  */
 export function mayFlorrieSend({ classification, groundedDecision, known, autonomyOverride, threshold, message, arrivalNote = '', ownerPresent = null, florriePaused = false }) {
+  // SOMEBODY BEING NERVOUS AT YOU IS NOT A QUESTION.
+  //
+  // 1 September 2026. "Super nervous as I've been a lash extension girly for
+  // as long as I can remember" got a list of appointment times back. Every
+  // other guard in this function asks whether Florrie's ANSWER is right. This
+  // asks whether an answer was the thing that was wanted.
+  //
+  // It sits here, above the dials, because a correct slot list loses that
+  // client exactly as thoroughly as an incorrect one, and because the fix is
+  // not a warmer machine: improvising comfort at somebody who is frightened is
+  // a worse failure than a timetable. Ellie writes the sentence. Florrie still
+  // drafts it, so nothing is lost but who presses send.
+  if (needsAPerson(message).yes) return false;
+
   // THE SWITCH ELLIE WAS LOOKING FOR AND DID NOT HAVE.
   //
   // "How do I turn it off for now as it keeps messaging people things that
