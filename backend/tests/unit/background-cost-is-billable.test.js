@@ -18,7 +18,11 @@ const DAY = 86400000;
 const NOW = new Date('2026-09-02T10:00:00Z');
 
 /* ------------------------------------------------------------ the library */
-const { isBillable, splitBillable, BILLABLE_COLUMNS } = await import('../../src/lib/billable.js');
+// The existing cases below test ENFORCED behaviour, which is what the gate does
+// once the founder has confirmed the pilot salon's row and set the flag. The
+// observe-only default is covered by its own block at the bottom.
+process.env.ENFORCE_BILLABILITY = 'true';
+const { isBillable, splitBillable, BILLABLE_COLUMNS, billabilityEnforced } = await import('../../src/lib/billable.js');
 
 describe('isBillable', () => {
   it('active and past_due are billable whatever the trial date says', () => {
@@ -143,5 +147,35 @@ describe('runAutonomousCycle', () => {
   it('asks the database for the columns isBillable needs', async () => {
     await runAutonomousCycle();
     for (const col of BILLABLE_COLUMNS) expect(beauticianSelect).toContain(col);
+  });
+});
+
+describe('the gate is observe-only until the founder turns it on', () => {
+  // The pilot salon's row was set up by hand months before any of this
+  // existed and its subscription_status could not be read from where this
+  // was written. Enforcing on the first deploy could switch off her gap-fill
+  // offers the morning she is enrolling people on a course. So: run for
+  // everyone, log who would be skipped, enforce only on ENFORCE_BILLABILITY=true.
+  const expired = { id: 'e', business_name: 'Expired Ltd', subscription_status: 'trial', trial_ends_at: '2026-03-01T00:00:00Z' };
+  const active = { id: 'a', business_name: 'Active Ltd', subscription_status: 'active' };
+
+  it('keeps every salon in the loop when not enforced, and names who it would drop', () => {
+    const out = splitBillable([expired, active], new Date('2026-09-02T00:00:00Z'), { enforce: false });
+    expect(out.billable).toHaveLength(2);
+    expect(out.skipped).toBe(0);
+    expect(out.enforce).toBe(false);
+    expect(out.wouldSkip).toEqual([{ id: 'e', business_name: 'Expired Ltd', reason: 'trial_expired' }]);
+  });
+
+  it('drops them once enforced', () => {
+    const out = splitBillable([expired, active], new Date('2026-09-02T00:00:00Z'), { enforce: true });
+    expect(out.billable.map(b => b.id)).toEqual(['a']);
+    expect(out.skipped).toBe(1);
+  });
+
+  it('defaults to observe-only', () => {
+    expect(billabilityEnforced({})).toBe(false);
+    expect(billabilityEnforced({ ENFORCE_BILLABILITY: 'true' })).toBe(true);
+    expect(billabilityEnforced({ ENFORCE_BILLABILITY: '1' })).toBe(false);
   });
 });

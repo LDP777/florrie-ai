@@ -131,7 +131,16 @@ router.post('/', async (req, res) => {
 
     for (const entry of body.entry || []) {
       for (const event of entry.messaging || []) {
-        await handleInstagramMessage(event, entry.id);
+        // Each event on its own. Meta batches several into one delivery, the
+        // 200 above has already gone so there is no retry, and since echoes
+        // were added on 1 September a delivery can hold an echo and a real DM
+        // together. One failing must not take the rest of the batch with it.
+        try {
+          await handleInstagramMessage(event, entry.id);
+        } catch (err) {
+          logger.error({ err, entryId: entry.id, isEcho: !!event?.message?.is_echo },
+            'Instagram webhook: one event failed, continuing with the rest of the delivery');
+        }
       }
     }
   } catch (err) {
@@ -245,6 +254,17 @@ async function ensureEchoSubscription(beautician) {
       echoSubscriptionEnsured.delete(beautician.id);
       logger.warn({ beauticianId: beautician.id, body },
         'Instagram: could not add message_echoes to this account. Florrie will not see the owner\'s own replies until this succeeds or she reconnects.');
+      // Insurance. A refused POST should leave the existing `messages`
+      // subscription exactly as it was, and this account was plainly
+      // subscribed a moment ago or the DM that triggered this would not have
+      // arrived. Re-asserting `messages` alone costs one call and removes the
+      // word "should" from that sentence.
+      try {
+        await fetch(
+          'https://graph.instagram.com/v21.0/me/subscribed_apps?subscribed_fields=messages',
+          { method: 'POST', headers: { Authorization: `Bearer ${beautician.instagram_page_token}` } },
+        );
+      } catch { /* the original subscription stands regardless */ }
       return;
     }
     logger.info({ beauticianId: beautician.id }, 'Instagram: message_echoes subscription confirmed');

@@ -56,9 +56,14 @@ export async function runAutonomousCycle() {
     // still paying, so an expired trial or a cancelled subscription kept
     // costing Florrie every two hours. Filter once here; the loops below only
     // ever see billable salons.
-    const { billable: beauticians, skipped, reasons } = splitBillable(allBeauticians);
+    const { billable: beauticians, skipped, reasons, wouldSkip, enforce } = splitBillable(allBeauticians);
     if (skipped > 0) {
       logger.info({ skipped, reasons }, 'Autonomous scheduler: skipping non-billable beauticians');
+    } else if (!enforce && wouldSkip.length > 0) {
+      // Observe-only until ENFORCE_BILLABILITY=true. This line is what the
+      // founder reads before turning it on: every salon named here stops
+      // getting automated sends the moment it is enforced.
+      logger.warn({ wouldSkip, reasons }, 'Autonomous scheduler: billability gate is OBSERVE-ONLY; these salons would be skipped once ENFORCE_BILLABILITY=true');
     }
 
     for (const b of beauticians) {

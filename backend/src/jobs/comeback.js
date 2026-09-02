@@ -48,9 +48,14 @@ export async function runComeback() {
   // Win-back texts cost money per send. Expired trials and cancelled salons
   // were still having their lapsed clients texted every day on Florrie's
   // bill. Only billable salons go round the loop.
-  const { billable: beauticians, skipped, reasons } = splitBillable(allBeauticians);
+  const { billable: beauticians, skipped, reasons, wouldSkip, enforce } = splitBillable(allBeauticians);
   if (skipped > 0) {
     logger.info({ skipped, reasons }, 'Comeback: skipping non-billable beauticians');
+  } else if (!enforce && wouldSkip.length > 0) {
+    // Observe-only until ENFORCE_BILLABILITY=true. This line is what the
+    // founder reads before turning it on: every salon named here stops
+    // getting automated sends the moment it is enforced.
+    logger.warn({ wouldSkip, reasons }, 'Comeback: billability gate is OBSERVE-ONLY; these salons would be skipped once ENFORCE_BILLABILITY=true');
   }
 
   let totalNudged = 0;

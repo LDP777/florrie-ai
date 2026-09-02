@@ -558,18 +558,43 @@ router.get('/callback', async (req, res) => {
     // echoes not one of them was ever written to the thread, so the transcript
     // Florrie reasons over had the owner's half of the conversation missing
     // entirely. See lib/owner-in-thread.js.
+    //
+    // TWO CALLS, NOT ONE, AND THE ORDER MATTERS. `messages` is the call that
+    // has worked since 31 August and is the one that makes DMs arrive at all.
+    // `message_echoes` is new, and Meta's reference lists a permission for it
+    // that this app does not request, so Meta may refuse it. A single call
+    // asking for both would then be refused as a whole, and a reconnect would
+    // leave the account subscribed to NOTHING: no echoes, and no DMs either.
+    // "Make sure nothing you did breaks the instagram connection" was the
+    // instruction the night this shipped. So the call that must succeed goes
+    // first and alone, and the one that may not goes second, on its own, where
+    // its failure can cost nothing but itself.
     try {
-      const subRes = await fetch(
-        `https://graph.instagram.com/v21.0/me/subscribed_apps` +
-        `?subscribed_fields=messages,message_echoes` +
-        `&access_token=${encodeURIComponent(userToken)}`,
-        { method: 'POST' }
-      );
-      const subData = await subRes.json().catch(() => ({}));
-      if (!subRes.ok || subData.success === false) {
-        logger.warn({ beauticianId, subData }, 'Instagram: webhook subscribe returned an error');
+      const subscribe = async (fields) => {
+        const r = await fetch(
+          `https://graph.instagram.com/v21.0/me/subscribed_apps` +
+          `?subscribed_fields=${fields}` +
+          `&access_token=${encodeURIComponent(userToken)}`,
+          { method: 'POST' }
+        );
+        const body = await r.json().catch(() => ({}));
+        return { ok: r.ok && body.success !== false, body };
+      };
+
+      const dms = await subscribe('messages');
+      if (!dms.ok) {
+        logger.warn({ beauticianId, subData: dms.body }, 'Instagram: webhook subscribe returned an error');
       } else {
         logger.info({ beauticianId, accountId }, 'Instagram: account subscribed to message webhooks');
+      }
+
+      // Best effort. Never allowed to matter to the line above.
+      const echoes = await subscribe('messages,message_echoes').catch((err) => ({ ok: false, body: { thrown: err?.message } }));
+      if (!echoes.ok) {
+        logger.warn({ beauticianId, subData: echoes.body },
+          'Instagram: message_echoes not subscribed (DMs still arrive; Florrie will not see the owner\'s own replies in this thread until this succeeds)');
+      } else {
+        logger.info({ beauticianId, accountId }, 'Instagram: message_echoes subscribed');
       }
     } catch (err) {
       logger.warn({ err, beauticianId }, 'Instagram: webhook subscribe failed (non-fatal)');

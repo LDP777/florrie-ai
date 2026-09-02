@@ -180,6 +180,7 @@ const BEHAVIOUR_FLAGS = [
   'WEBHOOK_ALLOW_UNSIGNED',      // 'true' means inbound webhooks accept payloads with no signature. Local development ONLY
   'TURNSTILE_ENFORCE',           // 'true' means the booking page requires a passed bot check
   'STRIPE_TEAM_PRICE_PER_SEAT',  // set means the team plan bills per active staff member
+  'ENFORCE_BILLABILITY',         // 'true' means background jobs skip non-billable salons; unset means they run for everyone and log who they would skip
 ];
 
 const missing = REQUIRED_ENV.filter(k => !process.env[k]);

@@ -8,6 +8,7 @@
  * unsecured forever either.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
+import { readFileSync } from 'node:fs';
 import {
   unsignedWebhookPolicy, unsecuredWebhookChannels, reportUnsecuredOnce,
   UNSIGNED_WEBHOOK_DEADLINE, __resetUnsecuredReports,
@@ -110,5 +111,31 @@ describe('waking somebody up', () => {
   it('survives Sentry being absent or throwing', () => {
     expect(() => reportUnsecuredOnce('a', 'd', null)).not.toThrow();
     expect(() => reportUnsecuredOnce('b', 'd', { captureMessage() { throw new Error('down'); } })).not.toThrow();
+  });
+});
+
+describe('the Instagram subscribe cannot cost the DM subscription', () => {
+  // "make sure nothing you did or will do breaks the instagram connection,
+  // ellie will need it in the morning". Meta's reference lists a permission
+  // for message_echoes that this app does not request, so a single call
+  // asking for messages AND echoes could be refused as a whole. On a reconnect
+  // that would leave the account subscribed to nothing.
+  const connect = readFileSync(new URL('../../src/routes/instagram.js', import.meta.url), 'utf8');
+  const webhook = readFileSync(new URL('../../src/routes/instagram-webhooks.js', import.meta.url), 'utf8');
+
+  it('subscribes to messages ALONE first at connect time, then echoes separately', () => {
+    const alone = connect.indexOf("subscribe('messages')");
+    const withEchoes = connect.indexOf("subscribe('messages,message_echoes')");
+    expect(alone).toBeGreaterThan(-1);
+    expect(withEchoes).toBeGreaterThan(alone);
+  });
+
+  it('re-asserts messages alone if the echo subscribe fails on a live account', () => {
+    const at = webhook.indexOf('could not add message_echoes');
+    expect(webhook.slice(at, at + 900)).toContain('subscribed_fields=messages\'');
+  });
+
+  it('handles each webhook event in its own try, so an echo cannot take a DM with it', () => {
+    expect(webhook).toMatch(/for \(const event of entry\.messaging \|\| \[\]\) \{\s*\n[^\n]*\n[^\n]*\n[^\n]*\n[^\n]*\n\s*try \{\s*\n\s*await handleInstagramMessage/);
   });
 });

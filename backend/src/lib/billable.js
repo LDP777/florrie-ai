@@ -48,9 +48,27 @@ export function isBillable(beautician, now = new Date()) {
  *
  * @returns {{ billable: object[], skipped: number, reasons: Record<string, number> }}
  */
-export function splitBillable(beauticians, now = new Date()) {
+/**
+ * Whether the gate is ENFORCED or only REPORTED.
+ *
+ * Off by default for the first deploy, on purpose. The pilot salon's row was
+ * set up by hand months before any of this existed, and nobody could read its
+ * subscription_status from where this was written. If it is 'trial' with a
+ * trial_ends_at in March, enforcing tonight switches off her gap-fill offers,
+ * rebook nudges and comeback messages the morning she is enrolling people on
+ * a course, and the first anyone hears of it is her. So the first deploy
+ * skips nobody and logs who it WOULD have skipped, with the reason. The
+ * founder reads that line, fixes any row that is wrong, and sets
+ * ENFORCE_BILLABILITY=true. From then on it is real.
+ */
+export function billabilityEnforced(env = process.env) {
+  return env.ENFORCE_BILLABILITY === 'true';
+}
+
+export function splitBillable(beauticians, now = new Date(), { enforce = billabilityEnforced() } = {}) {
   const billable = [];
   const reasons = {};
+  const wouldSkip = [];
   for (const b of beauticians || []) {
     if (isBillable(b, now)) {
       billable.push(b);
@@ -58,7 +76,9 @@ export function splitBillable(beauticians, now = new Date()) {
     }
     const why = b?.subscription_status === 'trial' ? 'trial_expired' : (b?.subscription_status || 'unknown_status');
     reasons[why] = (reasons[why] || 0) + 1;
+    wouldSkip.push({ id: b?.id, business_name: b?.business_name || null, reason: why });
+    if (!enforce) billable.push(b);
   }
-  const skipped = (beauticians || []).length - billable.length;
-  return { billable, skipped, reasons };
+  const skipped = enforce ? (beauticians || []).length - billable.length : 0;
+  return { billable, skipped, reasons, wouldSkip, enforce };
 }
