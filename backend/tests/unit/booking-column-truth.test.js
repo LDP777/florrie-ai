@@ -853,3 +853,101 @@ describe('the past is the past on the salon clock, not the server clock', () => 
     expect(out.body.error).toMatch(/at least 2 hours in advance/i);
   });
 });
+
+/* ======================================================= H. consent evidence ==
+ * UK GDPR art 7(1): the controller must be able to DEMONSTRATE consent. The
+ * new-client branch wrote marketing_consent_at when the box was ticked; the
+ * returning-client branch fired an update at whichever rows shared the last
+ * nine digits of the typed phone and threw the error away. So a returning
+ * client who ticked the box had no timestamp on her own row, and once the
+ * marketing guard began failing closed (2 September 2026) she was refused
+ * the offers she had just asked for, forever, with nothing in the logs.
+ */
+describe('the consent box is recorded on both booking branches', () => {
+  const stranger = (over = {}) => bookBody({
+    client_name: 'Priya Nair', client_email: 'priya@example.com', client_phone: '07700900999',
+    payment_type: 'full', ...over,
+  });
+
+  it('a new client who ticks the box gets consent and a timestamp', async () => {
+    const out = await run(bookingRouter, 'post', '/:slug/book', {
+      params: { slug: 'ellindigo' }, body: stranger({ marketing_opt_in: true }),
+    });
+    expect(out.status).toBe(201);
+    const priya = db.clients.find(c => c.email === 'priya@example.com');
+    expect(priya.marketing_consent).toBe(true);
+    expect(priya.marketing_consent_at).toBeTruthy();
+  });
+
+  it('a new client who leaves it unticked gets no consent written', async () => {
+    const out = await run(bookingRouter, 'post', '/:slug/book', {
+      params: { slug: 'ellindigo' }, body: stranger({ marketing_opt_in: false }),
+    });
+    expect(out.status).toBe(201);
+    const priya = db.clients.find(c => c.email === 'priya@example.com');
+    expect(priya.marketing_consent).toBeUndefined();
+    expect(priya.marketing_consent_at).toBeUndefined();
+  });
+
+  it('a returning client with no consent on file who ticks the box is recorded, on HER row', async () => {
+    // Matched by email, and her stored phone is not the one she typed today:
+    // the old last-nine-digits update would have found nobody.
+    db.clients[0].marketing_consent = false;
+    db.clients[0].marketing_consent_at = null;
+    db.clients.push({
+      id: 'c2', beautician_id: 'b1', first_name: 'Other', phone: '07700900123',
+      email: 'other@example.com', marketing_consent: false, marketing_opted_out_at: null,
+    });
+    const out = await run(bookingRouter, 'post', '/:slug/book', {
+      params: { slug: 'ellindigo' },
+      body: bookBody({ client_phone: '07123456789', marketing_opt_in: true, payment_type: 'full' }),
+    });
+    expect(out.status).toBe(201);
+    expect(db.clients).toHaveLength(2);
+    expect(db.clients[0].marketing_consent).toBe(true);
+    expect(db.clients[0].marketing_consent_at).toBeTruthy();
+    // The other client on the same digits was never asked and is untouched.
+    expect(db.clients[1].marketing_consent).toBe(false);
+  });
+
+  it('ticking the box today supersedes an earlier STOP', async () => {
+    db.clients[0].marketing_consent = false;
+    db.clients[0].marketing_opted_out_at = '2026-08-31T20:00:00Z';
+    const out = await run(bookingRouter, 'post', '/:slug/book', {
+      params: { slug: 'ellindigo' }, body: bookBody({ marketing_opt_in: true, payment_type: 'full' }),
+    });
+    expect(out.status).toBe(201);
+    expect(db.clients[0].marketing_consent).toBe(true);
+    expect(db.clients[0].marketing_opted_out_at).toBeNull();
+    expect(db.clients[0].marketing_consent_at).toBeTruthy();
+  });
+
+  it('an unticked box never downgrades a returning client, and never clears a STOP', async () => {
+    db.clients[0].marketing_consent = true;
+    db.clients[0].marketing_consent_at = '2026-01-01T00:00:00Z';
+    await run(bookingRouter, 'post', '/:slug/book', {
+      params: { slug: 'ellindigo' }, body: { ...bookBody({ payment_type: 'full' }), marketing_opt_in: false },
+    });
+    expect(db.clients[0].marketing_consent).toBe(true);
+    expect(db.clients[0].marketing_consent_at).toBe('2026-01-01T00:00:00Z');
+
+    db.appointments.length = 0;
+    db.clients[0].marketing_consent = false;
+    db.clients[0].marketing_opted_out_at = '2026-08-31T20:00:00Z';
+    await run(bookingRouter, 'post', '/:slug/book', {
+      params: { slug: 'ellindigo' }, body: { ...bookBody({ payment_type: 'full' }), marketing_opt_in: false },
+    });
+    expect(db.clients[0].marketing_consent).toBe(false);
+    expect(db.clients[0].marketing_opted_out_at).toBe('2026-08-31T20:00:00Z');
+  });
+
+  it('keeps the original consent date when consent already stands', async () => {
+    db.clients[0].marketing_consent = true;
+    db.clients[0].marketing_consent_at = '2026-01-01T00:00:00Z';
+    await run(bookingRouter, 'post', '/:slug/book', {
+      params: { slug: 'ellindigo' }, body: bookBody({ marketing_opt_in: true, payment_type: 'full' }),
+    });
+    // The earlier date is the evidence; re-stamping it would erase the proof.
+    expect(db.clients[0].marketing_consent_at).toBe('2026-01-01T00:00:00Z');
+  });
+});

@@ -311,6 +311,17 @@ export default function ConsultationFormPublic() {
         </div>
       )}
 
+      {/* UK GDPR art 9 and art 13: allergies and medical conditions are
+          special category data, so the client is told, on the form itself
+          and before she taps submit, why she is being asked, where it goes
+          and who can see it. The salon's own consent_text above is optional
+          and many forms have none, so this line is always shown. */}
+      <p style={styles.privacyNote}>
+        This form asks about allergies and medical conditions so your treatment is safe.
+        It is stored securely and only your salon can see it.{' '}
+        <a href="/privacy" style={styles.privacyLink} target="_blank" rel="noopener noreferrer">Privacy Policy</a>
+      </p>
+
       {/* Submit */}
       <button
         style={{ ...styles.submitBtn, background: brandColor }}
@@ -572,6 +583,17 @@ const styles = {
     fontSize: 14,
     fontWeight: 500,
     textAlign: 'center',
+  },
+  privacyNote: {
+    margin: '16px 20px 0',
+    fontSize: 12,
+    color: '#6b6560',
+    lineHeight: 1.6,
+    textAlign: 'center',
+  },
+  privacyLink: {
+    color: '#6b6560',
+    textDecoration: 'underline',
   },
   submitBtn: {
     display: 'block',

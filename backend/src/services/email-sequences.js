@@ -1,6 +1,7 @@
 import { supabase } from '../config.js';
 import { sendEmail } from './notifications.js';
 import logger from '../lib/logger.js';
+import { isMissingColumnError } from '../lib/junk-classifier.js';
 
 /**
  * Where the app actually lives.
@@ -182,14 +183,37 @@ export async function processEmailQueue() {
         continue;
       }
 
-      // Check if beautician has unsubscribed from marketing emails
-      const { data: prefs } = await supabase
+      // Has she unsubscribed from marketing emails?
+      //
+      // 2 September 2026. This read used to discard its error, and a
+      // PostgREST select naming a column the table does not have resolves
+      // with { data: null, error } rather than throwing. The column arrives
+      // in migration 022_email_sends, which is applied by hand and is not
+      // known to be applied in production, so on that database `prefs` was
+      // null, `null?.marketing_emails_enabled === false` was false, and every
+      // owner who had unsubscribed was emailed anyway. An unreadable
+      // preference is treated as an opt-out: PECR reg 22 puts the burden of
+      // proof of consent on the sender, and a missing column is no proof.
+      const { data: prefs, error: prefsErr } = await supabase
         .from('beauticians')
         .select('marketing_emails_enabled')
         .eq('id', record.beautician_id)
         .single();
 
-      if (prefs?.marketing_emails_enabled === false && record.sequence !== 'post_appointment') {
+      const isMarketing = record.sequence !== 'post_appointment';
+      let unsubscribed = prefs?.marketing_emails_enabled === false;
+      if (prefsErr) {
+        unsubscribed = true;
+        if (isMissingColumnError(prefsErr)) {
+          logger.error({ err: prefsErr, beauticianId: record.beautician_id, emailId: record.id },
+            'beauticians.marketing_emails_enabled is missing, so marketing emails are held for everyone. Run supabase/migrations/022_email_sends.sql, then RESTART (not redeploy).');
+        } else {
+          logger.error({ err: prefsErr, beauticianId: record.beautician_id, emailId: record.id },
+            'Could not read marketing_emails_enabled; holding this marketing email rather than guessing she consented');
+        }
+      }
+
+      if (unsubscribed && isMarketing) {
         await supabase.from('email_sends').update({ status: 'skipped' }).eq('id', record.id);
         continue;
       }
@@ -235,12 +259,19 @@ export async function checkTrialExpiry() {
   const threeDaysFromNow = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
   const fourDaysFromNow = new Date(Date.now() + 4 * 24 * 60 * 60 * 1000);
 
-  const { data: expiring } = await supabase
+  const { data: expiring, error: expiringErr } = await supabase
     .from('beauticians')
     .select('id')
     .gte('trial_ends_at', threeDaysFromNow.toISOString())
     .lt('trial_ends_at', fourDaysFromNow.toISOString())
     .eq('subscription_plan', 'trial');
+
+  // Discarded until 2 September 2026. A failed query here looks identical to
+  // "nobody's trial is expiring", which is the one thing the daily cron exists
+  // to notice, so the failure has to be in the logs to be seen at all.
+  if (expiringErr) {
+    logger.error({ err: expiringErr }, 'checkTrialExpiry: could not read the beauticians whose trial is ending; nobody was emailed');
+  }
 
   if (!expiring?.length) return { triggered: 0 };
 

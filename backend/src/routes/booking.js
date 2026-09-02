@@ -3621,6 +3621,39 @@ router.post('/:slug/validate-code', async (req, res) => {
 });
 
 /**
+ * Record the consent box ticked by a client the salon already has.
+ *
+ * Reads the row first so consent that already stands keeps its original
+ * marketing_consent_at (that date is the evidence, and moving it forward
+ * erases the earlier proof). Writes only when there is no consent on file or
+ * an opt-out is standing. The read and the write both report their error: a
+ * consent that silently failed to save is the same defect as one never asked
+ * for. Never throws, the booking itself does not depend on this.
+ */
+async function recordReturningClientConsent(clientId, beauticianId) {
+  const { data: row, error: readErr } = await supabase
+    .from('clients')
+    .select('marketing_consent, marketing_opted_out_at')
+    .eq('id', clientId)
+    .maybeSingle();
+  if (readErr) {
+    logger.error({ err: readErr, clientId, beauticianId }, 'book: could not read the returning client consent state; the ticked box was not recorded');
+    return false;
+  }
+  if (row?.marketing_consent === true && !row?.marketing_opted_out_at) return true;
+
+  const { error: writeErr } = await supabase
+    .from('clients')
+    .update({ marketing_consent: true, marketing_consent_at: new Date().toISOString(), marketing_opted_out_at: null })
+    .eq('id', clientId);
+  if (writeErr) {
+    logger.error({ err: writeErr, clientId, beauticianId }, 'book: could not record the returning client consent; she ticked the box and no marketing will reach her until this is fixed');
+    return false;
+  }
+  return true;
+}
+
+/**
  * POST /api/booking/:slug/book
  * Public endpoint — creates a booking from the booking page.
  * Creates or finds the client, creates the appointment.
@@ -3649,16 +3682,6 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
     .single();
 
   if (!treatment) return res.status(404).json({ error: 'Treatment not found' });
-
-  // PECR: an existing client actively ticking the consent box upgrades their
-  // consent (never downgrades; leaving it unticked means "no change").
-  if (marketing_opt_in) {
-    supabase.from('clients')
-      .update({ marketing_consent: true, marketing_consent_at: new Date().toISOString(), marketing_opted_out_at: null })
-      .eq('beautician_id', beautician.id)
-      .ilike('phone', `%${String(client_phone || '').replace(/\D/g, '').slice(-9)}`)
-      .then(() => {}, () => {});
-  }
 
   // SECURITY: re-price add-ons from the DB. Never trust client-supplied price_cents —
   // a tampered request could otherwise set add-ons to 0p and underpay the deposit/total.
@@ -3843,6 +3866,22 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
     // fire-and-forget, the booking must never wait on (or break over) this.
     if (existingClient.archived_at) {
       autoUnarchiveClient(existingClient.id, 'booked_again').catch(() => {});
+    }
+    // PECR / UK GDPR: a returning client who ticks the box is giving fresh
+    // consent, and it has to be recorded against HER row with a timestamp or
+    // there is no evidence of it. This used to be a fire-and-forget update
+    // matched on the last nine digits of the phone she typed, with the error
+    // thrown away: it missed a client matched by email whose stored phone
+    // differed, it could touch a different client on the same digits, and a
+    // failed write looked like a recorded consent. Since the marketing guard
+    // fails closed (lib/marketing-guard.js, 2 September 2026) a client with
+    // no consent on file never gets marketing, so a lost tick is now a client
+    // who asked for offers and was silently refused them forever.
+    //
+    // Ticking is fresh consent and supersedes an earlier STOP, so the opt-out
+    // is cleared. An unticked box is not a withdrawal: nothing is written.
+    if (marketing_opt_in === true) {
+      await recordReturningClientConsent(existingClient.id, beautician.id);
     }
   } else {
     // Create new client

@@ -96,7 +96,6 @@ const ClientManagePage = lazy(() => import('./pages/ClientManagePage.jsx'));
 // LandingPage.jsx removed , landing.html (in public/) is the single source of truth.
 // All unauthenticated visitors are redirected to /landing.html below.
 const TermsPage = lazy(() => import('./pages/TermsPage.jsx'));
-const PrivacyPage = lazy(() => import('./pages/PrivacyPage.jsx'));
 const DataDeletionPage = lazy(() => import('./pages/DataDeletionPage.jsx'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy.jsx'));
 const Support = lazy(() => import('./pages/Support.jsx'));
@@ -366,6 +365,12 @@ export default function App() {
           <Route path="/book/:slug/manage/:token" element={<ClientManagePage />} />
           <Route path="/training/:slug/:courseId" element={<TrainingBooking />} />
           <Route path="/form/:token" element={<ConsultationFormPublic />} />
+          {/* The one privacy policy. A second component (PrivacyPage, April
+              2026, no company number, no SMS section) was also registered on
+              this path in the two branches below, and could never be reached:
+              isPublicRoute claims /privacy first. Removed 2 September 2026 so
+              the policy a client reads and the policy the app links to cannot
+              drift apart again. */}
           <Route path="/privacy" element={<PrivacyPolicy />} />
           <Route path="/support" element={<Support />} />
         </Routes>
@@ -395,7 +400,6 @@ export default function App() {
           <Route path="/signup" element={<Login supabase={supabase} initialMode="signup" />} />
           <Route path="/update-password" element={<UpdatePassword supabase={supabase} />} />
           <Route path="/terms" element={<TermsPage />} />
-          <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/data-deletion" element={<DataDeletionPage />} />
           <Route path="/help/data-deletion" element={<DataDeletionPage />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
@@ -590,7 +594,6 @@ export default function App() {
             <Route path="/signup" element={<Navigate to="/" replace />} />
             <Route path="/update-password" element={<UpdatePassword supabase={supabase} />} />
             <Route path="/terms" element={<TermsPage />} />
-            <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/data-deletion" element={<DataDeletionPage />} />
             <Route path="/help/data-deletion" element={<DataDeletionPage />} />
             {/* Stripe redirect landings. These were handed to Stripe as return

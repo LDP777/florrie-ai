@@ -402,10 +402,22 @@ export default function Login({ supabase, initialMode }) {
       </form>
 
       {effectiveMode === 'signup' && !iosNative && (
-        <p style={styles.trialNote}>
-          14 days free, everything included. No card needed to start, and we will
-          remind you before it ends.
-        </p>
+        <>
+          <p style={styles.trialNote}>
+            14 days free, everything included. No card needed to start, and we will
+            remind you before it ends.
+          </p>
+          {/* UK GDPR art 13: the terms and the policy have to be in front of
+              her at the point she hands over her details, not three taps
+              away in a footer. Plain anchors, not <Link>: these pages sit in
+              the unauthenticated branch and a full navigation is fine. */}
+          <p style={styles.legalNote}>
+            By continuing you agree to our{' '}
+            <a href="/terms" style={styles.legalLink}>Terms</a>
+            {' '}and{' '}
+            <a href="/privacy" style={styles.legalLink}>Privacy Policy</a>.
+          </p>
+        </>
       )}
     </div>
   );
@@ -520,6 +532,8 @@ const styles = {
     color: 'var(--accent)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit'
   },
   trialNote: { textAlign: 'center', fontSize: 12, color: 'var(--text-muted)', marginTop: 16 },
+  legalNote: { textAlign: 'center', fontSize: 12, color: 'var(--text-muted)', marginTop: 8 },
+  legalLink: { color: 'var(--accent)', textDecoration: 'underline' },
   confirmText: {
     fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 20,
   },

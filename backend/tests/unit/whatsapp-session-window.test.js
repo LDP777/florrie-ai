@@ -28,14 +28,19 @@ const freeform = [];
 const templates = [];
 const smsSent = [];
 
-// One beautician, WhatsApp connected. The rest of the tables are empty: the
-// only read this test cares about is the one against `messages`.
+// One beautician, WhatsApp connected, and one client who has CONSENTED to
+// marketing. The client row was not here until 2 September 2026, when the PECR
+// gate stopped failing open (lib/marketing-guard.js): rebook_nudge is a
+// marketing template, and an unmatched phone or a row without
+// marketing_consent is now a refused send rather than a shrug. The rest of the
+// tables are empty: the read this test cares about is the one against `messages`.
 const beauticians = [{ id: 'b1', whatsapp_phone_id: 'test-phone-id', wa_provider: 'meta', twilio_wa_sender: null, business_name: 'Ellindigo', first_name: 'Ellie' }];
+const clients = [{ id: 'c1', beautician_id: 'b1', first_name: 'Shauna', phone: '+447700900000', marketing_consent: true, marketing_opted_out_at: null }];
 
 function builder(table) {
   const filters = [];
   let desc = false;
-  const source = () => (table === 'messages' ? inboundMessages : table === 'beauticians' ? beauticians : []);
+  const source = () => (table === 'messages' ? inboundMessages : table === 'beauticians' ? beauticians : table === 'clients' ? clients : []);
   const rows = () => {
     let out = source().filter(r => filters.every(f => f(r)));
     if (desc) out = [...out].sort((x, y) => String(y.created_at || '').localeCompare(String(x.created_at || '')));
@@ -46,6 +51,7 @@ function builder(table) {
     insert() { return b; },
     update() { return b; },
     eq(c, v) { filters.push(r => r[c] === v); return b; },
+    ilike(c, v) { const needle = String(v).replace(/%/g, ''); filters.push(r => String(r[c] ?? '').includes(needle)); return b; },
     order(_c, o) { desc = o?.ascending === false; return b; },
     limit() { return b; },
     maybeSingle() { return Promise.resolve({ data: rows()[0] || null, error: null }); },
