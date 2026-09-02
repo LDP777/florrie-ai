@@ -24,7 +24,7 @@ import logger from './logger.js';
 import { parseWebhookSecrets } from './stripe-webhook-secret.js';
 import { readJobRuns } from './job-runs.js';
 import { TEMPLATE_SPECS, splitTemplateName, paramFieldsFor } from './whatsapp-templates.js';
-import { explainPhoneParentWaba } from '../services/notifications.js';
+import { explainPhoneParentWaba, wabaIdsThisTokenIsScopedTo } from '../services/notifications.js';
 import { isApnsConfigured } from '../services/apns.js';
 import { unsecuredWebhookChannels } from './unsigned-webhook-policy.js';
 
@@ -740,7 +740,7 @@ async function resolveAuditWaba() {
         source: 'env_phone_parent_unknown',
         phoneId,
         envWaba,
-        phoneLookup: { reason: parent.reason, status: parent.status ?? null, error: parent.error ?? null },
+        phoneLookup: { reason: parent.reason, status: parent.status ?? null, error: parent.error ?? null, token_scoped_to: parent.candidates || [] },
       };
     }
     return { waba: parent.wabaId, source: 'sending_phone', phoneId, envWaba };
@@ -766,41 +766,34 @@ async function listWabaCandidates(token) {
   const out = { accounts: [], error: null };
   const wanted = Object.keys(TEMPLATE_SPECS).map((b) => `${b}_v4`);
   try {
-    const bizRes = await fetch(`${WA_GRAPH}/me/businesses?fields=id,name&limit=10`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const biz = await bizRes.json();
-    if (!bizRes.ok || !Array.isArray(biz?.data)) {
-      out.error = biz?.error?.message || `businesses: HTTP ${bizRes.status}`;
+    // From debug_token, not the businesses listing. The first version of this asked
+    // for the businesses list and got "(#100) Missing Permission" in
+    // production: a system-user token scoped to WhatsApp assets is not
+    // granted business_management, and should not be. What it IS told, by
+    // Meta itself, is which WhatsApp Business Accounts it may act on.
+    const scoped = await wabaIdsThisTokenIsScopedTo();
+    if (scoped.error) {
+      out.error = scoped.error.message || 'debug_token refused';
       return out;
     }
-    for (const b of biz.data.slice(0, 10)) {
-      const wRes = await fetch(`${WA_GRAPH}/${b.id}/owned_whatsapp_business_accounts?fields=id,name&limit=10`, {
+    for (const waba of scoped.ids.slice(0, 10)) {
+      const tRes = await fetch(`${WA_GRAPH}/${waba}/message_templates?fields=name,status&limit=200`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      const w = await wRes.json();
-      if (!wRes.ok || !Array.isArray(w?.data)) continue;
-      for (const acct of w.data.slice(0, 10)) {
-        const tRes = await fetch(`${WA_GRAPH}/${acct.id}/message_templates?fields=name,status&limit=200`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const t = await tRes.json();
-        const approved = new Set(
-          (Array.isArray(t?.data) ? t.data : [])
-            .filter((x) => String(x?.status || '').toUpperCase() === 'APPROVED')
-            .map((x) => String(x?.name || '').toLowerCase()),
-        );
-        const has = wanted.filter((n) => approved.has(n));
-        out.accounts.push({
-          waba: acct.id,
-          name: acct.name || null,
-          business: b.name || b.id,
-          approved_templates: approved.size,
-          has_v4: has,
-          has_all_v4: has.length === wanted.length,
-        });
-        if (out.accounts.length >= 10) return out;
-      }
+      const t = await tRes.json().catch(() => ({}));
+      const approved = new Set(
+        (Array.isArray(t?.data) ? t.data : [])
+          .filter((x) => String(x?.status || '').toUpperCase() === 'APPROVED')
+          .map((x) => String(x?.name || '').toLowerCase()),
+      );
+      const has = wanted.filter((n) => approved.has(n));
+      out.accounts.push({
+        waba,
+        approved_templates: approved.size,
+        has_v4: has,
+        has_all_v4: has.length === wanted.length,
+        ...(tRes.ok ? {} : { error: t?.error?.message || `HTTP ${tRes.status}` }),
+      });
     }
     return out;
   } catch (err) {

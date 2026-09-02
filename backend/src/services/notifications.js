@@ -461,31 +461,84 @@ export async function explainPhoneParentWaba(phoneNumberId) {
   if (!WA_TOKEN) return { wabaId: null, reason: 'no_whatsapp_token' };
   if (!phoneNumberId) return { wabaId: null, reason: 'no_phone_number_id' };
   const hit = _phoneWabaCache.get(phoneNumberId);
-  if (hit && Date.now() - hit.at < 30 * 60 * 1000) return { wabaId: hit.wabaId, reason: null };
+  if (hit && Date.now() - hit.at < 30 * 60 * 1000) return { wabaId: hit.wabaId, reason: null, candidates: hit.candidates };
+
+  // THE OLD LOOKUP NEVER WORKED, NOT ONCE.
+  //
+  // It asked GET /{phone-number-id}?fields=whatsapp_business_account, and on
+  // 2 September /health finally printed Meta's answer to that:
+  //
+  //   (#100) Tried accessing nonexisting field (whatsapp_business_account)
+  //
+  // A phone-number node has no such field. So this returned null on every
+  // call since it was written, the sender fell back to WHATSAPP_WABA_ID on
+  // every call, and that env account turned out not to be the one that owns
+  // the phone. The phone's real account had generic_message_v4 approved; the
+  // env account did not; the sender never upgraded; the booking link was
+  // refused on 53 of 55 confirmations.
+  //
+  // The way that does work: ask Meta what this token is scoped to
+  // (debug_token, granular_scopes, target_ids under whatsapp_business_
+  // management), then ask each of those accounts whether it owns this phone.
+  // Needs nothing beyond the token's own permissions.
+  try {
+    const candidates = await wabaIdsThisTokenIsScopedTo();
+    if (candidates.error) {
+      logger.warn({ err: candidates.error, phoneNumberId }, 'getPhoneParentWaba: debug_token refused');
+      return { wabaId: null, reason: 'debug_token_refused', error: candidates.error, candidates: [] };
+    }
+    if (candidates.ids.length === 0) {
+      return { wabaId: null, reason: 'token_scoped_to_no_waba', candidates: [] };
+    }
+    for (const waba of candidates.ids) {
+      const r = await fetch(`${WA_GRAPH}/${waba}/phone_numbers?fields=id&limit=100`, {
+        headers: { Authorization: `Bearer ${WA_TOKEN}` },
+      });
+      const data = await r.json().catch(() => ({}));
+      const owns = Array.isArray(data?.data) && data.data.some((p) => String(p?.id) === String(phoneNumberId));
+      if (owns) {
+        _phoneWabaCache.set(phoneNumberId, { wabaId: waba, at: Date.now(), candidates: candidates.ids });
+        capSize(_phoneWabaCache, WA_CACHE_MAX);
+        return { wabaId: waba, reason: null, candidates: candidates.ids };
+      }
+    }
+    logger.warn({ phoneNumberId, candidates: candidates.ids }, 'getPhoneParentWaba: no scoped WABA owns this phone');
+    return { wabaId: null, reason: 'no_scoped_waba_owns_phone', candidates: candidates.ids };
+  } catch (err) {
+    logger.warn({ err, phoneNumberId }, 'getPhoneParentWaba: lookup threw');
+    return { wabaId: null, reason: 'fetch_threw', error: { message: String(err?.message || err).slice(0, 200) }, candidates: [] };
+  }
+}
+
+/**
+ * The WhatsApp Business Account ids this token has been granted. From Meta's
+ * own debug_token, so it needs no permission the token does not already have.
+ * Cached, because it is the same answer for the life of the token.
+ */
+let _scopedWabas = { at: 0, ids: null, error: null };
+export async function wabaIdsThisTokenIsScopedTo() {
+  if (_scopedWabas.ids && Date.now() - _scopedWabas.at < 60 * 60 * 1000) return { ids: _scopedWabas.ids, error: null };
   try {
     const r = await fetch(
-      `${WA_GRAPH}/${phoneNumberId}?fields=whatsapp_business_account{id}`,
-      { headers: { Authorization: `Bearer ${WA_TOKEN}` } }
+      `${WA_GRAPH}/debug_token?input_token=${encodeURIComponent(WA_TOKEN)}`,
+      { headers: { Authorization: `Bearer ${WA_TOKEN}` } },
     );
-    const data = await r.json();
-    const wabaId = data?.whatsapp_business_account?.id || null;
-    if (wabaId) {
-      // One entry per sending phone, so per tenant. Capped anyway: nothing at
-      // module scope is allowed to grow with the customer base unbounded.
-      _phoneWabaCache.set(phoneNumberId, { wabaId, at: Date.now() });
-      capSize(_phoneWabaCache, WA_CACHE_MAX);
-      return { wabaId, reason: null };
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || !data?.data) {
+      const error = data?.error ? { code: data.error.code, message: String(data.error.message || '').slice(0, 200) } : { message: `HTTP ${r.status}` };
+      return { ids: [], error };
     }
-    logger.warn({ status: r.status, body: data, phoneNumberId }, 'getPhoneParentWaba: no WABA on phone node');
-    return {
-      wabaId: null,
-      reason: r.ok ? 'phone_node_has_no_waba_field' : 'graph_refused',
-      status: r.status,
-      error: data?.error ? { code: data.error.code, type: data.error.type, message: String(data.error.message || '').slice(0, 200) } : null,
-    };
+    const scopes = Array.isArray(data.data.granular_scopes) ? data.data.granular_scopes : [];
+    const ids = new Set();
+    for (const g of scopes) {
+      if (g?.scope === 'whatsapp_business_management' || g?.scope === 'whatsapp_business_messaging') {
+        for (const id of g.target_ids || []) ids.add(String(id));
+      }
+    }
+    _scopedWabas = { at: Date.now(), ids: [...ids], error: null };
+    return { ids: _scopedWabas.ids, error: null };
   } catch (err) {
-    logger.warn({ err, phoneNumberId }, 'getPhoneParentWaba: fetch failed');
-    return { wabaId: null, reason: 'fetch_threw', error: { message: String(err?.message || err).slice(0, 200) } };
+    return { ids: [], error: { message: String(err?.message || err).slice(0, 200) } };
   }
 }
 

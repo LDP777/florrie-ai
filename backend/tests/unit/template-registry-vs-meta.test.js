@@ -403,7 +403,14 @@ describe('when the audited account is in doubt, /health says which one to use', 
 
   it('carries the reason the phone lookup failed instead of a bare null', () => {
     expect(notif).toMatch(/export async function explainPhoneParentWaba/);
-    expect(notif).toMatch(/reason: r\.ok \? 'phone_node_has_no_waba_field' : 'graph_refused'/);
+    // The first version read GET /{phone}?fields=whatsapp_business_account,
+    // which Meta answered with "(#100) Tried accessing nonexisting field". It
+    // had never worked. The lookup now goes token -> scoped accounts -> which
+    // one owns the phone, and each way THAT can fail has its own reason.
+    expect(notif).toMatch(/reason: 'debug_token_refused'/);
+    expect(notif).toMatch(/reason: 'token_scoped_to_no_waba'/);
+    expect(notif).toMatch(/reason: 'no_scoped_waba_owns_phone'/);
+    expect(notif).not.toMatch(/fields=whatsapp_business_account\{id\}/);
     expect(src).toMatch(/phone_lookup_failed: answer\.phoneLookup/);
   });
 
@@ -418,8 +425,10 @@ describe('when the audited account is in doubt, /health says which one to use', 
     expect(src).toMatch(/no account this token can see has all five _v4 templates approved/);
   });
 
-  it('is bounded, so a token over a big Business Manager cannot make /health hang', () => {
-    expect(src).toMatch(/limit=10/);
-    expect(src).toMatch(/out\.accounts\.length >= 10/);
+  it('lists accounts from the token scopes, not /me/businesses, which the token is not permitted to call', () => {
+    // Production answered the businesses call with "(#100) Missing Permission".
+    expect(src).toMatch(/const scoped = await wabaIdsThisTokenIsScopedTo\(\)/);
+    expect(src).not.toMatch(/\/me\/businesses/);
+    expect(src).toMatch(/scoped\.ids\.slice\(0, 10\)/);
   });
 });
