@@ -51,6 +51,7 @@ import { runDailyHeartbeats } from '../services/florrie-heartbeat.js';
 import { processEmailQueue, checkTrialExpiry } from '../services/email-sequences.js';
 import { processRetryQueue as processWhatsAppRetryQueue } from '../services/whatsapp-retry.js';
 import { runComeback } from './comeback.js';
+import { purgeExpiredConsultationResponses } from './consultation-purge.js';
 import { cleanupStripeEvents } from '../services/stripe-cleanup.js';
 import { billMonthlySurplus } from '../services/whatsapp-metering.js';
 import { runReconciliation } from '../services/reconciliation.js';
@@ -292,6 +293,17 @@ export const JOBS = [
     description: 'enrol completed appointments and send due sequence steps',
     intervalMs: HOUR,
     handler: processFollowUpSequences,
+    startupDelayMs: 3 * MINUTE,
+    leaseMs: 15 * MINUTE,
+  },
+  {
+    // Health answers on forms nobody ever completed. expires_at had a comment
+    // saying "auto-expire after 7 days" and no reader; see jobs/consultation-purge.js
+    // for why only never-completed rows are swept.
+    name: 'consultation-purge',
+    description: 'clear answers off consultation forms whose link expired unanswered',
+    intervalMs: DAY,
+    handler: purgeExpiredConsultationResponses,
     startupDelayMs: 3 * MINUTE,
     leaseMs: 15 * MINUTE,
   },

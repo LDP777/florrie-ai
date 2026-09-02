@@ -7,6 +7,8 @@ import { refreshAllIntelligence } from '../services/client-intelligence.js';
 import logger from '../lib/logger.js';
 import { parsePagination, buildPaginationMeta, handleQueryError, buildSearchFilter } from '../lib/queries.js';
 import { getOutstandingBalanceCents } from '../services/outstanding-balance.js';
+import { requireOwned } from '../lib/ownership.js';
+import { hasColumn } from '../lib/schema-probe.js';
 import {
   createClientSchema,
   updateClientSchema,
@@ -578,6 +580,193 @@ router.post('/:id/merge', requireAuth, async (req, res) => {
     logger.error({ err, primaryId, duplicateId }, 'Client merge failed');
     res.status(500).json({ error: 'Merge failed part-way. Nothing was lost; try again.' });
   }
+});
+
+/* ------------------------------------------------------------------------- *
+ * DATA SUBJECT RIGHTS, PER CLIENT
+ *
+ * A client can ask the salon for everything it holds on her (subject access)
+ * and can ask for it to be erased. Until now the only answers Florrie had
+ * were owner-wide CSVs in routes/exports.js and nothing at all for erasure,
+ * so the owner's honest reply to "delete my data" was that she could not.
+ *
+ * Export is a complete pack or a 500. A partial pack that quietly omits the
+ * one table that failed is worse than an error: she would hand it over as
+ * "everything we hold" and it would not be.
+ *
+ * Erasure is anonymisation, not deletion, for the money and the diary.
+ * Appointments and transactions are the salon's financial records and have
+ * their own legal retention basis (six years for HMRC), and her accounts have
+ * to keep adding up after the client is gone. The client row is kept as a
+ * shell with every identifying column cleared so those rows still point at
+ * SOMETHING. Messages are deleted outright: message content is personal data
+ * with no retention basis of its own. Consultation answers are cleared for the
+ * same reason, the row surviving so "a form was completed" is still true of
+ * the appointment it was completed for.
+ * ------------------------------------------------------------------------- */
+
+/** Undefined table (42P01): the migration that creates it has not been run. */
+function isMissingTableError(error) {
+  if (!error) return false;
+  return error.code === '42P01' || /relation .* does not exist/i.test(error.message || '');
+}
+
+/** Everything held on one client. All four tables scoped by tenant AND client. */
+async function readClientPack(beauticianId, clientId) {
+  const reads = await Promise.all([
+    supabase.from('appointments').select('*').eq('beautician_id', beauticianId).eq('client_id', clientId).order('starts_at', { ascending: true }),
+    supabase.from('messages').select('*').eq('beautician_id', beauticianId).eq('client_id', clientId).order('created_at', { ascending: true }),
+    supabase.from('transactions').select('*').eq('beautician_id', beauticianId).eq('client_id', clientId).order('created_at', { ascending: true }),
+    supabase.from('consultation_responses').select('*').eq('beautician_id', beauticianId).eq('client_id', clientId).order('created_at', { ascending: true }),
+  ]);
+  const names = ['appointments', 'messages', 'transactions', 'consultation_responses'];
+  const pack = {};
+  for (let i = 0; i < reads.length; i++) {
+    const { data, error } = reads[i];
+    if (error) return { error, table: names[i] };
+    pack[names[i]] = data || [];
+  }
+  // The token is the credential on the public form page, not data about her.
+  pack.consultation_responses = pack.consultation_responses.map(({ token, ...rest }) => rest);
+  return { pack };
+}
+
+/**
+ * GET /api/clients/:id/export
+ * The subject access pack for one client, as JSON.
+ */
+router.get('/:id/export', requireAuth, async (req, res) => {
+  if (!await requireOwned(req, res, [{ table: 'clients', id: req.params.id }])) return;
+
+  const { data: client, error: cErr } = await supabase
+    .from('clients')
+    .select('*')
+    .eq('id', req.params.id)
+    .eq('beautician_id', req.beautician.id)
+    .single();
+  if (handleQueryError(cErr, res, 'read client for export')) return;
+
+  const { pack, error, table } = await readClientPack(req.beautician.id, client.id);
+  if (error) {
+    logger.error({ err: error, table, clientId: client.id }, 'Client export: a table read failed, refusing to return a partial pack');
+    return res.status(500).json({ error: `Could not read this client's ${table}. Nothing was exported; try again.` });
+  }
+
+  res.set('Cache-Control', 'no-store');
+  res.json({
+    exported_at: new Date().toISOString(),
+    client,
+    ...pack,
+  });
+});
+
+/**
+ * DELETE /api/clients/:id
+ * Erase what we hold on a client. See the block comment above for what is
+ * deleted, what is cleared and what is deliberately kept.
+ *
+ * Refused (409) while she has a confirmed or pending appointment in the
+ * future: that booking is a live commitment with a name on it, and the owner
+ * has to cancel it (and settle any deposit) before the name can go.
+ */
+router.delete('/:id', requireAuth, async (req, res) => {
+  if (!await requireOwned(req, res, [{ table: 'clients', id: req.params.id }])) return;
+  const beauticianId = req.beautician.id;
+  const clientId = req.params.id;
+
+  const { data: upcoming, error: upErr } = await supabase
+    .from('appointments')
+    .select('id, starts_at, status')
+    .eq('beautician_id', beauticianId)
+    .eq('client_id', clientId)
+    .in('status', ['confirmed', 'pending'])
+    .gt('starts_at', new Date().toISOString())
+    .limit(1);
+  if (handleQueryError(upErr, res, 'check upcoming appointments before erasure')) return;
+  if ((upcoming || []).length > 0) {
+    return res.status(409).json({
+      error: 'This client has an upcoming appointment. Cancel it first, then erase their data.',
+      appointment_id: upcoming[0].id,
+      starts_at: upcoming[0].starts_at,
+    });
+  }
+
+  // Order matters: the identifying row is cleared LAST, so a failure part way
+  // leaves a client the owner can still find and retry, not an anonymous
+  // shell with her messages still attached.
+  const { error: msgErr } = await supabase
+    .from('messages')
+    .delete()
+    .eq('beautician_id', beauticianId)
+    .eq('client_id', clientId);
+  if (handleQueryError(msgErr, res, 'delete client messages for erasure')) return;
+
+  const { error: formErr } = await supabase
+    .from('consultation_responses')
+    .update({ answers: null, signature_data: null })
+    .eq('beautician_id', beauticianId)
+    .eq('client_id', clientId);
+  if (formErr && !isMissingTableError(formErr)) {
+    if (handleQueryError(formErr, res, 'clear consultation answers for erasure')) return;
+  }
+
+  // The intelligence profile is inferred from her messages and visits
+  // (preferences, life events). Derived personal data, no retention basis.
+  const { error: intelErr } = await supabase
+    .from('client_intelligence')
+    .delete()
+    .eq('client_id', clientId);
+  if (intelErr && !isMissingTableError(intelErr)) {
+    if (handleQueryError(intelErr, res, 'delete client intelligence for erasure')) return;
+  }
+
+  // Every identifying column on the row. first_name is NOT NULL, so it takes
+  // the placeholder; the jsonb profile columns go back to their defaults.
+  // Probed rather than assumed: each of these arrived in a hand-applied
+  // migration, and one unknown column in an update fails the WHOLE update.
+  const [hasDeletedAt, hasArchivedAt, hasStripeCustomer] = await Promise.all([
+    hasColumn(supabase, 'clients', 'deleted_at'),
+    hasColumn(supabase, 'clients', 'archived_at'),
+    hasColumn(supabase, 'clients', 'stripe_customer_id'),
+  ]);
+  const now = new Date().toISOString();
+  const shell = {
+    first_name: 'Deleted client',
+    last_name: null,
+    email: null,
+    phone: null,
+    whatsapp_id: null,
+    instagram_id: null,
+    notes: null,
+    preferences: {},
+    life_events: {},
+    communication_patterns: {},
+    external_id: null,
+    ...(hasStripeCustomer ? { stripe_customer_id: null } : {}),
+    marketing_consent: false,
+    health_data_consent: false,
+    updated_at: now,
+    ...(hasDeletedAt ? { deleted_at: now } : {}),
+    // Out of the client list too; nothing auto-unarchives a row with no
+    // contact details because nothing can match a message or booking to it.
+    ...(hasArchivedAt ? { archived_at: now } : {}),
+  };
+  const { data: erased, error: eraseErr } = await supabase
+    .from('clients')
+    .update(shell)
+    .eq('id', clientId)
+    .eq('beautician_id', beauticianId)
+    .select('id, first_name')
+    .single();
+  if (handleQueryError(eraseErr, res, 'anonymise client row for erasure')) return;
+
+  logger.info({ beauticianId, clientId }, 'Client erased: messages deleted, consultation answers cleared, row anonymised');
+  res.json({
+    erased: true,
+    client: erased,
+    kept: ['appointments', 'transactions'],
+    deleted_at_recorded: hasDeletedAt,
+  });
 });
 
 export default router;

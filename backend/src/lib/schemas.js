@@ -7,6 +7,7 @@
  */
 
 import { z } from 'zod';
+import { isValidTimeZone } from './time-utils.js';
 
 /**
  * @typedef {Object} CreateClientInput
@@ -302,6 +303,11 @@ export const profileUpdateSchema = z.object({
   logo_url: z.string().url().optional().nullable(),
   confidence_threshold: z.number().min(0).max(1).optional(),
   auto_reply_enabled: z.boolean().optional(),
+  // Never collected before this: the column defaulted to Europe/London for
+  // every salon and nothing let the owner change it, so a Dublin or Sydney
+  // salon got reminders on London time. Checked against Intl because every
+  // reader passes it straight to a formatter that throws on an unknown zone.
+  timezone: z.string().trim().refine(isValidTimeZone, 'Unknown timezone').optional(),
 }).strict();
 
 

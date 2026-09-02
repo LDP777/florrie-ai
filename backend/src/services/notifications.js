@@ -25,16 +25,31 @@ import { deDash } from '../lib/text.js';
 import { appointmentIcs, googleCalendarUrl } from '../lib/ical.js';
 import { apiPublicBase } from '../lib/public-url.js';
 import { hasColumn } from '../lib/schema-probe.js';
+import { capSize } from '../lib/bounded-cache.js';
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const FROM_EMAIL = process.env.FROM_EMAIL || 'Florrie <noreply@florrie.ai>';
+
+/** A reply-to worth sending: one address, with an @ and a dot after it. */
+function usableReplyTo(value) {
+  if (typeof value !== 'string') return null;
+  const v = value.trim();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? v : null;
+}
 
 /**
  * `attachments`: [{ filename, content }] where content is a utf-8 string.
  * Resend has always taken them; this function simply never passed any, which
  * is why a booking confirmation could not carry a calendar invite.
+ *
+ * `replyTo`: the salon's own address. The From is Florrie's noreply and stays
+ * that way (it is the domain Resend is verified for), but the confirmation
+ * email ends "Just reply to this email and Ellie will sort it", and a reply
+ * to noreply@florrie.ai reached nobody. Optional so the sends that have no
+ * salon in hand keep working; skipped when it is not a plausible address so a
+ * blank column cannot make Resend reject the whole send.
  */
-export async function sendEmail({ to, subject, html, text, attachments }) {
+export async function sendEmail({ to, subject, html, text, attachments, replyTo }) {
   if (!RESEND_API_KEY) {
     logger.debug('Resend not configured, skipping email');
     return null;
@@ -64,6 +79,7 @@ export async function sendEmail({ to, subject, html, text, attachments }) {
           subject,
           html,
           text,
+          ...(usableReplyTo(replyTo) ? { reply_to: usableReplyTo(replyTo) } : {}),
           ...(attachments?.length ? {
             attachments: attachments.map(a => ({
               filename: a.filename,
@@ -409,7 +425,15 @@ const WA_GRAPH = 'https://graph.facebook.com/v21.0';
 // resolve the phone's real parent WABA, then read that WABA's templates to find
 // the exact approved language for the template. Both are cached.
 
+// Both WABA caches hold one entry per tenant. A thousand is far above any
+// population this process will see, and the cap is oldest-first so a tenant
+// that sends often is never the one evicted.
+const WA_CACHE_MAX = 1000;
 const _phoneWabaCache = new Map(); // phoneNumberId -> { wabaId, at }
+/** Test seam: sizes of the two WABA caches. */
+export function _wabaCacheSizes() {
+  return { phone: _phoneWabaCache.size, catalogue: _tplCatalogueCache.size };
+}
 export async function getPhoneParentWaba(phoneNumberId) {
   if (!WA_TOKEN || !phoneNumberId) return null;
   const hit = _phoneWabaCache.get(phoneNumberId);
@@ -421,7 +445,12 @@ export async function getPhoneParentWaba(phoneNumberId) {
     );
     const data = await r.json();
     const wabaId = data?.whatsapp_business_account?.id || null;
-    if (wabaId) _phoneWabaCache.set(phoneNumberId, { wabaId, at: Date.now() });
+    if (wabaId) {
+      // One entry per sending phone, so per tenant. Capped anyway: nothing at
+      // module scope is allowed to grow with the customer base unbounded.
+      _phoneWabaCache.set(phoneNumberId, { wabaId, at: Date.now() });
+      capSize(_phoneWabaCache, WA_CACHE_MAX);
+    }
     else logger.warn({ status: r.status, body: data, phoneNumberId }, 'getPhoneParentWaba: no WABA on phone node');
     return wabaId;
   } catch (err) {
@@ -460,6 +489,7 @@ async function loadTemplateCatalogue(wabaId) {
       }
       const entry = { map, approved, at: Date.now() };
       _tplCatalogueCache.set(waba, entry);
+      capSize(_tplCatalogueCache, WA_CACHE_MAX);
       logger.info(
         { waba, templates: data.data.map((t) => `${t.name}:${t.language}:${t.status}`) },
         'loadTemplateCatalogue: template list loaded'
@@ -1537,7 +1567,7 @@ export async function notifyBookingConfirmed(appointmentId) {
   let linkOutcome = null;
   const { data: appt } = await supabase
     .from('appointments')
-    .select('*, clients(first_name, phone, email), treatments(name, duration_minutes), beauticians(business_name, first_name, client_reminder_prefs, brand_color, booking_slug, tagline, logo_url)')
+    .select('*, clients(first_name, phone, email), treatments(name, duration_minutes), beauticians(business_name, first_name, email, client_reminder_prefs, brand_color, booking_slug, tagline, logo_url)')
     .eq('id', appointmentId)
     .single();
 
@@ -1807,6 +1837,9 @@ export async function notifyBookingConfirmed(appointmentId) {
       // ends up where she was going to look for it anyway — instead of being
       // a text message she has to go and search her inbox for.
       attachments: [{ filename: 'booking.ics', content: ics, contentType: 'text/calendar; charset=utf-8; method=PUBLISH' }],
+      // The copy above invites her to reply. Make the reply land with the
+      // salon rather than with Florrie's noreply mailbox.
+      replyTo: biz?.email,
     });
     channels.push('email');
     logOutboundToThread({ beauticianId: appt.beautician_id, clientId: appt.client_id, channel: 'email', body: textMsg });
@@ -1842,7 +1875,7 @@ export async function notifyBookingConfirmed(appointmentId) {
 export async function notifyReminder24h(appointmentId) {
   const { data: appt } = await supabase
     .from('appointments')
-    .select('*, clients(first_name, phone, email), treatments(name, duration_minutes), beauticians(business_name, first_name, client_reminder_prefs, brand_color, logo_url, tagline)')
+    .select('*, clients(first_name, phone, email), treatments(name, duration_minutes), beauticians(business_name, first_name, email, client_reminder_prefs, brand_color, logo_url, tagline)')
     .eq('id', appointmentId)
     .single();
 
@@ -1980,6 +2013,9 @@ export async function notifyReminder24h(appointmentId) {
         subject: `Reminder: ${treatmentName} tomorrow at ${timeStr}`,
         text: textMsg,
         html,
+        // "Let ${bizName} know as soon as possible" is the last line of the
+        // email; a reply has to reach the salon for that to be true.
+        replyTo: biz?.email,
       });
       // Show the emailed reminder in the client's thread too, so the beautician
       // can see exactly what went out (email sends were previously invisible here).

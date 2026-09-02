@@ -26,6 +26,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
+import { pruneExpired, capSize, touch } from '../lib/bounded-cache.js';
 
 const router = Router();
 
@@ -68,17 +69,26 @@ function findBenchmark(treatmentName) {
   return match ? { key: match[0], ...match[1] } : null;
 }
 
-const rateLimitMap = new Map(); // beauticianId → { count, resetAt }
-function checkRateLimit(id) {
-  const now = Date.now();
+const rateLimitMap = new Map(); // beauticianId -> { count, resetAt }
+// One entry per beautician who ever opened the coach, kept forever. Windows
+// that have closed are pruned once the map is worth the sweep, and the map is
+// capped oldest-first so it cannot outgrow the customer base in a burst.
+const RATE_LIMIT_MAX_ENTRIES = 5000;
+export function checkRateLimit(id, now = Date.now()) {
   const entry = rateLimitMap.get(id);
   if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(id, { count: 1, resetAt: now + 10 * 60 * 1000 });
+    if (rateLimitMap.size >= 200) pruneExpired(rateLimitMap, e => now > e.resetAt);
+    touch(rateLimitMap, id, { count: 1, resetAt: now + 10 * 60 * 1000 });
+    capSize(rateLimitMap, RATE_LIMIT_MAX_ENTRIES);
     return true;
   }
   if (entry.count >= 8) return false;
   entry.count++;
   return true;
+}
+/** Test seam: how many beauticians the limiter is currently tracking. */
+export function rateLimitEntryCount() {
+  return rateLimitMap.size;
 }
 
 const SYSTEM_PROMPT = `You are Florrie's Biz Coach, a sharp, friendly business advisor embedded in a beauty salon app.

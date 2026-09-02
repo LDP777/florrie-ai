@@ -166,3 +166,25 @@ export function formatDurationMinutes(minutes) {
   if (hours > 0) return `${hours}h`;
   return `${mins}m`;
 }
+
+/**
+ * Is this an IANA zone the runtime can actually resolve?
+ *
+ * beauticians.timezone drives reminder timing, quiet hours and gap-fill, and
+ * every reader hands it straight to Intl / toLocaleString. A zone Node does
+ * not know throws RangeError inside the reminder job, which is a job that
+ * then never runs for that salon. So the value is checked at the one place it
+ * is written, and the reminder path never meets a bad one.
+ *
+ * @param {unknown} zone
+ * @returns {boolean}
+ */
+export function isValidTimeZone(zone) {
+  if (typeof zone !== 'string' || !zone.trim() || zone.length > 64) return false;
+  try {
+    new Intl.DateTimeFormat(undefined, { timeZone: zone });
+    return true;
+  } catch {
+    return false;
+  }
+}

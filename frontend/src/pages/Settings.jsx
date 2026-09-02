@@ -24,6 +24,38 @@ import PageHeader from '../components/ui/PageHeader.jsx';
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 
+// beauticians.timezone drives reminder timing, quiet hours and gap-fill, and
+// until now nothing in the app let the owner set it: every salon sat on the
+// column default of Europe/London. Curated rather than the full IANA list,
+// which is six hundred names long and mostly cities nobody here trades from.
+const TIMEZONE_OPTIONS = [
+  ['Europe/London', 'United Kingdom (London)'],
+  ['Europe/Dublin', 'Ireland (Dublin)'],
+  ['Europe/Paris', 'France (Paris)'],
+  ['Europe/Berlin', 'Germany (Berlin)'],
+  ['Europe/Madrid', 'Spain (Madrid)'],
+  ['Europe/Lisbon', 'Portugal (Lisbon)'],
+  ['Europe/Amsterdam', 'Netherlands (Amsterdam)'],
+  ['Europe/Brussels', 'Belgium (Brussels)'],
+  ['Europe/Rome', 'Italy (Rome)'],
+  ['Europe/Stockholm', 'Sweden (Stockholm)'],
+  ['Europe/Oslo', 'Norway (Oslo)'],
+  ['Europe/Copenhagen', 'Denmark (Copenhagen)'],
+  ['Europe/Warsaw', 'Poland (Warsaw)'],
+  ['Europe/Athens', 'Greece (Athens)'],
+  ['America/New_York', 'US Eastern (New York)'],
+  ['America/Chicago', 'US Central (Chicago)'],
+  ['America/Denver', 'US Mountain (Denver)'],
+  ['America/Los_Angeles', 'US Pacific (Los Angeles)'],
+  ['America/Toronto', 'Canada Eastern (Toronto)'],
+  ['Australia/Sydney', 'Australia (Sydney)'],
+  ['Australia/Melbourne', 'Australia (Melbourne)'],
+  ['Australia/Perth', 'Australia (Perth)'],
+  ['Pacific/Auckland', 'New Zealand (Auckland)'],
+  ['Asia/Dubai', 'UAE (Dubai)'],
+  ['Asia/Singapore', 'Singapore'],
+];
+
 /**
  * The on/off state pill used by the autonomy switches.
  *
@@ -352,6 +384,13 @@ export default function Settings({ onLogout }) {
   if (!beautician) return <ErrorCard message="Could not load profile." onDismiss={() => {}} />;
 
   const hours = beautician.working_hours || {};
+  // The saved value stays selectable even when it is not on the curated list
+  // (set by support, or by an older build), so opening this page can never
+  // silently change it.
+  const timezone = beautician.timezone || 'Europe/London';
+  const timezoneOptions = TIMEZONE_OPTIONS.some(([v]) => v === timezone)
+    ? TIMEZONE_OPTIONS
+    : [[timezone, timezone], ...TIMEZONE_OPTIONS];
   const tone = beautician.tone_model || {};
   const confidence = beautician.confidence_threshold || 0.85;
   const calSettings = beautician.calendar_settings || { buffer_minutes: 10, block_personal: false, push_bookings: true, two_way_sync: false };
@@ -525,6 +564,20 @@ export default function Settings({ onLogout }) {
       {section === 'hours' && (
         <div style={styles.card}>
           <p style={styles.cardDesc}>Set when clients can book appointments.</p>
+          <div style={styles.timezoneRow}>
+            <label htmlFor="settings-timezone" style={styles.timezoneLabel}>Your timezone</label>
+            <select
+              id="settings-timezone"
+              value={timezone}
+              onChange={e => saveProfile({ timezone: e.target.value })}
+              style={styles.timezoneSelect}
+            >
+              {timezoneOptions.map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+            <p style={styles.timezoneHint}>Reminders, quiet hours and your hours below all run on this clock.</p>
+          </div>
           {DAY_KEYS.map((day, idx) => {
             const dayHours = hours[day];
             const enabled = !!dayHours;
@@ -2384,6 +2437,10 @@ const styles = {
   timeInputs: { display: 'flex', alignItems: 'center', gap: 6 },
   timeInput: { padding: '5px 6px', borderRadius: 'var(--radius-xs)', border: '1.5px solid var(--border)', fontSize: 12, fontFamily: 'inherit', outline: 'none', width: 80 },
   timeSep: { fontSize: 11, color: 'var(--text-muted)' },
+  timezoneRow: { padding: '4px 0 12px', borderBottom: '1px solid var(--border-light)', marginBottom: 4 },
+  timezoneLabel: { display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 },
+  timezoneSelect: { minHeight: 44, width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: 13, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' },
+  timezoneHint: { margin: '6px 0 0', fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 },
   toggleRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--border-light)' },
   toggleLabel: { fontSize: 13, fontWeight: 500 },
   toggle: { width: 44, height: 24, borderRadius: 10, border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', padding: 0 },

@@ -39,6 +39,8 @@
  * queue is unchanged for the things she actually needs to see.
  */
 
+import { capSize } from './bounded-cache.js';
+
 /**
  * Intents whose answer is a lookup, not a judgement.
  *
@@ -161,6 +163,7 @@ export function handoffWord(beauticianFirstName) {
  * because it is rebuilt on every inbound message otherwise.
  */
 const _matcherCache = new Map();
+const MATCHER_CACHE_MAX = 500;
 
 function nameMatcher(beauticianFirstName) {
   const name = displayName(fold(beauticianFirstName));
@@ -183,10 +186,17 @@ function nameMatcher(beauticianFirstName) {
   ].join('|'), 'i');
 
   // A platform has a bounded number of beauticians, but never let a cache
-  // grow without a ceiling.
-  if (_matcherCache.size > 500) _matcherCache.clear();
+  // grow without a ceiling. Oldest first rather than the clear() this used to
+  // do: a clear at the 501st salon threw away every matcher on the busiest
+  // path in the product and rebuilt them all on the next inbound burst.
   _matcherCache.set(name, re);
+  capSize(_matcherCache, MATCHER_CACHE_MAX);
   return re;
+}
+
+/** Test seam: how many matchers are cached. */
+export function _matcherCacheSize() {
+  return _matcherCache.size;
 }
 
 /**

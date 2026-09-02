@@ -1,6 +1,7 @@
 import webpush from 'web-push';
 import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
+import { pruneExpired, capSize, touch } from '../lib/bounded-cache.js';
 import { sendApnsToBeautician } from './apns.js';
 
 /**
@@ -577,13 +578,29 @@ export async function pushGapFilled(beauticianId, clientName, time) {
 // Non-invasive: at most one "messages waiting" push per beautician+channel per
 // 15 minutes, so a burst of client messages yields ONE calm notification.
 const _msgWaitingThrottle = new Map(); // `${beauticianId}:${channel}` -> lastMs
+const MSG_WAITING_WINDOW_MS = 15 * 60 * 1000;
+// One entry per beautician per channel, never removed: this map grew with the
+// customer base for the life of the process. Same shape as forgetOldDoorsteps
+// above: prune what has aged past the window once the map is worth pruning,
+// then cap it so a burst inside the window is bounded too.
+const MSG_WAITING_MAX = 5000;
+function forgetOldMsgWaiting(now) {
+  if (_msgWaitingThrottle.size < 200) return;
+  pruneExpired(_msgWaitingThrottle, at => now - at > MSG_WAITING_WINDOW_MS);
+}
+/** Test seam: how many throttle entries are held. */
+export function _msgWaitingThrottleSize() {
+  return _msgWaitingThrottle.size;
+}
 export async function pushMessagesWaiting(beauticianId, channel) {
   if (!beauticianId) return null;
   const label = channel === 'instagram' ? 'Instagram' : channel === 'whatsapp' ? 'WhatsApp' : 'New';
   const key = `${beauticianId}:${channel}`;
   const now = Date.now();
-  if (now - (_msgWaitingThrottle.get(key) || 0) < 15 * 60 * 1000) return { skipped: 'throttled' };
-  _msgWaitingThrottle.set(key, now);
+  if (now - (_msgWaitingThrottle.get(key) || 0) < MSG_WAITING_WINDOW_MS) return { skipped: 'throttled' };
+  forgetOldMsgWaiting(now);
+  touch(_msgWaitingThrottle, key, now);
+  capSize(_msgWaitingThrottle, MSG_WAITING_MAX);
   return sendPush(beauticianId, {
     title: 'Florrie',
     body: `You have ${label} messages waiting for you`,

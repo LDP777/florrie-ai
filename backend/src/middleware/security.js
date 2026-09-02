@@ -11,6 +11,7 @@
 import crypto from 'node:crypto';
 import rateLimit from 'express-rate-limit';
 import logger from '../lib/logger.js';
+import { pruneExpired, capSize } from '../lib/bounded-cache.js';
 
 export function securityHeaders(req, res, next) {
   // Content Security Policy — only allow Stripe's JS for payment frames
@@ -110,6 +111,12 @@ function stripDangerousKeys(obj) {
 // route hands to Stripe, which holds across processes and restarts.
 const recentPaymentKeys = new Map(); // key -> timestamp
 const IDEMPOTENCY_WINDOW = 5 * 60 * 1000; // 5 minutes
+// Hard ceiling behind the window prune below. The prune only removes keys
+// that have aged past the window, so a burst of distinct refund requests
+// inside five minutes could still grow the map without limit. Evicting the
+// oldest live key early only weakens the local backstop for that one caller;
+// the Stripe idempotency key still holds.
+const MAX_PAYMENT_KEYS = 2000;
 
 // Paths (relative to the router this guard is mounted on) where the server
 // derives a key when the caller did not send one.
@@ -177,12 +184,12 @@ export function idempotencyGuard(req, res, next) {
     if (res.statusCode >= 400) recentPaymentKeys.delete(key);
   });
 
-  // Clean up old keys every 100 requests
+  // Prune keys past the window once the map is worth pruning, then cap it
+  // oldest-first so it is bounded even inside the window.
   if (recentPaymentKeys.size > 500) {
     const cutoff = Date.now() - IDEMPOTENCY_WINDOW;
-    for (const [k, ts] of recentPaymentKeys) {
-      if (ts < cutoff) recentPaymentKeys.delete(k);
-    }
+    pruneExpired(recentPaymentKeys, ts => ts < cutoff);
+    capSize(recentPaymentKeys, MAX_PAYMENT_KEYS);
   }
 
   next();
@@ -191,6 +198,11 @@ export function idempotencyGuard(req, res, next) {
 /** Test seam: forget every remembered key. Not used by the running server. */
 export function resetIdempotencyKeys() {
   recentPaymentKeys.clear();
+}
+
+/** Test seam: how many keys are remembered right now. */
+export function idempotencyKeyCount() {
+  return recentPaymentKeys.size;
 }
 
 // ── Cron authentication ───────────────────────────────────────────────────

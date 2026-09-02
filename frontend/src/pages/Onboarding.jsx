@@ -8,6 +8,16 @@ import { isIOSNative, isNativeApp } from '../lib/platform.js';
 import Icon from '../components/ui/Icon';
 import Button from '../components/ui/Button';
 
+/** The zone the browser is running in, or null if it cannot say. */
+function detectBrowserTimezone() {
+  try {
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return typeof zone === 'string' && zone.includes('/') ? zone : null;
+  } catch {
+    return null;
+  }
+}
+
 const API = import.meta.env.VITE_API_URL;
 async function getAuthToken() {
   const key = Object.keys(localStorage).find(k => /^sb-.+-auth-token$/.test(k));
@@ -171,9 +181,17 @@ export default function Onboarding({ onComplete }) {
         setSaving(false);
         return;
       }
+      // The timezone was never collected, so every salon sat on the column
+      // default of Europe/London and a Dublin or Sydney owner got reminders
+      // on London time. The browser knows where she is; take that as the
+      // default unless she has already chosen something other than the
+      // default herself (Settings lets her change it later).
+      const browserZone = detectBrowserTimezone();
+      const untouched = !beautician.timezone || beautician.timezone === 'Europe/London';
       await updateRow('beauticians', beautician.id, {
         first_name: firstName.trim(),
-        business_name: businessName.trim()
+        business_name: businessName.trim(),
+        ...(browserZone && untouched ? { timezone: browserZone } : {}),
       });
       await refresh();
       setStep(2);
@@ -579,6 +597,17 @@ export default function Onboarding({ onComplete }) {
           >
             {saving ? 'Saving...' : 'Next'}
           </Button>
+          {/* UK GDPR art 13: a Google or Apple sign-in never passes the
+              signup form on Login.jsx, so this is the first screen some
+              owners see where their details are about to be stored. Plain
+              anchors so the policy opens as a page rather than a route the
+              onboarding wizard would have to give up its state for. */}
+          <p style={styles.legalNote}>
+            By continuing you agree to our{' '}
+            <a href="/terms" style={styles.legalLink} target="_blank" rel="noopener noreferrer">Terms</a>
+            {' '}and{' '}
+            <a href="/privacy" style={styles.legalLink} target="_blank" rel="noopener noreferrer">Privacy Policy</a>.
+          </p>
         </div>
       )}
       {/* === STEP 2: Treatments === */}
@@ -1303,6 +1332,8 @@ const styles = {
     border: '1.5px dashed var(--border)'
   },
   priceHint: { fontSize: 11, color: 'var(--text-muted)', margin: '2px 0 0' },
+  legalNote: { textAlign: 'center', fontSize: 12, color: 'var(--text-muted)', margin: '12px 0 0' },
+  legalLink: { color: 'var(--accent)', textDecoration: 'underline' },
   fileInput: { marginBottom: 12, fontSize: 13 },
   importResult: { fontSize: 13, color: 'var(--success)', marginTop: 10, fontWeight: 500 },
   // Error and skip
