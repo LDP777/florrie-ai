@@ -740,7 +740,16 @@ async function resolveAuditWaba() {
         source: 'env_phone_parent_unknown',
         phoneId,
         envWaba,
-        phoneLookup: { reason: parent.reason, status: parent.status ?? null, error: parent.error ?? null, token_scoped_to: parent.candidates || [] },
+        phoneLookup: {
+          reason: parent.reason,
+          status: parent.status ?? null,
+          error: parent.error ?? null,
+          candidates_tried: parent.candidates || [],
+          // Which phones each candidate account actually owns. If the env
+          // account lists our phone, the config is right and the templates are
+          // the problem; if it lists other phones, or none, the account is wrong.
+          ownership: parent.ownership || [],
+        },
       };
     }
     return { waba: parent.wabaId, source: 'sending_phone', phoneId, envWaba };

@@ -482,28 +482,42 @@ export async function explainPhoneParentWaba(phoneNumberId) {
   // management), then ask each of those accounts whether it owns this phone.
   // Needs nothing beyond the token's own permissions.
   try {
-    const candidates = await wabaIdsThisTokenIsScopedTo();
-    if (candidates.error) {
-      logger.warn({ err: candidates.error, phoneNumberId }, 'getPhoneParentWaba: debug_token refused');
-      return { wabaId: null, reason: 'debug_token_refused', error: candidates.error, candidates: [] };
+    const scoped = await wabaIdsThisTokenIsScopedTo();
+    if (scoped.error) {
+      logger.warn({ err: scoped.error, phoneNumberId }, 'getPhoneParentWaba: debug_token refused');
     }
-    if (candidates.ids.length === 0) {
-      return { wabaId: null, reason: 'token_scoped_to_no_waba', candidates: [] };
+    // The env account is always a candidate, and is checked FIRST. Two
+    // reasons. A token with broad access lists no target_ids at all (that is
+    // what production returned on 2 September: debug_token fine, targets
+    // empty), so the scoped list can be legitimately empty and the env
+    // account is then the only lead. And if the env account DOES own the
+    // phone, that is the single most useful fact this function can return,
+    // because it means the config is right and the problem is the templates.
+    const ids = [...new Set([WA_WABA_ID, ...scoped.ids].filter(Boolean))];
+    if (ids.length === 0) {
+      return { wabaId: null, reason: 'token_scoped_to_no_waba_and_no_env_waba', candidates: [] };
     }
+    const candidates = { ids };
+    const ownership = [];
     for (const waba of candidates.ids) {
       const r = await fetch(`${WA_GRAPH}/${waba}/phone_numbers?fields=id&limit=100`, {
         headers: { Authorization: `Bearer ${WA_TOKEN}` },
       });
       const data = await r.json().catch(() => ({}));
-      const owns = Array.isArray(data?.data) && data.data.some((p) => String(p?.id) === String(phoneNumberId));
-      if (owns) {
+      const phones = Array.isArray(data?.data) ? data.data.map((p) => String(p?.id)) : null;
+      ownership.push({
+        waba,
+        phones,
+        ...(r.ok ? {} : { error: data?.error?.message || `HTTP ${r.status}` }),
+      });
+      if (phones && phones.includes(String(phoneNumberId))) {
         _phoneWabaCache.set(phoneNumberId, { wabaId: waba, at: Date.now(), candidates: candidates.ids });
         capSize(_phoneWabaCache, WA_CACHE_MAX);
-        return { wabaId: waba, reason: null, candidates: candidates.ids };
+        return { wabaId: waba, reason: null, candidates: candidates.ids, ownership };
       }
     }
-    logger.warn({ phoneNumberId, candidates: candidates.ids }, 'getPhoneParentWaba: no scoped WABA owns this phone');
-    return { wabaId: null, reason: 'no_scoped_waba_owns_phone', candidates: candidates.ids };
+    logger.warn({ phoneNumberId, ownership }, 'getPhoneParentWaba: no candidate WABA owns this phone');
+    return { wabaId: null, reason: 'no_candidate_waba_owns_phone', candidates: candidates.ids, ownership };
   } catch (err) {
     logger.warn({ err, phoneNumberId }, 'getPhoneParentWaba: lookup threw');
     return { wabaId: null, reason: 'fetch_threw', error: { message: String(err?.message || err).slice(0, 200) }, candidates: [] };

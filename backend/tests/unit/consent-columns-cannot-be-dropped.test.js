@@ -219,8 +219,8 @@ describe('no new sender joins clients without the consent columns', () => {
     // cap. Same two joins, same file, new line numbers.
     // (Previously 1236 / 1514, then 1393 / 1685, then 1526 / 1818, then
     // 1532 / 1824, then 1540 / 1845.)
-    'src/services/notifications.js:1653',
-    'src/services/notifications.js:1961',
+    'src/services/notifications.js:1667',
+    'src/services/notifications.js:1975',
   ]);
 
   function walk(dir) {

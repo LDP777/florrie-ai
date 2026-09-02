@@ -407,9 +407,10 @@ describe('when the audited account is in doubt, /health says which one to use', 
     // which Meta answered with "(#100) Tried accessing nonexisting field". It
     // had never worked. The lookup now goes token -> scoped accounts -> which
     // one owns the phone, and each way THAT can fail has its own reason.
-    expect(notif).toMatch(/reason: 'debug_token_refused'/);
-    expect(notif).toMatch(/reason: 'token_scoped_to_no_waba'/);
-    expect(notif).toMatch(/reason: 'no_scoped_waba_owns_phone'/);
+    expect(notif).toMatch(/reason: 'token_scoped_to_no_waba_and_no_env_waba'/);
+    expect(notif).toMatch(/reason: 'no_candidate_waba_owns_phone'/);
+    // The env account is always tried, first: a broad token lists no targets.
+    expect(notif).toMatch(/\[\.\.\.new Set\(\[WA_WABA_ID, \.\.\.scoped\.ids\]/);
     expect(notif).not.toMatch(/fields=whatsapp_business_account\{id\}/);
     expect(src).toMatch(/phone_lookup_failed: answer\.phoneLookup/);
   });
