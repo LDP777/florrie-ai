@@ -752,7 +752,7 @@ async function resolveAuditWaba() {
         },
       };
     }
-    return { waba: parent.wabaId, source: 'sending_phone', phoneId, envWaba };
+    return { waba: parent.wabaId, source: parent.source || 'sending_phone', phoneId, envWaba };
   } catch (err) {
     logger.warn({ err }, 'template audit: WABA resolution threw, falling back to the env WABA');
     return { waba: envWaba, source: 'env_after_throw' };

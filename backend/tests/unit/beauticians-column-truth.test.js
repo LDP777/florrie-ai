@@ -224,7 +224,7 @@ describe('the backend never selects a beauticians column no migration creates', 
     // which is the right way to name a column the live database may not have.
     // A NEW dynamic select is not automatically wrong, but it is invisible to
     // everything above, so it has to be looked at.
-    expect(dynamic.map(d => d.where)).toEqual(['src/routes/webhooks.js:903']);
+    expect(dynamic.map(d => d.where)).toEqual(['src/routes/webhooks.js:908']);
   });
 });
 

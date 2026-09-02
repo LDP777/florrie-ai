@@ -14,7 +14,7 @@ import { autoUnarchiveClient } from '../lib/client-archive.js';
 import Anthropic from '@anthropic-ai/sdk';
 import { authorship } from '../lib/authorship.js';
 import { hasColumn } from '../lib/schema-probe.js';
-import { isSharedSmsNumber, sendWhatsAppText, sendSMS } from '../services/notifications.js';
+import { isSharedSmsNumber, sendWhatsAppText, sendSMS, learnPhoneParentWaba } from '../services/notifications.js';
 import { guardedSend } from '../lib/outbound-guard.js';
 import { isOptOutMessage, applyOptOut, OPT_OUT_CONFIRMATION } from '../lib/opt-out.js';
 
@@ -197,6 +197,11 @@ router.post('/whatsapp', async (req, res) => {
     // values in them since the schema was written. "Was the confirmation
     // actually delivered?" was unanswerable, and it is the question that
     // matters most: a client who never gets one turns up on the wrong day.
+    // Every delivery names the account that owns the phone. Write it down.
+    // See learnPhoneParentWaba for why this one line closes a fortnight of
+    // "which account are we sending from".
+    learnPhoneParentWaba(body.entry?.[0]?.changes?.[0]?.value?.metadata?.phone_number_id, body.entry?.[0]?.id);
+
     const statuses = body.entry?.[0]?.changes?.[0]?.value?.statuses;
     if (Array.isArray(statuses) && statuses.length) {
       await applyWhatsAppStatuses(statuses);

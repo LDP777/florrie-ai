@@ -457,10 +457,34 @@ export async function getPhoneParentWaba(phoneNumberId) {
  *
  * @returns {Promise<{wabaId: string|null, reason: string|null, status?: number, error?: object}>}
  */
+/**
+ * Meta tells us the answer on every inbound message.
+ *
+ * A WhatsApp webhook delivery is shaped { entry: [{ id, changes: [{ value:
+ * { metadata: { phone_number_id } } }] }] }, and entry.id IS the WhatsApp
+ * Business Account that owns that phone. The server has been handed this
+ * pair on every client message since the integration was written, and
+ * never wrote it down, while a separate lookup tried three ways to ask Meta
+ * for the same fact and was refused each time (nonexistent field, empty
+ * target_ids, missing permission). Called from routes/webhooks.js on every
+ * inbound message. Learned entries do not expire: an account does not
+ * change under a phone number without somebody moving it on purpose.
+ */
+export function learnPhoneParentWaba(phoneNumberId, wabaId) {
+  if (!phoneNumberId || !wabaId) return;
+  const key = String(phoneNumberId);
+  const known = _phoneWabaCache.get(key);
+  if (known?.wabaId === String(wabaId) && known.learned) return;
+  _phoneWabaCache.set(key, { wabaId: String(wabaId), at: Date.now(), learned: true, candidates: [] });
+  capSize(_phoneWabaCache, WA_CACHE_MAX);
+  logger.info({ phoneNumberId: key, wabaId: String(wabaId) }, 'WhatsApp: learned which account owns this phone from the webhook');
+}
+
 export async function explainPhoneParentWaba(phoneNumberId) {
   if (!WA_TOKEN) return { wabaId: null, reason: 'no_whatsapp_token' };
   if (!phoneNumberId) return { wabaId: null, reason: 'no_phone_number_id' };
-  const hit = _phoneWabaCache.get(phoneNumberId);
+  const hit = _phoneWabaCache.get(String(phoneNumberId));
+  if (hit?.learned) return { wabaId: hit.wabaId, reason: null, candidates: hit.candidates, source: 'learned_from_webhook' };
   if (hit && Date.now() - hit.at < 30 * 60 * 1000) return { wabaId: hit.wabaId, reason: null, candidates: hit.candidates };
 
   // THE OLD LOOKUP NEVER WORKED, NOT ONCE.
