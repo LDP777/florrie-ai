@@ -23,6 +23,9 @@ import { requireCronKey } from '../middleware/security.js';
 // reader from the writer is the whole point: the key cannot drift apart again
 // without breaking the import.
 import { readPlanFromMetadata, PLAN_METADATA_KEY } from './billing.js';
+import { internalStatusFor } from '../lib/subscription-status.js';
+import { handleDunningEvent } from '../services/dunning.js';
+import { teamSeatQuantity } from '../lib/team-seats.js';
 
 const router = Router();
 const stripe = process.env.STRIPE_SECRET_KEY
@@ -186,12 +189,22 @@ router.post('/checkout', requireAuth, requireStripe, async (req, res) => {
     return res.status(400).json({ error: 'appointment_id, beautician_id, and amount_cents required' });
   }
 
-  // Get the beautician's Stripe account
-  const { data: beautician } = await supabase
+  // Get the beautician's Stripe account. The error is read on purpose: this
+  // used to be `const { data: beautician }` alone, and a missing column in the
+  // select (PostgREST rejects the whole list) made every deposit answer 400
+  // with 'Beautician has not completed Stripe setup', which was a lie about
+  // the salon. A read failure is a 500 that names itself, not a claim about
+  // her onboarding.
+  const { data: beautician, error: beauticianErr } = await supabase
     .from('beauticians')
     .select('stripe_account_id, stripe_onboarding_complete, business_name')
     .eq('id', beautician_id)
     .single();
+
+  if (beauticianErr) {
+    logger.error({ err: beauticianErr, beautician_id, appointment_id }, 'Checkout: could not read the beautician row for the Stripe Connect gate');
+    return res.status(500).json({ error: 'Could not check payment setup. Please try again.' });
+  }
 
   if (!beautician?.stripe_account_id || !beautician.stripe_onboarding_complete) {
     return res.status(400).json({ error: 'Beautician has not completed Stripe setup' });
@@ -283,16 +296,36 @@ router.post('/subscribe', requireAuth, requireStripe, async (req, res) => {
         metadata: { beautician_id: req.beautician.id },
       });
       customerId = customer.id;
-      await supabase
+      // The customer already exists in Stripe whether or not this row write
+      // lands, so a failed write still returns the checkout URL. It is logged
+      // loudly because a lost stripe_customer_id makes the NEXT checkout
+      // create a second Stripe customer, and the monthly overage invoice items
+      // then attach to whichever one the row happens to name: an orphan.
+      const { error: customerIdErr } = await supabase
         .from('beauticians')
         .update({ stripe_customer_id: customerId })
         .eq('id', req.beautician.id);
+      if (customerIdErr) {
+        logger.error({ err: customerIdErr, beauticianId: req.beautician.id, customerId }, 'Subscribe: stripe_customer_id was created in Stripe but could not be saved on the beautician');
+        Sentry.captureException(customerIdErr, {
+          tags: { area: 'billing', check: 'stripe_customer_id_write' },
+          extra: { beauticianId: req.beautician.id, customerId },
+        });
+      }
     }
+
+    // One seat per active staff member on the team plan. This has no effect
+    // on the amount charged until the Stripe price is per-seat: the 'Florrie
+    // Team' price created by backend/scripts/stripe-setup.js (around line 36)
+    // is a flat £44, and Stripe multiplies a flat price by the quantity, so
+    // lib/team-seats.js answers 1 until STRIPE_TEAM_PRICE_PER_SEAT is set
+    // against a per-seat price. Set the flag and the staff count goes through.
+    const quantity = await teamSeatQuantity(supabase, req.beautician.id, plan_id);
 
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       customer: customerId,
-      line_items: [{ price: plan.stripe_price_id, quantity: 1 }],
+      line_items: [{ price: plan.stripe_price_id, quantity }],
       success_url: `${FRONTEND_URL}/settings?plan=success`,
       cancel_url: `${FRONTEND_URL}/settings?plan=cancelled`,
       subscription_data: {
@@ -1687,7 +1720,11 @@ router.post('/webhook', async (req, res) => {
         if (beauticianId) {
           const updates = {
             subscription_stripe_id: sub.id,
-            subscription_status: sub.status === 'active' || sub.status === 'trialing' ? 'active' : sub.status,
+            // Through the translation table, never Stripe's own word. Writing
+            // 'unpaid' or 'canceled' straight into a column whose CHECK only
+            // knows 'cancelled' failed silently for months and left dead
+            // subscriptions reading 'active'. See lib/subscription-status.js.
+            subscription_status: internalStatusFor(sub.status),
             subscription_current_period_end: sub.current_period_end
               ? new Date(sub.current_period_end * 1000).toISOString()
               : null,
@@ -1716,10 +1753,20 @@ router.post('/webhook', async (req, res) => {
             });
           }
 
-          await supabase
+          const { error: subErr } = await supabase
             .from('beauticians')
             .update(updates)
             .eq('id', beauticianId);
+          if (subErr) {
+            // This error went unread for the whole life of the webhook. The
+            // write that fails here is the one that decides whether a salon
+            // pays, so it is an error and a Sentry event, not a log line.
+            logger.error({ err: subErr, beauticianId, subscriptionId: sub.id, updates, eventType: event.type }, 'Subscription status update failed');
+            Sentry.captureException(subErr, {
+              tags: { area: 'billing', check: 'subscription_status_write' },
+              extra: { beauticianId, subscriptionId: sub.id, stripeStatus: sub.status, updates, eventType: event.type },
+            });
+          }
         }
         break;
       }
@@ -1728,15 +1775,32 @@ router.post('/webhook', async (req, res) => {
         const sub = event.data.object;
         const beauticianId = sub.metadata?.beautician_id;
         if (beauticianId) {
-          await supabase
+          const { error: delErr } = await supabase
             .from('beauticians')
             .update({
               subscription_plan: 'trial',
-              subscription_status: 'cancelled',
+              subscription_status: internalStatusFor('canceled'),
               subscription_stripe_id: null,
             })
             .eq('id', beauticianId);
+          if (delErr) {
+            logger.error({ err: delErr, beauticianId, subscriptionId: sub.id }, 'Subscription cancellation could not be written');
+            Sentry.captureException(delErr, {
+              tags: { area: 'billing', check: 'subscription_status_write' },
+              extra: { beauticianId, subscriptionId: sub.id, eventType: event.type },
+            });
+          }
         }
+        break;
+      }
+
+      // The salon's own Florrie subscription invoice. One shared handler in
+      // services/dunning.js, also called from /api/billing/webhook, so it does
+      // not matter which of the two mounted webhook URLs Stripe is pointed at.
+      case 'invoice.payment_failed':
+      case 'invoice.paid':
+      case 'invoice.payment_succeeded': {
+        await handleDunningEvent(event);
         break;
       }
 

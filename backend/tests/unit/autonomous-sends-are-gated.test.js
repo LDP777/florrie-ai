@@ -118,7 +118,10 @@ beforeEach(() => {
   verdict = { decision: 'send', tier: 'transactional', reason: 'transactional' };
   db.beauticians.push({
     id: 'b1', first_name: 'Ellie', confidence_threshold: 0.9, auto_reply_enabled: true,
-    subscription_plan: 'pro', tone_model: {}, autonomy: {}, booking_slug: 'ellindigo',
+    // A paying salon: the scheduler now skips anyone lib/billable.js says
+    // Florrie should not be spending money on.
+    subscription_plan: 'pro', subscription_status: 'active', trial_ends_at: null,
+    tone_model: {}, autonomy: {}, booking_slug: 'ellindigo',
     patch_test_auto_remind: true, patch_test_remind_days_before: 7, patch_test_expiry_months: 6,
     whatsapp_phone_id: 'wa1', client_reminder_prefs: {}, phone: '+447700900001',
     working_hours: null,

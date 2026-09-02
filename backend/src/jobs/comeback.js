@@ -12,6 +12,7 @@ import { dirname, join } from 'path';
 import { sendSMS } from '../services/notifications.js';
 import { guardedSend } from '../lib/outbound-guard.js';
 import { getFutureBookedClientIds } from '../lib/future-bookings.js';
+import { splitBillable } from '../lib/billable.js';
 import logger from '../lib/logger.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -32,15 +33,24 @@ const RENUDGE_COOLDOWN_DAYS = 90; // never re-send a win-back within 3 months
 
 export async function runComeback() {
 
-  // Get all beauticians
-  const { data: beauticians, error: bErr } = await supabase
+  // Get all beauticians. subscription_status and trial_ends_at are in
+  // 001_initial_schema.sql, so they are safe to add to the select.
+  const { data: allBeauticians, error: bErr } = await supabase
     .from('beauticians')
-    .select('id, business_name, tone_model, booking_slug');
+    .select('id, business_name, tone_model, booking_slug, subscription_status, trial_ends_at');
 
   if (bErr) {
     logger.error({ err: bErr }, 'Failed to fetch beauticians');
     logger.error('Failed to fetch beauticians:', bErr.message);
     process.exit(1);
+  }
+
+  // Win-back texts cost money per send. Expired trials and cancelled salons
+  // were still having their lapsed clients texted every day on Florrie's
+  // bill. Only billable salons go round the loop.
+  const { billable: beauticians, skipped, reasons } = splitBillable(allBeauticians);
+  if (skipped > 0) {
+    logger.info({ skipped, reasons }, 'Comeback: skipping non-billable beauticians');
   }
 
   let totalNudged = 0;

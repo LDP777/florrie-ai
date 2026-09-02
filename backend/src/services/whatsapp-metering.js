@@ -317,6 +317,18 @@ export async function billMonthlySurplus() {
       const b = row.beauticians;
       const amount = row.overage_total_pence;
 
+      // Trial or no Stripe customer: nothing to charge THIS run. This check
+      // used to sit below the claim, so a month that came up for billing while
+      // the account was still on trial was flipped to billed=true with nothing
+      // charged, and stayed billed forever. The salon then upgraded and that
+      // month's overage was never collected. Skipping BEFORE the claim leaves
+      // the row unclaimed, so the first run after the account is paid picks
+      // it up.
+      if (!b?.stripe_customer_id || !b?.subscription_plan || b.subscription_plan === 'trial') {
+        skipped++;
+        continue;
+      }
+
       // Optimistic claim: flip billed=true ONLY if it is still false. If no row
       // comes back, a concurrent run (or a previous boot) already claimed it, so
       // we skip. This is the inter-instance lock that stops double-billing when
@@ -330,15 +342,15 @@ export async function billMonthlySurplus() {
       if (claimErr || !claimed?.length) { skipped++; continue; }
 
       try {
-        // Trial or no Stripe customer: overage is free — row already flagged billed.
-        if (!b?.stripe_customer_id || !b?.subscription_plan || b.subscription_plan === 'trial') {
-          skipped++;
-          continue;
-        }
-
         const count = (row.overage_sms_count || 0) + (row.overage_wa_count || 0);
         const label = new Date(row.month).toLocaleString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
 
+        // A bare invoice item with no invoice of its own. Stripe holds it as a
+        // pending item on the customer and folds it into the NEXT subscription
+        // invoice, where it is charged with the monthly fee. It is never
+        // charged on its own, so a salon with no live subscription (cancelled,
+        // or a customer created but never subscribed) accrues items that are
+        // billed only if they subscribe again.
         const item = await stripe.invoiceItems.create(
           {
             customer: b.stripe_customer_id,

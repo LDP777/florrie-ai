@@ -24,6 +24,7 @@ import { checkGapFillOpportunities } from './gap-fill-engine.js';
 import { guardedSend } from '../lib/outbound-guard.js';
 import { getFutureBookedClientIds } from '../lib/future-bookings.js';
 import { patchTestEvidence, patchTestStance, wallDate } from '../lib/patch-test-status.js';
+import { splitBillable } from '../lib/billable.js';
 import logger from '../lib/logger.js';
 
 const DEFAULT_CONFIDENCE = 0.90;
@@ -36,14 +37,28 @@ export async function runAutonomousCycle() {
 
   try {
     // Get all beauticians with auto_reply_enabled
-    const { data: beauticians, error } = await supabase
+    // subscription_status and trial_ends_at are both in 001_initial_schema.sql,
+    // so adding them cannot fail the whole select the way a column from an
+    // unapplied migration would.
+    const { data: allBeauticians, error } = await supabase
       .from('beauticians')
-      .select('id, first_name, confidence_threshold, auto_reply_enabled, subscription_plan, tone_model, autonomy')
+      .select('id, first_name, confidence_threshold, auto_reply_enabled, subscription_plan, subscription_status, trial_ends_at, tone_model, autonomy')
       .eq('auto_reply_enabled', true);
 
-    if (error || !beauticians?.length) {
+    if (error || !allBeauticians?.length) {
       logger.info('Autonomous scheduler: no active beauticians or error', { error });
       return;
+    }
+
+    // Every sub-check below (rebook nudges, gap posts, patch test reminders,
+    // pre-appointment nudges, the AI front desk) spends SMS, WhatsApp or
+    // Claude money for the salon. Nothing gated on whether the salon was
+    // still paying, so an expired trial or a cancelled subscription kept
+    // costing Florrie every two hours. Filter once here; the loops below only
+    // ever see billable salons.
+    const { billable: beauticians, skipped, reasons } = splitBillable(allBeauticians);
+    if (skipped > 0) {
+      logger.info({ skipped, reasons }, 'Autonomous scheduler: skipping non-billable beauticians');
     }
 
     for (const b of beauticians) {

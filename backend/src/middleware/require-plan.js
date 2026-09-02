@@ -14,6 +14,51 @@ import { TIER_HIERARCHY, hasFeature, getTier, checkMessageLimit, isTrialExpired 
 import { resolveBeautician } from './auth.js';
 import logger from '../lib/logger.js';
 
+/** Days a past_due salon keeps working while Stripe retries the card. */
+export const PAST_DUE_GRACE_DAYS = 7;
+export const BILLING_HEADER = 'X-Florrie-Billing';
+export const BILLING_PAGE_PATH = '/pricing';
+
+/**
+ * Decide what to do with a salon whose subscription is past_due.
+ *
+ * Stripe marks a subscription past_due the moment its FIRST retry fails,
+ * which for an expired card is the first morning of the new month. This
+ * middleware used to block every non-'active' paid status, so that first
+ * failed attempt locked the diary mid-day, before the owner had been told
+ * anything. She now gets PAST_DUE_GRACE_DAYS measured from
+ * beauticians.payment_failed_at, the marker services/dunning.js stamps on
+ * invoice.payment_failed.
+ *
+ * The marker column is added by migration 20260902_backend027 and the
+ * migrations are applied by hand, so it may not exist yet. req.beautician is
+ * the whole row (select '*' in middleware/auth.js), which means "the column
+ * is readable" is exactly "the key is present on the object". When it is not
+ * present, past_due is allowed through unconditionally with a warning: a
+ * paying customer is never locked out because the schema is behind the code.
+ *
+ * @returns {{ allow: boolean, reason: string, daysLeft?: number }}
+ */
+export function pastDueDecision(beautician, now = new Date()) {
+  if (!beautician || !Object.prototype.hasOwnProperty.call(beautician, 'payment_failed_at')) {
+    return { allow: true, reason: 'payment_failed_at_unreadable' };
+  }
+  const failedAt = beautician.payment_failed_at ? new Date(beautician.payment_failed_at) : null;
+  if (!failedAt || Number.isNaN(failedAt.getTime())) {
+    // past_due with no recorded failure: the status came from a
+    // customer.subscription.updated without an invoice.payment_failed we saw
+    // (or the marker write failed). No clock has started, so the grace
+    // period cannot have run out.
+    return { allow: true, reason: 'no_failure_recorded' };
+  }
+  const graceEnd = failedAt.getTime() + PAST_DUE_GRACE_DAYS * 86400000;
+  const msLeft = graceEnd - now.getTime();
+  if (msLeft > 0) {
+    return { allow: true, reason: 'within_grace', daysLeft: Math.ceil(msLeft / 86400000) };
+  }
+  return { allow: false, reason: 'grace_expired', daysLeft: 0 };
+}
+
 /**
  * Returns Express middleware that checks if req.beautician.subscription_plan
  * meets the minimum required plan.
@@ -95,6 +140,26 @@ export function requireActiveSubscription() {
     // Active paid subscription — always pass
     if (status === 'active' && (plan === 'florrie' || plan === 'florrie_team')) {
       return next();
+    }
+
+    // Past due on a paid plan: the card is being retried. Grace period, with
+    // a header so the frontend can show a banner rather than a locked door.
+    if (status === 'past_due' && (plan === 'florrie' || plan === 'florrie_team')) {
+      const decision = pastDueDecision(req.beautician);
+      if (decision.allow) {
+        if (decision.reason === 'payment_failed_at_unreadable') {
+          logger.warn({ beauticianId: req.beautician?.id, path: req.originalUrl }, 'paywall: past_due but payment_failed_at is not readable, allowing through (apply migration 20260902_backend027)');
+        }
+        res.set(BILLING_HEADER, 'past_due');
+        return next();
+      }
+      return res.status(403).json({
+        error: `Your Florrie payment has not gone through for ${PAST_DUE_GRACE_DAYS} days. Update your card on the billing page (${BILLING_PAGE_PATH}) to carry on.`,
+        code: 'payment_past_due',
+        billing_page: BILLING_PAGE_PATH,
+        required_plan: plan,
+        current_plan: plan,
+      });
     }
 
     // Trial — check expiry

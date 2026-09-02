@@ -4,8 +4,33 @@ import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
 import { verifyWebhook } from '../lib/stripe-webhook-secret.js';
+import { internalStatusFor } from '../lib/subscription-status.js';
+import { teamSeatQuantity } from '../lib/team-seats.js';
+import { handleDunningEvent } from '../services/dunning.js';
 
 const router = Router();
+
+/**
+ * Save a freshly created Stripe customer id on the beautician row and READ
+ * the result. Both checkout paths below used to fire this update and look
+ * away. When it failed the customer still existed in Stripe, so the checkout
+ * carried on and nobody noticed; the next checkout then created a SECOND
+ * Stripe customer, and the monthly overage invoice items (services/
+ * whatsapp-metering.js) attached to whichever one the row named, which could
+ * be the orphan with no subscription to ride on. The checkout URL is still
+ * returned when this fails, because the customer is real; the failure is
+ * shouted so it is fixed before the next month's overage goes astray.
+ */
+async function persistStripeCustomerId(beauticianId, stripeCustomerId, where) {
+  const { error } = await supabase
+    .from('beauticians')
+    .update({ stripe_customer_id: stripeCustomerId })
+    .eq('id', beauticianId);
+  if (error) {
+    logger.error({ err: error, beauticianId, stripeCustomerId, where }, 'stripe_customer_id was created in Stripe but could not be saved on the beautician');
+  }
+  return { error: error || null };
+}
 
 const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY)
@@ -148,11 +173,7 @@ router.post('/create-checkout', requireAuth, async (req, res) => {
         },
       });
       stripeCustomerId = customer.id;
-
-      await supabase
-        .from('beauticians')
-        .update({ stripe_customer_id: stripeCustomerId })
-        .eq('id', beautician.id);
+      await persistStripeCustomerId(beautician.id, stripeCustomerId, 'create-checkout');
     }
 
     // Days of trial this account still has coming. Onboarding asks for a
@@ -164,10 +185,17 @@ router.post('/create-checkout', requireAuth, async (req, res) => {
     // Build session params — embedded mode uses client_secret + return_url,
     // redirect mode uses success_url + cancel_url
     const metadata = subscriptionMetadata({ beauticianId: beautician.id, plan, interval });
+    // One seat per active staff member on the team plan. This has no effect
+    // on the amount charged until the Stripe price is per-seat: the 'Florrie
+    // Team' price created by backend/scripts/stripe-setup.js (around line 36)
+    // is a flat £44, and Stripe multiplies a flat price by the quantity, so
+    // lib/team-seats.js answers 1 until STRIPE_TEAM_PRICE_PER_SEAT is set
+    // against a per-seat price. Set the flag and the staff count goes through.
+    const quantity = await teamSeatQuantity(supabase, beautician.id, plan);
     const sessionParams = {
       customer: stripeCustomerId,
       mode: 'subscription',
-      line_items: [{ price: PRICE_IDS[priceKey], quantity: 1 }],
+      line_items: [{ price: PRICE_IDS[priceKey], quantity }],
       metadata,
       subscription_data: {
         // Card is captured now; the first charge is deferred until the trial
@@ -253,11 +281,7 @@ router.post('/create-subscription-intent', requireAuth, async (req, res) => {
         },
       });
       stripeCustomerId = customer.id;
-
-      await supabase
-        .from('beauticians')
-        .update({ stripe_customer_id: stripeCustomerId })
-        .eq('id', beautician.id);
+      await persistStripeCustomerId(beautician.id, stripeCustomerId, 'create-subscription-intent');
     }
 
     const trialDays = remainingTrialDays(beautician);
@@ -399,15 +423,19 @@ router.post('/webhook', async (req, res) => {
           );
         }
         if (beauticianId && plan) {
-          await supabase
+          const { error: actErr } = await supabase
             .from('beauticians')
             .update({
               subscription_plan: plan,
-              subscription_status: 'active',
+              subscription_status: internalStatusFor('active'),
               subscription_stripe_id: session.subscription,
             })
             .eq('id', beauticianId);
-          logger.info({ beauticianId, plan }, 'Subscription activated');
+          if (actErr) {
+            logger.error({ err: actErr, beauticianId, plan, sessionId: session.id }, 'Subscription activation could not be written');
+          } else {
+            logger.info({ beauticianId, plan }, 'Subscription activated');
+          }
         }
         break;
       }
@@ -429,7 +457,10 @@ router.post('/webhook', async (req, res) => {
           );
         }
         if (beauticianId) {
-          const status = sub.status === 'active' || sub.status === 'trialing' ? 'active' : sub.status;
+          // Through the translation table, never Stripe's own word: 'unpaid'
+          // and 'canceled' violate the column's CHECK and the write failed
+          // silently for months. See lib/subscription-status.js.
+          const status = internalStatusFor(sub.status);
           const updates = {
             subscription_status: status,
             subscription_current_period_end: sub.current_period_end
@@ -437,11 +468,15 @@ router.post('/webhook', async (req, res) => {
               : null,
           };
           if (plan) updates.subscription_plan = plan;
-          await supabase
+          const { error: updErr } = await supabase
             .from('beauticians')
             .update(updates)
             .eq('id', beauticianId);
-          logger.info({ beauticianId, plan, status }, 'Subscription updated');
+          if (updErr) {
+            logger.error({ err: updErr, beauticianId, subscriptionId: sub.id, stripeStatus: sub.status, updates }, 'Subscription status update failed');
+          } else {
+            logger.info({ beauticianId, plan, status }, 'Subscription updated');
+          }
         }
         break;
       }
@@ -450,16 +485,29 @@ router.post('/webhook', async (req, res) => {
         const sub = event.data.object;
         const beauticianId = sub.metadata?.beautician_id;
         if (beauticianId) {
-          await supabase
+          const { error: delErr } = await supabase
             .from('beauticians')
             .update({
               subscription_plan: 'trial',
-              subscription_status: 'cancelled',
+              subscription_status: internalStatusFor('canceled'),
               subscription_stripe_id: null,
             })
             .eq('id', beauticianId);
-          logger.info({ beauticianId }, 'Subscription cancelled');
+          if (delErr) {
+            logger.error({ err: delErr, beauticianId, subscriptionId: sub.id }, 'Subscription cancellation could not be written');
+          } else {
+            logger.info({ beauticianId }, 'Subscription cancelled');
+          }
         }
+        break;
+      }
+
+      // Same shared handler as /api/stripe/webhook (services/dunning.js), so
+      // an invoice event is handled whichever of the two URLs Stripe hits.
+      case 'invoice.payment_failed':
+      case 'invoice.paid':
+      case 'invoice.payment_succeeded': {
+        await handleDunningEvent(event);
         break;
       }
     }
