@@ -24,7 +24,7 @@ import logger from './logger.js';
 import { parseWebhookSecrets } from './stripe-webhook-secret.js';
 import { readJobRuns } from './job-runs.js';
 import { TEMPLATE_SPECS, splitTemplateName, paramFieldsFor } from './whatsapp-templates.js';
-import { getPhoneParentWaba } from '../services/notifications.js';
+import { explainPhoneParentWaba } from '../services/notifications.js';
 import { isApnsConfigured } from '../services/apns.js';
 import { unsecuredWebhookChannels } from './unsigned-webhook-policy.js';
 
@@ -729,12 +729,83 @@ async function resolveAuditWaba() {
     const phoneId = data?.[0]?.whatsapp_phone_id;
     if (!phoneId) return { waba: envWaba, source: 'env_no_sender_connected' };
 
-    const parent = await getPhoneParentWaba(phoneId);
-    if (!parent) return { waba: envWaba, source: 'env_phone_parent_unknown', phoneId };
-    return { waba: parent, source: 'sending_phone', phoneId, envWaba };
+    const parent = await explainPhoneParentWaba(phoneId);
+    if (!parent.wabaId) {
+      // The reason is the whole diagnosis. On 2 September this came back as
+      // a bare 'unknown' and the only place the cause lived was a warn line
+      // in Railway's logs; the audit, and the sender, then fell back to an
+      // env WABA that turned out to be the wrong account.
+      return {
+        waba: envWaba,
+        source: 'env_phone_parent_unknown',
+        phoneId,
+        envWaba,
+        phoneLookup: { reason: parent.reason, status: parent.status ?? null, error: parent.error ?? null },
+      };
+    }
+    return { waba: parent.wabaId, source: 'sending_phone', phoneId, envWaba };
   } catch (err) {
     logger.warn({ err }, 'template audit: WABA resolution threw, falling back to the env WABA');
     return { waba: envWaba, source: 'env_after_throw' };
+  }
+}
+
+/**
+ * Every WhatsApp Business Account this token can see, and whether each one
+ * holds the templates the sender reaches for.
+ *
+ * Only called when the audited account is in doubt, because it is several
+ * Graph calls. Its purpose is one line in /health that says "the account with
+ * your templates on it is THIS id", so the founder copies an id rather than
+ * guessing one, and nobody writes a guessed WABA id into production config.
+ *
+ * Bounded: at most 10 businesses and 10 accounts, and any failure returns what
+ * was gathered so far with the error attached rather than nothing.
+ */
+async function listWabaCandidates(token) {
+  const out = { accounts: [], error: null };
+  const wanted = Object.keys(TEMPLATE_SPECS).map((b) => `${b}_v4`);
+  try {
+    const bizRes = await fetch(`${WA_GRAPH}/me/businesses?fields=id,name&limit=10`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const biz = await bizRes.json();
+    if (!bizRes.ok || !Array.isArray(biz?.data)) {
+      out.error = biz?.error?.message || `businesses: HTTP ${bizRes.status}`;
+      return out;
+    }
+    for (const b of biz.data.slice(0, 10)) {
+      const wRes = await fetch(`${WA_GRAPH}/${b.id}/owned_whatsapp_business_accounts?fields=id,name&limit=10`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const w = await wRes.json();
+      if (!wRes.ok || !Array.isArray(w?.data)) continue;
+      for (const acct of w.data.slice(0, 10)) {
+        const tRes = await fetch(`${WA_GRAPH}/${acct.id}/message_templates?fields=name,status&limit=200`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const t = await tRes.json();
+        const approved = new Set(
+          (Array.isArray(t?.data) ? t.data : [])
+            .filter((x) => String(x?.status || '').toUpperCase() === 'APPROVED')
+            .map((x) => String(x?.name || '').toLowerCase()),
+        );
+        const has = wanted.filter((n) => approved.has(n));
+        out.accounts.push({
+          waba: acct.id,
+          name: acct.name || null,
+          business: b.name || b.id,
+          approved_templates: approved.size,
+          has_v4: has,
+          has_all_v4: has.length === wanted.length,
+        });
+        if (out.accounts.length >= 10) return out;
+      }
+    }
+    return out;
+  } catch (err) {
+    out.error = String(err?.message || err).slice(0, 200);
+    return out;
   }
 }
 
@@ -760,7 +831,20 @@ async function fetchApprovedTemplates() {
     if (!res.ok || !Array.isArray(data?.data)) {
       return { error: data?.error?.message || `Graph returned HTTP ${res.status}` };
     }
-    return { templates: data.data, waba, wabaSource: resolved.source, envWaba: resolved.envWaba || null };
+    return {
+      templates: data.data,
+      waba,
+      wabaSource: resolved.source,
+      envWaba: resolved.envWaba || null,
+      phoneId: resolved.phoneId || null,
+      phoneLookup: resolved.phoneLookup || null,
+      // Only worth the extra Graph calls when the audited account is in doubt.
+      // Only when a sending phone EXISTS and its parent could not be resolved:
+      // that is the one situation where the audited account is genuinely in
+      // doubt. No sender connected means nothing to diagnose, and a resolved
+      // parent means nothing to look for.
+      candidates: resolved.source === 'env_phone_parent_unknown' ? await listWabaCandidates(token) : null,
+    };
   } catch (err) {
     return { error: err?.name === 'AbortError' ? `no answer within ${TEMPLATE_AUDIT_TIMEOUT_MS}ms` : (err?.message || 'Graph call failed') };
   } finally {
@@ -954,12 +1038,27 @@ async function runTemplateAudit() {
     // Which account this judgement is about. Without it a reader cannot tell a
     // clean audit of the right WABA from a clean audit of the wrong one, which
     // is the whole of the 1 September confusion.
+    const rightOne = (answer.candidates?.accounts || []).filter((a) => a.has_all_v4);
     result = {
       ...result,
       waba_audited: answer.waba,
       waba_source: answer.wabaSource,
       ...(answer.envWaba && answer.envWaba !== answer.waba
         ? { waba_env_disagrees: answer.envWaba }
+        : {}),
+      ...(answer.phoneLookup
+        ? { sending_phone_id: answer.phoneId, phone_lookup_failed: answer.phoneLookup }
+        : {}),
+      ...(answer.candidates
+        ? {
+          wabas_this_token_can_see: answer.candidates.accounts,
+          ...(answer.candidates.error ? { waba_listing_error: answer.candidates.error } : {}),
+          set_whatsapp_waba_id_to: rightOne.length === 1
+            ? rightOne[0].waba
+            : rightOne.length > 1
+              ? `more than one account has all five _v4 templates: ${rightOne.map((a) => a.waba).join(', ')}`
+              : 'no account this token can see has all five _v4 templates approved',
+        }
         : {}),
     };
   }

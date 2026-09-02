@@ -435,9 +435,33 @@ export function _wabaCacheSizes() {
   return { phone: _phoneWabaCache.size, catalogue: _tplCatalogueCache.size };
 }
 export async function getPhoneParentWaba(phoneNumberId) {
-  if (!WA_TOKEN || !phoneNumberId) return null;
+  return (await explainPhoneParentWaba(phoneNumberId)).wabaId;
+}
+
+/**
+ * The same lookup, keeping the reason it failed.
+ *
+ * 2 September 2026. /health reported waba_source 'env_phone_parent_unknown':
+ * this lookup had returned null, so both the template audit and the SENDER's
+ * own catalogue fell back to WHATSAPP_WABA_ID from the environment. That
+ * account holds seven approved templates with no version suffix at all, while
+ * Meta was accepting booking_confirmation_v2 sends from the phone number, so
+ * the number's real parent is a different account with the suffixed templates
+ * on it. The sender therefore never saw generic_message_v4 as approved, never
+ * upgraded, and the booking link send was refused: 53 of 55 confirmations
+ * with no link.
+ *
+ * All of that hinged on WHY this returned null, and the only record of why
+ * was a warn line in Railway's logs. Now the reason travels with the answer
+ * so /health can print it.
+ *
+ * @returns {Promise<{wabaId: string|null, reason: string|null, status?: number, error?: object}>}
+ */
+export async function explainPhoneParentWaba(phoneNumberId) {
+  if (!WA_TOKEN) return { wabaId: null, reason: 'no_whatsapp_token' };
+  if (!phoneNumberId) return { wabaId: null, reason: 'no_phone_number_id' };
   const hit = _phoneWabaCache.get(phoneNumberId);
-  if (hit && Date.now() - hit.at < 30 * 60 * 1000) return hit.wabaId;
+  if (hit && Date.now() - hit.at < 30 * 60 * 1000) return { wabaId: hit.wabaId, reason: null };
   try {
     const r = await fetch(
       `${WA_GRAPH}/${phoneNumberId}?fields=whatsapp_business_account{id}`,
@@ -450,12 +474,18 @@ export async function getPhoneParentWaba(phoneNumberId) {
       // module scope is allowed to grow with the customer base unbounded.
       _phoneWabaCache.set(phoneNumberId, { wabaId, at: Date.now() });
       capSize(_phoneWabaCache, WA_CACHE_MAX);
+      return { wabaId, reason: null };
     }
-    else logger.warn({ status: r.status, body: data, phoneNumberId }, 'getPhoneParentWaba: no WABA on phone node');
-    return wabaId;
+    logger.warn({ status: r.status, body: data, phoneNumberId }, 'getPhoneParentWaba: no WABA on phone node');
+    return {
+      wabaId: null,
+      reason: r.ok ? 'phone_node_has_no_waba_field' : 'graph_refused',
+      status: r.status,
+      error: data?.error ? { code: data.error.code, type: data.error.type, message: String(data.error.message || '').slice(0, 200) } : null,
+    };
   } catch (err) {
     logger.warn({ err, phoneNumberId }, 'getPhoneParentWaba: fetch failed');
-    return null;
+    return { wabaId: null, reason: 'fetch_threw', error: { message: String(err?.message || err).slice(0, 200) } };
   }
 }
 

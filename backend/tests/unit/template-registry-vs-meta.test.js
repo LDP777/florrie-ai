@@ -29,6 +29,7 @@
 process.env.TZ = 'UTC';
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
 
 /* ------------------------------------------------------------------ the db --
  * health.js reads several tables. Nothing here is under test, so the builder
@@ -388,5 +389,37 @@ describe('a template the sender needs and the WABA does not have', () => {
     const rows = allFive.filter(t => t.name !== 'generic_message_v4');
     expect(judgeTemplateParams(rows).status).toBe('ok');
     expect(judgeTemplateCoverage(rows).status).toBe('warn');
+  });
+});
+
+describe('when the audited account is in doubt, /health says which one to use', () => {
+  // 2 September 2026. waba_source came back 'env_phone_parent_unknown', the
+  // env account held seven templates with no version suffix, and Meta was
+  // accepting booking_confirmation_v2 from the phone number, so the real
+  // account was somewhere else. Finding it meant a person reading Business
+  // Manager. Now the payload names it, and says why the lookup failed.
+  const src = readFileSync(new URL('../../src/lib/health.js', import.meta.url), 'utf8');
+  const notif = readFileSync(new URL('../../src/services/notifications.js', import.meta.url), 'utf8');
+
+  it('carries the reason the phone lookup failed instead of a bare null', () => {
+    expect(notif).toMatch(/export async function explainPhoneParentWaba/);
+    expect(notif).toMatch(/reason: r\.ok \? 'phone_node_has_no_waba_field' : 'graph_refused'/);
+    expect(src).toMatch(/phone_lookup_failed: answer\.phoneLookup/);
+  });
+
+  it('lists the accounts the token can see only when the audited one is in doubt', () => {
+    // Several Graph calls, so not on every poll of a healthy setup.
+    expect(src).toMatch(/candidates: resolved\.source === 'env_phone_parent_unknown' \? await listWabaCandidates\(token\) : null/);
+  });
+
+  it('names the account to set, and refuses to pick when it is ambiguous', () => {
+    expect(src).toMatch(/set_whatsapp_waba_id_to: rightOne\.length === 1/);
+    expect(src).toMatch(/more than one account has all five _v4 templates/);
+    expect(src).toMatch(/no account this token can see has all five _v4 templates approved/);
+  });
+
+  it('is bounded, so a token over a big Business Manager cannot make /health hang', () => {
+    expect(src).toMatch(/limit=10/);
+    expect(src).toMatch(/out\.accounts\.length >= 10/);
   });
 });
