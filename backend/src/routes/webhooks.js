@@ -7,6 +7,8 @@ import { pushMessagesWaiting } from '../services/push-notifications.js';
 import { classifyInboundMessage, looksLikeKnownClient } from '../lib/junk-classifier.js';
 import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
+import * as Sentry from '@sentry/node';
+import { unsignedWebhookPolicy, reportUnsecuredOnce } from '../lib/unsigned-webhook-policy.js';
 import { getAppSecret, getWhatsAppVerifyToken } from '../lib/env.js';
 import { autoUnarchiveClient } from '../lib/client-archive.js';
 import Anthropic from '@anthropic-ai/sdk';
@@ -166,20 +168,19 @@ router.post('/whatsapp', async (req, res) => {
       recordWebhookHit({ ...hitBase, result: '403_signature_error', error: err.message });
       return res.status(403).json({ error: 'Signature verification failed' });
     }
-  } else if (process.env.WEBHOOK_ALLOW_UNSIGNED === 'true') {
-    // Local development only. Without the app secret nobody can be verified,
-    // and an unsigned payload reaches processInboundMessage, which sends
-    // outbound messages on the salon's behalf. This used to be the DEFAULT:
-    // rejecting was opt-in via a separate flag, and that flag was set nowhere,
-    // not in the repo and not in the deploy docs, so "opt in to safety" was
-    // the same as "off". The default is now to reject, and this is the opt-out.
-    logger.warn('WHATSAPP_APP_SECRET not set; WEBHOOK_ALLOW_UNSIGNED=true so accepting an unverified payload (never in production)');
   } else {
-    // Fail closed. A missing secret is a deployment mistake, not a reason to
-    // trust whoever is on the other end of the socket.
-    logger.error('WhatsApp webhook: WHATSAPP_APP_SECRET not configured; rejecting unsigned payload (set the secret, or WEBHOOK_ALLOW_UNSIGNED=true for local dev)');
-    recordWebhookHit({ ...hitBase, result: '503_no_secret' });
-    return res.status(503).json({ error: 'Webhook not configured' });
+    // No secret. Three answers, and the difference is the date: see
+    // lib/unsigned-webhook-policy.js. The channel stays live through deploy
+    // day with alarms going off, and closes on its own a week later if nobody
+    // sets the secret.
+    const policy = unsignedWebhookPolicy({ channel: 'whatsapp', envVar: 'WHATSAPP_APP_SECRET' });
+    if (!policy.accept) {
+      logger.error(policy.detail);
+      recordWebhookHit({ ...hitBase, result: '503_no_secret' });
+      return res.status(503).json({ error: 'Webhook not configured' });
+    }
+    if (policy.mode === 'grace') reportUnsecuredOnce('whatsapp', policy.detail, Sentry);
+    logger[policy.mode === 'grace' ? 'error' : 'warn'](policy.detail);
   }
 
   recordWebhookHit({ ...hitBase, result: '200_accepted' });
@@ -462,14 +463,18 @@ router.post('/twilio-sms', async (req, res) => {
       logger.warn({ err }, 'Twilio SMS webhook: signature verification error');
       return res.status(403).json({ error: 'Signature verification failed' });
     }
-  } else if (process.env.WEBHOOK_ALLOW_UNSIGNED === 'true') {
-    // Local development only. Rejecting used to be opt-in via a separate flag
-    // that was never set anywhere, so unsigned SMS was processed in production
-    // by default. Now the default is to reject; this is the opt-out.
-    logger.warn('TWILIO_AUTH_TOKEN not set; WEBHOOK_ALLOW_UNSIGNED=true so accepting an unverified payload (never in production)');
   } else {
-    logger.error('Twilio SMS webhook: TWILIO_AUTH_TOKEN not configured; rejecting unsigned payload (set the token, or WEBHOOK_ALLOW_UNSIGNED=true for local dev)');
-    return res.status(503).json({ error: 'Webhook not configured' });
+    // No secret. Three answers, and the difference is the date: see
+    // lib/unsigned-webhook-policy.js. The channel stays live through deploy
+    // day with alarms going off, and closes on its own a week later if nobody
+    // sets the secret.
+    const policy = unsignedWebhookPolicy({ channel: 'twilio_sms', envVar: 'TWILIO_AUTH_TOKEN' });
+    if (!policy.accept) {
+      logger.error(policy.detail);
+      return res.status(503).json({ error: 'Webhook not configured' });
+    }
+    if (policy.mode === 'grace') reportUnsecuredOnce('twilio_sms', policy.detail, Sentry);
+    logger[policy.mode === 'grace' ? 'error' : 'warn'](policy.detail);
   }
 
   // Signature verified or skipped — return TwiML response (empty — AI handles replies via outbound SMS)
@@ -701,15 +706,18 @@ router.post('/bird-sms', async (req, res) => {
       logger.warn('Bird SMS webhook: invalid or missing token');
       return res.status(403).json({ error: 'Forbidden' });
     }
-  } else if (process.env.WEBHOOK_ALLOW_UNSIGNED === 'true') {
-    // Local development only. An unauthenticated inbound endpoint lets anyone
-    // inject fake client SMS and have Florrie answer them. Rejecting used to be
-    // opt-in via a separate flag that was never set anywhere, so this was the
-    // production default. Now the default is to reject; this is the opt-out.
-    logger.warn('BIRD_WEBHOOK_TOKEN not set; WEBHOOK_ALLOW_UNSIGNED=true so accepting an unauthenticated payload (never in production)');
   } else {
-    logger.error('Bird SMS webhook: BIRD_WEBHOOK_TOKEN not set, refusing request (set the token, or WEBHOOK_ALLOW_UNSIGNED=true for local dev)');
-    return res.status(503).json({ error: 'Webhook auth not configured' });
+    // No secret. Three answers, and the difference is the date: see
+    // lib/unsigned-webhook-policy.js. The channel stays live through deploy
+    // day with alarms going off, and closes on its own a week later if nobody
+    // sets the secret.
+    const policy = unsignedWebhookPolicy({ channel: 'bird_sms', envVar: 'BIRD_WEBHOOK_TOKEN' });
+    if (!policy.accept) {
+      logger.error(policy.detail);
+      return res.status(503).json({ error: 'Webhook auth not configured' });
+    }
+    if (policy.mode === 'grace') reportUnsecuredOnce('bird_sms', policy.detail, Sentry);
+    logger[policy.mode === 'grace' ? 'error' : 'warn'](policy.detail);
   }
 
   // ACK early — Bird retries on non-2xx

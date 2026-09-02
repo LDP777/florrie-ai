@@ -26,6 +26,7 @@ import { readJobRuns } from './job-runs.js';
 import { TEMPLATE_SPECS, splitTemplateName, paramFieldsFor } from './whatsapp-templates.js';
 import { getPhoneParentWaba } from '../services/notifications.js';
 import { isApnsConfigured } from '../services/apns.js';
+import { unsecuredWebhookChannels } from './unsigned-webhook-policy.js';
 
 const DEFAULT_TIMEOUT_MS = 3000;
 
@@ -865,6 +866,41 @@ async function checkPushReach() {
 }
 
 /**
+ * Which inbound webhooks are running with no secret, and how long they have.
+ *
+ * Reported here so the answer to "is Instagram about to go dark" is one HTTP
+ * call on deploy day rather than a 503 discovered a week later. See
+ * lib/unsigned-webhook-policy.js for the three-answer policy this reports on.
+ */
+async function checkWebhookSecrets() {
+  const unsecured = unsecuredWebhookChannels();
+  if (unsecured.length === 0) {
+    return { ok: true, status: 'ok', critical: false, channels_unsecured: 0 };
+  }
+  const grace = unsecured.filter((c) => c.mode === 'grace');
+  const rejecting = unsecured.filter((c) => c.mode === 'reject');
+  const dev = unsecured.filter((c) => c.mode === 'dev_override');
+  return {
+    ok: false,
+    status: 'warn',
+    critical: false,
+    channels_unsecured: unsecured.length,
+    unsecured: unsecured.map((c) => ({ channel: c.channel, set: c.envVar, mode: c.mode, days_left: c.daysLeft })),
+    detail: [
+      grace.length
+        ? `${grace.map((c) => c.channel).join(', ')}: accepting UNVERIFIED payloads so the channel stays live, closing in ${Math.min(...grace.map((c) => c.daysLeft))} day(s). Set ${grace.map((c) => c.envVar).join(', ')}.`
+        : null,
+      rejecting.length
+        ? `${rejecting.map((c) => c.channel).join(', ')}: REFUSING every inbound message, the grace period has ended. Set ${rejecting.map((c) => c.envVar).join(', ')} and this channel comes back on the next request.`
+        : null,
+      dev.length
+        ? `${dev.map((c) => c.channel).join(', ')}: WEBHOOK_ALLOW_UNSIGNED=true, unverified payloads accepted with no deadline. This is for local development only.`
+        : null,
+    ].filter(Boolean).join(' '),
+  };
+}
+
+/**
  * Reuses whatever checkTemplateParams already fetched. One Graph call answers
  * both questions, and asking twice in the same health poll would double the
  * rate-limit cost to say two things about one list.
@@ -1000,7 +1036,7 @@ export async function runHealthChecks({ stripe = null, timeoutMs = DEFAULT_TIMEO
     label,
   );
 
-  const [database, stripeApi, webhookSecret, webhookActivity, instagram, confirmationLinks, templateParams, templateCoverage, pushReach, jobs] = await Promise.all([
+  const [database, stripeApi, webhookSecret, webhookActivity, instagram, confirmationLinks, templateParams, templateCoverage, pushReach, webhookSecrets, jobs] = await Promise.all([
     guarded('database', checkSupabase),
     guarded('stripe_api', () => checkStripeApi(stripe)),
     guarded('stripe_webhook_secret', () => checkStripeWebhookSecret(stripeConfigured)),
@@ -1010,6 +1046,7 @@ export async function runHealthChecks({ stripe = null, timeoutMs = DEFAULT_TIMEO
     guarded('template_params', checkTemplateParams),
     guarded('template_coverage', checkTemplateCoverage),
     guarded('push_reach', checkPushReach),
+    guarded('webhook_secrets', checkWebhookSecrets),
     guarded('crons', () => checkJobs(jobSpecs)),
   ]);
 
@@ -1023,6 +1060,7 @@ export async function runHealthChecks({ stripe = null, timeoutMs = DEFAULT_TIMEO
     template_params: templateParams,
     template_coverage: templateCoverage,
     push_reach: pushReach,
+    webhook_secrets: webhookSecrets,
     crons: jobs,
   };
 

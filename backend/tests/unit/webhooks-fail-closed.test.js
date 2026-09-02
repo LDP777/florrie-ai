@@ -9,10 +9,13 @@
  * processInboundMessage a fake client message and have Florrie reply to it,
  * on the salon's number, at the salon's expense.
  *
- * The contract now: no secret means 503, unless WEBHOOK_ALLOW_UNSIGNED=true is
- * set explicitly for local development. These tests read the source so that
- * the old flag cannot quietly come back, and so that "processing unsigned"
- * never again describes a default.
+ * The contract, revised the same night: "Make sure this can't happen, I need
+ * IG to stay live." A missing secret must not take a live channel dark on
+ * deploy day. So every handler defers to lib/unsigned-webhook-policy.js,
+ * which accepts with alarms until a fixed deadline and rejects after it. These
+ * tests read the source so that the old flag cannot quietly come back, so
+ * that no handler grows its own private answer, and drive the WhatsApp handler
+ * on both sides of the deadline.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -47,10 +50,13 @@ describe('the old opt-in flag is gone', () => {
   });
 });
 
-describe('each handler has the explicit opt-out and nothing else', () => {
+describe('each handler defers to the one policy and nothing else', () => {
   for (const [name, body] of Object.entries(handlers)) {
-    it(`${name}: reads WEBHOOK_ALLOW_UNSIGNED`, () => {
-      expect(body).toContain("process.env.WEBHOOK_ALLOW_UNSIGNED === 'true'");
+    it(`${name}: asks unsignedWebhookPolicy rather than deciding for itself`, () => {
+      // Four handlers with four private answers is how the original hole
+      // happened. One policy, one deadline, one place to read.
+      expect(body).toContain('unsignedWebhookPolicy({');
+      expect(body).not.toContain("process.env.WEBHOOK_ALLOW_UNSIGNED");
     });
 
     it(`${name}: unsigned processing is not a default path`, () => {
@@ -58,15 +64,14 @@ describe('each handler has the explicit opt-out and nothing else', () => {
       expect(body).not.toMatch(/processing unauthenticated/);
     });
 
-    it(`${name}: the no-secret branch returns 503`, () => {
-      // The opt-out branch must be immediately followed by the reject branch,
-      // and that branch must be a 503, so there is no third way through.
-      const optOut = body.indexOf("process.env.WEBHOOK_ALLOW_UNSIGNED === 'true'");
-      const after = body.slice(optOut);
-      const elseAt = after.indexOf('} else {');
-      expect(elseAt).toBeGreaterThan(0);
-      const rejectBranch = after.slice(elseAt, after.indexOf('\n  }\n', elseAt));
-      expect(rejectBranch).toContain('res.status(503)');
+    it(`${name}: returns 503 when the policy says reject`, () => {
+      const at = body.indexOf('if (!policy.accept)');
+      expect(at).toBeGreaterThan(0);
+      expect(body.slice(at, at + 400)).toContain('res.status(503)');
+    });
+
+    it(`${name}: reports a grace-period acceptance to Sentry once`, () => {
+      expect(body).toMatch(/if \(policy\.mode === 'grace'\) reportUnsecuredOnce\(/);
     });
   }
 
@@ -82,7 +87,7 @@ describe('each handler has the explicit opt-out and nothing else', () => {
  * it authenticates with the verify token, not the app secret.
  */
 describe('WhatsApp handler behaviour without a secret', () => {
-  it('rejects with 503 and never reaches the processor', async () => {
+  async function loadRouter() {
     vi.resetModules();
     const processed = [];
     vi.doMock('../../src/lib/logger.js', () => ({ default: { info() {}, warn() {}, error() {}, debug() {}, fatal() {} } }));
@@ -104,8 +109,10 @@ describe('WhatsApp handler behaviour without a secret', () => {
 
     delete process.env.WEBHOOK_ALLOW_UNSIGNED;
     const router = (await import('../../src/routes/webhooks.js')).default;
+    return { router, processed };
+  }
 
-    const run = async (method, url, req) => {
+  const run = async (router, method, url, req) => {
       const layer = router.stack.find(l => l.route?.path === url && l.route.methods[method]);
       const handler = layer.route.stack[layer.route.stack.length - 1].handle;
       const out = { status: 200, body: null, sent: null };
@@ -117,25 +124,52 @@ describe('WhatsApp handler behaviour without a secret', () => {
       };
       await handler({ headers: {}, query: {}, body: {}, params: {}, ...req }, res);
       return out;
-    };
+  };
 
-    const post = await run('post', '/whatsapp', {
-      body: {
-        entry: [{
-          changes: [{
-            value: { messages: [{ from: '447900000001', text: { body: 'hi' } }], metadata: { phone_number_id: 'p1' } },
-          }],
+  const inbound = {
+    body: {
+      entry: [{
+        changes: [{
+          value: { messages: [{ from: '447900000001', text: { body: 'hi' } }], metadata: { phone_number_id: 'p1' } },
         }],
-      },
-    });
-    expect(post.status).toBe(503);
-    expect(post.sent).toBeNull();
-    expect(processed).toHaveLength(0);
+      }],
+    },
+  };
 
-    const get = await run('get', '/whatsapp', {
-      query: { 'hub.mode': 'subscribe', 'hub.verify_token': 'verify-me', 'hub.challenge': 'abc123' },
-    });
-    expect(get.status).toBe(200);
-    expect(get.body).toBe('abc123');
+  it('after the deadline: rejects with 503 and never reaches the processor', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-09-10T09:00:00Z'));
+    try {
+      const { router, processed } = await loadRouter();
+      const post = await run(router, 'post', '/whatsapp', inbound);
+      expect(post.status).toBe(503);
+      expect(post.sent).toBeNull();
+      expect(processed).toHaveLength(0);
+
+      // The GET handshake authenticates with the verify token, not the app
+      // secret, so it keeps working whatever the policy says.
+      const get = await run(router, 'get', '/whatsapp', {
+        query: { 'hub.mode': 'subscribe', 'hub.verify_token': 'verify-me', 'hub.challenge': 'abc123' },
+      });
+      expect(get.status).toBe(200);
+      expect(get.body).toBe('abc123');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('on deploy day: accepts, so a live channel does not go dark', async () => {
+    // The founder's instruction, as a test. If this fails, shipping the
+    // secret check can pause the pilot salon's inbound messages.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-09-02T12:00:00Z'));
+    try {
+      const { router } = await loadRouter();
+      const post = await run(router, 'post', '/whatsapp', inbound);
+      expect(post.status).not.toBe(503);
+      expect(post.sent).toBe(200);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

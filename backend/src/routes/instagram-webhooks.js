@@ -22,6 +22,8 @@ import { processInboundMessage } from '../services/ai-front-desk.js';
 import { pushMessagesWaiting } from '../services/push-notifications.js';
 import { classifyInboundMessage, looksLikeKnownClient } from '../lib/junk-classifier.js';
 import logger from '../lib/logger.js';
+import { unsignedWebhookPolicy, reportUnsecuredOnce } from '../lib/unsigned-webhook-policy.js';
+import * as Sentry from '@sentry/node';
 import { autoUnarchiveClient } from '../lib/client-archive.js';
 import { authorship } from '../lib/authorship.js';
 import { deDash } from '../lib/text.js';
@@ -104,16 +106,20 @@ router.post('/', async (req, res) => {
       logger.warn({ err }, 'Instagram webhook: signature error');
       return res.status(403).json({ error: 'Signature verification failed' });
     }
-  } else if (process.env.WEBHOOK_ALLOW_UNSIGNED === 'true') {
-    // Local development only. Without a secret an unsigned payload reaches
-    // handleInstagramMessage and on to processInboundMessage, which sends DMs
-    // on the salon's behalf. Rejecting used to be opt-in via a separate flag
-    // that was never set anywhere, so unsigned DMs were processed in
-    // production by default. Now the default is to reject; this is the opt-out.
-    logger.warn('INSTAGRAM_APP_SECRET not set; WEBHOOK_ALLOW_UNSIGNED=true so accepting an unverified payload (never in production)');
   } else {
-    logger.error('Instagram webhook: INSTAGRAM_APP_SECRET not configured; rejecting unsigned payload (set the secret, or WEBHOOK_ALLOW_UNSIGNED=true for local dev)');
-    return res.status(503).json({ error: 'Webhook not configured' });
+    // No secret. Three answers, and the difference is the date: see
+    // lib/unsigned-webhook-policy.js. The short version: this channel stays
+    // live through deploy day with alarms going off, and closes on its own a
+    // week later if nobody sets the secret. "Make sure this can't happen, I
+    // need IG to stay live" was the founder's instruction, and this is how
+    // that is squared with not accepting fabricated DMs forever.
+    const policy = unsignedWebhookPolicy({ channel: 'instagram', envVar: 'INSTAGRAM_APP_SECRET' });
+    if (!policy.accept) {
+      logger.error(policy.detail);
+      return res.status(503).json({ error: 'Webhook not configured' });
+    }
+    if (policy.mode === 'grace') reportUnsecuredOnce('instagram', policy.detail, Sentry);
+    logger[policy.mode === 'grace' ? 'error' : 'warn'](policy.detail);
   }
 
   // Return 200 immediately (Meta retries on failure)
