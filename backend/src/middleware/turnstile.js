@@ -12,6 +12,13 @@ import logger from '../lib/logger.js';
 
 const TURNSTILE_VERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 
+// Said once per process. A secret key in the environment reads as "CAPTCHA is
+// on" to anyone checking the Railway variables, and until 2 September 2026
+// nothing contradicted that: the flag below returned early in silence, so a
+// configured-but-unenforced Turnstile looked identical to an enforced one.
+// One warning on the first request makes the gap visible in the logs.
+let warnedNotEnforced = false;
+
 /**
  * Verifies a Cloudflare Turnstile token submitted with a form.
  * Expects `cf-turnstile-response` field in the request body.
@@ -26,6 +33,10 @@ export async function verifyTurnstile(req, res, next) {
   // does not yet ship a Turnstile widget, so enforcing by default would reject all
   // public booking submissions. Flip TURNSTILE_ENFORCE=true once the widget is wired.
   if (!enforce) {
+    if (secretKey && !warnedNotEnforced) {
+      warnedNotEnforced = true;
+      logger.warn('TURNSTILE_SECRET_KEY is set but TURNSTILE_ENFORCE is not "true": CAPTCHA is configured and NOT being checked');
+    }
     return next();
   }
 

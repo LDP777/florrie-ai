@@ -26,6 +26,9 @@ import { twilioValidateSignature } from '../services/whatsapp-twilio.js';
 import logger from '../lib/logger.js';
 import { autoUnarchiveClient } from '../lib/client-archive.js';
 import { authorship } from '../lib/authorship.js';
+import { sendWhatsAppText } from '../services/notifications.js';
+import { guardedSend } from '../lib/outbound-guard.js';
+import { isOptOutMessage, applyOptOut, OPT_OUT_CONFIRMATION } from '../lib/opt-out.js';
 
 const router = Router();
 
@@ -112,6 +115,27 @@ router.post('/whatsapp', async (req, res) => {
 
     if (storeErr || !storedMessage) {
       logger.error({ err: storeErr, beautician_id: beautician.id }, 'Failed to store inbound Twilio WhatsApp message');
+      return;
+    }
+
+    // STOP before the auto-reply branch. 2 September 2026: the only opt-out
+    // recogniser on this path lived inside processInboundMessage, which a
+    // salon with auto-reply off never reaches, so the word was stored as a
+    // message and the marketing engines carried on. Same hoist as
+    // routes/webhooks.js and routes/instagram-webhooks.js.
+    if (isOptOutMessage(messageContent)) {
+      const recorded = await applyOptOut({ beautician, client });
+      logger.info({ beauticianId: beautician.id, clientId: client?.id, from: From, recorded },
+        'Twilio WhatsApp: marketing opt-out honoured');
+      await guardedSend({
+        beauticianId: beautician.id,
+        clientId: client?.id || null,
+        messageType: 'marketing_opt_out',
+        channel: 'whatsapp',
+        client,
+        body: OPT_OUT_CONFIRMATION,
+        send: () => sendWhatsAppText({ to: client.whatsapp_id, body: OPT_OUT_CONFIRMATION, beauticianId: beautician.id }),
+      });
       return;
     }
 

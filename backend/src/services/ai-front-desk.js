@@ -29,6 +29,7 @@ import { authorship } from '../lib/authorship.js';
 import { isGroundedReply, asksForHuman, signAsFlorrie, atTheDoorPhrase } from '../lib/grounded-reply.js';
 import { normaliseOutcome } from '../lib/ai-actions.js';
 import { patchTestEvidence, patchTestStance } from '../lib/patch-test-status.js';
+import { inboundBudget } from '../lib/inbound-budget.js';
 
 /**
  * AI Front Desk — The core agentic service.
@@ -230,6 +231,39 @@ export async function processInboundMessage(messageId, beautician, client, messa
         { beauticianId: beautician.id, clientId: client?.id, phrase: doorstep, told: doorstepAlert?.channel },
         'Client is at the door: alerted the owner before any other work'
       );
+    }
+
+    // 0c. IS THIS CLIENT, OR THIS SALON, OVER BUDGET FOR THE HOUR.
+    //
+    // Checked here, after STOP and the doorstep alert (both of which must
+    // always work) and before anything that costs money. gatherContext is five
+    // table reads and classifyIntent is the first model call; the draft on the
+    // escalation path is the second. Until 2 September 2026 nothing between
+    // the webhook and those two calls was keyed on who was sending: the only
+    // limiter was per IP, and Meta sends every salon's traffic from the same
+    // IPs. One sender who kept going could run up the model bill indefinitely.
+    //
+    // Over budget means: no model call, the message is escalated with a reason
+    // Ellie can read, and we stop. A real client at twenty messages an hour is
+    // rare and is a conversation Ellie should be in. An attacker at twenty
+    // costs one database write instead of two model calls. See
+    // lib/inbound-budget.js for the window and the limits.
+    const budget = inboundBudget({ beauticianId: beautician.id, clientId: client?.id });
+    if (!budget.allowed) {
+      logger.warn(
+        { beauticianId: beautician.id, clientId: client?.id, count: budget.count, limit: budget.limit, reason: budget.reason },
+        'AI Front Desk: inbound budget exhausted, escalating without a model call'
+      );
+      const { error: budgetError } = await supabase.from('messages').update({
+        ai_handled: false,
+        escalated: true,
+        escalated_reason: 'inbound_budget_exhausted',
+        digital_employee: 'front_desk',
+      }).eq('id', messageId);
+      if (budgetError) {
+        logger.warn({ err: budgetError, messageId }, 'Could not mark budget-exhausted message as escalated');
+      }
+      return { handled: false, reason: 'inbound_budget_exhausted' };
     }
 
     // 1. Gather context

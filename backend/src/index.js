@@ -148,6 +148,38 @@ const OPTIONAL_ENV = [
   'TWILIO_ACCOUNT_SID',  // Twilio WhatsApp BSP (wa_provider='twilio' tenants)
   'TWILIO_CONTENT_SIDS', // JSON map templateName -> Twilio ContentSid (HX...), shared across tenants
   'CRON_SECRET',        // x-cron-key for /api/notifications/process-reminders and /api/stripe/cleanup-events. Unset means both answer 503 rather than running for anybody
+  // Added 2 September 2026. Every one of these was read somewhere via
+  // process.env and appeared in neither list, so being unset produced no line
+  // at boot and a feature that simply did nothing: no Sentry at all, no push,
+  // no booking bot protection, every checkout answering "Invalid plan selected".
+  'SENTRY_DSN',                  // unset means NO error monitoring, not degraded monitoring
+  'STRIPE_PRICE_FLORRIE',        // subscription checkout price ids: unset means every checkout fails
+  'STRIPE_PRICE_FLORRIE_ANNUAL',
+  'STRIPE_PRICE_FLORRIE_TEAM',
+  'STRIPE_PRICE_FLORRIE_TEAM_ANNUAL',
+  'VAPID_PUBLIC_KEY',            // web push: unset means the browser push leg is dead
+  'VAPID_PRIVATE_KEY',
+  'APNS_KEY_ID',                 // native iOS push: unset means no booking alert reaches a phone
+  'APNS_TEAM_ID',
+  'APNS_PRIVATE_KEY',
+  'TURNSTILE_SECRET_KEY',        // booking page bot check
+  'INSTAGRAM_APP_ID',            // Instagram Business Login; falls back to localhost without it
+  'INSTAGRAM_REDIRECT_URI',
+  'BIRD_WORKSPACE_ID',           // falls back to the PILOT SALON's workspace when unset
+  'BIRD_SMS_CHANNEL_ID',         // falls back to the PILOT SALON's channel when unset
+];
+
+/**
+ * Settings that change what the service DOES rather than whether a feature
+ * exists. Logged at boot by value, because their effect is invisible
+ * otherwise: on 1 September the inbound webhooks were found to be processing
+ * unsigned payloads in production because a fail-closed flag had never been
+ * set anywhere, and nothing at boot said so.
+ */
+const BEHAVIOUR_FLAGS = [
+  'WEBHOOK_ALLOW_UNSIGNED',      // 'true' means inbound webhooks accept payloads with no signature. Local development ONLY
+  'TURNSTILE_ENFORCE',           // 'true' means the booking page requires a passed bot check
+  'STRIPE_TEAM_PRICE_PER_SEAT',  // set means the team plan bills per active staff member
 ];
 
 const missing = REQUIRED_ENV.filter(k => !process.env[k]);
@@ -170,6 +202,35 @@ const unset = OPTIONAL_ENV.filter(k => !process.env[k]);
 if (unset.length) {
   logger.warn({ unset }, 'Optional env vars not set; some features disabled');
 }
+
+const flags = Object.fromEntries(BEHAVIOUR_FLAGS.map(k => [k, process.env[k] ?? '(unset)']));
+logger.info({ flags }, 'Behaviour flags at boot');
+if (process.env.WEBHOOK_ALLOW_UNSIGNED === 'true' && process.env.NODE_ENV === 'production') {
+  // Not fatal, because the alternative is a service that will not start, but
+  // as loud as a log can be: this setting means anyone can inject a client
+  // message for any salon.
+  logger.error('WEBHOOK_ALLOW_UNSIGNED=true in production. Inbound webhooks accept unsigned payloads. Unset this.');
+}
+
+// A rejected promise nobody awaited used to end the process with nothing in
+// Sentry: Node 22 treats it as fatal, Railway restarts the container, and the
+// only trace was a gap in the uptime graph. The cron runner catches its own
+// (lib/job-runs.js) and Express catches its handlers, so what reaches here is
+// the genuinely unowned: a fire-and-forget push, a webhook side effect after
+// the response was sent, a timer. Report it and carry on. uncaughtException is
+// different: the process state is unknown after one, so it is reported and
+// then the process exits as Node would have, but with the error on record.
+process.on('unhandledRejection', (reason) => {
+  const err = reason instanceof Error ? reason : new Error(String(reason));
+  logger.error({ err }, 'Unhandled promise rejection');
+  try { Sentry.captureException(err, { tags: { origin: 'unhandledRejection' } }); } catch { /* Sentry itself must never take the process down */ }
+});
+process.on('uncaughtException', (err) => {
+  logger.fatal({ err }, 'Uncaught exception, exiting');
+  try { Sentry.captureException(err, { tags: { origin: 'uncaughtException' } }); } catch { /* as above */ }
+  // Give Sentry a moment to flush, then exit as Node would have.
+  Promise.resolve(Sentry.flush?.(2000)).catch(() => {}).finally(() => process.exit(1));
+});
 
 const app = express();
 const PORT = process.env.PORT || 3001;

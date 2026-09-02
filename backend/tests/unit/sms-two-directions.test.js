@@ -167,6 +167,10 @@ vi.mock('@anthropic-ai/sdk', () => ({ default: class { constructor() { this.mess
 process.env.BIRD_API_KEY = 'test-key';
 process.env.BIRD_WORKSPACE_ID = 'ws_1';
 process.env.BIRD_SMS_CHANNEL_ID = '7e8e2014-98b9-508d-be22-6dde76d0dd0e';
+// The Bird webhook fails closed without this since 2 September 2026: an
+// unauthenticated inbound endpoint used to be the production default, and
+// the tests were leaning on it. Every inbound text here carries the token.
+process.env.BIRD_WEBHOOK_TOKEN = 'test-bird-webhook-token';
 
 const SHARED = '+447418313493';
 const PLATFORM_CHANNEL = '7e8e2014-98b9-508d-be22-6dde76d0dd0e';
@@ -193,7 +197,10 @@ async function run(router, method, path, req) {
 }
 
 const inboundSms = (to, from = '+447900000001', body = 'can I move Thursday') =>
-  run(webhooksRouter, 'post', '/bird-sms', { body: { originator: from, recipient: to, payload: body, id: `ext_${++ids}` } });
+  run(webhooksRouter, 'post', '/bird-sms', {
+    headers: { 'x-webhook-token': process.env.BIRD_WEBHOOK_TOKEN },
+    body: { originator: from, recipient: to, payload: body, id: `ext_${++ids}` },
+  });
 
 /** Every fetch to Bird, so we can read which CHANNEL the text left from. */
 const birdCalls = [];

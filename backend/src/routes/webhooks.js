@@ -12,7 +12,9 @@ import { autoUnarchiveClient } from '../lib/client-archive.js';
 import Anthropic from '@anthropic-ai/sdk';
 import { authorship } from '../lib/authorship.js';
 import { hasColumn } from '../lib/schema-probe.js';
-import { isSharedSmsNumber } from '../services/notifications.js';
+import { isSharedSmsNumber, sendWhatsAppText, sendSMS } from '../services/notifications.js';
+import { guardedSend } from '../lib/outbound-guard.js';
+import { isOptOutMessage, applyOptOut, OPT_OUT_CONFIRMATION } from '../lib/opt-out.js';
 
 const router = Router();
 
@@ -164,16 +166,20 @@ router.post('/whatsapp', async (req, res) => {
       recordWebhookHit({ ...hitBase, result: '403_signature_error', error: err.message });
       return res.status(403).json({ error: 'Signature verification failed' });
     }
-  } else if (process.env.WEBHOOK_STRICT === 'true') {
-    // Fail closed: without the app secret we cannot verify the sender, so an
-    // unsigned payload could spoof client messages and drive outbound sends.
-    // Opt-in via WEBHOOK_STRICT=true so enabling it can't accidentally break a
-    // live tenant whose secret isn't set yet. Turn it on once the secret is in.
-    logger.error('WhatsApp webhook: WHATSAPP_APP_SECRET not configured; rejecting unsigned payload (WEBHOOK_STRICT)');
+  } else if (process.env.WEBHOOK_ALLOW_UNSIGNED === 'true') {
+    // Local development only. Without the app secret nobody can be verified,
+    // and an unsigned payload reaches processInboundMessage, which sends
+    // outbound messages on the salon's behalf. This used to be the DEFAULT:
+    // rejecting was opt-in via a separate flag, and that flag was set nowhere,
+    // not in the repo and not in the deploy docs, so "opt in to safety" was
+    // the same as "off". The default is now to reject, and this is the opt-out.
+    logger.warn('WHATSAPP_APP_SECRET not set; WEBHOOK_ALLOW_UNSIGNED=true so accepting an unverified payload (never in production)');
+  } else {
+    // Fail closed. A missing secret is a deployment mistake, not a reason to
+    // trust whoever is on the other end of the socket.
+    logger.error('WhatsApp webhook: WHATSAPP_APP_SECRET not configured; rejecting unsigned payload (set the secret, or WEBHOOK_ALLOW_UNSIGNED=true for local dev)');
     recordWebhookHit({ ...hitBase, result: '503_no_secret' });
     return res.status(503).json({ error: 'Webhook not configured' });
-  } else {
-    logger.warn('WHATSAPP_APP_SECRET not set; processing unsigned (set the secret + WEBHOOK_STRICT=true to fail closed)');
   }
 
   recordWebhookHit({ ...hitBase, result: '200_accepted' });
@@ -358,6 +364,34 @@ router.post('/whatsapp', async (req, res) => {
     // (throttled to at most one per 15 min inside the helper). Fire-and-forget.
     pushMessagesWaiting(beautician.id, 'whatsapp').catch(() => {});
 
+    // STOP, BEFORE THE AUTO-REPLY BRANCH, BECAUSE THE BRANCH IS OPTIONAL.
+    //
+    // 2 September 2026. The only opt-out recogniser on this channel lived
+    // inside processInboundMessage, which only runs when the owner has
+    // auto-reply switched on. A salon with it off stored 'STOP' as an ordinary
+    // message, marketing_opted_out_at stayed null, and every rebook nudge and
+    // gap-fill offer kept going to a client who had said no. PECR does not
+    // have an auto-reply setting. Instagram was fixed the same way on 31
+    // August; this is the same hoist on the same word.
+    if (isOptOutMessage(messageContent)) {
+      const recorded = await applyOptOut({ beautician, client });
+      logger.info({ beauticianId: beautician.id, clientId: client?.id, from: waId, recorded },
+        'WhatsApp: marketing opt-out honoured');
+
+      // The confirmation is typed transactional in lib/outbound-guard.js so
+      // the person who has just opted out still gets told that it worked.
+      await guardedSend({
+        beauticianId: beautician.id,
+        clientId: client?.id || null,
+        messageType: 'marketing_opt_out',
+        channel: 'whatsapp',
+        client,
+        body: OPT_OUT_CONFIRMATION,
+        send: () => sendWhatsAppText({ to: client?.whatsapp_id || waId, body: OPT_OUT_CONFIRMATION, beauticianId: beautician.id }),
+      });
+      return;
+    }
+
     // Pass to AI Front Desk for intent classification + autonomous response
     if (beautician.auto_reply_enabled && messageContent && message.type === 'text') {
       const result = await processInboundMessage(
@@ -428,11 +462,14 @@ router.post('/twilio-sms', async (req, res) => {
       logger.warn({ err }, 'Twilio SMS webhook: signature verification error');
       return res.status(403).json({ error: 'Signature verification failed' });
     }
-  } else if (process.env.WEBHOOK_STRICT === 'true') {
-    logger.error('Twilio SMS webhook: TWILIO_AUTH_TOKEN not configured; rejecting unsigned payload (WEBHOOK_STRICT)');
-    return res.status(503).json({ error: 'Webhook not configured' });
+  } else if (process.env.WEBHOOK_ALLOW_UNSIGNED === 'true') {
+    // Local development only. Rejecting used to be opt-in via a separate flag
+    // that was never set anywhere, so unsigned SMS was processed in production
+    // by default. Now the default is to reject; this is the opt-out.
+    logger.warn('TWILIO_AUTH_TOKEN not set; WEBHOOK_ALLOW_UNSIGNED=true so accepting an unverified payload (never in production)');
   } else {
-    logger.warn('TWILIO_AUTH_TOKEN not set; processing unsigned (set the token + WEBHOOK_STRICT=true to fail closed)');
+    logger.error('Twilio SMS webhook: TWILIO_AUTH_TOKEN not configured; rejecting unsigned payload (set the token, or WEBHOOK_ALLOW_UNSIGNED=true for local dev)');
+    return res.status(503).json({ error: 'Webhook not configured' });
   }
 
   // Signature verified or skipped — return TwiML response (empty — AI handles replies via outbound SMS)
@@ -509,6 +546,25 @@ router.post('/twilio-sms', async (req, res) => {
       })
       .select()
       .single();
+
+    // STOP before the auto-reply branch. Same 2 September 2026 defect as the
+    // WhatsApp handler above: with auto-reply off the word was stored and
+    // never acted on, and the marketing engines carried on.
+    if (isOptOutMessage(messageContent)) {
+      const recorded = await applyOptOut({ beautician, client });
+      logger.info({ beauticianId: beautician.id, clientId: client?.id, from: From, recorded },
+        'Twilio SMS: marketing opt-out honoured');
+      await guardedSend({
+        beauticianId: beautician.id,
+        clientId: client?.id || null,
+        messageType: 'marketing_opt_out',
+        channel: 'sms',
+        client,
+        body: OPT_OUT_CONFIRMATION,
+        send: () => sendSMS({ to: client?.phone || From, body: OPT_OUT_CONFIRMATION, beauticianId: beautician.id, messageType: 'marketing_opt_out', clientId: client?.id || null }),
+      });
+      return;
+    }
 
     // Pass to AI Front Desk for intent classification + autonomous response
     if (beautician.auto_reply_enabled && messageContent) {
@@ -645,14 +701,15 @@ router.post('/bird-sms', async (req, res) => {
       logger.warn('Bird SMS webhook: invalid or missing token');
       return res.status(403).json({ error: 'Forbidden' });
     }
-  } else if (process.env.WEBHOOK_STRICT === 'true') {
-    // Fail closed: an unauthenticated inbound endpoint would let anyone inject
-    // fake client SMS. Opt-in via WEBHOOK_STRICT=true so it can't break a live
-    // tenant before the token is set; turn it on once BIRD_WEBHOOK_TOKEN is in.
-    logger.error('Bird SMS webhook: BIRD_WEBHOOK_TOKEN not set, refusing request (WEBHOOK_STRICT)');
-    return res.status(503).json({ error: 'Webhook auth not configured' });
+  } else if (process.env.WEBHOOK_ALLOW_UNSIGNED === 'true') {
+    // Local development only. An unauthenticated inbound endpoint lets anyone
+    // inject fake client SMS and have Florrie answer them. Rejecting used to be
+    // opt-in via a separate flag that was never set anywhere, so this was the
+    // production default. Now the default is to reject; this is the opt-out.
+    logger.warn('BIRD_WEBHOOK_TOKEN not set; WEBHOOK_ALLOW_UNSIGNED=true so accepting an unauthenticated payload (never in production)');
   } else {
-    logger.warn('BIRD_WEBHOOK_TOKEN not set; processing unauthenticated (set the token + WEBHOOK_STRICT=true to fail closed)');
+    logger.error('Bird SMS webhook: BIRD_WEBHOOK_TOKEN not set, refusing request (set the token, or WEBHOOK_ALLOW_UNSIGNED=true for local dev)');
+    return res.status(503).json({ error: 'Webhook auth not configured' });
   }
 
   // ACK early — Bird retries on non-2xx
@@ -744,6 +801,25 @@ router.post('/bird-sms', async (req, res) => {
 
     if (storeErr) {
       logger.error({ err: storeErr, beautician_id: beautician.id }, 'Failed to store inbound Bird SMS');
+      return;
+    }
+
+    // STOP before the auto-reply branch. Same 2 September 2026 defect as the
+    // WhatsApp handler above: with auto-reply off the word was stored and
+    // never acted on, and the marketing engines carried on.
+    if (isOptOutMessage(messageBody)) {
+      const recorded = await applyOptOut({ beautician, client });
+      logger.info({ beauticianId: beautician.id, clientId: client?.id, from: fromPhone, recorded },
+        'Bird SMS: marketing opt-out honoured');
+      await guardedSend({
+        beauticianId: beautician.id,
+        clientId: client?.id || null,
+        messageType: 'marketing_opt_out',
+        channel: 'sms',
+        client,
+        body: OPT_OUT_CONFIRMATION,
+        send: () => sendSMS({ to: client?.phone || fromPhone, body: OPT_OUT_CONFIRMATION, beauticianId: beautician.id, messageType: 'marketing_opt_out', clientId: client?.id || null }),
+      });
       return;
     }
 

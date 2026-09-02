@@ -104,8 +104,15 @@ router.post('/', async (req, res) => {
       logger.warn({ err }, 'Instagram webhook: signature error');
       return res.status(403).json({ error: 'Signature verification failed' });
     }
-  } else if (process.env.WEBHOOK_STRICT === 'true') {
-    logger.error('Instagram webhook: INSTAGRAM_APP_SECRET not configured; rejecting unsigned payload (WEBHOOK_STRICT)');
+  } else if (process.env.WEBHOOK_ALLOW_UNSIGNED === 'true') {
+    // Local development only. Without a secret an unsigned payload reaches
+    // handleInstagramMessage and on to processInboundMessage, which sends DMs
+    // on the salon's behalf. Rejecting used to be opt-in via a separate flag
+    // that was never set anywhere, so unsigned DMs were processed in
+    // production by default. Now the default is to reject; this is the opt-out.
+    logger.warn('INSTAGRAM_APP_SECRET not set; WEBHOOK_ALLOW_UNSIGNED=true so accepting an unverified payload (never in production)');
+  } else {
+    logger.error('Instagram webhook: INSTAGRAM_APP_SECRET not configured; rejecting unsigned payload (set the secret, or WEBHOOK_ALLOW_UNSIGNED=true for local dev)');
     return res.status(503).json({ error: 'Webhook not configured' });
   }
 
