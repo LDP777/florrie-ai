@@ -331,7 +331,7 @@ export default function GiftVouchers() {
 
           {/* Preview */}
           <div style={styles.previewCard}>
-            <div style={styles.previewBrand}>{<Icon name="gift" inline />} {beautician?.business_name || 'Ellindigo Brows & Beauty'}</div>
+            <div style={styles.previewBrand}>{<Icon name="gift" inline />} {beautician?.business_name || beautician?.first_name || 'Your salon'}</div>
             <div style={styles.previewAmount}>
               {form.type === 'treatment'
                 ? (treatments.find(t => t.id === form.treatment_id)?.name || 'Treatment voucher')

@@ -406,6 +406,7 @@ function TodaySummary({ beautician, onNav }) {
   }, [beautician?.id]);
 
   const connected = !!beautician?.whatsapp_connected;
+  const igConnected = !!beautician?.instagram_page_id;
   const pending   = !!beautician?.whatsapp_pending_activation;
 
   if (error || !data) {
@@ -417,7 +418,7 @@ function TodaySummary({ beautician, onNav }) {
           <div style={TS.skel} />
           <div style={TS.skel} />
         </div>
-        <WhatsAppPill connected={connected} pending={pending} onNav={onNav} />
+        <WhatsAppPill connected={connected} pending={pending} instagram={igConnected} onNav={onNav} />
       </section>
     );
   }
@@ -506,7 +507,7 @@ function TodaySummary({ beautician, onNav }) {
         <Icon name={iconName('chevron_right')} inline style={TS.msgChev} />
       </button>
 
-      <WhatsAppPill connected={connected} pending={pending} onNav={onNav} />
+      <WhatsAppPill connected={connected} pending={pending} instagram={igConnected} onNav={onNav} />
     </section>
   );
 }
@@ -526,16 +527,25 @@ function Stat({ label, value, sub, sub2, wide }) {
   );
 }
 
-function WhatsAppPill({ connected, pending, onNav }) {
-  let label = 'Connect WhatsApp';
+/**
+ * The one channel pill on Today. It used to know only WhatsApp, so a salon
+ * that had connected Instagram (free, two minutes) still saw "Connect
+ * WhatsApp" every morning, and a salon with nothing was pointed at the one
+ * that needs a spare number.
+ */
+function WhatsAppPill({ connected, pending, instagram, onNav }) {
+  let label = 'Connect Instagram or WhatsApp';
   let dotColour = '#fff';
   let dotOpacity = 0.4;
-  if (connected) { label = 'WhatsApp connected'; dotColour = '#7AE6A0'; dotOpacity = 1; }
-  else if (pending) { label = 'WhatsApp activating'; dotColour = '#F4C97A'; dotOpacity = 1; }
+  let path = '/settings';
+  if (connected && instagram) { label = 'WhatsApp and Instagram connected'; dotColour = '#7AE6A0'; dotOpacity = 1; path = '/inbox'; }
+  else if (connected) { label = 'WhatsApp connected'; dotColour = '#7AE6A0'; dotOpacity = 1; path = '/whatsapp'; }
+  else if (pending) { label = 'WhatsApp activating'; dotColour = '#F4C97A'; dotOpacity = 1; path = '/whatsapp'; }
+  else if (instagram) { label = 'Instagram connected'; dotColour = '#7AE6A0'; dotOpacity = 1; path = '/inbox'; }
 
   return (
     <button
-      onClick={() => onNav('/whatsapp')}
+      onClick={() => onNav(path)}
       style={TS.waPill}
       aria-label={label}
     >

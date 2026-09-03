@@ -13,6 +13,7 @@ import { isIOSNative } from '../lib/platform.js';
 import Button from '../components/ui/Button.jsx';
 import { isVoiceEnabled, setVoiceEnabled } from '../lib/voicePref.js';
 import { PLAN } from '../lib/subscription.js';
+import { cleanSlug, slugProblem, isUniqueViolation } from '../lib/booking-slug.js';
 import { celebrationsEnabled, setCelebrationsEnabled, bloom } from '../lib/bloom.js';
 import PageHeader from '../components/ui/PageHeader.jsx';
 
@@ -232,8 +233,12 @@ export default function Settings({ onLogout }) {
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
       logger.error('Save error:', err);
-      setSaveError(err?.message || 'Save failed, please try again');
-      setTimeout(() => setSaveError(null), 4000);
+      // The raw Postgres message ("duplicate key value violates unique
+      // constraint") is not something to show a salon owner.
+      setSaveError(isUniqueViolation(err)
+        ? 'That booking link is already taken. Try adding your town or a number.'
+        : 'Could not save that. Check your connection and try again.');
+      setTimeout(() => setSaveError(null), 5000);
     } finally {
       setSaving(false);
     }
@@ -485,7 +490,15 @@ export default function Settings({ onLogout }) {
           <FieldEditor
             label="Booking slug"
             value={beautician.booking_slug || ''}
-            onSave={v => saveProfile({ booking_slug: v.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
+            onSave={v => {
+              const problem = slugProblem(v);
+              if (problem) { setSaveError(problem); setTimeout(() => setSaveError(null), 5000); return; }
+              const next = cleanSlug(v);
+              if (next === beautician.booking_slug) return;
+              // Old links stop working the moment this saves; say so first.
+              if (beautician.booking_slug && !window.confirm(`Change your booking link to florrie.ai/book/${next}? Any link you have already shared (bio, stories, messages) will stop working.`)) return;
+              saveProfile({ booking_slug: next });
+            }}
           />
 
           {/* Branding lives on the Business Profile page - link, don't duplicate */}
@@ -2109,31 +2122,64 @@ export default function Settings({ onLogout }) {
       {/* === ACCOUNT === */}
       {section === 'account' && (
         <div>
-          <div style={styles.card}>
-            <h3 style={styles.cardTitle}>Subscription</h3>
-            <div style={styles.fieldRow}>
-              <span style={styles.fieldLabel}>Plan</span>
-              <span style={styles.fieldValue}>
-                {beautician.subscription_plan === 'trial' || !beautician.subscription_plan ? '14-day free trial' :
-                 beautician.subscription_plan === 'florrie' ? 'Florrie (£29/mo)' :
-                 beautician.subscription_plan === 'florrie_team' ? 'Teams (£44/mo)' :
-                 beautician.subscription_status === 'active' ? `Active (${beautician.subscription_plan})` :
-                 beautician.subscription_status || 'Trial'}
-              </span>
-            </div>
-            {beautician.trial_ends_at && (
-              <div style={styles.fieldRow}>
-                <span style={styles.fieldLabel}>Trial ends</span>
-                <span style={styles.fieldValue}>
-                  {new Date(beautician.trial_ends_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
-                </span>
+          {(() => {
+            // One place that says what she is paying, when, and what to do
+            // if it went wrong. It used to show a plan name and a trial date
+            // and nothing else: no renewal date, no way to the card, no
+            // warning when a payment failed.
+            const plan = beautician.subscription_plan;
+            const status = beautician.subscription_status;
+            const paid = plan === 'florrie' || plan === 'florrie_team';
+            const onTrial = !paid || status === 'trial';
+            const fmt = (d) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+            const planName = plan === 'florrie_team' ? `Florrie Team (${PLAN.monthlyLabel} plus seats)` : paid ? `Florrie (${PLAN.monthlyLabel})` : '14-day free trial';
+            const standing = !paid ? null
+              : status === 'active' ? { text: 'Active', color: 'var(--success, #386F52)' }
+              : status === 'past_due' ? { text: 'Payment failed', color: 'var(--danger, #9E2B32)' }
+              : status === 'cancelled' ? { text: 'Ended', color: 'var(--text-muted)' }
+              : null;
+            return (
+              <div style={styles.card}>
+                <h3 style={styles.cardTitle}>Subscription</h3>
+                <div style={styles.fieldRow}>
+                  <span style={styles.fieldLabel}>Plan</span>
+                  <span style={styles.fieldValue}>{planName}</span>
+                </div>
+                {standing && (
+                  <div style={styles.fieldRow}>
+                    <span style={styles.fieldLabel}>Status</span>
+                    <span style={{ ...styles.fieldValue, color: standing.color, fontWeight: 600 }}>{standing.text}</span>
+                  </div>
+                )}
+                {onTrial && beautician.trial_ends_at && (
+                  <div style={styles.fieldRow}>
+                    <span style={styles.fieldLabel}>Trial ends</span>
+                    <span style={styles.fieldValue}>{fmt(beautician.trial_ends_at)}</span>
+                  </div>
+                )}
+                {paid && status === 'active' && beautician.subscription_current_period_end && (
+                  <div style={styles.fieldRow}>
+                    <span style={styles.fieldLabel}>Next payment</span>
+                    <span style={styles.fieldValue}>{fmt(beautician.subscription_current_period_end)}</span>
+                  </div>
+                )}
+                {paid && status === 'past_due' && (
+                  <p style={{ fontSize: 13, color: 'var(--danger, #9E2B32)', margin: '8px 0 4px', lineHeight: 1.5 }}>
+                    Your last payment did not go through. Update your card within 7 days of the failed payment to keep Florrie running. Your clients are not affected.
+                  </p>
+                )}
+                <div style={styles.fieldRow}>
+                  <span style={styles.fieldLabel}>Email</span>
+                  <span style={styles.fieldValue}>{beautician.email}</span>
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                  {paid && status !== 'cancelled'
+                    ? <Button variant={status === 'past_due' ? 'primary' : 'secondary'} size="sm" onClick={() => navigate('/pricing')}>{status === 'past_due' ? 'Update card' : 'Manage billing'}</Button>
+                    : <Button size="sm" onClick={() => navigate('/pricing')}>{onTrial ? 'Choose a plan' : 'Subscribe again'}</Button>}
+                </div>
               </div>
-            )}
-            <div style={styles.fieldRow}>
-              <span style={styles.fieldLabel}>Email</span>
-              <span style={styles.fieldValue}>{beautician.email}</span>
-            </div>
-          </div>
+            );
+          })()}
           <div style={styles.card}>
             <h3 style={styles.cardTitle}>Appearance</h3>
             <div style={styles.toggleRow}>

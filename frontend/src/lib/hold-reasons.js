@@ -12,6 +12,8 @@ const EXACT = {
   client_expressed_apprehension: 'She sounds nervous. She wants you, not an answer. Florrie has drafted something, but this one reads better in your words.',
   training_enquiry: 'A training enquiry, not a treatment. Course sales are yours: Florrie has drafted the date, price and enrol link for you to send or change.',
   florrie_paused: 'Florrie is paused, so she drafted this and left it for you.',
+  subscription_lapsed: 'Your Florrie plan is not active, so she drafted this rather than sending it. Start your plan and she replies herself again.',
+  no_treatments_yet: 'You have no treatments or notes set up yet, so Florrie has nothing true to answer from. Add your treatments and she can reply herself.',
   owner_is_in_this_thread: 'You are already talking to this client, so Florrie stayed out and drafted this for you instead.',
   thread_is_hers: 'You replied in this thread recently, so it stays yours. Florrie drafted, you send.',
   thread_unreadable: 'Florrie could not read this conversation, so she would not reply into it blind.',

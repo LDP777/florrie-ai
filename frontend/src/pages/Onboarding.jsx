@@ -7,6 +7,8 @@ import logger from '../lib/logger.js';
 import { isIOSNative, isNativeApp } from '../lib/platform.js';
 import Icon from '../components/ui/Icon';
 import Button from '../components/ui/Button';
+import { cleanSlug, slugProblem, suggestSlug, withSuffix, isUniqueViolation } from '../lib/booking-slug.js';
+import { parseCsv, clientsFromCsv } from '../lib/csv.js';
 
 /** The zone the browser is running in, or null if it cannot say. */
 function detectBrowserTimezone() {
@@ -19,13 +21,16 @@ function detectBrowserTimezone() {
 }
 
 const API = import.meta.env.VITE_API_URL;
+// Through the client, not by grepping localStorage for a key that may not
+// be there (native shells, private windows). A miss here used to send
+// `Bearer null` and show the owner a raw 401.
 async function getAuthToken() {
-  const key = Object.keys(localStorage).find(k => /^sb-.+-auth-token$/.test(k));
-  if (!key) return null;
-  const raw = localStorage.getItem(key);
-  if (!raw) return null;
-  try { const p = JSON.parse(raw); return p?.access_token || p?.session?.access_token || raw; }
-  catch { return raw; }
+  try {
+    const { data } = await supabase.auth.getSession();
+    return data?.session?.access_token || null;
+  } catch {
+    return null;
+  }
 }
 // Phone-sender detection - matches SMSConfig. Numbers with + or 7-15 digits = 2-way.
 function isPhoneSender(value) {
@@ -66,8 +71,11 @@ const DEFAULT_HOURS = {
  * proves nothing about whether she has been through step 3.
  */
 async function resolveResumeStep(beautician) {
+  // A Google or Apple sign-in arrives with first_name already filled from the
+  // provider, so this used to skip step 1: no business name, no timezone
+  // check, no Terms notice. The business name is the tell.
+  if (!beautician.first_name || !beautician.business_name) return 1;
   if (beautician.booking_slug) return 5;   // step 4 is the only thing that sets it
-  if (!beautician.first_name) return 1;
   const { count, error } = await supabase
     .from('treatments')
     .select('id', { count: 'exact', head: true })
@@ -95,6 +103,9 @@ export default function Onboarding({ onComplete }) {
   const [hours, setHours] = useState(DEFAULT_HOURS);
   // Step 4: Booking slug
   const [slug, setSlug] = useState('');
+  // How many treatments are really saved, so the last step can tell the
+  // truth about whether the booking page has anything on it.
+  const [savedTreatments, setSavedTreatments] = useState(null);
   const [linkCopied, setLinkCopied] = useState(false);
   // Step 5: Client import
   const [importFile, setImportFile] = useState(null);
@@ -162,6 +173,11 @@ export default function Onboarding({ onComplete }) {
       try {
         const resumeStep = await resolveResumeStep(beautician);
         if (resumeStep > 1) setStep(resumeStep);
+        const { count } = await supabase
+          .from('treatments')
+          .select('id', { count: 'exact', head: true })
+          .eq('beautician_id', beautician.id);
+        setSavedTreatments(count || 0);
       } catch (err) {
         logger.warn('Could not work out the resume step, starting at 1:', err);
       }
@@ -224,6 +240,7 @@ export default function Onboarding({ onComplete }) {
         return;
       }
       let idx = 0;
+      let inserted = 0;
       for (const t of valid) {
         await insertRow('treatments', {
           beautician_id: beautician.id,
@@ -235,7 +252,9 @@ export default function Onboarding({ onComplete }) {
           booking_enabled: true,
           sort_order: idx++
         });
+        inserted++;
       }
+      setSavedTreatments(prev => (prev || 0) + inserted);
       setStep(3);
     } catch (err) {
       logger.error('Treatment save error:', err);
@@ -267,17 +286,41 @@ export default function Onboarding({ onComplete }) {
       setSaving(false);
     }
   }
-  async function saveSlug() {
+  /**
+   * Save the booking link. With `auto` set, pick one from her business name
+   * and, if it is taken, add a short suffix: this step used to be the only one
+   * with no way past, so a link that kept failing to save locked her out of
+   * the whole app (App.jsx shows the wizard until onboarding is complete).
+   */
+  async function saveSlug({ auto = false } = {}) {
     if (!beautician) return;
     setSaving(true);
     setError(null);
     try {
-      const cleanSlug = slug.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-      if (!cleanSlug) {
-        setError('Booking link cannot be empty');
+      let candidate = auto
+        ? (suggestSlug({ businessName: beautician.business_name || businessName, firstName: beautician.first_name || firstName }) || withSuffix('salon'))
+        : cleanSlug(slug);
+      const problem = slugProblem(candidate);
+      if (problem) {
+        setError(problem);
         setSaving(false);
         return;
       }
+      if (auto) {
+        // Try the plain suggestion once; on a clash, once more with a suffix.
+        try {
+          await updateRow('beauticians', beautician.id, { booking_slug: candidate });
+        } catch (err) {
+          if (!isUniqueViolation(err)) throw err;
+          candidate = withSuffix(candidate);
+          await updateRow('beauticians', beautician.id, { booking_slug: candidate });
+        }
+        setSlug(candidate);
+        await refresh();
+        setStep(5);
+        return;
+      }
+      const cleanSlug = candidate;
       // onboarding_completed_at is NOT written here.
       //
       // It used to be, at step 4 of 6, which meant every exit from steps 5 and
@@ -297,9 +340,7 @@ export default function Onboarding({ onComplete }) {
       // 23505 = Postgres unique violation. booking_slug is UNIQUE, so this means
       // another beautician already has this link. Tell the user plainly so they
       // can pick a different one instead of hitting a generic dead end.
-      const code = err?.code || err?.details || '';
-      const msg = (err?.message || '').toLowerCase();
-      if (code === '23505' || msg.includes('duplicate') || msg.includes('unique')) {
+      if (isUniqueViolation(err)) {
         setError('That link is already taken. Try adding your town or a number, like your-name-leeds.');
       } else {
         setError('Could not save your booking link. Please try again.');
@@ -315,41 +356,45 @@ export default function Onboarding({ onComplete }) {
     setError(null);
     try {
       const text = await importFile.text();
-      const lines = text.trim().split('\n');
-      if (lines.length < 2) {
-        setImportStatus('No data rows found');
+      const rows = parseCsv(text);
+      if (rows.length < 2) {
+        setImportStatus('No client rows found in that file. It needs a header row and at least one client under it.');
         setSaving(false);
         return;
       }
-      // Simple CSV parsing - expects header row with first_name, last_name, email, phone
-      const headerRow = lines[0].toLowerCase();
-      const headers = headerRow.split(',').map(h => h.trim());
-      const firstIdx = headers.findIndex(h => h.includes('first'));
-      const lastIdx = headers.findIndex(h => h.includes('last') || h.includes('surname'));
-      const emailIdx = headers.findIndex(h => h.includes('email'));
-      const phoneIdx = headers.findIndex(h => h.includes('phone') || h.includes('mobile'));
-      let imported = 0;
-      for (let i = 1; i < lines.length; i++) {
-        const cols = lines[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
-        const fName = firstIdx >= 0 ? cols[firstIdx] : cols[0];
-        if (!fName) continue;
-        try {
-          await insertRow('clients', {
-            beautician_id: beautician.id,
-            first_name: fName,
-            last_name: lastIdx >= 0 ? (cols[lastIdx] || '') : '',
-            email: emailIdx >= 0 ? (cols[emailIdx] || '') : '',
-            phone: phoneIdx >= 0 ? (cols[phoneIdx] || '') : '',
-            status: 'active'
-          });
-          imported++;
-        } catch (e) {
-          logger.warn('Row import failed:', e);
-        }
+      const { clients, skipped } = clientsFromCsv(rows);
+      if (!clients.length) {
+        setImportStatus('Could not find a name column. Check the file has a First name or Name column.');
+        setSaving(false);
+        return;
       }
-      setImportStatus(`Imported ${imported} client${imported !== 1 ? 's' : ''}`);
+      // One request, server-side upsert, so a row that already exists by
+      // email is skipped rather than duplicated, and 500 rows do not mean 500
+      // round trips from a phone.
+      const token = await getAuthToken();
+      if (!token) throw new Error('no session');
+      let imported = 0;
+      for (let i = 0; i < clients.length; i += 200) {
+        const res = await fetch(`${API}/api/clients/import`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clients: clients.slice(i, i + 200), source: 'csv' }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'import failed');
+        imported += Number(data.imported || 0);
+      }
+      const alreadyThere = clients.length - imported;
+      const notes = [
+        `${imported} client${imported !== 1 ? 's' : ''} imported`,
+        alreadyThere > 0 ? `${alreadyThere} already on your list` : null,
+        skipped.duplicate > 0 ? `${skipped.duplicate} duplicate${skipped.duplicate !== 1 ? 's' : ''} in the file` : null,
+        skipped.noName > 0 ? `${skipped.noName} row${skipped.noName !== 1 ? 's' : ''} had no name` : null,
+      ].filter(Boolean);
+      setImportStatus(notes.join(', ') + '.');
     } catch (err) {
-      setError('Import failed. Check the file format.');
+      logger.error('Import failed:', err);
+      setError('Import failed. Check the file is a CSV export with a name column, and try again.');
     } finally {
       setSaving(false);
     }
@@ -363,23 +408,26 @@ export default function Onboarding({ onComplete }) {
    * signup is resumable rather than silently finished.
    */
   async function markOnboardingComplete() {
-    if (!beautician || beautician.onboarding_completed_at) return;
+    if (!beautician || beautician.onboarding_completed_at) return true;
     try {
       await updateRow('beauticians', beautician.id, {
         onboarding_completed_at: new Date().toISOString(),
       });
       try { track('onboarding_completed', { total_steps: totalSteps }); } catch { /* noop */ }
       await refresh();
+      return true;
     } catch (err) {
-      // Never trap her in the wizard over a failed write. She lands in the app
-      // and the resume logic puts her back on the last step next time.
+      // Letting her through anyway put her in the app for one screen, then
+      // back in the wizard on the next refresh with no explanation. Say so.
       logger.error('Could not mark onboarding complete:', err);
+      setError('Could not finish setting up. Check your connection and tap that again.');
+      return false;
     }
   }
 
   async function finishOnboarding(destination) {
-    await markOnboardingComplete();
-    if (onComplete) onComplete(destination);
+    const done = await markOnboardingComplete();
+    if (done && onComplete) onComplete(destination);
   }
   async function startCardCapture() {
     setBillingError(null);
@@ -505,7 +553,12 @@ export default function Onboarding({ onComplete }) {
         }
         return;
       }
-      setIgNote('Instagram connect is switching on very soon. You can finish setup now and connect from Settings when it is ready.');
+      // The server says exactly what is missing (routes/instagram.js). Show
+      // that rather than a roadmap promise for what is usually a config gap.
+      const detail = Array.isArray(d.problems) && d.problems[0] ? d.problems[0] : (d.error || '');
+      setIgNote(res.status === 503
+        ? 'Instagram connect is not switched on for this account yet. Finish setup now; you can connect from Settings once it is.'
+        : `Could not start the Instagram connection${detail ? `: ${detail}` : ''}. Finish setup and try again from Settings.`);
     } catch {
       setIgNote('Could not reach Instagram just now. Finish setup and connect from Settings any time.');
     }
@@ -554,7 +607,7 @@ export default function Onboarding({ onComplete }) {
         <div style={styles.stepContent}>
           <h1 style={styles.stepTitle}>Welcome to florrie.ai</h1>
           <p style={styles.stepDesc}>
-            Let's get your business set up. This takes about 2 minutes.
+            Let's get your business set up. A few minutes now, then Florrie can take bookings for you.
           </p>
           {error && (
             <div style={styles.errorBanner}>
@@ -565,7 +618,7 @@ export default function Onboarding({ onComplete }) {
             <label style={styles.formLabel}>Your first name</label>
             <input
               type="text"
-              placeholder="e.g. Ellie"
+              placeholder="e.g. Sophie"
               value={firstName}
               onChange={e => setFirstName(e.target.value)}
               style={styles.formInput}
@@ -576,13 +629,11 @@ export default function Onboarding({ onComplete }) {
             <label style={styles.formLabel}>Business name</label>
             <input
               type="text"
-              placeholder="e.g. Ellie Brows"
+              placeholder="e.g. Sophie Lash Studio"
               value={businessName}
               onChange={e => {
                 setBusinessName(e.target.value);
-                if (!slug) {
-                  setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-'));
-                }
+                if (!slug) setSlug(cleanSlug(e.target.value));
               }}
               style={styles.formInput}
             />
@@ -592,8 +643,8 @@ export default function Onboarding({ onComplete }) {
             size="lg"
             fullWidth
             onClick={saveBusinessInfo}
-            disabled={!firstName.trim() || saving}
-            style={{ marginTop: 12, opacity: !firstName.trim() ? 0.5 : 1 }}
+            disabled={!firstName.trim() || !businessName.trim() || saving}
+            style={{ marginTop: 12, opacity: !firstName.trim() || !businessName.trim() ? 0.5 : 1 }}
           >
             {saving ? 'Saving...' : 'Next'}
           </Button>
@@ -782,15 +833,19 @@ export default function Onboarding({ onComplete }) {
               style={styles.slugInput}
             />
           </div>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '8px 0 0' }}>Letters, numbers and dashes. You can change it later in Settings, but any link you have already shared stops working.</p>
           <Button
             variant="primary"
             size="lg"
             fullWidth
-            onClick={saveSlug}
+            onClick={() => saveSlug()}
             disabled={!slug.trim() || saving}
             style={{ marginTop: 12, opacity: !slug.trim() ? 0.5 : 1 }}
           >
             {saving ? 'Saving...' : 'Next'}
+          </Button>
+          <Button variant="quiet" size="sm" fullWidth disabled={saving} onClick={() => saveSlug({ auto: true })} style={{ marginTop: 8 }}>
+            Pick one for me
           </Button>
         </div>
       )}
@@ -799,7 +854,7 @@ export default function Onboarding({ onComplete }) {
         <div style={styles.stepContent}>
           <h1 style={styles.stepTitle}>Bring your clients over</h1>
           <p style={styles.stepDesc}>
-            Switching takes 2 minutes. Export your client list and upload it here.
+            Export your client list from your old system and upload it here. Names, emails and mobiles come across; bookings do not.
           </p>
           {error && (
             <div style={styles.errorBanner}>
@@ -815,7 +870,7 @@ export default function Onboarding({ onComplete }) {
             <ol style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.8 }}>
               <li>In Timely, go to <b>Clients → Export</b></li>
               <li>Download the CSV file</li>
-              <li>Upload it below and we'll match the columns automatically</li>
+              <li>Upload it below. We look for name, email and mobile columns and skip anyone already on your list</li>
             </ol>
           </div>
           {/* Import from Fresha */}
@@ -872,9 +927,17 @@ export default function Onboarding({ onComplete }) {
       {step === 6 && (
         <div style={styles.stepContent}>
           <h1 style={styles.stepTitle}>You're all set</h1>
-          <p style={styles.stepDesc}>
-            Your booking page is live. Share this link and clients can book you in seconds.
-          </p>
+          {savedTreatments === 0 ? (
+            <div style={{ background: 'var(--warning-bg, #F7EEDD)', borderRadius: 14, padding: '12px 14px', margin: '0 0 14px', textAlign: 'left' }}>
+              <p style={{ fontSize: 13.5, fontWeight: 700, color: '#82580f', margin: '0 0 4px' }}>Your booking page is ready, but empty</p>
+              <p style={{ fontSize: 12.5, color: 'var(--text-secondary, #574A42)', margin: '0 0 8px', lineHeight: 1.45 }}>Nothing can be booked until you add a treatment. It takes a minute and you can do it from the Treatments page any time.</p>
+              <Button variant="secondary" size="sm" onClick={() => finishOnboarding('/treatments')}>Add a treatment now</Button>
+            </div>
+          ) : (
+            <p style={styles.stepDesc}>
+              Your booking page is live. Share this link and clients can book you in seconds.
+            </p>
+          )}
           <div style={{ background: 'var(--tone-1, #fbf1ea)', borderRadius: 16, padding: '14px 16px', margin: '0 0 14px', textAlign: 'left' }}>
             <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary, #241B17)', margin: '0 0 4px' }}>
               Connect Instagram (recommended)
@@ -919,8 +982,8 @@ export default function Onboarding({ onComplete }) {
             );
           })()}
           <p style={styles.trialNote}>
-            Your 14 day trial is already running, with everything switched on and
-            no card needed. Add a card now and Florrie carries straight on when
+            Your 14 day trial is already running, with everything in the Florrie
+            plan switched on and no card needed. Add a card now and Florrie carries straight on when
             it ends, or leave it and we will ask you nearer the time.
           </p>
           <div style={{ ...styles.planCard,
@@ -953,7 +1016,7 @@ export default function Onboarding({ onComplete }) {
                   untrue: the trial starts at signup either way. */}
               <div style={styles.messagingCard}>
                 <p style={{ fontSize: 14, color: 'var(--text)', margin: 0, lineHeight: 1.5 }}>
-                  Your 14 day trial is running, with every feature switched on.
+                  Your 14 day trial is running, with everything in the Florrie plan switched on.
                   Nothing to set up and nothing to pay today.
                 </p>
               </div>

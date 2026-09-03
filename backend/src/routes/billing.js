@@ -4,7 +4,7 @@ import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
 import { verifyWebhook } from '../lib/stripe-webhook-secret.js';
-import { internalStatusFor } from '../lib/subscription-status.js';
+import { internalStatusFor, isCardlessDraft } from '../lib/subscription-status.js';
 import { teamSeatQuantity } from '../lib/team-seats.js';
 import { handleDunningEvent } from '../services/dunning.js';
 
@@ -47,6 +47,77 @@ const PRICE_IDS = {
 };
 
 const APP_URL = process.env.APP_URL || 'https://app.florrie.ai';
+
+/**
+ * Why a plan could not be sold, said to the right person.
+ *
+ * "Invalid plan selected" was returned both for a plan name that does not
+ * exist AND for a server with no STRIPE_PRICE_* set, and the app showed it
+ * verbatim on the expired-trial screen: a locked-out customer told she had
+ * picked a bad plan, with no way to pay. A missing price id is our problem,
+ * and the copy says so.
+ */
+function planProblem(plan, interval) {
+  const priceKey = interval === 'annual' ? `${plan}_annual` : plan;
+  if (!plan || !Object.prototype.hasOwnProperty.call(PRICE_IDS, priceKey)) {
+    return { status: 400, error: 'Invalid plan selected', priceKey };
+  }
+  if (!PRICE_IDS[priceKey]) {
+    logger.error({ plan, interval, priceKey }, `Stripe price id for ${priceKey} is not set (STRIPE_PRICE_*). Nobody can subscribe to this plan until it is.`);
+    return { status: 503, error: 'Billing is not switched on for this plan yet. Email hello@florrie.ai and we will sort it straight away.', priceKey };
+  }
+  return { status: 0, error: null, priceKey };
+}
+
+/**
+ * The subscription this account already has, if it has one that counts.
+ * Creating a second one is how "Add team features" charged £29 + £44.
+ * @returns {Promise<object|null>} the Stripe subscription, or null
+ */
+async function liveSubscriptionFor(beautician) {
+  const id = beautician?.subscription_stripe_id;
+  if (!id || !stripe) return null;
+  try {
+    const sub = await stripe.subscriptions.retrieve(id);
+    return ['active', 'trialing', 'past_due', 'unpaid'].includes(sub.status) ? sub : null;
+  } catch (err) {
+    logger.warn({ err, subscriptionId: id }, 'Could not read the subscription on file; treating as none');
+    return null;
+  }
+}
+
+/**
+ * Move an existing subscription onto a different price instead of opening a
+ * second one. Proration is Stripe's default; the customer pays the difference.
+ */
+async function switchPlan(sub, priceId, metadata, quantity = 1) {
+  const item = sub.items?.data?.[0];
+  return stripe.subscriptions.update(sub.id, {
+    items: [{ id: item.id, price: priceId, quantity }],
+    metadata,
+    proration_behavior: 'create_prorations',
+  });
+}
+
+/**
+ * Cancel this customer's abandoned card-form subscriptions before making a
+ * new one, so reopening the modal does not leave a trail of drafts behind.
+ */
+async function cancelCardlessDrafts(stripeCustomerId, beauticianId) {
+  try {
+    const list = await stripe.subscriptions.list({ customer: stripeCustomerId, status: 'all', limit: 20 });
+    for (const sub of list.data || []) {
+      if (sub.metadata?.beautician_id !== beauticianId) continue;
+      const draft = (sub.status === 'trialing' && !sub.default_payment_method && sub.trial_settings?.end_behavior?.missing_payment_method === 'cancel')
+        || sub.status === 'incomplete';
+      if (draft) {
+        await stripe.subscriptions.cancel(sub.id).catch(err => logger.warn({ err, subscriptionId: sub.id }, 'Could not cancel a draft subscription'));
+      }
+    }
+  } catch (err) {
+    logger.warn({ err, stripeCustomerId }, 'Could not list subscriptions to clear drafts');
+  }
+}
 
 /**
  * WHERE THE PLAN NAME LIVES.
@@ -155,13 +226,27 @@ router.post('/create-checkout', requireAuth, async (req, res) => {
 
     const { plan, interval, embedded, trial } = req.body;
     // Support both monthly and annual: plan='florrie', interval='annual' → key='florrie_annual'
-    const priceKey = interval === 'annual' ? `${plan}_annual` : plan;
-    if (!plan || !PRICE_IDS[priceKey]) {
-      return res.status(400).json({ error: 'Invalid plan selected' });
-    }
+    const problem = planProblem(plan, interval);
+    if (problem.status) return res.status(problem.status).json({ error: problem.error });
+    const { priceKey } = problem;
 
     const beautician = req.beautician;
     let stripeCustomerId = beautician.stripe_customer_id;
+
+    // Already subscribed: change the plan on the subscription that exists, or
+    // send her to the portal if it is the same one. Never a second checkout.
+    const live = await liveSubscriptionFor(beautician);
+    if (live) {
+      const currentPrice = live.items?.data?.[0]?.price?.id;
+      if (currentPrice === PRICE_IDS[priceKey]) {
+        const portal = await stripe.billingPortal.sessions.create({ customer: live.customer, return_url: `${APP_URL}/pricing` });
+        return res.json({ alreadySubscribed: true, url: portal.url });
+      }
+      const metadata = subscriptionMetadata({ beauticianId: beautician.id, plan, interval });
+      const quantity = await teamSeatQuantity(supabase, beautician.id, plan);
+      await switchPlan(live, PRICE_IDS[priceKey], metadata, quantity);
+      return res.json({ switched: true, url: `${APP_URL}/pricing?switched=1` });
+    }
 
     // Create Stripe customer if needed
     if (!stripeCustomerId) {
@@ -180,7 +265,12 @@ router.post('/create-checkout', requireAuth, async (req, res) => {
     // trial on day 0 and gets the full 14. Coming back through the same door
     // on day 5 gets the 9 that are left, not a fresh 14: the trial is a
     // property of the account, not of the checkout you happen to open.
-    const trialDays = trial ? (remainingTrialDays(beautician) || TRIAL_DAYS) : 0;
+    // remainingTrialDays returns 0 for a trial that has run out, and 0 is
+    // falsy: `|| TRIAL_DAYS` handed anyone re-entering onboarding after
+    // expiry a fresh fourteen days. A fresh account with no trial recorded
+    // still gets the full trial; that is the only fallback.
+    const remaining = remainingTrialDays(beautician);
+    const trialDays = trial ? (beautician.trial_ends_at ? remaining : TRIAL_DAYS) : 0;
 
     // Build session params — embedded mode uses client_secret + return_url,
     // redirect mode uses success_url + cancel_url
@@ -263,13 +353,26 @@ router.post('/create-subscription-intent', requireAuth, async (req, res) => {
     }
 
     const { plan, interval } = req.body;
-    const priceKey = interval === 'annual' ? `${plan}_annual` : plan;
-    if (!plan || !PRICE_IDS[priceKey]) {
-      return res.status(400).json({ error: 'Invalid plan selected' });
-    }
+    const problem = planProblem(plan, interval);
+    if (problem.status) return res.status(problem.status).json({ error: problem.error });
+    const { priceKey } = problem;
 
     const beautician = req.beautician;
     let stripeCustomerId = beautician.stripe_customer_id;
+
+    // Already paying: switch the plan on the subscription that exists rather
+    // than opening a card form for a second one.
+    const live = await liveSubscriptionFor(beautician);
+    if (live) {
+      const currentPrice = live.items?.data?.[0]?.price?.id;
+      if (currentPrice === PRICE_IDS[priceKey]) {
+        return res.status(409).json({ error: 'You are already on this plan.', alreadySubscribed: true });
+      }
+      const metadata = subscriptionMetadata({ beauticianId: beautician.id, plan, interval });
+      const quantity = await teamSeatQuantity(supabase, beautician.id, plan);
+      await switchPlan(live, PRICE_IDS[priceKey], metadata, quantity);
+      return res.json({ switched: true });
+    }
 
     // Create Stripe customer if needed
     if (!stripeCustomerId) {
@@ -285,6 +388,10 @@ router.post('/create-subscription-intent', requireAuth, async (req, res) => {
     }
 
     const trialDays = remainingTrialDays(beautician);
+
+    // Reopening the modal, or toggling monthly/annual, used to leave a fresh
+    // subscription behind each time. Clear the drafts first.
+    await cancelCardlessDrafts(stripeCustomerId, beautician.id);
 
     // Create subscription in incomplete state — card collected via Payment Element
     const subscription = await stripe.subscriptions.create({
@@ -456,6 +563,10 @@ router.post('/webhook', async (req, res) => {
             'Subscription webhook could not read the plan, leaving subscription_plan untouched'
           );
         }
+        if (beauticianId && isCardlessDraft(sub)) {
+          logger.info({ beauticianId, subscriptionId: sub.id }, 'Cardless draft subscription, leaving the account untouched');
+          break;
+        }
         if (beauticianId) {
           // Through the translation table, never Stripe's own word: 'unpaid'
           // and 'canceled' violate the column's CHECK and the write failed
@@ -485,10 +596,19 @@ router.post('/webhook', async (req, res) => {
         const sub = event.data.object;
         const beauticianId = sub.metadata?.beautician_id;
         if (beauticianId) {
+          const { data: current } = await supabase
+            .from('beauticians')
+            .select('subscription_stripe_id')
+            .eq('id', beauticianId)
+            .maybeSingle();
+          if (current?.subscription_stripe_id && current.subscription_stripe_id !== sub.id) {
+            logger.info({ beauticianId, subscriptionId: sub.id, onFile: current.subscription_stripe_id }, 'Deleted subscription is not the one on file, ignoring');
+            break;
+          }
+          // Plan left alone on purpose: see routes/stripe.js for why.
           const { error: delErr } = await supabase
             .from('beauticians')
             .update({
-              subscription_plan: 'trial',
               subscription_status: internalStatusFor('canceled'),
               subscription_stripe_id: null,
             })

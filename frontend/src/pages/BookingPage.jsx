@@ -1046,6 +1046,7 @@ export default function BookingPage() {
         depositNote: data.deposit_note || null,
         manageUrl: data.booking?.manageUrl || null,
         paymentExpiresAt: data.booking?.paymentExpiresAt || null,
+        clientEmail: !!clientDetails.email,
       });
     } catch (err) {
       setError(err.message || 'Booking failed');
@@ -1193,7 +1194,7 @@ export default function BookingPage() {
               ? `Your card is saved for next time, and so ${salonName} can charge anything still owed on this appointment, or a fee from the cancellation policy you agreed to.`
               : success.depositPending
               ? "Your slot is held, we'll confirm once the deposit is received."
-              : "You'll receive a confirmation message shortly."}
+              : `You're booked in. We'll send the details to ${success.clientEmail ? 'your email' : 'your phone'}, and the link below lets you add it to your calendar, move it or cancel it.`}
           </p>
           {/* Patch test prompt, the moment they book a treatment that needs one.
               Not shown to a recognised returning client: for her this was a
@@ -1462,7 +1463,10 @@ export default function BookingPage() {
               </div>
             )}
             {treatments.length === 0 && (
-              <p style={styles.noSlots}>No treatments available</p>
+              <div style={{ ...styles.noSlots, background: '#fff', border: '1px solid #efe2e5', borderRadius: 14, padding: '22px 18px' }}>
+                <p style={{ margin: '0 0 6px', fontWeight: 600, color: '#1d1b19' }}>{salonName} is still setting up online booking</p>
+                <p style={{ margin: 0 }}>Nothing can be booked here yet. Message them directly and they will book you in.</p>
+              </div>
             )}
             {/* Add-ons shown after treatment is selected */}
             {selectedTreatment && suggestedAddOns.length > 0 && (
@@ -2531,21 +2535,6 @@ function SalonInfo({ beautician, reviewsData, brand }) {
     </>
   );
 }
-const DEV_BOOKING_BEAUTICIAN = {
-  id: 'dev-beautician-id',
-  first_name: 'Ellie',
-  business_name: 'Ellindigo Brows & Beauty',
-  booking_slug: 'ellindigo',
-  brand_color: '#C76B8A',
-  working_hours: {
-    mon: { start: '11:00', end: '15:00' },
-    tue: { start: '11:00', end: '19:00' },
-    wed: { start: '11:00', end: '18:00' },
-    thu: { start: '11:00', end: '19:00' },
-    fri: { start: '10:00', end: '17:00' },
-    sat: null, sun: null,
-  },
-};
 const styles = {
   page: {
     minHeight: 'var(--shell-viewport)',

@@ -25,30 +25,37 @@ async function authedGet(path) {
   return res.json();
 }
 
+// The essentials only, matching SetupHub. Card payments, deposits and an
+// imported list are extras: counting them meant "5 of 12 done" on the Today
+// page forever for any salon without Stripe.
 function countChecks(s) {
+  const ch = s?.channels || {};
   const checks = [
     !!s?.business?.name,
     !!s?.business?.hours,
     !!s?.business?.booking_slug,
     (s?.services?.treatments_count || 0) > 0,
     !!s?.services?.has_prices,
-    !!s?.services?.deposits,
-    !!s?.channels?.whatsapp,
-    !!s?.channels?.auto_reply,
-    !!s?.clients?.imported,
+    !!(ch.whatsapp || ch.instagram || ch.sms),
+    !!ch.auto_reply,
     (s?.protection?.forms_built || 0) > 0,
     (s?.protection?.forms_attached || 0) > 0,
-    !!s?.money?.stripe,
   ];
   return { done: checks.filter(Boolean).length, total: checks.length };
 }
+
+// Hidden for a week, not a session. Tapping the cross every morning is not a
+// preference anybody expressed twice.
+const SNOOZE_MS = 7 * 24 * 60 * 60 * 1000;
 
 export default function SetupNudge() {
   const navigate = useNavigate();
   const [counts, setCounts] = useState(null);
   const [dismissed, setDismissed] = useState(() => {
-    try { return sessionStorage.getItem(DISMISS_KEY) === '1'; }
-    catch { return false; }
+    try {
+      const until = Number(localStorage.getItem(DISMISS_KEY) || 0);
+      return until > Date.now();
+    } catch { return false; }
   });
 
   useEffect(() => {
@@ -62,7 +69,7 @@ export default function SetupNudge() {
   function dismiss(e) {
     e.stopPropagation();
     setDismissed(true);
-    try { sessionStorage.setItem(DISMISS_KEY, '1'); } catch { /* no-op */ }
+    try { localStorage.setItem(DISMISS_KEY, String(Date.now() + SNOOZE_MS)); } catch { /* no-op */ }
   }
 
   if (dismissed || !counts || counts.done >= counts.total) return null;

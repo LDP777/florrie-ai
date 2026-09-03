@@ -380,7 +380,7 @@ export default function Aftercare() {
                 {/* Message bubble */}
                 <div style={styles.phoneMessage}>
                   <div style={styles.phoneSender}>
-                    <span style={{ fontWeight: 600, fontSize: 13 }}>florrie.ai for {beautician?.business_name || 'Ellindigo'}</span>
+                    <span style={{ fontWeight: 600, fontSize: 13 }}>florrie.ai for {beautician?.business_name || beautician?.first_name || 'your salon'}</span>
                     <span style={{ fontSize: 11, color: 'var(--text-muted, #6B5D54)' }}>Just now</span>
                   </div>
 

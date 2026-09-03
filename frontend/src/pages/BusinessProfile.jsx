@@ -29,10 +29,10 @@ const BRAND_COLOURS = [
 ];
 
 const SOCIAL_PLATFORMS = [
-  { key: 'instagram', label: 'Instagram', icon: 'camera', placeholder: '@ellindigo' },
-  { key: 'tiktok', label: 'TikTok', icon: 'mic', placeholder: '@ellindigo' },
-  { key: 'facebook', label: 'Facebook', icon: 'users', placeholder: 'Ellindigo Brows & Beauty' },
-  { key: 'website', label: 'Website', icon: 'link', placeholder: 'www.ellindigo.co.uk' },
+  { key: 'instagram', label: 'Instagram', icon: 'camera', placeholder: '@yoursalon' },
+  { key: 'tiktok', label: 'TikTok', icon: 'mic', placeholder: '@yoursalon' },
+  { key: 'facebook', label: 'Facebook', icon: 'users', placeholder: 'Your salon page' },
+  { key: 'website', label: 'Website', icon: 'link', placeholder: 'www.yoursalon.co.uk' },
 ];
 
 export default function BusinessProfile() {

@@ -125,13 +125,17 @@ router.get('/status', requireAuth, async (req, res) => {
         deposits: depositTreatments > 0 || salonDepositIsConfigured(paySettings),
       },
       channels: {
-        whatsapp: !!b.whatsapp_phone_id,
+        whatsapp: !!(b.whatsapp_phone_id || b.twilio_wa_sender),
+        instagram: !!(b.instagram_page_id && b.instagram_page_token),
         sms: !!b.sms_enabled,
         auto_reply: !!b.auto_reply_enabled,
       },
       clients: {
         count: clientsCount,
-        imported: clientsCount >= 5,
+        // Any client at all. This was `>= 5`, so a salon whose first four
+        // clients booked themselves in read as "not done" on the only
+        // progress bar it has, and the nudge never went away.
+        imported: clientsCount >= 1,
       },
       protection: {
         forms_built: formsBuilt,

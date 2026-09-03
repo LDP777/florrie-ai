@@ -52,3 +52,29 @@ export function internalStatusFor(stripeStatus) {
   logger.warn({ stripeStatus }, 'Unknown Stripe subscription status, treating as past_due');
   return 'past_due';
 }
+
+/**
+ * A subscription that exists only because somebody opened the card form.
+ *
+ * POST /api/billing/create-subscription-intent has to create the subscription
+ * BEFORE the Payment Element can show a card form (that is how Stripe hands
+ * back the SetupIntent). With trial days left the subscription is born
+ * `trialing` with no payment method, and `trialing` maps to 'active' above.
+ * So merely opening the Team checkout and closing the tab used to mark the
+ * account an active Team subscriber: free team features, and every trial
+ * warning silenced. Stripe cancels these drafts itself when the trial ends
+ * (trial_settings.end_behavior.missing_payment_method = 'cancel'), so the
+ * right thing for the books is to write nothing until a card is on file.
+ *
+ * Checkout Sessions with payment_method_collection 'always' attach the card
+ * to the subscription, so a real trial-with-card is not a draft.
+ *
+ * @param {object} sub the Stripe subscription object off the event
+ * @returns {boolean}
+ */
+export function isCardlessDraft(sub) {
+  if (!sub || sub.status !== 'trialing') return false;
+  const pm = sub.default_payment_method;
+  if (pm) return false;
+  return sub.trial_settings?.end_behavior?.missing_payment_method === 'cancel';
+}

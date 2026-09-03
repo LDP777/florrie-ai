@@ -285,7 +285,7 @@ function CreateModal({ open, onClose, onCreated }) {
             <textarea
               value={bodyText}
               onChange={(e) => setBodyText(e.target.value)}
-              placeholder={"Hi {{1}}! It's Ellindigo 🌸 Just checking in after your appointment…"}
+              placeholder={"Hi {{1}}! It's {{2}} 🌸 Just checking in after your appointment…"}
               style={{ ...styles.input, minHeight: 110, fontFamily: 'inherit', resize: 'vertical' }}
               disabled={submitting}
               maxLength={1024}

@@ -395,7 +395,7 @@ export default function SMSConfig() {
             <div style={{ marginBottom: 16 }}>
               <div style={ds.inputLabel}>Business name in messages</div>
               <div style={{ ...type.bodySmall, fontSize: 11, marginBottom: 8 }}>
-                Up to 11 letters and numbers, e.g. Ellindigo. This is how your messages sign off. It is not the sender number and it does not affect replies.
+                Up to 11 letters and numbers, e.g. your salon name. This is how your messages sign off. It is not the sender number and it does not affect replies.
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <input
@@ -405,7 +405,7 @@ export default function SMSConfig() {
                     border: '1px solid var(--border)', background: 'var(--bg-card)',
                     color: 'var(--text-primary)', fontSize: 14,
                   }}
-                  placeholder="Ellindigo"
+                  placeholder="YourSalon"
                 />
                 <span style={{ ...type.mono, fontSize: 11, color: 'var(--text-muted)' }}>
                   {nameInput.length}/11

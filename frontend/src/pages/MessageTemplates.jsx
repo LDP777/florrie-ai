@@ -37,7 +37,7 @@ const TRIGGERS = [
   { key: 'on_birthday', label: 'On birthday' },
 ];
 
-const MOCK_DATA = { name: 'Shauna', treatment: 'Lamination & Hybrid Dye', date: 'Friday 28th March', time: '2:00pm', link: 'florrie.ai/book/ellindigo' };
+const MOCK_DATA = { name: 'Shauna', treatment: 'Lamination & Hybrid Dye', date: 'Friday 28th March', time: '2:00pm', link: 'florrie.ai/book/your-salon' };
 
 function previewMessage(body) {
   let result = body;

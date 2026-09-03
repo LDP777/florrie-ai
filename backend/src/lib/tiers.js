@@ -34,7 +34,7 @@ export const TIERS = {
     includes_content_autopilot: true,
     includes_tax_dashboard: true,
     features: [
-      'Full access for 14 days',
+      'Everything in the Florrie plan for 14 days',
       'Unlimited clients',
       'AI receptionist',
       'WhatsApp & SMS',

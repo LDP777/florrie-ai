@@ -1688,7 +1688,9 @@ export async function notifyBookingConfirmed(appointmentId) {
   let linkOutcome = null;
   const { data: appt } = await supabase
     .from('appointments')
-    .select('*, clients(first_name, phone, email), treatments(name, duration_minutes), beauticians(business_name, first_name, email, client_reminder_prefs, brand_color, booking_slug, tagline, logo_url)')
+    // `address` is read further down for the calendar file's LOCATION. It was
+    // never in this list, so every .ics ever attached had no venue.
+    .select('*, clients(first_name, phone, email), treatments(name, duration_minutes), beauticians(business_name, first_name, email, address, whatsapp_phone_id, twilio_wa_sender, client_reminder_prefs, brand_color, booking_slug, tagline, logo_url)')
     .eq('id', appointmentId)
     .single();
 
@@ -1824,6 +1826,13 @@ export async function notifyBookingConfirmed(appointmentId) {
   // SMS/WhatsApp — only if beautician has opted in
   {   // unconditional: see the note at the top of this function
     const channel = prefs.channel || 'whatsapp';
+    // A salon with no WhatsApp number (Meta or Twilio) goes straight to SMS
+    // rather than attempting a channel it does not have on every send.
+    // WhatsApp is still attempted first (sendWhatsApp answers null at once
+    // for a salon with no number, and falls through to SMS below), because
+    // the Twilio and Meta setups store their numbers in different columns and
+    // the send itself is the one place that knows all of them.
+    const hasWhatsApp = !!(biz?.whatsapp_phone_id || biz?.twilio_wa_sender);
     if (channel === 'whatsapp' && client.phone) {
       const waResult = await sendWhatsApp({ to: client.phone, templateName: 'booking_confirmation_v2', templateParams: [client.first_name, shortDate, timeStr], beauticianId: appt.beautician_id });
       if (waResult) channels.push('whatsapp');
@@ -1886,7 +1895,7 @@ export async function notifyBookingConfirmed(appointmentId) {
       if (!waResult && client.phone && BIRD_API_KEY) {
         if (await sendSMS({ to: client.phone, body: textMsg, beauticianId: appt.beautician_id, messageType: 'booking_confirmation' })) channels.push('sms');
       }
-    } else if ((channel === 'sms' || !biz?.whatsapp_phone_id) && client.phone) {
+    } else if ((channel === 'sms' || !hasWhatsApp) && client.phone) {
       if (await sendSMS({ to: client.phone, body: textMsg, beauticianId: appt.beautician_id, messageType: 'booking_confirmation' })) channels.push('sms');
     }
   }
@@ -1996,7 +2005,7 @@ export async function notifyBookingConfirmed(appointmentId) {
 export async function notifyReminder24h(appointmentId) {
   const { data: appt } = await supabase
     .from('appointments')
-    .select('*, clients(first_name, phone, email), treatments(name, duration_minutes), beauticians(business_name, first_name, email, client_reminder_prefs, brand_color, logo_url, tagline)')
+    .select('*, clients(first_name, phone, email), treatments(name, duration_minutes), beauticians(business_name, first_name, email, whatsapp_phone_id, twilio_wa_sender, client_reminder_prefs, brand_color, logo_url, tagline, booking_slug)')
     .eq('id', appointmentId)
     .single();
 
@@ -2006,6 +2015,14 @@ export async function notifyReminder24h(appointmentId) {
   const treatment = appt.treatments;
   const biz = appt.beauticians;
   const prefs = biz?.client_reminder_prefs || {};
+  // The reminder used to say "Reply here if you need to change anything" and
+  // carry no link. For a salon with no WhatsApp the text leaves from the
+  // shared long code, and a reply to that reaches nobody. The link is the
+  // thing that actually lets her change it, so the reminder carries it, and
+  // only invites a reply on a number that can take one.
+  const reminderManageUrl = (appt.management_token && biz?.booking_slug && process.env.FRONTEND_URL)
+    ? `${process.env.FRONTEND_URL}/book/${biz.booking_slug}/manage/${appt.management_token}`
+    : null;
   // Master pause — when on, nothing automated goes out on the beautician's behalf.
   // ALWAYS SENDS, for the reason written out in full in notifyBookingConfirmed
   // above: a reminder is the client's own booking admin, not Florrie speaking
@@ -2061,7 +2078,10 @@ export async function notifyReminder24h(appointmentId) {
   // get was burned silently. Patch-test clients heard nothing at all.
   const treatmentName = treatment?.name || 'patch test';
 
-  const textMsg = `Hi ${client.first_name}, just a reminder your ${treatmentName} with ${bizName} is tomorrow at ${timeStr}. Reply here if you need to change anything. See you then!`;
+  const changeLine = reminderManageUrl
+    ? ` Need to change it? ${reminderManageUrl}`
+    : ((biz?.whatsapp_phone_id || biz?.twilio_wa_sender) ? ' Reply here if you need to change anything.' : '');
+  const textMsg = `Hi ${client.first_name}, just a reminder your ${treatmentName} with ${bizName} is tomorrow at ${timeStr}.${changeLine} See you then!`;
 
   // What actually reached her, filled in as each channel answers, and written
   // back to the claimed row at the end. `delivered` staying empty is the whole
@@ -2074,6 +2094,7 @@ export async function notifyReminder24h(appointmentId) {
     // SMS/WhatsApp — only if opted in
     {   // unconditional: see notifyBookingConfirmed
       const channel = prefs.channel || 'whatsapp';
+      const hasWhatsApp = !!(biz?.whatsapp_phone_id || biz?.twilio_wa_sender);
       if (channel === 'whatsapp' && client.phone) {
         // TWO parameters, not three. reminder_24h_v2's approved body is "Hi
         // {{1}}, just a reminder that your appointment is tomorrow at {{2}}." and
@@ -2098,7 +2119,7 @@ export async function notifyReminder24h(appointmentId) {
           const sms = await sendSMS({ to: client.phone, body: textMsg, beauticianId: appt.beautician_id, messageType: 'appointment_reminder' });
           if (sms) delivered.push('sms');
         }
-      } else if ((channel === 'sms' || !biz?.whatsapp_phone_id) && client.phone) {
+      } else if ((channel === 'sms' || !hasWhatsApp) && client.phone) {
         const sms = await sendSMS({ to: client.phone, body: textMsg, beauticianId: appt.beautician_id, messageType: 'appointment_reminder' });
         if (sms) delivered.push('sms');
       }

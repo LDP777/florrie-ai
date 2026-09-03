@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { supabase } from '../lib/supabase.js';
+import { supabase, useBeautician } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageHeader from '../components/ui/PageHeader.jsx';
@@ -1002,13 +1002,32 @@ function ThreadSkeleton() {
   );
 }
 
+/**
+ * The zero state says what to do next, and what it says depends on what is
+ * connected. "Send a template" pointed every new salon at the WhatsApp
+ * onboarding wizard whether or not they had a number.
+ */
 function EmptyInbox() {
+  const { beautician } = useBeautician();
+  const hasWhatsApp = !!(beautician?.whatsapp_phone_id || beautician?.twilio_wa_sender);
+  const hasInstagram = !!beautician?.instagram_page_id;
   return (
     <div style={S.empty}>
       <Icon name={iconName('forum')} inline style={S.emptyIcon} />
       <p style={S.emptyText}>Once a client messages you, they'll appear here.</p>
-      <Link to="/whatsapp" style={S.emptyCta}>Send a template</Link>
-      <p style={S.emptyHint}>A friendly hello is all it takes to get the conversation started.</p>
+      {hasWhatsApp ? (
+        <>
+          <Link to="/whatsapp" style={S.emptyCta}>Send a template</Link>
+          <p style={S.emptyHint}>A friendly hello is all it takes to get the conversation started.</p>
+        </>
+      ) : hasInstagram ? (
+        <p style={S.emptyHint}>Instagram is connected. When someone DMs you, Florrie will reply and it will show up here.</p>
+      ) : (
+        <>
+          <Link to="/settings" style={S.emptyCta}>Connect Instagram or WhatsApp</Link>
+          <p style={S.emptyHint}>Until a channel is connected, messages sent to you elsewhere will not arrive here. Booking confirmations and reminders still go out by text and email.</p>
+        </>
+      )}
     </div>
   );
 }
@@ -1043,12 +1062,21 @@ function SegmentEmpty({ segment, onShowAll }) {
 }
 
 function InstagramEmpty() {
+  const { beautician } = useBeautician();
+  const connected = !!beautician?.instagram_page_id;
   return (
     <div style={S.empty}>
       <Icon name={iconName('photo_camera')} inline style={S.emptyIcon} />
-      <p style={S.emptyText}>
-        No Instagram enquiries from new people. When a stranger DMs you, Florrie sorts the real leads to the top here.
-      </p>
+      {connected ? (
+        <p style={S.emptyText}>
+          No Instagram enquiries from new people. When a stranger DMs you, Florrie sorts the real leads to the top here.
+        </p>
+      ) : (
+        <>
+          <p style={S.emptyText}>Instagram is not connected yet. Connect it and Florrie answers your DMs, takes bookings and sorts new enquiries to the top here.</p>
+          <Link to="/settings" style={S.emptyCta}>Connect Instagram</Link>
+        </>
+      )}
     </div>
   );
 }

@@ -30,6 +30,29 @@ import { patchTestEvidence } from '../lib/patch-test-status.js';
 import { readConsultationStatus, hasPriorHistory } from '../lib/consultation-status.js';
 
 const router = Router();
+
+/**
+ * Send the confirmation, and if it reached nobody, say so to the owner.
+ *
+ * notifyBookingConfirmed does not throw when there is no channel: it
+ * RESOLVES with { sent: false, reason: 'all_channels_disabled' }. Every call
+ * site here wrapped it in .catch(), which cannot see a resolved value, so a
+ * salon with no SMS provider and a client with no email got a green tick on
+ * the booking page ("You'll receive a confirmation message shortly") and
+ * nothing was sent, logged, or told to anybody. Non-blocking, never throws.
+ */
+function confirmOrTellTheOwner(appointmentId, beauticianId, clientFirstName) {
+  notifyBookingConfirmed(appointmentId)
+    .then((result) => {
+      if (!result || result.sent !== false) return;
+      logger.warn({ appointmentId, beauticianId, reason: result.reason }, 'Booking confirmation reached no channel');
+      if (!beauticianId) return;
+      return pushTeamUpdate(beauticianId, 'booking_confirmed',
+        `${clientFirstName || 'A client'} booked in, but no confirmation could be sent (no email or text channel). Message them yourself to confirm.`,
+        { url: '/calendar/week', clientName: clientFirstName });
+    })
+    .catch(err => logger.warn({ err, appointmentId }, 'Booking confirmation notification failed (non-fatal)'));
+}
 const FRONTEND_URL = process.env.FRONTEND_URL;
 
 // Only init Stripe if key is present (avoids crash in dev without keys)
@@ -4450,9 +4473,7 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
   // deposit stays recorded on the row as awaiting, and the owner is told it
   // could not be taken online so she can ask for it herself.
   if (depositUnpayable) {
-    notifyBookingConfirmed(appointment.id).catch(err =>
-      logger.warn({ err }, 'Booking confirmation notification failed (non-fatal)')
-    );
+    confirmOrTellTheOwner(appointment.id, beautician.id, firstName);
 
     // One extra line to the owner, beside the new-booking push: the money side
     // of this booking is hers to chase, and she cannot chase what she has not
@@ -4681,9 +4702,7 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
       // Don't fire confirmation here. The booking is still 'pending' until the Stripe webhook
       // (checkout.session.completed) marks the deposit paid and triggers notifyBookingConfirmed.
       if (appointment.status === 'confirmed') {
-        notifyBookingConfirmed(appointment.id).catch(err =>
-          logger.warn({ err }, 'Booking confirmation notification failed (non-fatal)')
-        );
+        confirmOrTellTheOwner(appointment.id, beautician.id, firstName);
       }
 
       // Send the consultation form (non-blocking). CHASE, NOT BLOCK, exactly as
@@ -4789,9 +4808,7 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
 
   // No deposit required: the booking is confirmed outright.
   // Fire confirmation notification (non-blocking)
-  notifyBookingConfirmed(appointment.id).catch(err =>
-    logger.warn({ err }, 'Booking confirmation notification failed (non-fatal)')
-  );
+  confirmOrTellTheOwner(appointment.id, beautician.id, firstName);
 
   // Send the consultation form (non-blocking). CHASE, NOT BLOCK, exactly as in
   // the two branches above. Skipped when they answered inline during booking

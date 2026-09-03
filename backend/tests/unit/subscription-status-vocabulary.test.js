@@ -217,13 +217,44 @@ describe('customer.subscription.updated against the real CHECK', () => {
     expect(stored().subscription_status).toBe('cancelled');
   });
 
-  it('customer.subscription.deleted still writes cancelled', async () => {
+  it('customer.subscription.deleted writes cancelled and keeps the plan name', async () => {
+    // The plan stays so the app can tell "your plan ended" from "your trial
+    // ended". Resetting it to 'trial' made an ex-subscriber read as a
+    // trialist who never paid.
+    const before = stored().subscription_plan;
     await sendEvent({
       type: 'customer.subscription.deleted',
       data: { object: { id: 'sub_1', status: 'canceled', metadata: { beautician_id: 'biz-1' } } },
     });
     expect(stored().subscription_status).toBe('cancelled');
+    expect(stored().subscription_plan).toBe(before);
+    expect(stored().subscription_stripe_id).toBeNull();
+  });
+
+  it('deleting a subscription that is not the one on file changes nothing', async () => {
+    stored().subscription_stripe_id = 'sub_current';
+    stored().subscription_status = 'active';
+    await sendEvent({
+      type: 'customer.subscription.deleted',
+      data: { object: { id: 'sub_old_draft', status: 'canceled', metadata: { beautician_id: 'biz-1' } } },
+    });
+    expect(stored().subscription_status).toBe('active');
+    expect(stored().subscription_stripe_id).toBe('sub_current');
+  });
+
+  it('a card form that was opened and never finished does not make the account active', async () => {
+    stored().subscription_status = 'trial';
+    stored().subscription_plan = 'trial';
+    stored().subscription_stripe_id = null;
+    await sendEvent({
+      type: 'customer.subscription.created',
+      data: { object: { id: 'sub_draft', status: 'trialing', default_payment_method: null,
+        trial_settings: { end_behavior: { missing_payment_method: 'cancel' } },
+        metadata: { beautician_id: 'biz-1', plan: 'florrie_team' } } },
+    });
+    expect(stored().subscription_status).toBe('trial');
     expect(stored().subscription_plan).toBe('trial');
+    expect(stored().subscription_stripe_id).toBeNull();
   });
 });
 

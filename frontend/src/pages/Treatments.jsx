@@ -550,7 +550,12 @@ export default function Treatments() {
       {active.length === 0 && inactive.length === 0 ? (
         <div style={styles.emptyState}>
           <p style={styles.emptyTitle}>No treatments yet</p>
-          <p style={styles.emptyDesc}>Add the services you offer so clients can book them.</p>
+          <p style={styles.emptyDesc}>Add the services you offer so clients can book them. Nothing on your booking page works until the first one is in.</p>
+          {!showAdd && (
+            <Button onClick={() => { setShowAdd(true); setEditing(null); setForm(blank); setReordering(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }} style={{ marginTop: 14 }}>
+              Add your first treatment
+            </Button>
+          )}
         </div>
       ) : (
         <>

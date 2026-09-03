@@ -23,7 +23,7 @@ import { requireCronKey } from '../middleware/security.js';
 // reader from the writer is the whole point: the key cannot drift apart again
 // without breaking the import.
 import { readPlanFromMetadata, PLAN_METADATA_KEY } from './billing.js';
-import { internalStatusFor } from '../lib/subscription-status.js';
+import { internalStatusFor, isCardlessDraft } from '../lib/subscription-status.js';
 import { handleDunningEvent } from '../services/dunning.js';
 import { teamSeatQuantity } from '../lib/team-seats.js';
 
@@ -1724,6 +1724,14 @@ router.post('/webhook', async (req, res) => {
         // checkout writes, and an unreadable plan is a shout, not a downgrade.
         const { plan, problem, found } = readPlanFromMetadata(sub.metadata);
 
+        // A card form that was opened and never finished. Not a subscriber,
+        // not a plan, not even a stripe id worth remembering. See
+        // lib/subscription-status.js isCardlessDraft.
+        if (beauticianId && isCardlessDraft(sub)) {
+          logger.info({ beauticianId, subscriptionId: sub.id, eventType: event.type }, 'Cardless draft subscription, leaving the account untouched');
+          break;
+        }
+
         if (beauticianId) {
           const updates = {
             subscription_stripe_id: sub.id,
@@ -1782,10 +1790,24 @@ router.post('/webhook', async (req, res) => {
         const sub = event.data.object;
         const beauticianId = sub.metadata?.beautician_id;
         if (beauticianId) {
+          // Only the subscription on file can end the account's plan. A draft
+          // that Stripe cancels at trial end, or an old subscription replaced
+          // by a newer one, must not cancel a salon that is paying.
+          const { data: current } = await supabase
+            .from('beauticians')
+            .select('subscription_stripe_id')
+            .eq('id', beauticianId)
+            .maybeSingle();
+          if (current?.subscription_stripe_id && current.subscription_stripe_id !== sub.id) {
+            logger.info({ beauticianId, subscriptionId: sub.id, onFile: current.subscription_stripe_id }, 'Deleted subscription is not the one on file, ignoring');
+            break;
+          }
+          // subscription_plan is deliberately left alone: the app tells an
+          // ex-subscriber their plan ended and a trialist their trial ended,
+          // and resetting the plan to 'trial' here made both read the same.
           const { error: delErr } = await supabase
             .from('beauticians')
             .update({
-              subscription_plan: 'trial',
               subscription_status: internalStatusFor('canceled'),
               subscription_stripe_id: null,
             })

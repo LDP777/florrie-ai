@@ -165,10 +165,40 @@ function resolveTrialEndsAt(beautician) {
  * On the web she can pay right here. It used to be a mailto to hello@, which
  * meant the only way to give us money was to write us an email and wait.
  */
-function TrialExpiredScreen({ onSignOut }) {
+/**
+ * Three reasons the door is shut, and they must not share a headline.
+ *
+ * Until 3 September 2026 every one of them said "Your free trial has ended":
+ * a paying customer whose card bounced that morning, an ex-subscriber, and a
+ * trialist who never paid. The first of those had an email in her inbox
+ * saying "nothing changes for 7 days" while the app said her trial was over.
+ */
+const DOOR = {
+  trial: {
+    title: 'Your free trial has ended',
+    body: 'Your diary, your clients and your messages are all still here. Start your plan and pick up where you left off.',
+    cta: 'Continue for £29 a month',
+    busy: 'Opening checkout...',
+  },
+  past_due: {
+    title: 'Your payment has not gone through',
+    body: 'We have tried your card for a week without luck. Nothing has been deleted: update your card and Florrie carries on exactly where she was. Your clients have not been affected.',
+    cta: 'Update my card',
+    busy: 'Opening billing...',
+  },
+  cancelled: {
+    title: 'Your plan has ended',
+    body: 'Your diary, your clients and your settings are all still here. Subscribe again and pick up where you left off.',
+    cta: 'Restart for £29 a month',
+    busy: 'Opening checkout...',
+  },
+};
+
+function TrialExpiredScreen({ onSignOut, variant = 'trial' }) {
   const iosNative = isIOSNative();
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState(null);
+  const copy = DOOR[variant] || DOOR.trial;
 
   async function startCheckout() {
     setError(null);
@@ -179,7 +209,9 @@ function TrialExpiredScreen({ onSignOut }) {
         setError('Your session has expired. Refresh the page and try again.');
         return;
       }
-      const res = await fetch(`${API_BASE}/api/billing/create-checkout`, {
+      // A failed card is fixed in the Stripe portal, not by buying again.
+      const endpoint = variant === 'past_due' ? '/api/billing/portal' : '/api/billing/create-checkout';
+      const res = await fetch(`${API_BASE}${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -207,12 +239,12 @@ function TrialExpiredScreen({ onSignOut }) {
           <Icon name="flower" size={44} strokeWidth={1.3} />
         </div>
         <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 26, fontWeight: 700, color: 'var(--text-primary, #241B17)', marginBottom: 8 }}>
-          Your free trial has ended
+          {copy.title}
         </h1>
         <p style={{ color: 'var(--text-secondary, #574A42)', fontSize: 15, lineHeight: 1.6, marginBottom: 32 }}>
           {iosNative
-            ? 'Your trial is no longer active on this account.'
-            : 'Your diary, your clients and your messages are all still here. Start your plan and pick up where you left off.'}
+            ? (variant === 'past_due' ? 'Your subscription is waiting on a payment. Update your card from the web app.' : 'Your plan is no longer active on this account.')
+            : copy.body}
         </p>
         {!iosNative && (
           <>
@@ -221,7 +253,7 @@ function TrialExpiredScreen({ onSignOut }) {
               disabled={starting}
               style={{ display: 'block', width: '100%', background: 'var(--accent, #92405e)', color: '#fff', border: 'none', borderRadius: 10, padding: '14px 24px', fontSize: 15, fontWeight: 600, cursor: starting ? 'default' : 'pointer', opacity: starting ? 0.7 : 1, marginBottom: 12 }}
             >
-              {starting ? 'Opening checkout...' : 'Continue for £29 a month'}
+              {starting ? copy.busy : copy.cta}
             </button>
             {error && (
               <p style={{ color: 'var(--danger, #9E2B32)', fontSize: 13, lineHeight: 1.5, marginBottom: 12 }}>{error}</p>
@@ -435,16 +467,30 @@ export default function App() {
   const now = new Date();
   const daysLeft = trialEndsAt ? Math.ceil((trialEndsAt - now) / (1000 * 60 * 60 * 24)) : null;
   const trialExpired = trialEndsAt ? now > trialEndsAt : false;
-  const subActive = beautician?.subscription_status === 'active';
-  const showTrialWarning = !subActive && daysLeft !== null && daysLeft <= 5 && daysLeft > 0;
-  const showTrialExpired = !subActive && trialExpired;
+  // The account's standing, read the way middleware/require-plan.js reads it.
+  // Every paying customer has a trial_ends_at in the past, so anything that
+  // tests "trial expired" before it tests "is she paying" shows a subscriber
+  // the trial screen. That is the bug this block replaces.
+  const status = beautician?.subscription_status;
+  const plan = beautician?.subscription_plan;
+  const paidPlan = plan === 'florrie' || plan === 'florrie_team';
+  const subActive = status === 'active';
+  const pastDue = status === 'past_due' && paidPlan;
+  const planEnded = status === 'cancelled' && paidPlan;
+  const failedAt = beautician?.payment_failed_at ? new Date(beautician.payment_failed_at) : null;
+  const graceEndsAt = failedAt && !Number.isNaN(failedAt.getTime()) ? new Date(failedAt.getTime() + 7 * 24 * 60 * 60 * 1000) : null;
+  const pastDueLocked = pastDue && graceEndsAt && now > graceEndsAt;
+  const onTrial = !subActive && !pastDue && !planEnded;
+  const showTrialWarning = onTrial && daysLeft !== null && daysLeft <= 5 && daysLeft > 0;
+  const showTrialExpired = onTrial && trialExpired;
 
-  // Soft paywall, expired trial and no active subscription.
-  // On native iOS we show a benign read-only state with no purchase CTA,
-  // per App Store Guideline 3.1.3(b) Multiplatform Services.
-  if (showTrialExpired) {
+  // The shut door, with the right words on it. On native iOS the screen has
+  // no purchase CTA, per App Store Guideline 3.1.3(b) Multiplatform Services.
+  const door = pastDueLocked ? 'past_due' : planEnded ? 'cancelled' : showTrialExpired ? 'trial' : null;
+  if (door) {
     return (
       <TrialExpiredScreen
+        variant={door}
         onSignOut={async () => { if (supabase) await supabase.auth.signOut(); setSession(null); }}
       />
     );
@@ -454,6 +500,13 @@ export default function App() {
     <ErrorBoundary>
       <CoachProvider>
       <div style={styles.appShell} className="app-shell">
+        {pastDue && !pastDueLocked && !isIOSNative() && (
+          <div style={{ background: 'var(--danger, #9E2B32)', color: '#fff', textAlign: 'center', padding: '8px 16px', fontSize: 13, fontWeight: 500 }}>
+            Your last payment did not go through.{' '}
+            {graceEndsAt ? `Update your card by ${graceEndsAt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} to keep Florrie running.` : 'Update your card to keep Florrie running.'}{' '}
+            <a href="/pricing" style={{ color: '#fff', fontWeight: 700, textDecoration: 'underline' }}>Update card</a>
+          </div>
+        )}
         {showTrialWarning && !isIOSNative() && (
           <div style={{ background: 'var(--gold, #79581C)', color: '#fff', textAlign: 'center', padding: '8px 16px', fontSize: 13, fontWeight: 500 }}>
             {<Icon name="clock" inline />} Your free trial ends in {daysLeft} day{daysLeft === 1 ? '' : 's'}.{' '}

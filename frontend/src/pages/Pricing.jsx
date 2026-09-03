@@ -44,6 +44,10 @@ export default function Pricing() {
   const daysLeft = trialEnd ? Math.max(0, Math.ceil((trialEnd - Date.now()) / 86400000)) : 0;
   const trialExpired = currentPlan === 'trial' && trialEnd && daysLeft === 0;
   const isActive = status === 'active' && isPaidPlan(currentPlan);
+  // A failed renewal. The card can be changed in the portal; the plan is not
+  // gone, so the page must not read as a trial.
+  const isPastDue = status === 'past_due' && isPaidPlan(currentPlan);
+  const hasEnded = status === 'cancelled' && isPaidPlan(currentPlan);
 
   async function handleUpgrade(planId) {
     setLoading(planId);
@@ -70,6 +74,8 @@ export default function Pricing() {
         });
         const data = await res.json();
         if (data.url) {
+          // A plan switch or "already on this plan" also comes back with a
+          // place to go (the pricing page, or the billing portal).
           window.location.href = data.url;
         } else {
           setError(data.error || 'Failed to start checkout');
@@ -138,9 +144,15 @@ export default function Pricing() {
           {isActive && (
             <div style={S.bannerActive}>Active subscription</div>
           )}
+          {isPastDue && (
+            <div style={{ ...S.bannerActive, color: 'var(--danger, #9E2B32)' }}>Your last payment did not go through. Update your card to keep Florrie running.</div>
+          )}
+          {hasEnded && (
+            <div style={S.bannerActive}>Your plan has ended. Subscribe again to pick up where you left off.</div>
+          )}
         </div>
-        {isActive && (
-          <button onClick={handleManage} style={S.manageBtn}>Manage</button>
+        {(isActive || isPastDue) && (
+          <button onClick={handleManage} style={S.manageBtn}>{isPastDue ? 'Update card' : 'Manage'}</button>
         )}
       </div>
 
@@ -175,7 +187,7 @@ export default function Pricing() {
             </div>
           ))}
         </div>
-        {currentPlan === 'florrie' || currentPlan === 'florrie_team' ? (
+        {(currentPlan === 'florrie' || currentPlan === 'florrie_team') && !hasEnded ? (
           <div style={S.currentLabel}>
             {currentPlan === 'florrie' ? 'Current Plan' : 'Included in your plan'}
           </div>

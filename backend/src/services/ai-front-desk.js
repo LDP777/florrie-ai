@@ -32,6 +32,7 @@ import { patchTestEvidence, patchTestStance } from '../lib/patch-test-status.js'
 import { inboundBudget } from '../lib/inbound-budget.js';
 import { isTrainingEnquiry, renderCoursesBlock } from '../lib/training-enquiry.js';
 import { hasColumn } from '../lib/schema-probe.js';
+import { isBillable, billabilityEnforced } from '../lib/billable.js';
 
 /**
  * AI Front Desk — The core agentic service.
@@ -359,6 +360,24 @@ export async function processInboundMessage(messageId, beautician, client, messa
     // student, not a client, before she opens it.
     const trainingEnquiry = isTrainingEnquiry(messageContent);
 
+    // No treatments and no notes means nothing true to answer from. A menu
+    // that could not be READ is not the same thing and is handled by the
+    // booking flow; here it counts as "has a menu" so a database blip does
+    // not silence her.
+    const salonHasAMenu = !!context.treatmentsError
+      || (context.treatments || []).length > 0
+      || (context.knowledge || []).length > 0;
+
+    // Observe-only until ENFORCE_BILLABILITY=true, like every other billable
+    // gate (lib/billable.js). A row whose status was never selected is not a
+    // lapsed account; it is a caller that did not load the column.
+    const statusKnown = beautician.subscription_status !== undefined;
+    const wouldLapse = statusKnown && !isBillable(beautician);
+    const subscriptionLapsed = wouldLapse && billabilityEnforced();
+    if (wouldLapse && !subscriptionLapsed) {
+      logger.info({ beauticianId: beautician.id, status: beautician.subscription_status }, 'billable: this reply would be held once ENFORCE_BILLABILITY is on');
+    }
+
     let shouldAct = mayFlorrieSend({
       classification,
       groundedDecision,
@@ -369,6 +388,8 @@ export async function processInboundMessage(messageId, beautician, client, messa
       arrivalNote,
       ownerPresent,
       florriePaused,
+      salonHasAMenu,
+      subscriptionLapsed,
     });
 
     if (florriePaused) {
@@ -618,6 +639,10 @@ export async function processInboundMessage(messageId, beautician, client, messa
             ? personNeeded.reason
           : trainingEnquiry?.yes
             ? trainingEnquiry.reason
+          : subscriptionLapsed
+            ? 'subscription_lapsed'
+          : !salonHasAMenu
+            ? 'no_treatments_yet'
           : (autonomyOverride === 'just_me' || autonomyOverride === 'drafts')
             ? `client_set_to:${autonomyOverride}`
             : ownerPresent?.present
@@ -1416,7 +1441,27 @@ NEVER say when an appointment is unless it is in that list, and say the day that
  * @param {string} a.arrivalNote what she has written down about arriving
  * @param {{present: boolean, reason: string}} [a.ownerPresent] is Ellie already in this thread
  */
-export function mayFlorrieSend({ classification, groundedDecision, known, autonomyOverride, threshold, message, arrivalNote = '', ownerPresent = null, florriePaused = false }) {
+export function mayFlorrieSend({ classification, groundedDecision, known, autonomyOverride, threshold, message, arrivalNote = '', ownerPresent = null, florriePaused = false, salonHasAMenu = true, subscriptionLapsed = false }) {
+  // NOBODY IS PAYING FOR THIS REPLY.
+  //
+  // The webhooks are un-paywalled on purpose (a client's message must land
+  // somewhere), and until now nothing on the reply path asked whether the
+  // salon still had a plan. An account whose trial ended in March kept
+  // Florrie answering its DMs, at Florrie's cost, forever. Confirmations and
+  // reminders for bookings already made still go; this only stops her
+  // speaking for a salon that has stopped paying. Drafts still land, so the
+  // day the card is fixed nothing has been lost.
+  if (subscriptionLapsed) return false;
+
+  // A SALON WITH NOTHING WRITTEN DOWN YET.
+  //
+  // auto_reply_enabled defaults to true on a brand-new account, and the
+  // onboarding step that adds treatments can be skipped. Connect Instagram on
+  // day one and Florrie is live on real DMs for a salon with no prices, no
+  // hours she was told about, and no policies. Everything she says would be
+  // invented. Until there is a menu she drafts, and the owner sends.
+  if (!salonHasAMenu) return false;
+
   // SOMEBODY BEING NERVOUS AT YOU IS NOT A QUESTION.
   //
   // 1 September 2026. "Super nervous as I've been a lash extension girly for

@@ -938,7 +938,7 @@ function SendMessagePanel() {
         <input
           style={styles.input}
           type="tel"
-          placeholder="+447951413513"
+          placeholder="+44 7700 900000"
           value={to}
           onChange={e => setTo(e.target.value)}
           disabled={sending}

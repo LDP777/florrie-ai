@@ -562,6 +562,23 @@ describe('the gate that decides whether a machine speaks', () => {
     expect(mayFlorrieSend({ ...dials, message: 'of course! see you thursday, how much is a lift x' })).toBe(true);
   });
 
+  it('drafts, never sends, for a salon with nothing written down or nobody paying', () => {
+    const dials = {
+      classification: { intent: 'pricing', confidence: 1.0 },
+      groundedDecision: { grounded: true, reason: 'grounded:price_list' },
+      known: true,
+      autonomyOverride: 'florrie',
+      threshold: 0.5,
+      arrivalNote: HER_NOTE,
+      message: 'how much is a lash lift? x',
+    };
+    expect(mayFlorrieSend({ ...dials })).toBe(true);
+    // A brand-new account, Instagram connected on day one, no treatments yet.
+    expect(mayFlorrieSend({ ...dials, salonHasAMenu: false })).toBe(false);
+    // A trial that ended in March, with the enforcement flag on.
+    expect(mayFlorrieSend({ ...dials, subscriptionLapsed: true })).toBe(false);
+  });
+
   it('lets the ordinary dials have the last word once a note exists', () => {
     // 'just_me' is her saying not in this thread, and it still wins.
     expect(mayFlorrieSend({

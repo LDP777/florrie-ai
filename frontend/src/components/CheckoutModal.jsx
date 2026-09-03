@@ -58,6 +58,11 @@ export default function CheckoutModal({ plan, interval, authToken, onClose, onSu
 
   const [stage, setStage] = useState('loading'); // loading | ready | submitting | success | error
   const [errorMsg, setErrorMsg] = useState(null);
+  // 'payment' charges now; 'setup' saves a card for a trial that is still
+  // running. The backend says which. Confirming a SetupIntent as a payment
+  // fails every time, which is what "Payment failed" used to mean here.
+  const [mode, setMode] = useState('payment');
+  const [trialEndsAt, setTrialEndsAt] = useState(null);
 
   const priceLabel = PRICE_LABELS[`${plan}_${interval}`] || '';
   const planLabel = PLAN_LABELS[plan] || plan;
@@ -90,9 +95,17 @@ export default function CheckoutModal({ plan, interval, authToken, onClose, onSu
 
         const data = await res.json();
         if (!res.ok || data.error) throw new Error(data.error || 'Failed to set up billing');
+        // Already paying: the backend moved the existing subscription onto
+        // this plan instead of opening a second one. Nothing to type.
+        if (data.switched) {
+          if (mounted) { setStage('success'); setTimeout(() => onSuccess?.(), 1200); }
+          return;
+        }
         if (!data.clientSecret) throw new Error('No clientSecret returned from server');
 
         if (!mounted) return;
+        setMode(data.mode === 'setup' ? 'setup' : 'payment');
+        setTrialEndsAt(data.trialEndsAt || null);
 
         // 3. Create Elements with Florrie's appearance
         elementsRef.current = stripeRef.current.elements({
@@ -216,7 +229,10 @@ export default function CheckoutModal({ plan, interval, authToken, onClose, onSu
     setStage('submitting');
     setErrorMsg(null);
 
-    const { error } = await stripeRef.current.confirmPayment({
+    const confirm = mode === 'setup'
+      ? stripeRef.current.confirmSetup.bind(stripeRef.current)
+      : stripeRef.current.confirmPayment.bind(stripeRef.current);
+    const { error } = await confirm({
       elements: elementsRef.current,
       confirmParams: {
         return_url: `${APP_URL}/pricing?success=1`,
@@ -230,7 +246,7 @@ export default function CheckoutModal({ plan, interval, authToken, onClose, onSu
       setErrorMsg(
         error.type === 'card_error' || error.type === 'validation_error'
           ? error.message
-          : 'Payment failed. Please try a different card or contact support.'
+          : (mode === 'setup' ? 'Your card could not be saved. Try a different card or contact support.' : 'Payment failed. Please try a different card or contact support.')
       );
       setStage('ready');
     } else {
@@ -313,11 +329,18 @@ export default function CheckoutModal({ plan, interval, authToken, onClose, onSu
                 <span style={S.btnSpinner} />
                 Processing…
               </span>
+            ) : mode === 'setup' ? (
+              `Save card, nothing to pay today`
             ) : (
               `Pay ${priceLabel}`
             )}
           </button>
 
+          {mode === 'setup' && (
+            <p style={S.secureNote}>
+              Your free trial carries on{trialEndsAt ? ` until ${new Date(trialEndsAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}` : ''}. The first payment of {priceLabel} is taken when it ends. Cancel before then and you pay nothing.
+            </p>
+          )}
           <p style={S.secureNote}><Icon name="lock" size={14} inline /> Secured by Stripe. Your card details never touch our servers.
           </p>
         </form>

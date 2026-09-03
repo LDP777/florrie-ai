@@ -85,9 +85,10 @@ function buildSections(status, signed) {
         {
           key: 'deposits',
           label: 'Deposits switched on',
-          why: 'A small deposit is the best cure for no shows there is.',
+          why: 'A small deposit is the best cure for no shows there is. Needs card payments, below.',
           path: '/settings',
           done: !!svc.deposits,
+          optional: true,
         },
       ],
     },
@@ -95,11 +96,12 @@ function buildSections(status, signed) {
       title: 'Your channels',
       items: [
         {
-          key: 'whatsapp',
-          label: 'WhatsApp connected',
-          why: 'Where most of your clients already are. Florrie replies there for you.',
-          path: '/whatsapp',
-          done: !!ch.whatsapp,
+          key: 'channel',
+          label: 'A way for clients to reach you',
+          why: 'Instagram is free and takes two minutes. WhatsApp needs a spare number. Either one lets Florrie reply for you.',
+          path: ch.whatsapp || ch.instagram ? '/inbox' : '/settings',
+          done: !!(ch.whatsapp || ch.instagram || ch.sms),
+          extra: ch.whatsapp && ch.instagram ? 'WhatsApp and Instagram' : ch.whatsapp ? 'WhatsApp' : ch.instagram ? 'Instagram' : ch.sms ? 'SMS' : null,
         },
         {
           key: 'signed',
@@ -107,6 +109,7 @@ function buildSections(status, signed) {
           why: 'Confirmations and reminders read like you sent them, not a robot.',
           path: '/whatsapp/templates',
           done: !!signed,
+          optional: !ch.whatsapp,
         },
         {
           key: 'auto_reply',
@@ -122,10 +125,11 @@ function buildSections(status, signed) {
       items: [
         {
           key: 'clients',
-          label: 'Client list imported',
-          why: 'Bring your regulars over so Florrie knows them from day one.',
+          label: 'Clients on your list',
+          why: 'Import your regulars, or let them arrive as they book. Either counts.',
           path: '/import',
           done: !!cl.imported,
+          optional: true,
         },
       ],
     },
@@ -152,6 +156,7 @@ function buildSections(status, signed) {
           why: 'Take deposits and get paid for no shows, straight to your bank.',
           path: '/settings',
           done: !!money.stripe,
+          optional: true,
         },
       ],
     },
@@ -181,7 +186,7 @@ function ItemRow({ item, onNav }) {
     >
       <StatusDot done={item.done} />
       <span style={S.itemBody}>
-        <span style={S.itemLabel}>{item.label}</span>
+        <span style={S.itemLabel}>{item.label}{item.optional && !item.done && <span style={S.optionalTag}>optional</span>}</span>
         <span style={S.itemWhy}>{item.why}</span>
         {item.extra && (
           <span
@@ -248,9 +253,15 @@ export default function SetupHub() {
 
   const sections = buildSections(status, signed);
   const allItems = sections.flatMap((sec) => sec.items);
-  const total = allItems.length;
-  const done = allItems.filter((i) => i.done).length;
+  // The bar measures the essentials. Card payments, deposits and an imported
+  // list are worth doing and not required, and counting them left every
+  // salon without Stripe stuck at 42 percent for life.
+  const essentials = allItems.filter((i) => !i.optional);
+  const total = essentials.length;
+  const done = essentials.filter((i) => i.done).length;
   const pct = total ? Math.round((done / total) * 100) : 0;
+  const optionalDone = allItems.filter((i) => i.optional && i.done).length;
+  const optionalTotal = allItems.filter((i) => i.optional).length;
 
   return (
     <div style={S.page}>
@@ -262,7 +273,7 @@ export default function SetupHub() {
 
       <div style={S.progressWrap}>
         <div style={S.progressLabelRow}>
-          <span style={S.progressLabel}>{done} of {total} done</span>
+          <span style={S.progressLabel}>{done} of {total} essentials done{optionalTotal ? `, ${optionalDone} of ${optionalTotal} extras` : ''}</span>
           <span style={S.progressPct}>{pct}%</span>
         </div>
         <div style={S.progressTrack} role="progressbar" aria-valuenow={done} aria-valuemin={0} aria-valuemax={total}>
@@ -282,13 +293,14 @@ export default function SetupHub() {
       ))}
 
       <p style={S.footerNote}>
-        Nothing here is required. Florrie works from day one and gets stronger with each switch you flip.
+        Florrie works from the first treatment you add. The extras make her sharper, and each row takes you straight to the right place.
       </p>
     </div>
   );
 }
 
 const S = {
+  optionalTag: { marginLeft: 8, fontSize: 10.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted, #6B5D54)', background: 'var(--bg, #FBF6F1)', padding: '2px 6px', borderRadius: 6, verticalAlign: 'middle' },
   page: {
     padding: '16px 16px 32px',
     maxWidth: 720,
