@@ -30,6 +30,8 @@ import { isGroundedReply, asksForHuman, signAsFlorrie, atTheDoorPhrase } from '.
 import { normaliseOutcome } from '../lib/ai-actions.js';
 import { patchTestEvidence, patchTestStance } from '../lib/patch-test-status.js';
 import { inboundBudget } from '../lib/inbound-budget.js';
+import { isTrainingEnquiry, renderCoursesBlock } from '../lib/training-enquiry.js';
+import { hasColumn } from '../lib/schema-probe.js';
 
 /**
  * AI Front Desk — The core agentic service.
@@ -353,6 +355,9 @@ export async function processInboundMessage(messageId, beautician, client, messa
     // looking in the wrong place, which is the mistake the reason field was
     // added to stop making.
     const personNeeded = needsAPerson(messageContent);
+    // Same reasoning: "training_enquiry" on the escalation tells her this is a
+    // student, not a client, before she opens it.
+    const trainingEnquiry = isTrainingEnquiry(messageContent);
 
     let shouldAct = mayFlorrieSend({
       classification,
@@ -611,6 +616,8 @@ export async function processInboundMessage(messageId, beautician, client, messa
           // her, not an answer.
           : personNeeded?.yes
             ? personNeeded.reason
+          : trainingEnquiry?.yes
+            ? trainingEnquiry.reason
           : (autonomyOverride === 'just_me' || autonomyOverride === 'drafts')
             ? `client_set_to:${autonomyOverride}`
             : ownerPresent?.present
@@ -902,7 +909,7 @@ async function gatherContext(beautician, client, messageContent = '') {
   const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
   // Parallel fetches for speed
-  const [treatments, upcomingAppointments, clientUpcoming, clientHistory, clientIntelligence, conversation, loyaltyConfig, clientPoints, activePromos, freeSlots, knowledge] = await Promise.all([
+  const [treatments, upcomingAppointments, clientUpcoming, clientHistory, clientIntelligence, conversation, loyaltyConfig, clientPoints, activePromos, freeSlots, knowledge, courses] = await Promise.all([
     // Treatment menu
     // deposit_percent, buffer_minutes and requires_consultation are here
     // because lib/booking-rules.js needs them to price and length a booking
@@ -1020,7 +1027,38 @@ async function gatherContext(beautician, client, messageContent = '') {
     }).catch(err => {
       logger.warn({ err, beauticianId: beautician.id }, 'Knowledge lookup failed, replying without knowledge');
       return [];
-    })
+    }),
+
+    // THE COURSES SHE TEACHES. Until 3 September 2026 the front desk had no
+    // idea the salon ran training at all, so "how much is your beginner
+    // course?" was answered from the treatment menu with slot times, which is
+    // the incident behind lib/training-enquiry.js. A training enquiry is never
+    // auto-sent (see mayFlorrieSend), but the draft Ellie gets should carry
+    // the real date, price and enrol link rather than a guess. Only what a
+    // student is told is selected; `enrolled` is here so a full course reads
+    // as full. Fails soft to [] because "no courses open" makes the draft
+    // cautious, never wrong. The table may not exist on an older database,
+    // and that is the same answer.
+    (async () => {
+      try {
+        const withTime = await hasColumn(supabase, 'courses', 'start_time');
+        const { data, error } = await supabase
+          .from('courses')
+          .select(`id, name, date, location, duration, price, deposit, max_students, enrolled${withTime ? ', start_time' : ''}`)
+          .eq('beautician_id', beautician.id)
+          .eq('status', 'active')
+          .order('date', { ascending: true, nullsFirst: false });
+        if (error) {
+          logger.warn({ err: error, beauticianId: beautician.id }, 'Course list read failed, drafting without courses');
+          return [];
+        }
+        const today = new Date().toISOString().slice(0, 10);
+        return (data || []).filter(c => !c.date || String(c.date).slice(0, 10) >= today);
+      } catch (err) {
+        logger.warn({ err, beauticianId: beautician.id }, 'Course list lookup threw, drafting without courses');
+        return [];
+      }
+    })(),
   ]);
 
   // Oldest to newest, ready to render as a transcript.
@@ -1106,6 +1144,7 @@ async function gatherContext(beautician, client, messageContent = '') {
     conversationReadable,
     freeSlots: freeSlots || [],
     knowledge: knowledge || [],
+    courses: courses || [],
     loyalty,
     patchTest,
     offers,
@@ -1392,6 +1431,16 @@ export function mayFlorrieSend({ classification, groundedDecision, known, autono
   // drafts it, so nothing is lost but who presses send.
   if (needsAPerson(message).yes) return false;
 
+  // A COURSE SALE IS HERS.
+  //
+  // "It's messing up me trying to get the training people enrolled." Training
+  // is the most valuable conversation this inbox has, per message, and it is
+  // one the owner has herself. Florrie drafts it, with the real course list in
+  // front of her (lib/training-enquiry.js), and Ellie presses send. Once she
+  // has replied the thread is hers for a week by the owner-in-thread rule, so
+  // this only has to catch the first message.
+  if (isTrainingEnquiry(message).yes) return false;
+
   // THE SWITCH ELLIE WAS LOOKING FOR AND DID NOT HAVE.
   //
   // "How do I turn it off for now as it keeps messaging people things that
@@ -1602,6 +1651,7 @@ ${context.loyalty ? `LOYALTY: ${context.loyalty.summary} If it fits this message
 ${renderPatchTestBlock(context.patchTest)}
 ${context.offers?.length ? `OFFERS: ${context.offers.join('; ')}. Only mention an offer if the client asks about price or offers, or is hesitating on cost. Never volunteer it otherwise, and never invent a code.` : `OFFERS: none running right now. If the client asks about offers or discounts, tell them there is nothing on at the moment. Never invent an offer, discount, or code.`}
 ${renderKnowledgeBlock(context.knowledge)}
+${renderCoursesBlock(context.courses, context.beautician.bookingSlug)}
 ${buildTranscript(context, message) ? `\nConversation so far (oldest first). Continue it naturally, do not repeat yourself or reintroduce yourself:\n${buildTranscript(context, message)}` : ''}
 ${extra}
 Respond with the WhatsApp message only. No quotes, no JSON, no explanation.`;
@@ -1790,6 +1840,7 @@ ${context.loyalty ? `Loyalty: ${context.loyalty.summary} If it fits, you may men
 ${renderPatchTestBlock(context.patchTest)}
 ${context.offers?.length ? `Offers: ${context.offers.join('; ')}. Mention only if they ask about price or offers, or hesitate on cost. Never volunteer, never invent a code.` : `Offers: none running right now. If they ask about offers, say there is nothing on at the moment. Never invent an offer, discount, or code.`}
 ${renderKnowledgeBlock(context.knowledge)}
+${renderCoursesBlock(context.courses, context.beautician.bookingSlug)}
 ${buildTranscript(context, message) ? `\nConversation so far (oldest first), so your draft fits the thread:\n${buildTranscript(context, message)}` : ''}
 ${extra}
 Write only the message to send.`;

@@ -4,6 +4,12 @@
  *
  * Loads course details from the API, shows course info, and lets students
  * enroll with optional Stripe deposit checkout.
+ *
+ * 3 September 2026: the success screen printed the words "sparkles" and
+ * "clock" where an icon should have been, forgot the course details after a
+ * card payment (it skipped the load), and put the "payment cancelled" notice
+ * under the form where nobody returning from Stripe would see it. A course
+ * with no date said nothing; a closed course was a 404. All fixed here.
  */
 import { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
@@ -37,25 +43,26 @@ export default function TrainingBooking() {
   const enrolledName = searchParams.get('name');
 
   useEffect(() => {
+    // Back from Stripe with the deposit paid. Still load the course, so the
+    // "you're in" screen can say when and where.
     if (enrolledParam === 'true') {
       setSuccess({ type: 'paid', name: enrolledName || 'Student' });
-      setLoading(false);
-      return;
     }
 
     async function load() {
       try {
         const res = await fetch(`${API_BASE}/api/courses/${slug}/${courseId}`);
+        const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
           setError(data.error || 'Course not found');
+          if (data.course) setCourse({ ...data.course, closed: true });
+          if (data.beautician) setBeautician(data.beautician);
           return;
         }
-        const data = await res.json();
         setCourse(data.course);
         setBeautician(data.beautician);
       } catch (err) {
-        setError('Failed to load course. Please try again.');
+        setError('Could not load the course. Check your connection and try again.');
       } finally {
         setLoading(false);
       }
@@ -73,7 +80,7 @@ export default function TrainingBooking() {
       const res = await fetch(`${API_BASE}/api/courses/${slug}/${courseId}/enroll`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, email: form.email.trim().toLowerCase(), name: form.name.trim() }),
       });
       const data = await res.json();
 
@@ -112,11 +119,13 @@ export default function TrainingBooking() {
   const brandColor = beautician?.brand_color || '#92405e';
 
   const formatDate = (d) => {
-    if (!d) return '';
-    return new Date(d).toLocaleDateString('en-GB', {
+    if (!d) return 'Date to be confirmed';
+    if (course?.date_label && d === course.date) return course.date_label;
+    return new Date(`${String(d).slice(0, 10)}T12:00:00`).toLocaleDateString('en-GB', {
       weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
     });
   };
+  const whenLine = course ? `${formatDate(course.date)}${course.start_time ? `, ${course.start_time} start` : ''}` : '';
 
   if (loading) {
     return (
@@ -134,7 +143,7 @@ export default function TrainingBooking() {
       <div style={styles.page}>
         <div style={styles.successCard}>
           <div style={styles.successIcon}>
-            {success.type === 'paid' ? 'sparkles' : success.type === 'pending' ? 'clock' : 'check-circle'}
+            <Icon name={success.type === 'paid' ? 'sparkles' : success.type === 'pending' ? 'clock' : 'check-circle'} size={44} color={brandColor} />
           </div>
           <h2 style={styles.successTitle}>
             {success.type === 'paid'
@@ -153,8 +162,9 @@ export default function TrainingBooking() {
           {course && (
             <div style={styles.successMeta}>
               <p style={{ margin: '4px 0', fontWeight: 600 }}>{course.name}</p>
-              {course.date && <p style={{ margin: '2px 0' }}>{<Icon name="calendar" inline />} {formatDate(course.date)}</p>}
+              <p style={{ margin: '2px 0' }}>{<Icon name="calendar" inline />} {whenLine}</p>
               {course.location && <p style={{ margin: '2px 0' }}>{<Icon name="map-pin" inline />} {course.location}</p>}
+              <p style={{ margin: '8px 0 0', fontSize: 12, color: '#6B6560' }}>The details and a calendar file are on their way to your email.</p>
             </div>
           )}
         </div>
@@ -163,14 +173,16 @@ export default function TrainingBooking() {
     );
   }
 
-  if (error && !course) {
+  if (error && (!course || course.closed)) {
     return (
       <div style={styles.page}>
         <div style={styles.errorCard}>
-          <div style={{ fontSize: 32, marginBottom: 8 }}>{<Icon name="alert-triangle" inline />}</div>
-          <h2 style={{ fontSize: 18, margin: '0 0 8px' }}>Course not available</h2>
+          <div style={{ fontSize: 32, marginBottom: 8 }}><Icon name="alert-triangle" size={32} /></div>
+          <h2 style={{ fontSize: 18, margin: '0 0 8px' }}>{course?.name || 'Course not available'}</h2>
           <p style={styles.errorText}>{error}</p>
+          {beautician && <p style={styles.errorText}>Message {beautician.business_name || beautician.first_name} to hear about the next date.</p>}
         </div>
+        <p style={styles.poweredBy}>Powered by <strong>florrie.ai</strong></p>
       </div>
     );
   }
@@ -194,12 +206,10 @@ export default function TrainingBooking() {
 
         {/* Details row */}
         <div style={styles.detailsGrid}>
-          {course.date && (
-            <div style={styles.detailItem}>
-              <span style={styles.detailIcon}><Icon name="calendar" size={15} /></span>
-              <span style={styles.detailText}>{formatDate(course.date)}</span>
-            </div>
-          )}
+          <div style={styles.detailItem}>
+            <span style={styles.detailIcon}><Icon name="calendar" size={15} /></span>
+            <span style={styles.detailText}>{whenLine}</span>
+          </div>
           {course.location && (
             <div style={styles.detailItem}>
               <span style={styles.detailIcon}><Icon name="map-pin" size={15} /></span>
@@ -217,7 +227,7 @@ export default function TrainingBooking() {
             <span style={styles.detailText}>
               {course.is_full
                 ? 'Fully booked'
-                : `${course.spots_left} spot${course.spots_left !== 1 ? 's' : ''} left`}
+                : `${course.spots_left} place${course.spots_left !== 1 ? 's' : ''} left`}
             </span>
           </div>
         </div>
@@ -251,14 +261,20 @@ export default function TrainingBooking() {
         </div>
       </div>
 
+      {cancelledParam && (
+        <div style={styles.cancelledBanner}>
+          The card payment was cancelled, so your place is not booked yet. Fill in your details again to try once more.
+        </div>
+      )}
+
       {/* Enrollment form */}
       {course.is_full ? (
         <div style={styles.fullBanner}>
           <span style={{ fontSize: 20 }}>{<Icon name="alert-triangle" inline />}</span>
           <div>
-            <div style={{ fontWeight: 600, fontSize: 15 }}>This course is fully booked</div>
+            <div style={{ fontWeight: 600, fontSize: 15 }}>This course is full</div>
             <div style={{ fontSize: 13, color: '#6B6560', marginTop: 2 }}>
-              Contact {beautician?.business_name || beautician?.first_name} to join the waitlist for the next one.
+              Message {beautician?.business_name || beautician?.first_name} to hear about the next date.
             </div>
           </div>
         </div>
@@ -316,25 +332,22 @@ export default function TrainingBooking() {
               }}
             >
               {submitting
-                ? 'Enrolling...'
+                ? 'Booking your place...'
                 : Number(course.deposit) > 0
-                  ? `Enroll - pay £${Number(course.deposit).toFixed(0)} deposit`
-                  : 'Enroll now'}
+                  ? (beautician?.stripe_ready ? `Book my place, pay £${Number(course.deposit).toFixed(0)} deposit` : 'Book my place')
+                  : 'Book my place'}
             </button>
 
-            {Number(course.deposit) > 0 && (
-              <p style={styles.depositNote}>
-                Remaining £{(Number(course.price) - Number(course.deposit)).toFixed(0)} due on the day.
-                {!beautician?.stripe_ready && ' Your trainer will arrange payment separately.'}
-              </p>
-            )}
+            <p style={styles.depositNote}>
+              {Number(course.deposit) > 0
+                ? `£${(Number(course.price) - Number(course.deposit)).toFixed(0)} is due on the day.${beautician?.stripe_ready ? '' : ` ${beautician?.business_name || beautician?.first_name || 'Your trainer'} will be in touch to arrange the deposit.`}`
+                : `£${Number(course.price).toFixed(0)} is due on the day.`}
+              {' '}You will get a confirmation by email.
+            </p>
+            <p style={styles.privacyNote}>
+              Your details go to {beautician?.business_name || beautician?.first_name || 'the trainer'} so they can run the course and contact you about it. See our <a href="/privacy" style={styles.privacyLink} target="_blank" rel="noopener noreferrer">Privacy Policy</a>.
+            </p>
           </form>
-        </div>
-      )}
-
-      {cancelledParam && (
-        <div style={styles.cancelledBanner}>
-          Payment was cancelled. You can try again below.
         </div>
       )}
 
@@ -387,6 +400,8 @@ const styles = {
 
   submitBtn: { width: '100%', padding: '15px 0', borderRadius: 10, border: 'none', color: '#fff', fontSize: 16, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20 },
   depositNote: { fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', marginTop: 10, lineHeight: 1.5 },
+  privacyNote: { fontSize: 11, color: '#9C9690', textAlign: 'center', marginTop: 8, lineHeight: 1.5 },
+  privacyLink: { color: '#9C9690', textDecoration: 'underline' },
 
   errorBanner: { background: '#FDEDF0', color: '#C62828', padding: '10px 14px', borderRadius: 10, fontSize: 13, marginTop: 12, fontWeight: 500 },
   cancelledBanner: { background: '#FFF3E0', color: '#B33F00', padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 500, marginBottom: 16, textAlign: 'center' },

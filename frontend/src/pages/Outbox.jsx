@@ -23,6 +23,7 @@
  *   POST  /api/escalations/:id/resolve { response, action }
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { explainHold } from '../lib/hold-reasons.js';
 import { supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import PageHeader from '../components/ui/PageHeader.jsx';
@@ -144,7 +145,7 @@ function fromEscalation(row) {
     regular: true, // these escalations are clients Florrie knows
     channel: row.channel || 'sms',
     typeLabel: 'Reply',
-    why: row.escalated_reason || 'A client you know messaged in. Have a look before it goes.',
+    why: explainHold(row.escalated_reason, 'A client you know messaged in. Have a look before it goes.'),
     inbound: row.content || '',
     body: row.ai_response || '',
     createdAt: row.created_at,

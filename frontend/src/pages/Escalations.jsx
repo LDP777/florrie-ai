@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { explainHold } from '../lib/hold-reasons.js';
 import { useBeautician, supabase, updateRow } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
@@ -153,7 +154,7 @@ export default function Escalations() {
 
               {/* Why it was escalated */}
               <div style={styles.reasonBadge}>
-                {msg.escalated_reason || 'Needs review'}
+                {explainHold(msg.escalated_reason, 'Needs review')}
               </div>
 
               {/* Their message */}

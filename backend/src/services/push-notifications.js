@@ -153,6 +153,7 @@ const ACTION_TO_AGENT = {
   message_escalated: 'front_desk',
   booking_confirmed: 'front_desk',
   booking_pending: 'front_desk',
+  course_enrolled: 'front_desk',
   patch_test_booked: 'front_desk',
   daily_money_summary: 'bookkeeper',
   milestone: 'business_coach',
@@ -278,6 +279,8 @@ const ACTION_TITLES = {
   booking_cancelled: 'Booking cancelled',
   booking_auto_cancelled: 'Slot released',
   message_escalated: '💬 Needs you',
+  // A student, not a client. Must never read as a treatment booking.
+  course_enrolled: '🎓 New student',
   // Its own headline, on purpose. "Needs you" is on 142 escalations a month and
   // has stopped meaning anything urgent. Somebody on the doorstep is a
   // different kind of moment and has to look like one on the lock screen.

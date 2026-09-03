@@ -544,6 +544,24 @@ describe('the gate that decides whether a machine speaks', () => {
     expect(mayFlorrieSend({ ...dials, arrivalNote: HER_NOTE })).toBe(true);
   });
 
+  it('never sends a training enquiry itself, whatever the dials say', () => {
+    // "It's messing up me trying to get the training people enrolled."
+    // A course sale is Ellie's conversation. Every dial says yes here; the
+    // gate still says draft.
+    const dials = {
+      classification: { intent: 'pricing', confidence: 1.0 },
+      groundedDecision: { grounded: true, reason: 'grounded:price_list' },
+      known: true,
+      autonomyOverride: 'florrie',
+      threshold: 0.5,
+      arrivalNote: HER_NOTE,
+    };
+    expect(mayFlorrieSend({ ...dials, message: 'hi how much is your beginner course? x' })).toBe(false);
+    expect(mayFlorrieSend({ ...dials, message: 'do you do any lash training' })).toBe(false);
+    // "of course" is Ellie's own phrase and her clients' too: not a course.
+    expect(mayFlorrieSend({ ...dials, message: 'of course! see you thursday, how much is a lift x' })).toBe(true);
+  });
+
   it('lets the ordinary dials have the last word once a note exists', () => {
     // 'just_me' is her saying not in this thread, and it still wins.
     expect(mayFlorrieSend({

@@ -1505,6 +1505,13 @@ router.post('/webhook', async (req, res) => {
             });
           }
 
+          // Tell the trainer and the student, once: the place is really held
+          // now. Never throws (services/course-notifications.js).
+          if (!alreadyPaid) {
+            const { announceEnrolmentById } = await import('../services/course-notifications.js');
+            await announceEnrolmentById(enrollmentId, 'deposit');
+          }
+
           logger.info({ enrollmentId, courseId, amount: session.amount_total }, 'Course deposit paid via Stripe');
         }
         break;
