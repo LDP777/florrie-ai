@@ -24,6 +24,18 @@ import { authorship } from '../lib/authorship.js';
 import { deDash } from '../lib/text.js';
 import { appointmentIcs, googleCalendarUrl } from '../lib/ical.js';
 import { apiPublicBase } from '../lib/public-url.js';
+
+/**
+ * Where the booking pages live. Every other service in this directory falls
+ * back to the production site when FRONTEND_URL is unset; this file did not,
+ * so the one place a missing variable would have shown was the "Change or
+ * cancel this booking" link quietly leaving the confirmation and the
+ * reminder. The link is the thing the client acts on, so it never depends
+ * on a variable being present.
+ */
+function frontendBase() {
+  return (process.env.FRONTEND_URL || 'https://florrie.ai').replace(/\/$/, '');
+}
 import { hasColumn } from '../lib/schema-probe.js';
 import { capSize } from '../lib/bounded-cache.js';
 
@@ -1726,8 +1738,8 @@ export async function notifyBookingConfirmed(appointmentId) {
   const timeStr = new Date(appt.starts_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
   const shortDate = new Date(appt.starts_at).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
 
-  const manageUrl = (appt.management_token && biz?.booking_slug && process.env.FRONTEND_URL)
-    ? `${process.env.FRONTEND_URL}/book/${biz.booking_slug}/manage/${appt.management_token}`
+  const manageUrl = (appt.management_token && biz?.booking_slug)
+    ? `${frontendBase()}/book/${biz.booking_slug}/manage/${appt.management_token}`
     : null;
 
   // A calendar invite, because a text message is not a record of anything.
@@ -2020,8 +2032,8 @@ export async function notifyReminder24h(appointmentId) {
   // shared long code, and a reply to that reaches nobody. The link is the
   // thing that actually lets her change it, so the reminder carries it, and
   // only invites a reply on a number that can take one.
-  const reminderManageUrl = (appt.management_token && biz?.booking_slug && process.env.FRONTEND_URL)
-    ? `${process.env.FRONTEND_URL}/book/${biz.booking_slug}/manage/${appt.management_token}`
+  const reminderManageUrl = (appt.management_token && biz?.booking_slug)
+    ? `${frontendBase()}/book/${biz.booking_slug}/manage/${appt.management_token}`
     : null;
   // Master pause — when on, nothing automated goes out on the beautician's behalf.
   // ALWAYS SENDS, for the reason written out in full in notifyBookingConfirmed

@@ -217,10 +217,12 @@ describe('no new sender joins clients without the consent columns', () => {
     // replyTo parameter and its address check (so a client who hits Reply on
     // a confirmation reaches the salon), and the WABA caches gained a size
     // cap. Same two joins, same file, new line numbers.
+    // And down twelve on 3 September 2026: a frontendBase() helper above the
+    // senders, so the manage link no longer depends on FRONTEND_URL being set.
     // (Previously 1236 / 1514, then 1393 / 1685, then 1526 / 1818, then
-    // 1532 / 1824, then 1540 / 1845.)
-    'src/services/notifications.js:1693',
-    'src/services/notifications.js:2008',
+    // 1532 / 1824, then 1540 / 1845, then 1693 / 2008.)
+    'src/services/notifications.js:1705',
+    'src/services/notifications.js:2020',
   ]);
 
   function walk(dir) {
