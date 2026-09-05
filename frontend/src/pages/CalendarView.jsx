@@ -259,6 +259,7 @@ function bookingStatusLabel(appointment) {
   const done = status === 'completed';
   return dead ? (status === 'no_show' ? 'No-show' : 'Cancelled')
     : paid ? 'Paid' : done ? 'Done'
+    : status === 'in_progress' ? 'In progress'
     : ['confirmed', 'booked'].includes(status) ? 'Booked' : 'Pending';
 }
 
@@ -777,7 +778,7 @@ export default function CalendarView({ initialView } = {}) {
   function stripCountFor(day) {
     const key = formatDate(day);
     const loadedHere = view === 'week' || key === formatDate(currentDate);
-    if (loadedHere && !loading) {
+    if (loadedHere && !loading && !loadError) {
       return appointments.filter(a => a.starts_at?.startsWith(key) && !DEAD_STATUSES.includes(a.status)).length;
     }
     return weekCounts ? (weekCounts[key] || 0) : null;
