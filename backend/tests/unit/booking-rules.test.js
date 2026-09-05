@@ -162,6 +162,44 @@ describe('matchTreatment', () => {
     expect(m.treatment).toBeUndefined();
     expect(m.ambiguous).toBe(false);
   });
+
+  // Ellie's actual brow menu, as it stood on 4 September 2026, when a new
+  // client asking for "the lamination + hybrid dye" was offered the
+  // maintenance version. Her words: "It was going so well until it said brow
+  // lamination maintenance when she asked for brow lamination and hybrid dye".
+  const ELLIE = [
+    { id: 'full-stain', name: 'Brow Lamination & Hybrid stain' },
+    { id: 'full-tint', name: 'Brow Lamination & tint' },
+    { id: 'maint-stain', name: 'Brow lamination maintenance - Hybrid dye' },
+    { id: 'maint-tint', name: 'Brow lamination maintenance - Tint' },
+    { id: 'wax', name: 'Brow wax' },
+  ];
+
+  it('never offers maintenance to somebody who did not ask for it', () => {
+    expect(matchTreatment("I'd like to book for the lamination + hybrid dye x", ELLIE).treatment.id).toBe('full-stain');
+    expect(matchTreatment('brow lamination and tint please', ELLIE).treatment.id).toBe('full-tint');
+  });
+
+  it('reads dye and stain as the same thing, and tint as a different one', () => {
+    expect(matchTreatment('lamination with hybrid stain', ELLIE).treatment.id).toBe('full-stain');
+    expect(matchTreatment('lami and hybrid dye', ELLIE).treatment.id).toBe('full-stain');
+    const m = matchTreatment('lamination please', ELLIE);
+    expect(m.ambiguous).toBe(true);
+    expect(m.candidates.map(t => t.id).sort()).toEqual(['full-stain', 'full-tint']);
+  });
+
+  it('offers maintenance when she says so', () => {
+    expect(matchTreatment('lamination maintenance with hybrid dye', ELLIE).treatment.id).toBe('maint-stain');
+    expect(matchTreatment('can I book a lamination top up and tint', ELLIE).treatment.id).toBe('maint-tint');
+    const m = matchTreatment('lamination maintenance', ELLIE);
+    expect(m.ambiguous).toBe(true);
+    expect(m.candidates.map(t => t.id).sort()).toEqual(['maint-stain', 'maint-tint']);
+  });
+
+  it('still matches a menu that only lists the maintenance version', () => {
+    const ONLY = [{ id: 'infill', name: 'Lash infills' }, { id: 'brow', name: 'Brow wax' }];
+    expect(matchTreatment('lashes on friday?', ONLY).treatment.id).toBe('infill');
+  });
 });
 
 describe('dayPreferenceFrom', () => {

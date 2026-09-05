@@ -206,9 +206,32 @@ const TREATMENT_STOPWORDS = new Set([
   'full', 'set', 'mini', 'plus', 'inc', 'including',
 ]);
 
+// Two words for the same thing, on the client's side and the menu's. Ellie's
+// menu says "Hybrid stain"; the client said "hybrid dye"; they are the same
+// product. Tint is NOT in here: on the same menu tint and hybrid stain are two
+// different treatments at two different prices.
+const TREATMENT_SYNONYMS = {
+  dye: 'stain',
+  lami: 'lamination',
+  // The returning-client words are one word to the matcher, so "top up" from
+  // the client finds "maintenance" on the menu.
+  infill: 'maintenance',
+  refill: 'maintenance',
+  topup: 'maintenance',
+};
+
+// The word that marks a treatment as the RETURNING-CLIENT version of another
+// one (every synonym above folds into it). "Brow lamination maintenance" is
+// what you have six weeks after "Brow lamination"; it is shorter, cheaper,
+// and wrong for somebody who has never had the treatment. See matchTreatment
+// for how it is handled.
+const RETURNING_QUALIFIERS = new Set(['maintenance']);
+
 function treatmentTokens(text) {
   return String(text || '')
     .toLowerCase()
+    // "top up" and "top-up" are one word for this purpose.
+    .replace(/\btop[\s-]+ups?\b/g, 'topup')
     .replace(/[^a-z0-9\s]/g, ' ')
     .split(/\s+/)
     .filter(Boolean)
@@ -216,7 +239,17 @@ function treatmentTokens(text) {
     // Deliberately crude: a beauty menu is a few dozen short names.
     .map(w => (w.length > 3 && w.endsWith('es') ? w.slice(0, -2) : w))
     .map(w => (w.length > 3 && w.endsWith('s') ? w.slice(0, -1) : w))
+    .map(w => TREATMENT_SYNONYMS[w] || w)
     .filter(w => !TREATMENT_STOPWORDS.has(w));
+}
+
+/**
+ * Is this the returning-client version of some other treatment? True for
+ * "Brow lamination maintenance", "Lash infills", "Gel top up". Shared with the
+ * front desk prompt so the model is told the same rule the matcher applies.
+ */
+export function isReturningVersion(name) {
+  return treatmentTokens(name).some(w => RETURNING_QUALIFIERS.has(w));
 }
 
 /**
@@ -228,6 +261,18 @@ function treatmentTokens(text) {
  * every lash treatment on the menu, which is exactly right: Florrie should
  * ask, because booking the wrong one wastes a chair.
  *
+ * Maintenance is opt-in. On 4 September 2026 a new client wrote "I'd like to
+ * book for the lamination + hybrid dye" and was offered "Brow lamination
+ * maintenance - Hybrid dye": the maintenance name carried one more of her
+ * words than "Brow Lamination & Hybrid stain" did, purely because it is
+ * longer. A word like "maintenance", "infill" or "top up" is not evidence
+ * that she wants that version; it is evidence only when SHE says it. So
+ * unless the client used the qualifier, a qualified name is scored as its
+ * unqualified twin, and when the two then tie, the unqualified one wins. A
+ * menu that ONLY has the qualified version (a salon that lists "Lash infills"
+ * and nothing else for lashes) still matches it, because there is nothing
+ * else it could mean.
+ *
  * @returns {{treatment?: object, candidates: object[], ambiguous: boolean}}
  */
 export function matchTreatment(text, treatments) {
@@ -235,12 +280,18 @@ export function matchTreatment(text, treatments) {
   const list = (treatments || []).filter(t => t && t.name);
   if (!said.size || !list.length) return { candidates: [], ambiguous: false };
 
+  const clientSaidQualifier = [...said].some(w => RETURNING_QUALIFIERS.has(w));
+
   const scored = list.map(t => {
-    const own = treatmentTokens(t.name);
+    const all = treatmentTokens(t.name);
+    const qualified = all.some(w => RETURNING_QUALIFIERS.has(w));
+    // The words the name is scored on. A qualifier the client never said is
+    // not a word she can have hit, so it neither scores nor dilutes coverage.
+    const own = clientSaidQualifier ? all : all.filter(w => !RETURNING_QUALIFIERS.has(w));
     const hits = own.filter(w => said.has(w)).length;
     // Fraction matters as well as count: "Lash Lift" fully named beats
     // "Russian Volume Lash Extensions" catching one word.
-    return { treatment: t, hits, coverage: own.length ? hits / own.length : 0 };
+    return { treatment: t, hits, coverage: own.length ? hits / own.length : 0, qualified };
   }).filter(s => s.hits > 0);
 
   if (!scored.length) return { candidates: [], ambiguous: false };
@@ -253,6 +304,13 @@ export function matchTreatment(text, treatments) {
     // that name is short, which is a guess wearing a score's clothes.
     const named = top.filter(s => s.coverage === 1);
     if (named.length) top = named;
+  }
+  if (top.length > 1 && !clientSaidQualifier) {
+    // She did not ask for maintenance, so between the treatment and its
+    // maintenance twin the treatment wins. Only when there is an unqualified
+    // name to prefer: a menu of nothing but infills stays as it is.
+    const plain = top.filter(s => !s.qualified);
+    if (plain.length) top = plain;
   }
 
   if (top.length === 1) return { treatment: top[0].treatment, candidates: [top[0].treatment], ambiguous: false };

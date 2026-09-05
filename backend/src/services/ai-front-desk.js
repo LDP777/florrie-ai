@@ -32,6 +32,7 @@ import { patchTestEvidence, patchTestStance } from '../lib/patch-test-status.js'
 import { inboundBudget } from '../lib/inbound-budget.js';
 import { isTrainingEnquiry, renderCoursesBlock } from '../lib/training-enquiry.js';
 import { hasColumn } from '../lib/schema-probe.js';
+import { isReturningVersion } from '../lib/booking-rules.js';
 import { isBillable, billabilityEnforced } from '../lib/billable.js';
 
 /**
@@ -1243,6 +1244,27 @@ function buildTranscript(context, currentMessage) {
   return lines.slice(-10).join('\n');
 }
 
+/**
+ * The menu, as the model sees it, and the one rule about it that a menu
+ * cannot say for itself: maintenance is for people who ask for it. On
+ * 4 September 2026 a new client asking for "lamination + hybrid dye" was
+ * offered "Brow lamination maintenance - Hybrid dye". The deterministic
+ * booking flow no longer makes that mistake (lib/booking-rules.js), and this
+ * says the same thing to the model, in the one place every prompt lists the
+ * menu, so the two cannot drift apart.
+ */
+function renderTreatmentMenu(treatments, { withDuration = false } = {}) {
+  const list = (treatments || []).map(t => {
+    const price = `£${(t.price_cents / 100).toFixed(2)}`;
+    return withDuration ? `${t.name} (${t.duration_minutes}min, ${price})` : `${t.name} (${price})`;
+  }).join(', ');
+  const returning = (treatments || []).filter(t => isReturningVersion(t.name)).map(t => t.name);
+  const rule = returning.length
+    ? ` Maintenance, infill and top-up versions (${returning.join('; ')}) are for a returning client who asks for one by name. If she does not say maintenance, infill or top up, she means the full treatment, whatever she has had before.`
+    : '';
+  return `${list || 'none listed'}.${rule}`;
+}
+
 // STEP 2: CLASSIFY INTENT
 
 async function classifyIntent(message, context) {
@@ -1689,7 +1711,7 @@ RULES:
 ${actionPrompt}
 
 CONTEXT:
-Treatments: ${context.treatments.map(t => `${t.name} (${t.duration_minutes}min, £${(t.price_cents/100).toFixed(2)})`).join(', ')}
+Treatments: ${renderTreatmentMenu(context.treatments, { withDuration: true })}
 ${context.client ? `Client: ${context.client.name}, ${context.client.totalVisits || 0} previous visits` : 'New client'}
 ${context.clientIntelligence?.favourite_treatments?.length ? `Favourite treatments: ${context.clientIntelligence.favourite_treatments.join(', ')}` : ''}
 ${context.loyalty ? `LOYALTY: ${context.loyalty.summary} If it fits this message, you may mention it once, warmly and naturally, never pushy. Never invent points or rewards beyond what is stated here.` : ''}
@@ -1878,7 +1900,7 @@ Hard rules:
 
 Never use em dashes (—) or en dashes (–). Use commas, full stops, colons or line breaks instead.
 ${doorstepBlock}
-Treatments: ${context.treatments.map(t => `${t.name} (£${(t.price_cents/100).toFixed(2)})`).join(', ')}
+Treatments: ${renderTreatmentMenu(context.treatments)}
 ${renderClientBookings(context.clientUpcoming)}
 ${renderFreeSlots(context.freeSlots)}
 ${context.loyalty ? `Loyalty: ${context.loyalty.summary} If it fits, you may mention it once, warmly, never pushy. Never invent points or rewards beyond this.` : ''}
@@ -2302,7 +2324,7 @@ Rules:
 - Each option needs a 2 to 3 word chip label summarising it (for example "Confirm Friday", "Offer alt time", "Send price").
 - Use the client's real first name (${firstName}) where natural, not a placeholder.
 
-Treatments: ${context.treatments.map(t => `${t.name} (£${(t.price_cents/100).toFixed(2)})`).join(', ') || 'none listed'}.
+Treatments: ${renderTreatmentMenu(context.treatments)}
 ${renderFreeSlots(context.freeSlots)}
 ${context.loyalty ? `Loyalty: ${context.loyalty.summary} One of the 3 options may nod to this if it fits, warmly and never pushy.` : ''}
 ${renderPatchTestBlock(context.patchTest)}
