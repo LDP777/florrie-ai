@@ -1,658 +1,108 @@
-import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js'
-import logger from '../lib/logger.js';
+import { useEffect, useState } from 'react';
+import { useBeautician, fetchRowsStrict, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
 import PageLoader from '../components/PageLoader.jsx';
-import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
-import Icon, { iconName } from '../components/ui/Icon';
+import EmptyState from '../components/EmptyState.jsx';
 import Button from '../components/ui/Button.jsx';
+import Icon from '../components/ui/Icon';
 import PageHeader from '../components/ui/PageHeader.jsx';
-const triggerOptions = [
-  { id: 'appointment_booked', label: 'Appointment booked', icon: 'calendar' },
-  { id: 'appointment_completed', label: 'Appointment completed', icon: 'check-circle' },
-  { id: 'no_show', label: 'Client no-shows', icon: 'x' },
-  { id: 'cancellation', label: 'Cancellation received', icon: 'x' },
-  { id: 'new_client', label: 'New client created', icon: 'user' },
-  { id: 'dormant_client', label: 'Client goes dormant', icon: 'moon' },
-  { id: 'birthday', label: 'Client birthday', icon: 'gift' },
-  { id: 'review_received', label: 'Review received', icon: 'star' },
-  { id: 'payment_received', label: 'Payment received', icon: 'wallet' },
-  { id: 'waitlist_match', label: 'Waitlist slot opens', icon: 'clock' },
-  { id: 'loyalty_milestone', label: 'Loyalty tier reached', icon: 'badge' },
-  { id: 'patch_test_expiry', label: 'Patch test expiring', icon: 'shield' },
-];
-const actionOptions = [
-  { id: 'send_whatsapp', label: 'Send WhatsApp message', icon: 'message' },
-  { id: 'send_email', label: 'Send email', icon: 'mail' },
-  { id: 'send_sms', label: 'Send SMS', icon: 'phone' },
-  { id: 'add_tag', label: 'Add client tag', icon: 'tag' },
-  { id: 'remove_tag', label: 'Remove client tag', icon: 'tag' },
-  { id: 'add_loyalty', label: 'Award loyalty points', icon: 'star' },
-  { id: 'create_task', label: 'Create task', icon: 'check-circle' },
-  { id: 'apply_discount', label: 'Apply discount code', icon: 'tag' },
-  { id: 'block_booking', label: 'Block booking ability', icon: 'lock' },
-  { id: 'notify_staff', label: 'Notify team member', icon: 'bell' },
-  { id: 'move_to_waitlist', label: 'Add to waitlist', icon: 'list' },
-  { id: 'schedule_followup', label: 'Schedule follow-up', icon: 'refresh' },
-];
-const conditionOptions = [
-  { id: 'visit_count', label: 'Visit count', options: ['is more than', 'is less than', 'equals'] },
-  { id: 'total_spend', label: 'Total spend', options: ['is more than', 'is less than'] },
-  { id: 'last_visit', label: 'Days since last visit', options: ['is more than', 'is less than'] },
-  { id: 'treatment_type', label: 'Treatment type', options: ['is', 'is not'] },
-  { id: 'client_tag', label: 'Client has tag', options: ['includes', 'does not include'] },
-  { id: 'loyalty_tier', label: 'Loyalty tier', options: ['is', 'is above', 'is below'] },
-];
-// Normalise a DB row to the shape this page renders.
-// The real columns are is_active, trigger_count and last_triggered_at. There is
-// no enabled / runs / last_run, and the ?? chain below was masking that.
-//
-// STILL BROKEN, needs a decision, not a rename: duplicateRule, useTemplate and
-// the create form all insert trigger, actions, conditions, delay_minutes, runs
-// and last_run. None of those are columns either, and the page's trigger ids
-// ('appointment_booked', 'payment_received', 'waitlist_match' and the rest) are
-// not in the trigger_type CHECK, so no rule can be created from this page at
-// all. That is why automation_rules is empty and the executor in
-// services/automations.js has never fired. Fixing it means agreeing what an
-// automation rule is, not guessing at column names.
-function normaliseRule(r) {
-  return {
-    ...r,
-    enabled: r.enabled ?? r.is_active ?? false,
-    actions: Array.isArray(r.actions) ? r.actions : [],
-    runs: r.runs ?? r.trigger_count ?? 0,
-  };
-}
-const templateRules = [
-  { name: 'Post-appointment thank you', trigger: 'appointment_completed', actions: ['send_whatsapp'], description: 'Send thank you + aftercare link after each visit' },
-  { name: 'Review request (5-star clients)', trigger: 'appointment_completed', actions: ['send_whatsapp'], description: 'Ask happy clients to leave a Google review' },
-  { name: 'Patch test reminder', trigger: 'patch_test_expiry', actions: ['send_whatsapp', 'create_task'], description: 'Remind client and flag for rebooking when patch test expires' },
-  { name: 'Cancellation follow-up', trigger: 'cancellation', actions: ['send_whatsapp', 'schedule_followup'], description: 'Sympathetic message + offer to rebook within 7 days' },
-];
-export default function AutomationRules() {
-  const [activeTab, setActiveTab] = useState('rules');
-  const [rules, setRules] = useState([]);
-  const [creating, setCreating] = useState(false);
-  const [newRule, setNewRule] = useState({ name: '', trigger: null, actions: [], conditions: [], delay: '0' });
-  const [expandedRule, setExpandedRule] = useState(null);
-  const { beautician, loading: bLoading } = useBeautician();
-  const [loaded, setLoaded] = useState(false);
-  useEffect(() => {
-    if (bLoading) return;
-    if (!beautician) { setRules([]); setLoaded(true); return; }
-    fetchRows('automation_rules', beautician.id, { order: 'created_at', ascending: false })
-      .then(rows => { setRules(rows.map(normaliseRule)); setLoaded(true); });
-  }, [beautician, bLoading]);
-  if (bLoading || !loaded) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted, var(--text-muted, #6B5D54))' }}>Loading...</div>;
-  const toggleRule = async (id) => {
-    const rule = rules.find(r => r.id === id);
-    if (!rule) return;
-    const newEnabled = !rule.enabled;
-    setRules(rules.map(r => r.id === id ? { ...r, enabled: newEnabled } : r));
-    if (beautician) {
-      // The column is is_active, not enabled (007_all_features.sql). Sending
-      // `enabled` got the whole update rejected, so the toggle animated on and
-      // then silently snapped back on the next load.
-      try { await updateRow('automation_rules', id, { is_active: newEnabled }); } catch (e) { logger.error(e); }
-    }
-  };
-  const deleteRule = async (id) => {
-    setRules(rules.filter(r => r.id !== id));
-    setExpandedRule(null);
-    if (beautician) {
-      try { await deleteRow('automation_rules', id); } catch (e) { logger.error(e); }
-    }
-  };
-  const duplicateRule = async (rule) => {
-    const copy = {
-      beautician_id: beautician?.id,
-      name: `${rule.name} (copy)`,
-      trigger: rule.trigger,
-      actions: rule.actions || [],
-      conditions: rule.conditions || [],
-      delay_minutes: rule.delay_minutes || 0,
-      enabled: false,
-      runs: 0,
-      last_run: null,
-    };
-    if (beautician) {
-      try {
-        const saved = await insertRow('automation_rules', copy);
-        setRules([normaliseRule(saved), ...rules]);
-      } catch (e) { logger.error('Duplicate rule failed:', e); }
-    } else {
-      setRules([{ ...copy, id: 'new-' + Date.now() }, ...rules]);
-    }
-  };
-  const useTemplate = async (tmpl) => {
-    const rule = {
-      beautician_id: beautician?.id,
-      name: tmpl.name,
-      trigger: tmpl.trigger,
-      actions: tmpl.actions || [],
-      conditions: [],
-      delay_minutes: 0,
-      enabled: false,
-      runs: 0,
-      last_run: null,
-    };
-    if (beautician) {
-      try {
-        const saved = await insertRow('automation_rules', rule);
-        setRules([normaliseRule(saved), ...rules]);
-        setActiveTab('rules');
-      } catch (e) { logger.error('Use template failed:', e); }
-    } else {
-      setRules([{ ...rule, id: 'new-' + Date.now() }, ...rules]);
-      setActiveTab('rules');
-    }
-  };
-  const activeCount = rules.filter(r => r.enabled).length;
-  const totalRuns = rules.reduce((sum, r) => sum + (r.runs || 0), 0);
-  const tabs = [
-    { id: 'rules', label: `Rules (${rules.length})` },
-    { id: 'sequences', label: 'Sequences' },
-    { id: 'templates', label: 'Templates' },
-    { id: 'log', label: 'Activity' },
-  ];
-  return (
-    <div style={styles.page}>
-      <PageHeader
-        title="Automations"
-        subtitle={`${activeCount} active · ${totalRuns} total runs`}
-        action={(
-          <Button size="sm" onClick={() => setCreating(!creating)}>
-            {creating ? '✕' : '+ New'}
-          </Button>
-        )}
-      />
-      {/* Create new rule */}
-      {creating && (
-        <div style={styles.createCard}>
-          <div style={styles.createTitle}>Build a rule</div>
-          {/* Rule name */}
-          <input
-            type="text"
-            value={newRule.name}
-            onChange={e => setNewRule({ ...newRule, name: e.target.value })}
-            placeholder="Rule name..."
-            style={styles.ruleInput}
-          />
-          {/* When (trigger) */}
-          <div style={styles.stepLabel}><Icon name="sparkles" size={14} inline /> WHEN this happens...</div>
-          <div style={styles.chipGrid}>
-            {triggerOptions.map(t => (
-              <Button
-                key={t.id}
-                variant={newRule.trigger === t.id ? 'tonal' : 'chip'}
-                size="sm"
-                onClick={() => setNewRule({ ...newRule, trigger: t.id })}
-              >
-                <span><Icon name={iconName(t.icon)} inline /></span> {t.label}
-              </Button>
-            ))}
-          </div>
-          {/* Delay */}
-          <div style={styles.stepLabel}>{<Icon name="clock" inline />} Wait...</div>
-          <div style={styles.delayRow}>
-            {['0', '5', '30', '60', '1440'].map(mins => (
-              <Button
-                key={mins}
-                variant={newRule.delay === mins ? 'tonal' : 'chip'}
-                size="sm"
-                onClick={() => setNewRule({ ...newRule, delay: mins })}
-              >
-                {mins === '0' ? 'Immediately' : mins === '5' ? '5 min' : mins === '30' ? '30 min' : mins === '60' ? '1 hour' : '24 hours'}
-              </Button>
-            ))}
-          </div>
-          {/* Then (actions) */}
-          <div style={styles.stepLabel}><Icon name="target" size={14} inline /> THEN do this...</div>
-          <div style={styles.chipGrid}>
-            {actionOptions.map(a => (
-              <Button
-                key={a.id}
-                variant={newRule.actions.includes(a.id) ? 'tonal' : 'chip'}
-                size="sm"
-                onClick={() => {
-                  const actions = newRule.actions.includes(a.id)
-                    ? newRule.actions.filter(x => x !== a.id)
-                    : [...newRule.actions, a.id];
-                  setNewRule({ ...newRule, actions });
-                }}
-              >
-                <span><Icon name={iconName(a.icon)} inline /></span> {a.label}
-              </Button>
-            ))}
-          </div>
-          {/* Only if (conditions) */}
-          <div style={styles.stepLabel}><Icon name="search" size={14} inline /> ONLY IF... <span style={{ fontSize: 11, color: 'var(--text-muted, var(--text-muted, #6B5D54))', fontWeight: 400 }}>(optional)</span></div>
-          <div style={styles.conditionsList}>
-            {conditionOptions.map(c => (
-              <div key={c.id} style={styles.conditionRow}>
-                <span style={{ fontSize: 13, color: '#6B6560', flex: 1 }}>{c.label}</span>
-                <select style={styles.condSelect}>
-                  {c.options.map(o => <option key={o}>{o}</option>)}
-                </select>
-                <input type="text" placeholder="value" style={styles.condInput} />
-              </div>
-            ))}
-          </div>
-          <Button
-            fullWidth
-            size="lg"
-            onClick={async () => {
-              if (!newRule.name || !newRule.trigger || !newRule.actions.length) return;
-              const rule = {
-                beautician_id: beautician?.id,
-                name: newRule.name,
-                trigger: newRule.trigger,
-                actions: newRule.actions,
-                conditions: newRule.conditions || [],
-                delay_minutes: parseInt(newRule.delay) || 0,
-                enabled: true,
-                runs: 0,
-                last_run: null,
-              };
-              try {
-                const saved = await insertRow('automation_rules', rule);
-                setRules([normaliseRule(saved), ...rules]);
-                setNewRule({ name: '', trigger: null, actions: [], conditions: [], delay: '0' });
-                setCreating(false);
-              } catch (e) { logger.error('Save rule failed:', e); }
-            }}
-            style={{ marginTop: 8,
-              opacity: newRule.name && newRule.trigger && newRule.actions.length ? 1 : 0.5
-            }}
-          >
-            Save Automation
-          </Button>
-        </div>
-      )}
-      {/* Tabs */}
-      <div style={styles.tabs}>
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            style={{ ...styles.tab,
-              ...(activeTab === tab.id ? styles.tabActive : {})
-            }}
-          >{tab.label}</button>
-        ))}
-      </div>
-      {/* Rules list */}
-      {activeTab === 'rules' && rules.length === 0 && !creating && (
-        <EmptyState
-          icon="sparkles"
-          title="No automations yet"
-          subtitle="Create a rule to handle the busywork automatically, or start from a template."
-          actionLabel="+ New rule"
-          onAction={() => setCreating(true)}
-        />
-      )}
-      {activeTab === 'rules' && rules.length > 0 && (
-        <div>
-          {rules.map(rule => (
-            <div key={rule.id} style={styles.ruleCard}>
-              <div style={styles.ruleHeader} onClick={() => setExpandedRule(expandedRule === rule.id ? null : rule.id)}>
-                <div style={{ flex: 1 }}>
-                  <div style={styles.ruleName}>{rule.name}</div>
-                  <div style={styles.ruleDesc}>{rule.description}</div>
-                  <div style={styles.ruleMeta}>
-                    <span>{triggerOptions.find(t => t.id === rule.trigger)?.icon} {triggerOptions.find(t => t.id === rule.trigger)?.label}</span>
-                    <span style={{ color: 'var(--border, var(--border, var(--border, #E8DDD4)))' }}>→</span>
-                    <span>{(rule.actions || []).map(a => actionOptions.find(o => o.id === a)?.icon).join(' ')}</span>
-                  </div>
-                </div>
-                <button
-                  onClick={e => { e.stopPropagation(); toggleRule(rule.id); }}
-                  style={{ ...styles.toggle,
-                    background: rule.enabled ? 'var(--accent, #92405e)' : 'var(--border, var(--border, var(--border, #E8DDD4)))'
-                  }}
-                >
-                  <div style={{ ...styles.toggleDot,
-                    transform: rule.enabled ? 'translateX(18px)' : 'translateX(0)'
-                  }} />
-                </button>
-              </div>
-              {expandedRule === rule.id && (
-                <div style={styles.ruleExpanded}>
-                  <div style={styles.ruleStatRow}>
-                    <div style={styles.ruleStatItem}>
-                      <div style={{ fontSize: 18, fontWeight: 700 }}>{rule.runs || 0}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted, var(--text-muted, #6B5D54))' }}>Total runs</div>
-                    </div>
-                    <div style={styles.ruleStatItem}>
-                      <div style={{ fontSize: 13, fontWeight: 500 }}>{rule.lastRun || (rule.last_run ? new Date(rule.last_run).toLocaleDateString() : 'Never')}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted, var(--text-muted, #6B5D54))' }}>Last fired</div>
-                    </div>
-                  </div>
-                  <div style={styles.ruleActions}>
-                    <button onClick={() => duplicateRule(rule)} style={styles.ruleActionBtn}><Icon name="list" size={14} inline /> Duplicate</button>
-                    <button onClick={() => deleteRule(rule.id)} style={{ ...styles.ruleActionBtn, color: '#E85D75' }}><Icon name="trash" size={14} inline /> Delete</button>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-      {/* Templates */}
-      {activeTab === 'templates' && (
-        <div>
-          <div style={styles.templatesHint}>Pre-built automations - tap to add and customise</div>
-          {templateRules.map((tmpl, i) => (
-            <div key={i} style={styles.templateCard}>
-              <div style={{ flex: 1 }}>
-                <div style={styles.ruleName}>{tmpl.name}</div>
-                <div style={styles.ruleDesc}>{tmpl.description}</div>
-                <div style={styles.ruleMeta}>
-                  <span>{triggerOptions.find(t => t.id === tmpl.trigger)?.icon} {triggerOptions.find(t => t.id === tmpl.trigger)?.label}</span>
-                </div>
-              </div>
-              <button onClick={() => useTemplate(tmpl)} style={styles.useTemplateBtn}>+ Use</button>
-            </div>
-          ))}
-        </div>
-      )}
-      {/* Follow-up sequences - merged from FollowUpSequences.jsx */}
-      {activeTab === 'sequences' && <SequencesPanel beautician={beautician} />}
-      {/* Activity log */}
-      {activeTab === 'log' && <ActivityPanel beautician={beautician} />}
-    </div>
-  );
-}
-const styles = {
-  page: { padding: '16px 16px 24px', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 480, margin: '0 auto' },
-  createCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: 16, border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', marginBottom: 16 },
-  createTitle: { fontSize: 16, fontWeight: 700, color: 'var(--text-primary, #241B17)', marginBottom: 12 },
-  ruleInput: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border, var(--border, var(--border, #E8DDD4)))', fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 16, boxSizing: 'border-box', background: 'var(--bg, var(--bg, #FBF6F1))' },
-  stepLabel: { fontSize: 12, fontWeight: 700, color: '#6B6560', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, marginTop: 12 },
-  chipGrid: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
-  delayRow: { display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 },
-  conditionsList: { display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 },
-  conditionRow: { display: 'flex', alignItems: 'center', gap: 6 },
-  condSelect: { padding: '6px 8px', borderRadius: 'var(--radius-xs)', border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', fontSize: 11, fontFamily: 'inherit', background: 'var(--bg, var(--bg, #FBF6F1))', color: '#4A4540' },
-  condInput: { width: 60, padding: '6px 8px', borderRadius: 'var(--radius-xs)', border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', fontSize: 11, fontFamily: 'inherit', background: 'var(--bg, var(--bg, #FBF6F1))' },
-  tabs: { display: 'flex', gap: 4, marginBottom: 16, background: 'var(--border, var(--border, var(--border, #E8DDD4)))', borderRadius: 10, padding: 4 },
-  // The two unselected tab labels sat at #6B6560 on the --border tab bar and
-  // measured 4.30:1 — a grey picked against cream, then dropped onto a strip
-  // that is a shade darker than cream. --text-secondary is 6.38:1 on the same
-  // ground, is what ds.tab already uses, and inverts in dark mode where the
-  // hardcoded grey did not.
-  tab: { flex: 1, padding: '8px 0', fontSize: 12, fontWeight: 500, border: 'none', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', background: 'none', color: 'var(--text-secondary, #574A42)' },
-  tabActive: { background: 'var(--bg-card, #FFFCF9)', color: 'var(--text-primary, #241B17)', boxShadow: 'var(--elev-1)' },
-  ruleCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', marginBottom: 10, overflow: 'hidden' },
-  ruleHeader: { display: 'flex', alignItems: 'center', gap: 12, padding: 14, cursor: 'pointer' },
-  ruleName: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #241B17)', marginBottom: 2 },
-  ruleDesc: { fontSize: 12, color: '#6B6560', lineHeight: 1.4, marginBottom: 6 },
-  ruleMeta: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'var(--text-muted, var(--text-muted, #6B5D54))' },
-  toggle: { width: 42, height: 24, borderRadius: 10, border: 'none', cursor: 'pointer', position: 'relative', flexShrink: 0, transition: 'background 0.2s' },
-  toggleDot: { width: 20, height: 20, borderRadius: 10, background: 'var(--bg-card, #FFFCF9)', position: 'absolute', top: 2, left: 2, transition: 'transform 0.2s', boxShadow: 'var(--elev-1)' },
-  ruleExpanded: { padding: '0 14px 14px', borderTop: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))' },
-  ruleStatRow: { display: 'flex', gap: 24, padding: '12px 0' },
-  ruleStatItem: { textAlign: 'center' },
-  ruleActions: { display: 'flex', gap: 8 },
-  ruleActionBtn: { padding: '6px 12px', borderRadius: 10, border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', background: 'var(--bg, var(--bg, #FBF6F1))', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#6B6560' },
-  templatesHint: { fontSize: 13, color: 'var(--text-muted, var(--text-muted, #6B5D54))', marginBottom: 12 },
-  templateCard: { display: 'flex', alignItems: 'center', gap: 12, background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: 14, border: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))', marginBottom: 10 },
-  useTemplateBtn: { padding: '8px 14px', borderRadius: 10, border: 'none', background: 'var(--border, var(--border, var(--border, #E8DDD4)))', color: 'var(--text-primary, #241B17)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 },
-  logRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '12px 0', borderBottom: '1px solid var(--border, var(--border, var(--border, #E8DDD4)))' },
-  logDot: { width: 6, height: 6, borderRadius: 'var(--radius-xs)', flexShrink: 0 },
-};
-const SEQ_TRIGGERS = [
-  { value: 'after-appointment', label: 'After Appointment', icon: 'check-circle' },
-  { value: 'on-birthday',       label: 'On Birthday',       icon: 'gift' },
-  { value: 'no-visit-30-days',  label: 'No Visit 30 Days',  icon: 'calendar' },
-  { value: 'no-visit-60-days',  label: 'No Visit 60 Days',  icon: 'clock' },
-  { value: 'manual',            label: 'Manual Start',       icon: 'play' },
-];
-const SEQ_DELAYS  = ['0h','1h','2h','4h','12h','24h','2d','3d','5d','7d','14d','21d','30d','35d'];
-const SEQ_CHANNELS = ['whatsapp', 'sms', 'email'];
-const SEQ_VARS = ['{name}','{treatment}','{date}','{time}','{booking_link}','{aftercare_link}'];
-function formatSeqDelay(d) {
-  if (!d) return 'Immediately';
-  if (d === '0h') return 'Immediately';
-  const match = d.match(/^(\d+)(h|d)$/);
-  if (!match) return d;
-  const [, n, unit] = match;
-  if (unit === 'h') return n === '1' ? '1 hour' : `${n} hours`;
-  return n === '1' ? '1 day' : `${n} days`;
-}
-function SequencesPanel({ beautician }) {
-  const [sequences, setSequences] = useState([]);
-  const [expanded, setExpanded]   = useState(null);
-  const [showCreate, setShowCreate] = useState(false);
-  const [saving, setSaving]        = useState(false);
-  const [createForm, setCreateForm] = useState({
-    name: '', trigger: 'after-appointment', steps: [{ delay: '0h', channel: 'whatsapp', message: '' }],
-  });
-  const [seqLoaded, setSeqLoaded] = useState(false);
-  useEffect(() => {
-    if (!beautician) { setSequences([]); setSeqLoaded(true); return; }
-    fetchRows('follow_up_sequences', beautician.id, { order: 'created_at' })
-      .then(rows => { setSequences(rows || []); setSeqLoaded(true); })
-      .catch(() => { setSequences([]); setSeqLoaded(true); });
-  }, [beautician]);
-  async function handleToggle(seq) {
-    const next = !seq.active;
-    setSequences(prev => prev.map(s => s.id === seq.id ? { ...s, active: next } : s));
-    if (beautician) {
-      try { await updateRow('follow_up_sequences', seq.id, { active: next }); }
-      catch (e) { logger.error(e); setSequences(prev => prev.map(s => s.id === seq.id ? { ...s, active: seq.active } : s)); }
-    }
-  }
-  async function handleDelete(id) {
-    setSequences(prev => prev.filter(s => s.id !== id));
-    if (beautician) {
-      try { await deleteRow('follow_up_sequences', id); } catch (e) { logger.error(e); }
-    }
-  }
-  async function handleCreate() {
-    if (!createForm.name.trim()) return;
-    setSaving(true);
-    try {
-      if (beautician) {
-        const row = await insertRow('follow_up_sequences', {
-          beautician_id: beautician.id,
-          name: createForm.name.trim(),
-          trigger: createForm.trigger,
-          steps: createForm.steps,
-          active: true,
-          stats: { sent: 0, opened: 0, replied: 0 },
-        });
-        if (row) setSequences(prev => [...prev, row]);
-      } else {
-        setSequences(prev => [...prev, { id: 'new-' + Date.now(), ...createForm, active: true, stats: { sent: 0, opened: 0, replied: 0 } }]);
-      }
-      setShowCreate(false);
-      setCreateForm({ name: '', trigger: 'after-appointment', steps: [{ delay: '0h', channel: 'whatsapp', message: '' }] });
-    } catch (e) { logger.error(e); }
-    finally { setSaving(false); }
-  }
-  const totalSent    = sequences.reduce((s, q) => s + (q.stats?.sent    || 0), 0);
-  const totalReplied = sequences.reduce((s, q) => s + (q.stats?.replied || 0), 0);
-  const replyRate    = totalSent > 0 ? Math.round((totalReplied / totalSent) * 100) : 0;
-  return (
-    <div>
-      {/* Stats strip */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        {[
-          { label: 'Active',     value: sequences.filter(s => s.active).length, color: 'var(--success, #386F52)' },
-          { label: 'Msgs sent',  value: totalSent,    color: 'var(--accent-rose, #C76B8A)' },
-          { label: 'Reply rate', value: `${replyRate}%`, color: '#7B6BA8' },
-        ].map(s => (
-          <div key={s.label} style={{ flex: 1, background: 'var(--bg-card, #FFFCF9)', borderRadius: 10, padding: '10px 8px', border: '1px solid var(--border-light, #ede7e3)', textAlign: 'center' }}>
-            <div style={{ fontSize: 18, fontWeight: 700, color: s.color }}>{s.value}</div>
-            <div style={{ fontSize: 10, color: 'var(--text-muted, #6B5D54)', marginTop: 2 }}>{s.label}</div>
-          </div>
-        ))}
-        <button className="fl-tap"
-          onClick={() => setShowCreate(true)}
-          style={{ padding: '10px 14px', borderRadius: 10, border: 'none', background: 'var(--accent-rose, #b9466d)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}
-        >+ New</button>
-      </div>
-      {/* Sequence cards */}
-      {seqLoaded && sequences.length === 0 && !showCreate && (
-        <EmptyState
-          icon="send"
-          title="No sequences yet"
-          subtitle="Build a follow-up flow to keep clients warm after their appointment."
-          actionLabel="+ New sequence"
-          onAction={() => setShowCreate(true)}
-        />
-      )}
-      {sequences.map(seq => {
-        const trigger  = SEQ_TRIGGERS.find(t => t.value === seq.trigger);
-        const isOpen   = expanded === seq.id;
-        return (
-          <div key={seq.id} style={{ background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, border: '1px solid var(--border-light, #ede7e3)', marginBottom: 10, overflow: 'hidden' }}>
-            <div
-              style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 14, cursor: 'pointer' }}
-              onClick={() => setExpanded(isOpen ? null : seq.id)}
-            >
-              <div style={{ width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, background: seq.active ? 'var(--success-bg, #E9F0EB)' : '#F0ECE8', flexShrink: 0 }}>
-                {trigger?.icon || 'send'}
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #241B17)', marginBottom: 2 }}>{seq.name}</div>
-                <div style={{ fontSize: 12, color: '#8B8580' }}>{seq.steps.length} steps · {trigger?.label}</div>
-              </div>
-              <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 10, background: seq.active ? 'var(--success-bg, #E9F0EB)' : '#F0ECE8', color: seq.active ? '#3a6e4f' : '#6a635a' }}>
-                {seq.active ? 'Active' : 'Paused'}
-              </span>
-            </div>
-            {isOpen && (
-              <div style={{ padding: '0 14px 14px', borderTop: '1px solid var(--border-light, #ede7e3)' }}>
-                {/* Steps timeline */}
-                <div style={{ paddingTop: 12 }}>
-                  {seq.steps.map((step, i) => (
-                    <div key={i} style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <div style={{ width: 8, height: 8, borderRadius: 'var(--radius-xs)', background: 'var(--accent-rose, #C76B8A)', marginTop: 4, flexShrink: 0 }} />
-                        {i < seq.steps.length - 1 && <div style={{ width: 1, flex: 1, background: 'var(--border-light, #ede7e3)', marginTop: 4 }} />}
-                      </div>
-                      <div style={{ flex: 1, paddingBottom: 4 }}>
-                        <div style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
-                          <span style={{ fontSize: 10, fontWeight: 700, color: '#aa4064', background: '#FFF0F3', padding: '2px 7px', borderRadius: 'var(--radius-xs)' }}>{formatSeqDelay(step.delay)}</span>
-                          <span style={{ fontSize: 10, color: '#8B8580' }}>{step.channel === 'whatsapp' ? 'message' : step.channel === 'sms' ? 'phone' : 'mail'} {step.channel}</span>
-                        </div>
-                        <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary, #574A42)', lineHeight: 1.5 }}>{step.message}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {/* Stats */}
-                <div style={{ display: 'flex', gap: 16, fontSize: 12, color: '#8B8580', padding: '8px 0', borderTop: '1px solid var(--border-light, #ede7e3)', marginTop: 4 }}>
-                  <span>{seq.stats?.sent || 0} sent</span>
-                  <span>{seq.stats?.opened || 0} opened</span>
-                  <span>{seq.stats?.replied || 0} replied</span>
-                </div>
-                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                  <button className="fl-tap" onClick={() => handleToggle(seq)} style={{ padding: '6px 12px', borderRadius: 10, border: '1px solid var(--border-light, #ede7e3)', background: '#FAF8F5', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#6B6560' }}>{seq.active ? 'Pause' : 'Activate'}</button>
-                  <button className="fl-tap" onClick={() => handleDelete(seq.id)} style={{ padding: '6px 12px', borderRadius: 10, border: '1px solid var(--border-light, #ede7e3)', background: '#FAF8F5', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#cc1d3b' }}>Delete</button>
-                </div>
-              </div>
-            )}
-          </div>
-        );
-      })}
-      {/* Create modal */}
-      {showCreate && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'flex-end', zIndex: 960 }} onClick={() => setShowCreate(false)}>
-          <div style={{ background: 'var(--bg-card, #FFFCF9)', borderRadius: '20px 20px 0 0', padding: '20px 16px 40px', width: '100%', maxHeight: '85vh', overflowY: 'auto', boxSizing: 'border-box' }} onClick={e => e.stopPropagation()}>
-            <h2 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 16px' }}>New Sequence</h2>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#8B8580', marginBottom: 6 }}>Name</div>
-            <input style={{ minHeight: 44, width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border-light, #ede7e3)', fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 14, boxSizing: 'border-box' }}
-              placeholder="e.g. Post Lamination Care" value={createForm.name} onChange={e => setCreateForm(f => ({ ...f, name: e.target.value }))} />
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#8B8580', marginBottom: 6 }}>Trigger</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
-              {SEQ_TRIGGERS.map(t => (
-                <button className="fl-tap" key={t.value} onClick={() => setCreateForm(f => ({ ...f, trigger: t.value }))}
-                  style={{ padding: '6px 10px', borderRadius: 10, border: '1px solid var(--border-light, #ede7e3)', background: createForm.trigger === t.value ? '#FFF0F3' : '#FAF8F5', color: createForm.trigger === t.value ? '#aa4064' : '#4A4540', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  <Icon name={iconName(t.icon)} inline /> {t.label}
-                </button>
-              ))}
-            </div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#8B8580', marginBottom: 8 }}>Steps</div>
-            {createForm.steps.map((step, i) => (
-              <div key={i} style={{ background: '#FAF8F5', borderRadius: 10, padding: 10, marginBottom: 8 }}>
-                <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-                  <select value={step.delay} onChange={e => setCreateForm(f => ({ ...f, steps: f.steps.map((s, j) => j === i ? { ...s, delay: e.target.value } : s) }))}
-                    style={{ minHeight: 44, flex: 1, padding: '6px 8px', borderRadius: 10, border: '1px solid var(--border-light, #ede7e3)', fontSize: 12, fontFamily: 'inherit', background: 'var(--bg-card, #FFFCF9)' }}>
-                    {SEQ_DELAYS.map(d => <option key={d} value={d}>{formatSeqDelay(d)}</option>)}
-                  </select>
-                  <select value={step.channel} onChange={e => setCreateForm(f => ({ ...f, steps: f.steps.map((s, j) => j === i ? { ...s, channel: e.target.value } : s) }))}
-                    style={{ minHeight: 44, flex: 1, padding: '6px 8px', borderRadius: 10, border: '1px solid var(--border-light, #ede7e3)', fontSize: 12, fontFamily: 'inherit', background: 'var(--bg-card, #FFFCF9)' }}>
-                    {SEQ_CHANNELS.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                  {createForm.steps.length > 1 && (
-                    <button className="fl-tap" onClick={() => setCreateForm(f => ({ ...f, steps: f.steps.filter((_, j) => j !== i) }))}
-                      style={{ padding: '6px 10px', borderRadius: 10, border: '1px solid var(--border-light, #ede7e3)', background: 'var(--bg-card, #FFFCF9)', fontSize: 12, cursor: 'pointer', color: '#d51e3e', fontFamily: 'inherit' }}><Icon name="x" size={15} /></button>
-                  )}
-                </div>
-                <textarea value={step.message} onChange={e => setCreateForm(f => ({ ...f, steps: f.steps.map((s, j) => j === i ? { ...s, message: e.target.value } : s) }))}
-                  placeholder="Message... use {name}, {booking_link} etc."
-                  style={{ width: '100%', padding: '8px 10px', borderRadius: 10, border: '1px solid var(--border-light, #ede7e3)', fontSize: 12, fontFamily: 'inherit', resize: 'vertical', minHeight: 72, boxSizing: 'border-box', background: 'var(--bg-card, #FFFCF9)' }} />
-              </div>
-            ))}
-            <button className="fl-tap" onClick={() => setCreateForm(f => ({ ...f, steps: [...f.steps, { delay: '24h', channel: 'whatsapp', message: '' }] }))}
-              style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: '1px dashed var(--accent-rose, #C76B8A)', background: 'none', color: 'var(--accent-rose, #C76B8A)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', marginBottom: 14 }}>
-              + Add step
-            </button>
-            <button onClick={handleCreate} disabled={saving || !createForm.name.trim()}
-              style={{ width: '100%', padding: 14, borderRadius: 10, border: 'none', background: 'var(--accent-rose, #b9466d)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', opacity: saving || !createForm.name.trim() ? 0.6 : 1 }}>
-              {saving ? 'Saving…' : 'Create Sequence'}
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
-// Activity feed - real automation/AI actions from the ai_actions table.
-function ActivityPanel({ beautician }) {
+const DELAYS = ['0h', '1h', '4h', '12h', '24h', '2d', '3d', '7d', '14d', '30d'];
+const emptyForm = () => ({ name: '', steps: [{ delay: '24h', message: '' }] });
+const delayLabel = delay => delay === '0h' ? 'No delay' : `${parseInt(delay, 10)} ${delay.endsWith('h') ? 'hours' : 'days'}`;
+
+export default function AutomationRules() {
+  const { beautician, loading: profileLoading } = useBeautician();
+  const [sequences, setSequences] = useState([]);
   const [actions, setActions] = useState([]);
-  const [loaded, setLoaded] = useState(false);
-  useEffect(() => {
-    if (!beautician) { setActions([]); setLoaded(true); return; }
-    fetchRows('ai_actions', beautician.id, { order: 'created_at', ascending: false, limit: 50 })
-      .then(rows => { setActions(rows || []); setLoaded(true); })
-      .catch(() => { setActions([]); setLoaded(true); });
-  }, [beautician]);
-  if (!loaded) return <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted, #6B5D54)' }}>Loading...</div>;
-  if (actions.length === 0) {
-    return (
-      <EmptyState
-        icon="file"
-        title="No automation activity yet"
-        subtitle="Once your automations start firing, what they do will show up here."
-      />
-    );
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  const [activityError, setActivityError] = useState(null);
+  const [error, setError] = useState(null);
+  const [pending, setPending] = useState(null);
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState(emptyForm);
+  const [tab, setTab] = useState('sequences');
+  useEffect(() => { if (!profileLoading) load(); }, [beautician, profileLoading]);
+  async function load() {
+    setLoading(true); setLoadError(null); setActivityError(null);
+    if (!beautician) { setLoadError('Your business profile is unavailable.'); setLoading(false); return; }
+    const results = await Promise.allSettled([
+      fetchRowsStrict('follow_up_sequences', beautician.id, { order: 'created_at', ascending: false }),
+      fetchRowsStrict('ai_actions', beautician.id, { order: 'created_at', ascending: false, limit: 50 }),
+    ]);
+    if (results[0].status === 'fulfilled') setSequences(results[0].value); else setLoadError('Could not load your sequences. Try again.');
+    if (results[1].status === 'fulfilled') setActions(results[1].value); else setActivityError('Could not load activity. Try again.');
+    setLoading(false);
   }
-  const fmtTime = (ts) => {
-    if (!ts) return '';
-    const d = new Date(ts);
-    const today = new Date();
-    if (d.toDateString() === today.toDateString()) {
-      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    }
-    return d.toLocaleDateString([], { day: 'numeric', month: 'short' });
-  };
-  return (
-    <div>
-      {actions.map(a => (
-        <div key={a.id} style={styles.logRow}>
-          <div style={{ ...styles.logDot, background: 'var(--success, #386F52)' }} />
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary, #241B17)' }}>{a.summary}</div>
-            {a.digital_employee && <div style={{ fontSize: 12, color: 'var(--text-muted, #6B5D54)' }}>{a.digital_employee.replace(/_/g, ' ')}</div>}
-          </div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted, #6B5D54)' }}>{fmtTime(a.created_at)}</div>
-        </div>
-      ))}
-    </div>
-  );
+  async function toggle(sequence) {
+    if (pending) return;
+    setPending(sequence.id); setError(null);
+    try {
+      const saved = await updateRow('follow_up_sequences', sequence.id, { active: !sequence.active });
+      if (!saved?.id) throw new Error('No sequence returned');
+      setSequences(prev => prev.map(item => item.id === sequence.id ? { ...item, ...saved } : item));
+    } catch { setError('Could not change this sequence. Try again.'); }
+    finally { setPending(null); }
+  }
+  async function remove(sequence) {
+    if (pending || !window.confirm(`Delete “${sequence.name}” and its enrolments?`)) return;
+    setPending(sequence.id); setError(null);
+    try { await deleteRow('follow_up_sequences', sequence.id); setSequences(prev => prev.filter(item => item.id !== sequence.id)); }
+    catch { setError('Could not delete this sequence. Try again.'); }
+    finally { setPending(null); }
+  }
+  async function create(event) {
+    event.preventDefault();
+    if (pending || !beautician) return;
+    if (!form.name.trim() || !form.steps.length || form.steps.some(step => !step.message.trim())) { setError('Give the sequence a name and write a message for each step.'); return; }
+    if (form.steps.some(step => /\{[^}]+\}/.test(step.message))) { setError('Write the final message text. Personalisation fields such as {name} are not supported in sequences.'); return; }
+    setPending('create'); setError(null);
+    try {
+      const saved = await insertRow('follow_up_sequences', { beautician_id: beautician.id, name: form.name.trim(), trigger: 'after-appointment', active: false, steps: form.steps.map(step => ({ delay: step.delay, message: step.message.trim() })) });
+      if (!saved?.id) throw new Error('No saved sequence');
+      setSequences(prev => [saved, ...prev]); setEditing(false); setForm(emptyForm());
+    } catch { setError('Could not save this sequence. Your draft is still here; try again.'); }
+    finally { setPending(null); }
+  }
+  const activeCount = sequences.filter(sequence => sequence.active && sequence.trigger === 'after-appointment').length;
+  if (loading || profileLoading) return <PageLoader />;
+  return <div className="automation-tools" style={s.page}>
+    <style>{`.automation-tools input,.automation-tools textarea,.automation-tools select{font:inherit;color:var(--text-primary);background:var(--bg-card,#FFFCF9)}.automation-tools :is(input,textarea,select,summary):focus-visible{outline:3px solid var(--accent);outline-offset:3px}.automation-tools summary{cursor:pointer;min-height:64px;list-style:none}.automation-tools summary::-webkit-details-marker{display:none}`}</style>
+    <PageHeader title="Automations" eyebrow="Business setup" subtitle="Follow up after completed appointments." />
+    <section style={s.intro}><Icon name="send" size={25} /><div><h2 style={s.title}>Keep in touch after a visit.</h2><p style={s.text}>Create a message sequence, then turn on new enrolments when you’re ready. Delivery follows each client’s messaging preferences and consent.</p></div></section>
+    <div style={s.notice}><strong>Custom rules aren’t available.</strong><p style={{ ...s.text, marginBottom: 0 }}>Event-based rules and templates do not run. You can manage appointment follow-up sequences below.</p></div>
+    <div style={s.tabs}><Button variant={tab === 'sequences' ? 'primary' : 'secondary'} aria-pressed={tab === 'sequences'} onClick={() => setTab('sequences')}>Sequences</Button><Button variant={tab === 'activity' ? 'primary' : 'secondary'} aria-pressed={tab === 'activity'} onClick={() => setTab('activity')}>Activity</Button></div>
+    {error && <div role="alert"><ErrorCard message={error} /></div>}
+    {tab === 'sequences' ? <>
+      {loadError ? <div role="alert"><ErrorCard message={loadError} /><Button onClick={load} variant="secondary">Retry</Button></div> : <>
+        <div style={s.toolbar}><p style={s.text}>{activeCount} {activeCount === 1 ? 'sequence accepts' : 'sequences accept'} new enrolments</p><Button onClick={() => { setEditing(true); setError(null); }} disabled={editing}>New sequence</Button></div>
+        {editing && <form onSubmit={create} style={s.card}>
+          <h2 style={s.subtitle}>New follow-up sequence</h2>
+          <p style={s.text}>For completed appointments. Save it paused so you can check the messages before turning it on.</p>
+          <label style={s.label}>Sequence name<input required maxLength={120} value={form.name} onChange={event => setForm(prev => ({ ...prev, name: event.target.value }))} style={s.input} /></label>
+          {form.steps.map((step, index) => <fieldset key={index} style={s.step}><legend style={s.legend}>Message {index + 1}</legend><label style={s.label}>{index ? 'Wait after the previous message' : 'Wait after enrolment'}<select style={s.input} value={step.delay} onChange={event => setForm(prev => ({ ...prev, steps: prev.steps.map((value, i) => i === index ? { ...value, delay: event.target.value } : value) }))}>{DELAYS.map(delay => <option key={delay} value={delay}>{delayLabel(delay)}</option>)}</select></label><label style={s.label}>Message text<textarea required rows={3} maxLength={4000} style={s.input} value={step.message} onChange={event => setForm(prev => ({ ...prev, steps: prev.steps.map((value, i) => i === index ? { ...value, message: event.target.value } : value) }))} /></label>{form.steps.length > 1 && <Button variant="quiet" onClick={() => setForm(prev => ({ ...prev, steps: prev.steps.filter((_, i) => i !== index) }))}>Remove message {index + 1}</Button>}</fieldset>)}
+          <Button variant="secondary" onClick={() => setForm(prev => ({ ...prev, steps: [...prev.steps, { delay: '24h', message: '' }] }))}>Add message</Button>
+          <div style={s.tabs}><Button type="submit" disabled={Boolean(pending)}>{pending === 'create' ? 'Saving…' : 'Save paused sequence'}</Button><Button variant="quiet" disabled={Boolean(pending)} onClick={() => { setEditing(false); setError(null); }}>Cancel</Button></div>
+        </form>}
+        {!sequences.length && !editing && <EmptyState icon="send" title="No follow-up sequences" subtitle="Create a sequence for clients after their completed appointments." />}
+        {sequences.map(sequence => <details key={sequence.id} style={s.card}><summary><div style={s.summary}><span><strong>{sequence.name}</strong><span style={s.meta}>{Array.isArray(sequence.steps) ? sequence.steps.length : 0} messages · {sequence.trigger === 'after-appointment' ? 'After completed appointments' : 'Unsupported trigger'}</span></span><span style={s.badge}>{sequence.active && sequence.trigger === 'after-appointment' ? 'Enrolling' : 'Paused'}</span><Icon name="chevron-down" size={18} /></div></summary>
+          {sequence.trigger !== 'after-appointment' && <p style={s.text}>This trigger does not enrol clients. Create an appointment follow-up sequence to use a supported trigger.</p>}
+          {(Array.isArray(sequence.steps) ? sequence.steps : []).map((step, index) => <div key={index} style={s.message}><span style={s.meta}>Message {index + 1} · {typeof step.delay === 'string' ? delayLabel(step.delay) : 'No delay'}</span><p style={{ ...s.text, whiteSpace: 'pre-wrap' }}>{step.message || 'No message text'}</p></div>)}
+          <p style={s.text}>Pausing stops new enrolments. Clients already enrolled can still receive the remaining messages.</p>
+          <div style={s.tabs}>{(sequence.trigger === 'after-appointment' || sequence.active) && <Button variant="secondary" disabled={Boolean(pending)} onClick={() => toggle(sequence)}>{pending === sequence.id ? 'Saving…' : sequence.active ? 'Pause new enrolments' : 'Start new enrolments'}</Button>}<Button variant="danger" disabled={Boolean(pending)} onClick={() => remove(sequence)}>Delete sequence</Button></div>
+        </details>)}
+      </>}
+    </> : activityError ? <div role="alert"><ErrorCard message={activityError} /><Button onClick={load} variant="secondary">Retry</Button></div> : <><p style={s.text}>Recent Florrie activity across your business. Sequence delivery reports are unavailable.</p>{!actions.length ? <EmptyState icon="list" title="No recorded activity" subtitle="Recorded Florrie actions will appear here." /> : actions.map(action => <article key={action.id} style={s.card}><p style={{ ...s.text, color: 'var(--text-primary)' }}>{action.summary || 'Activity recorded'}</p><time style={s.meta}>{action.created_at ? new Date(action.created_at).toLocaleString('en-GB') : 'Date unavailable'}</time></article>)}</>}
+  </div>;
 }
+const s = {
+ page:{maxWidth:760,margin:'0 auto',padding:'20px 16px var(--scroll-pad-bottom,100px)',fontFamily:"'Plus Jakarta Sans',sans-serif",color:'var(--text-primary)'},
+ intro:{display:'flex',gap:18,padding:24,borderRadius:24,background:'var(--accent-wash,#FBF2F5)',border:'1px solid var(--border)',margin:'8px 0 16px',color:'var(--accent)'},
+ title:{fontFamily:"'Playfair Display',Georgia,serif",fontSize:25,fontWeight:500,margin:'0 0 10px',color:'var(--text-primary)'},
+ text:{fontSize:13,lineHeight:1.7,color:'var(--text-secondary)',margin:'8px 0 12px'},notice:{padding:18,border:'1px solid var(--border)',borderRadius:16,fontSize:13,background:'var(--tone-1,#fbf1ea)'},
+ tabs:{display:'flex',gap:10,flexWrap:'wrap',margin:'18px 0'},toolbar:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:10,flexWrap:'wrap',marginBottom:18},
+ card:{background:'var(--bg-card,#FFFCF9)',border:'1px solid var(--border)',borderRadius:20,padding:20,marginBottom:14},subtitle:{fontSize:18,margin:'0 0 12px'},
+ label:{display:'block',fontSize:12,fontWeight:600,marginBottom:14},input:{display:'block',boxSizing:'border-box',width:'100%',minHeight:44,padding:12,marginTop:8,border:'1px solid var(--border)',borderRadius:11,fontSize:13},step:{border:'1px solid var(--border)',borderRadius:14,padding:15,margin:'20px 0'},legend:{fontSize:12,fontWeight:700,padding:'0 6px'},
+ summary:{display:'flex',alignItems:'center',gap:12,justifyContent:'space-between',fontSize:14},meta:{display:'block',fontSize:11,lineHeight:1.6,color:'var(--text-secondary)',marginTop:6},badge:{fontSize:10,padding:'6px 8px',background:'var(--tone-1,#fbf1ea)',borderRadius:8},message:{borderTop:'1px solid var(--border)',paddingTop:12,marginTop:12},
+};

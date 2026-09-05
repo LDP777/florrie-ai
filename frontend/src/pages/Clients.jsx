@@ -1339,7 +1339,7 @@ function ClientDetailPanel({ detail, onClose, onNavigate, onChanged }) {
             {/* Consultation forms. She has been collecting allergy and medical
                 answers since April with nowhere to read them: the only
                 consultation screen in the app edits BLANK templates. */}
-            <ConsultationSection clientId={client?.id} data={detail.consultations} />
+            <ConsultationSection key={client?.id} clientId={client?.id} data={detail.consultations} />
 
             {daysSinceVisit !== null && (
               <div style={styles.lastVisitCard}>
@@ -1598,156 +1598,95 @@ function ClientDetailPanel({ detail, onClose, onNavigate, onChanged }) {
  * Nothing is fetched by token, nothing goes in a URL, nothing is logged.
  */
 function ConsultationSection({ clientId, data }) {
-  const [open, setOpen] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [sendResult, setSendResult] = useState(null);
-  const [signatures, setSignatures] = useState({}); // response id -> data url
-
-  // The endpoint failed or was never reached. Show nothing rather than
-  // "no consultation form yet", which would be a lie about medical records.
-  if (!data) return null;
-
-  const responses = data.responses || [];
-  const latest = responses[0] || null;
-  const flagged = latest ? (latest.worth_knowing || []) : [];
-
-  // completed_at is a real UTC instant (the moment they hit submit), not an
-  // appointment wall time, so it is safe to format with the local formatter.
-  // The slice(11,16) rule is for appointments.starts_at, not for this.
-  const dateLabel = ts => (ts
-    ? new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-    : 'date unknown');
-
-  async function handleSend() {
-    setSending(true);
-    setSendResult(null);
+  const navigate = useNavigate();
+  const [record, setRecord] = useState(data);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(data ? null : 'Could not load consultation records.');
+  const [notice, setNotice] = useState(null);
+  const [selectedForm, setSelectedForm] = useState('');
+  const [signatures, setSignatures] = useState({});
+  const [signatureErrors, setSignatureErrors] = useState({});
+  useEffect(() => { setRecord(data); setSelectedForm(''); setSignatures({}); setError(data ? null : 'Could not load consultation records.'); }, [clientId, data]);
+  const dateLabel = value => value ? new Date(value).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Date unavailable';
+  async function refresh() {
+    setBusy(true); setError(null);
     try {
-      const token = getToken();
+      const res = await fetch(`${API_BASE}/api/consultation-forms/responses/list?client_id=${encodeURIComponent(clientId)}`, { headers: { Authorization: `Bearer ${getToken()}` } });
+      if (!res.ok) throw new Error('Could not load consultation records.');
+      setRecord(await res.json());
+    } catch (err) { setError(err.message || 'Could not load consultation records.'); }
+    finally { setBusy(false); }
+  }
+  const templates = record?.templates || [];
+  const formId = selectedForm || templates.find(t => t.is_default)?.id || templates[0]?.id || '';
+  const pending = (record?.requests || []).some(r => r.form_id === formId && r.status === 'pending');
+  async function send() {
+    setBusy(true); setNotice(null); setError(null);
+    try {
       const res = await fetch(`${API_BASE}/api/consultation-forms/send`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ client_id: clientId }),
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ client_id: clientId, form_id: formId }),
       });
-      const body = await res.json().catch(() => ({}));
-      setSendResult(res.ok ? 'Sent. They get a text with the link.' : (body.error || 'Could not send it just now.'));
-    } catch {
-      setSendResult('Could not send it just now.');
-    } finally {
-      setSending(false);
-    }
+      const result = await res.json();
+      if (!res.ok || !result.sent) throw new Error(result.error || 'Could not send the form.');
+      setNotice('The text service accepted the form link.');
+      await refresh();
+    } catch (err) { setError(err.message || 'Could not send the form.'); }
+    finally { setBusy(false); }
   }
-
-  // The signature is a base64 image, so it is fetched only when she asks to
-  // see one, never shipped with the list.
-  async function loadSignature(responseId) {
-    if (signatures[responseId]) return;
+  async function loadSignature(id) {
+    setSignatureErrors(prev => ({ ...prev, [id]: null }));
     try {
-      const token = getToken();
-      const res = await fetch(`${API_BASE}/api/consultation-forms/responses/${responseId}`, {
-        headers: { Authorization: token ? `Bearer ${token}` : '' },
-      });
-      if (!res.ok) return;
+      const res = await fetch(`${API_BASE}/api/consultation-forms/responses/${id}`, { headers: { Authorization: `Bearer ${getToken()}` } });
+      if (!res.ok) throw new Error();
       const body = await res.json();
-      if (body.response?.signature_data) {
-        setSignatures(prev => ({ ...prev, [responseId]: body.response.signature_data }));
-      }
-    } catch { /* the signature just does not appear */ }
+      if (!body.response?.signature_data) throw new Error();
+      setSignatures(prev => ({ ...prev, [id]: body.response.signature_data }));
+    } catch { setSignatureErrors(prev => ({ ...prev, [id]: 'Could not load the signature. Try again.' })); }
   }
-
-  if (responses.length === 0) {
-    return (
-      <div style={styles.paymentsCard}>
-        <h4 style={{ ...styles.sectionLabel, margin: 0 }}>Consultation</h4>
-        <p style={{ ...styles.noHistory, marginTop: 8 }}>No consultation form yet</p>
-        {data.form_available && (
-          <>
-            <Button
-              fullWidth
-              onClick={handleSend}
-              disabled={sending}
-              style={{ marginTop: 10 }}
-            >
-              {sending ? 'Sending...' : 'Send them a form'}
-            </Button>
-            {sendResult && <p style={styles.consultSendResult}>{sendResult}</p>}
-          </>
-        )}
-      </div>
-    );
-  }
-
   return (
-    <div style={styles.paymentsCard}>
-      <button
-        onClick={() => setOpen(v => !v)}
-        aria-expanded={open}
-        style={styles.consultHeader}
-      >
-        <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2, minWidth: 0 }}>
-          <span style={styles.sectionLabel}>Consultation</span>
-          <span style={styles.consultDate}>
-            {latest.form_name} · {dateLabel(latest.completed_at)}
-          </span>
-        </span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          {flagged.length > 0 && (
-            <span style={styles.worthKnowingChip}>
-              {flagged.length} worth knowing
-            </span>
-          )}
-          <span style={styles.consultChevron}>{open ? '▲' : '▼'}</span>
-        </span>
-      </button>
-
-      {/* Anything flagged stays visible collapsed. The point of the flag is
-          that she does not have to go looking for it. */}
-      {!open && flagged.map((note, i) => (
-        <p key={i} style={styles.worthKnowingNote}>{note}</p>
-      ))}
-
-      {open && responses.map(r => (
-        <div key={r.id} style={styles.consultSubmission}>
-          <div style={styles.consultSubmissionHead}>
-            <span style={styles.consultFormName}>{r.form_name}</span>
-            <span style={styles.consultDate}>{dateLabel(r.completed_at)}</span>
-          </div>
-
-          {r.pairs.length === 0 && (
-            <p style={styles.noHistory}>This form came back empty.</p>
-          )}
-
-          {r.pairs.map(pair => (
-            <div key={pair.field_id} style={styles.consultPair}>
-              <span style={styles.consultQuestion}>{pair.question}</span>
-              <span style={{ ...styles.consultAnswer,
-                color: pair.answered ? 'var(--text-primary)' : 'var(--text-muted)',
-                fontStyle: pair.answered ? 'normal' : 'italic',
-              }}>
-                {pair.answered ? pair.answer : 'Not answered'}
-              </span>
-              {pair.worth_knowing && (
-                <span style={{ ...styles.worthKnowingChip, marginTop: 4, alignSelf: 'flex-start' }}>
-                  Worth knowing
-                </span>
-              )}
-              {pair.type === 'signature' && r.has_signature && (
-                signatures[r.id] ? (
-                  <img src={signatures[r.id]} alt="Client signature" style={styles.consultSignature} />
-                ) : (
-                  <button onClick={() => loadSignature(r.id)} style={styles.consultLinkBtn}>
-                    See the signature
-                  </button>
-                )
-              )}
-            </div>
-          ))}
-
-          {r.consent_text && (
-            <p style={styles.consultConsent}>{r.consent_text}</p>
-          )}
+    <section style={styles.paymentsCard} aria-label="Client care records">
+      <h4 style={{ ...styles.sectionLabel, margin: '0 0 12px' }}>Client care</h4>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
+        <Button onClick={() => navigate(`/patch-tests?clientId=${encodeURIComponent(clientId)}`)}>Patch tests</Button>
+        <Button onClick={() => navigate(`/photo-consent?clientId=${encodeURIComponent(clientId)}`)}>Photo consent</Button>
+      </div>
+      <h4 style={{ margin: '0 0 6px' }}>Consultation forms</h4>
+      <p style={styles.consultDate}>Read submitted answers, check requests and send a new form.</p>
+      {error && <div role="alert"><p>{error}</p><Button disabled={busy} onClick={refresh}>Retry records</Button></div>}
+      {notice && <p role="status" style={styles.consultSendResult}>{notice}</p>}
+      {record && <>
+        {!record.responses?.length && <p style={styles.noHistory}>No submitted answers available.</p>}
+        {(record.responses || []).map(r => <details key={r.id} style={styles.consultSubmission}>
+          <summary style={{ cursor: 'pointer', padding: '12px 0', minHeight: 44, boxSizing: 'border-box' }}>
+            <strong>{r.form_name}</strong><span style={{ display: 'block', marginTop: 4 }}>{dateLabel(r.completed_at)} · {r.has_signature ? 'Signed' : 'No signature recorded'}</span>
+            {!!r.worth_knowing?.length && <span style={styles.worthKnowingChip}>{r.worth_knowing.length} {r.worth_knowing.length === 1 ? 'answer' : 'answers'} to review</span>}
+          </summary>
+          {(r.worth_knowing || []).map((note, i) => <p key={i} style={styles.worthKnowingNote}>{note}</p>)}
+          {!r.pairs?.length && <p>No answers recorded.</p>}
+          {(r.pairs || []).filter(p => p.type !== 'signature').map(pair => <div key={pair.field_id} style={styles.consultPair}>
+            <span style={styles.consultQuestion}>{pair.question}</span>
+            <span style={{ ...styles.consultAnswer, overflowWrap: 'anywhere' }}>{pair.answered ? pair.answer : 'Not answered'}</span>
+          </div>)}
+          {r.consent_text && <div style={styles.consultConsent}><strong>Consent wording</strong><p style={{ whiteSpace: 'pre-wrap' }}>{r.consent_text}</p></div>}
+          {r.has_signature && (signatures[r.id] ? <img src={signatures[r.id]} alt="Client signature" style={styles.consultSignature} /> : <Button onClick={() => loadSignature(r.id)}>View signature</Button>)}
+          {signatureErrors[r.id] && <p role="alert">{signatureErrors[r.id]}</p>}
+        </details>)}
+        {!!record.requests?.length && <div style={{ marginTop: 18 }}><h5 style={{ margin: '0 0 8px' }}>Requests</h5>
+          {record.requests.map(r => <div key={r.id} style={{ padding: '10px 0', borderBottom: '1px solid var(--border-light)' }}>
+            <strong>{r.form_name}</strong><p style={{ ...styles.consultDate, margin: '4px 0' }}>{r.status === 'answers_removed' ? 'Answers no longer held' : r.status === 'expired' ? 'Link expired' : 'Awaiting response'} · Requested {dateLabel(r.sent_at)}{r.expires_at ? ` · Link expires ${dateLabel(r.expires_at)}` : ''}</p>
+          </div>)}
+        </div>}
+        <div style={{ marginTop: 18 }}>
+          {!!templates.length && <><label htmlFor={`consultation-template-${clientId}`} style={{ display: 'block', marginBottom: 6 }}>Send a form</label>
+            <select id={`consultation-template-${clientId}`} value={formId} onChange={e => setSelectedForm(e.target.value)} style={{ width: '100%', minHeight: 44, padding: 10, borderRadius: 10, marginBottom: 8, background: 'var(--bg-card)', color: 'var(--text-primary)', border: '1px solid var(--border-light)' }}>
+              {templates.map(t => <option key={t.id} value={t.id}>{t.name}{t.is_default ? ' (default)' : ''}</option>)}
+            </select>
+            <Button fullWidth disabled={busy || !formId || pending} onClick={send}>{busy ? 'Working…' : pending ? 'Already awaiting a response' : 'Send form by text'}</Button></>}
+          <button style={{ ...styles.consultLinkBtn, marginTop: 12, minHeight: 44 }} onClick={() => navigate('/consultation-forms')}>{templates.length ? 'Manage blank templates' : 'Create a form template'}</button>
         </div>
-      ))}
-    </div>
+      </>}
+    </section>
   );
 }
 

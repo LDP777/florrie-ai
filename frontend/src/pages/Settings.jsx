@@ -110,6 +110,9 @@ export default function Settings({ onLogout }) {
   const [igAwaitingReturn, setIgAwaitingReturn] = useState(false);
   // Bumping this re-runs the status check without touching the OAuth banner.
   const [igRecheck, setIgRecheck] = useState(0);
+  const [gcalDisconnecting, setGcalDisconnecting] = useState(false);
+  const [igDisconnecting, setIgDisconnecting] = useState(false);
+  const [disconnectError, setDisconnectError] = useState(null);
   // null = still checking; object = /api/instagram/status result;
   // { check_failed: true } = the check itself failed (network, 500).
   const [igStatus, setIgStatus] = useState(null);
@@ -289,16 +292,20 @@ export default function Settings({ onLogout }) {
   }
 
   async function handleDisconnectGoogleCal() {
+    if (gcalDisconnecting) return;
+    setGcalDisconnecting(true);
+    setDisconnectError(null);
     try {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
-      await fetch(`${API_BASE}/api/gcal/disconnect`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
+      if (!token) throw new Error('Please sign in again to disconnect Google Calendar.');
+      const response = await fetch(`${API_BASE}/api/gcal/disconnect`, {
+        method: 'POST', headers: { Authorization: `Bearer ${token}` },
       });
+      if (!response.ok) throw new Error('Could not disconnect Google Calendar. Try again.');
       await refresh();
-    } catch (err) {
-      logger.error('Google Cal disconnect error:', err);
-    }
+      setGcalBanner(null);
+    } catch (err) { setDisconnectError(err.message); }
+    finally { setGcalDisconnecting(false); }
   }
 
   /**
@@ -347,16 +354,21 @@ export default function Settings({ onLogout }) {
   }
 
   async function handleDisconnectInstagram() {
+    if (igDisconnecting) return;
+    setIgDisconnecting(true);
+    setDisconnectError(null);
     try {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
-      await fetch(`${API_BASE}/api/instagram/disconnect`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
+      if (!token) throw new Error('Please sign in again to disconnect Instagram.');
+      const response = await fetch(`${API_BASE}/api/instagram/disconnect`, {
+        method: 'POST', headers: { Authorization: `Bearer ${token}` },
       });
+      if (!response.ok) throw new Error('Could not disconnect Instagram. Try again.');
       await refresh();
-    } catch (err) {
-      logger.error('Instagram disconnect error:', err);
-    }
+      setIgStatus(null);
+      setIgBanner(null);
+    } catch (err) { setDisconnectError(err.message); }
+    finally { setIgDisconnecting(false); }
   }
 
   async function handleConnectStripe() {
@@ -1102,6 +1114,7 @@ export default function Settings({ onLogout }) {
             </p>
           </div>
 
+          {disconnectError && <p role="alert" style={{ color: 'var(--danger, #9E2B32)', fontSize: 13 }}>{disconnectError}</p>}
           {/* Google Calendar */}
           <div style={styles.card}>
             <div style={styles.calendarProviderRow}>
@@ -1117,9 +1130,10 @@ export default function Settings({ onLogout }) {
               {beautician.google_calendar_connected ? (
                 <button
                   onClick={handleDisconnectGoogleCal}
+                  disabled={gcalDisconnecting}
                   style={{ ...styles.connectBtn, background: 'var(--bg-hover)', color: 'var(--text-secondary)', border: '1.5px solid var(--border)' }}
                 >
-                  Disconnect
+                  {gcalDisconnecting ? 'Disconnecting…' : 'Disconnect'}
                 </button>
               ) : (
                 <Button
@@ -1755,9 +1769,10 @@ export default function Settings({ onLogout }) {
               {beautician.instagram_page_id ? (
                 <button
                   onClick={handleDisconnectInstagram}
+                  disabled={igDisconnecting}
                   style={{ ...styles.connectBtn, background: 'var(--bg-hover)', color: 'var(--text-secondary)', border: '1.5px solid var(--border)' }}
                 >
-                  Disconnect
+                  {igDisconnecting ? 'Disconnecting…' : 'Disconnect'}
                 </button>
               ) : (
                 <Button
@@ -1769,6 +1784,7 @@ export default function Settings({ onLogout }) {
                 </Button>
               )}
             </div>
+            {disconnectError && <p role="alert" style={{ color: 'var(--danger, #9E2B32)', fontSize: 13 }}>{disconnectError}</p>}
             {/* Expired token. The row above says so; this card explains what
                 stopped and gives her the one button that fixes it. Same OAuth
                 flow as first-time connect, so nothing new to learn.

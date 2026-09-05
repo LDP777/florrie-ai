@@ -9,6 +9,7 @@ import PlanGate from './components/PlanGate.jsx';
 import InstallPrompt from './components/InstallPrompt.jsx';
 import CoachNudge from './components/CoachNudge.jsx';
 import FloatingMic from './components/FloatingMic.jsx';
+import MoreSectionNav from './components/MoreSectionNav.jsx';
 import { isVoiceEnabled } from './lib/voicePref.js';
 import { CoachProvider } from './contexts/CoachContext.jsx';
 import { isIOSNative } from './lib/platform.js';
@@ -553,6 +554,7 @@ export default function App() {
           }}
           id="app-scroll"
         >
+          <MoreSectionNav />
           <Suspense fallback={<PageLoader />}>
             <Routes>
             <Route path="/" element={<Hub />} />

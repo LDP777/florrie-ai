@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, insertRow, updateRow } from '../lib/supabase.js';
+import { useBeautician, fetchRowsStrict, insertRow, updateRow } from '../lib/supabase.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
@@ -23,7 +23,7 @@ function normalisePlan(p, i) {
   return {
     id: p.id,
     name: p.name,
-    price: Math.round((p.price_cents || 0) / 100),
+    price: (p.price_cents || 0) / 100,
     interval: 'month', // client_memberships are billed monthly
     perks: benefits.filter(Boolean),
     color: p.color || PLAN_COLORS[i % PLAN_COLORS.length],
@@ -35,7 +35,7 @@ function normalisePlan(p, i) {
 function normaliseMember(m) {
   return {
     id: m.id,
-    name: m.client_name || m.clients?.first_name || 'Member',
+    name: m.client_name || [m.clients?.first_name, m.clients?.last_name].filter(Boolean).join(' ') || 'Member',
     plan: m.membership_id,
     started: m.started_at ? new Date(m.started_at).toLocaleDateString() : 'Not set',
     nextBill: m.next_billing_at ? new Date(m.next_billing_at).toLocaleDateString() : null,
@@ -52,27 +52,35 @@ export default function ClientMemberships() {
   const [members, setMembers] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [retry, setRetry] = useState(0);
+  const [updatingMember, setUpdatingMember] = useState(null);
   const [form, setForm] = useState({ name: '', price: '', interval: 'month', perks: '' });
 
   useEffect(() => {
     if (bLoading) return;
     if (!beautician) { setPlans([]); setMembers([]); setLoaded(true); return; }
+    setLoaded(false); setLoadFailed(false); setError(null);
     Promise.all([
-      fetchRows('client_memberships', beautician.id, { order: 'price_cents', ascending: true }),
-      fetchRows('membership_subscriptions', beautician.id, { order: 'created_at', ascending: false }),
+      fetchRowsStrict('client_memberships', beautician.id, { order: 'price_cents', ascending: true }),
+      fetchRowsStrict('membership_subscriptions', beautician.id, { select: '*, clients(first_name, last_name)', order: 'created_at', ascending: false }),
     ]).then(([p, m]) => {
       setPlans((p || []).map(normalisePlan));
       setMembers((m || []).map(normaliseMember));
       setLoaded(true);
     }).catch(() => {
+      setLoadFailed(true); setError('Could not load memberships. Try again.');
       // Never leave the page stuck on the loader if a fetch fails.
       setPlans([]);
       setMembers([]);
       setLoaded(true);
     });
-  }, [beautician, bLoading]);
+  }, [beautician, bLoading, retry]);
 
   if (bLoading || !loaded) return <PageLoader />;
+
+  if (loadFailed) return <div style={s.page}><PageHeader title="Memberships" /><ErrorCard message={error} /><button className="fl-tap" onClick={() => setRetry(n => n + 1)}>Try again</button></div>;
 
   const activeMembers = members.filter(m => m.status === 'active').length;
   const monthlyRecurring = members.filter(m => m.status === 'active').reduce((s, m) => {
@@ -81,7 +89,9 @@ export default function ClientMemberships() {
   }, 0);
 
   async function handleCreatePlan() {
-    if (!form.name.trim() || !form.price) return;
+    if (saving || !form.name.trim() || !form.price) return;
+    if (!Number.isFinite(Number(form.price)) || Number(form.price) <= 0) { setError('Enter a price greater than £0.'); return; }
+    setError(null);
     setSaving(true);
     const perks = form.perks.split('\n').map(x => x.trim()).filter(Boolean);
     const row = {
@@ -96,29 +106,33 @@ export default function ClientMemberships() {
       setPlans(prev => [...prev, normalisePlan(saved, prev.length)]);
       setForm({ name: '', price: '', interval: 'month', perks: '' });
       setShowCreate(false);
-    } catch (e) { /* insertRow already logs */ }
+    } catch (e) { setError('Could not create this plan. Your details are still here.'); }
     finally { setSaving(false); }
   }
 
   async function updateMemberStatus(id, status) {
-    setMembers(prev => prev.map(m => m.id === id ? { ...m, status } : m));
+    if (updatingMember) return;
+    setUpdatingMember(id); setError(null);
     try {
       const updates = { status };
       if (status === 'cancelled') updates.cancelled_at = new Date().toISOString();
       await updateRow('membership_subscriptions', id, updates);
-    } catch (e) { /* updateRow already logs */ }
+      setMembers(prev => prev.map(m => m.id === id ? { ...m, status } : m));
+    } catch (e) { setError('Could not update this membership. Please try again.'); }
+    finally { setUpdatingMember(null); }
   }
 
   return (
     <div style={s.page}>
-      <PageHeader title="Memberships" subtitle="Subscription plans and recurring revenue" />
+      <PageHeader title="Memberships" subtitle="Plans, members and monthly value" />
+      {error && <ErrorCard message={error} onDismiss={() => setError(null)} />}
 
       {/* Revenue hero */}
       <div style={s.heroCard}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
           <div>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', marginBottom: 4 }}>Monthly Recurring</div>
-            <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--bg-card, #FFFCF9)' }}>£{Math.round(monthlyRecurring)}<span style={{ fontSize: 14, fontWeight: 400, opacity: 0.7 }}>/mo</span></div>
+            <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--bg-card, #FFFCF9)' }}>£{monthlyRecurring.toFixed(2)}<span style={{ fontSize: 14, fontWeight: 400, opacity: 0.7 }}>/mo</span></div>
           </div>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--bg-card, #FFFCF9)' }}>{activeMembers}</div>
@@ -156,7 +170,7 @@ export default function ClientMemberships() {
                   <div style={{ fontSize: 12, color: 'var(--text-muted, #6B5D54)' }}>{members.filter(m => m.plan === plan.id && m.status === 'active').length} members</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <span style={{ fontSize: 24, fontWeight: 700, color: plan.color }}>£{plan.price}</span>
+                  <span style={{ fontSize: 24, fontWeight: 700, color: plan.color }}>£{plan.price.toFixed(2)}</span>
                   <span style={{ fontSize: 12, color: 'var(--text-muted, #6B5D54)' }}>/{plan.interval}</span>
                 </div>
               </div>
@@ -182,7 +196,7 @@ export default function ClientMemberships() {
               <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>New Membership Plan</div>
               <input type="text" placeholder="Plan name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} style={s.input} />
               <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                <input type="number" placeholder="Price" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} style={{ ...s.input, flex: 1 }} />
+                <input type="number" min="0.01" step="0.01" placeholder="Price (£)" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} style={{ ...s.input, flex: 1 }} />
                 <select value={form.interval} onChange={e => setForm({ ...form, interval: e.target.value })} style={{ ...s.input, width: 120 }}>
                   <option value="month">Monthly</option>
                 </select>
@@ -227,9 +241,9 @@ export default function ClientMemberships() {
                     <div style={s.detailRow}><span style={s.detailLabel}>Started</span><span>{member.started}</span></div>
                     <div style={s.detailRow}><span style={s.detailLabel}>Next bill</span><span>{member.nextBill || 'Not set'}</span></div>
                     <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                      {member.status === 'active' && <button onClick={e => { e.stopPropagation(); updateMemberStatus(member.id, 'paused'); }} style={s.smallBtn}>Pause</button>}
-                      {member.status === 'paused' && <button onClick={e => { e.stopPropagation(); updateMemberStatus(member.id, 'active'); }} style={{ ...s.smallBtn, color: 'var(--success, #386F52)' }}>Resume</button>}
-                      {member.status !== 'cancelled' && <button onClick={e => { e.stopPropagation(); updateMemberStatus(member.id, 'cancelled'); }} style={{ ...s.smallBtn, color: 'var(--danger, #9E2B32)' }}>Cancel</button>}
+                      {member.status === 'active' && <button disabled={!!updatingMember} onClick={e => { e.stopPropagation(); updateMemberStatus(member.id, 'paused'); }} style={s.smallBtn}>Pause</button>}
+                      {member.status === 'paused' && <button disabled={!!updatingMember} onClick={e => { e.stopPropagation(); updateMemberStatus(member.id, 'active'); }} style={{ ...s.smallBtn, color: 'var(--success, #386F52)' }}>Resume</button>}
+                      {member.status !== 'cancelled' && <button disabled={!!updatingMember} onClick={e => { e.stopPropagation(); updateMemberStatus(member.id, 'cancelled'); }} style={{ ...s.smallBtn, color: 'var(--danger, #9E2B32)' }}>Cancel</button>}
                     </div>
                   </div>
                 )}

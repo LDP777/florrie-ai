@@ -23,6 +23,7 @@ import http from 'node:http';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 import { launch } from './lib/browser.mjs';
+import { careFixtureSource } from './lib/care-fixtures.mjs';
 import { fetchStubSource, sessionSeedSource, WRONG_SCREEN_PROBE } from './lib/fixtures.mjs';
 
 const DIST = new URL('../dist', import.meta.url).pathname;
@@ -101,6 +102,7 @@ const bundleUrl = (() => {
   return 'https://placeholder.supabase.co';
 })();
 await ctx.addInitScript(sessionSeedSource(bundleUrl));
+await ctx.addInitScript(`if (['/compliance', '/patch-tests', '/photo-consent', '/consultation-forms'].includes(location.pathname)) { ${careFixtureSource(bundleUrl)} }`);
 const page = await ctx.newPage();
 
 /**

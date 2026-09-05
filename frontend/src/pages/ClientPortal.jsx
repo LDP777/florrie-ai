@@ -1,362 +1,75 @@
-import { useState, useEffect, useRef } from 'react';
-import { useBeautician, supabase, fetchRows, updateRow } from '../lib/supabase.js';
-import logger from '../lib/logger.js';
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useBeautician } from '../lib/supabase.js';
 import PageLoader from '../components/PageLoader.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
-import Icon, { iconName } from '../components/ui/Icon';
+import Icon from '../components/ui/Icon';
+import Button from '../components/ui/Button.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
-/**
- * ClientPortal - Booking page settings + share tools.
- *
- * Tabs: Overview (real stats), Branding (saves to booking_policy.portal), Features (saves too)
- * URL is florrie.ai/book/{slug} - the actual public booking page.
- * Config is persisted in beautician.booking_policy.portal JSONB key.
- */
-
-const FEATURE_LIST = [
-  { key: 'bookOnline', label: 'Online booking', icon: 'calendar', desc: 'Clients can book appointments from your page' },
-  { key: 'cancelReschedule', label: 'Cancel / reschedule', icon: 'refresh', desc: 'Clients can manage bookings via their confirmation link' },
-  { key: 'viewLoyalty', label: 'Loyalty & rewards', icon: 'badge', desc: 'Loyalty points and tier shown on booking confirmation' },
-  { key: 'referFriend', label: 'Refer a friend', icon: '🤝', desc: 'Clients can share your referral link to earn rewards' },
-  { key: 'leaveReview', label: 'Leave a review', icon: 'star', desc: 'Post-appointment review request sent automatically' },
-  { key: 'viewAftercare', label: 'Aftercare instructions', icon: 'flower', desc: 'Aftercare docs sent after treatment' },
-];
-
-const ACCENT_COLOURS = [
-  '#C76B8A', '#6B8AC7', '#8AC76B', '#C7A86B', '#8B6BC7', '#2D2A26',
-];
-
-const DEFAULT_PORTAL = {
-  enabled: true,
-  welcomeMessage: 'Book your next appointment',
-  accentColour: '#C76B8A',
-  showLogo: true,
-  features: {
-    bookOnline: true,
-    cancelReschedule: true,
-    viewLoyalty: true,
-    referFriend: true,
-    leaveReview: true,
-    viewAftercare: true,
-  },
-};
 
 export default function ClientPortal() {
-  const [activeTab, setActiveTab] = useState('overview');
-  const { beautician, loading: bLoading, refresh } = useBeautician();
-
-  const [portal, setPortal] = useState(DEFAULT_PORTAL);
-  const [clientCount, setClientCount] = useState(null);
-  const [apptCount, setApptCount] = useState(null);
-  const [recentAppts, setRecentAppts] = useState([]);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (bLoading || !beautician) return;
-    // Hydrate portal config from booking_policy.portal
-    const saved = beautician.booking_policy?.portal;
-    if (saved) setPortal(p => ({ ...DEFAULT_PORTAL, ...saved, features: { ...DEFAULT_PORTAL.features, ...saved.features } }));
-    loadStats();
-  }, [beautician, bLoading]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  async function loadStats() {
-    setLoading(true);
+  const { beautician, loading } = useBeautician();
+  const [copyState, setCopyState] = useState('idle');
+  const [error, setError] = useState(null);
+  if (loading) return <PageLoader />;
+  const slug = beautician?.booking_slug;
+  const bookingUrl = slug ? `https://florrie.ai/book/${encodeURIComponent(slug)}` : null;
+  async function copyLink() {
+    setCopyState('copying'); setError(null);
     try {
-      const { count: clientsCount } = await supabase
-        .from('clients')
-        .select('id', { count: 'exact', head: true })
-        .eq('beautician_id', beautician.id);
-      setClientCount(clientsCount ?? 0);
-
-      const { data: appts, count } = await supabase
-        .from('appointments')
-        .select('id, starts_at, status, treatments(name), clients(first_name, last_name)', { count: 'exact' })
-        .eq('beautician_id', beautician.id)
-        .order('created_at', { ascending: false })
-        .limit(5);
-      setApptCount(count ?? 0);
-      setRecentAppts(appts || []);
-    } catch (err) {
-      logger.error('Portal stats error:', err);
-    } finally {
-      setLoading(false);
-    }
+      await navigator.clipboard.writeText(bookingUrl);
+      setCopyState('copied');
+    } catch { setCopyState('idle'); setError('Could not copy the link. Select the address below and copy it.'); }
   }
-
-  async function savePortal(updates) {
-    if (!beautician) return;
-    const next = { ...portal, ...updates };
-    setPortal(next);
-    setSaving(true);
-    try {
-      await updateRow('beauticians', beautician.id, {
-        booking_policy: { ...(beautician.booking_policy || {}), portal: next },
-      });
-      await refresh();
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    } catch (err) {
-      logger.error('Save portal error:', err);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  function toggleFeature(key) {
-    savePortal({ features: { ...portal.features, [key]: !portal.features[key] } });
-  }
-
-  const bookingUrl = `https://florrie.ai/book/${beautician?.booking_slug || ''}`;
-
-  function handleCopy() {
-    navigator.clipboard?.writeText(bookingUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
-  function handleWhatsApp() {
-    const msg = encodeURIComponent(`Book your next appointment with me here: ${bookingUrl}`);
-    window.open(`https://wa.me/?text=${msg}`, '_blank');
-  }
-
-  function handleEmail() {
-    const subject = encodeURIComponent('Book an appointment');
-    const body = encodeURIComponent(`Hi,\n\nYou can book your next appointment here:\n${bookingUrl}\n\nLooking forward to seeing you!`);
-    window.location.href = `mailto:?subject=${subject}&body=${body}`;
-  }
-
-  function handleQR() {
-    window.open(`https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(bookingUrl)}&size=300x300`, '_blank');
-  }
-
-  if (bLoading || loading) return <PageLoader />;
-  if (!beautician) return <ErrorCard message="Could not load profile." onDismiss={() => {}} />;
-
-  const tabs = [
-    { id: 'overview', label: 'Overview' },
-    { id: 'branding', label: 'Branding' },
-    { id: 'features', label: 'Features' },
-  ];
-
-  return (
-    <div style={s.page}>
-      <PageHeader
-        title="Client Portal"
-        subtitle="Your public booking page"
-        action={(
-          <button
-            onClick={() => savePortal({ enabled: !portal.enabled })}
-            style={{ ...s.toggle, background: portal.enabled ? 'var(--accent, #92405e)' : '#E8E4E0' }}
-          >
-            <div style={{ ...s.toggleDot, transform: portal.enabled ? 'translateX(18px)' : 'translateX(0)' }} />
-          </button>
-        )}
-      />
-
-      {saved && <div style={s.savedBanner}>Saved ✓</div>}
-
-      {/* Booking link card */}
-      <div style={s.linkCard}>
-        <div style={s.linkLabel}>Your booking page</div>
-        <div style={s.linkRow}>
-          <div style={s.linkUrl}>{bookingUrl}</div>
-          <button onClick={handleCopy} style={s.copyBtn}>{copied ? 'Copied' : '📋 Copy'}</button>
-        </div>
-        <div style={s.shareRow}>
-          <button onClick={handleWhatsApp} style={s.shareBtn}><Icon name="message" size={14} inline /> WhatsApp</button>
-          <button onClick={handleEmail} style={s.shareBtn}><Icon name="mail" size={14} inline /> Email</button>
-          <button onClick={handleQR} style={s.shareBtn}><Icon name="link" size={14} inline /> QR Code</button>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div style={s.tabs}>
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            style={{ ...s.tab, ...(activeTab === tab.id ? s.tabActive : {}) }}
-          >{tab.label}</button>
-        ))}
-      </div>
-
-      {/* Overview */}
-      {activeTab === 'overview' && (
-        <div>
-          <div style={s.statsGrid}>
-            <div style={s.statCard}>
-              <div style={s.statValue}>{clientCount ?? '-'}</div>
-              <div style={s.statLabel}>Total clients</div>
-            </div>
-            <div style={s.statCard}>
-              <div style={s.statValue}>{apptCount ?? '-'}</div>
-              <div style={s.statLabel}>Appointments</div>
-            </div>
+  return <div className="booking-tools" style={s.page}>
+    <style>{`.booking-tools a:focus-visible,.booking-tools input:focus-visible{outline:3px solid var(--accent);outline-offset:4px}.booking-tools .booking-tool:hover{background:var(--tone-1,#fbf1ea)}.booking-tools a{text-decoration:none}.booking-tools *{box-sizing:border-box}`}</style>
+    <PageHeader title="Booking page" eyebrow="Business setup" subtitle="Share your link and keep your booking details up to date." />
+    {!beautician ? <ErrorCard message="Your business profile is unavailable. Reload to try again." /> : <>
+      <section style={s.hero}>
+        <span style={s.eyebrow}>Your public page</span>
+        <h2 style={s.title}>{beautician.business_name || beautician.first_name || 'Your business'}</h2>
+        {bookingUrl ? <>
+          <label htmlFor="public-booking-link" style={s.label}>Booking link</label>
+          <input id="public-booking-link" readOnly value={bookingUrl} onFocus={event => event.target.select()} style={s.input} />
+          <div style={s.actions}>
+            <Button onClick={copyLink} disabled={copyState === 'copying'}>{copyState === 'copied' ? 'Copied' : copyState === 'copying' ? 'Copying…' : 'Copy link'}</Button>
+            <Button as="a" href={bookingUrl} target="_blank" rel="noopener noreferrer" variant="secondary">Open booking page <Icon name="external-link" size={15} /></Button>
           </div>
-
-          <div style={s.card}>
-            <div style={s.cardTitle}>Recent bookings</div>
-            {recentAppts.length === 0 ? (
-              <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '8px 0 0' }}>
-                No bookings yet. Share your link to get your first one.
-              </p>
-            ) : (
-              recentAppts.map((a, i) => (
-                <div key={i} style={s.apptRow}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
-                      {a.clients?.first_name} {a.clients?.last_name}
-                    </div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                      {a.treatments?.name} · {new Date(a.starts_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}
-                    </div>
-                  </div>
-                  <div style={{ ...s.statusChip, background: a.status === 'confirmed' ? '#E8F5E9' : '#FFF8E1', color: a.status === 'confirmed' ? '#2c7130' : '#a35300' }}>
-                    {a.status}
-                  </div>
-                </div>
-              ))
-            )}
+          {copyState === 'copied' && <p role="status" style={s.note}>Booking link copied.</p>}
+          {error && <div role="alert" style={{ marginTop: 14 }}><ErrorCard message={error} /></div>}
+          <div style={s.share}>
+            <Button as="a" variant="quiet" size="sm" href={`https://wa.me/?text=${encodeURIComponent(`Book your next appointment here: ${bookingUrl}`)}`} target="_blank" rel="noopener noreferrer">WhatsApp</Button>
+            <Button as="a" variant="quiet" size="sm" href={`mailto:?subject=Book%20an%20appointment&body=${encodeURIComponent(`You can book your next appointment here:\n${bookingUrl}`)}`}>Email</Button>
+            <Button as="a" variant="quiet" size="sm" href={`https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(bookingUrl)}&size=300x300`} target="_blank" rel="noopener noreferrer">Open QR code</Button>
           </div>
-        </div>
-      )}
-
-      {/* Branding */}
-      {activeTab === 'branding' && (
-        <div>
-          <div style={s.card}>
-            <div style={s.cardTitle}>Welcome message</div>
-            <input
-              type="text"
-              value={portal.welcomeMessage}
-              onChange={e => setPortal(p => ({ ...p, welcomeMessage: e.target.value }))}
-              onBlur={() => savePortal({})}
-              style={s.textInput}
-              placeholder="Book your next appointment"
-            />
-          </div>
-
-          <div style={s.card}>
-            <div style={s.cardTitle}>Accent colour</div>
-            <div style={s.colourRow}>
-              {ACCENT_COLOURS.map(col => (
-                <button
-                  key={col}
-                  onClick={() => savePortal({ accentColour: col })}
-                  style={{ ...s.colourChip, background: col, border: portal.accentColour === col ? '3px solid var(--text-primary)' : '3px solid transparent' }}
-                />
-              ))}
-            </div>
-          </div>
-
-          <div style={s.card}>
-            <div style={s.toggleRow}>
-              <span style={{ fontSize: 14, color: 'var(--text-primary)' }}>Show logo on booking page</span>
-              <button
-                onClick={() => savePortal({ showLogo: !portal.showLogo })}
-                style={{ ...s.toggle, background: portal.showLogo ? 'var(--accent, #92405e)' : '#E8E4E0' }}
-              >
-                <div style={{ ...s.toggleDot, transform: portal.showLogo ? 'translateX(18px)' : 'translateX(0)' }} />
-              </button>
-            </div>
-          </div>
-
-          {/* Live preview */}
-          <div style={s.previewLabel}>Preview</div>
-          <div style={s.phoneFrame}>
-            <div style={s.phoneScreen}>
-              <div style={{ textAlign: 'center', padding: '20px 16px' }}>
-                {portal.showLogo && beautician.logo_url && (
-                  <img src={beautician.logo_url} alt="Logo" style={{ width: 48, height: 48, borderRadius: 10, objectFit: 'cover', marginBottom: 8 }} />
-                )}
-                {portal.showLogo && !beautician.logo_url && (
-                  <div style={{ fontSize: 20, fontWeight: 700, color: portal.accentColour, marginBottom: 8 }}>{beautician.business_name || 'florrie'}</div>
-                )}
-                <div style={{ fontSize: 13, color: 'var(--text-primary, #241B17)', marginBottom: 16 }}>{portal.welcomeMessage}</div>
-                <div style={{ background: portal.accentColour, color: '#fff', padding: '12px 24px', borderRadius: 10, fontSize: 13, fontWeight: 600 }}>Book Now</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Features */}
-      {activeTab === 'features' && (
-        <div>
-          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12, marginTop: 0 }}>
-            Control what clients can do from your booking page and confirmation links.
-          </p>
-          {FEATURE_LIST.map(f => (
-            <div key={f.key} style={s.featureRow}>
-              <span style={{ fontSize: 18 }}><Icon name={iconName(f.icon)} inline /></span>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)' }}>{f.label}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{f.desc}</div>
-              </div>
-              <button
-                onClick={() => toggleFeature(f.key)}
-                style={{ ...s.toggle, background: portal.features[f.key] ? 'var(--accent, #92405e)' : '#E8E4E0' }}
-              >
-                <div style={{ ...s.toggleDot, transform: portal.features[f.key] ? 'translateX(18px)' : 'translateX(0)' }} />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+        </> : <><p style={s.note}>Set up your booking link before you share it with clients.</p><Button as={Link} to="/setup" variant="secondary">Open setup guide</Button></>}
+      </section>
+      <h2 style={s.sectionTitle}>Prepare your page</h2>
+      <p style={s.note}>Manage the details clients use when they book.</p>
+      <div style={s.list}>{[
+        ['/treatments', 'flower', 'Treatments & prices', 'Choose the services clients can book.'],
+        ['/settings?section=hours', 'clock', 'Regular opening hours', 'Set your usual weekly availability.'],
+        ['/hours', 'calendar', 'Holidays & closures', 'Add dates when your usual hours change.'],
+        ['/settings?section=policy', 'shield', 'Booking policies', 'Set notice periods, deposits and cancellation rules.'],
+        ['/settings', 'settings', 'Business details', 'Update your business name and contact details.'],
+      ].map(([path, icon, title, description]) => <Link key={path} to={path} className="booking-tool" style={s.row}><span style={s.icon}><Icon name={icon} size={21} /></span><span style={{ flex: 1, minWidth: 0 }}><span style={s.rowTitle}>{title}</span><span style={s.rowDescription}>{description}</span></span><Icon name="chevron-right" size={19} /></Link>)}</div>
+    </>}
+  </div>;
 }
-
 const s = {
-  page: { padding: '16px 16px 24px', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 480, margin: '0 auto' },
-  savedBanner: { background: 'var(--success, #386F52)', color: '#fff', borderRadius: 10, padding: '8px 14px', fontSize: 13, fontWeight: 600, marginBottom: 12, textAlign: 'center' },
-
-  linkCard: { background: 'linear-gradient(135deg, #B9466D 0%, #A85575 100%)', borderRadius: 16, padding: 16, marginBottom: 16, color: '#fff' },
-  linkLabel: { fontSize: 11, opacity: 0.8, marginBottom: 6 },
-  linkRow: { display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 },
-  // Every chip on this card lifted itself off the gradient with a white wash,
-  // which is the one direction that cannot work under white text: the wash
-  // lightens the ground the text has to beat. The booking URL read 3.76:1,
-  // Copy 3.14:1 and the three share buttons 4.13:1 — the whole card, including
-  // the link Ellie is meant to send her clients. Washing the same amounts in
-  // black instead keeps each chip's relative weight and takes them to 6.41:1,
-  // 7.60:1 and 5.86:1 on the pale end of the gradient.
-  linkUrl: { flex: 1, fontSize: 12, background: 'rgba(0,0,0,0.15)', borderRadius: 10, padding: '8px 10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  copyBtn: { padding: '8px 12px', borderRadius: 10, border: 'none', background: 'rgba(0,0,0,0.25)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 },
-  shareRow: { display: 'flex', gap: 8 },
-  shareBtn: { flex: 1, padding: '8px 0', borderRadius: 10, border: '1px solid rgba(255,255,255,0.3)', background: 'rgba(0,0,0,0.1)', color: '#fff', fontSize: 11, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
-
-  tabs: { display: 'flex', gap: 4, marginBottom: 16, background: '#F0ECE8', borderRadius: 10, padding: 4 },
-  tab: { flex: 1, padding: '8px 0', fontSize: 12, fontWeight: 500, border: 'none', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', background: 'none', color: '#6B6560' },
-  tabActive: { background: 'var(--bg-card, #FFFCF9)', color: 'var(--text-primary)', boxShadow: 'var(--elev-1)' },
-
-  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 16 },
-  statCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 10, padding: 16, border: '1px solid var(--border, #E8DDD4)', textAlign: 'center' },
-  statValue: { fontSize: 28, fontWeight: 700, color: 'var(--text-primary)' },
-  statLabel: { fontSize: 11, color: 'var(--text-muted)', marginTop: 2 },
-
-  card: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: 16, border: '1px solid var(--border, #E8DDD4)', marginBottom: 12 },
-  cardTitle: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 10 },
-  apptRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--border-light, #ede7e3)' },
-  statusChip: { fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 'var(--radius-xs)', textTransform: 'capitalize' },
-
-  textInput: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border, #E8DDD4)', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: 'var(--bg, #FBF6F1)', color: 'var(--text-primary)' },
-  colourRow: { display: 'flex', gap: 8 },
-  colourChip: { width: 32, height: 32, borderRadius: 10, cursor: 'pointer', flexShrink: 0 },
-  toggleRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-
-  toggle: { width: 42, height: 24, borderRadius: 10, border: 'none', cursor: 'pointer', position: 'relative', flexShrink: 0, transition: 'background 0.2s' },
-  toggleDot: { width: 20, height: 20, borderRadius: 10, background: '#fff', position: 'absolute', top: 2, left: 2, transition: 'transform 0.2s', boxShadow: 'var(--elev-1)' },
-
-  previewLabel: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 10, marginTop: 4 },
-  // The bezel of a phone, not a surface of the app, so it uses the ink token
-  // and stays dark in dark mode. A theme-aware background here paints a white
-  // phone around a cream screen and the preview stops reading as a device.
-  phoneFrame: { background: 'var(--surface-inverse)', borderRadius: 22, padding: 8, maxWidth: 240, margin: '0 auto 16px' },
-  phoneScreen: { background: 'var(--bg, #FBF6F1)', borderRadius: 16, minHeight: 220, overflow: 'hidden' },
-
-  featureRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--border-light, #ede7e3)' },
+  page: { maxWidth: 760, margin: '0 auto', padding: '20px 16px var(--scroll-pad-bottom,100px)', color: 'var(--text-primary)', fontFamily: "'Plus Jakarta Sans', sans-serif" },
+  hero: { background: 'var(--accent-wash,#FBF2F5)', border: '1px solid var(--border)', borderRadius: 24, padding: 23, margin: '8px 0 28px' },
+  eyebrow: { fontSize: 10, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--accent)' },
+  title: { fontFamily: "'Playfair Display',Georgia,serif", fontSize: 27, fontWeight: 500, margin: '9px 0 22px' },
+  label: { display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 8 },
+  input: { width: '100%', minHeight: 48, border: '1px solid var(--border)', borderRadius: 12, padding: 12, fontFamily: 'inherit', fontSize: 13, color: 'var(--text-primary)', background: 'var(--bg-card,#FFFCF9)' },
+  actions: { display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 14 },
+  share: { display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 14, borderTop: '1px solid var(--border)', paddingTop: 8 },
+  note: { fontSize: 13, lineHeight: 1.6, color: 'var(--text-secondary)', margin: '8px 0 16px' },
+  sectionTitle: { fontSize: 17, margin: 0 },
+  list: { border: '1px solid var(--border)', borderRadius: 20, overflow: 'hidden', background: 'var(--bg-card,#FFFCF9)' },
+  row: { display: 'flex', alignItems: 'center', gap: 14, padding: 18, borderBottom: '1px solid var(--border)', color: 'var(--text-primary)' },
+  icon: { width: 42, height: 42, flexShrink: 0, borderRadius: 13, background: 'var(--tone-1,#fbf1ea)', color: 'var(--accent)', display: 'grid', placeItems: 'center' },
+  rowTitle: { display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 5 },
+  rowDescription: { display: 'block', fontSize: 12, lineHeight: 1.5, color: 'var(--text-secondary)' },
 };

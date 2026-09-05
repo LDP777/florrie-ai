@@ -22,6 +22,7 @@ export default function ConsultationFormPublic() {
   const { token } = useParams();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [submitError, setSubmitError] = useState(null);
   const [completed, setCompleted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [validationErrors, setValidationErrors] = useState([]);
@@ -74,20 +75,19 @@ export default function ConsultationFormPublic() {
   // Submit
   async function handleSubmit() {
     // Validate required fields
+    setSubmitError(null);
     const missing = [];
     for (const field of (form?.fields || [])) {
       if (!field.required || field.type === 'text_block') continue;
+      if (field.type === 'signature') {
+        if (!signatureData) missing.push(field.id);
+        continue;
+      }
       const val = answers[field.id];
-      if (val === undefined || val === null || val === '' ||
+      if ((field.type === 'checkbox' && val !== true) || val === undefined || val === null || val === '' ||
           (Array.isArray(val) && val.length === 0)) {
         missing.push(field.id);
       }
-    }
-
-    // Check signature if there's a signature field
-    const hasSignatureField = form?.fields?.some(f => f.type === 'signature');
-    if (hasSignatureField && !signatureData) {
-      missing.push('signature');
     }
 
     if (missing.length > 0) {
@@ -110,10 +110,10 @@ export default function ConsultationFormPublic() {
       if (res.ok) {
         setCompleted(true);
       } else {
-        setError(data.error || 'Failed to submit form');
+        setSubmitError(data.error || 'Failed to submit form. Please try again.');
       }
     } catch {
-      setError('Connection error. Please try again.');
+      setSubmitError('Connection error. Your answers are still here. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -179,6 +179,8 @@ export default function ConsultationFormPublic() {
         )}
       </div>
 
+      {submitError && <p role="alert" style={styles.errorCard}>{submitError}</p>}
+
       {/* Fields */}
       <div style={styles.fields}>
         {(form?.fields || []).map(field => (
@@ -191,7 +193,7 @@ export default function ConsultationFormPublic() {
           >
             {/* Field label */}
             {field.type !== 'signature' && (
-              <label style={styles.fieldLabel}>
+              <label htmlFor={`answer-${field.id}`} style={styles.fieldLabel}>
                 {field.label}
                 {field.required && <span style={styles.required}> *</span>}
               </label>
@@ -200,6 +202,7 @@ export default function ConsultationFormPublic() {
             {/* Text input */}
             {field.type === 'text' && (
               <input
+                id={`answer-${field.id}`}
                 style={styles.textInput}
                 value={answers[field.id] || ''}
                 onChange={e => setAnswer(field.id, e.target.value)}
@@ -288,9 +291,11 @@ export default function ConsultationFormPublic() {
             {field.type === 'signature' && (
               <SignaturePad
                 brandColor={brandColor}
+                required={field.required}
+                label={field.label}
                 value={signatureData}
-                onChange={setSignatureData}
-                hasError={validationErrors.includes('signature')}
+                onChange={value => { setSignatureData(value); if (value) setValidationErrors(prev => prev.filter(id => id !== field.id)); }}
+                hasError={validationErrors.includes(field.id)}
               />
             )}
           </div>
@@ -317,7 +322,7 @@ export default function ConsultationFormPublic() {
           and who can see it. The salon's own consent_text above is optional
           and many forms have none, so this line is always shown. */}
       <p style={styles.privacyNote}>
-        This form asks about allergies and medical conditions so your treatment is safe.
+        Your salon asks about allergies and medical conditions to help prepare for your treatment.
         It is stored securely and only your salon can see it.{' '}
         <a href="/privacy" style={styles.privacyLink} target="_blank" rel="noopener noreferrer">Privacy Policy</a>
       </p>
@@ -337,7 +342,7 @@ export default function ConsultationFormPublic() {
   );
 }
 
-function SignaturePad({ brandColor, value, onChange, hasError }) {
+function SignaturePad({ brandColor, value, onChange, hasError, required = false, label = 'Signature' }) {
   const canvasRef = useRef(null);
   const [drawing, setDrawing] = useState(false);
   const [hasDrawn, setHasDrawn] = useState(false);
@@ -388,10 +393,11 @@ function SignaturePad({ brandColor, value, onChange, hasError }) {
 
   return (
     <div style={{ ...styles.sigContainer, ...(hasError ? { borderColor: '#e74c3c' } : {}) }}>
-      <label style={styles.fieldLabel}>
-        Signature <span style={styles.required}>*</span>
-      </label>
+      <div style={styles.fieldLabel}>
+        {label}{required && <span style={styles.required}> *</span>}
+      </div>
       <canvas
+        aria-label={label}
         ref={canvasRef}
         width={600}
         height={200}

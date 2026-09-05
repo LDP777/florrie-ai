@@ -1,5 +1,6 @@
+import MoreLoadError from '../components/MoreLoadError.jsx';
 import { useState, useEffect, useMemo } from 'react';
-import { useBeautician, fetchRows } from '../lib/supabase.js';
+import { useBeautician, fetchRowsStrict } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -39,6 +40,7 @@ const TREND_ICONS = { up: '📈', down: '📉', stable: '➡️' };
 const TREND_COLORS = { up: 'var(--success, #386F52)', down: 'var(--danger, #9E2B32)', stable: 'var(--text-muted, #6B5D54)' };
 
 export default function Analytics() {
+  const [loadError, setLoadError] = useState(null);
   const { beautician } = useBeautician();
   const [tab, setTab] = useState('overview');
   const [period, setPeriod] = useState('month');
@@ -68,7 +70,7 @@ export default function Analytics() {
   // Overview data loading
   async function loadOverview() {
     if (!beautician) return;
-    setOverviewLoading(true);
+    setOverviewLoading(true); setLoadError(null);
 
     const now = new Date();
     let startDate = new Date(now);
@@ -78,12 +80,12 @@ export default function Analytics() {
 
     try {
       const [appointments, clients, expenses] = await Promise.all([
-        fetchRows('appointments', beautician.id, { order: 'starts_at', ascending: false }),
-        fetchRows('clients', beautician.id),
-        fetchRows('expenses', beautician.id, { order: 'date', ascending: false }),
+        fetchRowsStrict('appointments', beautician.id, { order: 'starts_at', ascending: false }),
+        fetchRowsStrict('clients', beautician.id),
+        fetchRowsStrict('expenses', beautician.id, { order: 'date', ascending: false }),
       ]);
 
-      const inRange = appointments.filter(a => new Date(a.starts_at) >= startDate);
+      const inRange = appointments.filter(a => new Date(a.starts_at) >= startDate && new Date(a.starts_at) <= now);
       const completed = inRange.filter(a => a.status === 'completed');
       const noShows = inRange.filter(a => a.status === 'no_show');
       const totalRevenue = completed.reduce((s, a) => s + (a.price_cents || 0), 0);
@@ -137,6 +139,7 @@ export default function Analytics() {
       });
     } catch (err) {
       logger.error({ err }, 'Analytics overview load error');
+      setLoadError('Could not load your analytics. Try again.');
     }
     setOverviewLoading(false);
   }
@@ -144,7 +147,7 @@ export default function Analytics() {
   // Treatment stats + export data loading
   async function loadTreatmentAndExportData() {
     if (!beautician) return;
-    setTreatmentLoading(true);
+    setTreatmentLoading(true); setLoadError(null);
     setExportLoading(true);
 
     try {
@@ -152,9 +155,9 @@ export default function Analytics() {
       cutoff.setDate(cutoff.getDate() - 90);
 
       const [appointments, treatments, clients] = await Promise.all([
-        fetchRows('appointments', beautician.id, { order: 'starts_at', ascending: false }),
-        fetchRows('treatments', beautician.id),
-        fetchRows('clients', beautician.id),
+        fetchRowsStrict('appointments', beautician.id, { order: 'starts_at', ascending: false }),
+        fetchRowsStrict('treatments', beautician.id),
+        fetchRowsStrict('clients', beautician.id),
       ]);
 
       setAllAppointments(appointments);
@@ -202,13 +205,14 @@ export default function Analytics() {
           returnRate: t.clientsSeen.size > 0
             ? Math.round((Object.values(t.clientVisitCounts).filter(n => n >= 2).length / t.clientsSeen.size) * 100)
             : 0,
-          trend: t.bookings > 5 ? 'up' : t.bookings > 2 ? 'stable' : 'down',
+          trend: null, // A trend requires a comparison period, not a booking-count threshold.
           rating: null,
         }));
 
       setTreatmentStats(stats);
     } catch (err) {
       logger.error({ err }, 'Treatment stats load error');
+      setLoadError('Could not load treatment reports. Try again.');
     }
     setTreatmentLoading(false);
     setExportLoading(false);
@@ -284,6 +288,8 @@ export default function Analytics() {
   }
 
   // Render
+  if (loadError) return <MoreLoadError title="Analytics" message={loadError} onRetry={() => { loadOverview(); if (tab === 'treatments' || tab === 'export') loadTreatmentAndExportData(); }} />;
+
   return (
     <div style={styles.page}>
       <PageHeader title="Analytics" />
