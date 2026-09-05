@@ -2617,17 +2617,18 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                       an hour after one had gone and offered a primary button
                       to send another. Ellie sent Shauna two. */}
                   <p style={{ fontSize: 13, color: COLORS.primary, fontWeight: 600, margin: 0, lineHeight: 1.45 }}>
-                    {consultation.pending
-                      ? `Form sent ${new Date(consultation.pending.sent_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} at ${new Date(consultation.pending.sent_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}. ${appointment.clients?.first_name || 'They'} ${consultation.pending.expired ? 'did not fill it in before the link expired.' : "hasn't filled it in yet."}`
-                      : `This treatment needs a consultation form and there is nothing on file for ${appointment.clients?.first_name || 'this client'}.`}
+                    {consultation.missing_forms?.length
+                      ? consultation.missing_forms.map(form => `${form.form_name}: ${form.status === 'awaiting_response' ? 'awaiting a response' : form.status === 'link_expired' ? 'link expired' : form.status === 'template_unavailable' ? 'template needs updating' : 'not requested yet'}`).join('. ')
+                      : consultation.pending
+                        ? `A consultation form is ${consultation.pending.expired ? 'past its link expiry date' : 'awaiting a response'}.`
+                        : `No completed consultation covers this booking. Open the client record to review their forms.`}
+
                   </p>
                   {consultation.form_available && appointment.client_id && (
                     <button className="fl-tap"
                       onClick={() => { hapticTap(); handleSendConsultationForm(); }}
                       disabled={consultSending}
                       style={{ width: '100%', minHeight: TAP, marginTop: 8, padding: '10px 12px', borderRadius: 10,
-                        // Sending a second copy is a quieter action than
-                        // sending the first, and should look like one.
                         border: consultation.pending ? `1px solid ${COLORS.primary}` : 'none',
                         background: consultation.pending ? 'transparent' : '#92405e',
                         color: consultation.pending ? COLORS.primary : '#fff',
@@ -2635,7 +2636,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                     >
                       {consultSending
                         ? 'Sending...'
-                        : consultation.pending ? 'Send it again' : 'Send them the form'}
+                        : 'Send outstanding forms'}
                     </button>
                   )}
                   {consultSendResult && (

@@ -1,5 +1,6 @@
+import ErrorCard from '../components/ErrorCard.jsx';
 import { useState, useEffect, useMemo } from 'react';
-import { useBeautician, fetchRows, updateRow, insertRow } from '../lib/supabase.js';
+import { useBeautician, fetchRowsStrict, updateRow, insertRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import { todayLocal } from '../lib/dates.js';
 import Money from '../components/ui/Money';
@@ -17,6 +18,10 @@ export default function EndOfDay() {
   const [closingNotes, setClosingNotes] = useState('');
   const [dayClosed, setDayClosed] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [retry, setRetry] = useState(0);
+  const [saving, setSaving] = useState(false);
 
   const today = todayLocal();
   const todayDisplay = new Date().toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
@@ -25,17 +30,18 @@ export default function EndOfDay() {
     if (bLoading || !beautician) return;
 
     async function load() {
+      setLoading(true); setError(null); setLoadFailed(false);
       try {
         const [appts, txns, exps, existingReport] = await Promise.all([
-          fetchRows('appointments', beautician.id, { order: 'starts_at', ascending: true }),
-          fetchRows('transactions', beautician.id, { order: 'created_at', ascending: true }),
-          fetchRows('expenses', beautician.id, { order: 'created_at', ascending: true }),
-          fetchRows('end_of_day_reports', beautician.id, { eq: { date: today } }),
+          fetchRowsStrict('appointments', beautician.id, { select: '*, clients(first_name, last_name), treatments(name)', order: 'starts_at', ascending: true }),
+          fetchRowsStrict('transactions', beautician.id, { order: 'created_at', ascending: true }),
+          fetchRowsStrict('expenses', beautician.id, { order: 'created_at', ascending: true }),
+          fetchRowsStrict('end_of_day_reports', beautician.id, { eq: { date: today } }),
         ]);
 
-        setAppointments((appts || []).filter(a => a.starts_at?.startsWith(today)));
+        setAppointments((appts || []).filter(a => a.starts_at?.startsWith(today)).map(a => ({ ...a, client_name: [a.clients?.first_name, a.clients?.last_name].filter(Boolean).join(' ') || 'Client', treatment_name: a.treatments?.name || '' })));
         setTransactions((txns || []).filter(t => t.created_at?.startsWith(today)));
-        setExpenses((exps || []).filter(e => e.created_at?.startsWith(today)));
+        setExpenses((exps || []).filter(e => (e.date || e.created_at)?.startsWith(today)));
 
         // If already closed today, restore state
         if (existingReport?.length) {
@@ -47,12 +53,13 @@ export default function EndOfDay() {
         }
       } catch (err) {
         logger.error({ err }, 'Failed to load end of day data');
+        setLoadFailed(true); setError('Could not load today’s cash-up. Try again before closing the day.');
       } finally {
         setLoading(false);
       }
     }
     load();
-  }, [beautician, bLoading, today]);
+  }, [beautician, bLoading, today, retry]);
 
   const stats = useMemo(() => {
     const completed = appointments.filter(a => a.status === 'completed');
@@ -95,7 +102,7 @@ export default function EndOfDay() {
       totalRevenue: revenue / 100,
       cashTaken: cashCents / 100,
       cardTaken: cardCents / 100,
-      voucherRedeemed: 0, // TODO: wire up voucher redemptions when table exists
+      voucherRedeemed: null, // Voucher redemptions are not linked to this cash-up.
       tipsReceived: tipsCents / 100,
       expenses: totalExpensesCents / 100,
       appointments: appointments.length,
@@ -139,9 +146,9 @@ export default function EndOfDay() {
   }, [appointments, stats.newClients]);
 
   const saveEndOfDay = async () => {
-    if (!beautician) return;
-
-    const existing = await fetchRows('end_of_day_reports', beautician.id, { eq: { date: today } });
+    if (!beautician || saving || loadFailed || loading) return;
+    if (cashCounted && (!Number.isFinite(Number(cashCounted)) || Number(cashCounted) < 0)) { setError('Enter a valid cash amount of £0 or more.'); return; }
+    setSaving(true); setError(null);
     const reportData = {
       beautician_id: beautician.id,
       date: today,
@@ -158,6 +165,7 @@ export default function EndOfDay() {
     };
 
     try {
+      const existing = await fetchRowsStrict('end_of_day_reports', beautician.id, { eq: { date: today } });
       if (existing.length > 0) {
         await updateRow('end_of_day_reports', existing[0].id, reportData);
       } else {
@@ -166,10 +174,13 @@ export default function EndOfDay() {
       setDayClosed(true);
     } catch (err) {
       logger.error({ err }, 'Failed to save end of day report');
-    }
+      setError('Could not close the day. Your notes and cash count are still here.');
+    } finally { setSaving(false); }
   };
 
   if (bLoading || loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted, #6B5D54)' }}>Loading...</div>;
+
+  if (loadFailed) return <div style={styles.page}><PageHeader title="End of Day" /><ErrorCard message={error} /><Button onClick={() => setRetry(n => n + 1)}>Try again</Button></div>;
 
   const d = stats;
   const cashDiff = cashCounted ? (parseFloat(cashCounted) - d.cashTaken).toFixed(2) : null;
@@ -183,6 +194,7 @@ export default function EndOfDay() {
 
   return (
     <div style={styles.page}>
+      {error && <ErrorCard message={error} onDismiss={() => setError(null)} />}
       <PageHeader
         title="End of Day"
         action={<span style={styles.dateChip}>{todayDisplay}</span>}
@@ -193,7 +205,7 @@ export default function EndOfDay() {
           <span style={{ fontSize: 18 }}>&#x2705;</span>
           <div>
             <div style={{ fontWeight: 600, fontSize: 14 }}>Day Closed</div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted, #6B5D54)' }}>All reconciled and logged</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted, #6B5D54)' }}>Your closing report has been saved</div>
           </div>
         </div>
       )}
@@ -419,8 +431,8 @@ export default function EndOfDay() {
       {/* Close day button */}
       {!dayClosed && appointments.length > 0 && (
         <div style={styles.closeDayWrap}>
-          <Button variant="primary" size="lg" fullWidth onClick={saveEndOfDay}>
-            {'\uD83D\uDD12'} Close Day
+          <Button variant="primary" size="lg" fullWidth disabled={saving} onClick={saveEndOfDay}>
+            {saving ? 'Closing…' : 'Close day'}
           </Button>
           {!isReconciled && (
             <div style={styles.closeDayHint}>Cash up is optional - close whenever you're ready</div>

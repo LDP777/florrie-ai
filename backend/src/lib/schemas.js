@@ -427,7 +427,8 @@ export const createConsultationFormSchema = z.object({
  * @property {Object} responses - Form responses (key-value pairs)
  */
 export const submitConsultationFormSchema = z.object({
-  responses: z.record(z.string(), z.union([z.string(), z.boolean(), z.array(z.string())]))
+  answers: z.record(z.string(), z.union([z.string().max(10000), z.boolean(), z.array(z.string().max(1000)).max(100)])),
+  signature_data: z.string().max(500000).regex(/^data:image\/png;base64,[A-Za-z0-9+/=]+$/).nullable().optional(),
 });
 
 

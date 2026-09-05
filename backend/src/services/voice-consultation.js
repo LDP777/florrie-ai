@@ -43,7 +43,7 @@ import { clientsOwingPatchTest, patchTestPicture } from '../lib/patch-test-statu
 
 /** Everything shapeResponse needs, and nothing it does not. */
 const RESPONSE_SELECT =
-  'id, form_id, client_id, appointment_id, status, completed_at, created_at, answers, signature_data, ' +
+  'id, form_id, client_id, appointment_id, status, completed_at, created_at, answers, signature_data, form_snapshot, ' +
   'consultation_forms(name, consent_text, consultation_form_fields(id, type, label, options, sort_order))';
 
 // in_progress is the client actually in the chair, which is precisely who she

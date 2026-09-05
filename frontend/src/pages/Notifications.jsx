@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useBeautician, fetchRows, updateRow, supabase } from '../lib/supabase.js';
+import { useBeautician, fetchRowsStrict, updateRow, supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import Icon, { iconName } from '../components/ui/Icon';
+import ErrorCard from '../components/ErrorCard.jsx';
+import Button from '../components/ui/Button.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 
 /**
@@ -43,37 +45,47 @@ function timeAgo(isoString) {
 }
 
 export default function Notifications() {
-  const { beautician } = useBeautician();
+  const { beautician, loading: profileLoading } = useBeautician();
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [approvals, setApprovals] = useState(null); // { count, name, snippet } | null
   const [filter, setFilter] = useState('all');
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { loadData(); loadApprovals(); }, [beautician]);
+  const [loadError, setLoadError] = useState(null);
+  const [approvalError, setApprovalError] = useState(null);
+  const [saveError, setSaveError] = useState(null);
+  const [pending, setPending] = useState(null);
+  useEffect(() => { if (!profileLoading) { loadData(); loadApprovals(); } }, [beautician, profileLoading]);
 
   // Live "waiting on your OK" flag. Pulls the same two sources as the outbox so
   // notifications, the home card, and the outbox always agree.
   async function loadApprovals() {
+    setApprovalError(null);
+    setApprovals(null);
+    if (!beautician) return;
     try {
       const { data } = await supabase.auth.getSession();
       const token = data?.session?.access_token;
-      if (!token) return;
+      if (!token) throw new Error('No session');
       const h = { Authorization: `Bearer ${token}` };
       const [pendRes, escRes] = await Promise.all([
         fetch(`${API_BASE}/api/outbound/pending`, { headers: h }).catch(() => null),
         fetch(`${API_BASE}/api/escalations`, { headers: h }).catch(() => null),
       ]);
+      if (!pendRes?.ok || !escRes?.ok) throw new Error('Approval counts unavailable');
       let items = [];
       if (pendRes && pendRes.ok) {
         const d = await pendRes.json();
-        for (const r of (d.pending || [])) {
+        if (!Array.isArray(d.pending)) throw new Error('Invalid approval response');
+        for (const r of d.pending) {
           items.push({ name: (r.clients?.first_name || '').trim() || 'A client', snippet: r.body || '', at: r.created_at });
         }
       }
       if (escRes && escRes.ok) {
         const d = await escRes.json();
-        for (const r of (d.escalations || [])) {
+        if (!Array.isArray(d.escalations)) throw new Error('Invalid escalation response');
+        for (const r of d.escalations) {
           if (!r.ai_response || !String(r.ai_response).trim()) continue;
           items.push({ name: (r.clients?.first_name || '').trim() || 'A client', snippet: r.ai_response || '', at: r.created_at });
         }
@@ -85,14 +97,16 @@ export default function Notifications() {
       const snippet = flat.length > 80 ? `${flat.slice(0, 79)}…` : flat;
       setApprovals({ count: items.length, name: top.name, snippet });
     } catch {
-      setApprovals({ count: 0 });
+      setApprovals(null);
+      setApprovalError('Could not check messages awaiting approval.');
     }
   }
 
   async function loadData() {
-    setLoading(true);
+    setLoading(true); setLoadError(null);
+    if (!beautician) { setLoading(false); setLoadError('Your business profile is unavailable.'); return; }
     try {
-      const rows = await fetchRows('notifications', beautician?.id, {
+      const rows = await fetchRowsStrict('notifications', beautician.id, {
         order: 'created_at',
         ascending: false,
         limit: 100,
@@ -108,26 +122,39 @@ export default function Notifications() {
         actionUrl: r.action_url,
       })));
     } catch (err) {
-      setNotifications([]);
+      setLoadError('Could not load notifications. Try again.');
     }
     setLoading(false);
   }
 
   async function markRead(id) {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-    try { await updateRow('notifications', id, { read: true }); } catch (e) { /* silent */ }
+    if (pending || notifications.find(n => n.id === id)?.read) return;
+    setPending(id); setSaveError(null);
+    try {
+      const saved = await updateRow('notifications', id, { read: true });
+      if (!saved?.id) throw new Error('No saved notification returned');
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    } catch { setSaveError('Could not mark this notification as read. Try again.'); }
+    finally { setPending(null); }
   }
-
   async function markAllRead() {
+    if (pending || !beautician) return;
     const unreadIds = notifications.filter(n => !n.read).map(n => n.id);
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-    for (const uid of unreadIds) {
-      try { await updateRow('notifications', uid, { read: true }); } catch (e) { /* silent */ }
-    }
+    if (!unreadIds.length) return;
+    setPending('all'); setSaveError(null);
+    try {
+      const { data, error } = await supabase.from('notifications').update({ read: true })
+        .eq('beautician_id', beautician.id).in('id', unreadIds).select('id');
+      if (error) throw error;
+      const saved = new Set((data || []).map(row => row.id));
+      setNotifications(prev => prev.map(n => saved.has(n.id) ? { ...n, read: true } : n));
+      if (saved.size !== unreadIds.length) setSaveError('Some notifications could not be marked as read. Try again.');
+    } catch { setSaveError('Could not mark notifications as read. Try again.'); }
+    finally { setPending(null); }
   }
 
   const filtered = filter === 'all' ? notifications : notifications.filter(n => n.category === filter);
-  const unreadCount = notifications.filter(n => !n.read).length + (approvals?.count || 0);
+  const unreadCount = notifications.filter(n => !n.read).length;
 
   // Group by date
   const groups = {};
@@ -150,12 +177,14 @@ export default function Notifications() {
     <div style={styles.page}>
       <PageHeader
         title="Notifications"
-        subtitle={unreadCount > 0 ? `${unreadCount} unread` : 'All caught up'}
-        action={unreadCount > 0 ? (
-          <button onClick={markAllRead} style={styles.markAllBtn}>Mark all read</button>
+        subtitle={loading || profileLoading ? 'Loading notifications…' : loadError ? 'Notifications unavailable' : unreadCount > 0 ? `${unreadCount} unread notifications` : 'No unread notifications'}
+        action={!loadError && unreadCount > 0 ? (
+          <button disabled={Boolean(pending)} onClick={markAllRead} style={styles.markAllBtn}>{pending === 'all' ? 'Saving…' : 'Mark all read'}</button>
         ) : null}
       />
 
+      {saveError && <div role="alert"><ErrorCard message={saveError} /></div>}
+      {approvalError && <div role="alert"><ErrorCard message={approvalError} /><Button variant="secondary" onClick={loadApprovals}>Retry approval check</Button></div>}
       {/* Waiting on your OK , the one yes/no flag, links straight to the outbox */}
       {approvals?.count > 0 && (
         <button
@@ -208,10 +237,10 @@ export default function Notifications() {
       </div>
 
       {/* Notification feed */}
-      {loading ? (
+      {loading || profileLoading ? (
         <PageLoader />
-      ) : filtered.length === 0 ? (
-        <EmptyState title="No notifications" description="You're all caught up. New activity will show here." />
+      ) : loadError ? (<div role="alert"><ErrorCard message={loadError} /><Button variant="secondary" onClick={loadData}>Retry</Button></div>) : filtered.length === 0 ? (
+        <EmptyState title="No notifications" subtitle={filter === 'all' ? 'Your new activity will appear here.' : 'No notifications in this category.'} />
       ) : (
         <div style={styles.feed}>
           {Object.entries(groups).map(([label, items]) => (
@@ -226,6 +255,9 @@ export default function Notifications() {
                       background: n.read ? 'var(--bg-card, #FFFCF9)' : '#FFFBF9',
                       borderLeft: n.read ? '3px solid transparent' : `3px solid ${cat.textColor}`,
                     }}
+                    role="button" tabIndex={0} aria-label={`${n.title || 'Notification'}${n.read ? ', read' : ', mark as read'}`}
+                    aria-disabled={Boolean(pending)}
+                    onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); markRead(n.id); } }}
                     onClick={() => markRead(n.id)}
                   >
                     <div style={{ ...styles.notifIcon, background: cat.color }}>
@@ -258,7 +290,7 @@ const styles = {
   page: {
     minHeight: 'var(--shell-viewport)', background: 'var(--bg, var(--bg, #FBF6F1))',
     fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
-    padding: '0 16px var(--scroll-pad-bottom)', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary, #241B17)',
+    padding: '0 16px var(--scroll-pad-bottom)', maxWidth: 760, margin: '0 auto', color: 'var(--text-primary, #241B17)',
   },
   markAllBtn: {
     padding: '6px 14px', borderRadius: 10, border: 'none',

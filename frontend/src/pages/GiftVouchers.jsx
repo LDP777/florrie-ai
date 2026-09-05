@@ -1,5 +1,6 @@
+import { voucherIsActive } from './more-reliability.js';
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, insertRow, updateRow } from '../lib/supabase.js';
+import { useBeautician, fetchRowsStrict, insertRow, updateRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -32,6 +33,9 @@ export default function GiftVouchers() {
   const [treatments, setTreatments] = useState([]);
   const [tab, setTab] = useState('active');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [showRedeem, setShowRedeem] = useState(null);
   const [redeemCode, setRedeemCode] = useState('');
@@ -48,25 +52,28 @@ export default function GiftVouchers() {
 
   async function loadData() {
     setLoading(true);
+    setError(null);
+    setLoadFailed(false);
     if (bLoading || !beautician) {
       setLoading(false);
       return;
     }
     try {
       const [rows, txRows] = await Promise.all([
-        fetchRows('gift_vouchers', beautician.id, { order: 'created_at', ascending: false }),
-        fetchRows('treatments', beautician.id, { order: 'name', ascending: true }),
+        fetchRowsStrict('gift_vouchers', beautician.id, { order: 'created_at', ascending: false }),
+        fetchRowsStrict('treatments', beautician.id, { order: 'name', ascending: true }),
       ]);
       setVouchers(rows || []);
       setTreatments((txRows || []).filter(t => t.is_active));
     } catch (err) {
       logger.error('Failed to load gift vouchers:', err);
+      setLoadFailed(true); setError('Could not load vouchers. Try again.');
     }
     setLoading(false);
   }
 
   async function handleCreate() {
-    if (!form.buyer_name.trim() || !form.recipient_name.trim()) return;
+    if (saving || !beautician || !form.buyer_name.trim() || !form.recipient_name.trim()) return;
     if (form.type === 'amount' && !form.amount_cents) return;
     if (form.type === 'treatment' && !form.treatment_id) return;
 
@@ -74,6 +81,7 @@ export default function GiftVouchers() {
       ? treatments.find(t => t.id === form.treatment_id)
       : null;
 
+    setSaving(true); setError(null);
     const voucher = {
       id: crypto.randomUUID(),
       code: generateCode(),
@@ -98,6 +106,8 @@ export default function GiftVouchers() {
         voucher.id = saved.id;
       } catch (err) {
         logger.error('Failed to save gift voucher:', err);
+        setError('Could not create this voucher. Your details are still here.');
+        setSaving(false); return;
       }
     }
 
@@ -109,24 +119,27 @@ export default function GiftVouchers() {
     });
     setShowCreate(false);
     setTab('active');
+    setSaving(false);
   }
 
   function handleRedeemSearch() {
-    const found = vouchers.find(v => v.code.toLowerCase() === redeemCode.trim().toLowerCase() && v.status === 'active');
+    const found = vouchers.find(v => v.code.toLowerCase() === redeemCode.trim().toLowerCase() && voucherIsActive(v));
     setRedeemSearch(found || 'not_found');
   }
 
   async function handleRedeem(voucher) {
-    const updated = { ...voucher, status: 'redeemed', redeemed_at: new Date().toISOString(), redeemed_by: voucher.recipient_name };
-    setVouchers(prev => prev.map(v => v.id === voucher.id ? updated : v));
+    if (saving) return;
+    if (!voucherIsActive(voucher)) { setError('This voucher has expired or has already been redeemed.'); return; }
+    setSaving(true); setError(null);
+    const redeemed_at = new Date().toISOString();
     try {
-      await updateRow('gift_vouchers', voucher.id, { status: 'redeemed', redeemed_at: updated.redeemed_at });
+      const saved = await updateRow('gift_vouchers', voucher.id, { status: 'redeemed', redeemed_at });
+      setVouchers(prev => prev.map(v => v.id === voucher.id ? { ...v, ...saved } : v));
+      setRedeemCode(''); setRedeemSearch(null); setShowRedeem(null);
     } catch (err) {
       logger.error('Failed to redeem gift voucher:', err);
-    }
-    setRedeemCode('');
-    setRedeemSearch(null);
-    setShowRedeem(null);
+      setError('Could not redeem this voucher. Please try again.');
+    } finally { setSaving(false); }
   }
 
   const isExpired = (v) => v.expires_at && new Date(v.expires_at) < new Date();
@@ -134,9 +147,13 @@ export default function GiftVouchers() {
   const history = vouchers.filter(v => v.status !== 'active' || isExpired(v));
   const totalActive = active.reduce((sum, v) => sum + (v.amount_cents || 0), 0);
 
+  if (bLoading || loading) return <PageLoader />;
+  if (loadFailed) return <div style={styles.page}><PageHeader title="Gift Vouchers" /><ErrorCard message={error} /><button className="fl-tap" onClick={loadData}>Try again</button></div>;
+
   return (
     <div style={styles.page}>
-      <PageHeader title="Gift Vouchers" subtitle="Create, send & redeem" />
+      <PageHeader title="Gift Vouchers" subtitle="Create and redeem gift vouchers" />
+      {error && <ErrorCard message={error} onDismiss={() => setError(null)} />}
 
       {/* Stats bar */}
       <div style={styles.statsBar}>
@@ -151,7 +168,7 @@ export default function GiftVouchers() {
         </div>
         <div style={styles.statDivider} />
         <div style={styles.statItem}>
-          <span style={styles.statNum}>{history.length}</span>
+          <span style={styles.statNum}>{vouchers.filter(v => v.status === 'redeemed').length}</span>
           <span style={styles.statLabel}>Redeemed</span>
         </div>
       </div>
@@ -190,7 +207,7 @@ export default function GiftVouchers() {
             <div style={styles.emptyState}>
               <span style={{ fontSize: 32, display: 'block', marginBottom: 8 }}><Icon name="gift" size={32} /></span>
               <p style={styles.emptyTitle}>No active vouchers</p>
-              <p style={styles.emptyDesc}>Create your first gift voucher and start earning.</p>
+              <p style={styles.emptyDesc}>Create a voucher, then share its code with the recipient.</p>
             </div>
           ) : (
             <div style={styles.voucherList}>
@@ -292,7 +309,7 @@ export default function GiftVouchers() {
           <div style={styles.formGroup}>
             <label style={styles.formLabel}>Recipient email (optional)</label>
             <input
-              type="email" placeholder="To send the voucher directly"
+              type="email" placeholder="Recipient email for your records"
               value={form.recipient_email}
               onChange={e => setForm(p => ({ ...p, recipient_email: e.target.value }))}
               style={styles.formInput}
@@ -343,8 +360,8 @@ export default function GiftVouchers() {
             <div style={styles.previewCode}>GIFT-XXXXX</div>
           </div>
 
-          <button onClick={handleCreate} style={styles.createVoucherBtn}>
-            Create & Send Voucher
+          <button onClick={handleCreate} disabled={saving} style={styles.createVoucherBtn}>
+            {saving ? 'Creating…' : 'Create voucher'}
           </button>
         </div>
       )}
@@ -371,6 +388,7 @@ export default function GiftVouchers() {
       {showRedeem && (
         <div style={styles.modalOverlay} onClick={() => { setShowRedeem(null); setRedeemSearch(null); setRedeemCode(''); }}>
           <div style={styles.modalContent} onClick={e => e.stopPropagation()}>
+            {error && <ErrorCard message={error} onDismiss={() => setError(null)} />}
             <h3 style={styles.modalTitle}>Redeem Voucher</h3>
             <div style={styles.redeemInputRow}>
               <input
@@ -401,7 +419,7 @@ export default function GiftVouchers() {
                 {redeemSearch.treatment_name && (
                   <p style={styles.redeemFoundDetail}>Treatment: {redeemSearch.treatment_name}</p>
                 )}
-                <button onClick={() => handleRedeem(redeemSearch)} style={styles.redeemConfirmBtn}>
+                <button onClick={() => handleRedeem(redeemSearch)} disabled={saving} style={styles.redeemConfirmBtn}>
                   Mark as Redeemed
                 </button>
               </div>

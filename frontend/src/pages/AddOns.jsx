@@ -1,3 +1,4 @@
+import MoreLoadError from '../components/MoreLoadError.jsx';
 /**
  * Add-ons & Upsells - Bolt-on extras to boost average order value.
  *
@@ -6,7 +7,7 @@
  * the add-on menu and tracks upsell performance.
  */
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
+import { useBeautician, fetchRowsStrict, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -34,6 +35,8 @@ export default function AddOns() {
   const [addons, setAddons] = useState([]);
   const [treatments, setTreatments] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [retry, setRetry] = useState(0);
+  const [loadError, setLoadError] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -41,16 +44,14 @@ export default function AddOns() {
   useEffect(() => {
     if (bLoading) return;
     if (!beautician) { setLoading(false); return; }
-    setLoading(true);
+    setLoading(true); setLoadError(null);
     Promise.all([
-      fetchRows('add_ons', beautician.id, { order: 'created_at', ascending: false })
-        .then(rows => setAddons(rows))
-        .catch(err => logger.error('Failed to load add-ons:', err)),
-      fetchRows('treatments', beautician.id, { eq: { is_active: true } })
-        .then(rows => setTreatments(rows))
-        .catch(err => logger.error('Failed to load treatments:', err)),
-    ]).finally(() => setLoading(false));
-  }, [beautician, bLoading]);
+      fetchRowsStrict('add_ons', beautician.id, { order: 'created_at', ascending: false }),
+      fetchRowsStrict('treatments', beautician.id, { eq: { is_active: true } }),
+    ]).then(([rows, treatments]) => { setAddons(rows); setTreatments(treatments); })
+      .catch(() => setLoadError('Could not load add-ons and treatments. Try again.'))
+      .finally(() => setLoading(false));
+  }, [beautician, bLoading, retry]);
 
   const active = addons.filter(a => a.is_active);
 
@@ -151,6 +152,7 @@ export default function AddOns() {
   };
 
   if (bLoading || loading) return <PageLoader />;
+  if (loadError) return <MoreLoadError title="Add-ons" message={loadError} onRetry={() => setRetry(n => n + 1)} />;
 
   return (
     <div style={S.page}>

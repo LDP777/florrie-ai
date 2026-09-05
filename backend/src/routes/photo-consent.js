@@ -34,7 +34,7 @@ router.get('/', requireAuth, async (req, res) => {
 
     const rows = (data || []).map((c) => ({
       ...c,
-      client_name: c.clients?.first_name || null,
+      client_name: `${c.clients?.first_name || ''} ${c.clients?.last_name || ''}`.trim() || null,
     }));
 
     res.json({ data: rows });
@@ -84,12 +84,12 @@ router.get('/client/:clientId', requireAuth, async (req, res) => {
 
 /**
  * POST /api/photo-consent
- * Request photo consent from a client.
+ * Record an outstanding photo-consent request. No message is sent.
  * Body: {
  *   client_id: uuid,
  *   permitted_uses: string[],   // e.g. ['portfolio', 'booking-page']
  *   method?: 'digital' | 'paper',
- *   notes?: string              // the message sent to the client
+ *   notes?: string              // the owner’s follow-up notes
  * }
  * Creates a 'pending' record. Returns { data } shaped like a list row.
  */
@@ -99,7 +99,7 @@ router.post('/', requireAuth, validate(createPhotoConsentSchema), async (req, re
 
     const { data: client, error: clientError } = await supabase
       .from('clients')
-      .select('id, first_name')
+      .select('id, first_name, last_name')
       .eq('id', client_id)
       .eq('beautician_id', req.beautician.id)
       .single();
@@ -135,7 +135,7 @@ router.post('/', requireAuth, validate(createPhotoConsentSchema), async (req, re
       return res.status(500).json({ error: 'Something went wrong' });
     }
 
-    res.status(201).json({ data: { ...data, client_name: client.first_name } });
+    res.status(201).json({ data: { ...data, client_name: `${client.first_name || ''} ${client.last_name || ''}`.trim() } });
   } catch (err) {
     logger.error({ err }, 'Create photo consent error');
     res.status(500).json({ error: 'Failed to create consent' });
@@ -144,7 +144,7 @@ router.post('/', requireAuth, validate(createPhotoConsentSchema), async (req, re
 
 /**
  * PATCH /api/photo-consent/:id/revoke
- * Withdraw a consent: status -> 'declined', clear the permitted uses, stamp
+ * Withdraw a consent: status -> 'declined', preserve its recorded scope, stamp
  * revoked_at. Body: { notes?: string }. Returns { data }.
  */
 router.patch('/:id/revoke', requireAuth, validate(revokePhotoConsentSchema), async (req, res) => {
@@ -154,7 +154,7 @@ router.patch('/:id/revoke', requireAuth, validate(revokePhotoConsentSchema), asy
 
     const { data: existing, error: checkError } = await supabase
       .from('photo_consents')
-      .select('id')
+      .select('id, notes, permitted_uses, revoked_at')
       .eq('id', id)
       .eq('beautician_id', req.beautician.id)
       .single();
@@ -166,13 +166,13 @@ router.patch('/:id/revoke', requireAuth, validate(revokePhotoConsentSchema), asy
     const updates = {
       status: 'declined',
       granted: false,
-      permitted_uses: [],
-      revoked_at: new Date().toISOString(),
+      revoked_at: existing.revoked_at || new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
 
-    if (notes) {
-      updates.notes = notes;
+    // Withdrawal changes current permission, not the historical evidence.
+    if (notes?.trim()) {
+      updates.notes = [existing.notes, `Withdrawal: ${notes.trim()}`].filter(Boolean).join('\n\n');
     }
 
     const { data, error } = await supabase

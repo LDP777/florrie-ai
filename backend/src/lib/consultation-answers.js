@@ -307,6 +307,15 @@ export function renderResponse({ fields, answers, hasSignature = false } = {}) {
     pairs.push(pair);
   }
 
+  const knownIds = new Set(defs.map(f => f.id));
+  for (const [id, raw] of Object.entries(blob)) {
+    if (knownIds.has(id) || raw == null || raw === '') continue;
+    pairs.push({ field_id: id, type: 'text', question: 'Original question unavailable',
+      answer: Array.isArray(raw) ? raw.join(', ') : String(raw), answered: true, long: true,
+      worth_knowing: false, note: null });
+    answeredCount += 1;
+  }
+
   if (hasSignature) {
     pairs.push({
       field_id: 'signature',
@@ -335,7 +344,7 @@ export function renderResponse({ fields, answers, hasSignature = false } = {}) {
  * @returns {object}
  */
 export function shapeResponse(row) {
-  const form = row?.consultation_forms || null;
+  const form = row?.form_snapshot || row?.consultation_forms || null;
   const hasSignature = Boolean(row?.signature_data);
   const { pairs, worth_knowing, answered_count } = renderResponse({
     fields: form?.consultation_form_fields || [],

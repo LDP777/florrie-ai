@@ -1,3 +1,4 @@
+import MoreLoadError from '../components/MoreLoadError.jsx';
 /**
  * Expenses - Dedicated expense manager with budgets & recurring items.
  *
@@ -6,7 +7,7 @@
  * for the accountant, and a month-by-month breakdown.
  */
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
+import { useBeautician, fetchRowsStrict, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
 import { useCoach } from '../contexts/CoachContext.jsx';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
@@ -34,6 +35,9 @@ const getCat = (v) => CATEGORIES.find(c => c.value === v) || CATEGORIES[9];
 const fmt = (cents) => `£${(Math.abs(cents) / 100).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function Expenses() {
+  const [loadError, setLoadError] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [retry, setRetry] = useState(0);
   const { beautician, loading: bLoading } = useBeautician();
   const { triggerNudge } = useCoach();
   const [tab, setTab] = useState('overview');
@@ -60,8 +64,8 @@ export default function Expenses() {
   function handleEditExpense(expense) {
     setEditingExpense(expense);
     setForm({
-      vendor: expense.vendor,
-      description: expense.description,
+      vendor: expense.vendor || '',
+      description: expense.description || '',
       amount: (expense.amount_cents / 100).toString(),
       category: expense.category,
       date: expense.date,
@@ -116,25 +120,20 @@ export default function Expenses() {
       setEditBudget(null);
     } catch (err) {
       logger.error({ err }, 'Failed to save budget');
+      alert('Could not save the budget. Your amount is still here.');
     }
   }
 
   useEffect(() => {
     if (bLoading || !beautician) return;
-    // Always fetch from Supabase (dev mode shows empty state if fetchRows returns [])
-    fetchRows('expenses', beautician.id, { order: 'date', ascending: false })
-      .then(rows => setExpenses(rows || []))
-      .catch(err => {
-        logger.error({ err }, 'Failed to load expenses');
-        setExpenses([]);
-      });
-    fetchRows('expense_budgets', beautician.id)
-      .then(rows => setBudgets(rows || []))
-      .catch(err => {
-        logger.error({ err }, 'Failed to load budgets');
-        setBudgets([]);
-      });
-  }, [beautician, bLoading]);
+    setLoading(true); setLoadError(null);
+    Promise.all([
+      fetchRowsStrict('expenses', beautician.id, { order: 'date', ascending: false }),
+      fetchRowsStrict('expense_budgets', beautician.id),
+    ]).then(([expenses, budgets]) => { setExpenses(expenses); setBudgets(budgets); })
+      .catch(() => setLoadError('Could not load expenses and budgets. Try again.'))
+      .finally(() => setLoading(false));
+  }, [beautician, bLoading, retry]);
 
   // Filter by month
   const monthExpenses = expenses.filter(e => e.date && e.date.startsWith(month));
@@ -186,6 +185,9 @@ export default function Expenses() {
     a.href = url; a.download = `expenses-${month}.csv`; a.click();
     URL.revokeObjectURL(url);
   };
+
+  if (bLoading || loading) return <PageLoader />;
+  if (loadError) return <MoreLoadError title="Expenses" message={loadError} onRetry={() => setRetry(n => n + 1)} />;
 
   return (
     <div style={S.page}>

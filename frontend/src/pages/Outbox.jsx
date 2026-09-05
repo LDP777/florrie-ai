@@ -1,3 +1,4 @@
+import { successfulBatchIds } from './more-reliability.js';
 /**
  * Florrie's Outbox , the one calm place to give your yes or no.
  *
@@ -314,28 +315,22 @@ export default function Outbox() {
   const decisions = replies.length + otherHolds.length + batches.length;
   const total = loudHolds.length + replies.length;
   const [deckOpen, setDeckOpen] = useState(false);
+  const batchBusy = useRef(false);
 
-  async function approveBatch(batch) {
-    let sent = 0;
-    for (const item of batch.items) {
-      try {
-        const res = await authedFetch(`/api/outbound/${item.id}/approve`, { method: 'POST' });
-        if (res.ok) sent++;
-      } catch { /* count what went */ }
-    }
-    setHolds(prev => prev.filter(i => !batch.items.some(b => b.id === i.id)));
-    window.dispatchEvent(new Event('florrie:refresh-counts'));
-    if (sent > 0) bloom();
-    showToast(sent === batch.items.length ? `Offered to ${sent}.` : `Offered to ${sent} of ${batch.items.length}.`);
+  async function runBatch(batch, action) {
+    if (batchBusy.current) return;
+    batchBusy.current = true;
+    try {
+      const succeeded = await successfulBatchIds(batch.items, item => authedFetch(`/api/outbound/${item.id}/${action}`, { method: 'POST' }));
+      setHolds(prev => prev.filter(item => !succeeded.includes(item.id)));
+      window.dispatchEvent(new Event('florrie:refresh-counts'));
+      if (action === 'approve' && succeeded.length) bloom();
+      const failed = batch.items.length - succeeded.length;
+      showToast(`${action === 'approve' ? 'Offered to' : 'Skipped'} ${succeeded.length}.${failed ? ` ${failed} could not be processed. Try those again.` : ''}`);
+    } finally { batchBusy.current = false; }
   }
-
-  async function skipBatch(batch) {
-    for (const item of batch.items) {
-      try { await authedFetch(`/api/outbound/${item.id}/skip`, { method: 'POST' }); } catch { /* best effort */ }
-    }
-    setHolds(prev => prev.filter(i => !batch.items.some(b => b.id === i.id)));
-    window.dispatchEvent(new Event('florrie:refresh-counts'));
-  }
+  const approveBatch = batch => runBatch(batch, 'approve');
+  const skipBatch = batch => runBatch(batch, 'skip');
 
   return (
     <div style={s.page}>
@@ -455,8 +450,7 @@ export default function Outbox() {
 function BatchCard({ batch, onSendAll, onSkipAll, onSkipOne }) {
   const [expanded, setExpanded] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [skipped, setSkipped] = useState([]);
-  const live = batch.items.filter(i => !skipped.includes(i.id));
+  const live = batch.items;
   if (live.length === 0) return null;
   const preview = live[0]?.body || '';
 
@@ -489,7 +483,7 @@ function BatchCard({ batch, onSendAll, onSkipAll, onSkipOne }) {
         <div key={item.id} style={s.batchRow}>
           <span style={{ fontSize: 13, fontWeight: 600 }}>{item.displayName}</span>
           <button className="fl-tap"
-            onClick={() => { setSkipped(prev => [...prev, item.id]); onSkipOne(item.id); }}
+            onClick={() => onSkipOne(item.id)}
             style={{ ...s.skipBtn, minHeight: 34, padding: '0 14px', fontSize: 12.5 }}
           >
             Skip her
@@ -510,7 +504,7 @@ function ReviewDeck({ replies, batches, holds, onReply, onReplySkip, onBatch, on
     ...batches.map(b => ({ kind: 'batch', title: `Fill the ${b.slot} gap`, why: `One yes offers it to ${b.items.length} client${b.items.length === 1 ? '' : 's'}`, body: b.items[0]?.body || '', data: b })),
     ...holds.map(h => ({ kind: 'hold', title: `${h.displayName} · ${h.typeLabel}`, why: h.why, body: h.body, data: h })),
   ];
-  const [idx, setIdx] = useState(0);
+  const idx = 0; // Successful actions remove their item from the parent list.
   const [leaving, setLeaving] = useState(null); // 'yes' | 'no'
   const startX = useRef(null);
   const done = idx >= items.length;
@@ -532,7 +526,7 @@ function ReviewDeck({ replies, batches, holds, onReply, onReplySkip, onBatch, on
         else await onHoldSkip(it.data);
       }
     } finally {
-      setTimeout(() => { setIdx(i => i + 1); setLeaving(null); }, 260);
+      setTimeout(() => setLeaving(null), 260);
     }
   }
 

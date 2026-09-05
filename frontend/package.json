@@ -38,7 +38,9 @@
     "check:em-dash": "node scripts/check-em-dash.mjs",
     "check:tokens": "node scripts/check-tokens.mjs",
     "check:swatches": "node scripts/check-swatches.mjs",
-    "check:live": "node scripts/check-live.mjs"
+    "check:live": "node scripts/check-live.mjs",
+    "check:care": "node scripts/check-care-hub.mjs && node scripts/check-care-workflows.mjs",
+    "check:more": "node --test src/pages/more-*.test.mjs && node scripts/check-more-reliability.mjs"
   },
   "dependencies": {
     "@capacitor-community/apple-sign-in": "^6.0.0",
