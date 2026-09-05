@@ -4,6 +4,7 @@ import { API_BASE } from '../lib/config.js';
 import { deDash } from '../lib/text.js';
 import Icon, { iconName } from './ui/Icon';
 import { dedupeFetch } from '../lib/dedupe-fetch.js';
+import Button from './ui/Button.jsx';
 
 /**
  * ActivityFeed , Day 1 of the 2026-05-28 refactor.
@@ -156,12 +157,13 @@ function relativeTime(when, now = new Date()) {
   return `${date}, ${time}`;
 }
 
-export default function ActivityFeed({ limit = 50 }) {
+export default function ActivityFeed({ limit = 50, compact = false }) {
   const [state, setState] = useState({ status: 'loading', rows: [] });
   // Keep the feed glanceable: show Today + Yesterday, tuck the long tail of
   // history behind a "Show earlier" toggle instead of one endless list.
   const [showEarlier, setShowEarlier] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -231,11 +233,26 @@ export default function ActivityFeed({ limit = 50 }) {
   }
 
   const now = new Date();
+  if (compact && !expanded) return (
+    <section className="today-card today-activity" aria-label="What Florrie did">
+      <div className="today-card-heading">
+        <div><span className="today-eyebrow">While you were with clients</span><h2 className="today-section-title">What Florrie did</h2></div>
+        <Icon name="flower" size={23} />
+      </div>
+      <ul style={F.list}>
+        {state.rows.slice(0, 3).map(row => <ActivityRow key={row.id} row={row} now={now} navigate={navigate} />)}
+      </ul>
+      {state.rows.length > 3 && <Button variant="quiet" fullWidth onClick={() => { setExpanded(true); setShowDetail(true); setShowEarlier(true); }} aria-expanded={false}>
+        View {state.rows.length} recent updates <Icon name="chevron-down" size={16} />
+      </Button>}
+    </section>
+  );
   const groups = { today: [], yesterday: [], earlier: [] };
   state.rows.forEach(r => groups[bucketFor(r.created_at, now)].push(r));
 
   return (
     <section style={F.card}>
+      {compact && <Button variant="quiet" fullWidth onClick={() => setExpanded(false)} aria-expanded={true}>Show fewer updates <Icon name="chevron-up" size={16} /></Button>}
       <div style={F.header}>
         <span style={F.title}>What Florrie did</span>
         <span style={F.count}>{state.rows.length}</span>
