@@ -203,7 +203,7 @@ export function describeSlot(slot, todayWallDate = null) {
 // not to be a linguistics project.
 const TREATMENT_STOPWORDS = new Set([
   'and', 'the', 'a', 'an', 'with', 'for', 'of', 'treatment', 'appointment',
-  'full', 'set', 'mini', 'plus', 'inc', 'including',
+  'full', 'set', 'mini', 'plus', 'inc', 'including', 'only', 'just',
 ]);
 
 // Two words for the same thing, on the client's side and the menu's. Ellie's
@@ -213,6 +213,9 @@ const TREATMENT_STOPWORDS = new Set([
 const TREATMENT_SYNONYMS = {
   dye: 'stain',
   lami: 'lamination',
+  lam: 'lamination',
+  eyebrow: 'brow',
+  eyelash: 'lash',
   // The returning-client words are one word to the matcher, so "top up" from
   // the client finds "maintenance" on the menu.
   infill: 'maintenance',
@@ -223,9 +226,17 @@ const TREATMENT_SYNONYMS = {
 // The word that marks a treatment as the RETURNING-CLIENT version of another
 // one (every synonym above folds into it). "Brow lamination maintenance" is
 // what you have six weeks after "Brow lamination"; it is shorter, cheaper,
-// and wrong for somebody who has never had the treatment. See matchTreatment
+// and wrong for somebody who has never had the treatment. See matchTreatments
 // for how it is handled.
 const RETURNING_QUALIFIERS = new Set(['maintenance']);
+
+// Where on the body. These say which treatment of a kind she means ("lip wax"
+// against "brow wax") but never what kind: "brows please" is not a treatment.
+const BODY_WORDS = new Set([
+  'brow', 'lash', 'lip', 'eye', 'nail', 'hand', 'foot', 'feet', 'leg', 'arm',
+  'bikini', 'back', 'chin', 'underarm', 'body', 'skin', 'hair', 'scalp', 'neck',
+  'chest', 'shoulder', 'toe', 'finger', 'cheek', 'forehead', 'face',
+]);
 
 function treatmentTokens(text) {
   return String(text || '')
@@ -252,69 +263,189 @@ export function isReturningVersion(name) {
   return treatmentTokens(name).some(w => RETURNING_QUALIFIERS.has(w));
 }
 
+const countOf = (words) => {
+  const m = new Map();
+  for (const w of words) m.set(w, (m.get(w) || 0) + 1);
+  return m;
+};
+
 /**
- * Resolve the treatment from what the client wrote.
+ * Score every treatment against a list of the client's words.
+ * `saidList` may carry a word twice ("brow wax and lip wax" says wax twice)
+ * and that count is what lets two treatments share a word.
+ */
+function scoreRows(saidList, list) {
+  const said = new Set(saidList);
+  const clientSaidQualifier = saidList.some(w => RETURNING_QUALIFIERS.has(w));
+  const saidBody = new Set(saidList.filter(w => BODY_WORDS.has(w)));
+  const saidKey = new Set(saidList.filter(w => !BODY_WORDS.has(w) && !RETURNING_QUALIFIERS.has(w)));
+  const rows = list.map(t => {
+    const all = treatmentTokens(t.name);
+    const qualified = all.some(w => RETURNING_QUALIFIERS.has(w));
+    // A qualifier the client never said is not a word she can have hit, so
+    // it neither scores nor dilutes coverage.
+    const scoredOn = clientSaidQualifier ? all : all.filter(w => !RETURNING_QUALIFIERS.has(w));
+    const key = scoredOn.filter(w => !BODY_WORDS.has(w));
+    const body = scoredOn.filter(w => BODY_WORDS.has(w));
+    const hitsKey = key.filter(w => said.has(w)).length;
+    const hitsBody = body.filter(w => said.has(w)).length;
+    // She said brow; this is a lash treatment. Not a candidate, whatever
+    // else it shares.
+    const conflict = saidBody.size > 0 && body.length > 0 && hitsBody === 0;
+    const containsAll = saidKey.size > 0 && [...saidKey].every(w => key.includes(w));
+    const unmatchedKey = key.filter(w => !said.has(w));
+    return { treatment: t, all: scoredOn, key, body, qualified, hitsKey, hitsBody, hits: hitsKey + hitsBody, conflict, containsAll, unmatchedKey };
+  });
+  return { rows, said, saidBody, saidKey, clientSaidQualifier };
+}
+
+/**
+ * The client named PART of a treatment. One answer, one question, or nothing.
+ * Returns {treatment} resolved, {candidates, ambiguous: true} to ask, or null
+ * for no match at all.
+ */
+function resolvePartial(saidList, list) {
+  const { rows, saidKey, clientSaidQualifier } = scoreRows(saidList, list);
+  let scored = rows.filter(r => r.hits > 0 && !r.conflict);
+  if (!scored.length) return null;
+
+  // Names that contain every product word she said, when any do.
+  const containing = scored.filter(r => r.containsAll);
+  let top = containing.length ? containing : scored;
+
+  // She did not ask for maintenance, so between the treatment and its
+  // maintenance twin the treatment wins. Only when there is an unqualified
+  // name to prefer: a menu of nothing but infills stays as it is.
+  if (!clientSaidQualifier && top.some(r => !r.qualified)) top = top.filter(r => !r.qualified);
+
+  const bestKey = Math.max(...top.map(r => r.hitsKey));
+  top = top.filter(r => r.hitsKey === bestKey);
+  if (top.length > 1) {
+    // Several names carry the same product words. A body word settles it
+    // only when there are no product words at all: "lip wax" over "Brow
+    // wax" is settled above by the conflict rule, and "hybrid brows"
+    // between "Brow Lamination & Hybrid stain" and "Hybrid stain" is not
+    // settled by the word brow. If more than one is left, ask.
+    if (bestKey === 0) {
+      const bestBody = Math.max(...top.map(r => r.hitsBody));
+      top = top.filter(r => r.hitsBody === bestBody);
+    }
+    if (top.length > 1) return { candidates: top.slice(0, 5).map(r => r.treatment), ambiguous: true };
+  }
+
+  const only = top[0];
+  if (only.unmatchedKey.length) {
+    // The one survivor carries a product word she never said. If a word she
+    // DID say names something else on the menu as well, her word alone did
+    // not pick this treatment out, and it is a question: "Did you mean X?"
+    const herWordsNameSomethingElse = rows.some(r => r !== only && r.key.some(w => saidKey.has(w)));
+    if (herWordsNameSomethingElse) return { candidates: [only.treatment], ambiguous: true };
+  }
+  return { treatment: only.treatment };
+}
+
+/**
+ * Resolve the treatment, or treatments, from what the client wrote.
  *
- * Scores each bookable treatment by how many of its own significant words the
- * client used. A clear single winner is resolved; a tie is AMBIGUOUS and gets
- * one question, never a guess. "any chance of lashes friday?" ties across
- * every lash treatment on the menu, which is exactly right: Florrie should
- * ask, because booking the wrong one wastes a chair.
+ * Every rule here is a rule about NOT GUESSING, because a wrong guess is a
+ * wasted chair and a client who has to explain herself twice, and every one
+ * of them was written from a message a real client sent:
  *
- * Maintenance is opt-in. On 4 September 2026 a new client wrote "I'd like to
- * book for the lamination + hybrid dye" and was offered "Brow lamination
- * maintenance - Hybrid dye": the maintenance name carried one more of her
- * words than "Brow Lamination & Hybrid stain" did, purely because it is
- * longer. A word like "maintenance", "infill" or "top up" is not evidence
- * that she wants that version; it is evidence only when SHE says it. So
- * unless the client used the qualifier, a qualified name is scored as its
- * unqualified twin, and when the two then tie, the unqualified one wins. A
- * menu that ONLY has the qualified version (a salon that lists "Lash infills"
- * and nothing else for lashes) still matches it, because there is nothing
- * else it could mean.
+ *  - "I'd like to book for the lamination + hybrid dye" (4 September 2026)
+ *    was offered "Brow lamination maintenance - Hybrid dye", because the
+ *    maintenance name carried more of her words than "Brow Lamination &
+ *    Hybrid stain". Maintenance is opt-in: unless SHE says maintenance (or
+ *    infill, refill, top up) a maintenance name is scored as its unqualified
+ *    twin, and when the two tie the treatment wins. Dye and stain are the
+ *    same word.
+ *  - "brow tint", on a menu with no plain brow tint, matched "Brow Lamination
+ *    & tint" on two words out of three. That is a £40 lamination for
+ *    somebody who asked for a tint. When the only survivor carries a product
+ *    word she never said, and the word she DID say also names something else
+ *    on the menu, Florrie asks "Did you mean X?" (candidates of one,
+ *    ambiguous: true) instead of booking it.
+ *  - "brow wax and lip wax" was answered "Did you mean Brow wax or Lip wax?".
+ *    She meant both. Fully named treatments are taken longest first, each
+ *    using up its words, so wax said twice is two treatments and "brow
+ *    lamination with hybrid dye and a lip wax" is not lamination plus a brow
+ *    wax. Whatever words are left over are read on their own, so "korean
+ *    lash lift and lash tint" is both and "a lash lift and tint" is both.
+ *  - "lip wax" must never match "Brow wax": a treatment for one part of the
+ *    body is not a candidate for another.
+ *
+ * @returns {{treatment?: object, extras: object[], candidates: object[], ambiguous: boolean}}
+ *   treatment set: resolved (extras are the second and third treatment when
+ *   she named more than one). ambiguous with several candidates: ask which.
+ *   ambiguous with ONE candidate: ask "did you mean X?". Neither: no match.
+ */
+export function matchTreatments(text, treatments) {
+  const none = { extras: [], candidates: [], ambiguous: false };
+  const saidList = treatmentTokens(text);
+  const list = (treatments || []).filter(t => t && t.name);
+  if (!saidList.length || !list.length) return none;
+
+  const { rows, saidBody, clientSaidQualifier } = scoreRows(saidList, list);
+
+  // ---- Fully named, possibly more than one. -------------------------------
+  // Every product word of the name is in the message, and so is its body
+  // word when she used body words at all ("lamination + hybrid dye" names
+  // "Brow Lamination & Hybrid stain" without the word brow; "lip wax" does
+  // not name "Brow wax").
+  const remaining = countOf(saidList);
+  const available = (w) => (remaining.get(w) || 0) > 0;
+  // "tint" alone is not "Lash tint only" when "Brow Lamination & tint" is on
+  // the same menu: a name whose body word she never said, and whose product
+  // words another name carries too, has not been picked out by what she
+  // wrote. It goes to the partial pass below, which asks.
+  const bodyUnsaid = (r) => r.body.length > 0 && !r.body.some(w => remaining.has(w));
+  const anotherCarriesItsWords = (r) => rows.some(o => o !== r && !picks.includes(o)
+    && (clientSaidQualifier || !o.qualified)
+    && r.key.every(w => o.key.includes(w)));
+  const fullyNamed = (r) => r.key.length > 0
+    && r.key.every(available)
+    && (r.body.length === 0 || saidBody.size === 0 || r.body.every(available))
+    && !(bodyUnsaid(r) && anotherCarriesItsWords(r));
+  const picks = [];
+  for (let round = 0; round < 3; round++) {
+    let pool = rows.filter(r => !picks.includes(r) && fullyNamed(r));
+    if (!pool.length) break;
+    if (!clientSaidQualifier && pool.some(r => !r.qualified)) pool = pool.filter(r => !r.qualified);
+    const most = Math.max(...pool.map(r => r.all.length));
+    const pick = pool.find(r => r.all.length === most);
+    picks.push(pick);
+    for (const w of pick.all) if (available(w)) remaining.set(w, remaining.get(w) - 1);
+  }
+
+  // ---- Whatever she said that no full name used. --------------------------
+  const leftover = [];
+  for (const [w, n] of remaining) for (let i = 0; i < n; i++) leftover.push(w);
+  const leftoverKey = leftover.filter(w => !BODY_WORDS.has(w) && !RETURNING_QUALIFIERS.has(w));
+  const rest = list.filter(t => !picks.some(p => p.treatment === t));
+  const partial = leftoverKey.length || !picks.length ? resolvePartial(leftover, rest) : null;
+
+  if (picks.length) {
+    const found = picks.map(r => r.treatment);
+    // The leftover only counts when it settles on one thing ("and tint" after
+    // "korean lash lift"). Leftover that merely resembles the menu is
+    // chatter: "I've just booked in for a Korean lash lift, I've been a lash
+    // extension girly for years" names one treatment, not three.
+    if (partial?.treatment) found.push(partial.treatment);
+    return { treatment: found[0], extras: found.slice(1, 3), candidates: found.slice(0, 3), ambiguous: false };
+  }
+  if (!partial) return none;
+  if (partial.ambiguous) return { extras: [], candidates: partial.candidates, ambiguous: true };
+  return { treatment: partial.treatment, extras: [], candidates: [partial.treatment], ambiguous: false };
+}
+
+/**
+ * The single-treatment view of matchTreatments, for callers that only need
+ * to know whether she named one thing and which.
  *
  * @returns {{treatment?: object, candidates: object[], ambiguous: boolean}}
  */
 export function matchTreatment(text, treatments) {
-  const said = new Set(treatmentTokens(text));
-  const list = (treatments || []).filter(t => t && t.name);
-  if (!said.size || !list.length) return { candidates: [], ambiguous: false };
-
-  const clientSaidQualifier = [...said].some(w => RETURNING_QUALIFIERS.has(w));
-
-  const scored = list.map(t => {
-    const all = treatmentTokens(t.name);
-    const qualified = all.some(w => RETURNING_QUALIFIERS.has(w));
-    // The words the name is scored on. A qualifier the client never said is
-    // not a word she can have hit, so it neither scores nor dilutes coverage.
-    const own = clientSaidQualifier ? all : all.filter(w => !RETURNING_QUALIFIERS.has(w));
-    const hits = own.filter(w => said.has(w)).length;
-    // Fraction matters as well as count: "Lash Lift" fully named beats
-    // "Russian Volume Lash Extensions" catching one word.
-    return { treatment: t, hits, coverage: own.length ? hits / own.length : 0, qualified };
-  }).filter(s => s.hits > 0);
-
-  if (!scored.length) return { candidates: [], ambiguous: false };
-
-  const best = Math.max(...scored.map(s => s.hits));
-  let top = scored.filter(s => s.hits === best);
-  if (top.length > 1) {
-    // Coverage only settles a tie when a name was said in FULL. Using it as a
-    // general tie-breaker made "lashes" resolve to Lash Lift purely because
-    // that name is short, which is a guess wearing a score's clothes.
-    const named = top.filter(s => s.coverage === 1);
-    if (named.length) top = named;
-  }
-  if (top.length > 1 && !clientSaidQualifier) {
-    // She did not ask for maintenance, so between the treatment and its
-    // maintenance twin the treatment wins. Only when there is an unqualified
-    // name to prefer: a menu of nothing but infills stays as it is.
-    const plain = top.filter(s => !s.qualified);
-    if (plain.length) top = plain;
-  }
-
-  if (top.length === 1) return { treatment: top[0].treatment, candidates: [top[0].treatment], ambiguous: false };
-  return { candidates: top.map(s => s.treatment), ambiguous: true };
+  const m = matchTreatments(text, treatments);
+  return { treatment: m.treatment, candidates: m.candidates, ambiguous: m.ambiguous };
 }
 
 // ---------------------------------------------------------------------------

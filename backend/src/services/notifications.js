@@ -37,6 +37,39 @@ function frontendBase() {
   return (process.env.FRONTEND_URL || 'https://florrie.ai').replace(/\/$/, '');
 }
 import { hasColumn } from '../lib/schema-probe.js';
+import { treatmentSetLabel } from '../lib/appointment-treatments.js';
+
+/**
+ * Every treatment on the booking, as one thing to name.
+ *
+ * A booking made for "Brow wax and Lip wax" is one appointment row whose
+ * treatment_id is the brow wax and whose extra_treatment_ids holds the lip
+ * wax. The confirmation and the reminder read only treatments(name), so the
+ * client was told she was booked for a brow wax and nothing else, with the
+ * duration of the brow wax alone. This reads the extras too and hands back
+ * the joined name and the real length, so the email, the text and the
+ * calendar file describe what was actually booked.
+ */
+async function wholeTreatment(appt) {
+  const base = appt?.treatments || null;
+  const extraIds = Array.isArray(appt?.extra_treatment_ids) ? appt.extra_treatment_ids.filter(Boolean) : [];
+  if (!extraIds.length) return base;
+  const { data, error } = await supabase.from('treatments').select('id, name, duration_minutes').in('id', extraIds);
+  if (error || !data?.length) {
+    if (error) logger.warn({ err: error, appointmentId: appt?.id }, 'Extra treatments could not be read for the confirmation; naming the first only');
+    return base;
+  }
+  const byId = new Map(data.map(t => [t.id, t]));
+  const extras = extraIds.map(id => byId.get(id)).filter(Boolean);
+  const minutes = Number(appt?.duration_minutes) > 0
+    ? Number(appt.duration_minutes)
+    : (base?.duration_minutes || 0) + extras.reduce((sum, t) => sum + (t.duration_minutes || 0), 0);
+  return {
+    ...base,
+    name: treatmentSetLabel(base?.name, extras.map(t => t.name)),
+    duration_minutes: minutes,
+  };
+}
 import { capSize } from '../lib/bounded-cache.js';
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
@@ -1709,7 +1742,7 @@ export async function notifyBookingConfirmed(appointmentId) {
   if (!appt) return { sent: false, channels, reason: 'no_appointment' };
 
   const client = appt.clients;
-  const treatment = appt.treatments;
+  const treatment = await wholeTreatment(appt);
   const biz = appt.beauticians;
   const prefs = biz?.client_reminder_prefs || {};
   // ALWAYS SENDS. There is no switch on this and there is not going to be one.
@@ -2024,7 +2057,7 @@ export async function notifyReminder24h(appointmentId) {
   if (!appt) return;
 
   const client = appt.clients;
-  const treatment = appt.treatments;
+  const treatment = await wholeTreatment(appt);
   const biz = appt.beauticians;
   const prefs = biz?.client_reminder_prefs || {};
   // The reminder used to say "Reply here if you need to change anything" and

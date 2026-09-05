@@ -154,6 +154,14 @@ vi.mock('../../src/services/notifications.js', () => ({
   notifyBookingConfirmed: async () => true,
 }));
 
+// Migration 030 adds booking_conversations.extra_treatment_ids. The real probe
+// caches its answer for five minutes, so the test flips it here instead.
+let extrasColumnExists = true;
+vi.mock('../../src/lib/schema-probe.js', () => ({
+  hasColumn: async (_db, table, column) =>
+    !(table === 'booking_conversations' && column === 'extra_treatment_ids') || extrasColumnExists,
+}));
+
 // Everything this module told anybody until 31 August 2026 went to the CLIENT.
 // It imported no push helper at all, so a client could book herself in over
 // WhatsApp and the only person who never found out was the owner.
@@ -636,5 +644,161 @@ describe('the owner finds out about a conversational booking', () => {
     // It still lands the client on the same confirmed page afterwards, so
     // nothing she sees changes.
     expect(session.cancel_url).toContain('https://florrie.ai/book/ellie');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Ellie's feedback, 4 September 2026. "It was going so well until it said brow
+// lamination maintenance when she asked for brow lamination and hybrid dye."
+// The menu below is hers, as it stood that day, prices and lengths included.
+// ---------------------------------------------------------------------------
+
+const ELLIE_MENU = [
+  { id: 'e_lam_stain', name: 'Brow Lamination & Hybrid stain', duration_minutes: 60, buffer_minutes: 0, price_cents: 4500, deposit_cents: 0, deposit_percent: 0, requires_patch_test: true },
+  { id: 'e_lam_tint', name: 'Brow Lamination & tint', duration_minutes: 60, buffer_minutes: 0, price_cents: 4000, deposit_cents: 0, deposit_percent: 0, requires_patch_test: true },
+  { id: 'e_maint_stain', name: 'Brow lamination maintenance - Hybrid dye', duration_minutes: 45, buffer_minutes: 0, price_cents: 3500, deposit_cents: 0, deposit_percent: 0, requires_patch_test: true },
+  { id: 'e_maint_tint', name: 'Brow lamination maintenance - Tint', duration_minutes: 40, buffer_minutes: 0, price_cents: 3000, deposit_cents: 0, deposit_percent: 0, requires_patch_test: true },
+  { id: 'e_brow_wax', name: 'Brow wax', duration_minutes: 20, buffer_minutes: 0, price_cents: 1250, deposit_cents: 0, deposit_percent: 0, requires_patch_test: false },
+  { id: 'e_hybrid', name: 'Hybrid stain', duration_minutes: 45, buffer_minutes: 0, price_cents: 3500, deposit_cents: 0, deposit_percent: 0, requires_patch_test: true },
+  { id: 'e_korean', name: 'Korean lash lift', duration_minutes: 60, buffer_minutes: 0, price_cents: 5000, deposit_cents: 0, deposit_percent: 0, requires_patch_test: true },
+  { id: 'e_lash_tint', name: 'Lash tint only', duration_minutes: 15, buffer_minutes: 0, price_cents: 1200, deposit_cents: 0, deposit_percent: 0, requires_patch_test: true },
+  { id: 'e_lip_wax', name: 'Lip wax', duration_minutes: 10, buffer_minutes: 0, price_cents: 700, deposit_cents: 0, deposit_percent: 0, requires_patch_test: false },
+  { id: 'e_signature', name: 'Signature brows', duration_minutes: 30, buffer_minutes: 0, price_cents: 3000, deposit_cents: 0, deposit_percent: 0, requires_patch_test: true },
+];
+// No deposit at Ellie's for these, so a pick books outright.
+const ELLIE = { ...BEAUTICIAN, payment_settings: {} };
+const ellieSays = (message, intent = 'booking_request') =>
+  advanceBookingConversation({
+    beautician: ELLIE, client: CLIENT, message,
+    classification: { intent, confidence: 1 }, context: ctx({ treatments: ELLIE_MENU, patchTest: { status: 'none', returningClient: true } }),
+  });
+
+describe("Ellie's feedback: the treatment Florrie names is the one the client asked for", () => {
+  it('offers the treatment, not its maintenance twin, and says the price so a mix-up is visible', async () => {
+    freezeSalonClock();
+    const r = await ellieSays("I'd like to book for the lamination + hybrid dye x");
+    expect(state().step).toBe('awaiting_pick');
+    expect(state().treatment_id).toBe('e_lam_stain');
+    expect(r.reply).toContain('For Brow Lamination & Hybrid stain (£45, about an hour) I');
+    expect(r.reply).not.toContain('maintenance');
+    // The price must not be read as a clock time by the guard.
+    expect(checkReplyClaims(r.reply, { allowedTimes: r.allowedTimes }).ok).toBe(true);
+  });
+
+  it('offers maintenance when she asks for it', async () => {
+    freezeSalonClock();
+    await ellieSays('can I get a lamination top up and tint');
+    expect(state().treatment_id).toBe('e_maint_tint');
+  });
+
+  it('asks "did you mean X?" rather than booking a lamination for somebody who asked for a tint', async () => {
+    freezeSalonClock();
+    const r = await ellieSays('could I book a brow tint please');
+    expect(state().step).toBe('awaiting_treatment');
+    expect(r.reply).toContain('did you mean Brow Lamination & tint (£40, about an hour)?');
+    expect(checkReplyClaims(r.reply, { allowedTimes: [] }).ok).toBe(true);
+  });
+
+  it('takes "yes" as the answer to "did you mean X?"', async () => {
+    freezeSalonClock();
+    await ellieSays('could I book a brow tint please');
+    const r = await ellieSays('yes please x', 'unknown');
+    expect(state().step).toBe('awaiting_pick');
+    expect(state().treatment_id).toBe('e_lam_tint');
+    expect(r.allowedTimes.length).toBeGreaterThan(0);
+  });
+
+  it('does not take a kiss as a yes', async () => {
+    freezeSalonClock();
+    await ellieSays('could I book a brow tint please');
+    await ellieSays('x', 'unknown');
+    expect(state().step).toBe('awaiting_treatment');
+  });
+
+  it('takes "the second one" from a list of two', async () => {
+    freezeSalonClock();
+    const r1 = await ellieSays('lamination please');
+    expect(r1.reply).toContain('Did you mean Brow Lamination & Hybrid stain or Brow Lamination & tint?');
+    await ellieSays('the second one', 'unknown');
+    expect(state().step).toBe('awaiting_pick');
+    expect(state().treatment_id).toBe('e_lam_tint');
+  });
+
+  it('never matches a brow treatment to somebody asking for her lips', async () => {
+    freezeSalonClock();
+    await ellieSays('lip wax please');
+    expect(state().treatment_id).toBe('e_lip_wax');
+  });
+});
+
+describe("Ellie's feedback: two treatments in one message are one booking of both", () => {
+  it('books brow wax AND lip wax, one appointment, both named, priced and timed together', async () => {
+    freezeSalonClock();
+    const r = await ellieSays('brow wax and lip wax please, friday');
+    expect(state().step).toBe('awaiting_pick');
+    expect(state().treatment_id).toBe('e_brow_wax');
+    expect(state().extra_treatment_ids).toEqual(['e_lip_wax']);
+    expect(r.reply).toContain('For Brow wax and Lip wax (£19.50, about 30 minutes) I');
+
+    // Every offered slot has to fit the two of them, 30 minutes, not 20.
+    const first = state().offered[0];
+    const r2 = await ellieSays(`the ${first.time.replace(/^0/, '').replace(':00', '')} one`, 'unknown');
+    const appt = held()[0];
+    expect(appt).toBeTruthy();
+    expect(appt.treatment_id).toBe('e_brow_wax');
+    expect(appt.extra_treatment_ids).toEqual(['e_lip_wax']);
+    expect(appt.duration_minutes).toBe(30);
+    expect(appt.price_cents).toBe(1950);
+    expect(new Date(appt.ends_at).getTime() - new Date(appt.starts_at).getTime()).toBe(30 * 60 * 1000);
+    expect(r2.reply).toContain("I've got you in for Brow wax and Lip wax on");
+    expect(r2.actionPerformed).toBe(true);
+    // Ellie's feed names the set the way the diary does.
+    expect(db.ai_actions[0].summary).toContain('Held Brow wax + Lip wax');
+  });
+
+  it('reads "korean lash lift and lash tint" as both', async () => {
+    freezeSalonClock();
+    await ellieSays('korean lash lift and lash tint');
+    expect(state().treatment_id).toBe('e_korean');
+    expect(state().extra_treatment_ids).toEqual(['e_lash_tint']);
+  });
+
+  it('hands both to Ellie, named, when the conversation cannot yet remember a second treatment', async () => {
+    freezeSalonClock();
+    extrasColumnExists = false;
+    try {
+      const r = await ellieSays('brow wax and lip wax please');
+      expect(r.handOver).toBe(true);
+      expect(r.reply).toContain('Brow wax and Lip wax together');
+      expect(checkReplyClaims(r.reply, { allowedTimes: [] }).ok).toBe(true);
+      // And a one-treatment booking still works, without the column in the write.
+      const r2 = await ellieSays('lip wax please');
+      expect(state().step).toBe('awaiting_pick');
+      expect(state().extra_treatment_ids).toBeUndefined();
+      expect(r2.allowedTimes.length).toBeGreaterThan(0);
+    } finally {
+      extrasColumnExists = true;
+    }
+  });
+});
+
+describe("Ellie's feedback: adding a treatment mid-conversation keeps the first one", () => {
+  it('"and a lip wax too" after being offered brow wax times offers times for both', async () => {
+    freezeSalonClock();
+    await ellieSays('brow wax please');
+    expect(state().treatment_id).toBe('e_brow_wax');
+    const r = await ellieSays('oh and a lip wax too please', 'unknown');
+    expect(state().step).toBe('awaiting_pick');
+    expect(state().treatment_id).toBe('e_brow_wax');
+    expect(state().extra_treatment_ids).toEqual(['e_lip_wax']);
+    expect(r.reply).toContain('Brow wax and Lip wax (£19.50, about 30 minutes)');
+  });
+
+  it('"actually make it a lip wax" swaps rather than adds', async () => {
+    freezeSalonClock();
+    await ellieSays('brow wax please');
+    await ellieSays('actually can we make it a lip wax instead', 'unknown');
+    expect(state().treatment_id).toBe('e_lip_wax');
+    expect(state().extra_treatment_ids).toEqual([]);
   });
 });

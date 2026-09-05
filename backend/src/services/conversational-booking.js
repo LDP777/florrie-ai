@@ -36,9 +36,11 @@ import { totalApplicationFee } from '../lib/platform-fees.js';
 import { apiPublicBase } from '../lib/public-url.js';
 import { announceBookingConfirmed } from './booking-confirmed-alert.js';
 import { alreadyBookedForThis } from '../lib/already-booked.js';
+import { hasColumn } from '../lib/schema-probe.js';
+import { treatmentSetLabel } from '../lib/appointment-treatments.js';
 import {
   combineTreatments, resolveDepositCents, formatWallTime, describeSlot,
-  matchTreatment, dayPreferenceFrom, chooseOffers, matchSlotChoice,
+  matchTreatments, dayPreferenceFrom, chooseOffers, matchSlotChoice,
   isLive, looksLikeRejection,
   looksLikeABookingOpening, patchTestLine,
 } from '../lib/booking-rules.js';
@@ -73,6 +75,10 @@ const PATCH_TEST_LEAD_HOURS = 24;
 // over, so "actually cancel it" is never read as picking a slot.
 const ABANDON_INTENTS = new Set(['cancellation', 'complaint', 'reschedule']);
 
+// "And a lip wax too": a second treatment added to the one being booked,
+// rather than a change of mind.
+const ADDING_ON = /\b(?:too|as well|also|add|and a|plus|on top|with it|with that)\b/i;
+
 // Intents that can START a booking conversation from nothing.
 const OPENING_INTENTS = new Set(['booking_request', 'availability_check']);
 
@@ -85,6 +91,102 @@ function money(cents) {
 function joinWithOr(parts) {
   if (parts.length <= 1) return parts[0] || '';
   return `${parts.slice(0, -1).join(', ')} or ${parts[parts.length - 1]}`;
+}
+
+function joinWithAnd(parts) {
+  if (parts.length <= 1) return parts[0] || '';
+  return `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
+}
+
+// ---------------------------------------------------------------------------
+// What is being booked
+// ---------------------------------------------------------------------------
+
+/**
+ * One booking, one or more treatments. "Brow wax and lip wax" is one
+ * appointment with two treatments in it, which is what the booking page
+ * writes (treatment_id plus extra_treatment_ids) and what the diary shows.
+ * Everything below that needs a length, a price, a deposit or a name takes
+ * the set, never a lone treatment, so two treatments cannot be quietly booked
+ * as one.
+ */
+function bookingSet(primary, extras = []) {
+  const all = [primary, ...(extras || [])].filter(Boolean);
+  return {
+    primary,
+    extras: all.slice(1),
+    all,
+    label: treatmentSetLabel(primary?.name, all.slice(1).map(t => t.name)),
+    spoken: joinWithAnd(all.map(t => t.name)),
+  };
+}
+
+/** The set a stored conversation is about, from the ids it kept. */
+function setFromState(state, treatments) {
+  const primary = treatments.find(t => t.id === state.treatment_id);
+  if (!primary) return null;
+  const extraIds = Array.isArray(state.extra_treatment_ids) ? state.extra_treatment_ids : [];
+  const extras = extraIds.map(id => treatments.find(t => t.id === id)).filter(Boolean);
+  return bookingSet(primary, extras);
+}
+
+/**
+ * "(£45, about an hour)". Said with the treatment on every offer, so a
+ * client who asked for a tint and is being offered a lamination sees the
+ * £40 and says so before a chair is wasted on it. Ellie caught the
+ * maintenance mix-up on 4 September only because the reply named the
+ * treatment; the price makes the same mistake visible to the client herself.
+ */
+function priceAndLength(set) {
+  const { durationMinutes, priceCents } = combineTreatments(set.all);
+  const parts = [];
+  if (priceCents > 0) parts.push(money(priceCents));
+  if (durationMinutes > 0) parts.push(roughLength(durationMinutes));
+  return parts.length ? ` (${parts.join(', ')})` : '';
+}
+
+function roughLength(minutes) {
+  if (minutes < 60) return `about ${minutes} minutes`;
+  if (minutes === 60) return 'about an hour';
+  if (minutes === 90) return 'about an hour and a half';
+  const hours = minutes / 60;
+  if (Number.isInteger(hours)) return `about ${hours} hours`;
+  return `about ${Math.round(hours * 2) / 2} hours`;
+}
+
+/**
+ * Does booking_conversations remember the second and third treatment yet?
+ * Migration 030 adds the column. Until it has run, a two-treatment ask is
+ * handed to the owner with both treatments named rather than booked as one.
+ */
+async function canRememberExtras() {
+  return hasColumn(supabase, 'booking_conversations', 'extra_treatment_ids');
+}
+
+// The client agreeing with a "did you mean X?" question. A bare "x" is a
+// kiss, not a yes, so it is only allowed after the word.
+const AFFIRMATIVE = /^\s*(?:yes|yeah|yep|yup|yes please|yeah please|please|correct|that'?s (?:it|right|the one)|that one|exactly|perfect|sure|ok|okay|go on then|👍|✅)\s*[!.x ]*$/i;
+// Picking from a short list by position: "the second one", "2".
+const ORDINAL = [
+  [/^\s*(?:the\s+)?(?:first|1st|1)(?:\s+one)?(?:\s+please)?\s*[!.x ]*$/i, 0],
+  [/^\s*(?:the\s+)?(?:second|2nd|2)(?:\s+one)?(?:\s+please)?\s*[!.x ]*$/i, 1],
+  [/^\s*(?:the\s+)?(?:third|3rd|3)(?:\s+one)?(?:\s+please)?\s*[!.x ]*$/i, 2],
+];
+
+/**
+ * Does this answer agree with the one candidate Florrie offered?
+ */
+function agreesWithOnly(message, offeredTreatments) {
+  const list = Array.isArray(offeredTreatments) ? offeredTreatments.filter(c => c && c.treatment_id) : [];
+  return list.length === 1 && AFFIRMATIVE.test(String(message || '')) ? list[0] : null;
+}
+
+/** Does this answer pick one of the offered candidates by position? */
+function picksByPosition(message, offeredTreatments) {
+  const list = Array.isArray(offeredTreatments) ? offeredTreatments.filter(c => c && c.treatment_id) : [];
+  if (list.length < 2) return null;
+  for (const [re, i] of ORDINAL) if (re.test(String(message || '')) && list[i]) return list[i];
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -108,11 +210,13 @@ async function loadClientRecord(beauticianId, inbound) {
 }
 
 const STATE_COLUMNS = 'id, beautician_id, client_id, step, treatment_id, offered, appointment_id, checkout_url, asked_count, expires_at';
+const STATE_COLUMNS_WITH_EXTRAS = `${STATE_COLUMNS}, extra_treatment_ids`;
 
 async function loadState(beauticianId, clientId) {
+  const withExtras = await canRememberExtras();
   const { data, error } = await supabase
     .from('booking_conversations')
-    .select(STATE_COLUMNS)
+    .select(withExtras ? STATE_COLUMNS_WITH_EXTRAS : STATE_COLUMNS)
     .eq('beautician_id', beauticianId)
     .eq('client_id', clientId)
     .maybeSingle();
@@ -139,17 +243,22 @@ async function loadState(beauticianId, clientId) {
 async function saveState(beauticianId, clientId, patch) {
   const expiresAt = patch.expires_at
     || new Date(Date.now() + OFFER_TTL_MINUTES * 60 * 1000).toISOString();
+  const row = {
+    beautician_id: beauticianId,
+    client_id: clientId,
+    offered: [],
+    asked_count: 0,
+    ...patch,
+    expires_at: expiresAt,
+    updated_at: new Date().toISOString(),
+  };
+  // Before migration 030 the column does not exist and PostgREST would
+  // refuse the whole upsert over it. Callers with extras to remember have
+  // already checked canRememberExtras and handed over if it said no.
+  if ('extra_treatment_ids' in row && !(await canRememberExtras())) delete row.extra_treatment_ids;
   const { error } = await supabase
     .from('booking_conversations')
-    .upsert({
-      beautician_id: beauticianId,
-      client_id: clientId,
-      offered: [],
-      asked_count: 0,
-      ...patch,
-      expires_at: expiresAt,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'beautician_id,client_id' });
+    .upsert(row, { onConflict: 'beautician_id,client_id' });
   if (error) {
     logger.error({ err: error, beauticianId, clientId }, 'booking_conversations write failed');
     return false;
@@ -382,10 +491,10 @@ async function handleOpening({ beautician, client, message, classification, cont
   const treatments = bookableTreatments(context);
   if (!treatments.length) return null; // nothing to book, leave it to the normal reply
 
-  const match = matchTreatment(message, treatments);
+  const match = matchTreatments(message, treatments);
 
   if (match.treatment) {
-    return await offerSlots({ beautician, client, message, treatment: match.treatment, context, salonNow, askedCount: 0 });
+    return await startFor({ beautician, client, message, match, context, salonNow, askedCount: 0 });
   }
 
   // "Are you free next week?" with no treatment named is a question, not a
@@ -393,27 +502,80 @@ async function handleOpening({ beautician, client, message, classification, cont
   // path already writes from the same verified slot list, so leave it alone.
   if (classification?.intent !== 'booking_request') return null;
 
+  return await askWhichTreatment({ beautician, client, match, treatments, askedCount: 1, first: true });
+}
+
+/**
+ * One question about the treatment. Three shapes:
+ *   one candidate:   "Did you mean Brow Lamination & tint (£40)?"
+ *   a few:           "Did you mean X, Y or Z?"
+ *   none:            "What would you like: X, Y or Z?"
+ * The candidates are kept in the state so "yes" and "the second one" can be
+ * read as answers next time round.
+ */
+async function askWhichTreatment({ beautician, client, match, treatments, askedCount, first }) {
   const options = (match.ambiguous ? match.candidates : treatments).slice(0, 5);
-  const saved = await saveState(beautician.id, client.id, { step: 'awaiting_treatment', treatment_id: null, offered: [], asked_count: 1 });
+  const offered = options.map(t => ({ treatment_id: t.id, name: t.name }));
+  const saved = await saveState(beautician.id, client.id, { step: 'awaiting_treatment', treatment_id: null, offered, asked_count: askedCount });
   if (!saved) return handOver(HOLDING_REPLY);
 
-  const name = client.first_name ? `Hi ${client.first_name}, ` : '';
-  const list = joinWithOr(options.map(t => t.name));
-  const reply = match.ambiguous
-    ? `${name}happy to get you booked in. Did you mean ${list}?`
-    : `${name}happy to get you booked in. What would you like: ${list}?`;
+  const name = first && client.first_name ? `Hi ${client.first_name}, ` : '';
+  let reply;
+  if (match.ambiguous && options.length === 1) {
+    const only = options[0];
+    reply = first
+      ? `${name}happy to get you booked in. Just so I book the right thing, did you mean ${only.name}${priceAndLength(bookingSet(only))}?`
+      : `Sorry, just so I book the right thing: did you mean ${only.name}${priceAndLength(bookingSet(only))}?`;
+  } else {
+    const list = joinWithOr(options.map(t => t.name));
+    if (first) {
+      reply = match.ambiguous
+        ? `${name}happy to get you booked in. Did you mean ${list}?`
+        : `${name}happy to get you booked in. What would you like: ${list}?`;
+    } else {
+      reply = `Sorry, just so I book the right thing: is it ${list}?`;
+    }
+  }
   // Guarded with an EMPTY allow-list. Nothing here has been verified against
   // the diary yet, so this reply is allowed to name no time whatsoever, and a
   // treatment called something like "4.30 Express Set" would be caught.
-  return speak(guarded(reply, { context: { stage: 'ask_treatment' } }), { step: 'awaiting_treatment' });
+  return speak(guarded(reply, { context: { stage: first ? 'ask_treatment' : 'reask_treatment' } }), { step: 'awaiting_treatment' });
+}
+
+/**
+ * She named one thing, or two. Two is a real booking when the conversation
+ * can remember it; otherwise the owner takes it, told exactly what was asked
+ * for, rather than Florrie booking half of it.
+ */
+async function startFor({ beautician, client, message, match, context, salonNow, askedCount }) {
+  const set = bookingSet(match.treatment, match.extras);
+  if (set.extras.length && !(await canRememberExtras())) {
+    logger.warn({ beauticianId: beautician.id, treatments: set.all.map(t => t.name) }, 'Two-treatment booking asked for before migration 030; handing to the owner');
+    return handOver(`${set.spoken} together, lovely. Let me check the book for the two of them and come straight back to you.`);
+  }
+  return await offerSlots({ beautician, client, message, set, context, salonNow, askedCount });
 }
 
 async function handleTreatmentAnswer({ beautician, client, message, state, context, salonNow }) {
   const treatments = bookableTreatments(context);
-  const match = matchTreatment(message, treatments);
 
+  const fromList = (c) => (c ? treatments.find(t => t.id === c.treatment_id) : null);
+
+  // "Yes" to "did you mean X?".
+  const agreed = fromList(agreesWithOnly(message, state.offered));
+  if (agreed) {
+    return await startFor({ beautician, client, message, match: { treatment: agreed, extras: [] }, context, salonNow, askedCount: state.asked_count || 0 });
+  }
+
+  const match = matchTreatments(message, treatments);
   if (match.treatment) {
-    return await offerSlots({ beautician, client, message, treatment: match.treatment, context, salonNow, askedCount: state.asked_count || 0 });
+    return await startFor({ beautician, client, message, match, context, salonNow, askedCount: state.asked_count || 0 });
+  }
+
+  // "The second one", when she named nothing.
+  const positional = fromList(picksByPosition(message, state.offered));
+  if (positional) {
+    return await startFor({ beautician, client, message, match: { treatment: positional, extras: [] }, context, salonNow, askedCount: state.asked_count || 0 });
   }
 
   // One question, then Ellie. Asking a third time is how a bot argues with a
@@ -423,11 +585,7 @@ async function handleTreatmentAnswer({ beautician, client, message, state, conte
     return handOver(HOLDING_REPLY);
   }
 
-  const saved = await saveState(beautician.id, client.id, { step: 'awaiting_treatment', offered: [], asked_count: (state.asked_count || 0) + 1 });
-  if (!saved) return handOver(HOLDING_REPLY);
-  const list = joinWithOr((match.ambiguous ? match.candidates : treatments).slice(0, 5).map(t => t.name));
-  const reply = `Sorry, just so I book the right thing: is it ${list}?`;
-  return speak(guarded(reply, { context: { stage: 'reask_treatment' } }), { step: 'awaiting_treatment' });
+  return await askWhichTreatment({ beautician, client, match, treatments, askedCount: (state.asked_count || 0) + 1, first: false });
 }
 
 // ---------------------------------------------------------------------------
@@ -450,8 +608,9 @@ async function handleTreatmentAnswer({ beautician, client, message, state, conte
  * it IS true of. An unrecognised or missing stance still returns true, so the
  * cautious answer remains the default.
  */
-function needsPatchTest(treatment, context) {
-  if (!treatment?.requires_patch_test) return false;
+function needsPatchTest(set, context) {
+  const list = set?.all || [set];
+  if (!list.some(t => t?.requires_patch_test)) return false;
   const pt = context?.patchTest;
   if (!pt) return true;
   // 'completed' is the dead spelling this file used to compare against; it is
@@ -479,9 +638,27 @@ async function hasConsultationOnRecord(beauticianId, clientId, treatment) {
   return hasCompletedConsultation(supabase, { beauticianId, clientId, treatment, logger });
 }
 
-async function freeSlotsFor({ beautician, treatment, salonNow, extraLeadHours = 0 }) {
+/** The first treatment in the set that wants a form she has not filled in. */
+async function firstNeedingConsultation(beauticianId, clientId, set) {
+  for (const t of set.all) {
+    if (t.requires_consultation && !(await hasConsultationOnRecord(beauticianId, clientId, t))) return t;
+  }
+  return null;
+}
+
+/** The deposit for the whole set, the way the booking page works it out. */
+function depositFor(set, beautician) {
+  const { priceCents } = combineTreatments(set.all);
+  return resolveDepositCents({
+    treatments: set.all,
+    paymentSettings: beautician.payment_settings || {},
+    combinedPriceCents: priceCents,
+  });
+}
+
+async function freeSlotsFor({ beautician, set, salonNow, extraLeadHours = 0 }) {
   const policy = beautician.booking_policy || {};
-  const { totalMinutes } = combineTreatments([treatment]);
+  const { totalMinutes } = combineTreatments(set.all);
   const leadHours = Math.max(1, policy.min_booking_hours || 0, extraLeadHours);
   const days = Math.max(1, Math.min(policy.max_advance_days || SCAN_DAYS, SCAN_DAYS));
 
@@ -497,10 +674,10 @@ async function freeSlotsFor({ beautician, treatment, salonNow, extraLeadHours = 
   });
 }
 
-async function offerSlots({ beautician, client, message, treatment, context, salonNow, askedCount = 0 }) {
-  const patchTest = needsPatchTest(treatment, context);
+async function offerSlots({ beautician, client, message, set, context, salonNow, askedCount = 0 }) {
+  const patchTest = needsPatchTest(set, context);
   const slots = await freeSlotsFor({
-    beautician, treatment, salonNow,
+    beautician, set, salonNow,
     extraLeadHours: patchTest ? PATCH_TEST_LEAD_HOURS : 0,
   });
 
@@ -508,7 +685,7 @@ async function offerSlots({ beautician, client, message, treatment, context, sal
     await clearState(beautician.id, client.id);
     // True, and checked: the lookup succeeded and came back empty. A FAILED
     // lookup throws and never reaches this line.
-    return handOver(`I've not got anything free for ${treatment.name} in the next couple of weeks. Let me have a look at what I can shuffle and come straight back to you.`);
+    return handOver(`I've not got anything free for ${set.spoken} in the next couple of weeks. Let me have a look at what I can shuffle and come straight back to you.`);
   }
 
   const wanted = dayPreferenceFrom(message, salonNow);
@@ -518,7 +695,8 @@ async function offerSlots({ beautician, client, message, treatment, context, sal
 
   const saved = await saveState(beautician.id, client.id, {
     step: 'awaiting_pick',
-    treatment_id: treatment.id,
+    treatment_id: set.primary.id,
+    extra_treatment_ids: set.extras.map(t => t.id),
     offered: offers.map(s => ({ iso: s.iso, date: s.date, time: s.time })),
     asked_count: askedCount,
     appointment_id: null,
@@ -529,15 +707,17 @@ async function offerSlots({ beautician, client, message, treatment, context, sal
   if (!saved) return handOver(HOLDING_REPLY);
 
   const askedForADayIHaveNothingOn = Boolean(wanted?.length) && !narrowedToRequestedDays;
+  // The treatment is named WITH its price and length. See priceAndLength.
+  const what = `${set.spoken}${priceAndLength(set)}`;
   const lead = askedForADayIHaveNothingOn
-    ? `I've not got anything left on the day you asked for, but for ${treatment.name} I've got`
-    : `For ${treatment.name} I've got`;
+    ? `I've not got anything left on the day you asked for, but for ${what} I've got`
+    : `For ${what} I've got`;
   // A deposit is only mentioned when this treatment really takes one. See
   // patchTestLine: this sentence used to claim money was owed in every branch,
   // including the branch that exists because no deposit is taken.
   const patchLine = patchTestLine({
     patchTest,
-    depositDue: resolveDepositCents(treatment, beautician) > 0,
+    depositDue: depositFor(set, beautician) > 0,
   });
 
   const reply = `${lead} ${describeOffers(offers, today)}. Which one suits you?${patchLine}`;
@@ -563,14 +743,21 @@ function describeOffers(offers, todayWallDate) {
 async function handlePick({ beautician, client, message, state, context, salonNow }) {
   const offered = Array.isArray(state.offered) ? state.offered : [];
   const treatments = bookableTreatments(context);
-  const treatment = treatments.find(t => t.id === state.treatment_id);
+  const set = setFromState(state, treatments);
 
-  // The menu changed under us, or she named a different treatment entirely.
-  const reMatch = matchTreatment(message, treatments);
-  if (reMatch.treatment && reMatch.treatment.id !== state.treatment_id) {
-    return await offerSlots({ beautician, client, message, treatment: reMatch.treatment, context, salonNow, askedCount: 0 });
+  // The menu changed under us, or she named a different treatment entirely,
+  // or she wants something ADDED: "oh and a lip wax too" keeps what she
+  // already asked for and offers times that fit both.
+  const reMatch = matchTreatments(message, treatments);
+  if (reMatch.treatment && !(set && reMatch.treatment.id === set.primary.id && reMatch.extras.length === 0)) {
+    const named = [reMatch.treatment, ...reMatch.extras];
+    const adding = set && ADDING_ON.test(message) && named.some(t => !set.all.some(s => s.id === t.id));
+    const match = adding
+      ? { treatment: set.primary, extras: [...set.extras, ...named.filter(t => !set.all.some(s => s.id === t.id))].slice(0, 2) }
+      : reMatch;
+    return await startFor({ beautician, client, message, match, context, salonNow, askedCount: 0 });
   }
-  if (!treatment) {
+  if (!set) {
     await clearState(beautician.id, client.id);
     return handOver(HOLDING_REPLY);
   }
@@ -579,7 +766,7 @@ async function handlePick({ beautician, client, message, state, context, salonNo
   const today = salonNow.toISOString().slice(0, 10);
 
   if (choice.rejected || (choice.unclear && looksLikeRejection(message))) {
-    return await offerMore({ beautician, client, state, treatment, context, salonNow, offered });
+    return await offerMore({ beautician, client, state, set, context, salonNow, offered });
   }
 
   if (choice.ambiguous) {
@@ -595,7 +782,7 @@ async function handlePick({ beautician, client, message, state, context, salonNo
       return handOver(HOLDING_REPLY);
     }
     const saved = await saveState(beautician.id, client.id, {
-      step: 'awaiting_pick', treatment_id: state.treatment_id, offered,
+      step: 'awaiting_pick', treatment_id: set.primary.id, extra_treatment_ids: set.extras.map(t => t.id), offered,
       asked_count: (state.asked_count || 0) + 1,
     });
     if (!saved) return handOver(HOLDING_REPLY);
@@ -604,13 +791,13 @@ async function handlePick({ beautician, client, message, state, context, salonNo
     return speak(guarded(reply, { allowedTimes, context: { stage: 'reask' } }), { allowedTimes, step: 'awaiting_pick' });
   }
 
-  return await holdAndCharge({ beautician, client, treatment, slot: choice.slot, state, context, salonNow });
+  return await holdAndCharge({ beautician, client, set, slot: choice.slot, state, context, salonNow });
 }
 
-async function offerMore({ beautician, client, state, treatment, context, salonNow, offered }) {
+async function offerMore({ beautician, client, state, set, context, salonNow, offered }) {
   const slots = await freeSlotsFor({
-    beautician, treatment, salonNow,
-    extraLeadHours: needsPatchTest(treatment, context) ? PATCH_TEST_LEAD_HOURS : 0,
+    beautician, set, salonNow,
+    extraLeadHours: needsPatchTest(set, context) ? PATCH_TEST_LEAD_HOURS : 0,
   });
   const alreadyOffered = new Set(offered.map(s => s.iso));
   const fresh = slots.filter(s => !alreadyOffered.has(s.iso));
@@ -623,7 +810,7 @@ async function offerMore({ beautician, client, state, treatment, context, salonN
   const { offers } = chooseOffers(fresh, { max: 3 });
   const allowedTimes = offers.map(s => s.time);
   const saved = await saveState(beautician.id, client.id, {
-    step: 'awaiting_pick', treatment_id: treatment.id,
+    step: 'awaiting_pick', treatment_id: set.primary.id, extra_treatment_ids: set.extras.map(t => t.id),
     offered: offers.map(s => ({ iso: s.iso, date: s.date, time: s.time })),
     asked_count: 0,
   });
@@ -639,23 +826,25 @@ async function offerMore({ beautician, client, state, treatment, context, salonN
  * reply is the only thing that says a booking happened, and it is written last
  * so it can only describe what already exists.
  */
-async function holdAndCharge({ beautician, client, treatment, slot, state, context, salonNow }) {
+async function holdAndCharge({ beautician, client, set, slot, state, context, salonNow }) {
   const today = salonNow.toISOString().slice(0, 10);
-  const patchTest = needsPatchTest(treatment, context);
+  const treatment = set.primary;
+  const patchTest = needsPatchTest(set, context);
 
   // THE RACE. Between offering 3.30 and her answering an hour later, somebody
   // else may have taken it. Re-read the diary and look for this exact slot.
   const fresh = await freeSlotsFor({
-    beautician, treatment, salonNow, extraLeadHours: patchTest ? PATCH_TEST_LEAD_HOURS : 0,
+    beautician, set, salonNow, extraLeadHours: patchTest ? PATCH_TEST_LEAD_HOURS : 0,
   });
   if (!fresh.some(s => s.iso === slot.iso)) {
-    return await slotGone({ beautician, client, treatment, state, fresh, today });
+    return await slotGone({ beautician, client, set, state, fresh, today });
   }
 
   // A treatment that needs consultation answers is not something to take a
   // deposit for over a DM. The booking page already collects the form properly,
   // so the client goes there, with the real time named.
-  if (treatment.requires_consultation && !(await hasConsultationOnRecord(beautician.id, client.id, treatment))) {
+  const needingForm = await firstNeedingConsultation(beautician.id, client.id, set);
+  if (needingForm) {
     await clearState(beautician.id, client.id);
     const link = beautician.booking_slug ? `${FRONTEND_URL}/book/${beautician.booking_slug}` : null;
     const when = describeSlot(slot, today);
@@ -665,12 +854,8 @@ async function holdAndCharge({ beautician, client, treatment, slot, state, conte
     return handOver(guarded(reply, { allowedTimes: [slot.time], context: { stage: 'consultation' } }), [slot.time]);
   }
 
-  const { durationMinutes, bufferMinutes, totalMinutes, priceCents } = combineTreatments([treatment]);
-  const depositCents = resolveDepositCents({
-    treatments: [treatment],
-    paymentSettings: beautician.payment_settings || {},
-    combinedPriceCents: priceCents,
-  });
+  const { durationMinutes, bufferMinutes, totalMinutes, priceCents } = combineTreatments(set.all);
+  const depositCents = depositFor(set, beautician);
 
   const stripeReady = Boolean(stripe && beautician.stripe_account_id && beautician.stripe_onboarding_complete);
   if (depositCents > 0 && !stripeReady) {
@@ -698,6 +883,9 @@ async function holdAndCharge({ beautician, client, treatment, slot, state, conte
       beautician_id: beautician.id,
       client_id: client.id,
       treatment_id: treatment.id,
+      // The second and third treatment, exactly as the booking page stores
+      // them, so the diary, the confirmation and the sheet all show the set.
+      ...(set.extras.length ? { extra_treatment_ids: set.extras.map(t => t.id) } : {}),
       starts_at: startsAt,
       ends_at: endsAt,
       duration_minutes: durationMinutes || 60,
@@ -726,7 +914,7 @@ async function holdAndCharge({ beautician, client, treatment, slot, state, conte
     // exclusion. Both mean somebody got there first in the last few
     // milliseconds. That is not an error, it is the answer.
     if (insertError.code === '23505' || insertError.code === '23P01') {
-      return await slotGone({ beautician, client, treatment, state, fresh, today });
+      return await slotGone({ beautician, client, set, state, fresh, today });
     }
     logger.error({ err: insertError, beauticianId: beautician.id }, 'Conversational booking hold failed');
     return handOver(HOLDING_REPLY);
@@ -754,8 +942,8 @@ async function holdAndCharge({ beautician, client, treatment, slot, state, conte
     appointment_id: appointment.id,
     action_type: 'booking_created',
     digital_employee: 'front_desk',
-    summary: `Held ${treatment.name} for ${client.first_name || 'a client'} on ${describeSlot({ date: startsAt.slice(0, 10), time: startsAt.slice(11, 16) }, today)}${depositCents > 0 ? ', waiting on the deposit' : ''}`,
-    details: { appointment_id: appointment.id, treatment: treatment.name, deposit_cents: depositCents, source: 'conversational_booking' },
+    summary: `Held ${set.label} for ${client.first_name || 'a client'} on ${describeSlot({ date: startsAt.slice(0, 10), time: startsAt.slice(11, 16) }, today)}${depositCents > 0 ? ', waiting on the deposit' : ''}`,
+    details: { appointment_id: appointment.id, treatment: set.label, deposit_cents: depositCents, source: 'conversational_booking' },
     confidence: 1.0,
     autonomous: false,
     outcome: 'success',
@@ -780,7 +968,7 @@ async function holdAndCharge({ beautician, client, treatment, slot, state, conte
     // A confirmed booking is real whether or not the state row saved, so this
     // one does not release: the client is genuinely booked in either way.
     await saveState(beautician.id, client.id, {
-      step: 'held', treatment_id: treatment.id, offered: [], appointment_id: appointment.id,
+      step: 'held', treatment_id: treatment.id, extra_treatment_ids: set.extras.map(t => t.id), offered: [], appointment_id: appointment.id,
       checkout_url: null, asked_count: 0,
       expires_at: new Date(Date.now() + OFFER_TTL_MINUTES * 60 * 1000).toISOString(),
     });
@@ -803,16 +991,16 @@ async function holdAndCharge({ beautician, client, treatment, slot, state, conte
       claim: false,
     }).catch(err =>
       logger.warn({ err, appointmentId: appointment.id }, 'Owner booking alert failed (non-fatal)'));
-    const reply = `Lovely, I've got you in for ${treatment.name} on ${when}.${patchLine}`;
+    const reply = `Lovely, I've got you in for ${set.spoken} on ${when}.${patchLine}`;
     return speak(
-      guarded(reply, { allowedTimes: [slot.time], actionPerformed: true, fallback: `Lovely, that's you booked in for ${treatment.name}.`, context: { stage: 'confirmed_no_deposit' } }),
+      guarded(reply, { allowedTimes: [slot.time], actionPerformed: true, fallback: `Lovely, that's you booked in for ${set.spoken}.`, context: { stage: 'confirmed_no_deposit' } }),
       { allowedTimes: [slot.time], actionPerformed: true, step: 'held', appointmentId: appointment.id },
     );
   }
 
   let checkoutUrl = null;
   try {
-    checkoutUrl = await createDepositCheckout({ beautician, client, treatment, appointment, depositCents, when });
+    checkoutUrl = await createDepositCheckout({ beautician, client, set, appointment, depositCents, when });
   } catch (err) {
     logger.error({ err, appointmentId: appointment.id }, 'Deposit checkout creation failed, releasing the hold');
   }
@@ -826,7 +1014,7 @@ async function holdAndCharge({ beautician, client, treatment, slot, state, conte
   }
 
   const saved = await saveState(beautician.id, client.id, {
-    step: 'held', treatment_id: treatment.id, offered: [],
+    step: 'held', treatment_id: treatment.id, extra_treatment_ids: set.extras.map(t => t.id), offered: [],
     appointment_id: appointment.id, checkout_url: checkoutUrl, asked_count: 0,
     // The state outlives the hold on purpose: if she pays at minute 29 the
     // webhook confirms it, and if she does not, a later message still finds
@@ -867,7 +1055,7 @@ async function releaseHold(appointmentId, reason) {
  * Deliberately does NOT name the time that was lost: it is not free, so the
  * guard would refuse the sentence, and rightly.
  */
-async function slotGone({ beautician, client, treatment, state, fresh, today }) {
+async function slotGone({ beautician, client, set, state, fresh, today }) {
   const { offers } = chooseOffers(fresh || [], { max: 3 });
   if (!offers.length) {
     await clearState(beautician.id, client.id);
@@ -876,7 +1064,7 @@ async function slotGone({ beautician, client, treatment, state, fresh, today }) 
 
   const allowedTimes = offers.map(s => s.time);
   const saved = await saveState(beautician.id, client.id, {
-    step: 'awaiting_pick', treatment_id: treatment.id,
+    step: 'awaiting_pick', treatment_id: set.primary.id, extra_treatment_ids: set.extras.map(t => t.id),
     offered: offers.map(s => ({ iso: s.iso, date: s.date, time: s.time })),
     asked_count: 0, appointment_id: null, checkout_url: null,
   });
@@ -949,7 +1137,7 @@ async function handleHeld({ beautician, client, message, state, salonNow }) {
  * checkout.session.completed handler confirms the booking and fires the normal
  * confirmation. No second "charge someone" path exists here.
  */
-async function createDepositCheckout({ beautician, client, treatment, appointment, depositCents, when }) {
+async function createDepositCheckout({ beautician, client, set, appointment, depositCents, when }) {
   let customerId = client.stripe_customer_id || null;
   if (!customerId) {
     const customer = await stripe.customers.create({
@@ -980,7 +1168,7 @@ async function createDepositCheckout({ beautician, client, treatment, appointmen
       price_data: {
         currency: 'gbp',
         product_data: {
-          name: `${treatment.name} deposit`,
+          name: `${set.label} deposit`,
           description: `${when} with ${beautician.business_name || beautician.first_name}`,
         },
         unit_amount: depositCents,

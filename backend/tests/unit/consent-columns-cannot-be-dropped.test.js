@@ -219,10 +219,12 @@ describe('no new sender joins clients without the consent columns', () => {
     // cap. Same two joins, same file, new line numbers.
     // And down twelve on 3 September 2026: a frontendBase() helper above the
     // senders, so the manage link no longer depends on FRONTEND_URL being set.
+    // And down thirty three on 5 September 2026: wholeTreatment(), so a
+    // booking of two treatments is confirmed as two.
     // (Previously 1236 / 1514, then 1393 / 1685, then 1526 / 1818, then
-    // 1532 / 1824, then 1540 / 1845, then 1693 / 2008.)
-    'src/services/notifications.js:1705',
-    'src/services/notifications.js:2020',
+    // 1532 / 1824, then 1540 / 1845, then 1693 / 2008, then 1705 / 2020.)
+    'src/services/notifications.js:1738',
+    'src/services/notifications.js:2053',
   ]);
 
   function walk(dir) {

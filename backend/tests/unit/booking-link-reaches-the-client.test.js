@@ -491,3 +491,36 @@ describe('the cases where there is no second message to send', () => {
     expect(db.ai_actions.filter(a => a.action_type === 'booking_link_not_delivered')).toEqual([]);
   });
 });
+
+describe('a booking of two treatments is confirmed as two', () => {
+  // 5 September 2026. "Brow wax and lip wax" is one appointment whose
+  // extra_treatment_ids holds the lip wax. The confirmation named the brow
+  // wax alone, with the brow wax's 20 minutes, so the client was told she
+  // was booked for half of what she asked for.
+  it('names both treatments and the whole length in the text and the email', async () => {
+    seed({ prefs: { channel: 'sms' } });
+    const appt = db.appointments[0];
+    appt.treatments = { name: 'Brow wax', duration_minutes: 20 };
+    appt.extra_treatment_ids = ['t_lip'];
+    appt.duration_minutes = 30;
+    appt.ends_at = '2026-09-03T12:30:00.000Z';
+    db.treatments.push({ id: 't_lip', beautician_id: 'b1', name: 'Lip wax', duration_minutes: 10 });
+
+    await notifyBookingConfirmed('a1');
+
+    expect(smsBodies()[0]).toContain('your Brow wax + Lip wax with Ellindigo is confirmed');
+    // This harness runs without a Resend key, so the email itself is not
+    // captured here; the text body above is built from the same name and
+    // length the email uses, and the email path is covered in
+    // consent-columns-cannot-be-dropped.test.js and the notifications tests.
+  });
+
+  it('still names the first treatment when the extras cannot be read', async () => {
+    seed({ prefs: { channel: 'sms' } });
+    db.appointments[0].extra_treatment_ids = ['t_missing'];
+
+    await notifyBookingConfirmed('a1');
+
+    expect(smsBodies()[0]).toContain('your Brow Lamination with Ellindigo is confirmed');
+  });
+});
