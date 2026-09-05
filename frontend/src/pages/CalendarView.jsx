@@ -252,6 +252,21 @@ function treatOptionLabel(t) {
   const mins = t.duration_minutes ? ` · ${t.duration_minutes}m` : '';
   return `${t.name}${price}${mins}`;
 }
+function bookingStatusLabel(appointment) {
+  const status = appointment.status;
+  const dead = DEAD_STATUSES.includes(status);
+  const paid = appointment.payment_type === 'full';
+  const done = status === 'completed';
+  return dead ? (status === 'no_show' ? 'No-show' : 'Cancelled')
+    : paid ? 'Paid' : done ? 'Done'
+    : ['confirmed', 'booked'].includes(status) ? 'Booked' : 'Pending';
+}
+
+function CalendarBookingStatus({ appointment }) {
+  const positive = !DEAD_STATUSES.includes(appointment.status) && (appointment.payment_type === 'full' || appointment.status === 'completed');
+  return <span className={`calendar-booking-status${positive ? ' calendar-booking-status--done' : ''}`}>{bookingStatusLabel(appointment)}</span>;
+}
+
 export default function CalendarView({ initialView } = {}) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -815,25 +830,26 @@ export default function CalendarView({ initialView } = {}) {
   const weekDays = getWeekDays();
   const gapsToday = countGapsToday();
   const waitlistMatches = countWaitlistMatches();
+  const visibleLive = (view === 'day' ? getAppointmentsForDate(currentDate) : appointments).filter(a => !DEAD_STATUSES.includes(a.status));
+  const visibleValue = visibleLive.reduce((sum, a) => sum + (a.price_cents ?? a.treatments?.price_cents ?? 0), 0);
   const showInsightsPill = view === 'day' && (gapsToday > 0 || waitlistMatches > 0);
   return (
-    <div style={styles.page}>
+    <div className="calendar-page" style={styles.page}>
       <div style={styles.header}>
         <div style={styles.headerTop}>
-          {/* Always a WEEK, in both views. Days are chosen on the strip below,
-              so these are the only thing that has to stay a button: swiping is
-              the fast way to move a week, and a swipe is no use on a desktop or
-              to a keyboard. */}
-          <button onClick={() => navigateWeek(-1)} aria-label="Previous week" style={styles.navBtn}>‹</button>
           <div style={styles.headerCenter}>
-            <h1 style={styles.dateTitle}>
+            <span className="calendar-eyebrow">{currentDate.getFullYear()}</span>
+            <h2 style={styles.dateTitle}>
               {view === 'day'
-                ? currentDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })
+                ? currentDate.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'long' })
                 : `${getWeekStart(currentDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} - ${getWeekEnd(currentDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`}
-            </h1>
-            <button onClick={() => setCurrentDate(new Date())} style={styles.todayBtn}>Today</button>
+            </h2>
           </div>
-          <button onClick={() => navigateWeek(1)} aria-label="Next week" style={styles.navBtn}>›</button>
+          <div className="calendar-date-actions">
+            <Button variant="quiet" onClick={() => navigateWeek(-1)} aria-label="Previous week"><Icon name="chevron-left" size={18} /></Button>
+            <Button variant="secondary" onClick={() => setCurrentDate(new Date())}>Today</Button>
+            <Button variant="quiet" onClick={() => navigateWeek(1)} aria-label="Next week"><Icon name="chevron-right" size={18} /></Button>
+          </div>
         </div>
       </div>
 
@@ -844,6 +860,7 @@ export default function CalendarView({ initialView } = {}) {
         instead of being swapped out for it. Swipe it sideways to move a week.
       */}
       <div
+        className="calendar-week-strip"
         style={{ ...styles.weeklyStripContainer, touchAction: 'pan-y pinch-zoom' }}
         onPointerDown={e => {
           stripSwipeGuard.current = false;
@@ -919,47 +936,31 @@ export default function CalendarView({ initialView } = {}) {
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end', marginBottom: 14 }}>
-        {/* ONE view control, rendered whether this is embedded on the Hub or
-            routed on its own, so the screen does not change shape depending on
-            how she got here. The "back to Calendar" button that used to appear
-            only in the embedded case is gone: with the strip on screen, day
-            view is not somewhere she needs a way out of. */}
+      <div className="calendar-toolbar">
         <div style={styles.viewToggle} role="group" aria-label="Calendar view">
           <button onClick={() => setView('day')} aria-pressed={view === 'day'} style={{ ...styles.toggleBtn, background: view === 'day' ? COLORS.primary : 'transparent', color: view === 'day' ? '#fff' : COLORS.stone400 }}>Day</button>
           <button onClick={() => setView('week')} aria-pressed={view === 'week'} style={{ ...styles.toggleBtn, background: view === 'week' ? COLORS.primary : 'transparent', color: view === 'week' ? '#fff' : COLORS.stone400 }}>Week</button>
         </div>
-        <button className="fl-tap"
-          onClick={() => navigate('/calendar/full')}
-          title="Open full calendar"
-          aria-label="Open full calendar"
-          style={{ height: 36, width: 36, borderRadius: 10, border: `1px solid ${COLORS.outlineVariant}`, background: 'var(--card-bg, #FFFCF9)', color: COLORS.stone400, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
-        >
-          <Icon name={iconName('open_in_full')} size={18} inline style={{ }} />
-        </button>
-        <button className="fl-tap"
-          onClick={() => setShowBlockModal(true)}
-          title="Block time"
-          style={{ height: 36, padding: '0 12px', borderRadius: 10, border: `1px solid ${COLORS.outlineVariant}`, background: 'var(--card-bg, #FFFCF9)', color: COLORS.stone400, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, flexShrink: 0, fontSize: 12, fontWeight: 600, fontFamily: 'inherit' }}
-        >
-          <Icon name={iconName('event_busy')} size={15} inline style={{ }} />
-          Block
-        </button>
-        {view === 'day' && (
-          <button className="fl-tap"
-            onClick={handleMarkAllDone}
-            disabled={markingAllDone}
-            title="Mark all done"
-            style={{ height: 36, padding: '0 12px', borderRadius: 10, border: `1px solid ${COLORS.outlineVariant}`, background: 'var(--card-bg, #FFFCF9)', color: 'var(--success, #386F52)', cursor: markingAllDone ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, flexShrink: 0, fontSize: 12, fontWeight: 600, fontFamily: 'inherit', opacity: markingAllDone ? 0.6 : 1 }}
-          >
-            <Icon name={iconName('done_all')} size={15} inline style={{ }} />
-            {markingAllDone ? '…' : 'All done'}
-          </button>
-        )}
+        <Button variant="primary" className="calendar-add" onClick={() => setShowNewAppt(true)}><Icon name="plus" size={16} />Add booking</Button>
+        <details className="calendar-tools">
+          <summary aria-label="Calendar tools">More <Icon name="chevron-down" size={14} /></summary>
+          <div className="calendar-tools-panel">
+            <Button variant="quiet" onClick={e => { e.currentTarget.closest('details').open = false; navigate('/calendar/full'); }}><Icon name="calendar" size={17} />Open full calendar</Button>
+            <Button variant="quiet" onClick={e => { e.currentTarget.closest('details').open = false; setShowBlockModal(true); }}><Icon name={iconName('event_busy')} size={17} />Block time</Button>
+            {view === 'day' && <Button variant="quiet" disabled={markingAllDone || loading || !!loadError} onClick={e => { e.currentTarget.closest('details').open = false; handleMarkAllDone(); }}><Icon name="check" size={17} />{markingAllDone ? 'Completing...' : 'Mark day complete'}</Button>}
+          </div>
+        </details>
+      </div>
+      <div className="calendar-day-summary" aria-live="polite">
+        {loading ? 'Loading your diary...' : loadError ? 'Diary unavailable' : <>
+          <span>{visibleLive.length} {visibleLive.length === 1 ? 'booking' : 'bookings'}{view === 'week' ? ' this week' : ''}</span>
+          <span><Money pence={visibleValue} round /> on diary</span>
+        </>}
       </div>
       {/* Day View with Timeline Grid */}
       {view === 'day' && (
         <div
+          className="calendar-timeline"
           ref={gridScrollRef}
           // pan-y leaves the vertical scroll to the browser and hands us the
           // sideways movement, which is what makes a horizontal swipe here
@@ -1038,21 +1039,21 @@ export default function CalendarView({ initialView } = {}) {
             )}
             {/* Appointment cards. Collision-aware: overlapping cards share the width. */}
             {layoutDayAppointments(getAppointmentsForDate(currentDate)).map(({ appt, top, height, col, cols }) => {
-              const cardStyle = getAppointmentCardStyle(appt);
-              const statusColor = getStatusColor(appt.status);
+
               // Treatment colour drives the block (left stripe + soft tint) so each
-              // service type is distinct; status stays readable on the avatar.
+              // service type is distinct; a separate label explains status.
               const treatColor = treatmentColor(appt.treatments);
               const dead = DEAD_STATUSES.includes(appt.status);
-              const clientInitials = `${appt.clients?.first_name?.[0] || ''}${appt.clients?.last_name?.[0] || ''}`.toUpperCase();
+              const clientName = [appt.clients?.first_name, appt.clients?.last_name].filter(Boolean).join(' ') || 'Client';
               const tiny = height < 50 && cols === 1;   // e.g. a 10-min patch test
               const compact = tiny || cols > 1 || height < 72;
               const showTreatment = height >= 60 && cols < 3;
-              const showMeta = cols < 3 && !tiny;   // time is inlined with the name when tiny
               const lifted = dragMove?.id === appt.id;
               return (
                 <button
                   key={appt.id}
+                  className="calendar-booking"
+                  aria-label={`${clientName}, ${formatWallTime(appt.starts_at)}, ${apptLabel(appt, treatNames) || 'Appointment'}, ${bookingStatusLabel(appt)}`}
                   onClick={() => {
                     // A drop fires a click too; that click must not toggle the sheet.
                     if (dragClickGuard.current) { dragClickGuard.current = false; return; }
@@ -1080,36 +1081,13 @@ export default function CalendarView({ initialView } = {}) {
                     ...(lifted ? { zIndex: 10, boxShadow: 'var(--elev-3)', opacity: 0.95, transform: 'scale(1.02)' } : {}),
                   }}
                 >
-                  {/* Paid in full must be visible WITHOUT opening the sheet:
-                      Ellie plans her day off this grid, and knowing the money
-                      is already banked changes how she treats a no-show. Green
-                      because this is a settled STATE, not a brand accent. On
-                      tiny cards a labelled chip cannot fit, so it becomes a
-                      dot in the same green. */}
-                  {appt.payment_type === 'full' && (
-                    tiny
-                      ? <span title="Paid in full" style={{ position: 'absolute', top: 3, right: 3, width: 8, height: 8, borderRadius: '50%', background: '#2E7D32' }} />
-                      : <span style={{ position: 'absolute', top: 3, right: 4, background: '#2E7D32', color: '#fff', fontSize: 8, fontWeight: 700, letterSpacing: '0.04em', padding: '1px 5px', borderRadius: 'var(--radius-xs)' }}>PAID</span>
-                  )}
-                  <div style={styles.appointmentCardContent}>
-                    <div style={styles.appointmentCardHeader}>
-                      <div style={{ ...styles.appointmentAvatar, background: statusColor, ...(compact ? { width: 22, height: 22, fontSize: 8 } : {}) }}>
-                        {clientInitials}
-                      </div>
-                      <div style={styles.appointmentCardTextBlock}>
-                        <div style={{ ...styles.appointmentCardClientName, ...(compact ? { fontSize: 12 } : {}), ...(dead ? { textDecoration: 'line-through' } : {}) }}>{appt.clients?.first_name} {appt.clients?.last_name || ''}</div>
-                        {showTreatment && (
-                          <div style={styles.appointmentCardTreatment}>{apptLabel(appt, treatNames)}</div>
-                        )}
-                      </div>
-                    </div>
-                    {showMeta && (
-                      <div style={styles.appointmentCardMeta}>
-                        <span style={styles.appointmentCardTime}>{formatWallTime(appt.starts_at)}</span>
-                        {appt.ai_booked && !compact && <span style={styles.aiTag}>AI</span>}
-                      </div>
-                    )}
+                  <div className="calendar-booking-top">
+                    <span>{formatWallTime(appt.starts_at)}</span>
+                    {cols < 3 && <CalendarBookingStatus appointment={appt} />}
                   </div>
+                  <div className="calendar-booking-name" style={dead ? { textDecoration: 'line-through' } : undefined}>{clientName}</div>
+                  {showTreatment && <div className="calendar-booking-treatment" title={apptLabel(appt, treatNames)}>{apptLabel(appt, treatNames)}</div>}
+                  {appt.ai_booked && !compact && <span className="calendar-booking-ai">Booked by Florrie</span>}
                 </button>
               );
             })}
@@ -1248,7 +1226,7 @@ export default function CalendarView({ initialView } = {}) {
           appointments themselves as readable rows. Far easier to actually
           work from on a phone than seven thin columns of tiny chips. */}
       {view === 'week' && (
-        <div style={styles.weekAgenda}>
+        <div className="calendar-week-agenda" style={styles.weekAgenda}>
           {/* The week view had NO loading and NO error state, so a failed or
               slow fetch rendered a full seven-day "no bookings" skeleton and
               looked exactly like an empty diary. */}
@@ -1272,16 +1250,17 @@ export default function CalendarView({ initialView } = {}) {
               .slice()
               .sort((a, b) => wallMinutes(a.starts_at) - wallMinutes(b.starts_at));
             const live = dayAppts.filter(a => !DEAD_STATUSES.includes(a.status));
-            const takingsPence = live.reduce((s, a) => s + (a.price_cents || a.treatments?.price_cents || 0), 0);
+            const takingsPence = live.reduce((s, a) => s + (a.price_cents ?? a.treatments?.price_cents ?? 0), 0);
             const workedMins = live.reduce((s, a) => s + Math.max(0, wallMinutes(a.ends_at || a.starts_at) - wallMinutes(a.starts_at)), 0);
             const hours = workedMins / 60;
             const wh = beautician?.working_hours?.[DAY_KEYS[day.getDay()]];
             const dayOff = !!beautician?.working_hours && !(wh?.start && wh?.end);
             const today = isToday(day);
             return (
-              <div key={day.toISOString()} style={{ ...styles.weekDaySection, ...(today ? styles.weekDaySectionToday : {}) }}>
+              <div className="calendar-week-day" key={day.toISOString()} style={{ ...styles.weekDaySection, ...(today ? styles.weekDaySectionToday : {}) }}>
                 <button
                   onClick={() => { setCurrentDate(day); setView('day'); }}
+                  className="calendar-week-heading"
                   style={styles.weekDayHead}
                 >
                   <span style={styles.weekDayHeadLeft}>
@@ -1295,7 +1274,7 @@ export default function CalendarView({ initialView } = {}) {
                     <span style={styles.weekDayStats}>
                       <span style={styles.weekDayCount}>{live.length} booking{live.length === 1 ? '' : 's'}</span>
                       {takingsPence > 0 && <span style={styles.weekDayMoney}><Money pence={takingsPence} round /></span>}
-                      <span style={styles.weekDayHours}>{hours % 1 === 0 ? hours : hours.toFixed(1)}h</span>
+                      <span style={styles.weekDayHours}>{hours % 1 === 0 ? hours : hours.toFixed(1)}h booked</span>
                     </span>
                   ) : (
                     <span style={styles.weekDayQuiet}>{dayOff ? 'Day off' : 'No bookings'}</span>
@@ -1307,9 +1286,8 @@ export default function CalendarView({ initialView } = {}) {
                       const dotColor = treatmentColor(appt.treatments);
                       const dead = DEAD_STATUSES.includes(appt.status);
                       const firstName = appt.clients?.first_name || '';
-                      const lastInitial = appt.clients?.last_name ? ' ' + appt.clients.last_name.charAt(0) + '.' : '';
-                      const clientLabel = firstName ? `${firstName}${lastInitial}` : 'Client';
-                      const price = appt.price_cents || appt.treatments?.price_cents || 0;
+                      const clientLabel = [firstName, appt.clients?.last_name].filter(Boolean).join(' ') || 'Client';
+                      const price = appt.price_cents ?? appt.treatments?.price_cents ?? 0;
                       return (
                         <button
                           key={appt.id}
@@ -1325,6 +1303,7 @@ export default function CalendarView({ initialView } = {}) {
                           onMouseUp={cancelLongPress}
                           onMouseLeave={cancelLongPress}
                           onContextMenu={(e) => { e.preventDefault(); cancelLongPress(); deleteAppointmentFromAgenda(appt); }}
+                          className="calendar-week-row"
                           style={{ ...styles.weekRow, opacity: dead ? 0.5 : 1 }}
                         >
                           <span style={styles.weekRowTime}>{formatWallTime(appt.starts_at)}</span>
@@ -1333,7 +1312,7 @@ export default function CalendarView({ initialView } = {}) {
                             <span style={{ ...styles.weekRowName, textDecoration: dead ? 'line-through' : 'none' }}>{clientLabel}</span>
                             {apptLabel(appt, treatNames) && <span style={styles.weekRowTreatment}>{apptLabel(appt, treatNames)}</span>}
                           </span>
-                          {price > 0 && <span style={styles.weekRowPrice}><Money pence={price} round /></span>}
+                          <span className="calendar-week-row-end"><span style={styles.weekRowPrice}><Money pence={price} round /></span><CalendarBookingStatus appointment={appt} /></span>
                           {appt.ai_booked && <span style={styles.aiTag}>AI</span>}
                         </button>
                       );
@@ -1346,17 +1325,6 @@ export default function CalendarView({ initialView } = {}) {
         </div>
       )}
 
-      {/* Floating add button (day view only). Sits above the mic FAB. */}
-      {view === 'day' && (
-        <button
-          onClick={() => setShowNewAppt(true)}
-          aria-label="New appointment"
-          title="New appointment"
-          style={styles.addFab}
-        >
-          <Icon name={iconName('add')} size={26} inline />
-        </button>
-      )}
       {/* Floating Insights Pill (day view only) */}
       {showInsightsPill && (
         <div style={styles.insightsPill}>
@@ -3122,20 +3090,20 @@ function getWeekStart(d) { const s = new Date(d); const day = s.getDay(); s.setD
 function getWeekEnd(d) { const e = getWeekStart(d); e.setDate(e.getDate() + 6); return e; }
 function getNowPosition() { const now = new Date(); return ((now.getHours() * 60 + now.getMinutes() - START_HOUR * 60) / 60) * HOUR_HEIGHT; }
 const styles = {
-  page: { minHeight: 'var(--shell-viewport)', background: 'var(--bg)', fontFamily: "var(--font-body, 'Plus Jakarta Sans', -apple-system, sans-serif)", padding: '0 16px 120px', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary)', animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)' },
+  page: { minHeight: 'var(--shell-viewport)', background: 'var(--bg)', fontFamily: "var(--font-body, 'Plus Jakarta Sans', -apple-system, sans-serif)", padding: '0 var(--calendar-inset, 16px) 120px', maxWidth: 'var(--calendar-width, 480px)', margin: '0 auto', color: 'var(--text-primary)', animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)' },
   header: { paddingTop: 8 },
   headerTop: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
-  headerCenter: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 },
-  dateTitle: { fontSize: 17, fontWeight: 600, margin: 0, textAlign: 'center', fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" },
+  headerCenter: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4, minWidth: 0 },
+  dateTitle: { fontSize: 22, fontWeight: 500, margin: 0, textAlign: 'left', fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" },
   todayBtn: { background: 'none', border: `1px solid ${COLORS.outlineVariant}`, borderRadius: 10, padding: '4px 12px', minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: COLORS.stone400, cursor: 'pointer', fontFamily: 'inherit' },
   navBtn: { background: 'none', border: 'none', fontSize: 28, color: COLORS.stone400, cursor: 'pointer', padding: '0 8px', minWidth: 44, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' },
   viewToggle: { display: 'flex', gap: 3, background: 'var(--card-bg, #FFFCF9)', borderRadius: 10, padding: 3, border: `1px solid ${COLORS.outlineVariant}` },
-  toggleBtn: { flex: 1, padding: '6px 14px', minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'inherit' },
+  toggleBtn: { flex: 1, padding: '6px 11px', minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'inherit' },
   // Weekly Date Strip. The month label and the made-up "WEEK 5" that used to
   // sit above it are gone: the title directly above already says the date, and
   // the closer the seven days sit to it the more they read as one control.
-  weeklyStripContainer: { marginBottom: 14, background: COLORS.surfaceContainerLow, borderRadius: 22, padding: '8px 10px', position: 'relative' },
-  weeklyStrip: { display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 },
+  weeklyStripContainer: { marginBottom: 14, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 22, padding: '8px var(--calendar-strip-inset, 4px)', position: 'relative' },
+  weeklyStrip: { display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0,1fr))', gap: 2 },
   // 56px tall, and seven columns of a 480px page leave roughly 57px each, so
   // every day clears the 44px thumb minimum on its own.
   weeklyStripDay: { minHeight: 56, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '7px 2px', borderRadius: 16, border: 'none', cursor: 'pointer', fontFamily: 'inherit', transition: 'background 0.18s ease, color 0.18s ease, opacity 0.18s ease', WebkitTapHighlightColor: 'transparent' },
@@ -3145,8 +3113,8 @@ const styles = {
   weeklyStripDot: { width: 4, height: 4, borderRadius: '50%' },
   // Day View Timeline. The grid scrolls inside its own container so the
   // full 06:00-23:00 day fits and we can auto-scroll to the first booking.
-  dayGrid: { display: 'flex', gap: 0, background: 'var(--tone-1, #fbf1ea)', borderRadius: 22, overflowY: 'auto', overflowX: 'hidden', maxHeight: 'calc(var(--shell-viewport) - 280px)', minHeight: 420, WebkitOverflowScrolling: 'touch' },
-  timeColumn: { width: 56, position: 'relative', borderRight: `1px solid ${COLORS.outlineVariant}33`, flexShrink: 0 },
+  dayGrid: { display: 'flex', gap: 0, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 22, overflowY: 'auto', overflowX: 'hidden', maxHeight: 'calc(var(--shell-viewport) - 280px)', minHeight: 420, WebkitOverflowScrolling: 'touch' },
+  timeColumn: { width: 46, position: 'relative', borderRight: `1px solid ${COLORS.outlineVariant}33`, flexShrink: 0 },
   timeLabel: { position: 'absolute', right: 8, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: COLORS.stone400, transform: 'translateY(-6px)' },
   appointmentColumn: { flex: 1, position: 'relative' },
   // Floating add button: 140px up keeps clear of the mic FAB at +78px
@@ -3170,7 +3138,7 @@ const styles = {
   openSlotText: { fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: COLORS.stone400 },
   // Week View - agenda by day
   weekAgenda: { display: 'flex', flexDirection: 'column', gap: 12 },
-  weekDaySection: { background: 'var(--tone-1, #fbf1ea)', borderRadius: 22, overflow: 'hidden' },
+  weekDaySection: { background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 22, overflow: 'hidden' },
   weekDaySectionToday: { boxShadow: `0 0 0 1.5px ${COLORS.primary}` },
   weekDayHead: { width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '12px 14px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' },
   weekDayHeadLeft: { display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 },
@@ -3187,8 +3155,8 @@ const styles = {
   weekRowTime: { fontSize: 12, fontWeight: 700, color: COLORS.onSurface, width: 42, flexShrink: 0, fontVariantNumeric: 'tabular-nums' },
   weekRowDot: { width: 8, height: 8, borderRadius: '50%', flexShrink: 0 },
   weekRowBody: { display: 'flex', flexDirection: 'column', gap: 1, flex: 1, minWidth: 0 },
-  weekRowName: { fontSize: 13, fontWeight: 600, color: COLORS.onSurface, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  weekRowTreatment: { fontSize: 11, color: COLORS.stone400, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  weekRowName: { fontSize: 13, fontWeight: 600, color: COLORS.onSurface, overflowWrap: 'anywhere' },
+  weekRowTreatment: { fontSize: 11, color: COLORS.stone400, overflowWrap: 'anywhere', lineHeight: 1.5 },
   weekRowPrice: { fontSize: 12, fontWeight: 700, color: COLORS.onSurface, flexShrink: 0 },
   // Floating Insights Pill
   insightsPillIcon: { fontSize: 14 },

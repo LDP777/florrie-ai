@@ -107,14 +107,14 @@ export default function Hub() {
   const name = beautician?.first_name?.trim() || beautician?.display_name?.split(' ')?.[0] || 'there';
 
   return (
-    <div className={activeTab === 'day' ? 'today-page' : undefined} style={S.page}>
+    <div className={activeTab === 'day' ? 'today-page' : activeTab === 'week' ? 'calendar-hub' : undefined} style={S.page}>
       {/* Morning catch-up bottom sheet, only fires before 10am and once per day */}
       <MorningCatchup beautician={beautician} />
 
       {/* 1. Greeting + date pill */}
       <header style={S.header}>
-        <h1 style={S.greeting}>{greeting}, {name}</h1>
-        <span style={S.datePill}>{dayPill}</span>
+        <h1 style={S.greeting}>{activeTab === 'week' ? 'Your calendar' : `${greeting}, ${name}`}</h1>
+        {activeTab !== 'week' && <span style={S.datePill}>{dayPill}</span>}
       </header>
 
       {/* 2. Sub-tab strip , Day / Week / Smart Schedule */}
@@ -159,7 +159,7 @@ export default function Hub() {
       )}
 
       {activeTab === 'week' && (
-        <div style={S.subPane}>
+        <div className="calendar-shell">
           <Suspense fallback={<SubPaneLoader />}>
             <CalendarView initialView="week" />
           </Suspense>
