@@ -1,5 +1,6 @@
+import MoreLoadError from '../components/MoreLoadError.jsx';
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, insertRow, updateRow, supabase } from '../lib/supabase.js';
+import { useBeautician, fetchRowsStrict, insertRow, updateRow, supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
@@ -69,6 +70,8 @@ const MESSAGE_TEMPLATES = {
 };
 
 export default function Campaigns() {
+  const [actionError, setActionError] = useState(null);
+  const [loadError, setLoadError] = useState(null);
   const { beautician, loading: bLoading } = useBeautician();
   const [campaigns, setCampaigns] = useState([]);
   const [clients, setClients] = useState([]);
@@ -86,15 +89,17 @@ export default function Campaigns() {
 
   async function loadCampaigns() {
     setLoading(true);
+    setLoadError(null);
     try {
       const [campaignData, clientData] = await Promise.all([
-        fetchRows('campaigns', beautician.id, { order: 'created_at', ascending: false }),
-        fetchRows('clients', beautician.id),
+        fetchRowsStrict('campaigns', beautician.id, { order: 'created_at', ascending: false }),
+        fetchRowsStrict('clients', beautician.id),
       ]);
       setCampaigns(campaignData);
       setClients(clientData || []);
     } catch (err) {
       logger.error('Load campaigns:', err);
+      setLoadError('Could not load campaigns. Try again.');
     }
     setLoading(false);
   }
@@ -150,6 +155,7 @@ export default function Campaigns() {
       setTab('active');
     } catch (err) {
       logger.error('Save campaign:', err);
+      setActionError('Could not save this campaign. Your draft is still here.');
     }
     setSaving(false);
   }
@@ -160,6 +166,7 @@ export default function Campaigns() {
       setCampaigns(prev => prev.map(c => c.id === id ? { ...c, status: 'approved' } : c));
     } catch (err) {
       logger.error('Approve campaign:', err);
+      setActionError('Could not approve this campaign. Try again.');
     }
   }
 
@@ -169,6 +176,7 @@ export default function Campaigns() {
       setCampaigns(prev => prev.map(c => c.id === id ? { ...c, status: 'cancelled' } : c));
     } catch (err) {
       logger.error('Cancel campaign:', err);
+      setActionError('Could not cancel this campaign. Try again.');
     }
   }
 
@@ -230,9 +238,13 @@ export default function Campaigns() {
   }
   const aiSuggestion = getAiSuggestion();
 
+  if (bLoading || loading) return <PageLoader />;
+  if (loadError) return <MoreLoadError title="Campaigns" message={loadError} onRetry={loadCampaigns} />;
+
   return (
     <div style={styles.page}>
-      <PageHeader title="Campaigns" subtitle="Your Growth Engine" />
+      <PageHeader title="Campaigns" subtitle="Draft, review and send client messages" />
+      {actionError && <ErrorCard message={actionError} onDismiss={() => setActionError(null)} />}
 
       {/* Tabs */}
       <div style={styles.tabs}>

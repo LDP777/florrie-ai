@@ -215,6 +215,17 @@ export async function fetchRows(table, beauticianId, opts = {}) {
   return data || [];
 }
 
+// Use when an empty result must not stand in for a failed read.
+export async function fetchRowsStrict(table, beauticianId, opts = {}) {
+  let q = supabase.from(table).select(opts.select || '*').eq('beautician_id', beauticianId);
+  if (opts.order) q = q.order(opts.order, { ascending: opts.ascending ?? true });
+  if (opts.eq) Object.entries(opts.eq).forEach(([k, v]) => { q = q.eq(k, v); });
+  if (opts.limit) q = q.limit(opts.limit);
+  const { data, error } = await q;
+  if (error) throw error;
+  return data || [];
+}
+
 export async function insertRow(table, row) {
   const { data, error } = await supabase.from(table).insert(row).select().single();
   if (error) { logger.error(`insertRow(${table}):`, error); throw error; }

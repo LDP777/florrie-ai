@@ -1,5 +1,6 @@
+import MoreLoadError from '../components/MoreLoadError.jsx';
 import { useState, useEffect } from 'react';
-import { useBeautician, supabase, fetchRows, updateRow } from '../lib/supabase.js';
+import { useBeautician, supabase, fetchRowsStrict, updateRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
@@ -18,6 +19,7 @@ import Icon from '../components/ui/Icon';
  */
 
 export default function Reviews() {
+  const [loadError, setLoadError] = useState(null);
   const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('reviews');
   const [reviews, setReviews] = useState([]);
@@ -31,10 +33,11 @@ export default function Reviews() {
 
   async function loadReviews() {
     setLoading(true);
+    setLoadError(null);
     try {
         // Fetch reviews from DB. The table stores `comment` + `response`; the UI
         // reads `text`/`reply`/`author`, so normalise here.
-        const data = await fetchRows('reviews', beautician.id, { order: 'created_at', ascending: false });
+        const data = await fetchRowsStrict('reviews', beautician.id, { order: 'created_at', ascending: false });
         setReviews((data || []).map(r => ({
           ...r,
           author: r.author || r.client_name || 'Client',
@@ -45,6 +48,7 @@ export default function Reviews() {
         })));
     } catch (err) {
       logger.error('Load reviews error:', err);
+      setLoadError('Could not load feedback. Try again.');
       setReviews([]);
     } finally {
       setLoading(false);
@@ -74,6 +78,8 @@ export default function Reviews() {
   if (bLoading || loading) {
     return <PageLoader />;
   }
+
+  if (loadError) return <MoreLoadError title="Feedback" message={loadError} onRetry={loadReviews} />;
 
   return (
     <div style={styles.page}>

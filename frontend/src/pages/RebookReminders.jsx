@@ -1,3 +1,5 @@
+import { rebookClients } from './more-reliability.js';
+import { todayLocal } from '../lib/dates.js';
 /**
  * RebookReminders - Automated rebook nudges & dormant client rescue.
  *
@@ -12,7 +14,7 @@
  * preferences had no backing store, so they were removed rather than
  * implying they persist.
  */
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useBeautician, supabase, fetchRows } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import { useTheme } from '../lib/theme.jsx';
@@ -34,7 +36,7 @@ const MESSAGE_TEMPLATES = [
   {
     id: 'comeback',
     name: 'Comeback offer',
-    body: "Hey {name}! I've missed you 🥺 I've got 10% off your next {treatment} if you book this week - just my way of saying I'd love to see you again xx",
+    body: "Hey {name}! I've missed you 🥺 Would you like to book your next {treatment}? It would be lovely to see you again xx",
   },
   {
     id: 'direct',
@@ -71,60 +73,32 @@ export default function RebookReminders() {
   const [clients, setClients] = useState([]);
   const [sentIds, setSentIds] = useState(new Set());
   const [selectedTemplate, setSelectedTemplate] = useState('gentle');
+  const [error, setError] = useState(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [sending, setSending] = useState(false);
+  const sendingIds = useRef(new Set());
+  const [drafts, setDrafts] = useState({});
 
   useEffect(() => {
     if (beautician && !bLoading) loadRebookData();
   }, [beautician, bLoading]);
 
   async function loadRebookData() {
-    setLoading(true);
+    setLoading(true); setError(null); setLoadFailed(false);
     try {
       // Fetch clients with last appointment date
-      const { data } = await supabase
+      const { data, error: readError } = await supabase
         .from('clients')
-        .select('*, appointments(created_at, treatment_name)')
+        .select('*, appointments(starts_at, status, treatments(name))')
         .eq('beautician_id', beautician.id)
         .order('created_at', { ascending: false });
 
-      const now = new Date();
-      const processedClients = (data || []).map(c => {
-        const appts = (c.appointments || [])
-          .map(a => new Date(a.created_at))
-          .filter(d => !isNaN(d))
-          .sort((a, b) => b - a);
-        const lastVisit = appts[0] || new Date(c.created_at);
-        const daysSince = Math.floor((now - lastVisit) / 86400000);
-
-        // Compute real average interval from history
-        let avgInterval = 28;
-        if (appts.length >= 2) {
-          const intervals = [];
-          for (let i = 0; i < appts.length - 1; i++) {
-            intervals.push(Math.floor((appts[i] - appts[i + 1]) / 86400000));
-          }
-          avgInterval = Math.round(intervals.reduce((s, v) => s + v, 0) / intervals.length) || 28;
-        }
-
-        // Determine status from actual visit pattern
-        let status = 'due';
-        if (daysSince >= 60) status = 'dormant';
-        else if (daysSince > avgInterval) status = 'overdue';
-        else if (daysSince >= avgInterval - 7) status = 'due';
-        else return null; // Not due yet
-
-        return {
-          id: c.id,
-          name: `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'Client',
-          lastVisit: lastVisit.toISOString().slice(0, 10),
-          treatment: c.appointments?.[0]?.treatment_name || 'Treatment',
-          avgInterval,
-          phone: !!c.phone_number,
-          status,
-        };
-      }).filter(Boolean);
+      if (readError) throw readError;
+      const processedClients = rebookClients(data || [], todayLocal());
       setClients(processedClients);
     } catch (err) {
       logger.error({ err }, 'Load rebook data error');
+      setLoadFailed(true); setError('Could not load rebooking history. Try again.');
       setClients([]);
     } finally {
       setLoading(false);
@@ -133,7 +107,7 @@ export default function RebookReminders() {
   const [previewClient, setPreviewClient] = useState(null);
 
   // Send channel - takes effect immediately on the next manual send.
-  const [sendChannel, setSendChannel] = useState('whatsapp');
+  const [sendChannel, setSendChannel] = useState('sms');
 
   const due = clients.filter(c => c.status === 'due');
   const overdue = clients.filter(c => c.status === 'overdue');
@@ -147,7 +121,8 @@ export default function RebookReminders() {
 
   async function handleSend(clientId) {
     const client = clients.find(c => c.id === clientId);
-    if (!client) return;
+    if (!client || sentIds.has(clientId) || sendingIds.current.has(clientId) || !(sendChannel === 'email' ? client.email : client.phone)) return;
+    sendingIds.current.add(clientId); setSending(true); setError(null);
 
     const message = renderMessage(client);
 
@@ -161,28 +136,33 @@ export default function RebookReminders() {
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
           body: JSON.stringify({ client_id: clientId, subject: `Time to rebook your ${client.treatment}!`, text: message }),
         });
-        if (!res.ok) throw new Error('Email send failed');
+        const result = await res.json().catch(() => ({}));
+        if (!res.ok || result.success !== true) throw new Error(result.error || 'Email was not sent');
       } else {
-        // SMS covers both sms and whatsapp channels
+        // This endpoint sends SMS only.
         const res = await fetch(`${API_BASE}/api/notifications/send-sms`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
           body: JSON.stringify({ client_id: clientId, message }),
         });
-        if (!res.ok) throw new Error('SMS send failed');
+        const result = await res.json().catch(() => ({}));
+        if (!res.ok || result.success !== true) throw new Error(result.error || 'SMS was not sent');
       }
 
       setSentIds(prev => new Set([...prev, clientId]));
     } catch (err) {
       logger.error({ err }, 'Failed to send rebook nudge');
-      alert(`Failed to send nudge to ${client.name}. Check their contact details.`);
-    }
+      setError(`Could not send to ${client.name}. ${err.message}`);
+    } finally { sendingIds.current.delete(clientId); setSending(sendingIds.current.size > 0); }
   }
 
   function renderMessage(client) {
     const tmpl = MESSAGE_TEMPLATES.find(t => t.id === selectedTemplate) || MESSAGE_TEMPLATES[0];
+    if (drafts[client.id] !== undefined) return drafts[client.id];
     return tmpl.body.replace('{name}', client.name).replace('{treatment}', client.treatment);
   }
+
+  if (loadFailed) return <div style={s.page}><PageHeader title="Rebook Reminders" /><ErrorCard message={error} /><button className="fl-tap" onClick={loadRebookData}>Try again</button></div>;
 
   const tabs = [
     { key: 'due', label: 'Due Soon', count: due.length },
@@ -192,7 +172,8 @@ export default function RebookReminders() {
 
   return (
     <div style={s.page}>
-      <PageHeader title="Rebook Reminders" subtitle="Keep your clients coming back" />
+      <PageHeader title="Rebook Reminders" subtitle="Clients due for their next visit" />
+      {error && <ErrorCard message={error} onDismiss={() => setError(null)} />}
 
       {/* Summary stats */}
       <div style={s.statsRow}>
@@ -256,7 +237,6 @@ export default function RebookReminders() {
             <span style={s.templateLabel}>Send via:</span>
             <div style={s.templateChips}>
               {[
-                { key: 'whatsapp', label: 'WhatsApp' },
                 { key: 'sms', label: 'SMS' },
                 { key: 'email', label: 'Email' },
               ].map(ch => (
@@ -310,6 +290,7 @@ export default function RebookReminders() {
                     {/* Message preview */}
                     <div style={s.messagePreview}>
                       <p style={s.messageText}>{renderMessage(c)}</p>
+                      {previewClient === c.id && <textarea aria-label={`Message for ${c.name}`} value={renderMessage(c)} onChange={e => setDrafts(prev => ({ ...prev, [c.id]: e.target.value }))} style={{ width: '100%', minHeight: 100, boxSizing: 'border-box', font: 'inherit' }} />}
                     </div>
 
                     {/* Actions */}
@@ -321,7 +302,7 @@ export default function RebookReminders() {
                           <button
                             onClick={() => handleSend(c.id)}
                             style={s.sendBtn}
-                            disabled={!c.phone}
+                            disabled={sending || !(sendChannel === 'email' ? c.email : c.phone)}
                           >
                             Send nudge
                           </button>
@@ -343,7 +324,8 @@ export default function RebookReminders() {
           {/* Bulk action */}
           {activeList.length > 0 && (
             <button
-              onClick={async () => { for (const c of activeList) await handleSend(c.id); }}
+              disabled={sending}
+              onClick={async () => { for (const c of activeList.filter(c => !sentIds.has(c.id))) await handleSend(c.id); }}
               style={s.bulkBtn}
             >
               Send to all {activeList.length} clients

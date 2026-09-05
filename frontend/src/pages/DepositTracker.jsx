@@ -1,3 +1,4 @@
+import MoreLoadError from '../components/MoreLoadError.jsx';
 /**
  * Deposit Tracker - every deposit taken, and what happened to it.
  *
@@ -40,6 +41,7 @@ export default function DepositTracker() {
   const [expanded, setExpanded] = useState(null);
   const [deposits, setDeposits] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [retry, setRetry] = useState(0);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -58,13 +60,13 @@ export default function DepositTracker() {
         if (!cancelled) setDeposits(body.deposits || []);
       } catch (err) {
         logger.error('Failed to load deposits:', err);
-        if (!cancelled) setError('Could not load deposits. Reopen this page to try again.');
+        if (!cancelled) setError('Could not load deposits. Try again.');
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
     return () => { cancelled = true; };
-  }, [beautician, bLoading]);
+  }, [beautician, bLoading, retry]);
 
   // "Held" tab = live money (paid & upcoming) plus deposits still being paid.
   const held = deposits.filter(d => d.status === 'held' || d.status === 'awaiting');
@@ -98,7 +100,8 @@ export default function DepositTracker() {
   }
   const hasCustomNote = !!(bp.cancellation_message && bp.cancellation_message.trim());
 
-  if (bLoading) return <PageLoader />;
+  if (bLoading || loading) return <PageLoader />;
+  if (error) return <MoreLoadError title="Deposits" message={error} onRetry={() => setRetry(n => n + 1)} />;
 
   return (
     <div style={S.page}>

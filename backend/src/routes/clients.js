@@ -47,9 +47,9 @@ router.get('/', requireAuth, async (req, res) => {
   }
 
   if (req.query.search) {
-    const searchFilter = buildSearchFilter(req.query.search, ['first_name', 'last_name', 'email']);
-    if (searchFilter) {
-      query = query.or(searchFilter);
+    for (const term of String(req.query.search).trim().split(/\s+/).slice(0, 8)) {
+      const searchFilter = buildSearchFilter(term, ['first_name', 'last_name', 'email']);
+      if (searchFilter) query = query.or(searchFilter);
     }
   }
 
@@ -66,8 +66,10 @@ router.get('/', requireAuth, async (req, res) => {
       .order('last_visit_at', { ascending: false, nullsFirst: false });
     if (req.query.status) retry = retry.eq('status', req.query.status);
     if (req.query.search) {
-      const sf = buildSearchFilter(req.query.search, ['first_name', 'last_name', 'email']);
-      if (sf) retry = retry.or(sf);
+      for (const term of String(req.query.search).trim().split(/\s+/).slice(0, 8)) {
+        const sf = buildSearchFilter(term, ['first_name', 'last_name', 'email']);
+        if (sf) retry = retry.or(sf);
+      }
     }
     ({ data, error, count } = await retry.range(offset, offset + per_page - 1));
   }

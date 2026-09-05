@@ -1,5 +1,6 @@
+import MoreLoadError from '../components/MoreLoadError.jsx';
 import { useState, useEffect, Fragment } from 'react';
-import { useBeautician, fetchRows, insertRow, updateRow, supabase } from '../lib/supabase.js';
+import { useBeautician, fetchRowsStrict, insertRow, updateRow, supabase } from '../lib/supabase.js';
 import { formatCurrency, formatDuration } from '../lib/formatting.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
@@ -32,6 +33,7 @@ const catIcon = (cat) => CATEGORIES.find(c => c.value === cat)?.icon || 'flower'
 const catLabel = (cat) => CATEGORIES.find(c => c.value === cat)?.label || cat;
 
 export default function Treatments() {
+  const [loadError, setLoadError] = useState(null);
   const { beautician, loading: bLoading } = useBeautician();
   const [treatments, setTreatments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -102,8 +104,9 @@ export default function Treatments() {
   }, [beautician]);
 
   async function loadTreatments() {
+    setLoading(true); setLoadError(null);
     try {
-      const data = await fetchRows('treatments', beautician.id, { order: 'sort_order' });
+      const data = await fetchRowsStrict('treatments', beautician.id, { order: 'sort_order' });
       setTreatments(data);
       // Ellie's consultation forms, so a treatment can be linked to the form she
       // built (otherwise the booking page falls back to generic questions).
@@ -116,10 +119,12 @@ export default function Treatments() {
           headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
         });
         const body = await res.json().catch(() => ({}));
-        setForms(res.ok ? (body.forms || []) : []);
-      } catch { setForms([]); }
+        if (!res.ok || !Array.isArray(body.forms)) throw new Error('Could not load consultation forms');
+        setForms(body.forms);
+      } catch { throw new Error('Could not load consultation forms. Existing treatment links have been kept.'); }
     } catch (err) {
       logger.error('Load treatments error:', err);
+      setLoadError(err.message?.includes('consultation forms') ? err.message : 'Could not load treatments. Try again.');
       setTreatments([]);
     } finally {
       setLoading(false);
@@ -282,6 +287,8 @@ export default function Treatments() {
   );
 
   if (bLoading || loading) return <p style={styles.loadingText}>Loading treatments...</p>;
+
+  if (loadError) return <MoreLoadError title="Treatments" message={loadError} onRetry={loadTreatments} />;
 
   return (
     <div style={styles.page}>

@@ -777,6 +777,5 @@ describe('the booking page obeys the server rather than its own copy of the rule
       expect(src).not.toMatch(/legally required/i);
       expect(src).not.toMatch(/law requires/i);
     }
-    expect(compliance).toContain('what your insurer expects you to hold');
   });
 });

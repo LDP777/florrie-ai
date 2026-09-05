@@ -40,73 +40,57 @@ router.post('/process-reminders', requireCronKey, async (req, res) => {
  * POST /api/notifications/send-reminder
  * Generic reminder endpoint — used by Consultations (appointment reminders),
  * PatchTests (patch test reminders), and any future reminder types.
- * Looks up client by name or ID and sends via SMS.
- * Body: { type, client_name?, client_id?, message?, consultation_id?, treatment_name?, date?, time? }
+ * Looks up the salon-owned client by ID and sends via SMS or email.
+ * Body: { type, client_id, message? }
  */
 router.post('/send-reminder', requireAuth, async (req, res) => {
   try {
-    const { type, client_name, client_id, message } = req.body;
-
-    if (!type) {
-      return res.status(400).json({ error: 'type is required' });
+    const { type, client_id, message } = req.body;
+    if (!type || !client_id) return res.status(400).json({ error: 'type and client_id are required' });
+    const { data: client, error: clientError } = await supabase.from('clients')
+      .select('id, phone, email, first_name').eq('id', client_id)
+      .eq('beautician_id', req.beautician.id).maybeSingle();
+    if (clientError) {
+      logger.error({ err: clientError }, 'Could not resolve reminder recipient');
+      return res.status(503).json({ error: 'Could not check the client. Try again.' });
     }
-
-    // Resolve client — by ID first, then by name
-    let client = null;
-    if (client_id) {
-      const { data, error } = await supabase
-        .from('clients')
-        .select('id, phone, email, first_name')
-        .eq('id', client_id)
-        .eq('beautician_id', req.beautician.id)
-        .single();
-      if (!error) client = data;
-    } else if (client_name) {
-      const { data, error } = await supabase
-        .from('clients')
-        .select('id, phone, email, first_name')
-        .eq('beautician_id', req.beautician.id)
-        .ilike('first_name', client_name.split(' ')[0])
-        .limit(1)
-        .maybeSingle();
-      if (!error) client = data;
-    }
+    if (!client) return res.status(404).json({ error: 'Client not found' });
 
     // Build a default message if none provided
     const body = message || `Hi${client?.first_name ? ` ${client.first_name}` : ''}, this is a reminder from your beautician. Please get in touch to book in!`;
 
-    // If we found a client with a phone, send the SMS
-    if (client?.phone) {
-      const result = await sendSMS({ to: client.phone, body, beauticianId: req.beautician.id });
-
-      // Log the message. Read the error rather than reaching for .catch —
-      // a Supabase query builder has none, so `.catch(() => {})` threw a
-      // TypeError right here, AFTER the reminder text had gone, and the route
-      // then reported a failure for a message the client had received.
-      const { error: logErr } = await supabase.from('messages').insert({
-        beautician_id: req.beautician.id,
-        client_id: client.id,
-        direction: 'outbound',
-        channel: 'sms',
-        content: body,
-        // Reminder copy is assembled from a fixed shape a few lines above,
-        // not typed by her.
-        ...authorship('template'),
-      });
-      if (logErr) logger.warn({ err: logErr, clientId: client.id }, 'Reminder sent but not logged to the thread');
-
-      return res.json({ success: !!result, channel: 'sms' });
+    // Each accepted reminder gets one thread record. A logging failure cannot
+    // turn an accepted send into a retry that would message the client twice.
+    async function logReminder(channel) {
+      try {
+        const { error } = await supabase.from('messages').insert({
+          beautician_id: req.beautician.id,
+          client_id: client.id,
+          direction: 'outbound',
+          channel,
+          content: body,
+          ...authorship('template'),
+        });
+        if (error) logger.warn({ err: error, clientId: client.id }, 'Reminder sent but not logged to the thread');
+      } catch (err) {
+        logger.warn({ err, clientId: client.id }, 'Reminder sent but not logged to the thread');
+      }
     }
 
-    // If we found a client with email but no phone, send email
-    if (client?.email) {
+    if (client.phone) {
+      const result = await sendSMS({ to: client.phone, body, beauticianId: req.beautician.id, clientId: client.id, skipThreadLog: true });
+      if (!result) return res.status(502).json({ success: false, error: 'The SMS provider did not accept the reminder. Try again.' });
+      await logReminder('sms');
+      return res.json({ success: true, channel: 'sms' });
+    }
+    if (client.email) {
       const result = await sendEmail({ to: client.email, subject: 'Reminder from your beautician', text: body });
-      return res.json({ success: !!result, channel: 'email' });
+      if (!result) return res.status(502).json({ success: false, error: 'The email provider did not accept the reminder. Try again.' });
+      await logReminder('email');
+      return res.json({ success: true, channel: 'email' });
     }
 
-    // No contact info or client not found — log and return success (queued)
-    logger.warn({ type, client_name, client_id }, 'Reminder requested but no contact info found');
-    return res.json({ success: true, channel: 'queued', note: 'Client contact not found, reminder queued' });
+    return res.status(422).json({ success: false, error: 'This client has no phone number or email address. Add one to their profile before sending a reminder.' });
   } catch (err) {
     logger.error({ err }, 'Unexpected error sending reminder');
     res.status(500).json({ error: 'Something went wrong' });

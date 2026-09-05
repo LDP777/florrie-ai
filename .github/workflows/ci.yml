@@ -160,3 +160,7 @@ jobs:
           # it must match the one the dist above was built with or every
           # signed-in route silently renders the login page and passes.
           VITE_SUPABASE_URL: https://placeholder.supabase.co
+
+      # Exercise real record and form actions against synthetic API failures.
+      - run: npm run check:care --workspace frontend
+      - run: npm run check:more --workspace frontend

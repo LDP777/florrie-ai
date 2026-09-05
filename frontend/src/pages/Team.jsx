@@ -1,16 +1,19 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
+import { useBeautician, fetchRowsStrict, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import { isIOSNative } from '../lib/platform.js';
 import Icon from '../components/ui/Icon';
+import { PLAN, TEAM_ADDON } from '../lib/subscription.js';
+import { Link } from 'react-router-dom';
+import Button from '../components/ui/Button.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 
 const ROLES = [
-  { key: 'stylist', label: 'Stylist', desc: 'Books & manages their own clients' },
-  { key: 'assistant', label: 'Assistant', desc: 'Helps with bookings, can\'t change treatments' },
-  { key: 'admin', label: 'Admin', desc: 'Full access to everything' },
+  { key: 'stylist', label: 'Stylist', desc: 'Treatment team member' },
+  { key: 'assistant', label: 'Assistant', desc: 'Salon support role' },
+  { key: 'admin', label: 'Admin', desc: 'Administrative role' },
 ];
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -23,6 +26,9 @@ export default function Team() {
   const [showAdd, setShowAdd] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
   const [form, setForm] = useState(blankForm());
+  const [pending, setPending] = useState(null);
+  const [error, setError] = useState(null);
+  const [loadError, setLoadError] = useState(null);
 
   function blankForm() {
     return { first_name: '', last_name: '', email: '', phone: '', role: 'stylist' };
@@ -35,42 +41,47 @@ export default function Team() {
 
   async function loadTeam() {
     if (!beautician) { setLoading(false); return; }
-    const rows = await fetchRows('team_members', beautician.id, { order: 'created_at' });
-    setMembers(rows);
-    setLoading(false);
+    setLoading(true); setLoadError(null);
+    try { setMembers(await fetchRowsStrict('team_members', beautician.id, { order: 'created_at' })); }
+    catch { setLoadError('Could not load your team. Try again.'); }
+    finally { setLoading(false); }
   }
-
   async function handleAdd() {
-    if (!form.first_name.trim()) return;
-    const row = {
-      beautician_id: beautician.id,
-      first_name: form.first_name.trim(),
-      last_name: form.last_name.trim(),
-      email: form.email.trim(),
-      phone: form.phone.trim(),
-      role: form.role,
-      price_per_month_cents: 2500,
-      invited_at: new Date().toISOString(),
-    };
-    const created = await insertRow('team_members', row);
-    setMembers(prev => [...prev, created]);
-    setForm(blankForm());
-    setShowAdd(false);
+    if (!form.first_name.trim() || !beautician || pending) return;
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) { setError('Enter a valid email address.'); return; }
+    setPending('add'); setError(null);
+    try {
+      const created = await insertRow('team_members', {
+        beautician_id: beautician.id, first_name: form.first_name.trim(), last_name: form.last_name.trim(),
+        email: form.email.trim() || null, phone: form.phone.trim() || null, role: form.role,
+        price_per_month_cents: TEAM_ADDON.seatMonthlyPence, is_active: true,
+      });
+      if (!created?.id) throw new Error('No saved member returned');
+      setMembers(prev => [...prev, created]); setForm(blankForm()); setShowAdd(false);
+    } catch { setError('Could not add this team member. Your details are still here; try again.'); }
+    finally { setPending(null); }
   }
-
   async function handleToggleActive(member) {
-    const updated = await updateRow('team_members', member.id, { is_active: !member.is_active });
-    setMembers(prev => prev.map(m => m.id === member.id ? { ...m, ...updated } : m));
+    if (pending) return;
+    setPending(member.id); setError(null);
+    try {
+      const updated = await updateRow('team_members', member.id, { is_active: !member.is_active });
+      if (!updated?.id) throw new Error('No saved member returned');
+      setMembers(prev => prev.map(m => m.id === member.id ? { ...m, ...updated } : m));
+      setSelectedMember(prev => prev?.id === member.id ? { ...prev, ...updated } : prev);
+    } catch { setError('Could not update this member. Try again.'); }
+    finally { setPending(null); }
   }
-
   async function handleRemove(member) {
-    await deleteRow('team_members', member.id);
-    setMembers(prev => prev.filter(m => m.id !== member.id));
-    setSelectedMember(null);
+    if (pending || !window.confirm(`Remove ${member.first_name} from your team?`)) return;
+    setPending(member.id); setError(null);
+    try { await deleteRow('team_members', member.id); setMembers(prev => prev.filter(m => m.id !== member.id)); setSelectedMember(null); }
+    catch { setError('Could not remove this member. Try again.'); }
+    finally { setPending(null); }
   }
 
   const activeCount = members.filter(m => m.is_active).length;
-  const monthlyCost = activeCount * 15; // £15 per seat
+  const monthlyCost = activeCount * TEAM_ADDON.seatMonthlyPence / 100;
 
   if (loading) {
     return <PageLoader />;
@@ -82,39 +93,44 @@ export default function Team() {
         title="Team"
         subtitle={activeCount === 0 ? 'Just you for now' : `${activeCount} team member${activeCount !== 1 ? 's' : ''}`}
         action={(
-          <button onClick={() => { setForm(blankForm()); setShowAdd(true); }} style={styles.addBtn}>
+          <button onClick={() => { setError(null); setForm(blankForm()); setShowAdd(true); }} style={styles.addBtn}>
             + Add
           </button>
         )}
       />
 
+      {loadError && <div role="alert"><ErrorCard message={loadError} /><Button variant="secondary" onClick={loadTeam}>Retry</Button></div>}
+      {!beautician && <ErrorCard message="Your business profile is unavailable. Reload to try again." />}
+      {error && !showAdd && !selectedMember && <div role="alert"><ErrorCard message={error} /></div>}
+      <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>Manage staff profiles and availability. <Link to="/rota" style={{ color: 'var(--accent)' }}>Open staff rota</Link></p>
       {/* Pricing summary */}
-      {!isIOSNative() && activeCount > 0 && (
+      {!isIOSNative() && !loadError && activeCount > 0 && (
         <div style={styles.pricingCard}>
+          <p style={{ fontSize: 12, lineHeight: 1.6, color: 'var(--text-secondary)', margin: '0 0 12px' }}>Monthly list-price estimate. Check Plans & billing for your subscription details.</p>
           <div style={styles.pricingRow}>
-            <span style={styles.pricingLabel}>Your plan</span>
-            <span style={styles.pricingValue}>£29/mo</span>
+            <span style={styles.pricingLabel}>Monthly list price</span>
+            <span style={styles.pricingValue}>{PLAN.monthlyLabel}</span>
           </div>
           <div style={styles.pricingRow}>
             <span style={styles.pricingLabel}>{activeCount} team seat{activeCount !== 1 ? 's' : ''}</span>
             <span style={styles.pricingValue}>£{monthlyCost}/mo</span>
           </div>
           <div style={{ ...styles.pricingRow, borderBottom: 'none', paddingTop: 10 }}>
-            <span style={{ ...styles.pricingLabel, fontWeight: 700, color: 'var(--text-primary, #241B17)' }}>Total</span>
+            <span style={{ ...styles.pricingLabel, fontWeight: 700, color: 'var(--text-primary, #241B17)' }}>Monthly estimate</span>
             <span style={{ ...styles.pricingValue, fontWeight: 700, color: 'var(--accent, #92405e)', fontSize: 18 }}>
-              £{29 + monthlyCost}/mo
+              £{PLAN.monthlyPence / 100 + monthlyCost}/mo
             </span>
           </div>
         </div>
       )}
 
       {/* Team list */}
-      {members.length === 0 ? (
+      {!loadError && (members.length === 0 ? (
         <div style={styles.emptyState}>
           <div style={styles.emptyIcon}><Icon name="users" size={32} /></div>
           <p style={styles.emptyTitle}>No team members yet</p>
           <p style={styles.emptyDesc}>
-            Add stylists or assistants who work with you. They get their own calendar, client list, and bookings.{!isIOSNative() && ' Each seat is £15/mo.'}
+            Add the people who work with you and record their working hours.{!isIOSNative() && ' Each seat is £15/mo.'}
           </p>
           <button onClick={() => setShowAdd(true)} style={styles.emptyBtn}>Add your first team member</button>
         </div>
@@ -123,7 +139,7 @@ export default function Team() {
           {members.map(member => (
             <button
               key={member.id}
-              onClick={() => setSelectedMember(member)}
+              onClick={() => { setError(null); setSelectedMember(member); }}
               style={styles.memberCard}
             >
               <div style={styles.memberAvatar}>
@@ -146,15 +162,16 @@ export default function Team() {
             </button>
           ))}
         </div>
-      )}
+      ))}
 
       {/* Add member modal */}
       {showAdd && (
-        <div style={styles.overlay} onClick={() => setShowAdd(false)}>
-          <div style={styles.modal} onClick={e => e.stopPropagation()}>
+        <div style={styles.overlay} onClick={() => { if (!pending) setShowAdd(false); }}>
+          <div role="dialog" aria-modal="true" aria-label="Team member details" style={styles.modal} onClick={e => e.stopPropagation()}>
+            {error && <div role="alert"><ErrorCard message={error} /></div>}
             <div style={styles.modalHeader}>
               <h2 style={styles.modalTitle}>Add team member</h2>
-              <button onClick={() => setShowAdd(false)} style={styles.closeBtn}><Icon name="x" size={15} /></button>
+              <button onClick={() => { if (!pending) setShowAdd(false); }} aria-label="Close" disabled={Boolean(pending)} style={styles.closeBtn}><Icon name="x" size={15} /></button>
             </div>
 
             <div style={styles.formGroup}>
@@ -222,17 +239,17 @@ export default function Team() {
             </div>
 
             <p style={styles.pricingNote}>
-              {!isIOSNative() && 'Each team seat adds £15/mo to your plan. '}They get their own calendar and client list.
+              {!isIOSNative() && 'The monthly team seat list price is £15. '}Adding a profile does not send an invitation or confirm a billing change.
             </p>
 
             <button
               onClick={handleAdd}
-              disabled={!form.first_name.trim()}
+              disabled={!form.first_name.trim() || Boolean(pending) || !beautician}
               style={{ ...styles.saveBtn,
                 opacity: form.first_name.trim() ? 1 : 0.5
               }}
             >
-              Add to team{!isIOSNative() ? ' - £15/mo' : ''}
+              {pending === 'add' ? 'Adding…' : 'Add to team'}
             </button>
           </div>
         </div>
@@ -240,13 +257,14 @@ export default function Team() {
 
       {/* Member detail modal */}
       {selectedMember && (
-        <div style={styles.overlay} onClick={() => setSelectedMember(null)}>
-          <div style={styles.modal} onClick={e => e.stopPropagation()}>
+        <div style={styles.overlay} onClick={() => { if (!pending) setSelectedMember(null); }}>
+          <div role="dialog" aria-modal="true" aria-label="Team member details" style={styles.modal} onClick={e => e.stopPropagation()}>
+            {error && <div role="alert"><ErrorCard message={error} /></div>}
             <div style={styles.modalHeader}>
               <h2 style={styles.modalTitle}>
                 {selectedMember.first_name} {selectedMember.last_name || ''}
               </h2>
-              <button onClick={() => setSelectedMember(null)} style={styles.closeBtn}><Icon name="x" size={15} /></button>
+              <button onClick={() => { if (!pending) setSelectedMember(null); }} aria-label="Close" disabled={Boolean(pending)} style={styles.closeBtn}><Icon name="x" size={15} /></button>
             </div>
 
             <div style={styles.detailSection}>
@@ -314,17 +332,17 @@ export default function Team() {
 
             <div style={styles.detailActions}>
               <button
-                onClick={() => handleToggleActive(selectedMember)}
+                disabled={Boolean(pending)} onClick={() => handleToggleActive(selectedMember)}
                 style={{ ...styles.actionBtn,
                   background: selectedMember.is_active ? '#FFF3E0' : 'var(--success-bg, #E9F0EB)',
                   color: selectedMember.is_active ? '#a35300' : 'var(--success, #386F52)',
                   borderColor: selectedMember.is_active ? '#FFCC80' : '#A5D6A7'
                 }}
               >
-                {selectedMember.is_active ? 'Pause seat' : 'Reactivate'}
+                {pending === selectedMember.id ? 'Saving…' : selectedMember.is_active ? 'Mark inactive' : 'Reactivate'}
               </button>
               <button
-                onClick={() => handleRemove(selectedMember)}
+                disabled={Boolean(pending)} onClick={() => handleRemove(selectedMember)}
                 style={{ ...styles.actionBtn, background: 'var(--danger-bg, #F7E4E4)', color: '#bb2323', borderColor: '#FFCDD2' }}
               >
                 Remove from team
@@ -358,7 +376,7 @@ function SkeletonCard() {
 }
 
 const styles = {
-  page: { minHeight: 'var(--shell-viewport)', background: 'var(--bg, #FBF6F1)', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", padding: '0 16px var(--scroll-pad-bottom)', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary, #241B17)' },
+  page: { minHeight: 'var(--shell-viewport)', background: 'var(--bg, #FBF6F1)', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", padding: '0 16px var(--scroll-pad-bottom)', maxWidth: 760, margin: '0 auto', color: 'var(--text-primary, #241B17)' },
   addBtn: { padding: '8px 16px', borderRadius: 10, border: 'none', background: 'var(--accent, #92405e)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
 
   // Pricing summary
@@ -386,7 +404,7 @@ const styles = {
 
   // Modal
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 960, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
-  modal: { background: 'var(--bg-card, #FFFCF9)', borderRadius: '20px 20px 0 0', padding: '20px 20px 32px', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 20px)', width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto' },
+  modal: { background: 'var(--bg-card, #FFFCF9)', borderRadius: '20px 20px 0 0', padding: '20px 20px 32px', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 20px)', width: '100%', maxWidth: 760, maxHeight: '85vh', overflowY: 'auto' },
   modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   modalTitle: { fontSize: 18, fontWeight: 700, margin: 0 },
   closeBtn: { width: 32, height: 32, borderRadius: 16, border: 'none', background: 'var(--bg-hover, #f3ede9)', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' },

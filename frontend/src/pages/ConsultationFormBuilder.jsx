@@ -1,3 +1,5 @@
+import CareNav from '../components/CareNav.jsx';
+import Button from '../components/ui/Button.jsx';
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { API_BASE } from '../lib/config.js';
@@ -45,7 +47,7 @@ function FormList() {
 
   useEffect(() => {
     (async () => fetch(`${API_BASE}/api/consultation-forms`, { headers: await authHeaders() }))()
-      .then(r => r.json())
+      .then(async r => { if (!r.ok) throw new Error('Could not load form templates.'); return r.json(); })
       .then(d => setForms(d.forms || []))
       .catch(err => {
         setError(err.message || 'Failed to load consultation forms');
@@ -55,10 +57,11 @@ function FormList() {
 
   return (
     <div style={styles.page}>
+      <CareNav />
       {error && <ErrorCard message={error} onDismiss={() => setError(null)} />}
       <PageHeader
-        title="Consultation Forms"
-        subtitle="Build custom forms clients fill in before their appointment"
+        title="Form templates"
+        subtitle="Create the questions clients answer before their visit. Submitted answers live in each client’s record."
       />
 
       <button style={styles.createBtn} onClick={() => navigate('/consultation-forms/new')}>
@@ -67,7 +70,7 @@ function FormList() {
 
       {loading ? (
         <PageLoader message="Loading forms..." />
-      ) : forms.length === 0 ? (
+      ) : error ? <Button onClick={() => window.location.reload()}>Retry</Button> : forms.length === 0 ? (
         <EmptyState
           icon="list"
           title="No forms yet"
@@ -109,6 +112,8 @@ function FormEditor() {
   const [isDefault, setIsDefault] = useState(false);
   const [fields, setFields] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [editorError, setEditorError] = useState(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [loading, setLoading] = useState(!isNew);
   const [showAddField, setShowAddField] = useState(false);
   const [editingField, setEditingField] = useState(null); // index or null
@@ -117,7 +122,7 @@ function FormEditor() {
   useEffect(() => {
     if (isNew) return;
     (async () => fetch(`${API_BASE}/api/consultation-forms/${id}`, { headers: await authHeaders() }))()
-      .then(r => r.json())
+      .then(async r => { if (!r.ok) throw new Error('Could not load form templates.'); return r.json(); })
       .then(d => {
         if (d.form) {
           setFormName(d.form.name);
@@ -132,6 +137,7 @@ function FormEditor() {
           })));
         }
       })
+      .catch(() => { setLoadFailed(true); setEditorError('Could not load this template. Reload to try again.'); })
       .finally(() => setLoading(false));
   }, [id, isNew]);
 
@@ -139,6 +145,7 @@ function FormEditor() {
   async function handleSave() {
     if (!formName.trim()) return;
     setSaving(true);
+    setEditorError(null);
 
     const body = {
       name: formName.trim(),
@@ -162,14 +169,10 @@ function FormEditor() {
       if (res.ok) {
         navigate('/consultation-forms');
       } else {
-        // Never fail silently: tell her exactly what went wrong.
         const data = await res.json().catch(() => ({}));
-        alert(
-          res.status === 401
-            ? 'Your session needs a refresh. Pull down to refresh (or log in again), then save, your work is still here.'
-            : (data.error || 'Could not save the form, try again.') + (data.details?.length ? ` (${data.details.join(', ')})` : '')
-        );
+        setEditorError(data.error || 'Could not save the template. Your changes are still here.');
       }
+    } catch { setEditorError('Connection error. Your changes are still here. Try saving again.');
     } finally {
       setSaving(false);
     }
@@ -178,11 +181,13 @@ function FormEditor() {
   // Delete form
   async function handleDelete() {
     if (!confirm('Remove this form? Existing responses will be kept.')) return;
-    await fetch(`${API_BASE}/api/consultation-forms/${id}`, {
-      method: 'DELETE',
-      headers: await authHeaders(),
-    });
-    navigate('/consultation-forms');
+    setSaving(true); setEditorError(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/consultation-forms/${id}`, { method: 'DELETE', headers: await authHeaders() });
+      if (!res.ok) throw new Error();
+      navigate('/consultation-forms');
+    } catch { setEditorError('Could not remove the template. Please try again.'); }
+    finally { setSaving(false); }
   }
 
   // Add a new field
@@ -223,22 +228,26 @@ function FormEditor() {
   if (loading) return <div style={styles.page}><div style={styles.loadingState}>Loading form...</div></div>;
 
   return (
-    <div style={styles.page}>
+    <div style={{ ...styles.page, maxWidth: 760 }}>
+      <CareNav />
       {/* Header */}
       <div style={styles.editorHeader}>
         <button style={styles.backBtn} onClick={() => navigate('/consultation-forms')}>
           ← Back
         </button>
-        <button style={styles.saveBtn} onClick={handleSave} disabled={saving || !formName.trim()}>
+        <button style={styles.saveBtn} onClick={handleSave} disabled={saving || loadFailed || !formName.trim()}>
           {saving ? 'Saving...' : 'Save'}
         </button>
       </div>
 
+      {editorError && <p role="alert" style={{ padding: 14, background: 'var(--danger-bg)', borderRadius: 12 }}>{editorError}</p>}
+      <p style={{ color: 'var(--text-muted)', lineHeight: 1.5 }}>Edit the blank template. Existing requests and submitted answers keep the questions and consent wording they received.</p>
       {/* Form name */}
       <input
         style={styles.formNameInput}
         value={formName}
         onChange={e => setFormName(e.target.value)}
+        aria-label="Form name"
         placeholder="Form name (e.g. Brow Consultation)"
       />
 
@@ -251,7 +260,7 @@ function FormEditor() {
           style={styles.checkbox}
         />
         <span style={styles.toggleLabel}>
-          Default form - auto-sent to all new clients
+          Default form when a treatment has no linked template
         </span>
       </label>
 
@@ -408,8 +417,8 @@ function FieldCard({ field, index, isEditing, onEdit, onUpdate, onRemove, onMove
 
           {/* Actions */}
           <div style={styles.fieldActions}>
-            <button style={styles.moveBtn} onClick={() => onMove(-1)} disabled={isFirst}>↑</button>
-            <button style={styles.moveBtn} onClick={() => onMove(1)} disabled={isLast}>↓</button>
+            <button aria-label="Move question up" style={styles.moveBtn} onClick={() => onMove(-1)} disabled={isFirst}>↑</button>
+            <button aria-label="Move question down" style={styles.moveBtn} onClick={() => onMove(1)} disabled={isLast}>↓</button>
             <button style={styles.removeBtn} onClick={onRemove}>Remove</button>
           </div>
         </div>
@@ -426,9 +435,9 @@ export default function ConsultationFormBuilder() {
 
 const styles = {
   page: {
-    maxWidth: 540,
+    maxWidth: 1040,
     margin: '0 auto',
-    padding: '24px 16px 120px',
+    padding: '24px clamp(16px, 3vw, 32px) var(--scroll-pad-bottom)',
     animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
   },
   loadingState: {
@@ -475,17 +484,18 @@ const styles = {
     marginBottom: 20,
   },
   formList: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 8,
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))',
+    gap: 14,
   },
   formCard: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
     width: '100%',
-    padding: '16px 20px',
-    background: 'var(--surface)',
+    minHeight: 124,
+    padding: '22px 20px',
+    background: 'var(--bg-card)',
     border: '1px solid var(--border)',
     borderRadius: 10,
     cursor: 'pointer',
@@ -495,6 +505,8 @@ const styles = {
     transition: 'background 0.15s',
   },
   formCardLeft: {
+    minWidth: 0,
+    overflowWrap: 'anywhere',
     display: 'flex',
     flexDirection: 'column',
     gap: 4,

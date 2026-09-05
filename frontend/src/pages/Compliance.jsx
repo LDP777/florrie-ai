@@ -1,273 +1,113 @@
-/**
- * Compliance - landing page for Guardian agent.
- *
- * Covers the two pillars of compliance for UK beauty professionals:
- *   1. Patch tests  - required by her insurer before chemical treatments, 24h in this app
- *   2. Consultation forms - informed consent for all treatments
- *
- * Relevant for all treatment types: brows, lashes, nails, waxing, facials, etc.
- * Shows live stats + links to full management pages for each pillar.
- */
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useBeautician, fetchRows } from '../lib/supabase.js';
-import Icon, { iconName } from '../components/ui/Icon';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useBeautician, supabase } from '../lib/supabase.js';
+import { API_BASE } from '../lib/config.js';
+import Button from '../components/ui/Button.jsx';
+import Icon from '../components/ui/Icon.jsx';
+import ClientLookup from '../components/ClientLookup.jsx';
 
-// Guardian avatar (inline, no external deps)
-function GuardianAvatar({ size = 52 }) {
-  return (
-    <svg viewBox="0 0 56 56" width={size} height={size}>
-      <circle cx="28" cy="28" r="28" fill="#C9A96E"/>
-      <circle cx="28" cy="27" r="13" fill="#FFD5B0"/>
-      <circle cx="24.5" cy="25" r="1.8" fill="#3D2B1A"/>
-      <circle cx="31.5" cy="25" r="1.8" fill="#3D2B1A"/>
-      <circle cx="25.2" cy="24.2" r="0.6" fill="#fff"/>
-      <circle cx="32.2" cy="24.2" r="0.6" fill="#fff"/>
-      <path d="M23 29 Q28 33.5 33 29" stroke="#3D2B1A" strokeWidth="1.4" fill="none" strokeLinecap="round"/>
-      <path d="M42 6 L50 9 L50 16 Q50 22 42 25 Q34 22 34 16 L34 9 Z" fill="#fff" opacity="0.9"/>
-      <path d="M42 8 L48 10.5 L48 16 Q48 21 42 23.5 Q36 21 36 16 L36 10.5 Z" fill="#C9A96E" opacity="0.3"/>
-      <path d="M38 16 L41 19 L46 13" stroke="#5BA97B" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M9 10 L10 13 L13 13 L10.5 15 L11.5 18 L9 16 L6.5 18 L7.5 15 L5 13 L8 13Z" fill="#fff" opacity="0.9"/>
-      <path d="M6 5 L6.5 6.5 L8 6.5 L7 7.5 L7.5 9 L6 8 L4.5 9 L5 7.5 L4 6.5 L5.5 6.5Z" fill="#fff" opacity="0.7"/>
-    </svg>
-  );
-}
-
+const REASONS = {
+  never_been_in: 'No previous visits or patch test on record',
+  been_in_but_nothing_on_record: 'Returning client, with no patch test written down',
+  booked_not_attended: 'Patch test booked, but not recorded as done',
+  reaction_on_record: 'A reaction is noted on the last patch test',
+  could_not_check: 'The record could not be checked. Review it before deciding.',
+};
+const dateLabel = date => date ? new Date(`${date.slice(0, 10)}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }) : 'Date to confirm';
 
 export default function Compliance() {
   const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const tab = ['records', 'templates'].includes(params.get('tab')) ? params.get('tab') : 'checks';
   const { beautician, loading } = useBeautician();
-
-  const [patchStats, setPatchStats] = useState(null);
-  const [formStats,  setFormStats]  = useState(null);
-  const [fetching,   setFetching]   = useState(true);
-
+  const [checks, setChecks] = useState({ loading: true });
+  const [forms, setForms] = useState({ loading: true });
+  const [retry, setRetry] = useState(0);
   useEffect(() => {
     if (loading) return;
-    if (!beautician) {
-      setFetching(false);
-      return;
-    }
-    async function load() {
-      // The /api/patch-tests/stats and /api/consultation-forms/stats endpoints
-      // were never shipped; compute the figures directly from Supabase below.
-      const pt = null;
-      const cf = null;
-      // Fallback: count rows directly from Supabase if stats endpoint doesn't exist
-      if (!pt) {
-        const rows = await fetchRows('patch_tests', beautician.id, {}).catch(() => []);
-        const now  = new Date();
-        setPatchStats({
-          pending:           rows.filter(r => r.status === 'pending' || r.status === 'needs_test').length,
-          done_this_month:   rows.filter(r => r.status === 'completed' && new Date(r.updated_at).getMonth() === now.getMonth()).length,
-          expired:           rows.filter(r => r.status === 'expired').length,
-          total:             rows.length,
-        });
-      } else {
-        setPatchStats(pt);
-      }
-      if (!cf) {
-        const rows = await fetchRows('consultation_forms', beautician.id, {}).catch(() => []);
-        // Only the form count is reliably derivable here. Signature/response
-        // tracking lives elsewhere, so don't fabricate those figures.
-        setFormStats({
-          total_forms: rows.length,
-        });
-      } else {
-        setFormStats(cf);
-      }
-      setFetching(false);
-    }
-    load();
-  }, [beautician, loading]);
+    if (!beautician) { setChecks({ error: 'Sign in to load client checks.' }); setForms({ error: 'Sign in to load forms.' }); return; }
+    const controller = new AbortController();
+    const load = async (path, setState, field) => {
+      setState({ loading: true });
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (!data.session) throw new Error('Please sign in again.');
+        const res = await fetch(`${API_BASE}${path}`, { headers: { Authorization: `Bearer ${data.session.access_token}` }, signal: controller.signal });
+        if (!res.ok) throw new Error('This information could not be loaded.');
+        const body = await res.json();
+        if (!Array.isArray(body[field])) throw new Error('This information could not be loaded.');
+        if (!controller.signal.aborted) setState({ rows: body[field], until: body.checkedUntil });
+      } catch (err) { if (!controller.signal.aborted) setState({ error: err.message }); }
+    };
+    void load('/api/appointments/patch-test-alerts?days=21', setChecks, 'alerts');
+    void load('/api/consultation-forms', setForms, 'forms');
+    return () => controller.abort();
+  }, [beautician?.id, loading, retry]);
+  const openClient = id => navigate('/clients', { state: { clientId: id } });
+  const renderError = message => <div role="alert" style={S.error}><p>{message}</p><Button variant="secondary" onClick={() => setRetry(n => n + 1)}>Try again</Button></div>;
 
-  const totalPending = (patchStats?.pending || 0) + (formStats?.pending_signatures || 0);
+  return <div className="care-hub" style={S.page}>
+    <style>{`
+      .care-hub__hero { display:grid; grid-template-columns:1.6fr 1fr; gap:28px; }
 
-  return (
-    <div style={S.page}>
-      {/* Hero */}
-      <div style={S.hero}>
-        <GuardianAvatar size={52} />
-        <div style={S.heroText}>
-          <h1 style={S.heroTitle}>Compliance</h1>
-          <p style={S.heroSub}>Patch tests &amp; consultation forms, keeping you and your clients protected.</p>
-        </div>
-        {totalPending > 0 && (
-          <span style={S.pendingBadge}>{totalPending} pending</span>
-        )}
+      .care-hub__queue { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+      .care-hub a:focus-visible { outline:3px solid var(--accent); outline-offset:3px; }
+      @media(max-width:650px) { .care-hub__hero,.care-hub__queue { grid-template-columns:1fr; } .care-hub__hero { gap:16px; } .care-hub__summary { display:grid!important; grid-template-columns:auto 1fr; gap:6px 12px!important; padding:14px!important; } .care-hub__summary>span:first-child { grid-column:1/-1; } .care-hub__summary>span:last-child { grid-column:1/-1; } .care-hub__summary>strong { grid-row:2; } }
+    `}</style>
+    <header className="care-hub__hero" style={S.hero}>
+      <div><span style={S.eyebrow}><Icon name="shield" size={16} inline /> Guardian · Client care</span>
+        <h1 style={S.title}>Client checks</h1>
+        <p style={S.description}>Review patch tests, find signed consultations and check photo permissions.</p>
       </div>
-
-      {/* What this covers */}
-      <div style={S.explainerCard}>
-        <Icon name={iconName('info')} size={16} inline color="#C9A96E" />
-        <p style={S.explainerText}>
-          Required for <strong>all beauty professionals</strong> - whether you do brows, lashes, nails, waxing, facials or anything else. Your insurer and the brands you use require a patch test before chemical treatments, and Florrie asks for one 24 hours ahead. Check the notice period on your own policy, because it varies, and change it in Settings if yours says longer. Consultation forms are what your insurer expects you to hold, and they are your record of what the client told you. Check what yours asks for, because that varies too.
-        </p>
+      <div className="care-hub__summary" style={S.heroAside}><span style={S.eyebrow}>Before their next visit</span>
+        <strong style={S.figure}>{checks.loading ? '…' : checks.error ? 'Unavailable' : checks.rows.length}</strong>
+        <span style={S.description}>{checks.error ? 'Try loading the checks again below.' : 'clients to review for patch-test evidence in the next 21 days'}</span>
+        <span style={S.note}>Review the evidence before deciding what to do.</span>
       </div>
-
-      {/* Patch Tests card */}
-      <button style={S.pillarCard} onClick={() => navigate('/patch-tests')}>
-        <div style={S.pillarHeader}>
-          <div style={{ ...S.pillarIcon, background: 'var(--success-bg, #E9F0EB)' }}>
-            <Icon name={iconName('vaccines')} size={22} inline color="#5BA97B" />
-          </div>
-          <div style={S.pillarInfo}>
-            <div style={S.pillarTitle}>Patch Tests</div>
-            <div style={S.pillarDesc}>Allergy checks before chemical treatments</div>
-          </div>
-          <Icon name={iconName('chevron_right')} size={20} inline color="#C5B8B2" />
-        </div>
-
-        {fetching ? (
-          <div style={S.statsLoading}>Loading…</div>
-        ) : (
-          <div style={S.statsRow}>
-            <div style={S.statItem}>
-              <span style={{ ...S.statNum, color: patchStats?.pending > 0 ? '#E85D75' : 'var(--success, #386F52)' }}>
-                {patchStats?.pending ?? '-'}
-              </span>
-              <span style={S.statLabel}>Pending</span>
-            </div>
-            <div style={S.statDivider} />
-            <div style={S.statItem}>
-              <span style={S.statNum}>{patchStats?.done_this_month ?? '-'}</span>
-              <span style={S.statLabel}>Done this month</span>
-            </div>
-            <div style={S.statDivider} />
-            <div style={S.statItem}>
-              <span style={{ ...S.statNum, color: patchStats?.expired > 0 ? '#F59E0B' : 'var(--success, #386F52)' }}>
-                {patchStats?.expired ?? '-'}
-              </span>
-              <span style={S.statLabel}>Expired</span>
-            </div>
-          </div>
-        )}
-
-        {patchStats?.pending > 0 && (
-          <div style={S.alertBanner}>
-            <Icon name={iconName('warning')} size={14} inline color="#E85D75" />
-            <span style={S.alertText}>{patchStats.pending} client{patchStats.pending > 1 ? 's' : ''} need a patch test before their next appointment</span>
-          </div>
-        )}
-      </button>
-
-      {/* Consultation Forms card */}
-      <button style={S.pillarCard} onClick={() => navigate('/consultation-forms')}>
-        <div style={S.pillarHeader}>
-          <div style={{ ...S.pillarIcon, background: '#F3F0FA' }}>
-            <Icon name={iconName('assignment')} size={22} inline color="#7B6BA8" />
-          </div>
-          <div style={S.pillarInfo}>
-            <div style={S.pillarTitle}>Consultation Forms</div>
-            <div style={S.pillarDesc}>Informed consent for every treatment type</div>
-          </div>
-          <Icon name={iconName('chevron_right')} size={20} inline color="#C5B8B2" />
-        </div>
-
-        {fetching ? (
-          <div style={S.statsLoading}>Loading…</div>
-        ) : (
-          <div style={S.statsRow}>
-            <div style={S.statItem}>
-              <span style={S.statNum}>{formStats?.total_forms ?? '-'}</span>
-              <span style={S.statLabel}>
-                {(formStats?.total_forms || 0) === 1 ? 'Form created' : 'Forms created'}
-              </span>
-            </div>
-          </div>
-        )}
-      </button>
-
-      {/* Quick-build tip */}
-      <div style={S.tipCard}>
-        <Icon name={iconName('lightbulb')} size={16} inline color="#C9A96E" />
-        <p style={S.tipText}>
-          <strong>Tip:</strong> Build a consultation form for each treatment category - one for chemical treatments, one for facials, one for nails. Clients complete it once and it's saved to their profile.
-        </p>
-      </div>
-    </div>
-  );
+    </header>
+    <nav aria-label="Client check views" style={S.tabs}>
+      {[['checks', 'Upcoming checks'], ['records', 'Client records'], ['templates', 'Form templates']].map(([key, label]) =>
+        <Button key={key} variant={tab === key ? 'primary' : 'quiet'} aria-pressed={tab === key} onClick={() => setParams(key === 'checks' ? {} : { tab: key })} style={{ whiteSpace: 'normal', minWidth: 0, flex: '1 1 0', fontSize: 12, padding: '8px 5px' }}>{label}</Button>)}
+    </nav>
+    {tab === 'checks' && <section aria-label="Upcoming patch-test checks">
+      <div style={S.sectionHeader}><div><h2 style={S.heading}>Give these a look</h2><p style={S.description}>{checks.until ? `Bookings through ${dateLabel(checks.until)}.` : 'Upcoming bookings that need their patch-test record reviewed.'}</p></div><Link to="/patch-tests" style={S.textLink}>All patch tests <Icon name="arrow-right" size={16} inline /></Link></div>
+      {checks.loading ? <p role="status">Loading upcoming checks…</p> : checks.error ? renderError(checks.error) : checks.rows.length ? <div className="care-hub__queue">
+        {checks.rows.map(client => <article key={`${client.client_id}-${client.appointment_id}`} style={S.card}>
+          <div style={S.cardTop}><span style={S.avatar}>{client.client_name?.slice(0, 1) || 'C'}</span><div style={{ minWidth: 0 }}><h3 style={S.client}>{client.client_name}</h3><p style={S.note}>{client.treatment || 'Upcoming treatment'} · {dateLabel(client.appointment_date)}</p></div></div>
+          <p style={{ ...S.description, margin: '14px 0' }}>{REASONS[client.reason] || 'Review the patch-test evidence for this booking.'}</p>
+          <div style={S.actions}><Button variant="secondary" onClick={() => openClient(client.client_id)}>Client record</Button><Button variant="tonal" onClick={() => navigate(`/patch-tests?clientId=${encodeURIComponent(client.client_id)}&log=1`)}>Record a test</Button></div>
+        </article>)}
+      </div> : <div style={S.empty}><Icon name="check-circle" size={26} color="var(--success)" /><h3 style={S.client}>No patch-test checks in this window</h3><p style={S.description}>You can still review a client’s records or record a test below.</p><Button variant="secondary" onClick={() => setParams({ tab: 'records' })}>Find a client</Button></div>}
+      <aside style={S.footnote}><Icon name="file" size={20} /><div><strong>Looking for a completed consultation?</strong><p style={{ ...S.description, margin: '5px 0 0' }}>Open Client records and choose the person. Their answers, signature and outstanding forms are together in their profile.</p></div></aside>
+    </section>}
+    {tab === 'records' && <section style={S.card}><h2 style={S.heading}>Find the person, then the paperwork</h2><p style={{ ...S.description, margin: '8px 0 20px' }}>Open a client to read submitted consultations, check requests or send a form. Patch tests and photo consent are linked from the same profile.</p><ClientLookup onChange={client => openClient(client.id)} /></section>}
+    {tab === 'templates' && <section><div style={S.sectionHeader}><div><h2 style={S.heading}>The questions you ask</h2><p style={S.description}>Reusable templates. Completed answers live in Client records.</p></div><Link to="/consultation-forms/new" className="fl-btn fl-btn--primary fl-btn--md" style={{ textDecoration: 'none' }}>New form</Link></div>
+      {forms.loading ? <p role="status">Loading templates…</p> : forms.error ? renderError(forms.error) : forms.rows.length ? <div className="care-hub__queue">{forms.rows.map(form => <Link key={form.id} to={`/consultation-forms/${form.id}`} style={S.shortcut}><Icon name="file" size={22} /><span style={{ flex: 1 }}><strong>{form.name}</strong><span style={S.note}>{form.is_default ? 'Default consultation template' : 'Consultation template'}</span></span><Icon name="chevron-right" size={18} /></Link>)}</div> : <div style={S.empty}><h3 style={S.client}>Start with your first form</h3><p style={S.description}>Create a template, then choose it from a client’s profile to send it.</p><Button onClick={() => navigate('/consultation-forms/new')}>Create a form</Button></div>}
+    </section>}
+    <div style={{ ...S.actions, marginTop: 24 }}><Link to="/patch-tests" className="fl-btn fl-btn--secondary fl-btn--md" style={{ textDecoration: 'none' }}>All patch-test records</Link><Link to="/photo-consent" className="fl-btn fl-btn--quiet fl-btn--md" style={{ textDecoration: 'none' }}>Photo consent</Link></div>
+  </div>;
 }
-
 const S = {
-  page: {
-    padding: '16px 16px var(--scroll-pad-bottom)',
-    maxWidth: 480, margin: '0 auto',
-    fontFamily: "'Plus Jakarta Sans', sans-serif",
-    color: 'var(--text-primary, #241B17)',
-    minHeight: 'var(--shell-viewport)',
-    background: 'var(--bg, #FBF6F1)',
-  },
-
-  hero: {
-    display: 'flex', alignItems: 'flex-start', gap: 14,
-    background: 'linear-gradient(135deg, #fdf5e8 0%, #fff 70%)',
-    borderRadius: 22, padding: '16px 14px',
-    border: '1px solid rgba(201,169,110,0.2)',
-    marginBottom: 14,
-    position: 'relative',
-  },
-  heroText: { flex: 1 },
-  heroTitle: {
-    fontSize: 22, fontWeight: 700, margin: '0 0 4px',
-    fontFamily: "'Playfair Display', Georgia, serif", fontStyle: 'italic',
-    color: 'var(--text-primary, #241B17)',
-  },
-  heroSub: { fontSize: 13, color: 'var(--text-muted, #6B5D54)', margin: 0, lineHeight: 1.5 },
-  pendingBadge: {
-    position: 'absolute', top: 14, right: 14,
-    fontSize: 11, fontWeight: 700, color: '#fff',
-    background: '#d51e3e', padding: '4px 10px', borderRadius: 22,
-  },
-
-  explainerCard: {
-    display: 'flex', gap: 10, alignItems: 'flex-start',
-    background: '#fffbf2', borderRadius: 16,
-    border: '1px solid rgba(201,169,110,0.2)',
-    padding: '12px 14px', marginBottom: 14,
-  },
-  explainerText: { margin: 0, fontSize: 12, color: 'var(--text-muted, #6B5D54)', lineHeight: 1.55 },
-
-  pillarCard: {
-    width: '100%', textAlign: 'left',
-    background: 'var(--bg-card, #FFFCF9)', borderRadius: 16,
-    border: '1px solid rgba(199,107,138,0.1)',
-    padding: '16px 14px', marginBottom: 12,
-    cursor: 'pointer', fontFamily: 'inherit',
-    WebkitTapHighlightColor: 'transparent',
-    boxShadow: 'var(--elev-2)',
-    boxSizing: 'border-box',
-    display: 'block',
-  },
-  pillarHeader: {
-    display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14,
-  },
-  pillarIcon: {
-    width: 44, height: 44, borderRadius: 10,
-    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-  },
-  pillarInfo: { flex: 1 },
-  pillarTitle: { fontSize: 15, fontWeight: 700, color: 'var(--text-primary, #241B17)', marginBottom: 2 },
-  pillarDesc:  { fontSize: 12, color: 'var(--text-muted, #6B5D54)', lineHeight: 1.4 },
-
-  statsRow: { display: 'flex', alignItems: 'center', gap: 0, marginBottom: 4 },
-  statItem: { flex: 1, textAlign: 'center' },
-  statNum:  { display: 'block', fontSize: 22, fontWeight: 700, color: 'var(--text-primary, #241B17)', lineHeight: 1.1 },
-  statLabel:{ display: 'block', fontSize: 10, color: 'var(--text-muted, #6B5D54)', marginTop: 3, lineHeight: 1.3 },
-  statDivider: { width: 1, height: 36, background: 'var(--border-light, #ede7e3)', flexShrink: 0 },
-  statsLoading: { fontSize: 12, color: 'var(--text-muted, #6B5D54)', padding: '8px 0' },
-
-  alertBanner: {
-    display: 'flex', alignItems: 'center', gap: 8,
-    background: '#FFF0F3', borderRadius: 10, padding: '9px 12px', marginTop: 10,
-  },
-  alertText: { fontSize: 12, color: '#E85D75', fontWeight: 500 },
-
-  tipCard: {
-    display: 'flex', gap: 10, alignItems: 'flex-start',
-    background: '#fffbf2', borderRadius: 16,
-    border: '1px solid rgba(201,169,110,0.15)',
-    padding: '12px 14px', marginTop: 4,
-  },
-  tipText: { margin: 0, fontSize: 12, color: 'var(--text-muted, #6B5D54)', lineHeight: 1.55 },
+  page: { maxWidth: 1040, margin: '0 auto', padding: '20px 20px var(--scroll-pad-bottom)', color: 'var(--text-primary)', fontFamily: 'var(--font-body)' },
+  hero: { padding: 'clamp(20px,4vw,36px)', background: 'linear-gradient(120deg,#F4E2E8,#FFFCF9)', border: '1px solid #E6CCD5', borderRadius: 28 },
+  eyebrow: { fontSize: 11, fontWeight: 800, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--accent)', display: 'block' },
+  title: { fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)", fontSize: 'clamp(34px,5vw,46px)', fontWeight: 500, margin: '14px 0 10px', lineHeight: 1.1 },
+  intro: { fontSize: 19, lineHeight: 1.5, margin: '0 0 12px', fontWeight: 500 },
+  description: { fontSize: 13, lineHeight: 1.65, color: 'var(--text-secondary)', margin: 0 },
+  heroAside: { alignSelf: 'stretch', borderRadius: 20, background: 'rgba(255,252,249,.8)', padding: 22, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', gap: 10 },
+  figure: { fontSize: 'clamp(28px,5vw,48px)', lineHeight: 1, fontWeight: 600, fontVariantNumeric: 'tabular-nums', overflowWrap: 'anywhere' },
+  note: { fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, display: 'block', margin: '4px 0 0' },
+  shortcut: { display: 'flex', alignItems: 'center', gap: 12, padding: 18, textDecoration: 'none', color: 'var(--text-primary)', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 18 },
+  tabs: { display: 'flex', flexWrap: 'wrap', gap: 5, padding: 5, background: 'var(--bg-subtle)', borderRadius: 18, marginTop: 20, marginBottom: 26 },
+  heading: { fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)", fontWeight: 500, fontSize: 25, margin: 0 },
+  sectionHeader: { display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 16, marginBottom: 18 },
+  textLink: { fontSize: 13, fontWeight: 600, color: 'var(--accent)', padding: '12px 0' },
+  card: { background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 20, padding: 20 },
+  cardTop: { display: 'flex', alignItems: 'center', gap: 12 },
+  avatar: { width: 42, height: 42, flexShrink: 0, display: 'grid', placeItems: 'center', borderRadius: 15, background: 'var(--accent-light)', color: 'var(--accent)', fontWeight: 700 },
+  client: { fontSize: 16, fontWeight: 700, margin: 0, overflowWrap: 'anywhere' },
+  actions: { display: 'flex', gap: 8, flexWrap: 'wrap' },
+  error: { background: 'var(--danger-bg)', color: 'var(--danger)', padding: 20, borderRadius: 18 },
+  empty: { display: 'grid', justifyItems: 'start', gap: 12, padding: 26, border: '1px solid var(--border)', borderRadius: 20, background: 'var(--bg-card)' },
+  footnote: { display: 'flex', gap: 12, padding: '22px 4px', marginTop: 14, fontSize: 13, color: 'var(--text-secondary)' },
 };

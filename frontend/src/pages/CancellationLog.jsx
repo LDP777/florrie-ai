@@ -1,3 +1,5 @@
+import { useNavigate } from 'react-router-dom';
+import MoreLoadError from '../components/MoreLoadError.jsx';
 /**
  * Cancellation Log - Track every cancellation, no-show & late change.
  *
@@ -6,7 +8,7 @@
  * Revenue lost, reasons, and trends - all in one place.
  */
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, updateRow } from '../lib/supabase.js';
+import { useBeautician, fetchRowsStrict } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -24,26 +26,29 @@ const TYPE_CONFIG = {
 };
 
 export default function CancellationLog() {
+  const navigate = useNavigate();
   const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('log');
   const [filterType, setFilterType] = useState('all');
   const [period, setPeriod] = useState('30d');
   const [cancellations, setCancellations] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [retry, setRetry] = useState(0);
+  const [loadError, setLoadError] = useState(null);
   const [error, setError] = useState('');
 
   // Fetch cancelled/no-show appointments from real data
   useEffect(() => {
     if (bLoading || !beautician) return;
 
-    setLoading(true);
+    setLoading(true); setLoadError(null);
     setError('');
 
     // The names are the whole point of this screen, and it never had them:
     // `client_name` and `treatment_name` are not columns on appointments, so
     // every row read "Client" with no treatment. Ellie went looking for who had
     // been cancelled and the list could not tell her. Join for them.
-    fetchRows('appointments', beautician.id, {
+    fetchRowsStrict('appointments', beautician.id, {
       order: 'starts_at',
       ascending: false,
       select: '*, clients(first_name, last_name), treatments(name)',
@@ -55,7 +60,7 @@ export default function CancellationLog() {
           // A deposit that was never paid was never kept. This showed
           // "Deposit kept: GBP 17" against bookings released BECAUSE no deposit
           // arrived, which is how the money stopped making sense.
-          const depositActuallyKept = a.deposit_paid === true ? (a.deposit_cents || 0) : 0;
+          const depositActuallyKept = a.deposit_paid === true && a.deposit_status !== 'refunded' ? (a.deposit_cents || 0) : 0;
           return {
             id: a.id,
             client: name || 'Client',
@@ -69,36 +74,16 @@ export default function CancellationLog() {
             revenue_lost: a.status === 'no_show' || a.deposit_paid === true ? (a.price_cents || 0) : 0,
             deposit: depositActuallyKept,
             notice: computeNotice(a.cancelled_at, a.starts_at),
-            rebooked: a.rebooked_at ? true : false,
           };
         }));
         setLoading(false);
       })
       .catch(err => {
         logger.error('Failed to load cancellations:', err);
-        setError('Failed to load cancellations');
+        setLoadError('Could not load cancellations. Try again.');
         setLoading(false);
       });
-  }, [beautician, bLoading]);
-
-  // Handler to rebook appointment
-  const handleRebook = async (appointmentId, clientName) => {
-    try {
-      const updates = { rebooked_at: new Date().toISOString() };
-      await updateRow('appointments', appointmentId, updates);
-
-      // Update local state
-      setCancellations(prev =>
-        prev.map(c =>
-          c.id === appointmentId ? { ...c, rebooked: true } : c
-        )
-      );
-      logger.info(`Rebooked appointment for ${clientName}`);
-    } catch (err) {
-      logger.error('Failed to mark as rebooked:', err);
-      setError('Failed to mark as rebooked');
-    }
-  };
+  }, [beautician, bLoading, retry]);
 
   // Period filter
   const now = new Date();
@@ -111,8 +96,6 @@ export default function CancellationLog() {
   const totalLost = filtered.reduce((s, c) => s + c.revenue_lost, 0);
   const noShows = filtered.filter(c => c.type === 'no-show').length;
   const lateCancels = filtered.filter(c => c.type === 'late-cancel').length;
-  const rebooked = filtered.filter(c => c.rebooked).length;
-  const rebookRate = filtered.length > 0 ? Math.round((rebooked / filtered.length) * 100) : 0;
 
   // Repeat offenders
   const clientCounts = {};
@@ -135,6 +118,9 @@ export default function CancellationLog() {
     dayPattern[day] = (dayPattern[day] || 0) + 1;
   });
 
+  if (bLoading || loading) return <PageLoader />;
+  if (loadError) return <MoreLoadError title="Cancellations" message={loadError} onRetry={() => setRetry(n => n + 1)} />;
+
   return (
     <div style={S.page}>
       <PageHeader title="Cancellation Log" />
@@ -154,15 +140,11 @@ export default function CancellationLog() {
       <div style={S.statsGrid}>
         <div style={{ ...S.statCard, borderLeft: '3px solid var(--danger, #9E2B32)' }}>
           <span style={{ ...S.statValue, color: 'var(--danger, #9E2B32)' }}>{fmt(totalLost)}</span>
-          <span style={S.statLabel}>Revenue Lost</span>
+          <span style={S.statLabel}>Affected booking value</span>
         </div>
         <div style={{ ...S.statCard, borderLeft: '3px solid var(--warning, #79581C)' }}>
           <span style={{ ...S.statValue, color: 'var(--warning, #79581C)' }}>{noShows + lateCancels}</span>
           <span style={S.statLabel}>No-shows + Late</span>
-        </div>
-        <div style={{ ...S.statCard, borderLeft: '3px solid var(--success, #386F52)' }}>
-          <span style={{ ...S.statValue, color: 'var(--success, #386F52)' }}>{rebookRate}%</span>
-          <span style={S.statLabel}>Rebooked</span>
         </div>
       </div>
 
@@ -208,18 +190,9 @@ export default function CancellationLog() {
                   <div style={S.logMeta}>
                     {c.reason && <span style={S.reasonTag}>"{c.reason}"</span>}
                     {c.revenue_lost > 0 && <span style={S.lostTag}>-{fmt(c.revenue_lost)}</span>}
-                    {c.deposit > 0 && <span style={S.depositTag}>Deposit kept: {fmt(c.deposit)}</span>}
+                    {c.deposit > 0 && <span style={S.depositTag}>Paid deposit: {fmt(c.deposit)}</span>}
                     {c.notice && <span style={S.noticeTag}>{c.notice} notice</span>}
-                    {c.rebooked ? (
-                      <span style={S.rebookedTag}><Icon name="check" size={14} inline /> Rebooked</span>
-                    ) : (
-                      <button
-                        onClick={() => handleRebook(c.id, c.client)}
-                        style={S.rebookBtn}
-                      >
-                        Rebook
-                      </button>
-                    )}
+                    <button onClick={() => navigate('/calendar/full')} style={S.rebookBtn}>Open diary</button>
                   </div>
                 </div>
               );
@@ -272,23 +245,19 @@ export default function CancellationLog() {
 
           {/* Revenue impact */}
           <div style={S.card}>
-            <h3 style={S.cardTitle}>Revenue Impact</h3>
+            <h3 style={S.cardTitle}>Booking value</h3>
             <div style={S.impactGrid}>
               <div style={S.impactItem}>
-                <span style={S.impactLabel}>Lost to no-shows</span>
+                <span style={S.impactLabel}>No-show booking value</span>
                 <span style={{ ...S.impactValue, color: 'var(--danger, #9E2B32)' }}>{fmt(filtered.filter(c => c.type === 'no-show').reduce((s, c) => s + c.revenue_lost, 0))}</span>
               </div>
               <div style={S.impactItem}>
-                <span style={S.impactLabel}>Lost to late cancels</span>
+                <span style={S.impactLabel}>Late cancellation value</span>
                 <span style={{ ...S.impactValue, color: 'var(--warning, #79581C)' }}>{fmt(filtered.filter(c => c.type === 'late-cancel').reduce((s, c) => s + c.revenue_lost, 0))}</span>
               </div>
               <div style={S.impactItem}>
-                <span style={S.impactLabel}>Recovered via deposits</span>
+                <span style={S.impactLabel}>Deposits paid (not refunded)</span>
                 <span style={{ ...S.impactValue, color: 'var(--success, #386F52)' }}>{fmt(filtered.reduce((s, c) => s + c.deposit, 0))}</span>
-              </div>
-              <div style={S.impactItem}>
-                <span style={S.impactLabel}>Saved via rebooks</span>
-                <span style={{ ...S.impactValue, color: 'var(--success, #386F52)' }}>{fmt(filtered.filter(c => c.rebooked).reduce((s, c) => s + c.revenue_lost, 0))}</span>
               </div>
             </div>
           </div>

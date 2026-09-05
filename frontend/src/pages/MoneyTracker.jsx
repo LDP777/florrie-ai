@@ -1,3 +1,4 @@
+import MoreLoadError from '../components/MoreLoadError.jsx';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
@@ -1146,7 +1147,7 @@ export default function MoneyTracker() {
   const animatedToday = useCountUp(todayRevenue);
 
   if (bLoading || loading) return <PageLoader />;
-  if (error) return <ErrorCard message={error} onDismiss={() => setError(null)} />;
+  if (error) return <MoreLoadError title="Money" message={error} onRetry={loadData} />;
 
   const changePct = periodStats?.changePct;
   const changeArrow = changePct != null ? (changePct >= 0 ? '↑' : '↓') : '';

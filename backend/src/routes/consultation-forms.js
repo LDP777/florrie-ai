@@ -7,6 +7,7 @@ import { sendSMS } from '../services/notifications.js';
 import logger from '../lib/logger.js';
 import { handleQueryError } from '../lib/queries.js';
 import { requireOwned } from '../lib/ownership.js';
+import { missingConsultationFields, consultationCoverage } from '../lib/consultation-care.js';
 import { shapeResponse } from '../lib/consultation-answers.js';
 import {
   DEFAULT_BOOKING_QUESTIONS,
@@ -73,161 +74,24 @@ router.get('/:id', requireAuth, async (req, res) => {
  * POST /api/consultation-forms
  * Create a new consultation form with fields.
  */
-router.post('/', requireAuth, validate(createConsultationFormSchema), async (req, res) => {
-  const { name, consent_text, is_default, fields } = req.body;
-
-  // If marking as default, unset other defaults first
-  if (is_default) {
-    await supabase
-      .from('consultation_forms')
-      .update({ is_default: false })
-      .eq('beautician_id', req.beautician.id)
-      .eq('is_default', true);
+async function saveTemplate(req, res) {
+  const parsed = (req.params.id ? createConsultationFormSchema.partial() : createConsultationFormSchema).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Check the form name and questions before saving.' });
+  if (req.params.id && !await requireOwned(req, res, [{ table: 'consultation_forms', id: req.params.id }])) return;
+  const { data: id, error } = await supabase.rpc('save_consultation_template', {
+    p_owner: req.beautician.id, p_id: req.params.id || null, p_form: parsed.data,
+  });
+  if (error) {
+    logger.error({ err: error }, 'Failed to save consultation template');
+    return res.status(500).json({ error: 'Could not save this template. Your existing form and responses have been kept.' });
   }
-
-  // Create the form
-  const { data: form, error: formError } = await supabase
-    .from('consultation_forms')
-    .insert({
-      beautician_id: req.beautician.id,
-      name,
-      consent_text,
-      is_default,
-    })
-    .select()
-    .single();
-
-  if (formError) {
-    logger.error({ err: formError }, 'Failed to create consultation form');
-    return res.status(500).json({ error: 'Something went wrong' });
-  }
-
-  // Insert fields if provided
-  if (fields.length > 0) {
-    const fieldRows = fields.map((f, i) => ({
-      form_id: form.id,
-      type: f.type,
-      label: f.label,
-      options: f.options || [],
-      required: f.required || false,
-      sort_order: f.sort_order ?? i,
-    }));
-
-    const { error: fieldsError } = await supabase
-      .from('consultation_form_fields')
-      .insert(fieldRows);
-
-    if (fieldsError) {
-      logger.warn({ err: fieldsError }, 'Failed to insert form fields');
-    }
-  }
-
-  // Fetch full form with fields
-  const { data: fullForm } = await supabase
-    .from('consultation_forms')
-    .select('*, consultation_form_fields(*)')
-    .eq('id', form.id)
-    .single();
-
-  res.status(201).json({ form: fullForm });
-});
-
-/**
- * PATCH /api/consultation-forms/:id
- * Update form metadata and/or replace all fields.
- */
-router.patch('/:id', requireAuth, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { name, consent_text, is_default, fields } = req.body;
-
-    // Verify ownership
-    const { data: existing } = await supabase
-      .from('consultation_forms')
-      .select('id')
-      .eq('id', id)
-      .eq('beautician_id', req.beautician.id)
-      .single();
-
-    if (!existing) return res.status(404).json({ error: 'Form not found' });
-
-    // Update form metadata
-    const updates = {};
-    if (name !== undefined) updates.name = name;
-    if (consent_text !== undefined) updates.consent_text = consent_text;
-    if (is_default !== undefined) {
-      if (is_default) {
-        // Unset other defaults
-        await supabase
-          .from('consultation_forms')
-          .update({ is_default: false })
-          .eq('beautician_id', req.beautician.id)
-          .eq('is_default', true);
-      }
-      updates.is_default = is_default;
-    }
-    updates.updated_at = new Date().toISOString();
-
-    const { error: updateError } = await supabase
-      .from('consultation_forms')
-      .update(updates)
-      .eq('id', id);
-
-    if (updateError) {
-      logger.error({ err: updateError }, 'Failed to update consultation form');
-      return res.status(500).json({ error: 'Something went wrong' });
-    }
-
-    // Replace fields if provided (delete all, re-insert)
-    if (fields !== undefined && Array.isArray(fields)) {
-      await supabase
-        .from('consultation_form_fields')
-        .delete()
-        .eq('form_id', id);
-
-      if (fields.length > 0) {
-        const seenF = new Set();
-        const uniqueFields = fields.filter(f => {
-          const k = `${f.type}|${f.label}|${JSON.stringify(f.options || [])}`;
-          if (seenF.has(k)) return false; seenF.add(k); return true;
-        });
-        const fieldRows = uniqueFields.map((f, i) => ({
-          form_id: id,
-          type: f.type,
-          label: f.label,
-          options: f.options || [],
-          required: f.required || false,
-          sort_order: f.sort_order ?? i,
-        }));
-
-        const { error: fieldsError } = await supabase
-          .from('consultation_form_fields')
-          .insert(fieldRows);
-
-        if (fieldsError) {
-          logger.error({ err: fieldsError }, 'Failed to update form fields');
-          return res.status(500).json({ error: 'Something went wrong' });
-        }
-      }
-    }
-
-    // Return full updated form
-    const { data: fullForm } = await supabase
-      .from('consultation_forms')
-      .select('*, consultation_form_fields(*)')
-      .eq('id', id)
-      .single();
-
-    if (fullForm?.consultation_form_fields) {
-      fullForm.consultation_form_fields.sort((a, b) => a.sort_order - b.sort_order);
-    }
-
-    res.json({ form: fullForm });
-  } catch (err) {
-    logger.error({ err }, 'Unexpected error updating consultation form');
-    res.status(500).json({ error: 'Something went wrong' });
-  }
-});
+  const { data: form, error: readError } = await supabase.from('consultation_forms')
+    .select('*, consultation_form_fields(*)').eq('id', id).eq('beautician_id', req.beautician.id).single();
+  if (handleQueryError(readError, res, 'read saved consultation template')) return;
+  res.status(req.params.id ? 200 : 201).json({ form });
+}
+router.post('/', requireAuth, saveTemplate);
+router.patch('/:id', requireAuth, saveTemplate);
 
 /**
  * DELETE /api/consultation-forms/:id
@@ -255,56 +119,8 @@ router.delete('/:id', requireAuth, async (req, res) => {
  * one exists: the blob itself never leaves in a list payload.
  */
 const RESPONSE_SELECT =
-  'id, form_id, client_id, appointment_id, status, completed_at, created_at, answers, signature_data, ' +
+  'id, form_id, client_id, appointment_id, status, completed_at, created_at, answers, signature_data, form_snapshot, ' +
   'consultation_forms(name, consent_text, consultation_form_fields(id, type, label, options, sort_order))';
-
-/**
- * Does this account have a form it could actually send?
- *
- * Returns false when the lookup fails rather than throwing: the only thing
- * riding on it is whether a "Send a form" button appears, and a missing
- * button is a far better failure than a button that sends nothing.
- */
-async function hasSendableForm(beauticianId, treatmentIds = []) {
-  // Must agree with sendConsultationFormSMS, which sends the form linked to
-  // THE TREATMENT IT IS GIVEN, or the account's DEFAULT active one, and
-  // nothing else. "Any active form" was a different question and in production
-  // gives a different answer: Ellie has three active forms and no default one,
-  // so the button appeared and the send came back "no form set up yet".
-  //
-  // The treatment ids matter. The client profile has no appointment, so it
-  // passes none and the sender can only use the default. Asking "does any
-  // treatment anywhere have a form" there would move the same bug to a
-  // different screen rather than fix it.
-  const ids = (treatmentIds || []).filter(Boolean);
-  if (ids.length > 0) {
-    const { data: linked, error: lErr } = await supabase
-      .from('treatments')
-      .select('id')
-      .eq('beautician_id', beauticianId)
-      .in('id', ids)
-      .not('consultation_form_id', 'is', null)
-      .limit(1);
-    if (lErr) {
-      logger.warn({ err: lErr }, 'Could not check for a treatment linked consultation form');
-      return false;
-    }
-    if ((linked || []).length > 0) return true;
-  }
-
-  const { data, error } = await supabase
-    .from('consultation_forms')
-    .select('id')
-    .eq('beautician_id', beauticianId)
-    .eq('is_default', true)
-    .eq('is_active', true)
-    .limit(1);
-  if (error) {
-    logger.warn({ err: error }, 'Could not check for a sendable consultation form');
-    return false;
-  }
-  return (data || []).length > 0;
-}
 
 /**
  * GET /api/consultation-forms/responses/list?client_id=&appointment_id=
@@ -345,9 +161,23 @@ router.get('/responses/list', requireAuth, async (req, res) => {
   // client who filled one in, which is the worst possible lie on this screen.
   if (handleQueryError(error, res, 'fetch consultation responses')) return;
 
+  let requestsQuery = supabase.from('consultation_responses')
+    .select('id, form_id, client_id, appointment_id, status, completed_at, created_at, expires_at, form_snapshot, consultation_forms(name)')
+    .eq('beautician_id', req.beautician.id).in('status', ['pending', 'expired']).order('created_at', { ascending: false });
+  if (client_id) requestsQuery = requestsQuery.eq('client_id', client_id);
+  if (appointment_id) requestsQuery = requestsQuery.eq('appointment_id', appointment_id);
+  const [{ data: requests, error: requestError }, { data: templates, error: templateError }] = await Promise.all([
+    requestsQuery, supabase.from('consultation_forms').select('id, name, is_default').eq('beautician_id', req.beautician.id).eq('is_active', true).order('name'),
+  ]);
+  if (handleQueryError(requestError || templateError, res, 'read consultation requests')) return;
   res.json({
     responses: (data || []).map(shapeResponse),
-    form_available: await hasSendableForm(req.beautician.id),
+    requests: (requests || []).map(r => ({ id: r.id, form_id: r.form_id, client_id: r.client_id,
+      appointment_id: r.appointment_id, form_name: r.form_snapshot?.name || r.consultation_forms?.name || 'Consultation form',
+      status: r.completed_at ? 'answers_removed' : r.status === 'expired' || (r.expires_at && new Date(r.expires_at) < new Date()) ? 'expired' : 'pending',
+      sent_at: r.created_at, expires_at: r.expires_at })),
+    templates: templates || [],
+    form_available: (templates || []).length > 0,
   });
 });
 
@@ -412,19 +242,22 @@ router.get('/for-appointment/:appointmentId', requireAuth, async (req, res) => {
   ].filter(Boolean);
 
   let requiresConsultation = false;
+  let treatments = [];
   if (treatmentIds.length > 0) {
     const { data: treats, error: tErr } = await supabase
       .from('treatments')
-      .select('id, requires_consultation')
+      .select('id, requires_consultation, consultation_form_id')
       .in('id', treatmentIds)
       .eq('beautician_id', req.beautician.id);
     // A failed lookup must not read as "no consultation needed". Better to
     // fail the call and show her nothing than to quietly reassure her.
     if (handleQueryError(tErr, res, 'fetch treatments for consultation lookup')) return;
-    requiresConsultation = (treats || []).some(t => t.requires_consultation === true);
+    treatments = treats || [];
+    requiresConsultation = treatments.some(t => t.requires_consultation === true);
   }
 
   let response = null;
+  let missingFormIds = treatments.filter(t => t.requires_consultation).map(t => t.consultation_form_id).filter(Boolean);
   if (appt.client_id) {
     const { data: rows, error: rErr } = await supabase
       .from('consultation_responses')
@@ -432,10 +265,14 @@ router.get('/for-appointment/:appointmentId', requireAuth, async (req, res) => {
       .eq('beautician_id', req.beautician.id)
       .eq('client_id', appt.client_id)
       .eq('status', 'completed')
-      .order('completed_at', { ascending: false })
-      .limit(1);
+      .order('completed_at', { ascending: false });
     if (handleQueryError(rErr, res, 'fetch consultation response for appointment')) return;
-    if ((rows || []).length > 0) response = shapeResponse(rows[0]);
+    const coverage = consultationCoverage(treatments, rows || []);
+    missingFormIds = coverage.missing.map(t => t.consultation_form_id).filter(Boolean);
+    if (coverage.covered && (rows || []).length) {
+      const relevant = (rows || []).find(r => !coverage.required.length || coverage.required.some(t => !t.consultation_form_id || t.consultation_form_id === r.form_id));
+      if (relevant) response = shapeResponse(relevant);
+    }
   }
 
   // A form that has been SENT and not yet filled in was invisible here: the
@@ -448,33 +285,48 @@ router.get('/for-appointment/:appointmentId', requireAuth, async (req, res) => {
   // that fixed, nothing on this screen would have told her a form was already
   // waiting. She would have had no reason not to tap it again.
   let pending = null;
+  let requests = [];
   if (!response && appt.client_id) {
-    const { data: pendingRows, error: pErr } = await supabase
+    let pendingQuery = supabase
       .from('consultation_responses')
-      .select('id, created_at, expires_at')
+      .select('id, created_at, expires_at, form_id, status')
       .eq('beautician_id', req.beautician.id)
       .eq('client_id', appt.client_id)
-      .eq('status', 'pending')
-      .order('created_at', { ascending: false })
-      .limit(1);
+      .in('status', ['pending', 'expired']).is('completed_at', null)
+      .order('created_at', { ascending: false });
+    if (missingFormIds.length) pendingQuery = pendingQuery.in('form_id', missingFormIds);
+    const { data: pendingRows, error: pErr } = await pendingQuery;
     if (handleQueryError(pErr, res, 'fetch pending consultation for appointment')) return;
-    const row = (pendingRows || [])[0];
+    requests = pendingRows || [];
+    const row = requests[0];
     if (row) {
       // No token. It is the only credential guarding special-category health
       // data, and this endpoint's answer ends up in a client-side state object.
       pending = {
         sent_at: row.created_at,
         expires_at: row.expires_at,
-        expired: row.expires_at ? new Date(row.expires_at).getTime() < Date.now() : false,
+        expired: row.status === 'expired' || (row.expires_at ? new Date(row.expires_at).getTime() < Date.now() : false),
       };
     }
   }
 
+  const { data: templates, error: templatesError } = await supabase.from('consultation_forms')
+    .select('id, name, is_default').eq('beautician_id', req.beautician.id).eq('is_active', true);
+  if (handleQueryError(templatesError, res, 'read available consultation templates')) return;
+  const needed = missingFormIds.length ? missingFormIds : (templates || []).filter(t => t.is_default).map(t => t.id);
+  const missingForms = response ? [] : needed.map(id => {
+    const template = (templates || []).find(t => t.id === id);
+    const request = requests.find(r => r.form_id === id);
+    const activeRequest = request && request.status === 'pending' && (!request.expires_at || new Date(request.expires_at) > new Date());
+    return { form_id: id, form_name: template?.name || 'Unavailable template',
+      status: activeRequest ? 'awaiting_response' : !template ? 'template_unavailable' : request ? 'link_expired' : 'not_requested' };
+  });
   res.json({
     requires_consultation: requiresConsultation,
     response,
     pending,
-    form_available: response ? false : await hasSendableForm(req.beautician.id, treatmentIds),
+    missing_forms: missingForms,
+    form_available: missingForms.some(f => f.status === 'not_requested' || f.status === 'link_expired'),
   });
 });
 
@@ -488,12 +340,13 @@ router.get('/for-appointment/:appointmentId', requireAuth, async (req, res) => {
  * link lives, and what gets logged.
  */
 router.post('/send', requireAuth, async (req, res) => {
-  const { client_id, appointment_id } = req.body || {};
+  const { client_id, appointment_id, form_id } = req.body || {};
   if (!client_id) return res.status(400).json({ error: 'Which client?' });
 
   if (!await requireOwned(req, res, [
     { table: 'clients', id: client_id },
     { table: 'appointments', id: appointment_id },
+    { table: 'consultation_forms', id: form_id },
   ])) return;
 
   const { data: client, error: cErr } = await supabase
@@ -512,15 +365,18 @@ router.post('/send', requireAuth, async (req, res) => {
   // The treatment decides which form: a treatment-specific one wins over the
   // default, and that rule lives in the sender.
   let treatmentId = null;
+  let extraTreatmentIds = [];
   if (appointment_id) {
     const { data: appt, error: aErr } = await supabase
       .from('appointments')
-      .select('id, treatment_id')
+      .select('id, client_id, treatment_id, extra_treatment_ids')
       .eq('id', appointment_id)
       .eq('beautician_id', req.beautician.id)
       .maybeSingle();
     if (handleQueryError(aErr, res, 'fetch appointment for consultation form send')) return;
-    treatmentId = appt?.treatment_id || null;
+    if (!appt || appt.client_id !== client_id) return res.status(400).json({ error: 'This booking belongs to a different client.' });
+    treatmentId = appt.treatment_id || null;
+    extraTreatmentIds = appt.extra_treatment_ids || [];
   }
 
   try {
@@ -530,7 +386,7 @@ router.post('/send', requireAuth, async (req, res) => {
       appointmentId: appointment_id || null,
       clientPhone: client.phone,
       clientFirstName: client.first_name || 'there',
-      treatmentId,
+      treatmentId, extraTreatmentIds, formId: form_id, skipCompleted: !!appointment_id && !form_id,
       beauticianName: req.beautician.business_name || req.beautician.first_name || 'your beautician',
     });
 
@@ -539,6 +395,8 @@ router.post('/send', requireAuth, async (req, res) => {
         error: 'No consultation form set up yet. Build one and mark it as your default, then you can send it.',
       });
     }
+    if (sent.already_completed) return res.status(409).json({ error: 'The required forms are already on this client’s record.' });
+    if (sent.already_pending) return res.status(409).json({ error: 'This client already has an active request for this form. Check their consultation records.', already_pending: true });
     // Ids only. The answers do not exist yet, and the token never gets logged.
     logger.info({ clientId: client.id }, 'Consultation form sent from the app');
     res.json({ sent: true });
@@ -560,7 +418,7 @@ router.post('/send', requireAuth, async (req, res) => {
 router.get('/public/:token', async (req, res) => {
   const { data: response, error } = await supabase
     .from('consultation_responses')
-    .select('id, status, expires_at, form_id, consultation_forms(name, consent_text, consultation_form_fields(*)), clients(first_name), beauticians(business_name, first_name, brand_color, logo_url)')
+    .select('id, status, expires_at, form_id, form_snapshot, consultation_forms(name, consent_text, consultation_form_fields(*)), clients(first_name), beauticians(business_name, first_name, brand_color, logo_url)')
     .eq('token', req.params.token)
     .maybeSingle();
 
@@ -570,12 +428,14 @@ router.get('/public/:token', async (req, res) => {
   if (error) logger.warn({ err: error }, 'Public consultation form lookup failed');
   if (!response) return res.status(404).json({ error: 'Form not found or link has expired' });
 
+  if (response.status === 'completed') return res.json({ completed: true });
+
   // Check expiry
   if (response.expires_at && new Date(response.expires_at) < new Date()) {
     await supabase
       .from('consultation_responses')
       .update({ status: 'expired' })
-      .eq('id', response.id);
+      .eq('id', response.id).eq('status', 'pending');
     return res.status(410).json({ error: 'This form link has expired. Please contact your beautician for a new link.' });
   }
 
@@ -585,7 +445,7 @@ router.get('/public/:token', async (req, res) => {
   }
 
   // Sort fields
-  const form = response.consultation_forms;
+  const form = response.form_snapshot || response.consultation_forms;
   if (form?.consultation_form_fields) {
     form.consultation_form_fields.sort((a, b) => a.sort_order - b.sort_order);
   }
@@ -615,32 +475,24 @@ router.post('/public/:token/submit', validate(submitConsultationFormSchema), asy
   // Load response
   const { data: response } = await supabase
     .from('consultation_responses')
-    .select('id, status, expires_at, form_id')
+    .select('id, status, expires_at, form_id, form_snapshot')
     .eq('token', req.params.token)
     .single();
 
   if (!response) return res.status(404).json({ error: 'Form not found' });
   if (response.status === 'completed') return res.status(400).json({ error: 'Form already submitted' });
+  if (response.status !== 'pending') return res.status(410).json({ error: 'This form link is no longer active.' });
   if (response.expires_at && new Date(response.expires_at) < new Date()) {
     return res.status(410).json({ error: 'Form link has expired' });
   }
 
-  // Validate required fields
-  const { data: fields } = await supabase
-    .from('consultation_form_fields')
-    .select('id, type, required, label')
-    .eq('form_id', response.form_id)
-    .eq('required', true);
-
-  const missingFields = [];
-  for (const field of (fields || [])) {
-    if (field.type === 'text_block') continue; // text blocks aren't answerable
-    const answer = answers[field.id];
-    if (answer === undefined || answer === null || answer === '' ||
-        (Array.isArray(answer) && answer.length === 0)) {
-      missingFields.push(field.label);
-    }
+  let fields = response.form_snapshot?.consultation_form_fields;
+  if (!fields) {
+    const { data, error } = await supabase.from('consultation_form_fields').select('id, type, required, label').eq('form_id', response.form_id);
+    if (handleQueryError(error, res, 'read required consultation questions')) return;
+    fields = data;
   }
+  const missingFields = missingConsultationFields(fields, answers, signature_data).map(f => f.label);
 
   if (missingFields.length > 0) {
     return res.status(400).json({
@@ -650,7 +502,7 @@ router.post('/public/:token/submit', validate(submitConsultationFormSchema), asy
   }
 
   // Save
-  const { error } = await supabase
+  const { data: saved, error } = await supabase
     .from('consultation_responses')
     .update({
       answers,
@@ -658,9 +510,10 @@ router.post('/public/:token/submit', validate(submitConsultationFormSchema), asy
       status: 'completed',
       completed_at: new Date().toISOString(),
     })
-    .eq('id', response.id);
+    .eq('id', response.id).eq('status', 'pending').select('id').maybeSingle();
 
   if (error) return res.status(500).json({ error: 'Failed to save form' });
+  if (!saved) return res.status(409).json({ error: 'This form has already changed. Refresh to check its status.' });
 
   res.json({ success: true, message: 'Thank you, your form has been submitted.' });
 });
@@ -685,32 +538,49 @@ router.post('/public/:token/submit', validate(submitConsultationFormSchema), asy
  */
 export async function sendConsultationFormSMS({
   beauticianId, clientId, appointmentId, clientPhone, clientFirstName,
-  treatmentId, beauticianName,
+  treatmentId, beauticianName, extraTreatmentIds = [], formId: requestedFormId = null, skipCompleted = false,
 }) {
-  // 1. Find the right form: treatment-specific first, then beautician default
-  let formId = null;
-
-  if (treatmentId) {
-    const { data: treatment } = await supabase
-      .from('treatments')
-      .select('consultation_form_id')
-      .eq('id', treatmentId)
-      .single();
-    formId = treatment?.consultation_form_id;
+  // Resolve an explicit choice, or every form required by this booking.
+  let formIds = requestedFormId ? [requestedFormId] : [];
+  if (!requestedFormId && (treatmentId || extraTreatmentIds.length)) {
+    const { data: treatments, error } = await supabase.from('treatments').select('consultation_form_id')
+      .eq('beautician_id', beauticianId).in('id', [treatmentId, ...extraTreatmentIds].filter(Boolean));
+    if (error) throw error;
+    formIds = [...new Set((treatments || []).map(t => t.consultation_form_id).filter(Boolean))];
   }
-
-  if (!formId) {
-    const { data: defaultForm } = await supabase
-      .from('consultation_forms')
-      .select('id')
-      .eq('beautician_id', beauticianId)
-      .eq('is_default', true)
-      .eq('is_active', true)
-      .maybeSingle();
-    formId = defaultForm?.id;
+  if (!formIds.length) {
+    const { data, error } = await supabase.from('consultation_forms').select('id')
+      .eq('beautician_id', beauticianId).eq('is_default', true).eq('is_active', true).maybeSingle();
+    if (error) throw error;
+    if (data) formIds = [data.id];
   }
-
-  if (!formId) return null; // No form configured — skip
+  if (!formIds.length) return null;
+  if (skipCompleted) {
+    const { data: completed, error } = await supabase.from('consultation_responses').select('form_id')
+      .eq('beautician_id', beauticianId).eq('client_id', clientId).eq('status', 'completed').in('form_id', formIds);
+    if (error) throw error;
+    const done = new Set((completed || []).map(r => r.form_id));
+    formIds = formIds.filter(id => !done.has(id));
+    if (!formIds.length) return { already_completed: true };
+  }
+  const { data: available, error: availableError } = await supabase.from('consultation_forms').select('id')
+    .eq('beautician_id', beauticianId).eq('is_active', true).in('id', formIds);
+  if (availableError) throw availableError;
+  if (available?.length !== formIds.length) return null;
+  // Each extra treatment can ask a different set of questions.
+  if (formIds.length > 1) {
+    const sent = [];
+    for (const id of formIds) sent.push(await sendConsultationFormSMS({ beauticianId, clientId, appointmentId,
+      clientPhone, clientFirstName, beauticianName, formId: id }));
+    return { ...sent[0], already_pending: sent.every(r => r.already_pending) };
+  }
+  const formId = formIds[0];
+  const { data: waiting, error: waitingError } = await supabase.from('consultation_responses')
+    .select('id, form_id, expires_at').eq('beautician_id', beauticianId).eq('client_id', clientId)
+    .eq('form_id', formId).eq('status', 'pending').order('created_at', { ascending: false });
+  if (waitingError) throw waitingError;
+  const existing = (waiting || []).find(r => !r.expires_at || new Date(r.expires_at) > new Date());
+  if (existing) return { id: existing.id, form_id: formId, already_pending: true };
 
   // 2. Create a response record with a unique token
   const token = crypto.randomUUID();
@@ -739,7 +609,14 @@ export async function sendConsultationFormSMS({
   const formUrl = `${FRONTEND_URL}/form/${token}`;
   const smsBody = `Hi ${clientFirstName}, ${beauticianName} needs you to fill in a quick consultation form before your appointment. It takes about 2 minutes:\n\n${formUrl}`;
 
-  await sendSMS({ to: clientPhone, body: smsBody, beauticianId });
+  try {
+    const delivery = await sendSMS({ to: clientPhone, body: smsBody, beauticianId });
+    if (!delivery) throw new Error('The text service did not accept this request');
+  } catch (deliveryError) {
+    const { error: cleanupError } = await supabase.from('consultation_responses').delete().eq('id', response.id).eq('status', 'pending').select('id').maybeSingle();
+    if (cleanupError) logger.error({ err: cleanupError }, 'Could not remove unsent consultation request');
+    throw deliveryError;
+  }
 
   // Log message.
   //
