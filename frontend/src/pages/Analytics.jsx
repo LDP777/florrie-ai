@@ -358,7 +358,7 @@ export default function Analytics() {
                       to still read as "loss" gets there: white is the ceiling
                       on this fill at 5.01:1. The minus sign carries the meaning
                       the tint was doing. */}
-                  <span style={{ ...styles.heroStatValue, color: stats.profit >= 0 ? 'rgba(255,255,255,0.9)' : '#fff' }}>
+                  <span style={{ ...styles.heroStatValue, color: '#fff' }}>
                     <Money pence={stats.profit} round />
                   </span>
                   <span style={styles.heroStatLabel}>profit</span>
