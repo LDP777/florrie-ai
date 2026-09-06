@@ -1,3 +1,4 @@
+import { discardDeletedAccountEvent } from '../services/deleted-account-events.js';
 import { handlesRescheduleRefund } from '../services/reschedule-payments.js';
 import { insertPaymentReceipt } from '../lib/payment-receipt.js';
 import { claimPaymentEvent, completePaymentEvent, releasePaymentEvent } from '../services/payment-webhook-events.js';
@@ -1274,6 +1275,13 @@ router.post('/webhook', async (req, res) => {
       },
     });
     return res.status(400).json({ error: 'Invalid signature' });
+  }
+
+  try {
+    if (await discardDeletedAccountEvent(event)) return res.json({ received: true, account_deleted: true });
+  } catch (error) {
+    logger.error({ eventId: event.id }, 'Account deletion guard unavailable');
+    return res.status(503).json({ received: true, processed: false });
   }
 
   // Both registered webhook URLs dispatch billing through one handler.

@@ -150,7 +150,7 @@ function makeBuilder(table) {
   };
   return b;
 }
-vi.mock('../../src/config.js', () => ({ supabase: { from: (t) => makeBuilder(t) } }));
+vi.mock('../../src/config.js', () => ({ supabase: { rpc: async name => { if (name === 'is_deleted_account_event') return { data: false, error: null }; throw new Error('Unexpected RPC: ' + name); }, from: (t) => makeBuilder(t) } }));
 
 /* -------------------------------------------------------------- the stripe --
  * Sessions the code creates are kept, so the resent-deposit metadata can be

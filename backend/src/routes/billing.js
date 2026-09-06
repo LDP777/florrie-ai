@@ -1,3 +1,4 @@
+import { discardDeletedAccountEvent } from '../services/deleted-account-events.js';
 import { Router } from 'express';
 import Stripe from 'stripe';
 import * as Sentry from '@sentry/node';
@@ -517,6 +518,7 @@ export async function handleBillingEvent(event, res) {
   if (!isBillingEvent(event)) return res.json({ received: true, ignored: true });
   let claim;
   try {
+    if (await discardDeletedAccountEvent(event)) return res.json({ received: true, account_deleted: true });
     claim = await claimBillingEvent(event);
     if (claim.duplicate) return res.json({ received: true, duplicate: true });
   } catch (error) {

@@ -15,6 +15,10 @@ export function deletionView(row) {
       : 'Your deletion request is saved. Cleanup is not complete yet and will be retried.' };
 }
 
+export function deletionReferenceHashes(profile) {
+  return [...new Set(['stripe_customer_id','subscription_stripe_id','stripe_account_id'].map(key => profile[key]).filter(Boolean).map(hashToken))];
+}
+
 export function deletionSnapshot(profile, user) {
   const credentials = Object.fromEntries(Object.entries(profile).filter(([key]) => /^(stripe_|subscription_stripe_id$|google_calendar_|instagram_|whatsapp_|xero_|quickbooks_|bird_|sms_(?:inbound_number|channel_id)$)/.test(key)));
   return { ...credentials, beautician_id: profile.id, auth_id: user.id,
@@ -52,6 +56,8 @@ export async function processDeletion(id, { store, operations, decode = decrypt 
   let step = 'snapshot';
   try {
     const snapshot = decode(row.snapshot_encrypted);
+    // Supports an interrupted rollout that saved intent before hash tombstones.
+    if (!row.billing_reference_hashes?.length) row = await store.save(id,token,{ billing_reference_hashes: deletionReferenceHashes(snapshot) });
     const run = async (name, operation, repeat = false) => {
       if (row.completed_steps?.[name] && !repeat) return;
       step = name;
@@ -91,7 +97,7 @@ export function createAccountDeletionService({ store, operations, encode = encry
         const profile = await store.profile(user.id);
         if (!profile) throw new Error('Account profile is unavailable');
         const statusToken = randomBytes(32).toString('base64url');
-        const payload = { auth_id: user.id, beautician_id: profile.id, status_token_hash: hashToken(statusToken), snapshot_encrypted: encode({ ...deletionSnapshot(profile,user), status_token: statusToken }) };
+        const payload = { auth_id: user.id, beautician_id: profile.id, status_token_hash: hashToken(statusToken), billing_reference_hashes: deletionReferenceHashes(profile), snapshot_encrypted: encode({ ...deletionSnapshot(profile,user), status_token: statusToken }) };
         try { row = await store.create(payload); }
         catch (err) { if (err.code !== '23505') throw err; row = await store.find(user.id); if (!row) throw err; }
       }

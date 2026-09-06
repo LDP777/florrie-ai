@@ -79,7 +79,7 @@ function makeBuilder(table) {
   };
   return b;
 }
-const supabase = { from: t => makeBuilder(t) };
+const supabase = { rpc: async name => { if (name === 'is_deleted_account_event') return { data: false, error: null }; throw new Error('Unexpected RPC: ' + name); }, from: t => makeBuilder(t) };
 
 const sentryMessages = [];
 const sentryExceptions = [];

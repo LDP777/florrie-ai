@@ -67,4 +67,21 @@ assert.deepEqual((await db.query("SELECT data FROM public.stripe_events WHERE id
 assert.equal((await db.query(`SELECT * FROM public.account_deletion_storage_objects('${owner}','${owner}')`)).rows.length,2);
 await assert.rejects(db.exec(`INSERT INTO public.beauticians(auth_id) VALUES('${owner}')`),e=>e.code==='23514');
 console.log('PASS: ordinary profile edits, cross-owner denial, INSERT/UPDATE defence, inherited grants, storage isolation, durable deletion and recreation prevention in embedded PostgreSQL');
+await db.exec(await readFile(new URL('../../../supabase/migrations/20260906_deleted_account_events.sql',import.meta.url),'utf8'));
+await db.query("UPDATE account_deletions SET billing_reference_hashes=ARRAY[encode(sha256(convert_to('cus_erased','UTF8')),'hex'),encode(sha256(convert_to('sub_erased','UTF8')),'hex')]");
+for (const payload of [
+ {data:{object:{customer:'cus_erased',email:'private@example.test'}}},
+ {data:{object:{customer:{id:'cus_erased'}}}},
+ {data:{object:{metadata:{beautician_id:owner}}}},
+ {id:'cus_erased'},
+ {data:{object:{parent:{subscription_details:{subscription:'sub_erased'}}}}},
+ {data:{object:{parent:{subscription_details:{metadata:{beautician_id:owner}}}}}},
+]) assert.equal((await db.query('SELECT is_deleted_account_event($1) AS blocked',[payload])).rows[0].blocked,true);
+assert.equal((await db.query('SELECT is_deleted_account_event($1) AS blocked',[{data:{object:{customer:'cus_other',description:`mentions ${owner}`}}}])).rows[0].blocked,false);
+await assert.rejects(asUser("SELECT is_deleted_account_event('{}')"),e=>e.code==='42501');
+await db.query("INSERT INTO stripe_events(id,data) VALUES ('evt_late',$1)",[{data:{object:{customer:'cus_erased',email:'private@example.test'}}}]);
+assert.deepEqual((await db.query("SELECT data FROM stripe_events WHERE id='evt_late'")).rows[0].data,{account_deleted:true});
+await db.query("UPDATE stripe_events SET data=$1 WHERE id='evt_late'",[{email:'restored@example.test'}]);
+assert.deepEqual((await db.query("SELECT data FROM stripe_events WHERE id='evt_late'")).rows[0].data,{account_deleted:true});
+console.log('PASS: late webhook customer hashes, exact metadata ownership, private RPC and race-safe persistent event redaction');
 await db.close();

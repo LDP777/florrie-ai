@@ -1,15 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-const state = vi.hoisted(() => ({ events: [], writes: [], failWrite: false, failClaim: false, failCompletion: false,
+const state = vi.hoisted(() => ({ events: [], writes: [], deleted: false, deletionReadError: false, failWrite: false, failClaim: false, failCompletion: false,
   stripe: { subscriptions: { retrieve: vi.fn(), create: vi.fn() }, customers: { create: vi.fn() }, checkout: { sessions: { create: vi.fn() } }, webhooks: { constructEvent: p => JSON.parse(p) } },
   dunning: vi.fn(),
 }));
 vi.mock('stripe', () => ({ default: class { constructor() { return state.stripe; } } }));
-vi.mock('../../src/config.js', () => ({ supabase: { from: table => {
+vi.mock('../../src/config.js', () => ({ supabase: { rpc: async name => { if (name === 'is_deleted_account_event') return { data: state.deleted, error: state.deletionReadError ? { message: 'read unavailable' } : null }; throw new Error('Unexpected RPC: ' + name); }, from: table => {
   let op = 'read', value, filters = [];
   const field = (r, key) => key === 'data->billing_claim->>token' ? r.data?.billing_claim?.token : r[key];
   const finish = () => {
     const rows = table === 'stripe_events' ? state.events : [{ id: 'owner', subscription_stripe_id: 'sub_existing' }];
     const matches = rows.filter(r => filters.every(([key,v]) => field(r,key) === v));
+    if (op === 'upsert') {
+      if (table !== 'stripe_events') throw new Error('Unexpected upsert');
+      const prior = rows.find(row => row.id === value.id);
+      if (prior) Object.assign(prior, structuredClone(value)); else rows.push(structuredClone(value));
+      return { data: [value], error: null };
+    }
     if (op === 'insert') {
       if (state.failClaim) return { error: { message: 'DB unavailable' } };
       if (rows.some(r => r.id === value.id)) return { error: { code: '23505' } };
@@ -25,7 +31,7 @@ vi.mock('../../src/config.js', () => ({ supabase: { from: table => {
     }
     return { data: matches, error: null };
   };
-  const q = { insert(v) { op='insert'; value=v; return q; }, update(v) { op='update'; value=v; return q; },
+  const q = { upsert(v) { op='upsert'; value=v; return q; }, insert(v) { op='insert'; value=v; return q; }, update(v) { op='update'; value=v; return q; },
     select() { return q; }, eq(k,v) { filters.push([k,v]); return q; }, is(k,v) { filters.push([k,v]); return q; },
     async maybeSingle() { const result = finish(); return { ...result, data: result.data?.[0] || null }; },
     then(resolve,reject) { return Promise.resolve().then(finish).then(resolve,reject); },
@@ -39,7 +45,7 @@ let router, handleBillingEvent;
 beforeEach(async () => {
   vi.stubEnv('STRIPE_SECRET_KEY','sk_test_fake'); vi.stubEnv('STRIPE_PRICE_FLORRIE','price_test'); vi.stubEnv('STRIPE_WEBHOOK_SECRET','whsec_test');
   ({ default: router, handleBillingEvent } = await import('../../src/routes/billing.js'));
-  state.events=[]; state.writes=[]; state.failWrite=false; state.failClaim=false; state.failCompletion=false; vi.clearAllMocks();
+  state.events=[]; state.writes=[]; state.deleted=false; state.deletionReadError=false; state.failWrite=false; state.failClaim=false; state.failCompletion=false; vi.clearAllMocks();
   state.dunning.mockResolvedValue({ handled: true, statusWritten: true, marker: { written: true } });
 });
 function response() {
@@ -104,6 +110,30 @@ describe('billing event ownership and recovery', () => {
     state.dunning.mockResolvedValue({ handled:true,statusWritten:false,marker:{ written:true } });
     expect((await deliver(event('invoice.paid'))).status).toBe(503); expect(state.events[0].processed_at).toBeNull();
     expect(state.dunning).toHaveBeenCalledWith(expect.anything(),{ strict:true });
+  });
+});
+describe('signed billing webhook deletion boundary', () => {
+  async function webhook(payload) {
+    const {result,res}=response();
+    const handler=router.stack.find(layer=>layer.route?.path==='/webhook').route.stack.at(-1).handle;
+    await handler({body:Buffer.from(JSON.stringify(payload)),headers:{'stripe-signature':'fixture-signature'}},res);
+    return result;
+  }
+  it('acknowledges late deleted-account events with only a redacted dedupe row', async () => {
+    state.deleted=true;
+    const payload=event('customer.subscription.updated',{id:'sub_existing',status:'active',customer:'cus_private',metadata:{beautician_id:'owner'},description:'private client details'});
+    const result=await webhook(payload);
+    expect(result.status).toBe(200); expect(result.body.account_deleted).toBe(true);
+    expect(state.writes).toEqual([]); expect(state.dunning).not.toHaveBeenCalled();
+    expect(state.stripe.subscriptions.retrieve).not.toHaveBeenCalled();
+    expect(state.events).toHaveLength(1);
+    expect(state.events[0]).toEqual({id:payload.id,type:payload.type,data:{account_deleted:true},processed_at:expect.any(String)});
+    expect(JSON.stringify(state.events)).not.toContain('private');
+  });
+  it('returns 503 before any write when deletion status cannot be checked', async () => {
+    state.deletionReadError=true;
+    expect((await webhook(event())).status).toBe(503);
+    expect(state.events).toEqual([]);expect(state.writes).toEqual([]);expect(state.dunning).not.toHaveBeenCalled();
   });
 });
 describe('existing subscription lookup failures', () => {
