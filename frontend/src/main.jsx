@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
+import NativeAuthBridge from './components/NativeAuthBridge.jsx';
 import { ThemeProvider } from './lib/theme.jsx';
 import { afterPaint } from './lib/after-paint.js';
 import { initAnalytics } from './lib/analytics.js';
@@ -103,6 +104,7 @@ try {
     <StrictMode>
       <BrowserRouter>
         <ThemeProvider>
+          <NativeAuthBridge />
           <App />
         </ThemeProvider>
       </BrowserRouter>

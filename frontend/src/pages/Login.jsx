@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { API_BASE } from '../lib/config.js';
+import { readOAuthProviders } from '../lib/auth-providers.js';
 import { isIOSNative } from '../lib/platform.js';
+import { NATIVE_AUTH_CALLBACK, NATIVE_RECOVERY_CALLBACK, appleNoncePair } from '../lib/native-auth.js';
 
 /**
  * Login / Signup / Forgot Password, single-screen auth.
@@ -35,7 +36,7 @@ import { isIOSNative } from '../lib/platform.js';
 const GENERIC_AUTH_ERROR = 'Invalid email or password. Please try again.';
 const GENERIC_SIGNUP_ERROR = 'Something went wrong. Please try again.';
 const RESET_SENT_MESSAGE = "If an account exists with that email, you'll receive a password reset link shortly. Check your inbox (and spam).";
-const APPLE_NOT_CONFIGURED_MESSAGE = 'Apple sign-in coming soon. Use email or Google for now.';
+const APPLE_NOT_CONFIGURED_MESSAGE = 'Apple sign-in could not be completed. Please try again or use email.';
 
 export default function Login({ supabase, initialMode }) {
   const iosNative = isIOSNative();
@@ -57,11 +58,20 @@ export default function Login({ supabase, initialMode }) {
   ); // login | signup | confirm | forgot | reset-sent
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [error, setError] = useState(new URLSearchParams(location.search).has('auth_error')
+    ? 'That sign-in link could not be completed. Please try again.' : '');
   const [info, setInfo] = useState('');
   const [loading, setLoading] = useState(false);
   const [appleLoading, setAppleLoading] = useState(false);
   const navigate = useNavigate();
+  const [providers, setProviders] = useState({ apple: false, google: false });
+  useEffect(() => {
+    let cancelled = false;
+    readOAuthProviders({ url: import.meta.env.VITE_SUPABASE_URL, key: import.meta.env.VITE_SUPABASE_ANON_KEY })
+      .then(value => { if (!cancelled) setProviders(value); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -115,9 +125,13 @@ export default function Login({ supabase, initialMode }) {
         navigate('/onboarding');
 
       } else if (mode === 'forgot') {
-        await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: `${window.location.origin}/update-password`,
+        const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: iosNative ? NATIVE_RECOVERY_CALLBACK : `${window.location.origin}/update-password`,
         });
+        if (resetError) {
+          setError('We could not request a reset link. Please try again shortly.');
+          return;
+        }
         // Always show success, even if email doesn't exist
         setMode('reset-sent');
       }
@@ -140,11 +154,16 @@ export default function Login({ supabase, initialMode }) {
   async function handleGoogle() {
     if (!supabase) { navigate('/'); return; }
     try {
-      const { error: oauthErr } = await supabase.auth.signInWithOAuth({
+      const { data, error: oauthErr } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: window.location.origin }
+        options: { redirectTo: iosNative ? NATIVE_AUTH_CALLBACK : window.location.origin, skipBrowserRedirect: iosNative }
       });
-      if (oauthErr) setError(GENERIC_AUTH_ERROR);
+      if (oauthErr) { setError(GENERIC_AUTH_ERROR); return; }
+      if (iosNative) {
+        if (!data?.url) throw new Error('Missing sign-in URL');
+        const { Browser } = await import('@capacitor/browser');
+        await Browser.open({ url: data.url });
+      }
     } catch {
       setError(GENERIC_AUTH_ERROR);
     }
@@ -168,12 +187,13 @@ export default function Login({ supabase, initialMode }) {
           return;
         }
 
+        const nonce = await appleNoncePair();
         const options = {
           clientId: 'ai.florrie.app',
-          redirectURI: `${window.location.origin}/login`,
+          redirectURI: 'https://florrie.ai/login',
           scopes: 'email name',
-          state: '',
-          nonce: cryptoNonce(),
+          state: crypto.randomUUID(),
+          nonce: nonce.hashed,
         };
 
         const result = await SignInWithApple.authorize(options);
@@ -186,7 +206,7 @@ export default function Login({ supabase, initialMode }) {
         const { error: sbErr } = await supabase.auth.signInWithIdToken({
           provider: 'apple',
           token: idToken,
-          nonce: options.nonce,
+          nonce: nonce.raw,
         });
         if (sbErr) {
           // Most common cause: Apple provider not configured in Supabase yet.
@@ -296,7 +316,7 @@ export default function Login({ supabase, initialMode }) {
           />
         </div>
 
-        {effectiveMode !== 'forgot' && (
+        {effectiveMode !== 'forgot' && (providers.apple || providers.google) && (
           <div style={styles.formGroup}>
             <label style={styles.label}>Password</label>
             <input
@@ -337,7 +357,7 @@ export default function Login({ supabase, initialMode }) {
             : 'Send reset link'}
         </button>
 
-        {effectiveMode !== 'forgot' && (
+        {effectiveMode !== 'forgot' && (providers.apple || providers.google) && (
           <>
             {/* Divider */}
             <div style={styles.divider}>
@@ -348,7 +368,7 @@ export default function Login({ supabase, initialMode }) {
 
             {/* Sign in with Apple, must be at least as prominent as Google
                 per Apple HIG. Placed above Google to satisfy that requirement. */}
-            <button
+            {providers.apple && <button
               type="button"
               onClick={handleApple}
               disabled={appleLoading}
@@ -362,17 +382,17 @@ export default function Login({ supabase, initialMode }) {
                 />
               </svg>
               Continue with Apple
-            </button>
+            </button>}
 
             {/* Google Sign In */}
-            <button
+            {providers.google && <button
               type="button"
               onClick={handleGoogle}
               style={styles.googleBtn}
             >
               <svg width="18" height="18" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
               Continue with Google
-            </button>
+            </button>}
           </>
         )}
 
@@ -421,21 +441,6 @@ export default function Login({ supabase, initialMode }) {
       )}
     </div>
   );
-}
-
-/**
- * Generate a cryptographic nonce for the Apple Sign-In flow.
- * Apple requires the nonce to be present in the identity token claim and
- * Supabase verifies it on the exchange.
- */
-function cryptoNonce() {
-  try {
-    const arr = new Uint8Array(16);
-    (window.crypto || window.msCrypto).getRandomValues(arr);
-    return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
-  } catch {
-    return String(Date.now()) + Math.random().toString(36).slice(2);
-  }
 }
 
 const styles = {

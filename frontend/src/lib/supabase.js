@@ -7,6 +7,7 @@
  *   useSupabase()    — raw client
  */
 import { createClient } from '@supabase/supabase-js';
+import { isIOSNative } from './platform.js';
 import { useState, useEffect, useCallback } from 'react';
 import logger from './logger.js';
 import { API_BASE } from './config.js';
@@ -14,7 +15,9 @@ import { API_BASE } from './config.js';
 const url = import.meta.env?.VITE_SUPABASE_URL || '';
 const key = import.meta.env?.VITE_SUPABASE_ANON_KEY || '';
 
-export const supabase = url ? createClient(url, key) : null;
+export const supabase = url ? createClient(url, key, isIOSNative() ? {
+  auth: { flowType: 'pkce', detectSessionInUrl: false },
+} : undefined) : null;
 
 // Fetches (and caches) the current beautician row.
 // On first signup the row won't exist yet — `ensureProfile`

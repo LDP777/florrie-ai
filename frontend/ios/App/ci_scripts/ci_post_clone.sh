@@ -20,16 +20,17 @@ export HOMEBREW_NO_ENV_HINTS=1
 export COCOAPODS_DISABLE_STATS=1
 
 # Node is not preinstalled on Xcode Cloud images — install via Homebrew.
-brew install node
+brew install node@22
+export PATH="$(brew --prefix node@22)/bin:$PATH"
 
 # Build the frontend and copy the web assets into ios/App/App/public.
-cd "$CI_PRIMARY_REPOSITORY_PATH/frontend"
+cd "$CI_PRIMARY_REPOSITORY_PATH"
 echo "Node: $(node -v)  npm: $(npm -v)"
-npm install
+npm ci --workspace frontend
+cd "$CI_PRIMARY_REPOSITORY_PATH/frontend"
 npm run build
-npx cap copy ios
 
-# Ensure CocoaPods is available.
+# Ensure CocoaPods is available before synchronizing native plugins.
 cd "$CI_PRIMARY_REPOSITORY_PATH/frontend/ios/App"
 if ! command -v pod >/dev/null 2>&1; then
   echo "CocoaPods not found, installing via Homebrew..."
@@ -50,15 +51,15 @@ install_pods() {
   attempt=1
   max=5
   while [ "$attempt" -le "$max" ]; do
-    if pod install; then
-      echo "pod install succeeded on attempt $attempt"
+    if (cd "$CI_PRIMARY_REPOSITORY_PATH/frontend" && node scripts/sync-native.cjs ios); then
+      echo "Capacitor sync succeeded on attempt $attempt"
       return 0
     fi
     if [ "$attempt" -eq "$max" ]; then
       break
     fi
     wait=$((attempt * 12))
-    echo "pod install failed (attempt $attempt of $max). CocoaPods CDN is flaky; retrying in ${wait}s..."
+    echo "Capacitor sync failed (attempt $attempt of $max). CocoaPods CDN is flaky; retrying in ${wait}s..."
     sleep "$wait"
     # A stale or half-written spec cache makes the next attempt fail the same
     # way, so clear it before trying again.
@@ -69,7 +70,8 @@ install_pods() {
   # Last resort: the CDN is the flaky part, not CocoaPods. --repo-update forces
   # a full spec refresh over a different code path.
   echo "Falling back to pod install --repo-update"
-  pod install --repo-update
+  pod repo update
+  (cd "$CI_PRIMARY_REPOSITORY_PATH/frontend" && node scripts/sync-native.cjs ios)
 }
 
 install_pods
