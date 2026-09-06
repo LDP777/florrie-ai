@@ -30,6 +30,7 @@ import { API_BASE } from '../lib/config.js';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import { bloom } from '../lib/bloom.js';
 import Icon, { iconName } from '../components/ui/Icon';
+import { readAuthenticatedJson } from '../lib/authenticated-json.js';
 
 const TYPE_LABELS = {
   rebook_nudge: 'Rebook nudge',
@@ -170,22 +171,15 @@ export default function Outbox() {
     setLoading(true);
     setError(null);
     try {
-      const [pendRes, escRes] = await Promise.all([
-        authedFetch('/api/outbound/pending'),
-        authedFetch('/api/escalations').catch(() => null),
+      const [pendData, escData] = await Promise.all([
+        readAuthenticatedJson({ auth: supabase.auth, url: `${API_BASE}/api/outbound/pending` }),
+        readAuthenticatedJson({ auth: supabase.auth, url: `${API_BASE}/api/escalations` }),
       ]);
-      if (!pendRes.ok) throw new Error('Could not load your outbox');
-      const pendData = await pendRes.json();
-      const pend = Array.isArray(pendData?.pending) ? pendData.pending : [];
+      if (!Array.isArray(pendData?.pending) || !Array.isArray(escData?.escalations)) throw new Error('Could not load all your drafts. Please try again.');
+      const pend = pendData.pending;
       setHolds(pend.map(fromHold));
 
-      let esc = [];
-      if (escRes && escRes.ok) {
-        const escData = await escRes.json();
-        const rows = Array.isArray(escData?.escalations) ? escData.escalations : [];
-        // Only show escalations that actually have a drafted reply to approve.
-        esc = rows.filter(r => r.ai_response && String(r.ai_response).trim()).map(fromEscalation);
-      }
+      const esc = escData.escalations.filter(r => r.ai_response && String(r.ai_response).trim()).map(fromEscalation);
       setReplies(esc);
     } catch (err) {
       setError(err.message || 'Something went wrong');

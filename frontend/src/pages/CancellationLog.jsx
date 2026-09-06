@@ -25,6 +25,8 @@ const TYPE_CONFIG = {
   'cancelled': { label: 'Cancelled', bg: '#F0ECE8', color: '#735C4E', icon: '↩' },
 };
 
+import { cancellationClients } from './cancellation-clients.js';
+
 export default function CancellationLog() {
   const navigate = useNavigate();
   const { beautician, loading: bLoading } = useBeautician();
@@ -63,6 +65,7 @@ export default function CancellationLog() {
           const depositActuallyKept = a.deposit_paid === true && a.deposit_status !== 'refunded' ? (a.deposit_cents || 0) : 0;
           return {
             id: a.id,
+            clientId: a.client_id,
             client: name || 'Client',
             treatment: a.treatments?.name || '',
             date: a.starts_at?.slice(0, 10) || '',
@@ -98,16 +101,11 @@ export default function CancellationLog() {
   const lateCancels = filtered.filter(c => c.type === 'late-cancel').length;
 
   // Repeat offenders
-  const clientCounts = {};
-  cancellations.forEach(c => {
-    if (!clientCounts[c.client]) clientCounts[c.client] = { total: 0, noShows: 0 };
-    clientCounts[c.client].total++;
-    if (c.type === 'no-show') clientCounts[c.client].noShows++;
-  });
-  const repeatOffenders = Object.entries(clientCounts).filter(([, d]) => d.total >= 2).sort(([, a], [, b]) => b.total - a.total);
+  const clientCounts = cancellationClients(filtered);
+  const repeatOffenders = clientCounts.filter(([, d]) => d.total >= 2).sort(([, a], [, b]) => b.total - a.total);
 
   // Real insight: the client with the most no-shows (if any).
-  const topNoShow = Object.entries(clientCounts)
+  const topNoShow = clientCounts
     .filter(([, d]) => d.noShows >= 1)
     .sort(([, a], [, b]) => b.noShows - a.noShows)[0];
 
@@ -211,9 +209,9 @@ export default function CancellationLog() {
               {repeatOffenders.map(([client, data]) => (
                 <div key={client} style={S.offenderRow}>
                   <div style={S.offenderLeft}>
-                    <div style={S.avatar}>{client[0]}</div>
+                    <div style={S.avatar}>{data.name?.[0] || 'C'}</div>
                     <div>
-                      <span style={S.offenderName}>{client}</span>
+                      <span style={S.offenderName}>{data.name}</span>
                       <span style={S.offenderDetail}>{data.noShows} no-show{data.noShows !== 1 ? 's' : ''}, {data.total} total</span>
                     </div>
                   </div>
@@ -266,7 +264,7 @@ export default function CancellationLog() {
             <div style={S.tipCard}>
               <span style={S.tipTitle}><Icon name="info" size={14} inline /> Insight</span>
               <p style={S.tipText}>
-                {topNoShow[0]} has {topNoShow[1].noShows} no-show{topNoShow[1].noShows !== 1 ? 's' : ''}. Consider requiring a deposit for future bookings, or enabling the auto-block policy after repeat strikes.
+                {topNoShow[1].name} has {topNoShow[1].noShows} no-show{topNoShow[1].noShows !== 1 ? 's' : ''} in this period. Review their booking history before changing their booking policy.
               </p>
             </div>
           )}

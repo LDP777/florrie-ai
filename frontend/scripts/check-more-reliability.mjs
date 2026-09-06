@@ -29,10 +29,18 @@ try {
     ['/treatments', '/api/consultation-forms', 'Could not load consultation forms.'],
     ['/money', 'expenses', 'Something went wrong loading your money data'],
     ['/deposits', '/api/appointments/deposits', 'Could not load deposits.'],
+    ['/waitlist', 'clients', 'Could not load the waitlist.'],
+    ['/outbox', '/api/escalations', 'Could not load this section.'],
   ]) {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
     await ctx.addInitScript(fetchStubSource());
     await ctx.addInitScript(sessionSeedSource(bundleSupabaseUrl(dist)));
+    await ctx.addInitScript(() => {
+      const base = window.fetch;
+      window.fetch = (url, opts) => String(url).includes('/api/features/waitlist')
+        ? Promise.resolve(new Response(JSON.stringify({ waitlist: [] }), { headers: { 'Content-Type': 'application/json' } }))
+        : base(url, opts);
+    });
     await ctx.addInitScript(table => {
       const base = window.fetch;
       window.__failMoreRead = true;

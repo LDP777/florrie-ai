@@ -8,7 +8,7 @@
  * flag and a one-tap "a slot opened" nudge.
  */
 import { useState, useEffect, useCallback } from 'react';
-import { useBeautician, fetchRows, supabase } from '../lib/supabase.js';
+import { useBeautician, fetchRowsStrict, supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
@@ -17,6 +17,7 @@ import ErrorCard from '../components/ErrorCard.jsx';
 import Icon, { iconName } from '../components/ui/Icon';
 import Money from '../components/ui/Money';
 import PageHeader from '../components/ui/PageHeader.jsx';
+import Button from '../components/ui/Button.jsx';
 
 const PRIORITY_CONFIG = {
   vip: { label: 'VIP', bg: '#F0E6ED', color: 'var(--accent, #92405e)', icon: 'star' },
@@ -35,6 +36,7 @@ const ACTIVE_STATUSES = ['waiting', 'active', 'notified', 'offered'];
 const DAYS = [
   { value: 'mon', label: 'Mon' }, { value: 'tue', label: 'Tue' }, { value: 'wed', label: 'Wed' },
   { value: 'thu', label: 'Thu' }, { value: 'fri', label: 'Fri' }, { value: 'sat', label: 'Sat' },
+  { value: 'sun', label: 'Sun' },
 ];
 
 const EMPTY_FORM = {
@@ -71,6 +73,7 @@ export default function WaitlistPro() {
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState(null);
   const [error, setError] = useState(null);
+  const [readError, setReadError] = useState(null);
   const [waitlist, setWaitlist] = useState([]);
   const [treatments, setTreatments] = useState([]);
   const [clients, setClients] = useState([]);
@@ -79,19 +82,21 @@ export default function WaitlistPro() {
   const load = useCallback(async () => {
     if (!beautician) return;
     setLoading(true);
+    setReadError(null);
     setError(null);
     try {
       const [wlRes, tx, cl] = await Promise.all([
         authedFetch('/api/features/waitlist'),
-        fetchRows('treatments', beautician.id, { eq: { is_active: true }, order: 'sort_order' }),
-        fetchRows('clients', beautician.id, { order: 'first_name' }),
+        fetchRowsStrict('treatments', beautician.id, { eq: { is_active: true }, order: 'sort_order' }),
+        fetchRowsStrict('clients', beautician.id, { order: 'first_name' }),
       ]);
-      setWaitlist(wlRes.waitlist || []);
+      if (!Array.isArray(wlRes?.waitlist)) throw new Error('Could not read the waitlist.');
+      setWaitlist(wlRes.waitlist);
       setTreatments(tx || []);
       setClients(cl || []);
     } catch (err) {
       logger.error('Load waitlist error:', err);
-      setError('Could not load the waitlist. Pull to refresh or try again.');
+      setReadError('Could not load the waitlist. Please try again.');
       setWaitlist([]);
     } finally {
       setLoading(false);
@@ -215,6 +220,11 @@ export default function WaitlistPro() {
   if (bLoading || loading) {
     return <div style={S.page}><PageLoader message="Loading waitlist..." /></div>;
   }
+  if (readError) return <div style={S.page}>
+    <PageHeader title="Smart waitlist" />
+    <ErrorCard message={readError} />
+    <Button onClick={load}>Try again</Button>
+  </div>;
 
   return (
     <div style={S.page}>
