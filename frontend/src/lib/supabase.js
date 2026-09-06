@@ -60,59 +60,19 @@ if (supabase) {
  * anyone who already has one and only sends the welcome sequence when it
  * genuinely creates a row. So calling it on every "no row yet" path is safe.
  *
- * If the API cannot be reached we still insert directly, because a signup that
- * dead-ends on a splash screen is far worse than a missing welcome email. That
- * fallback is logged so it is visible when it happens.
+ * Profile creation goes through the server so billing and trial fields cannot
+ * be supplied by a browser. A failed request remains retryable.
  */
-async function createProfile(session, user) {
-  const TRIAL_DAYS = 14;
-  const token = session?.access_token;
-
-  if (token) {
-    try {
-      const res = await fetch(`${API_BASE}/api/auth/ensure-profile`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      });
-      if (res.ok) {
-        const body = await res.json().catch(() => ({}));
-        if (body?.beautician) {
-          // The API returns the sanitised row (no Stripe ids, no OAuth tokens).
-          // Read it back through Supabase so callers get the same shape they
-          // get on every other load, rather than a subtly smaller object.
-          const { data: fresh } = await supabase
-            .from('beauticians')
-            .select('*')
-            .eq('auth_id', user.id)
-            .maybeSingle();
-          return fresh || body.beautician;
-        }
-      } else {
-        logger.warn('ensure-profile returned', res.status);
-      }
-    } catch (err) {
-      logger.warn('ensure-profile unreachable, creating profile locally:', err);
-    }
-  }
-
-  // Fallback. The trial clock is set here for the same reason the API sets it:
-  // both the app and the API read a null trial_ends_at as "nothing to expire",
-  // which is how accounts ended up on a trial that never ended. The backend
-  // also derives the window from created_at if this is ever missed again
-  // (see backend middleware/auth.js withTrialWindow).
-  const { data: created, error: createErr } = await supabase
-    .from('beauticians')
-    .insert({
-      auth_id: user.id,
-      email: user.email,
-      first_name: user.user_metadata?.first_name || '',
-      last_name: user.user_metadata?.last_name || '',
-      trial_ends_at: new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000).toISOString(),
-    })
-    .select()
-    .single();
-  if (createErr) logger.error('Failed to create beautician profile:', createErr);
-  return created || null;
+async function createProfile(session, _user) {
+  if (!session?.access_token) throw new Error('Sign in to create your profile.');
+  const response = await fetch(`${API_BASE}/api/auth/ensure-profile`, {
+    method: 'POST', headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+  });
+  const body = await response.json();
+  if (response.status === 409 && body.code === 'ACCOUNT_DELETION_REQUESTED') return { account_deletion: body.deletion };
+  if (!response.ok || !body.beautician) throw new Error('Could not create your profile. Please try again.');
+  // Billing/trial fields are server-owned. Never fall back to a browser insert.
+  return body.beautician;
 }
 
 async function loadBeauticianOnce({ force = false } = {}) {

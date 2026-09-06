@@ -5,9 +5,10 @@ import { validate } from '../middleware/validate.js';
 import { triggerSequence } from '../services/email-sequences.js';
 import logger from '../lib/logger.js';
 import {
-  signupSchema,
   profileUpdateSchema
 } from '../lib/schemas.js';
+
+import { accountDeletion } from '../services/account-deletion.js';
 
 const router = Router();
 
@@ -71,6 +72,14 @@ router.post('/ensure-profile', async (req, res) => {
   const { data: { user } = {}, error: authError } = await supabaseAnon.auth.getUser(token);
   if (authError || !user) return res.status(401).json({ error: 'Invalid or expired token' });
 
+  try {
+    const deletion = await accountDeletion.status(user);
+    if (deletion) return res.status(409).json({ code: 'ACCOUNT_DELETION_REQUESTED', deletion });
+  } catch (err) {
+    logger.error({ err }, 'ensure-profile: deletion status unavailable');
+    return res.status(503).json({ error: 'Account status is temporarily unavailable. Please try again.' });
+  }
+
   const { data: existing, error: lookupError } = await supabase
     .from('beauticians')
     .select('*')
@@ -112,44 +121,9 @@ router.post('/ensure-profile', async (req, res) => {
   res.status(201).json({ beautician: sanitizeBeautician(beautician), created });
 });
 
-/**
- * POST /api/auth/signup
- * Creates a Supabase auth user + beautician profile in one step.
- */
-router.post('/signup', validate(signupSchema), async (req, res) => {
-  const { email, password, firstName, lastName, businessName } = req.body;
-
-  // Create auth user
-  const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true
-  });
-
-  if (authError) {
-    logger.error({ err: authError }, 'Signup failed');
-    // Return generic message — never expose whether an email already exists
-    return res.status(400).json({ error: 'Signup failed. Please try again.' });
-  }
-
-  // Create beautician profile. Same helper as /ensure-profile, so the welcome
-  // sequence has exactly one trigger point whichever door the account came in.
-  const { beautician, error: profileError } = await createProfileWithWelcome({
-    auth_id: authData.user.id,
-    email,
-    first_name: firstName,
-    last_name: lastName || '',
-    business_name: businessName || null,
-  });
-
-  if (profileError) {
-    // Rollback: delete the auth user
-    await supabase.auth.admin.deleteUser(authData.user.id);
-    return res.status(500).json({ error: 'Failed to create profile' });
-  }
-
-  res.status(201).json({ user: authData.user, beautician: sanitizeBeautician(beautician) });
-});
+// The browser uses Supabase signUp and its configured email verification.
+// Do not leave an alternate public admin-createUser(email_confirm:true) path.
+router.post('/signup', (_req, res) => res.status(410).json({ error: 'Create your account through the app signup screen.' }));
 
 /**
  * GET /api/auth/me
@@ -184,30 +158,44 @@ router.patch('/me', requireAuth, validate(profileUpdateSchema), async (req, res)
 });
 
 
-/**
- * DELETE /api/auth/account
- * Permanently delete the signed-in user's account and all their data.
- * Required by App Store Guideline 5.1.1(v). 63/64 child tables cascade from
- * beauticians(id), so deleting the row wipes the business data; we then remove
- * the Supabase auth user so the login can never be reused.
- */
-router.delete('/account', requireAuth, async (req, res) => {
+// Identity-only authentication deliberately works after the business row has
+// been removed. The durable request is scoped to the verified auth user.
+async function accountIdentity(req, res, next) {
   try {
-    const b = req.beautician;
-    const { error: delErr } = await supabase.from('beauticians').delete().eq('id', b.id);
-    if (delErr) {
-      logger.error({ err: delErr, beauticianId: b.id }, 'account delete: beautician row failed');
-      return res.status(500).json({ error: 'Failed to delete account' });
-    }
-    const authId = b.auth_id || req.user?.id;
-    if (authId) {
-      await supabase.auth.admin.deleteUser(authId).catch(err =>
-        logger.warn({ err, beauticianId: b.id }, 'account delete: auth user removal failed'));
-    }
-    res.json({ success: true });
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) return res.status(401).json({ error: 'Sign in to manage deletion.' });
+    const { data, error } = await supabaseAnon.auth.getUser(token);
+    if (error || !data?.user) return res.status(401).json({ error: 'Sign in to manage deletion.' });
+    req.user = data.user; next();
+  } catch { res.status(503).json({ error: 'Could not verify your account. Try again.' }); }
+}
+
+router.get('/account/deletion-status', async (req, res) => {
+  res.set('Cache-Control','no-store');
+  const token = req.get('X-Deletion-Token');
+  if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token)) return res.status(404).json({ error: 'Deletion request not found.' });
+  try {
+    const deletion = await accountDeletion.publicStatus(token);
+    if (!deletion) return res.status(404).json({ error: 'Deletion request not found.' });
+    res.json({ deletion });
+  } catch { res.status(503).json({ error: 'Could not read deletion progress. Try again.' }); }
+});
+
+router.get('/account', accountIdentity, async (req, res) => {
+  res.set('Cache-Control','no-store');
+  try { res.json({ deletion: await accountDeletion.status(req.user) }); }
+  catch { res.status(503).json({ error: 'Could not read deletion progress. Try again.' }); }
+});
+
+router.delete('/account', accountIdentity, async (req, res) => {
+  res.set('Cache-Control','no-store');
+  if (req.body?.confirm !== 'DELETE') return res.status(400).json({ error: 'Confirm permanent account deletion.' });
+  try {
+    const deletion = await accountDeletion.request(req.user);
+    res.status(deletion.completed ? 200 : 202).json({ success: deletion.completed, deletion });
   } catch (err) {
-    logger.error({ err }, 'account delete unexpected');
-    res.status(500).json({ error: 'Something went wrong' });
+    logger.error({ err }, 'account deletion remains unconfirmed');
+    res.status(503).json({ error: 'Could not confirm deletion progress. No completion is being claimed. Try again.' });
   }
 });
 

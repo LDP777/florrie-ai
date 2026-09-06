@@ -10,6 +10,7 @@ import InstallPrompt from './components/InstallPrompt.jsx';
 import CoachNudge from './components/CoachNudge.jsx';
 import FloatingMic from './components/FloatingMic.jsx';
 import MoreSectionNav from './components/MoreSectionNav.jsx';
+import AccountDeletionProgress from './components/AccountDeletionProgress.jsx';
 import { isVoiceEnabled } from './lib/voicePref.js';
 import { CoachProvider } from './contexts/CoachContext.jsx';
 import { isIOSNative } from './lib/platform.js';
@@ -307,7 +308,7 @@ export default function App() {
 
   // Check onboarding status when session is established and beautician data is available
   useEffect(() => {
-    if (session && beautician) {
+    if (session && beautician && !beautician.account_deletion) {
       if (!beautician.onboarding_completed_at) {
         setNeedsOnboarding(true);
       } else {
@@ -332,7 +333,7 @@ export default function App() {
   // Native app (iOS): start the "Florrie on the desk" Live Activity once signed
   // in, so the lock-screen / Dynamic Island strip is live through the day.
   useEffect(() => {
-    if (!session || !beautician) return;
+    if (!session || !beautician || beautician.account_deletion) return;
     import('./lib/platform.js').then(({ isNativeApp }) => {
       if (!isNativeApp()) return;
       import('./lib/liveActivity.js')
@@ -412,6 +413,10 @@ export default function App() {
   }
 
   // Not logged in → static landing page or login
+  if (location.pathname === '/account-deletion' || beautician?.account_deletion) {
+    return <AccountDeletionProgress initial={beautician?.account_deletion} />;
+  }
+
   if (!session) {
     // All unauthenticated root hits → static landing.html (faster load, better SEO, single source of truth)
     if (isLandingRoute) {

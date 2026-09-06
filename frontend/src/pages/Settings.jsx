@@ -252,21 +252,28 @@ export default function Settings({ onLogout }) {
     if (onLogout) onLogout();
   }
 
+  const [deletingAccount, setDeletingAccount] = useState(false);
   async function handleDeleteAccount() {
-    if (!window.confirm('Delete your Florrie account?\n\nThis permanently erases your account and ALL your data: clients, messages, appointments, everything. This cannot be undone.')) return;
+    if (deletingAccount) return;
+    if (!window.confirm('Delete your Florrie account?\n\nThis starts permanent removal of your business data and cancellation of your Florrie billing. Provider cleanup may need review before deletion is complete. This cannot be undone.')) return;
     if (window.prompt('This is permanent. Type DELETE to confirm.') !== 'DELETE') return;
+    setDeletingAccount(true);
     try {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
       const res = await fetch(`${API_BASE}/api/auth/account`, {
         method: 'DELETE',
+        body: JSON.stringify({ confirm: 'DELETE' }),
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       });
-      if (!res.ok) { window.alert('Could not delete your account. Please try again, or email hello@florrie.ai.'); return; }
-      if (supabase) await supabase.auth.signOut();
-      if (onLogout) onLogout();
+      const body = await res.json();
+      if (!res.ok || !body.deletion) throw new Error('Deletion was not confirmed');
+      if (body.deletion.status_token) {
+        try { localStorage.setItem('florrie_deletion_status_token', body.deletion.status_token); } catch { /* authenticated status remains available */ }
+      }
+      window.location.assign('/account-deletion');
     } catch {
-      window.alert('Could not delete your account. Please try again, or email hello@florrie.ai.');
-    }
+      window.alert('Deletion is not confirmed. Try again to resume any saved request, or contact hello@florrie.ai.');
+    } finally { setDeletingAccount(false); }
   }
 
   async function handleConnectGoogleCal() {
@@ -2209,7 +2216,7 @@ export default function Settings({ onLogout }) {
             </div>
           </div>
           <button onClick={handleLogout} style={styles.logoutBtn}>Sign out</button>
-          <button onClick={handleDeleteAccount} style={styles.deleteAccountBtn}>Delete account</button>
+          <Button disabled={deletingAccount} onClick={handleDeleteAccount} style={styles.deleteAccountBtn}>{deletingAccount ? 'Requesting deletion…' : 'Delete account'}</Button>
         </div>
       )}
     </div>
