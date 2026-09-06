@@ -60,6 +60,11 @@ export default function Login({ supabase, initialMode }) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState(new URLSearchParams(location.search).has('auth_error')
     ? 'That sign-in link could not be completed. Please try again.' : '');
+  useEffect(() => {
+    if (new URLSearchParams(location.search).has('auth_error')) {
+      setError('That sign-in link could not be completed. Please try again.');
+    }
+  }, [location.search]);
   const [info, setInfo] = useState('');
   const [loading, setLoading] = useState(false);
   const [appleLoading, setAppleLoading] = useState(false);
@@ -316,7 +321,7 @@ export default function Login({ supabase, initialMode }) {
           />
         </div>
 
-        {effectiveMode !== 'forgot' && (providers.apple || providers.google) && (
+        {effectiveMode !== 'forgot' && (
           <div style={styles.formGroup}>
             <label style={styles.label}>Password</label>
             <input
