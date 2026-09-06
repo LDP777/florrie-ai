@@ -68,3 +68,19 @@ if (missing.length) {
 }
 
 console.log(`✓ lockfile: ${REQUIRED.length} platform binaries present, so it still installs on a Mac as well as on CI`);
+
+// Railway builds from backend/ and consumes its standalone lock, not the
+// workspace lock tested by root npm ci. Include dev dependencies: npm ci
+// validates their graph even when Docker installs with --omit=dev.
+const backendManifest = JSON.parse(readFileSync(new URL('../backend/package.json', import.meta.url), 'utf8'));
+const backendLock = JSON.parse(readFileSync(new URL('../backend/package-lock.json', import.meta.url), 'utf8'));
+for (const group of ['dependencies', 'devDependencies', 'optionalDependencies']) {
+  const expected = backendManifest[group] || {};
+  const declared = backendLock.packages?.['']?.[group] || {};
+  for (const name of new Set([...Object.keys(expected), ...Object.keys(declared)])) {
+    if (expected[name] !== declared[name] || !backendLock.packages?.[`node_modules/${name}`]) {
+      throw new Error(`Railway backend lock is out of sync: ${group}.${name}`);
+    }
+  }
+}
+console.log('✓ lockfile: Railway standalone backend manifest and locked packages agree');
