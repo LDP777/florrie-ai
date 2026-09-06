@@ -1,3 +1,4 @@
+import { announceBookingConfirmed } from '../services/booking-confirmed-alert.js';
 import { Router } from 'express';
 import * as Sentry from '@sentry/node';
 import { supabase } from '../config.js';
@@ -289,6 +290,9 @@ router.post('/', requireAuth, async (req, res) => {
       confirmation = { requested: true, sent: false, reason: 'delivery_failed' };
     }
   }
+  if (String(appointment.starts_at).slice(0, 10) >= new Date().toISOString().slice(0, 10)) {
+    await announceBookingConfirmed(appointment.id, { source: 'manual_booking', claim: false });
+  }
   res.status(201).json({ appointment, confirmation });
 });
 
@@ -469,6 +473,9 @@ router.post('/manual', requireAuth, validate(manualAppointmentSchema), async (re
     }
   }
 
+  if (String(appointment.starts_at).slice(0, 10) >= new Date().toISOString().slice(0, 10)) {
+    await announceBookingConfirmed(appointment.id, { source: 'manual_booking', claim: false });
+  }
   res.status(201).json({ appointment, confirmation });
 });
 
@@ -910,6 +917,10 @@ router.patch('/:id', requireAuth, async (req, res) => {
     }
     logger.error({ err: error }, 'Failed to update appointment');
     return res.status(500).json({ error: 'Something went wrong' });
+  }
+
+  if (updates.status === 'confirmed') {
+    await announceBookingConfirmed(data.id, { source: 'appointment_update', claim: false });
   }
 
   // The move is saved, so tell the client where to turn up. Fire and forget:

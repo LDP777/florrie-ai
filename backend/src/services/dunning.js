@@ -46,7 +46,7 @@ function idOf(ref) {
  * Every read reports its error: a missing column here resolves with
  * { data: null, error } and must not be mistaken for "no such salon".
  */
-export async function findBeauticianForInvoice(invoice) {
+export async function findBeauticianForInvoice(invoice, { strict = false } = {}) {
   const metaId = invoice?.subscription_details?.metadata?.beautician_id
     || invoice?.parent?.subscription_details?.metadata?.beautician_id
     || invoice?.metadata?.beautician_id
@@ -67,6 +67,7 @@ export async function findBeauticianForInvoice(invoice) {
       .maybeSingle();
     if (error) {
       logger.error({ err: error, column, value, invoiceId: invoice?.id }, 'dunning: beautician lookup failed');
+      if (strict) throw error;
       continue;
     }
     if (data) return data;
@@ -146,15 +147,17 @@ function paymentFailedEmail(beautician) {
  * Marks the salon past_due, stamps payment_failed_at (if the column exists),
  * emails the owner, and tells Sentry so the failure count is visible.
  */
-export async function handleInvoicePaymentFailed(invoice, { eventType = 'invoice.payment_failed' } = {}) {
-  const beautician = await findBeauticianForInvoice(invoice);
+export async function handleInvoicePaymentFailed(invoice, { eventType = 'invoice.payment_failed', strict = false } = {}) {
+  const beautician = await findBeauticianForInvoice(invoice, { strict });
   if (!beautician) {
     logger.warn({ invoiceId: invoice?.id, customer: idOf(invoice?.customer) }, 'dunning: payment failed for an invoice with no matching beautician');
     return { handled: false, reason: 'no_beautician' };
   }
 
   const statusResult = await writeStatus(beautician.id, 'past_due', invoice?.id, eventType);
+  if (strict && !statusResult.ok) throw new Error('Subscription status write failed');
   const marker = await writeMarker(beautician.id, new Date().toISOString(), eventType);
+  if (strict && !marker.written && !marker.missing) throw new Error('Subscription failure marker write failed');
 
   let emailed = false;
   if (beautician.email) {
@@ -191,15 +194,17 @@ export async function handleInvoicePaymentFailed(invoice, { eventType = 'invoice
  * The card went through (first payment or a retry): back to 'active', and the
  * failure marker is cleared so the grace period clock stops.
  */
-export async function handleInvoicePaid(invoice, { eventType = 'invoice.paid' } = {}) {
-  const beautician = await findBeauticianForInvoice(invoice);
+export async function handleInvoicePaid(invoice, { eventType = 'invoice.paid', strict = false } = {}) {
+  const beautician = await findBeauticianForInvoice(invoice, { strict });
   if (!beautician) {
     logger.warn({ invoiceId: invoice?.id, customer: idOf(invoice?.customer) }, 'dunning: invoice paid for an invoice with no matching beautician');
     return { handled: false, reason: 'no_beautician' };
   }
 
   const statusResult = await writeStatus(beautician.id, 'active', invoice?.id, eventType);
+  if (strict && !statusResult.ok) throw new Error('Subscription status write failed');
   const marker = await writeMarker(beautician.id, null, eventType);
+  if (strict && !marker.written && !marker.missing) throw new Error('Subscription failure marker write failed');
 
   logger.info({ beauticianId: beautician.id, invoiceId: invoice?.id, marker }, 'dunning: subscription invoice paid');
   return { handled: true, beauticianId: beautician.id, status: statusResult.status, statusWritten: statusResult.ok, marker };
@@ -211,14 +216,14 @@ export const DUNNING_EVENT_TYPES = ['invoice.payment_failed', 'invoice.paid', 'i
  * Route an invoice event to its handler. Returns null for anything that is
  * not a dunning event so the caller's switch can carry on.
  */
-export async function handleDunningEvent(event) {
+export async function handleDunningEvent(event, options = {}) {
   const invoice = event?.data?.object;
   switch (event?.type) {
     case 'invoice.payment_failed':
-      return handleInvoicePaymentFailed(invoice, { eventType: event.type });
+      return handleInvoicePaymentFailed(invoice, { ...options, eventType: event.type });
     case 'invoice.paid':
     case 'invoice.payment_succeeded':
-      return handleInvoicePaid(invoice, { eventType: event.type });
+      return handleInvoicePaid(invoice, { ...options, eventType: event.type });
     default:
       return null;
   }

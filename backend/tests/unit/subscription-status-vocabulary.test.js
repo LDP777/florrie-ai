@@ -77,7 +77,8 @@ function makeBuilder(table) {
     select() { return b; },
     update(p) { pending = p; return b; },
     insert(p) { inserted = { ...p }; db[table].push(inserted); return b; },
-    eq(c, v) { preds.push(r => r[c] === v); return b; },
+    eq(c, v) { preds.push(r => (c === 'data->billing_claim->>token' ? r.data?.billing_claim?.token : r[c]) === v); return b; },
+    is(c, v) { return b.eq(c, v); },
     maybeSingle() { const s = settle(); return Promise.resolve({ data: s.data?.[0] || null, error: s.error }); },
     single() { const s = settle(); return Promise.resolve({ data: s.data?.[0] || null, error: s.error }); },
     then(res) { return Promise.resolve(settle()).then(res); },
@@ -264,7 +265,7 @@ describe('a subscription_status write that fails', () => {
     dbState.failNextBeauticianUpdate = { code: '42703', message: 'column beauticians.subscription_current_period_end does not exist' };
 
     const r = await sendEvent(subscriptionUpdated('past_due'));
-    expect(r.status).toBe(200);
+    expect(r.status).toBe(503);
 
     // The row is unchanged, which is exactly why somebody has to hear about it.
     expect(stored().subscription_status).toBe('active');

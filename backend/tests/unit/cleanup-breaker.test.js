@@ -35,14 +35,19 @@ function builder(table) {
       updates.push({ table, payload: pending.payload, ids: hit.map(r => r.id) });
       return { data: hit, error: null };
     }
-    if (pending?.op === 'insert') return { data: [], error: null };
+    if (pending?.op === 'insert') {
+      const payload = Array.isArray(pending.payload) ? pending.payload : [pending.payload];
+      if (payload.some(p => p.id && db[table].some(r => r.id === p.id))) return { data: null, error: { code: '23505' } };
+      const created = payload.map(p => ({ ...p })); db[table].push(...created);
+      return { data: created, error: null };
+    }
     return { data: rows(), error: null };
   };
   const b = {
     select(_c, opts) { if (opts?.head) headCount = true; return b; },
     update(p) { pending = { op: 'update', payload: p }; return b; },
     insert(p) { pending = { op: 'insert', payload: p }; return b; },
-    eq(c, v) { filters.push(r => r[c] === v); return b; },
+    eq(c, v) { filters.push(r => (c.includes('->>') ? r[c.split('->>')[0]]?.[c.split('->>')[1]] : r[c]) === v); return b; },
     // neq and limit arrived with the rescue alert on 31 August 2026: the
     // rescue now claims the status transition with
     // `.update({status:'confirmed'}).neq('status','confirmed').select('id')`

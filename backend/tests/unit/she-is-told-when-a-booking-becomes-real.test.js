@@ -62,6 +62,9 @@ const db = {
 };
 const EMBEDS = { clients: 'client_id', treatments: 'treatment_id', beauticians: 'beautician_id' };
 let idCounter = 0;
+let failAppointmentRead = false;
+let failDepositWrite = false;
+let failAlertInsert = false;
 const nextId = (p) => `${p}_${++idCounter}`;
 
 function embed(table, cols, row) {
@@ -78,8 +81,24 @@ function makeBuilder(table) {
   const filters = [];
   let pending = null;
   let cols = '';
-  const matching = () => (db[table] || []).filter(r => filters.every(f => f(r)));
+  const ordering = [];
+  let rangeStart = 0, rangeEnd = Infinity;
+  const valueAt = (row, column) => column.split(/->>?/).reduce((value, key) => value?.[key], row);
+  const matching = () => (db[table] || []).filter(r => filters.every(f => f(r))).sort((a,b) => {
+    for (const [column, opts] of ordering) {
+      const av = valueAt(a, column), bv = valueAt(b, column);
+      if (av === bv) continue;
+      if (av == null) return opts.nullsFirst ? -1 : 1;
+      if (bv == null) return opts.nullsFirst ? 1 : -1;
+      return (av < bv ? -1 : 1) * (opts.ascending === false ? -1 : 1);
+    }
+    return 0;
+  }).slice(rangeStart, rangeEnd);
+
   const settle = () => {
+    if (table === 'appointments' && pending?.op === 'update' && pending.payload.deposit_paid && failDepositWrite) return { data: null, error: { code: 'XX000' } };
+    if (table === 'ai_actions' && pending?.op === 'insert' && failAlertInsert) return { data: null, error: { code: 'XX000' } };
+    if (table === 'appointments' && !pending && failAppointmentRead) return { data: null, error: { code: 'XX000' } };
     if (pending?.op === 'insert') {
       const payload = Array.isArray(pending.payload) ? pending.payload : [pending.payload];
       if (table === 'transactions') {
@@ -89,11 +108,11 @@ function makeBuilder(table) {
           return { data: null, error: { code: '23502', message: 'null value in column "beautician_id" violates not-null constraint' } };
         }
       }
-      if (table === 'stripe_events') {
-        const clash = payload.find(p => db.stripe_events.some(e => e.id === p.id));
+      if (table === 'stripe_events' || table === 'ai_actions') {
+        const clash = payload.find(p => db[table].some(e => e.id === p.id));
         if (clash) return { data: null, error: { code: '23505', message: 'duplicate key' } };
       }
-      const created = payload.map(p => ({ id: nextId(table), management_token: nextId('mt'), ...p }));
+      const created = payload.map(p => ({ id: nextId(table), created_at: new Date().toISOString(), management_token: nextId('mt'), ...p }));
       db[table].push(...created);
       return { data: created, error: null };
     }
@@ -114,16 +133,17 @@ function makeBuilder(table) {
     insert(p) { pending = { op: 'insert', payload: p }; return b; },
     update(p) { pending = { op: 'update', payload: p }; return b; },
     delete() { pending = { op: 'delete' }; return b; },
-    eq(c, v) { filters.push(r => r[c] === v); return b; },
+    eq(c, v) { filters.push(r => c.split(/->>?/).reduce((value, key) => value?.[key], r) === v); return b; },
     neq(c, v) { filters.push(r => r[c] !== v); return b; },
     in(c, v) { filters.push(r => v.includes(r[c])); return b; },
     is(c, v) { filters.push(r => (r[c] ?? null) === v); return b; },
     not() { return b; },
     or() { return b; },
-    gt() { return b; }, lt() { return b; }, gte() { return b; }, lte() { return b; },
+    gt() { return b; }, lt() { return b; }, gte(c,v) { filters.push(r => r[c] >= v); return b; }, lte() { return b; },
     filter() { return b; },
-    order() { return b; },
-    limit() { return b; },
+    order(c, opts = {}) { ordering.push([c, opts]); return b; },
+    range(start, end) { rangeStart = start; rangeEnd = end + 1; return b; },
+    limit(n) { rangeEnd = n; return b; },
     maybeSingle() { const o = settle(); return Promise.resolve(o.error ? o : { data: (o.data || [])[0] || null, error: null }); },
     single() { const o = settle(); return Promise.resolve(o.error ? o : { data: (o.data || [])[0] || null, error: null }); },
     then(res, rej) { return Promise.resolve(settle()).then(res, rej); },
@@ -191,9 +211,11 @@ vi.mock('web-push', () => ({
   },
 }));
 let apnsDevices = 0;
+let apnsFails = false;
 const apnsSent = [];
 vi.mock('../../src/services/apns.js', () => ({
   sendApnsToBeautician: async (id, opts) => {
+    if (apnsFails) return { sent: 0, reason: 'all_sends_rejected' };
     if (!apnsDevices) return null;
     apnsSent.push({ id, ...opts });
     return { sent: apnsDevices, removed: 0 };
@@ -235,7 +257,7 @@ vi.mock('../../src/services/policy-fees.js', () => ({
   getCardOnFile: async () => null,
 }));
 vi.mock('../../src/middleware/turnstile.js', () => ({ verifyTurnstile: (_q, _s, next) => next() }));
-vi.mock('../../src/middleware/auth.js', () => ({ requireAuth: (_q, _s, next) => next() }));
+vi.mock('../../src/middleware/auth.js', () => ({ requireAuth: (req, _s, next) => { req.beautician = { id: 'salon-1' }; next(); } }));
 vi.mock('../../src/middleware/security.js', () => ({
   requireCronKey: (_q, _s, next) => next(),
   idempotencyGuard: (_q, _s, next) => next(),
@@ -333,7 +355,7 @@ function checkoutCompleted(metadata, { id = 'evt_1', sessionId = 'cs_live', amou
 const confirmedAlerts = () => db.ai_actions.filter(a => a.action_type === 'booking_confirmed');
 const bookingPushes = () => webSent.filter(p => p.payload.data?.actionType === 'booking_confirmed');
 
-beforeEach(() => { seed(); });
+beforeEach(() => { seed(); apnsFails = false; failAppointmentRead = false; failDepositWrite = false; failAlertInsert = false; delete process.env.BOOKING_ALERT_RECONCILE_FROM; });
 
 /* ========================================================================== */
 
@@ -557,4 +579,194 @@ describe('a payment link against a pending booking', () => {
     expect(confirmedAlerts()).toHaveLength(1);
     expect(bookingPushes()).toHaveLength(1);
   });
+});
+
+
+describe('confirmation delivery retry and payment truth', () => {
+  it('retries the same paid webhook after APNs failure without repeating web delivery or transactions', async () => {
+    apnsDevices = 1;
+    apnsFails = true;
+    const event = checkoutCompleted({ appointment_id: APPT, beautician_id: SALON, client_id: 'client-1', payment_type: 'deposit' });
+    await post('/api/stripe/webhook', event, { 'stripe-signature': 'good' });
+    expect(db.appointments[0].status).toBe('confirmed');
+    expect(confirmedAlerts()[0].outcome).toBe('failed');
+    expect(bookingPushes()).toHaveLength(1);
+    const transactions = db.transactions.length;
+    apnsFails = false;
+    await post('/api/stripe/webhook', event, { 'stripe-signature': 'good' });
+    expect(apnsSent).toHaveLength(1);
+    expect(apnsSent[0].data.url).toContain(`appt=${APPT}`);
+    expect(bookingPushes()).toHaveLength(1);
+    expect(db.transactions).toHaveLength(transactions);
+    expect(confirmedAlerts()).toHaveLength(1);
+    expect(confirmedAlerts()[0].outcome).toBe('success');
+    await post('/api/stripe/webhook', event, { 'stripe-signature': 'good' });
+    expect(apnsSent).toHaveLength(1);
+  });
+
+  it('delivers a paid booking to an iPhone with no web subscription', async () => {
+    db.push_subscriptions = []; apnsDevices = 1;
+    await post('/api/stripe/webhook', checkoutCompleted({ appointment_id: APPT, beautician_id: SALON, client_id: 'client-1' }), { 'stripe-signature': 'good' });
+    expect(apnsSent).toHaveLength(1);
+    expect(confirmedAlerts()[0].notification_sent).toBe(true);
+  });
+
+  it('does not confirm unpaid completed Checkout, then confirms asynchronous payment success', async () => {
+    const event = checkoutCompleted({ appointment_id: APPT, beautician_id: SALON, client_id: 'client-1' });
+    event.data.object.payment_status = 'unpaid';
+    await post('/api/stripe/webhook', event, { 'stripe-signature': 'good' });
+    expect(db.appointments[0].status).toBe('pending');
+    expect(db.appointments[0].deposit_paid).toBe(false);
+    expect(confirmedAlerts()).toHaveLength(0);
+    event.id = 'evt_async'; event.type = 'checkout.session.async_payment_succeeded'; event.data.object.payment_status = 'paid';
+    await post('/api/stripe/webhook', event, { 'stripe-signature': 'good' });
+    expect(db.appointments[0].status).toBe('confirmed');
+    expect(bookingPushes()).toHaveLength(1);
+  });
+
+  it('does not resurrect a cancelled appointment on a late paid event', async () => {
+    db.appointments[0].status = 'cancelled';
+    await post('/api/stripe/webhook', checkoutCompleted({ appointment_id: APPT, beautician_id: SALON, client_id: 'client-1' }), { 'stripe-signature': 'good' });
+    expect(db.appointments[0].status).toBe('cancelled');
+    expect(bookingPushes()).toHaveLength(0);
+  });
+
+  it('serializes concurrent no-deposit announcements and does not claim a deposit was paid', async () => {
+    const { announceBookingConfirmed } = await import('../../src/services/booking-confirmed-alert.js');
+    db.appointments[0].status = 'confirmed'; db.appointments[0].deposit_cents = 0;
+    await Promise.all(Array.from({ length: 5 }, () => announceBookingConfirmed(APPT, { claim: false, source: 'free_booking' })));
+    expect(bookingPushes()).toHaveLength(1);
+    expect(bookingPushes()[0].payload.body).not.toContain('Deposit paid');
+    expect(confirmedAlerts()).toHaveLength(1);
+  });
+});
+
+
+describe('manual confirmation and scheduled retries', () => {
+  it('manual status confirmation emits the same iPhone alert without saying deposit paid', async () => {
+    db.push_subscriptions = []; apnsDevices = 1;
+    const response = await fetch(`http://127.0.0.1:${PORT}/api/booking/appointments/${APPT}/status`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'confirmed' }),
+    });
+    expect(response.status).toBe(200);
+    expect(apnsSent).toHaveLength(1);
+    expect(apnsSent[0].body).not.toContain('Deposit paid');
+    expect(confirmedAlerts()[0].outcome).toBe('success');
+  });
+  it('scheduled retry recovers APNs without a browser redirect or repeated webhook', async () => {
+    const { retryBookingConfirmedAlerts } = await import('../../src/services/booking-confirmed-alert.js');
+    process.env.BOOKING_ALERT_RECONCILE_FROM = new Date(Date.now() - 60_000).toISOString();
+    db.push_subscriptions = []; apnsDevices = 1; apnsFails = true;
+    await post('/api/stripe/webhook', checkoutCompleted({ appointment_id: APPT, beautician_id: SALON, client_id: 'client-1' }), { 'stripe-signature': 'good' });
+    apnsFails = false;
+    expect(await retryBookingConfirmedAlerts()).toEqual({ attempted: 1 });
+    expect(apnsSent).toHaveLength(1);
+    expect(await retryBookingConfirmedAlerts()).toEqual({ attempted: 0 });
+  });
+});
+
+
+it('a failed read after confirmation does not consume the right to notify', async () => {
+  const { announceBookingConfirmed } = await import('../../src/services/booking-confirmed-alert.js');
+  failAppointmentRead = true;
+  expect((await announceBookingConfirmed(APPT)).reason).toBe('appointment_unreadable');
+  expect(db.appointments[0].status).toBe('confirmed');
+  expect(bookingPushes()).toHaveLength(0);
+  failAppointmentRead = false;
+  await announceBookingConfirmed(APPT);
+  expect(bookingPushes()).toHaveLength(1);
+});
+
+it('a live delivery lease blocks retry but an abandoned lease can be recovered', async () => {
+  const { announceBookingConfirmed } = await import('../../src/services/booking-confirmed-alert.js');
+  apnsFails = true; db.push_subscriptions = [];
+  await announceBookingConfirmed(APPT);
+  const row = confirmedAlerts()[0]; row.outcome = 'pending';
+  row.details.lease_until = new Date(Date.now() + 60_000).toISOString();
+  expect((await announceBookingConfirmed(APPT)).reason).toBe('delivery_in_progress');
+  row.details.lease_until = new Date(Date.now() - 60_000).toISOString();
+  apnsFails = false; apnsDevices = 1;
+  await announceBookingConfirmed(APPT);
+  expect(apnsSent).toHaveLength(1);
+  expect(row.outcome).toBe('success');
+});
+
+
+describe('payment event waits for saved payment and durable notification intent', () => {
+  for (const fault of ['appointment_read', 'deposit_write', 'alert_insert']) {
+    it(`retries the signed Stripe event after ${fault} failure without duplicate money`, async () => {
+      const event = checkoutCompleted({ appointment_id: APPT, beautician_id: SALON, client_id: 'client-1' });
+      failAppointmentRead = fault === 'appointment_read';
+      failDepositWrite = fault === 'deposit_write';
+      failAlertInsert = fault === 'alert_insert';
+      const failed = await post('/api/stripe/webhook', event, { 'stripe-signature': 'good' });
+      expect(failed.status).toBe(503);
+      expect(db.stripe_events[0].processed_at).toBeNull();
+      expect(bookingPushes()).toHaveLength(0);
+      failAppointmentRead = false; failDepositWrite = false; failAlertInsert = false;
+      const recovered = await post('/api/stripe/webhook', event, { 'stripe-signature': 'good' });
+      expect(recovered.status).toBe(200);
+      expect(db.stripe_events[0].processed_at).toBeTruthy();
+      expect(db.appointments[0].deposit_paid).toBe(true);
+      expect(bookingPushes()).toHaveLength(1);
+      expect(db.transactions.filter(t => t.type === 'deposit')).toHaveLength(1);
+      await post('/api/stripe/webhook', event, { 'stripe-signature': 'good' });
+      expect(bookingPushes()).toHaveLength(1);
+      expect(db.transactions.filter(t => t.type === 'deposit')).toHaveLength(1);
+    });
+  }
+  it('an unpaid Checkout redirect does not confirm or record a deposit', async () => {
+    stripeState.sessions.cs_unpaid = { payment_status: 'unpaid', status: 'complete', metadata: { appointment_id: APPT } };
+    await get('/api/booking/confirm/cs_unpaid?slug=ellindigo&mt=mt-1');
+    expect(db.appointments[0].status).toBe('pending');
+    expect(db.appointments[0].deposit_paid).toBe(false);
+    expect(bookingPushes()).toHaveLength(0);
+  });
+});
+
+
+it('rollout-bounded reconciliation recovers a free booking with no intent and skips historical bookings', async () => {
+  const { announceBookingConfirmed, retryBookingConfirmedAlerts } = await import('../../src/services/booking-confirmed-alert.js');
+  const boundary = new Date(Date.now() - 60_000).toISOString();
+  process.env.BOOKING_ALERT_RECONCILE_FROM = boundary;
+  Object.assign(db.appointments[0], { status: 'confirmed', created_at: new Date().toISOString(), starts_at: new Date(Date.now() + 86400000).toISOString(), deposit_cents: 0 });
+  db.appointments.push({ ...db.appointments[0], id: 'historical', created_at: new Date(Date.now() - 3600000).toISOString() });
+  // A legacy failed attempt must remain silent after enabling the new job.
+  db.ai_actions.push({ id: 'legacy-alert', appointment_id: 'historical', action_type: 'booking_confirmed', outcome: 'failed', created_at: new Date(Date.now() - 3600000).toISOString() });
+  failAlertInsert = true;
+  await announceBookingConfirmed(APPT, { claim: false });
+  expect(confirmedAlerts()).toHaveLength(1);
+  failAlertInsert = false;
+  await retryBookingConfirmedAlerts();
+  expect(bookingPushes()).toHaveLength(1);
+  expect(confirmedAlerts().find(row => row.appointment_id === APPT)?.outcome).toBe('success');
+  await retryBookingConfirmedAlerts();
+  expect(bookingPushes()).toHaveLength(1);
+});
+
+
+it('reconciliation advances beyond the first hundred already-announced bookings', async () => {
+  const { announceBookingConfirmed, retryBookingConfirmedAlerts } = await import('../../src/services/booking-confirmed-alert.js');
+  process.env.BOOKING_ALERT_RECONCILE_FROM = new Date(Date.now() - 120_000).toISOString();
+  const base = { ...db.appointments[0], status: 'confirmed', starts_at: new Date(Date.now() + 86400000).toISOString() };
+  db.appointments = Array.from({ length: 101 }, (_, i) => ({ ...base, id: `page-${String(i).padStart(3, '0')}`, created_at: new Date(Date.now() - 60_000 + i).toISOString() }));
+  for (const appointment of db.appointments.slice(0,100)) {
+    await announceBookingConfirmed(appointment.id, { claim: false });
+  }
+  webSent.length = 0;
+  await retryBookingConfirmedAlerts();
+  expect(bookingPushes()).toHaveLength(0);
+  await retryBookingConfirmedAlerts();
+  expect(bookingPushes()).toHaveLength(1);
+  expect(confirmedAlerts().find(row => row.appointment_id === 'page-100')?.outcome).toBe('success');
+});
+
+it('automatic retry is disabled without a valid rollout boundary', async () => {
+  const { announceBookingConfirmed, retryBookingConfirmedAlerts } = await import('../../src/services/booking-confirmed-alert.js');
+  db.push_subscriptions = []; apnsFails = true;
+  await announceBookingConfirmed(APPT);
+  apnsFails = false; apnsDevices = 1;
+  process.env.BOOKING_ALERT_RECONCILE_FROM = 'invalid';
+  expect(await retryBookingConfirmedAlerts()).toEqual({ attempted: 0 });
+  expect(apnsSent).toHaveLength(0);
 });

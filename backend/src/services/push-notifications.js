@@ -35,24 +35,26 @@ if (VAPID_PUBLIC && VAPID_PRIVATE) {
  * APNs (iOS app device tokens). Each leg is fail-soft: one channel being
  * down or unconfigured never blocks the other, and neither ever throws.
  */
-export async function sendPush(beauticianId, { title, body, icon, url, tag, data, sound }) {
+export async function sendPush(beauticianId, { title, body, icon, url, tag, data, sound, channels = {} }) {
   let webResult = null;
   try {
-    webResult = await sendWebPush(beauticianId, { title, body, icon, url, tag, data });
+    if (channels.web !== false) webResult = await sendWebPush(beauticianId, { title, body, icon, url, tag, data });
   } catch (err) {
+    webResult = { sent: 0, failed: true };
     logger.warn({ err, beauticianId }, 'Web push fan-out failed');
   }
 
   // Native iOS (APNs): same title/body, deep-link url carried in data.
   let apnsResult = null;
   try {
-    apnsResult = await sendApnsToBeautician(beauticianId, {
+    if (channels.apns !== false) apnsResult = await sendApnsToBeautician(beauticianId, {
       title: title || 'florrie.ai',
       body,
       data: { ...(data || {}), url: url || '/' },
       sound,
     });
   } catch (err) {
+    apnsResult = { sent: 0, reason: 'send_threw' };
     logger.warn({ err, beauticianId }, 'APNs fan-out failed');
   }
 
@@ -77,7 +79,7 @@ export async function sendPush(beauticianId, { title, body, icon, url, tag, data
     );
   }
 
-  return { ...(webResult || { sent: 0, expired: 0 }), apns: apnsResult, delivered };
+  return { ...(webResult || { sent: 0, expired: 0 }), apns: apnsResult, delivered, web_failed: !!webResult?.failed };
 }
 
 /**
@@ -87,11 +89,12 @@ export async function sendPush(beauticianId, { title, body, icon, url, tag, data
 async function sendWebPush(beauticianId, { title, body, icon, url, tag, data }) {
   if (!VAPID_PUBLIC || !VAPID_PRIVATE) return null;
 
-  const { data: subs } = await supabase
+  const { data: subs, error: lookupError } = await supabase
     .from('push_subscriptions')
     .select('subscription')
     .eq('beautician_id', beauticianId);
 
+  if (lookupError) return { sent: 0, failed: true };
   if (!subs?.length) return null;
 
   const payload = JSON.stringify({
@@ -105,6 +108,7 @@ async function sendWebPush(beauticianId, { title, body, icon, url, tag, data }) 
   });
 
   let sent = 0;
+  let failed = false;
   const expired = [];
 
   for (const record of subs) {
@@ -116,6 +120,7 @@ async function sendWebPush(beauticianId, { title, body, icon, url, tag, data }) 
         // Subscription expired — clean up
         expired.push(record.subscription.endpoint);
       } else {
+        failed = true;
         logger.warn({ err, beauticianId }, 'Push send failed');
       }
     }
@@ -132,7 +137,7 @@ async function sendWebPush(beauticianId, { title, body, icon, url, tag, data }) 
     }
   }
 
-  return { sent, expired: expired.length };
+  return { sent, expired: expired.length, failed };
 }
 
 const AGENT_PUSH = {
@@ -290,7 +295,7 @@ const ACTION_TITLES = {
   weekly_review: '🌸 Your week with Florrie',
 };
 
-export async function pushTeamUpdate(beauticianId, actionType, summary, { url, clientName } = {}) {
+export async function pushTeamUpdate(beauticianId, actionType, summary, { url, clientName, channels } = {}) {
   const agentId = ACTION_TO_AGENT[actionType] || 'front_desk';
   const agent = AGENT_PUSH[agentId] || AGENT_PUSH.front_desk;
 
@@ -307,6 +312,7 @@ export async function pushTeamUpdate(beauticianId, actionType, summary, { url, c
     tag: `team-${agentId}-${Date.now()}`,
     data: { agentId, actionType, clientName },
     sound: soundFor(actionType),
+    channels,
   });
 }
 
@@ -335,7 +341,7 @@ export async function pushNewBooking(beauticianId, clientName, treatmentName, da
   );
 }
 
-export async function pushBookingConfirmed(beauticianId, clientName, treatmentName, dateStr, { appointmentId = null, apptDate = null } = {}) {
+export async function pushBookingConfirmed(beauticianId, clientName, treatmentName, dateStr, { appointmentId = null, apptDate = null, depositPaid = true, channels } = {}) {
   // Deposit landed: the pending booking is now real. Fired from the Stripe
   // webhook so Ellie gets a clear second beat that the money is in.
   const day = apptDate ? String(apptDate).slice(0, 10) : null;
@@ -343,8 +349,8 @@ export async function pushBookingConfirmed(beauticianId, clientName, treatmentNa
     : appointmentId ? `/calendar/week?appt=${appointmentId}`
     : '/calendar/week';
   return pushTeamUpdate(beauticianId, 'booking_confirmed',
-    `${clientName} booked in: ${treatmentName}, ${dateStr}. Deposit paid.`,
-    { url, clientName }
+    `${clientName} booked in: ${treatmentName}, ${dateStr}.${depositPaid ? " Deposit paid." : ""}`,
+    { url, clientName, channels }
   );
 }
 

@@ -1,3 +1,5 @@
+import { claimPaymentEvent, completePaymentEvent, releasePaymentEvent } from '../services/payment-webhook-events.js';
+import { isBillingEvent, handleBillingEvent } from './billing.js';
 import { Router } from 'express';
 import Stripe from 'stripe';
 import * as Sentry from '@sentry/node';
@@ -1272,33 +1274,45 @@ router.post('/webhook', async (req, res) => {
     return res.status(400).json({ error: 'Invalid signature' });
   }
 
-  // Idempotency — use the unique event id to detect duplicates.
-  try {
-    const { error: insertError } = await supabase
-      .from('stripe_events')
-      .insert({ id: event.id, type: event.type, processed_at: new Date().toISOString() });
+  // Both registered webhook URLs dispatch billing through one handler.
+  if (isBillingEvent(event)) return handleBillingEvent(event, res);
 
-    if (insertError && insertError.code === '23505') {
-      // Duplicate event ID — already processed
-      return res.json({ received: true, status: 'already_processed' });
+  const paymentSession = event.data?.object;
+  const bookingPayment = ['checkout.session.completed', 'checkout.session.async_payment_succeeded'].includes(event.type)
+    && paymentSession?.mode === 'payment' && paymentSession.payment_status === 'paid'
+    && !!paymentSession.metadata?.appointment_id;
+  let paymentClaim;
+  if (bookingPayment) {
+    try {
+      paymentClaim = await claimPaymentEvent(event);
+      if (paymentClaim.duplicate) {
+        await announceBookingConfirmed(paymentSession.metadata.appointment_id, { source: 'stripe_webhook_retry', claim: false });
+        return res.json({ received: true, status: 'already_processed' });
+      }
+    } catch (err) {
+      logger.error({ err, eventId: event.id }, 'Booking payment event claim unavailable');
+      return res.status(503).json({ received: true, processed: false });
     }
-    if (insertError) {
-      // A hiccup on the dedupe/logging table must NOT fail the webhook: returning
-      // non-2xx here makes Stripe retry forever and flag the endpoint as broken
-      // (which is exactly the "trouble sending requests" email). The signature is
-      // already verified, so process the event best-effort and let any genuine
-      // duplicate be caught by the per-record guards downstream.
-      logger.error({ err: insertError, eventId: event.id }, 'Could not record stripe event, processing anyway');
+  } else {
+    const { error } = await supabase.from('stripe_events')
+      .insert({ id: event.id, type: event.type, processed_at: new Date().toISOString() });
+    if (error?.code === '23505') return res.json({ received: true, status: 'already_processed' });
+    if (error) return res.status(503).json({ received: true, processed: false });
+  }
+
+  async function confirmWithDurableIntent(appointmentId, source) {
+    const alert = await announceBookingConfirmed(appointmentId, { source });
+    if (['claim_unreadable', 'appointment_unreadable', 'ledger_unreadable', 'delivery_claim_lost', 'threw', 'no_beautician'].includes(alert.reason)) {
+      throw new Error(`Booking confirmation intent unavailable: ${alert.reason}`);
     }
-  } catch (err) {
-    logger.error({ err, eventId: event.id }, 'stripe_events insert threw, processing anyway');
   }
 
   try {
     switch (event.type) {
-      case 'checkout.session.completed': {
+      case 'checkout.session.completed':
+      case 'checkout.session.async_payment_succeeded': {
         const session = event.data.object;
-        if (session.mode !== 'payment') break;
+        if (session.mode !== 'payment' || session.payment_status !== 'paid') break;
 
         const isPaymentLink = session.metadata?.type === 'payment_link';
         const appointmentId = session.metadata?.appointment_id;
@@ -1326,12 +1340,17 @@ router.post('/webhook', async (req, res) => {
         // Payment link completion (may or may not have appointment)
         if (isPaymentLink) {
           // Update payment_links table
-          await supabase.from('payment_links')
+          const linkWrite = await supabase.from('payment_links')
             .update({ status: 'paid', paid_at: new Date().toISOString() })
             .eq('stripe_session_id', session.id);
+          if (linkWrite.error) throw new Error('Could not record paid payment link');
 
-          // Record transaction
-          await supabase.from('transactions').insert({
+          // A failed confirmation intent can replay this event after money was recorded.
+          const priorLink = await supabase.from('transactions').select('id')
+            .eq('stripe_payment_intent_id', session.payment_intent).eq('type', 'payment_link').limit(1);
+          if (priorLink.error) throw new Error('Could not read payment link ledger');
+          if (!priorLink.data?.length) {
+          const linkTransaction = await supabase.from('transactions').insert({
             beautician_id: beauticianId,
             appointment_id: appointmentId || null,
             client_id: clientId || null,
@@ -1341,17 +1360,17 @@ router.post('/webhook', async (req, res) => {
             stripe_payment_intent_id: session.payment_intent,
             payment_method: 'card_online',
           });
+          if (linkTransaction.error) throw new Error('Could not record payment link transaction');
+          }
 
-          // If linked to an appointment, mark it paid and confirm it. A
-          // payment link against a still-pending booking is that booking
-          // becoming real, so it announces like any other confirmation and,
-          // like every other writer, leaves the status transition to
-          // announceBookingConfirmed so it can only be told once.
+          // Save payment truth before confirming. The delivery ledger prevents
+          // duplicate pushes and retains unsuccessful attempts for retry.
           if (appointmentId) {
-            await supabase.from('appointments')
+            const paidWrite = await supabase.from('appointments')
               .update({ deposit_status: 'paid', deposit_paid: true })
-              .eq('id', appointmentId);
-            await announceBookingConfirmed(appointmentId, { source: 'stripe_payment_link' });
+              .eq('id', appointmentId).select('id');
+            if (paidWrite.error || !paidWrite.data?.length) throw new Error('Could not record paid booking');
+            await confirmWithDurableIntent(appointmentId, 'stripe_payment_link');
           }
 
           // Save customer for future use
@@ -1370,17 +1389,15 @@ router.post('/webhook', async (req, res) => {
           // Determine if this was a full payment or deposit from metadata
           const paymentType = session.metadata?.payment_type || 'deposit';
 
-          // Mark the deposit paid. The status transition is NOT written here
-          // any more: announceBookingConfirmed makes it, conditionally, and
-          // only the writer that actually moves the row into 'confirmed'
-          // tells the owner. See services/booking-confirmed-alert.js for why
-          // the transition is the idempotency key (31 August 2026: the owner
-          // reported being told only about bookings that had not been paid
-          // for, and the webhook and the /confirm redirect race).
-          await supabase
+          // Payment state and delivery are separate. Save the accepted deposit,
+          // then require a durable alert intent before acknowledging this event.
+          // Database failures return 503 and leave the event safe to retry.
+          const paidWrite = await supabase
             .from('appointments')
             .update({ deposit_status: 'paid', deposit_paid: true })
-            .eq('id', appointmentId);
+            .eq('id', appointmentId).select('id');
+          if (paidWrite.error || !paidWrite.data?.length) throw new Error('Could not record paid booking');
+          await confirmWithDurableIntent(appointmentId, 'stripe_webhook');
 
           // Log the transaction, ONCE. The confirmation redirect
           // (GET /api/booking/confirm/:sessionId) logs the same deposit and has
@@ -1404,6 +1421,7 @@ router.post('/webhook', async (req, res) => {
               tags: { area: 'payments', check: 'deposit_guard' },
               extra: { appointmentId, amountPence: session.amount_total ?? null, dbCode: loggedErr.code },
             });
+            throw new Error('Could not read booking payment ledger');
           } else if (!alreadyLogged?.length) {
             const { error: txErr } = await supabase.from('transactions').insert({
               beautician_id: beauticianId,
@@ -1423,6 +1441,7 @@ router.post('/webhook', async (req, res) => {
                 tags: { area: 'payments', check: 'transaction_insert' },
                 extra: { appointmentId, beauticianId, amountPence: session.amount_total ?? null, dbCode: txErr.code },
               });
+              throw new Error('Could not record booking payment');
             }
           }
 
@@ -1441,15 +1460,7 @@ router.post('/webhook', async (req, res) => {
             logger.warn({ err }, 'Post-payment confirmation notification failed (non-fatal)')
           );
 
-          // Tell the beautician the money landed, exactly once across the
-          // webhook / redirect race, and RECORD whether it reached a device.
-          // This used to be a detached async IIFE that swallowed its own
-          // errors and threw away sendPush's delivery count, so a push to zero
-          // devices and a push she actually felt were the same log line.
-          // Awaited now: the webhook has already done all its database work by
-          // this point, and Stripe retries on a non-2xx, which
-          // announceBookingConfirmed cannot cause because it never throws.
-          await announceBookingConfirmed(appointmentId, { source: 'stripe_webhook' });
+
         }
 
         // Course enrollment deposit payment
@@ -1877,19 +1888,22 @@ router.post('/webhook', async (req, res) => {
         break;
     }
 
-    // Enrich the already-inserted event record with full data
-    await supabase.from('stripe_events').update({
-      beautician_id: event.data.object.metadata?.beautician_id || null,
-      data: event.data.object,
-    }).eq('id', event.id);
-
+    if (paymentClaim) {
+      await completePaymentEvent(event, paymentClaim);
+    } else {
+      await supabase.from('stripe_events').update({
+        beautician_id: event.data.object.metadata?.beautician_id || null,
+        data: event.data.object,
+      }).eq('id', event.id);
+    }
     res.json({ received: true });
   } catch (err) {
-    // The event row was already inserted above, so a Stripe retry would just hit
-    // the duplicate guard and skip reprocessing — a 500 here wouldn't recover the
-    // event, it would only get the endpoint flagged as failing. Acknowledge so
-    // Stripe stops retrying, and log loudly so we can reconcile from the event row.
-    logger.error({ err, eventId: event.id, type: event.type }, 'Webhook processing error (acknowledged, needs reconcile)');
+    logger.error({ err, eventId: event.id, type: event.type }, 'Webhook processing failed');
+    if (paymentClaim) {
+      await releasePaymentEvent(event, paymentClaim).catch(releaseError =>
+        logger.error({ err: releaseError, eventId: event.id }, 'Payment claim release failed; lease will expire'));
+      return res.status(503).json({ received: true, processed: false });
+    }
     res.json({ received: true, processed: false });
   }
 });
