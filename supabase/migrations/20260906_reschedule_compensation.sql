@@ -2,7 +2,7 @@
 BEGIN;
 CREATE TABLE public.reschedule_payment_operations (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
- appointment_id uuid NOT NULL REFERENCES public.appointments(id),
+ appointment_id uuid REFERENCES public.appointments(id) ON DELETE SET NULL,
  beautician_id uuid NOT NULL, client_id uuid,
  old_starts_at timestamptz NOT NULL, old_ends_at timestamptz NOT NULL,
  new_starts_at timestamptz NOT NULL, new_ends_at timestamptz NOT NULL,
@@ -12,6 +12,25 @@ CREATE TABLE public.reschedule_payment_operations (
  created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
  last_error text
 );
+-- Terminal financial evidence survives account deletion without retaining the
+-- appointment. Active recovery must never lose its booking reference or row.
+CREATE FUNCTION public.protect_reschedule_recovery() RETURNS trigger
+LANGUAGE plpgsql SET search_path=public,pg_temp AS $$
+BEGIN
+ IF OLD.status IN ('pending','refund_pending') THEN
+   IF TG_OP='DELETE' THEN RAISE EXCEPTION 'reschedule_payment_recovery_pending'; END IF;
+   IF NEW.appointment_id IS DISTINCT FROM OLD.appointment_id THEN
+     RAISE EXCEPTION 'reschedule_payment_recovery_pending';
+   END IF;
+ END IF;
+ IF TG_OP='DELETE' THEN RETURN OLD; END IF;
+ RETURN NEW;
+END $$;
+REVOKE ALL ON FUNCTION public.protect_reschedule_recovery() FROM PUBLIC,anon,authenticated;
+CREATE TRIGGER reschedule_recovery_reference_guard
+ BEFORE DELETE OR UPDATE OF appointment_id ON public.reschedule_payment_operations
+ FOR EACH ROW EXECUTE FUNCTION public.protect_reschedule_recovery();
+
 CREATE UNIQUE INDEX reschedule_one_active_payment ON public.reschedule_payment_operations(appointment_id)
  WHERE status IN ('pending','refund_pending');
 CREATE INDEX reschedule_pending_recovery ON public.reschedule_payment_operations(updated_at)

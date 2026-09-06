@@ -42,6 +42,8 @@ await db.query('UPDATE appointments SET deposit_cents=1000 WHERE id=$1',[appt.id
 const prepare = (expectedClient = id(5)) => db.query('SELECT * FROM prepare_reschedule_payment($1,$2,$3,$4,$5,$6,$7,$8)',[appt.id,booking.starts_at,'2027-02-01T10:00:00Z','2027-02-01T11:00:00Z',expectedClient,id(2),null,1000]);
 await assert.rejects(prepare(id(9)),/booking changed/);
 const op = (await prepare()).rows[0];
+await assert.rejects(db.query('DELETE FROM appointments WHERE id=$1',[appt.id]),/reschedule_payment_recovery_pending/);
+await assert.rejects(db.query('DELETE FROM reschedule_payment_operations WHERE id=$1',[op.id]),/reschedule_payment_recovery_pending/);
 await assert.rejects(prepare(),/unique/);
 await db.query('UPDATE reschedule_payment_operations SET payment_intent_id=$1 WHERE id=$2',['pi_reschedule',op.id]);
 await db.exec("INSERT INTO appointments(starts_at) VALUES ('2027-02-01T10:00:00Z')");
@@ -64,6 +66,8 @@ await db.query('SELECT finish_paid_reschedule($1)',[op2.id]);
 await db.query('SELECT finish_paid_reschedule($1)',[op2.id]);
 assert.equal((await db.query('SELECT claim_reschedule_refund($1) AS claimed',[op2.id])).rows[0].claimed,false);
 assert.equal((await db.query('SELECT count(*)::int AS count FROM transactions WHERE stripe_payment_intent_id=$1',['pi_success'])).rows[0].count,1);
+await db.query('DELETE FROM appointments WHERE id=$1',[appt.id]);
+assert.equal((await db.query('SELECT count(*)::int AS count FROM reschedule_payment_operations WHERE appointment_id IS NULL')).rows[0].count,2,'terminal evidence survives account/appointment deletion');
 await db.exec("SET ROLE authenticated");
 await assert.rejects(create(booking), /permission denied/);
 await db.close();
