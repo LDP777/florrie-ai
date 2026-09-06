@@ -98,7 +98,9 @@ BEGIN
  SELECT * INTO STRICT request FROM public.account_deletions WHERE id=p_deletion_id FOR UPDATE;
  IF request.snapshot_encrypted IS NULL AND request.status <> 'completed' THEN RAISE EXCEPTION 'Missing deletion recovery snapshot'; END IF;
  UPDATE public.stripe_events SET beautician_id=NULL, data='{"account_deleted":true}'::jsonb, processed_at=coalesce(processed_at,now())
- WHERE beautician_id=request.beautician_id OR strpos(coalesce(data::text,''),request.beautician_id::text)>0;
+ WHERE beautician_id=request.beautician_id
+ OR data #>> '{data,object,metadata,beautician_id}' = request.beautician_id::text
+ OR data #>> '{metadata,beautician_id}' = request.beautician_id::text;
  DELETE FROM public.beauticians WHERE id=request.beautician_id AND auth_id=request.auth_id;
 END $$;
 REVOKE ALL ON FUNCTION public.erase_deletion_business(uuid) FROM PUBLIC, anon, authenticated;

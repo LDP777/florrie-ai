@@ -52,12 +52,18 @@ await assert.rejects(asUser(`INSERT INTO public.beauticians(auth_id) VALUES('${o
 await asUser(`UPDATE public.beauticians SET first_name='Still editable' WHERE id='${owner}'`);
 await db.exec(`SET ROLE service_role; UPDATE public.beauticians SET subscription_plan='florrie_team',trial_ends_at='2099-01-01' WHERE id='${owner}'; RESET ROLE;`);
 await db.exec(`INSERT INTO public.account_deletions(auth_id,beautician_id,snapshot_encrypted,status_token_hash) VALUES('${owner}','${owner}','encrypted','hash');
- INSERT INTO public.stripe_events VALUES('evt_test','${owner}','{"email":"private@example.test"}',NULL);
+ INSERT INTO public.stripe_events VALUES('evt_test','${owner}','{"email":"private@example.test"}',NULL),
+ ('evt_foreign','${other}','{"description":"mentions ${owner}"}',NULL),
+ ('evt_nested',NULL,'{"data":{"object":{"metadata":{"beautician_id":"${owner}"}}}}',NULL),
+ ('evt_legacy',NULL,'{"metadata":{"beautician_id":"${owner}"}}',NULL);
  INSERT INTO storage.objects VALUES('legacy','flat-file','${owner}'),('private','${owner}/photo.jpg',NULL),('private','${other}/photo.jpg','${other}');`);
 const job=(await db.query('SELECT id FROM public.account_deletions')).rows[0];
 await db.exec(`SET ROLE service_role; SELECT public.erase_deletion_business('${job.id}'); RESET ROLE;`);
 assert.equal((await db.query(`SELECT * FROM public.beauticians WHERE id='${owner}'`)).rows.length,0);
 assert.deepEqual((await db.query(`SELECT data FROM public.stripe_events WHERE id='evt_test'`)).rows[0].data,{account_deleted:true});
+for (const id of ['evt_nested','evt_legacy']) assert.deepEqual((await db.query('SELECT data FROM public.stripe_events WHERE id=$1',[id])).rows[0].data,{account_deleted:true});
+assert.equal((await db.query("SELECT processed_at FROM public.stripe_events WHERE id='evt_foreign'")).rows[0].processed_at,null);
+assert.deepEqual((await db.query("SELECT data FROM public.stripe_events WHERE id='evt_foreign'")).rows[0].data,{description:`mentions ${owner}`});
 assert.equal((await db.query(`SELECT * FROM public.account_deletion_storage_objects('${owner}','${owner}')`)).rows.length,2);
 await assert.rejects(db.exec(`INSERT INTO public.beauticians(auth_id) VALUES('${owner}')`),e=>e.code==='23514');
 console.log('PASS: ordinary profile edits, cross-owner denial, INSERT/UPDATE defence, inherited grants, storage isolation, durable deletion and recreation prevention in embedded PostgreSQL');
