@@ -18,7 +18,7 @@
  * nothing. Only a waiter with no preferences whatsoever could ever have been
  * offered a slot.
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 const PHANTOM = { waitlist: ['preferred_times'] };
 
@@ -99,6 +99,10 @@ const waiter = (over = {}) => ({
 });
 
 beforeEach(() => {
+  // The preference cases below describe a day before opening, not whichever
+  // partial gap remains at the wall-clock time the release suite is run.
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-09-07T07:00:00Z')); // 08:00 in the salon
   for (const t of Object.keys(db)) db[t] = [];
   offers.length = 0;
   rejected.length = 0;
@@ -107,6 +111,8 @@ beforeEach(() => {
     client_reminder_prefs: {}, timezone: 'Europe/London', booking_slug: 'ellindigo', autonomy: {},
   });
 });
+
+afterEach(() => { vi.useRealTimers(); });
 
 describe('the woman who asked to be told', () => {
   it('is offered the slot', async () => {
