@@ -1,3 +1,5 @@
+import BookingEmailVerification from '../components/BookingEmailVerification.jsx';
+import { bookingAuth, bookingHeaders } from '../lib/booking-auth.js';
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import { supabase } from '../lib/supabase.js'
 import { useParams, useLocation } from 'react-router-dom';
@@ -180,7 +182,6 @@ export default function BookingPage() {
   const [monthBlocks, setMonthBlocks] = useState([]);
   const [reviewsData, setReviewsData] = useState(null);
   // "Booked before?" one-tap rebook path on step 0
-  const [rebookPhone, setRebookPhone] = useState('');
   const [rebookState, setRebookState] = useState('idle'); // idle | looking | matched | nomatch
   const [rebookMatch, setRebookMatch] = useState(null);   // lookup payload when matched
   const [calLoading, setCalLoading] = useState(false);
@@ -214,6 +215,19 @@ export default function BookingPage() {
   // Payment method: 'card', 'cash', 'bank_transfer'
   const [paymentMethod, setPaymentMethod] = useState('card');
   // Client recognition, returning client lookup
+  const [bookingEmail, setBookingEmail] = useState('');
+  const bookingEmailRef = useRef('');
+  function verifiedEmailChanged(email) {
+    if (bookingEmailRef.current === email) return;
+    const changingIdentity = !!bookingEmailRef.current;
+    bookingEmailRef.current = email;
+    setBookingEmail(email);
+    setClientDetails(previous => changingIdentity ? { name: '', phone: '', notes: '', email } : { ...previous, email });
+    setRecognisedClient(null); setMemberInfo(null); setAvailablePackages([]); setSelectedPackage(null);
+    setRebookMatch(null); setRebookState('idle'); setConsultationDecision(null);
+    setConsultationAnswers({}); setPhotoConsent(false); setMarketingOptIn(false);
+    lookupInFlight.current = null;
+  }
   const [recognisedClient, setRecognisedClient] = useState(null); // the lookup-client payload: { found, client, returningClient, priorVisits, hasPendingPatchTest, hasPendingForm, consultation, ... }
   const [lookingUpClient, setLookingUpClient] = useState(false);
   /* THE CONSULTATION VERDICT, decided by the server and obeyed here.
@@ -404,10 +418,13 @@ export default function BookingPage() {
     })();
     return () => { alive = false; };
   }, [consultationFormIds.join(','), slug]);
-  // Check membership + packages when phone number looks complete
+  const [benefitError, setBenefitError] = useState('');
+  const [benefitRetry, setBenefitRetry] = useState(0);
+  // Benefits belong only to the current verified email.
   useEffect(() => {
-    const cleaned = clientDetails.phone.replace(/[^\d]/g, '');
-    if (cleaned.length < 10) {
+    let alive = true;
+    setBenefitError('');
+    if (!bookingEmail) {
       setMemberInfo(null);
       setAvailablePackages([]);
       setSelectedPackage(null);
@@ -419,25 +436,27 @@ export default function BookingPage() {
         const [memberRes, pkgRes] = await Promise.all([
           fetch(`${API_BASE}/api/booking/${slug}/check-member`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: await bookingHeaders(),
             body: JSON.stringify({ phone: clientDetails.phone }),
           }),
           fetch(`${API_BASE}/api/booking/${slug}/check-packages`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: await bookingHeaders(),
             body: JSON.stringify({ phone: clientDetails.phone, treatment_id: selectedTreatment?.id }),
           }),
         ]);
+        if (!memberRes.ok || !pkgRes.ok) throw new Error('benefits unavailable');
         const memberData = await memberRes.json();
         const pkgData = await pkgRes.json();
+        if (!alive) return;
         setMemberInfo(memberData.is_member ? memberData : null);
         setAvailablePackages(pkgData.packages || []);
       } catch {
-        // Silent fail
+        if (alive) setBenefitError('Your membership and packages could not be checked. Please retry before paying.');
       }
     }, 600);
-    return () => clearTimeout(timer);
-  }, [clientDetails.phone, slug, selectedTreatment?.id]);
+    return () => { alive = false; clearTimeout(timer); };
+  }, [slug, selectedTreatment?.id, bookingEmail, benefitRetry]);
   /* Who is being looked up, and for what.
    *
    * Both halves matter. "Has this client got her consultation on file" is a
@@ -454,10 +473,11 @@ export default function BookingPage() {
   // rather than on whatever state happens to have landed by then.
   function lookupClient() {
     const forKey = consultationKey;
+    const identity = bookingEmail;
     const run = (async () => {
       const email = clientDetails.email?.trim();
       const phone = clientDetails.phone?.trim();
-      if (!email && !phone) {
+      if (!bookingEmail) {
         setConsultationDecision(null);
         return { ...CONSULTATION_UNKNOWN, forKey };
       }
@@ -469,12 +489,13 @@ export default function BookingPage() {
       try {
         const res = await fetch(`${API_BASE}/api/booking/${slug}/lookup-client`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: await bookingHeaders(),
           body: JSON.stringify({ email, phone, treatment_ids: selectedTreatmentIds }),
           signal: controller.signal,
         });
         if (!res.ok) return { ...CONSULTATION_UNKNOWN, forKey };
         const data = await res.json();
+        if (bookingEmailRef.current !== identity) return { ...CONSULTATION_UNKNOWN, forKey };
         if (data.found && data.client) {
           setRecognisedClient(data);
           // Pre-fill name and phone if not already entered
@@ -544,19 +565,22 @@ export default function BookingPage() {
       setDecidingConsultation(false);
     }
   }
-  // "Booked before?" quick path: phone-only lookup on step 0. On a match we
+  // Verified returning-client lookup on step 0. On a match we
   // greet by name, prefill details, and offer their last treatment one-tap.
   async function quickRebookLookup() {
-    const phone = rebookPhone.trim();
-    if (phone.length < 7) return;
+    const identity = bookingEmail;
+    const phone = '';
+    if (!identity) return;
     setRebookState('looking');
     try {
       const res = await fetch(`${API_BASE}/api/booking/${slug}/lookup-client`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await bookingHeaders(),
         body: JSON.stringify({ phone }),
       });
-      const data = res.ok ? await res.json() : { found: false };
+      if (!res.ok) throw new Error('Saved details could not be checked. Please try again.');
+      const data = await res.json();
+      if (bookingEmailRef.current !== identity) return;
       if (data.found && data.client) {
         setRecognisedClient(data);
         setRebookMatch(data);
@@ -571,7 +595,7 @@ export default function BookingPage() {
         setRebookState('nomatch');
       }
     } catch {
-      setRebookState('nomatch');
+      if (bookingEmailRef.current === identity) setRebookState('error');
     }
   }
 
@@ -941,6 +965,7 @@ export default function BookingPage() {
 
   // Submit booking via backend API (handles client creation, conflict checks, deposits)
   async function handleBook() {
+    if (!bookingEmail) { setError('Verify your email before booking.'); setStep(2); return; }
     // Refuse before anything is created. A booking that skips the medical
     // questions is exactly the booking Ellie needs the answers for, and the
     // required flag on her own form fields was being rendered and then ignored.
@@ -962,7 +987,7 @@ export default function BookingPage() {
       // Call backend API, handles client lookup/creation, RLS, conflict check, deposit flow
       const res = await fetch(`${API_BASE}/api/booking/${slug}/book`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await bookingHeaders(),
         body: JSON.stringify({
           treatment_id: selectedTreatment.id,
           extra_treatment_ids: selectedTreatments.slice(1).map(t => t.id),
@@ -1004,6 +1029,12 @@ export default function BookingPage() {
         // just need a moment. Never surface a scary technical error here.
         if (res.status === 429) {
           throw new Error('Lots of people are booking right now. Wait a minute and tap confirm again, your details are saved.');
+        }
+        if (data.code === 'booking_verification_required') {
+          await bookingAuth.auth.signOut({ scope: 'local' });
+          verifiedEmailChanged('');
+          setStep(2);
+          throw new Error('Your email verification expired. Verify again to continue.');
         }
         // The stranger wall on POST /book. It fires when the page could not
         // reach lookup-client and therefore did not know to require the form,
@@ -1077,6 +1108,7 @@ export default function BookingPage() {
         errors.slot = 'Please select a time slot';
       }
     } else if (currentStep === 2) {
+      if (!bookingEmail) errors.email = 'Verify your email before continuing.';
       if (!clientDetails.name || !clientDetails.name.trim()) {
         errors.name = 'Name is required';
       }
@@ -1328,37 +1360,10 @@ export default function BookingPage() {
         {/* Step 0: Select Treatment */}
         {step === 0 && (
           <div>
-            {/* Returning clients: recognise + one-tap "same again" */}
-            {rebookState !== 'matched' && (
-              <div style={{ background: 'var(--tone-2, #f6e7dd)', borderRadius: 16, padding: '12px 14px', marginBottom: 18 }}>
-                <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 8px' }}>
-                  Been here before? Pop your mobile in and skip the form.
-                </p>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <input
-                    type="tel"
-                    inputMode="tel"
-                    placeholder="07..."
-                    value={rebookPhone}
-                    onChange={e => { setRebookPhone(e.target.value); if (rebookState === 'nomatch') setRebookState('idle'); }}
-                    onKeyDown={e => { if (e.key === 'Enter') quickRebookLookup(); }}
-                    style={{ flex: 1, minWidth: 0, minHeight: 44, padding: '0 12px', borderRadius: 10, border: 'none', background: 'var(--bg-card)', fontSize: 14, fontFamily: 'inherit', outline: 'none' }}
-                  />
-                  <button
-                    onClick={quickRebookLookup}
-                    disabled={rebookState === 'looking' || rebookPhone.trim().length < 7}
-                    style={{ minHeight: 44, padding: '0 16px', borderRadius: 10, border: 'none', background: brand, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: rebookState === 'looking' || rebookPhone.trim().length < 7 ? 0.55 : 1 }}
-                  >
-                    {rebookState === 'looking' ? 'Looking…' : 'Find me'}
-                  </button>
-                </div>
-                {rebookState === 'nomatch' && (
-                  <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '8px 0 0' }}>
-                    No booking under that number yet. Pick a treatment below and we will set you up.
-                  </p>
-                )}
-              </div>
-            )}
+            <BookingEmailVerification onVerified={verifiedEmailChanged} />
+            {rebookState === 'error' && <p role="alert">Saved details could not be checked. Please try again.</p>}
+            {rebookState === 'nomatch' && <p>No saved details for this email. Choose your treatment to continue. If your package uses another email, contact the salon.</p>}
+            {bookingEmail && rebookState !== 'matched' && <button type="button" onClick={quickRebookLookup} disabled={rebookState === 'looking'} style={styles.backBtn}>Find my saved details</button>}
             {rebookState === 'matched' && rebookMatch && (
               <div style={{ background: brandLight, borderRadius: 16, padding: '14px 16px', marginBottom: 18 }}>
                 <p style={{ fontSize: 15, fontWeight: 700, color: brand, margin: 0, fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" }}>
@@ -1796,15 +1801,7 @@ export default function BookingPage() {
                 </p>
               </div>
               <div>
-                <input
-                  type="email" placeholder="Email (optional)"
-                  value={clientDetails.email}
-                  onChange={e => { setClientDetails({ ...clientDetails, email: e.target.value }); setRecognisedClient(null); }}
-                  onBlur={lookupClient}
-                  style={{ ...styles.input,
-                    borderColor: fieldErrors.email ? 'var(--danger)' : '#E8E4DF'
-                  }}
-                />
+                <BookingEmailVerification onVerified={verifiedEmailChanged} />
                 {fieldErrors.email && <span style={styles.fieldErrorText}>{fieldErrors.email}</span>}
                 {lookingUpClient && (
                   <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>Checking…</p>
@@ -1855,7 +1852,7 @@ export default function BookingPage() {
                   const decision = await resolveConsultationDecision();
                   setStep(decision.ask ? 2.5 : 3);
                 }}
-                disabled={!clientDetails.name || !clientDetails.phone || decidingConsultation}
+                disabled={!bookingEmail || !clientDetails.name || !clientDetails.phone || decidingConsultation}
                 style={{ ...styles.primaryBtn,
                   background: (!clientDetails.name || !clientDetails.phone || decidingConsultation) ? '#ccc' : brand,
                   cursor: (!clientDetails.name || !clientDetails.phone || decidingConsultation) ? 'not-allowed' : 'pointer'
@@ -2244,6 +2241,7 @@ export default function BookingPage() {
               </div>
             )}
             {/* Package redemption */}
+            {benefitError && <div role="alert"><p>{benefitError}</p><button type="button" onClick={() => setBenefitRetry(value => value + 1)}>Retry benefits check</button></div>}
             {availablePackages.length > 0 && (
               <div style={{ marginBottom: 12 }}>
                 {availablePackages.map(pkg => {

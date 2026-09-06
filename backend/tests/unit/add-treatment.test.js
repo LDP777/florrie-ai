@@ -224,8 +224,8 @@ describe('it will not book time that is not there', () => {
     let calls = 0;
     const realFrom = supabase.from;
     supabase.from = (t) => {
-      // Call one is the appointment lookup; call two is the clash check.
-      if (t === 'appointments' && ++calls === 2) {
+      // The access guard and route each read the appointment; call three checks clashes.
+      if (t === 'appointments' && ++calls === 3) {
         const bad = {};
         for (const m of ['select', 'eq', 'neq', 'in', 'lt', 'gt', 'gte', 'lte', 'order', 'limit']) bad[m] = () => bad;
         bad.then = (r) => Promise.resolve({ data: null, error: { message: 'boom' } }).then(r);
@@ -243,19 +243,19 @@ describe('it will not book time that is not there', () => {
 describe('what a client may not do', () => {
   it('refuses a token that does not match the salon in the url', async () => {
     const res = await post(`/api/booking/someone-else/manage/${TOKEN}/add-treatment`, { treatment_id: LASH_LIFT });
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(404);
   });
 
   it('refuses an unknown token', async () => {
     const res = await add(LASH_LIFT, 'not-a-real-token');
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(404);
   });
 
   it('refuses to touch a cancelled booking', async () => {
     db.appointments[0].status = 'cancelled';
     const res = await add();
-    expect(res.status).toBe(409);
-    expect(res.body.error).toMatch(/no longer be changed/i);
+    expect(res.status).toBe(410);
+    expect(res.body.error).toMatch(/expired/i);
   });
 
   it('refuses an appointment that has already happened', async () => {

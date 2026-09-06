@@ -1,3 +1,5 @@
+import { requireBookingIdentity, exactEmailPattern } from '../lib/booking-identity.js';
+import { bookingManagementGuard } from '../lib/booking-management-access.js';
 import { Router } from 'express';
 import { z } from 'zod';
 import Stripe from 'stripe';
@@ -30,6 +32,7 @@ import { patchTestEvidence } from '../lib/patch-test-status.js';
 import { readConsultationStatus, hasPriorHistory } from '../lib/consultation-status.js';
 
 const router = Router();
+router.use('/:slug/manage/:token', bookingManagementGuard(supabase));
 
 /**
  * Send the confirmation, and if it reached nobody, say so to the owner.
@@ -876,7 +879,7 @@ router.get('/:slug/policy', async (req, res) => {
  * Returns pre-fill data + patch test status + pending consultation forms.
  * Does NOT return sensitive data — only enough to personalise the booking form.
  */
-router.post('/:slug/lookup-client', async (req, res) => {
+router.post('/:slug/lookup-client', requireBookingIdentity, async (req, res) => {
   try {
     const { email, phone, treatment_ids } = req.body;
     if (!email && !phone) return res.json({ found: false });
@@ -889,35 +892,21 @@ router.post('/:slug/lookup-client', async (req, res) => {
       .single();
     if (!b) return res.status(404).json({ error: 'Not found' });
 
-    // Look up client by email OR phone — a match on EITHER field means a
-    // returning client. Try email first (most reliable), fall back to phone.
+    // Saved details are accessible only through the verified email.
     const selectCols = 'id, first_name, last_name, email, phone';
     let client = null;
 
     if (email) {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('clients')
         .select(selectCols)
         .eq('beautician_id', b.id)
-        .ilike('email', email.trim())
+        .ilike('email', exactEmailPattern(email))
         .maybeSingle();
+      if (error) return res.status(503).json({ error: 'Saved details could not be checked. Please try again.' });
       client = data;
     }
 
-    if (!client && phone) {
-      // Match on the last 9 digits so +44 / 0 / spaced formats all resolve to
-      // the SAME client (07... == +447...). Same convention as rebook + imports.
-      const pd = String(phone).replace(/\D/g, '');
-      if (pd.length >= 7) {
-        const { data } = await supabase
-          .from('clients')
-          .select(selectCols)
-          .eq('beautician_id', b.id)
-          .ilike('phone', `%${pd.slice(-9)}`)
-          .limit(1);
-        client = data?.[0] || null;
-      }
-    }
 
     /* WHAT SHE IS BOOKING, resolved before the not-found return, because the
      * page needs an answer about the form either way and the answer for
@@ -1141,6 +1130,8 @@ router.get('/:slug/manage/:token', async (req, res) => {
       supabase
         .from('consultation_responses')
         .select('id, status, created_at, token, form_url, consultation_forms(name)')
+        .eq('appointment_id', appt.id)
+        .gt('expires_at', new Date().toISOString())
         .eq('client_id', clientId)
         .eq('beautician_id', beauticianId)
         .eq('status', 'pending')
@@ -3407,14 +3398,11 @@ router.get('/:slug/consultation-form/:formId', async (req, res) => {
 
 /**
  * POST /api/booking/:slug/check-member
- * Public endpoint — checks if a phone number belongs to a client with an active membership.
+ * Verified client endpoint — checks membership for the authenticated email.
  * Returns membership info so the booking page can show a "Member" badge and notify the beautician.
  */
-router.post('/:slug/check-member', async (req, res) => {
-  const { phone } = req.body;
-  if (!phone || typeof phone !== 'string' || phone.trim().length < 5) {
-    return res.json({ is_member: false });
-  }
+router.post('/:slug/check-member', requireBookingIdentity, async (req, res) => {
+  const { email } = req.body;
 
   const { data: beautician } = await supabase
     .from('beauticians')
@@ -3424,15 +3412,10 @@ router.post('/:slug/check-member', async (req, res) => {
 
   if (!beautician) return res.json({ is_member: false });
 
-  // Find client by phone (last-9 match: +44 / 0 / spaced all resolve the same)
-  const mpd = String(phone || '').replace(/\D/g, '');
-  const { data: memberRows } = mpd.length >= 7 ? await supabase
-    .from('clients')
-    .select('id, first_name')
-    .eq('beautician_id', beautician.id)
-    .ilike('phone', `%${mpd.slice(-9)}`)
-    .limit(1) : { data: [] };
-  const client = memberRows?.[0] || null;
+  const { data: client, error: identityError } = await supabase.from('clients')
+    .select('id, first_name').eq('beautician_id', beautician.id)
+    .ilike('email', exactEmailPattern(email)).maybeSingle();
+  if (identityError) return res.status(503).json({ error: 'Membership could not be checked. Please try again.' });
 
   if (!client) return res.json({ is_member: false });
 
@@ -3442,7 +3425,7 @@ router.post('/:slug/check-member', async (req, res) => {
   // This route had them the wrong way round, and then read a `membership_plans`
   // table that does not exist at all. Both queries errored, so `is_member` was
   // ALWAYS false: no client has ever been recognised as a member here.
-  const { data: membership } = await supabase
+  const { data: membership, error: membershipError } = await supabase
     .from('membership_subscriptions')
     .select('id, membership_id, status')
     .eq('beautician_id', beautician.id)
@@ -3450,14 +3433,16 @@ router.post('/:slug/check-member', async (req, res) => {
     .eq('status', 'active')
     .maybeSingle();
 
+  if (membershipError) return res.status(503).json({ error: 'Membership could not be checked. Please try again.' });
   if (!membership) return res.json({ is_member: false });
 
-  const { data: plan } = await supabase
+  const { data: plan, error: planError } = await supabase
     .from('client_memberships')
     .select('name')
     .eq('id', membership.membership_id)
     .maybeSingle();
 
+  if (planError) return res.status(503).json({ error: 'Membership could not be checked. Please try again.' });
   return res.json({
     is_member: true,
     plan_name: plan?.name || 'Active Member',
@@ -3467,14 +3452,11 @@ router.post('/:slug/check-member', async (req, res) => {
 
 /**
  * POST /api/booking/:slug/check-packages
- * Public endpoint — checks if a phone number has active packages with sessions remaining.
+ * Verified client endpoint — checks packages for the authenticated email.
  * Returns the packages so the booking page can offer "Use a session" instead of paying.
  */
-router.post('/:slug/check-packages', async (req, res) => {
-  const { phone, treatment_id } = req.body;
-  if (!phone || typeof phone !== 'string' || phone.trim().length < 5) {
-    return res.json({ packages: [] });
-  }
+router.post('/:slug/check-packages', requireBookingIdentity, async (req, res) => {
+  const { email, treatment_id } = req.body;
 
   const { data: beautician } = await supabase
     .from('beauticians')
@@ -3484,14 +3466,9 @@ router.post('/:slug/check-packages', async (req, res) => {
 
   if (!beautician) return res.json({ packages: [] });
 
-  // Find client by phone (last-9 match: +44 / 0 / spaced all resolve the same)
-  const ppd = String(phone || '').replace(/\D/g, '');
-  const { data: pkgClientRows, error: pkgClientErr } = ppd.length >= 7 ? await supabase
-    .from('clients')
-    .select('id')
-    .eq('beautician_id', beautician.id)
-    .ilike('phone', `%${ppd.slice(-9)}`)
-    .limit(1) : { data: [], error: null };
+  const { data: pkgClient, error: pkgClientErr } = await supabase.from('clients')
+    .select('id').eq('beautician_id', beautician.id)
+    .ilike('email', exactEmailPattern(email)).maybeSingle();
 
   // "We could not look" is not "you have no packages". Say so, otherwise she is
   // shown the full price for sessions she has already paid for.
@@ -3499,7 +3476,7 @@ router.post('/:slug/check-packages', async (req, res) => {
     logger.error({ err: pkgClientErr, beauticianId: beautician.id }, 'check-packages: client lookup failed');
     return res.status(503).json({ packages: [], unchecked: true, error: 'Could not check your packages just then.' });
   }
-  const client = pkgClientRows?.[0] || null;
+  const client = pkgClient || null;
 
   if (!client) return res.json({ packages: [] });
 
@@ -3688,7 +3665,7 @@ async function recordReturningClientConsent(clientId, beauticianId) {
  * Checkout session and returns checkout_url for redirect.
  * Returning clients with a saved Stripe customer see their saved cards.
  */
-router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req, res) => {
+router.post('/:slug/book', requireBookingIdentity, validate(bookingSchema), verifyTurnstile, async (req, res) => {
   const { treatment_id, extra_treatment_ids, starts_at, client_name, client_email, client_phone, notes, consultation, add_ons, payment_type, payment_method, discount_code, photo_consent, client_package_id, marketing_opt_in } = req.body;
 
   // Get beautician from slug (include Stripe fields, booking policy, payment settings)
@@ -3833,9 +3810,8 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
   let client;
   let isNewClient = false;
 
-  // Find an existing client by email OR phone — a match on EITHER field means a
-  // returning client, so we reuse their record (no duplicate) and skip the
-  // consultation form / patch test. Try email first, fall back to phone.
+  // Reuse only the record matching the verified email. A typed phone number
+  // never establishes ownership of saved records or prepaid benefits.
   let existingClient = null;
 
   // Until migration 018 runs, archived_at does not exist and selecting it
@@ -3843,6 +3819,7 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
   // becomes null here, which creates a DUPLICATE record and, far worse,
   // bypasses the blocked-client check below. So: try with archived_at,
   // and on a missing-column error retry without it rather than shrugging.
+  let clientLookupFailed = false;
   const lookupClient = async (build) => {
     let { data, error } = await build('id, stripe_customer_id, blocked_at, archived_at');
     if (error && isMissingColumnError(error)) {
@@ -3850,6 +3827,7 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
     }
     if (error) {
       logger.error({ err: error }, 'booking client lookup failed');
+      clientLookupFailed = true;
       return null;
     }
     return data;
@@ -3860,25 +3838,11 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
       .from('clients')
       .select(cols)
       .eq('beautician_id', beautician.id)
-      .ilike('email', client_email.trim())
+      .ilike('email', exactEmailPattern(client_email))
       .maybeSingle());
   }
 
-  if (!existingClient && client_phone) {
-    // Last-9 match so a returning client typing 07... when we stored +447...
-    // (or vice versa) is still recognised: no duplicate record, and no being
-    // re-asked for a patch test / consultation form they already did.
-    const cpd = String(client_phone).replace(/\D/g, '');
-    if (cpd.length >= 7) {
-      const rows = await lookupClient((cols) => supabase
-        .from('clients')
-        .select(cols)
-        .eq('beautician_id', beautician.id)
-        .ilike('phone', `%${cpd.slice(-9)}`)
-        .limit(1));
-      existingClient = rows?.[0] || null;
-    }
-  }
+  if (clientLookupFailed) return res.status(503).json({ error: 'Your client record could not be checked. Please try again.' });
 
   // A client Ellie has blocked cannot book online. Kept deliberately vague so
   // it does not invite an argument; she can still add them by hand if she wants.

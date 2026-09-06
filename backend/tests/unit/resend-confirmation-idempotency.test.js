@@ -130,6 +130,8 @@ beforeEach(() => {
   PATH = `/api/booking/ellindigo/manage/${TOKEN}/resend-confirmation`;
   db.appointments = [{
     id: APPT_ID,
+    status: 'confirmed',
+    starts_at: new Date(Date.now() + 86400000).toISOString(),
     beautician_id: 'b1',
     management_token: TOKEN,
     confirmation_sent_at: null,

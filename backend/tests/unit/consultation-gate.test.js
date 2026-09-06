@@ -364,7 +364,7 @@ function seed(name) {
 
 const lookup = (pop) => run(bookingRouter, 'post', '/:slug/lookup-client', {
   params: { slug: 'ellindigo' },
-  body: { phone: pop.phone, treatment_ids: [pop.treatment.id] },
+  body: { email: pop.client?.email || 'new@example.com', phone: pop.phone, treatment_ids: [pop.treatment.id] },
 });
 
 /* The form SMS is fired and not awaited, deliberately: a booking must never
@@ -381,6 +381,7 @@ const book = async (pop, over = {}) => {
       starts_at: THE_THIRD,
       client_name: 'Ada Booking',
       client_phone: pop.phone,
+      client_email: pop.client?.email || 'new@example.com',
       payment_type: 'deposit',
       ...over,
     },
