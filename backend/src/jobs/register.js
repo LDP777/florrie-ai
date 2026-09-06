@@ -1,4 +1,5 @@
 import { retryAccountDeletions } from '../services/account-deletion.js';
+import { retryReschedulePayments } from '../services/reschedule-payments.js';
 import { retryBookingConfirmedAlerts } from '../services/booking-confirmed-alert.js';
 /**
  * Every background job, in one list.
@@ -70,6 +71,12 @@ const DAY = 24 * HOUR;
 
 export const JOBS = [
   { name: 'account-deletion-cleanup', description: 'resume incomplete account deletion requests', intervalMs: 5 * MINUTE, handler: retryAccountDeletions },
+  {
+    name: 'reschedule-payment-recovery',
+    description: 'return deposits for reschedules that could not be completed',
+    intervalMs: 5 * MINUTE,
+    handler: retryReschedulePayments,
+  },
   {
     name: 'booking-confirmation-delivery',
     description: 'retry recent unsuccessful booking confirmation pushes',

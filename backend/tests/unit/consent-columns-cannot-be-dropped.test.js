@@ -180,11 +180,11 @@ describe('no new sender joins clients without the consent columns', () => {
     // (Previously 857 / 1572 / 2126 / 2392 / 2803, then 993 / 1708 / 2262 /
     // 2528 / 2939, then 994 / 1777 / 2331 / 2597 / 3008, then 1019 / 1846 /
     // 2400 / 2666 / 3077, then 1095 / 2032 / 2586 / 2852 / 3263.)
-    'src/routes/booking.js:1105',
-    'src/routes/booking.js:2044',
-    'src/routes/booking.js:2598',
-    'src/routes/booking.js:2887',
-    'src/routes/booking.js:3298',
+    'src/routes/booking.js:1107',
+    'src/routes/booking.js:2046',
+    'src/routes/booking.js:2603',
+    'src/routes/booking.js:2892',
+    'src/routes/booking.js:3303',
     'src/routes/features.js:132',
     'src/routes/features.js:169',
     'src/routes/features.js:194',

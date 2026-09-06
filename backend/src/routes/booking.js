@@ -1,5 +1,7 @@
 import { requireBookingIdentity, exactEmailPattern } from '../lib/booking-identity.js';
 import { bookingManagementGuard } from '../lib/booking-management-access.js';
+import { performPaidReschedule } from '../services/reschedule-payments.js';
+import { insertPaymentReceipt } from '../lib/payment-receipt.js';
 import { Router } from 'express';
 import { z } from 'zod';
 import Stripe from 'stripe';
@@ -15,7 +17,7 @@ import { splitBookingSubmission } from '../lib/client-notes.js';
 import { validate } from '../middleware/validate.js';
 import { requireAuth } from '../middleware/auth.js';
 import { totalApplicationFee } from '../lib/platform-fees.js';
-import { chargePolicyFee, computePolicyFee, chargeRescheduleDeposit } from '../services/policy-fees.js';
+import { chargePolicyFee, computePolicyFee } from '../services/policy-fees.js';
 import { verifyTurnstile } from '../middleware/turnstile.js';
 import logger from '../lib/logger.js';
 import { bookingSchema } from '../lib/schemas.js';
@@ -441,7 +443,7 @@ router.get('/confirm/:sessionId', async (req, res) => {
               const { data: already, error: alreadyErr } = await supabase
                 .from('transactions')
                 .select('id')
-                .eq('appointment_id', appointmentId)
+                .eq(session.payment_intent ? 'stripe_payment_intent_id' : 'appointment_id', session.payment_intent || appointmentId)
                 .in('type', BOOKING_MONEY_LOGGED_TYPES)
                 .limit(1);
               if (alreadyErr) {
@@ -457,7 +459,7 @@ router.get('/confirm/:sessionId', async (req, res) => {
                   },
                 });
               } else if (!already?.length) {
-                const { error: depErr } = await supabase.from('transactions').insert({
+                const { error: depErr } = await insertPaymentReceipt(supabase, {
                   beautician_id: full.beautician_id,
                   appointment_id: appointmentId,
                   client_id: full.client_id || null,
@@ -2196,15 +2198,18 @@ router.post('/:slug/manage/:token/reschedule', async (req, res) => {
     // This runs before the move so a failed deposit never leaves the slot shifted.
     let newDepositCollected = false;
     if (isLateReschedule && policy.require_deposit_on_late_reschedule === true) {
-      const dep = await chargeRescheduleDeposit(appt.id, newStart.toISOString());
-      if (dep.charged) {
-        newDepositCollected = true;
-      } else if (dep.reason !== 'no_deposit') {
-        const who = appt.beauticians?.business_name || appt.beauticians?.first_name || 'your beautician';
-        const msg = dep.reason === 'no_card_on_file'
-          ? `We couldn't take the new deposit because there's no saved card on file, so your appointment has not been moved. Please contact ${who} to rearrange.`
-          : `We couldn't take the new deposit for the rescheduled time, so your appointment has not been moved. Please try again, or contact ${who}.`;
-        return res.status(402).json({ error: msg, code: 'reschedule_deposit_required' });
+      const payment = await performPaidReschedule(appt.id, appt.starts_at, newStart.toISOString(), newEnd.toISOString());
+      if (payment.state === 'moved') newDepositCollected = true;
+      else if (payment.state !== 'no_deposit') {
+        const pending = payment.state === 'pending';
+        return res.status(pending ? 503 : 402).json({
+          error: pending
+            ? 'We could not confirm the result of your move. Please check your appointment before trying again. We are checking the deposit; do not submit another payment. Contact your beautician if you need help.'
+            : payment.state === 'refunded'
+              ? 'The new time could not be booked. The new deposit has been refunded and your original appointment remains in place.'
+              : 'We could not take the new deposit. Your original appointment has not been moved. Please contact your beautician to rearrange.',
+          code: pending ? 'reschedule_payment_pending' : 'reschedule_deposit_required',
+        });
       }
     }
 
@@ -2213,7 +2218,7 @@ router.post('/:slug/manage/:token/reschedule', async (req, res) => {
     const oldEndsAt = appt.ends_at;
 
     // Update appointment to new time
-    const { error: updateErr } = await supabase
+    const { error: updateErr, data: movedRows } = newDepositCollected ? { error: null, data: [{ id: appt.id }] } : await supabase
       .from('appointments')
       .update({
         starts_at: newStart.toISOString(),
@@ -2222,9 +2227,9 @@ router.post('/:slug/manage/:token/reschedule', async (req, res) => {
         rescheduled_at: new Date().toISOString(),
         rescheduled_from: oldStartsAt,
       })
-      .eq('id', appt.id);
+      .eq('id', appt.id).eq('starts_at', oldStartsAt).in('status', ['confirmed', 'pending']).select('id');
 
-    if (updateErr) {
+    if (updateErr || !movedRows?.length) {
       logger.error({ err: updateErr }, 'Reschedule update failed');
       return res.status(500).json({ error: 'Something went wrong' });
     }
@@ -4184,25 +4189,12 @@ router.post('/:slug/book', requireBookingIdentity, validate(bookingSchema), veri
       }, 'book: package not usable, booking continues as a paid booking');
       packageFellBackToPayment = true;
     } else {
-      const used = clientPkg.sessions_used || 0;
-      const totalSessions = clientPkg.sessions_total ?? clientPkg.packages?.sessions_total ?? 0;
-
-      // Increment sessions_used. If this write does not land the session is
-      // effectively free, so it decides the booking rather than being ignored.
-      const { error: redeemPkgErr } = await supabase
-        .from('client_packages')
-        .update({
-          sessions_used: used + 1,
-          // Auto-complete if all sessions now used
-          ...(used + 1 >= totalSessions && { status: 'completed' }),
-        })
-        .eq('id', client_package_id);
-
-      if (redeemPkgErr) {
-        logger.error({ err: redeemPkgErr, clientPackageId: client_package_id }, 'book: package redemption write failed');
-        return res.status(503).json({ error: 'Could not use your package session just then. Nothing has been booked, please try again.' });
+      const eligible = clientPkg.packages?.treatment_ids || [];
+      if ((eligible.length && !eligible.includes(treatment_id)) || extraTreatments.length || add_ons?.length) {
+        return res.status(409).json({ error: 'This package covers one eligible treatment per session. Remove additional treatments and add-ons, or book without the package.', code: 'package_treatment_not_covered' });
       }
-
+      // The database locks the package and spends the session in the same
+      // transaction as the appointment insert. A rejected slot spends nothing.
       isPackageRedemption = true;
     }
   }
@@ -4258,9 +4250,7 @@ router.post('/:slug/book', requireBookingIdentity, validate(bookingSchema), veri
     : null;
 
   // Create appointment (uses combined duration/price for multi-treatment bookings)
-  const { data: appointment, error: aError } = await supabase
-    .from('appointments')
-    .insert({
+  const bookingRow = {
       beautician_id: beautician.id,
       client_id: client.id,
       treatment_id,
@@ -4287,12 +4277,16 @@ router.post('/:slug/book', requireBookingIdentity, validate(bookingSchema), veri
       ...(photo_consent && { photo_consent: true }),
       ...(isPackageRedemption && { package_redemption: true, client_package_id }),
       ...(extraTreatments.length > 0 && { extra_treatment_ids: extraTreatments.map(t => t.id) }),
-    })
-    .select()
-    .single();
+    };
+  const { data: appointment, error: aError } = isPackageRedemption
+    ? await supabase.rpc('create_package_booking', { p_booking: bookingRow }).single()
+    : await supabase.from('appointments').insert(bookingRow).select().single();
 
   if (aError) {
     logger.error({ err: aError }, 'Appointment insert error');
+    if (aError.code === 'P0001') {
+      return res.status(409).json({ error: 'Your package could not be used for this booking. Nothing was booked and no session was spent. Please refresh and check your package.', code: 'package_unavailable' });
+    }
     // The slot was taken between the conflict check and the insert (a race), or
     // this is a double-submit, or the new appointment overlaps an existing one.
     // 23505 = unique violation (same start), 23P01 = exclusion violation (overlap).

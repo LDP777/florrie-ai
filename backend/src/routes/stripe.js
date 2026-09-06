@@ -1,3 +1,5 @@
+import { handlesRescheduleRefund } from '../services/reschedule-payments.js';
+import { insertPaymentReceipt } from '../lib/payment-receipt.js';
 import { claimPaymentEvent, completePaymentEvent, releasePaymentEvent } from '../services/payment-webhook-events.js';
 import { isBillingEvent, handleBillingEvent } from './billing.js';
 import { Router } from 'express';
@@ -1350,7 +1352,7 @@ router.post('/webhook', async (req, res) => {
             .eq('stripe_payment_intent_id', session.payment_intent).eq('type', 'payment_link').limit(1);
           if (priorLink.error) throw new Error('Could not read payment link ledger');
           if (!priorLink.data?.length) {
-          const linkTransaction = await supabase.from('transactions').insert({
+          const linkTransaction = await insertPaymentReceipt(supabase, {
             beautician_id: beauticianId,
             appointment_id: appointmentId || null,
             client_id: clientId || null,
@@ -1410,7 +1412,7 @@ router.post('/webhook', async (req, res) => {
           const { data: alreadyLogged, error: loggedErr } = await supabase
             .from('transactions')
             .select('id')
-            .eq('appointment_id', appointmentId)
+            .eq(session.payment_intent ? 'stripe_payment_intent_id' : 'appointment_id', session.payment_intent || appointmentId)
             .in('type', BOOKING_MONEY_LOGGED_TYPES)
             .limit(1);
 
@@ -1423,7 +1425,7 @@ router.post('/webhook', async (req, res) => {
             });
             throw new Error('Could not read booking payment ledger');
           } else if (!alreadyLogged?.length) {
-            const { error: txErr } = await supabase.from('transactions').insert({
+            const { error: txErr } = await insertPaymentReceipt(supabase, {
               beautician_id: beauticianId,
               appointment_id: appointmentId,
               client_id: clientId || null,
@@ -1506,7 +1508,7 @@ router.post('/webhook', async (req, res) => {
 
           // Log the transaction (only once)
           if (courseBeauticianId && !alreadyPaid) {
-            await supabase.from('transactions').insert({
+            await insertPaymentReceipt(supabase, {
               beautician_id: courseBeauticianId,
               amount_cents: session.amount_total,
               type: 'deposit',
@@ -1538,6 +1540,7 @@ router.post('/webhook', async (req, res) => {
         // is what makes this safe to run alongside POST /api/stripe/refund,
         // which fires for the same money moments earlier.
         const charge = event.data.object;
+        if (await handlesRescheduleRefund(charge.metadata?.reschedule_operation_id)) break;
         const piId = typeof charge.payment_intent === 'string'
           ? charge.payment_intent
           : charge.payment_intent?.id || null;
@@ -1704,9 +1707,9 @@ router.post('/webhook', async (req, res) => {
           }
 
           logger.warn({ appointment_id: apptId, feeType }, 'Policy fee charge failed');
-        } else if (feeType === 'reschedule_deposit' && apptId) {
-          // chargeRescheduleDeposit sets deposit_paid / deposit_status='paid'
-          // the moment Stripe says 'processing'. We deliberately do NOT clear
+        } else if (feeType === 'reschedule_deposit' && apptId && !pi.metadata?.reschedule_operation_id) {
+          // Legacy reschedule payments marked processing deposits paid.
+          // New operations are recovered from their durable ledger. Do not clear
           // those here: the same fields also carry the ORIGINAL deposit this
           // client may well have paid weeks ago, and clearing them would tell
           // Ellie to collect money she already has. A human decides.

@@ -227,7 +227,16 @@ function makeBuilder(table) {
   return b;
 }
 
-vi.mock('../../src/config.js', () => ({ supabase: { from: (t) => makeBuilder(t) } }));
+vi.mock('../../src/config.js', () => ({ supabase: { from: (t) => makeBuilder(t), rpc: (name, { p_booking }) => ({ single: async () => {
+  if (name !== 'create_package_booking') throw new Error('unexpected RPC');
+  const result = await makeBuilder('appointments').insert(p_booking).single();
+  if (!result.error) {
+    const cp = db.client_packages.find(p => p.id === p_booking.client_package_id);
+    cp.sessions_used += 1;
+    if (cp.sessions_used >= cp.sessions_total) cp.status = 'completed';
+  }
+  return result;
+} }) } }));
 
 /* ------------------------------------------------------------------- mocks -- */
 const stripeState = { sessions: [] };

@@ -122,6 +122,7 @@ function makeBuilder(table) {
   });
 
   const settle = () => {
+    if (pending?.op === 'insert' && failing.has(table + ':insert')) return { data: null, error: failing.get(table + ':insert') };
     if (failing.has(table)) return { data: null, error: failing.get(table), count: null };
     if (selectError) return { data: null, error: selectError, count: null };
     if (pending?.op === 'insert') {
@@ -190,7 +191,16 @@ function makeBuilder(table) {
   return b;
 }
 
-vi.mock('../../src/config.js', () => ({ supabase: { from: (t) => makeBuilder(t) } }));
+vi.mock('../../src/config.js', () => ({ supabase: { from: (t) => makeBuilder(t), rpc: (name, { p_booking }) => ({ single: async () => {
+  if (name !== 'create_package_booking') throw new Error('unexpected RPC');
+  const result = await makeBuilder('appointments').insert(p_booking).single();
+  if (!result.error) {
+    const cp = db.client_packages.find(p => p.id === p_booking.client_package_id);
+    cp.sessions_used += 1;
+    if (cp.sessions_used >= cp.sessions_total) cp.status = 'completed';
+  }
+  return result;
+} }) } }));
 
 /* ------------------------------------------------------------------- mocks -- */
 const stripeState = { sessions: [] };
@@ -388,6 +398,28 @@ describe('a package that ran out between the page loading and the tap', () => {
     expect(stripeState.sessions).toHaveLength(0);
     expect(db.client_packages[0].sessions_used).toBe(3);
     expect(out.body.package_note).toBeUndefined();
+  });
+
+  it('does not spend a session when the appointment insert loses the slot race', async () => {
+    sixPack();
+    failing.set('appointments:insert', { code: '23P01', message: 'slot occupied' });
+    const out = await run(bookingRouter, 'post', '/:slug/book', {
+      params: { slug: 'ellindigo' }, body: bookBody({ client_package_id: 'cp1' }),
+    });
+    expect(out.status).toBe(409);
+    expect(db.client_packages[0].sessions_used).toBe(2);
+    expect(db.appointments).toHaveLength(0);
+  });
+
+  it('refuses a package for a treatment outside its catalogue', async () => {
+    sixPack(); db.packages[0].treatment_ids = ['another-treatment'];
+    const out = await run(bookingRouter, 'post', '/:slug/book', {
+      params: { slug: 'ellindigo' }, body: bookBody({ client_package_id: 'cp1' }),
+    });
+    expect(out.status).toBe(409);
+    expect(out.body.code).toBe('package_treatment_not_covered');
+    expect(db.client_packages[0].sessions_used).toBe(2);
+    expect(db.appointments).toHaveLength(0);
   });
 
   it('still refuses a package belonging to somebody else, and spends nothing', async () => {

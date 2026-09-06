@@ -1,3 +1,4 @@
+import { insertPaymentReceipt } from '../lib/payment-receipt.js';
 import Stripe from 'stripe';
 import * as Sentry from '@sentry/node';
 import { supabase } from '../config.js';
@@ -276,7 +277,7 @@ export async function chargePolicyFee(appointmentId, kind) {
     // Money feed. Same failure mode as chargeRemainingBalance: the card has
     // been charged, and an unchecked reject means the fee never appears in
     // Ellie's takings and nothing ever tells her.
-    const { error: txErr } = await supabase.from('transactions').insert({
+    const { error: txErr } = await insertPaymentReceipt(supabase, {
       beautician_id: appt.beautician_id,
       appointment_id: appt.id,
       client_id: appt.client_id || null,
@@ -315,149 +316,6 @@ export async function chargePolicyFee(appointmentId, kind) {
     return { charged: true, feeCents, paymentIntentId: paymentIntent.id };
   } catch (err) {
     logger.error({ err, appointmentId, kind }, 'chargePolicyFee unexpected failure');
-    return { charged: false, reason: 'error' };
-  }
-}
-
-/**
- * Charge a fresh deposit to the saved card when a client reschedules inside the
- * notice window and the beautician's policy requires a new deposit for the new
- * slot (booking_policy.require_deposit_on_late_reschedule). Off-session, mirrors
- * the policy-fee money flow exactly (platform PaymentIntent with transfer_data +
- * application_fee).
- *
- * Returns:
- *   { charged:true, depositCents }                 - taken
- *   { charged:false, reason:'no_deposit' }         - this booking has no deposit, nothing to take (caller proceeds)
- *   { charged:false, reason:<other> }              - could NOT take it; caller should BLOCK the reschedule
- *
- * Never throws.
- */
-export async function chargeRescheduleDeposit(appointmentId, newStartIso) {
-  try {
-    const { data: appt } = await supabase
-      .from('appointments')
-      .select(`
-        id, beautician_id, client_id, price_cents, deposit_cents,
-        stripe_payment_method_id,
-        clients(id, first_name, last_name, stripe_customer_id),
-        beauticians(id, business_name, first_name, stripe_account_id, stripe_onboarding_complete)
-      `)
-      .eq('id', appointmentId)
-      .maybeSingle();
-
-    if (!appt) return { charged: false, reason: 'not_found' };
-
-    const depositCents = appt.deposit_cents || 0;
-    // Stripe's GBP minimum is 30p; nothing meaningful to take below that.
-    if (depositCents < 30) return { charged: false, reason: 'no_deposit' };
-
-    if (!stripe) return { charged: false, reason: 'stripe_not_configured' };
-
-    const b = appt.beauticians;
-    if (!b?.stripe_account_id || !b?.stripe_onboarding_complete) {
-      return { charged: false, reason: 'stripe_not_onboarded' };
-    }
-
-    const clientName = `${appt.clients?.first_name || 'the client'} ${appt.clients?.last_name || ''}`.trim();
-    const customerId = appt.clients?.stripe_customer_id;
-    let paymentMethodId = appt.stripe_payment_method_id || null;
-    if (customerId && !paymentMethodId) {
-      const methods = await stripe.paymentMethods.list({ customer: customerId, type: 'card' });
-      paymentMethodId = methods.data?.[0]?.id || null;
-    }
-    if (!customerId || !paymentMethodId) {
-      return { charged: false, reason: 'no_card_on_file' };
-    }
-
-    // Same as every destination charge: recover Stripe's processing fee too.
-    const platformFee = totalApplicationFee(depositCents);
-    let paymentIntent;
-    try {
-      paymentIntent = await stripe.paymentIntents.create({
-        amount: depositCents,
-        currency: 'gbp',
-        customer: customerId,
-        payment_method: paymentMethodId,
-        confirm: true,
-        off_session: true,
-        application_fee_amount: platformFee,
-        transfer_data: { destination: b.stripe_account_id },
-        description: `Reschedule deposit, ${clientName}`,
-        metadata: {
-          appointment_id: appt.id,
-          beautician_id: appt.beautician_id,
-          client_id: appt.client_id || '',
-          type: 'reschedule_deposit',
-          platform_fee_cents: platformFee,
-        },
-      }, {
-        idempotencyKey: `resched_deposit_${appointmentId}_${String(newStartIso).slice(0, 16)}`,
-      });
-    } catch (err) {
-      const declined = err?.code === 'authentication_required' || err?.type === 'StripeCardError';
-      if (!declined) logger.error({ err, appointmentId }, 'reschedule deposit charge failed');
-      return { charged: false, reason: declined ? (err.code || 'card_declined') : 'stripe_error' };
-    }
-
-    const ok = paymentIntent.status === 'succeeded' || paymentIntent.status === 'processing';
-    if (!ok) return { charged: false, reason: paymentIntent.status };
-
-    // Record the new deposit + mark the new slot's deposit paid.
-    const { error: apptErr } = await supabase.from('appointments').update({
-      deposit_paid: true,
-      deposit_status: 'paid',
-      stripe_payment_method_id: paymentMethodId,
-    }).eq('id', appointmentId);
-    if (apptErr) {
-      // The client has paid a fresh deposit for the moved slot and the booking
-      // does not know. She gets chased for a deposit she has already paid, and
-      // completionTakingsCents will count the full price as still owed.
-      logger.error({ err: apptErr, appointmentId, paymentIntentId: paymentIntent.id, depositCents },
-        'CHARGED BUT NOT MARKED: reschedule deposit taken but the appointment was not marked paid');
-      Sentry.captureException(new Error('CHARGED BUT NOT MARKED: reschedule deposit'), {
-        level: 'error',
-        tags: { area: 'payments', check: 'appointment_update' },
-        extra: {
-          appointmentId,
-          paymentIntentId: paymentIntent.id,
-          depositCents,
-          dbError: apptErr.message,
-          dbCode: apptErr.code,
-        },
-      });
-    }
-
-    const { error: txErr } = await supabase.from('transactions').insert({
-      beautician_id: appt.beautician_id,
-      appointment_id: appt.id,
-      client_id: appt.client_id || null,
-      amount_cents: depositCents,
-      type: 'deposit',
-      status: 'completed',
-      stripe_payment_intent_id: paymentIntent.id,
-      payment_method: 'card_online',
-    });
-    if (txErr) {
-      logger.error({ err: txErr, appointmentId, paymentIntentId: paymentIntent.id, depositCents },
-        'CHARGED BUT NOT RECORDED: reschedule deposit taken from the card but the transaction insert failed');
-      Sentry.captureMessage('CHARGED BUT NOT RECORDED: reschedule deposit', {
-        level: 'error',
-        tags: { area: 'payments', check: 'transaction_insert' },
-        extra: {
-          appointmentId,
-          paymentIntentId: paymentIntent.id,
-          amountCents: depositCents,
-          dbError: txErr.message,
-          dbCode: txErr.code,
-        },
-      });
-    }
-
-    logger.info({ appointmentId, depositCents, paymentIntentId: paymentIntent.id }, 'Reschedule deposit charged');
-    return { charged: true, depositCents, paymentIntentId: paymentIntent.id };
-  } catch (err) {
-    logger.error({ err, appointmentId }, 'chargeRescheduleDeposit unexpected failure');
     return { charged: false, reason: 'error' };
   }
 }
@@ -576,7 +434,7 @@ export async function chargeRemainingBalance(appointmentId) {
     // MUST be checked. This row is also the double-charge guard above, so a
     // silent insert failure means the card was charged AND the guard never
     // engages, which is how you charge someone twice.
-    const { error: txErr } = await supabase.from('transactions').insert({
+    const { error: txErr } = await insertPaymentReceipt(supabase, {
       beautician_id: appt.beautician_id,
       appointment_id: appt.id,
       client_id: appt.client_id || null,
@@ -703,7 +561,7 @@ export async function chargeCardAmount(appointmentId, amountCents, reason = '') 
     const ok = paymentIntent.status === 'succeeded' || paymentIntent.status === 'processing';
     if (!ok) return { charged: false, reason: paymentIntent.status };
 
-    const { error: txErr } = await supabase.from('transactions').insert({
+    const { error: txErr } = await insertPaymentReceipt(supabase, {
       beautician_id: appt.beautician_id,
       appointment_id: appt.id,
       client_id: appt.client_id || null,
