@@ -1,5 +1,6 @@
 import { announceBookingConfirmed } from '../services/booking-confirmed-alert.js';
 import { Router } from 'express';
+import { mapBounded } from '../lib/map-bounded.js';
 import * as Sentry from '@sentry/node';
 import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -1827,14 +1828,17 @@ router.get('/patch-test-alerts', requireAuth, async (req, res) => {
     byClient.get(a.client_id).push(a);
   }
 
-  const alerts = [];
-  for (const [clientId, bookings] of byClient) {
-    const soonest = bookings[0];
-    const evidence = await patchTestEvidence(supabase, req.beautician.id, clientId, {
+  const clientsToCheck = [...byClient];
+  const evidenceByClient = await mapBounded(clientsToCheck, 6, ([clientId, bookings]) =>
+    patchTestEvidence(supabase, req.beautician.id, clientId, {
       expiryMonths,
-      asOf: soonest.starts_at,
+      asOf: bookings[0].starts_at,
       logger,
-    });
+    }));
+  const alerts = [];
+  for (const [index, [clientId, bookings]] of clientsToCheck.entries()) {
+    const soonest = bookings[0];
+    const evidence = evidenceByClient[index];
     if (evidence.ok) continue;
 
     /* THE 27 AUGUST 2026 POPULATIONS, on the owner's side of the same rule.
