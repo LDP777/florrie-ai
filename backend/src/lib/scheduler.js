@@ -75,7 +75,7 @@ import { supabase } from '../config.js';
 import { recordJobRun } from './job-runs.js';
 
 // One tick a minute. The tick reads ONE row set for all jobs, so the cost is a
-// single small select per minute, and a minute of granularity keeps the 10
+// at most one ledger select at a time, and a minute of granularity keeps the 10
 // minute jobs honest. A 5 minute tick would quietly turn every 10 minute job
 // into a 15 minute job, because a job that came due 4 minutes ago has to wait
 // for the next tick.
@@ -95,9 +95,10 @@ const DEFAULT_LEASE_MS = 15 * 60 * 1000;
 // 90s, 120s, 180s, 240s) whose only purpose was to stop a deploy firing every
 // job at once and spiking the connection pool. Due-based scheduling makes the
 // ladder meaningless, so the anti-spike intent is preserved directly: at most
-// this many jobs may START on any one tick, most overdue first. Everything
-// else waits a minute.
+// this many jobs may START on any one tick, most overdue first. Total
+// unsettled work is also capped, so slow runs do not pile up across ticks.
 const MAX_STARTS_PER_TICK = 3;
+const MAX_CONCURRENT_JOBS = 3;
 
 /** @type {Map<string, {name:string, intervalMs:number, startupDelayMs:number, leaseMs:number, handler:Function, description:string}>} */
 const registry = new Map();
@@ -110,12 +111,7 @@ const inFlight = new Set();
 let tickTimer = null;
 let bootedAt = 0;
 let ledgerWarned = false;
-
-// Fallback clock for when job_runs cannot be read at all (missing table on a
-// fresh database, or Supabase down). Scheduling then degrades to in-process
-// timing, which is no worse than the setInterval world it replaced, and the
-// jobs keep running instead of stopping dead.
-const memoryRuns = new Map();
+let tickInProgress = false;
 
 /**
  * Register a job. Call before startScheduler().
@@ -200,8 +196,8 @@ export function dueState(job, row, { now, uptimeMs = Infinity }) {
   return { run: true, reason: hasSucceeded ? 'due' : 'never_succeeded', overdueMs };
 }
 
-// 42P01 = relation does not exist, same degrade path as lib/job-runs.js. An
-// un-applied migration is not an outage.
+// Distinguish a missing migration from an upstream outage in diagnostics.
+// Neither permits running work without a durable cross-replica claim.
 function isMissingTable(error) {
   if (!error) return false;
   if (error.code === '42P01') return true;
@@ -228,7 +224,7 @@ async function readLedger(names) {
       ledgerWarned = true;
       logger.warn(
         { err: error, missingTable: isMissingTable(error) },
-        'Scheduler: job_runs unreadable, falling back to in-process timing (single replica only)',
+        'Scheduler: job_runs unreadable, pausing background jobs until the ledger recovers',
       );
     }
     return { available: false, byName: new Map() };
@@ -280,13 +276,11 @@ async function claim(job, row, now) {
 
 async function runJob(job) {
   inFlight.add(job.name);
-  memoryRuns.set(job.name, { ...(memoryRuns.get(job.name) || {}), last_started_at: new Date().toISOString() });
   try {
     // recordJobRun stamps job_runs, never throws, and reports failures to
     // Sentry. It is the only path a job should ever be called down.
     const outcome = await recordJobRun(job.name, job.handler);
     if (outcome.ok) {
-      memoryRuns.set(job.name, { ...(memoryRuns.get(job.name) || {}), last_success_at: new Date().toISOString() });
       logger.info({ job: job.name, durationMs: outcome.durationMs }, 'Cron job finished');
     }
     return outcome;
@@ -304,12 +298,24 @@ async function runJob(job) {
  * @param {boolean} [opts.await] wait for the jobs it starts (tests only). In
  *   production a slow job must never hold up the tick.
  */
-export async function tick({ now = Date.now(), await: awaitJobs = false } = {}) {
+export async function tick(opts = {}) {
+  // A slow ledger request must not accumulate another request on every timer
+  // tick. Keep the lock until the real work settles; racing a timeout would
+  // abandon a still-running query and allow the same accumulation again.
+  if (tickInProgress) return { started: [], skipped: [{ reason: 'tick_in_progress' }] };
+  tickInProgress = true;
+  try { return await runTick(opts); }
+  finally { tickInProgress = false; }
+}
+
+async function runTick({ now = Date.now(), await: awaitJobs = false } = {}) {
   const jobs = [...registry.values()];
   if (jobs.length === 0) return { started: [], skipped: [] };
+  if (inFlight.size >= MAX_CONCURRENT_JOBS) return { started: [], skipped: jobs.map(job => ({ name: job.name, reason: 'concurrency_budget' })) };
 
   const uptimeMs = bootedAt ? now - bootedAt : Infinity;
   const { available, byName } = await readLedger(jobs.map((j) => j.name));
+  if (!available) return { started: [], skipped: jobs.map(job => ({ name: job.name, reason: 'ledger_unavailable' })) };
 
   const candidates = [];
   const skipped = [];
@@ -319,7 +325,7 @@ export async function tick({ now = Date.now(), await: awaitJobs = false } = {}) 
       skipped.push({ name: job.name, reason: 'in_flight_here' });
       continue;
     }
-    const row = available ? (byName.get(job.name) || null) : (memoryRuns.get(job.name) || null);
+    const row = byName.get(job.name) || null;
     const state = dueState(job, row, { now, uptimeMs });
     if (!state.run) {
       skipped.push({ name: job.name, reason: state.reason });
@@ -335,6 +341,10 @@ export async function tick({ now = Date.now(), await: awaitJobs = false } = {}) 
   const started = [];
   const pending = [];
   for (const { job, row, state } of candidates) {
+    if (inFlight.size >= MAX_CONCURRENT_JOBS) {
+      skipped.push({ name: job.name, reason: 'concurrency_budget' });
+      continue;
+    }
     if (started.length >= MAX_STARTS_PER_TICK) {
       skipped.push({ name: job.name, reason: 'tick_budget' });
       continue;
@@ -402,12 +412,12 @@ export const __testing = {
     stopScheduler();
     registry.clear();
     inFlight.clear();
-    memoryRuns.clear();
+    tickInProgress = false;
     bootedAt = 0;
     ledgerWarned = false;
   },
   setBootedAt(ms) { bootedAt = ms; },
   registry,
   inFlight,
-  constants: { TICK_INTERVAL_MS, DUE_TOLERANCE_MS, DEFAULT_LEASE_MS, MAX_STARTS_PER_TICK },
+  constants: { TICK_INTERVAL_MS, DUE_TOLERANCE_MS, DEFAULT_LEASE_MS, MAX_STARTS_PER_TICK, MAX_CONCURRENT_JOBS },
 };

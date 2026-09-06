@@ -15,7 +15,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // State the stub reads and writes. `rows` is the fake job_runs table.
-const db = { rows: [], selectError: null, updateResult: null, updateError: null, insertError: null, updates: [], inserts: [] };
+const db = { reads: 0, pendingRead: null, rows: [], selectError: null, updateResult: null, updateError: null, insertError: null, updates: [], inserts: [] };
 
 vi.mock('../../src/config.js', () => ({
   supabase: {
@@ -34,6 +34,8 @@ vi.mock('../../src/config.js', () => ({
           return this;
         },
         in() {
+          db.reads++;
+          if (db.pendingRead) return db.pendingRead;
           return Promise.resolve(db.selectError ? { data: null, error: db.selectError } : { data: db.rows, error: null });
         },
         update(payload) { this._mode = 'update'; this._payload = payload; db.updates.push(payload); return this; },
@@ -75,6 +77,8 @@ function iso(msAgo) {
 beforeEach(() => {
   __testing.reset();
   db.rows = [];
+  db.reads = 0;
+  db.pendingRead = null;
   db.selectError = null;
   db.updateResult = null;
   db.updateError = null;
@@ -205,18 +209,55 @@ describe('tick', () => {
     expect(result.started).toEqual(['c', 'e', 'a']);
   });
 
-  it('keeps running jobs when job_runs cannot be read at all', async () => {
-    // An un-applied migration must not stop the salon working. Degrade to
-    // in-process timing rather than to silence.
-    const ran = [];
-    registerJob({ name: 'daily', intervalMs: DAY, handler: async () => { ran.push(1); } });
-    db.selectError = { code: '42P01', message: 'relation "job_runs" does not exist' };
-
-    await tick({ now: NOW, await: true });
-    expect(ran).toHaveLength(1);
-    // Second tick immediately after: in-process clock says it is not due.
+  it.each([
+    { code: '42P01', message: 'relation "job_runs" does not exist' },
+    { code: '57014', message: 'upstream request timeout' },
+  ])('pauses on ledger failure and recovers when it can claim again: $code', async error => {
+    const handler = vi.fn(async () => {});
+    registerJob({ name: 'daily', intervalMs: DAY, handler });
+    db.selectError = error;
+    const failed = await tick({ now: NOW, await: true });
+    expect(failed.started).toEqual([]);
+    expect(failed.skipped).toContainEqual({ name: 'daily', reason: 'ledger_unavailable' });
+    expect(handler).not.toHaveBeenCalled();
+    expect(db.inserts).toHaveLength(0);
+    db.selectError = null;
     await tick({ now: NOW + MINUTE, await: true });
-    expect(ran).toHaveLength(1);
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not stack ledger requests while the first tick waits on the database', async () => {
+    const handler = vi.fn(async () => {});
+    registerJob({ name: 'daily', intervalMs: DAY, handler });
+    let resolveRead;
+    db.pendingRead = new Promise(resolve => { resolveRead = resolve; });
+    const first = tick({ now: NOW, await: true });
+    for (let minute = 1; minute <= 8; minute++) {
+      expect((await tick({ now: NOW + minute * MINUTE })).started).toEqual([]);
+    }
+    expect(db.reads).toBe(1);
+    expect(handler).not.toHaveBeenCalled();
+    resolveRead({ data: [], error: null });
+    await first;
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  it('caps total unsettled jobs across ticks, including jobs taking more than a lease', async () => {
+    const releases = [];
+    const runs = [];
+    for (let i = 0; i < 9; i++) registerJob({ name: `job-${i}`, intervalMs: DAY,
+      handler: () => { runs.push(i); return new Promise(resolve => releases.push(resolve)); } });
+    expect((await tick({ now: NOW })).started).toHaveLength(3);
+    const reads = db.reads;
+    for (let minute = 1; minute <= 20; minute++) await tick({ now: NOW + minute * MINUTE });
+    expect(runs).toHaveLength(3);
+    expect(db.reads).toBe(reads);
+    for (const release of releases) release();
+    await new Promise(resolve => setImmediate(resolve));
+    expect(__testing.inFlight.size).toBe(0);
+    expect((await tick({ now: NOW + 21 * MINUTE })).started).toHaveLength(3);
+    for (const release of releases) release();
+    await new Promise(resolve => setImmediate(resolve));
   });
 
   it('a throwing job never becomes an unhandled rejection', async () => {
