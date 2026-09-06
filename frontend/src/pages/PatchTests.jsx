@@ -12,6 +12,7 @@ import Button from '../components/ui/Button.jsx';
 import CareNav from '../components/CareNav.jsx';
 import ClientLookup from '../components/ClientLookup.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
+import { readAuthenticatedJson } from '../lib/authenticated-json.js';
 /**
  * Patch Test Tracker - the salon's own record, and the page that asks her.
  *
@@ -117,6 +118,10 @@ export default function PatchTests() {
   const [tab, setTab] = useState(filterClientId ? 'all' : 'alerts');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [alertsError, setAlertsError] = useState(null);
+  const [alertsLoading, setAlertsLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(params.get('log') === '1');
   const [reminded, setReminded] = useState({});
 
@@ -185,65 +190,49 @@ export default function PatchTests() {
   }
   const saveExpiryMonths = months => saveReminderSettings({ patch_test_expiry_months: months });
 
-  useEffect(() => { loadData(); }, [beautician, bLoading]);
+  useEffect(() => { loadData(); return () => { loadSequence.current++; }; }, [beautician, bLoading]);
 
   async function loadData() {
-    setLoading(true);
-    setError(null);
+    const sequence = ++loadSequence.current;
+    setLoading(true); setError(null); setAlertsError(null); setAlertsLoading(true);
     if (bLoading) return;
     if (!beautician) {
       setError('Your salon profile could not be loaded. Please sign in again.');
-      setLoading(false);
+      setLoading(false); setAlertsLoading(false);
       return;
     }
+    // Saved evidence remains usable while upcoming-booking checks run.
+    readAuthenticatedJson({ auth: supabase.auth, url: `${API_BASE}/api/appointments/patch-test-alerts?days=21` })
+      .then(body => {
+        if (!Array.isArray(body?.alerts)) throw new Error('Checks unavailable');
+        if (sequence === loadSequence.current) setUpcomingAlerts(body.alerts);
+      })
+      .catch(() => {
+        if (sequence !== loadSequence.current) return;
+        setUpcomingAlerts([]);
+        setAlertsError('Could not check upcoming bookings. Your saved patch-test records are still available in All records.');
+      })
+      .finally(() => { if (sequence === loadSequence.current) setAlertsLoading(false); });
+    const controller = new AbortController();
+    let timer;
+    const deadline = new Promise((_, reject) => {
+      timer = setTimeout(() => { controller.abort(); reject(new Error('Records took too long to load.')); }, 15_000);
+    });
     try {
-      /* THE ALERTS COME FROM THE BACKEND NOW, and so does the rule behind
-       * them. It is the same evidence rule the client's manage page uses
-       * (backend/src/lib/patch-test-status.js), which is the point: a second
-       * copy of "does she owe a patch test" living in a React component is
-       * how the client and the owner end up being told opposite things. It
-       * also knows what this page could not - a completed appointment for a
-       * treatment that required a test is itself the evidence - and it reads
-       * requires_patch_test rather than hunting for 'tint' in a name.
-       *
-       * The rows come back with the client joined on, because patch_tests has
-       * a client_id and has never had a client_name. */
-      const session = await supabase.auth.getSession();
-      const jwt = session.data.session?.access_token;
-
-      const [{ data: rows, error: rowsErr }, alertRes] = await Promise.all([
-        supabase
-          .from('patch_tests')
-          .select('id, client_id, test_date, result, status, confirmed_at, appointment_id, product_used, reaction_notes, clients(id, first_name, last_name), treatments(name)')
-          .eq('beautician_id', beautician.id)
-          .order('test_date', { ascending: false }),
-        fetch(`${API_BASE}/api/appointments/patch-test-alerts?days=21`, {
-          headers: { Authorization: `Bearer ${jwt}` },
-        }),
-      ]);
-
-      // A silent empty list on the page that exists to catch this is the one
-      // outcome worth shouting about, so a failed read is an error here, not
-      // a quiet nothing.
-      if (rowsErr) throw rowsErr;
-      if (!alertRes.ok) throw new Error('alerts');
-      const alertBody = await alertRes.json();
-
-      if (!Array.isArray(rows) || !Array.isArray(alertBody.alerts)) throw new Error('Could not read the patch-test records.');
+      const { data: rows, error: rowsError } = await Promise.race([supabase.from('patch_tests')
+        .select('id, client_id, test_date, result, status, confirmed_at, appointment_id, product_used, reaction_notes, clients(id, first_name, last_name), treatments(name)')
+        .eq('beautician_id', beautician.id).order('test_date', { ascending: false }).abortSignal(controller.signal), deadline]);
+      if (sequence !== loadSequence.current) return;
+      if (rowsError || !Array.isArray(rows)) throw rowsError || new Error('Records unavailable');
       setTests(rows);
-      setUpcomingAlerts(alertBody.alerts);
-      // The backend read her window off her own profile. Keep the page's copy
-      // in step with it rather than letting two answers drift apart.
-      if (alertBody.expiryMonths) {
-        savedSettings.current = { ...savedSettings.current, expiry_months: alertBody.expiryMonths };
-        setSettings(prev => ({ ...prev, expiry_months: alertBody.expiryMonths }));
-      }
-
     } catch (err) {
+      if (sequence !== loadSequence.current) return;
       logger.error({ err }, 'Failed to load patch tests');
-      setError('Could not load patch-test records and upcoming checks. Please try again.');
+      setError('Could not load patch-test records. Please try again.');
+    } finally {
+      clearTimeout(timer);
+      if (sequence === loadSequence.current) setLoading(false);
     }
-    setLoading(false);
   }
 
   /**
@@ -340,6 +329,7 @@ export default function PatchTests() {
   const oldCount = testsWithStatus.filter(t => t.ageStatus === 'old').length;
   const visibleAlerts = upcomingAlerts.filter(a => !filterClientId || a.client_id === filterClientId);
   const alertCount = visibleAlerts.length;
+  const matchingTests = testsWithStatus.filter(test => `${clientLabel(test)} ${test.treatments?.name || ''}`.toLowerCase().includes(search.trim().toLowerCase()));
 
   if (bLoading || loading) {
     return <PageLoader />;
@@ -371,7 +361,7 @@ export default function PatchTests() {
           <span style={{ color: 'var(--danger)', fontWeight: 700 }}>{oldCount}</span>
           <span style={{ fontSize: 10, color: 'var(--danger)' }}>Out of window</span>
         </div>
-        {alertCount > 0 && (
+        {!alertsLoading && !alertsError && alertCount > 0 && (
           <div style={{ ...styles.summaryChip, background: 'var(--accent-light)' }}>
             <span style={{ color: 'var(--accent)', fontWeight: 700 }}>{alertCount}</span>
             <span style={{ fontSize: 10, color: 'var(--accent)' }}>To check</span>
@@ -477,7 +467,7 @@ export default function PatchTests() {
               color: tab === t ? 'var(--accent)' : 'var(--text-muted)',
             }}
           >
-            {t === 'alerts' ? `Alerts (${alertCount})` : t === 'all' ? 'All records' : 'Settings'}
+            {t === 'alerts' ? alertsLoading ? 'Checking visits…' : alertsError ? 'Alerts unavailable' : `Alerts (${alertCount})` : t === 'all' ? 'All records' : 'Settings'}
           </Button>
         ))}
       </div>
@@ -485,7 +475,7 @@ export default function PatchTests() {
       {/* === ALERTS TAB === */}
       {tab === 'alerts' && (
         <div>
-          {alertCount === 0 ? (
+          {alertsLoading ? <p role="status">Checking upcoming visits…</p> : alertsError ? <div role="alert"><ErrorCard message={alertsError} /><Button variant="secondary" onClick={loadData}>Retry checks</Button></div> : alertCount === 0 ? (
             <div style={styles.emptyState}>
               <span style={{ fontSize: 32, display: 'block', marginBottom: 8 }}><Icon name="check-circle" size={32} /></span>
               <p style={styles.emptyTitle}>No checks in this window</p>
@@ -507,7 +497,7 @@ export default function PatchTests() {
                 record the date and any result you observed.
               </p>
               {visibleAlerts.map((alert) => (
-                <div key={alert.client_id} style={styles.alertCard}>
+                <div key={`${alert.client_id}-${alert.appointment_id}`} style={styles.alertCard}>
                   <div style={styles.alertTop}>
                     <div style={styles.alertAvatar}>{(alert.client_name || 'C')[0]}</div>
                     <div style={styles.alertInfo}>
@@ -585,12 +575,14 @@ export default function PatchTests() {
       {/* === ALL TESTS TAB === */}
       {tab === 'all' && (
         <div>
+          <label htmlFor="patch-record-search" style={styles.formLabel}>Search patch-test records</label>
+          <input id="patch-record-search" type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Client name or treatment" style={{ ...styles.formInput, minHeight: 48, marginBottom: 16 }} />
           {testsWithStatus.length === 0 ? (
             <EmptyState title="No patch tests on file" subtitle='Tap "+ Record a test" to record one you did.' />
-          ) : (
+          ) : !matchingTests.length ? <p role="status">No patch-test records match this search.</p> : (
             <div style={styles.testList}>
-              {testsWithStatus.map(t => {
-                const status = PATCH_STATUS[t.ageStatus];
+              {matchingTests.map(t => {
+                const status = ['fail', 'reaction'].includes(t.result) ? { label: 'Reaction recorded', color: 'var(--danger)', bg: 'var(--danger-bg)', icon: 'alert-triangle' } : PATCH_STATUS[t.ageStatus];
                 return (
                   <div key={t.id} style={styles.testCard}>
                     <div style={styles.testCardTop}>

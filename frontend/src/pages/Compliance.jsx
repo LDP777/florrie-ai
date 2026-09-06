@@ -5,6 +5,8 @@ import { API_BASE } from '../lib/config.js';
 import Button from '../components/ui/Button.jsx';
 import Icon from '../components/ui/Icon.jsx';
 import ClientLookup from '../components/ClientLookup.jsx';
+import ClientCareRecord from '../components/ClientCareRecord.jsx';
+import { readAuthenticatedJson } from '../lib/authenticated-json.js';
 
 const REASONS = {
   never_been_in: 'No previous visits or patch test on record',
@@ -19,6 +21,7 @@ export default function Compliance() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const tab = ['records', 'templates'].includes(params.get('tab')) ? params.get('tab') : 'checks';
+  const clientId = params.get('clientId') || '';
   const { beautician, loading } = useBeautician();
   const [checks, setChecks] = useState({ loading: true });
   const [forms, setForms] = useState({ loading: true });
@@ -30,11 +33,7 @@ export default function Compliance() {
     const load = async (path, setState, field) => {
       setState({ loading: true });
       try {
-        const { data } = await supabase.auth.getSession();
-        if (!data.session) throw new Error('Please sign in again.');
-        const res = await fetch(`${API_BASE}${path}`, { headers: { Authorization: `Bearer ${data.session.access_token}` }, signal: controller.signal });
-        if (!res.ok) throw new Error('This information could not be loaded.');
-        const body = await res.json();
+        const body = await readAuthenticatedJson({ auth: supabase.auth, url: `${API_BASE}${path}` });
         if (!Array.isArray(body[field])) throw new Error('This information could not be loaded.');
         if (!controller.signal.aborted) setState({ rows: body[field], until: body.checkedUntil });
       } catch (err) { if (!controller.signal.aborted) setState({ error: err.message }); }
@@ -43,7 +42,7 @@ export default function Compliance() {
     void load('/api/consultation-forms', setForms, 'forms');
     return () => controller.abort();
   }, [beautician?.id, loading, retry]);
-  const openClient = id => navigate('/clients', { state: { clientId: id } });
+  const openClient = id => setParams({ tab: 'records', clientId: id });
   const renderError = message => <div role="alert" style={S.error}><p>{message}</p><Button variant="secondary" onClick={() => setRetry(n => n + 1)}>Try again</Button></div>;
 
   return <div className="care-hub" style={S.page}>
@@ -54,16 +53,16 @@ export default function Compliance() {
       .care-hub a:focus-visible { outline:3px solid var(--accent); outline-offset:3px; }
       @media(max-width:650px) { .care-hub__hero,.care-hub__queue { grid-template-columns:1fr; } .care-hub__hero { gap:16px; } .care-hub__summary { display:grid!important; grid-template-columns:auto 1fr; gap:6px 12px!important; padding:14px!important; } .care-hub__summary>span:first-child { grid-column:1/-1; } .care-hub__summary>span:last-child { grid-column:1/-1; } .care-hub__summary>strong { grid-row:2; } }
     `}</style>
-    <header className="care-hub__hero" style={S.hero}>
+    <header className="care-hub__hero" style={{ ...S.hero, ...(tab !== 'checks' ? { gridTemplateColumns: '1fr', padding: 22 } : {}) }}>
       <div><span style={S.eyebrow}><Icon name="shield" size={16} inline /> Guardian · Client care</span>
-        <h1 style={S.title}>Client checks</h1>
-        <p style={S.description}>Review patch tests, find signed consultations and check photo permissions.</p>
+        <h1 style={{ ...S.title, ...(tab !== 'checks' ? { fontSize: 32 } : {}) }}>{tab === 'records' ? 'Client records' : tab === 'templates' ? 'Form templates' : 'Client checks'}</h1>
+        <p style={S.description}>{tab === 'records' ? 'Answers, signatures and outstanding forms, together.' : tab === 'templates' ? 'The questions and consent wording you send to clients.' : 'Review patch tests, find signed consultations and check photo permissions.'}</p>
       </div>
-      <div className="care-hub__summary" style={S.heroAside}><span style={S.eyebrow}>Before their next visit</span>
+      {tab === 'checks' && <div className="care-hub__summary" style={S.heroAside}><span style={S.eyebrow}>Before their next visit</span>
         <strong style={S.figure}>{checks.loading ? '…' : checks.error ? 'Unavailable' : checks.rows.length}</strong>
         <span style={S.description}>{checks.error ? 'Try loading the checks again below.' : 'clients to review for patch-test evidence in the next 21 days'}</span>
         <span style={S.note}>Review the evidence before deciding what to do.</span>
-      </div>
+      </div>}
     </header>
     <nav aria-label="Client check views" style={S.tabs}>
       {[['checks', 'Upcoming checks'], ['records', 'Client records'], ['templates', 'Form templates']].map(([key, label]) =>
@@ -78,9 +77,14 @@ export default function Compliance() {
           <div style={S.actions}><Button variant="secondary" onClick={() => openClient(client.client_id)}>Client record</Button><Button variant="tonal" onClick={() => navigate(`/patch-tests?clientId=${encodeURIComponent(client.client_id)}&log=1`)}>Record a test</Button></div>
         </article>)}
       </div> : <div style={S.empty}><Icon name="check-circle" size={26} color="var(--success)" /><h3 style={S.client}>No patch-test checks in this window</h3><p style={S.description}>You can still review a client’s records or record a test below.</p><Button variant="secondary" onClick={() => setParams({ tab: 'records' })}>Find a client</Button></div>}
-      <aside style={S.footnote}><Icon name="file" size={20} /><div><strong>Looking for a completed consultation?</strong><p style={{ ...S.description, margin: '5px 0 0' }}>Open Client records and choose the person. Their answers, signature and outstanding forms are together in their profile.</p></div></aside>
+      <aside style={S.footnote}><Icon name="file" size={20} /><div><strong>Looking for a completed consultation?</strong><p style={{ ...S.description, margin: '5px 0 0' }}>Open Client records and choose the person to read their answers, signature and outstanding forms here.</p></div></aside>
     </section>}
-    {tab === 'records' && <section style={S.card}><h2 style={S.heading}>Find the person, then the paperwork</h2><p style={{ ...S.description, margin: '8px 0 20px' }}>Open a client to read submitted consultations, check requests or send a form. Patch tests and photo consent are linked from the same profile.</p><ClientLookup onChange={client => openClient(client.id)} /></section>}
+    {tab === 'records' && <section aria-label="Client paperwork">
+      <div style={{ ...S.card, marginBottom: 16 }}>{!clientId && <p style={{ ...S.description, marginBottom: 16 }}>Choose a client to read their answers, check outstanding forms or record a patch test.</p>}<ClientLookup value={clientId} onChange={client => openClient(client.id)} />
+        {clientId && <Button variant="quiet" onClick={() => navigate('/clients', { state: { clientId } })} style={{ marginTop: 12 }}>Open full client profile <Icon name="arrow-right" size={16} /></Button>}
+      </div>
+      {clientId && <ClientCareRecord key={clientId} clientId={clientId} />}
+    </section>}
     {tab === 'templates' && <section><div style={S.sectionHeader}><div><h2 style={S.heading}>The questions you ask</h2><p style={S.description}>Reusable templates. Completed answers live in Client records.</p></div><Link to="/consultation-forms/new" className="fl-btn fl-btn--primary fl-btn--md" style={{ textDecoration: 'none' }}>New form</Link></div>
       {forms.loading ? <p role="status">Loading templates…</p> : forms.error ? renderError(forms.error) : forms.rows.length ? <div className="care-hub__queue">{forms.rows.map(form => <Link key={form.id} to={`/consultation-forms/${form.id}`} style={S.shortcut}><Icon name="file" size={22} /><span style={{ flex: 1 }}><strong>{form.name}</strong><span style={S.note}>{form.is_default ? 'Default consultation template' : 'Consultation template'}</span></span><Icon name="chevron-right" size={18} /></Link>)}</div> : <div style={S.empty}><h3 style={S.client}>Start with your first form</h3><p style={S.description}>Create a template, then choose it from a client’s profile to send it.</p><Button onClick={() => navigate('/consultation-forms/new')}>Create a form</Button></div>}
     </section>}

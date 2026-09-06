@@ -9,6 +9,7 @@ import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import Icon, { iconName } from '../components/ui/Icon';
 import PageHeader from '../components/ui/PageHeader.jsx';
+import { readAuthenticatedJson } from '../lib/authenticated-json.js';
 /**
  * ConsultationFormBuilder - create and edit consultation/consent forms.
  * Beautician can add fields: text, yes_no, multi_select, single_select, checkbox, text_block, signature.
@@ -44,25 +45,31 @@ function FormList() {
   const [forms, setForms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [revision, setRevision] = useState(0);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
-    (async () => fetch(`${API_BASE}/api/consultation-forms`, { headers: await authHeaders() }))()
-      .then(async r => { if (!r.ok) throw new Error('Could not load form templates.'); return r.json(); })
-      .then(d => setForms(d.forms || []))
+    let cancelled = false;
+    setLoading(true); setError(null);
+    readAuthenticatedJson({ auth: supabase.auth, url: `${API_BASE}/api/consultation-forms` })
+      .then(d => { if (!Array.isArray(d?.forms)) throw new Error('Could not load form templates.'); if (!cancelled) setForms(d.forms); })
       .catch(err => {
-        setError(err.message || 'Failed to load consultation forms');
+        if (!cancelled) setError(err.message || 'Failed to load consultation forms');
       })
-      .finally(() => setLoading(false));
-  }, []);
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [revision]);
+  const visibleForms = forms.filter(form => form.name?.toLowerCase().includes(search.trim().toLowerCase()));
 
   return (
     <div style={styles.page}>
       <CareNav />
-      {error && <ErrorCard message={error} onDismiss={() => setError(null)} />}
+      {error && <ErrorCard message={error} />}
       <PageHeader
         title="Form templates"
         subtitle="Create the questions clients answer before their visit. Submitted answers live in each client’s record."
       />
+      <Button variant="secondary" onClick={() => navigate('/compliance?tab=records')} style={{ marginBottom: 16 }}>Read submitted forms <Icon name="arrow-right" size={16} /></Button>
 
       <button style={styles.createBtn} onClick={() => navigate('/consultation-forms/new')}>
         + New Form
@@ -70,7 +77,7 @@ function FormList() {
 
       {loading ? (
         <PageLoader message="Loading forms..." />
-      ) : error ? <Button onClick={() => window.location.reload()}>Retry</Button> : forms.length === 0 ? (
+      ) : error ? <Button onClick={() => setRevision(n => n + 1)}>Retry</Button> : forms.length === 0 ? (
         <EmptyState
           icon="list"
           title="No forms yet"
@@ -80,7 +87,9 @@ function FormList() {
         />
       ) : (
         <div style={styles.formList}>
-          {forms.map(form => (
+          <input type="search" aria-label="Search form templates" placeholder="Search form templates" value={search} onChange={event => setSearch(event.target.value)} style={{ minHeight: 48, padding: 12, borderRadius: 12, border: '1px solid var(--border)', color: 'var(--text-primary)', background: 'var(--bg-card)', font: 'inherit', width: '100%', boxSizing: 'border-box' }} />
+          {!visibleForms.length && <p role="status">No templates match this search.</p>}
+          {visibleForms.map(form => (
             <button
               key={form.id}
               style={styles.formCard}
@@ -89,7 +98,7 @@ function FormList() {
               <div style={styles.formCardLeft}>
                 <span style={styles.formName}>{form.name}</span>
                 <span style={styles.formMeta}>
-                  {form.consultation_form_fields?.[0]?.count || 0} fields
+                  {Number.isInteger(form.consultation_form_fields?.[0]?.count) ? `${form.consultation_form_fields[0].count} fields` : 'Question count unavailable'}
                   {form.is_default && <span style={styles.defaultBadge}>Default</span>}
                 </span>
               </div>
@@ -117,13 +126,17 @@ function FormEditor() {
   const [loading, setLoading] = useState(!isNew);
   const [showAddField, setShowAddField] = useState(false);
   const [editingField, setEditingField] = useState(null); // index or null
+  const [revision, setRevision] = useState(0);
 
   // Load existing form
   useEffect(() => {
     if (isNew) return;
-    (async () => fetch(`${API_BASE}/api/consultation-forms/${id}`, { headers: await authHeaders() }))()
-      .then(async r => { if (!r.ok) throw new Error('Could not load form templates.'); return r.json(); })
+    let cancelled = false;
+    setLoading(true); setLoadFailed(false); setEditorError(null);
+    readAuthenticatedJson({ auth: supabase.auth, url: `${API_BASE}/api/consultation-forms/${id}` })
       .then(d => {
+        if (!d?.form || !Array.isArray(d.form.consultation_form_fields)) throw new Error('Template unavailable');
+        if (cancelled) return;
         if (d.form) {
           setFormName(d.form.name);
           setConsentText(d.form.consent_text || '');
@@ -137,9 +150,10 @@ function FormEditor() {
           })));
         }
       })
-      .catch(() => { setLoadFailed(true); setEditorError('Could not load this template. Reload to try again.'); })
-      .finally(() => setLoading(false));
-  }, [id, isNew]);
+      .catch(() => { if (!cancelled) { setLoadFailed(true); setEditorError('Could not load this template. Try again.'); } })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [id, isNew, revision]);
 
   // Save form
   async function handleSave() {
@@ -226,6 +240,7 @@ function FormEditor() {
   }
 
   if (loading) return <div style={styles.page}><div style={styles.loadingState}>Loading form...</div></div>;
+  if (loadFailed) return <div style={styles.page}><CareNav /><PageHeader title="Form template" /><ErrorCard message={editorError} /><Button onClick={() => setRevision(n => n + 1)}>Retry</Button></div>;
 
   return (
     <div style={{ ...styles.page, maxWidth: 760 }}>
@@ -430,7 +445,7 @@ function FieldCard({ field, index, isEditing, onEdit, onUpdate, onRemove, onMove
 export default function ConsultationFormBuilder() {
   const { id } = useParams();
   if (!id) return <FormList />;
-  return <FormEditor />;
+  return <FormEditor key={id} />;
 }
 
 const styles = {

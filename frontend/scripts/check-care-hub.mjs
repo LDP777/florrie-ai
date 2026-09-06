@@ -89,6 +89,58 @@ try {
   assert.equal(await failed.page.getByText('No patch-test checks in this window', { exact: true }).count(), 0);
   await failed.ctx.close();
   console.log('✓ Failed Guardian read remains unknown');
+  const patchFailure = await context();
+  await patchFailure.ctx.addInitScript(() => {
+    const base = window.fetch;
+    window.fetch = (input, options) => String(input).includes('/api/appointments/patch-test-alerts')
+      ? Promise.resolve(new Response('{"error":"Synthetic alerts failure"}', { status: 503 })) : base(input, options);
+  });
+  await patchFailure.page.goto(`${base}/patch-tests`);
+  await patchFailure.page.getByRole('button', { name: 'Alerts unavailable', exact: true }).waitFor();
+  assert.equal(await patchFailure.page.getByText('No checks in this window', { exact: true }).count(), 0);
+  await patchFailure.page.getByRole('button', { name: 'All records', exact: true }).click();
+  await patchFailure.page.getByRole('searchbox', { name: 'Search patch-test records', exact: true }).fill('Priya');
+  await patchFailure.page.getByRole('button', { name: /Priya Kapoor/ }).waitFor();
+  assert.equal(await patchFailure.page.getByRole('button', { name: /Sarah Miller/ }).count(), 0);
+  await patchFailure.page.getByRole('searchbox', { name: 'Search patch-test records', exact: true }).fill('no such client');
+  await patchFailure.page.getByText('No patch-test records match this search.', { exact: true }).waitFor();
+  await patchFailure.ctx.close();
+  console.log('✓ Failed upcoming checks retain searchable patch-test evidence without a false all-clear');
+  const templates = await context();
+  await templates.ctx.addInitScript(() => {
+    const base = window.fetch;
+    window.__formAudit = { failList: true, failLoad: true, saved: null };
+    window.fetch = (input, options = {}) => {
+      const url = new URL(String(input), location.href);
+      const json = (body, status = 200) => Promise.resolve(new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } }));
+      if (url.pathname === '/api/consultation-forms' && window.__formAudit.failList) return json({ error: 'Synthetic list failure' }, 503);
+      if (url.pathname === '/api/consultation-forms/form1') {
+        if (options.method === 'PATCH') { window.__formAudit.saved = JSON.parse(options.body); return json({ error: 'Synthetic save failure' }, 500); }
+        return window.__formAudit.failLoad ? json({ error: 'Synthetic template failure' }, 503) : json({ form: { id: 'form1', name: 'Original template', consent_text: 'Original wording', is_default: true, consultation_form_fields: [] } });
+      }
+      return base(input, options);
+    };
+  });
+  await templates.page.goto(`${base}/consultation-forms`);
+  await templates.page.getByRole('button', { name: 'Retry', exact: true }).waitFor();
+  assert.equal(await templates.page.getByText('No forms yet', { exact: true }).count(), 0);
+  await templates.page.evaluate(() => { window.__formAudit.failList = false; });
+  await templates.page.getByRole('button', { name: 'Retry', exact: true }).click();
+  await templates.page.getByRole('searchbox', { name: 'Search form templates', exact: true }).fill('Brow');
+  await templates.page.getByRole('button', { name: /Brow & lash consultation/ }).click();
+  await templates.page.getByRole('button', { name: 'Retry', exact: true }).waitFor();
+  assert.equal(await templates.page.getByRole('textbox', { name: 'Form name', exact: true }).count(), 0);
+  await templates.page.evaluate(() => { window.__formAudit.failLoad = false; });
+  await templates.page.getByRole('button', { name: 'Retry', exact: true }).click();
+  await templates.page.getByRole('textbox', { name: 'Form name', exact: true }).fill('Changed template');
+  await templates.page.getByRole('button', { name: 'Save', exact: true }).click();
+  await templates.page.getByText('Synthetic save failure', { exact: true }).waitFor();
+  assert.equal(await templates.page.getByRole('textbox', { name: 'Form name', exact: true }).inputValue(), 'Changed template');
+  await templates.page.evaluate(() => { history.pushState({}, '', '/consultation-forms/new'); dispatchEvent(new PopStateEvent('popstate')); });
+  await templates.page.waitForFunction(() => document.querySelector('[aria-label="Form name"]')?.value === '');
+  assert.equal(await templates.page.getByText('Synthetic save failure', { exact: true }).count(), 0);
+  await templates.ctx.close();
+  console.log('✓ Template failures stay honest, Retry recovers, failed saves retain edits and New starts clean');
   const desktop = await context('populated', 1280);
   await desktop.page.goto(`${base}/more`); await desktop.page.getByRole('heading', { name: 'More', exact: true }).waitFor();
   await capture(desktop.page, 'florrie-more-desktop.png');

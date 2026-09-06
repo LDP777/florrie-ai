@@ -7,6 +7,7 @@ import ClientLookup from '../components/ClientLookup.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import Button from '../components/ui/Button.jsx';
 import Icon from '../components/ui/Icon.jsx';
+import { readAuthenticatedJson } from '../lib/authenticated-json.js';
 
 const SCOPES = [
   ['portfolio', 'Portfolio'], ['booking-page', 'Booking page'], ['instagram', 'Instagram'],
@@ -38,6 +39,7 @@ export default function PhotoConsent() {
   const [notice, setNotice] = useState('');
   const [retry, setRetry] = useState(0);
   const request = async (path, options = {}) => {
+    if (!options.method || options.method === 'GET') return readAuthenticatedJson({ auth: supabase.auth, url: `${API_BASE}${path}` });
     const { data } = await supabase.auth.getSession();
     if (!data.session) throw new Error('Please sign in again.');
     const res = await fetch(`${API_BASE}${path}`, { ...options, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.session.access_token}` } });

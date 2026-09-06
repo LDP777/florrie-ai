@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import Button from './ui/Button.jsx';
 import Icon from './ui/Icon.jsx';
+import { readAuthenticatedJson } from '../lib/authenticated-json.js';
 
 export const clientName = client => `${client?.first_name || ''} ${client?.last_name || ''}`.trim() || 'Client';
 
@@ -24,11 +25,7 @@ export default function ClientLookup({ value = '', onChange, label = 'Find a cli
     const controller = new AbortController();
     (async () => {
       try {
-        const { data } = await supabase.auth.getSession();
-        if (!data.session) throw new Error('Sign in again to load clients.');
-        const res = await fetch(`${API_BASE}/api/clients/${encodeURIComponent(value)}`, { headers: { Authorization: `Bearer ${data.session.access_token}` }, signal: controller.signal });
-        if (!res.ok) throw new Error('Could not load the selected client. Choose them again.');
-        const body = await res.json();
+        const body = await readAuthenticatedJson({ auth: supabase.auth, url: `${API_BASE}/api/clients/${encodeURIComponent(value)}` });
         if (!body.client?.id) throw new Error('Please choose a client.');
         if (!controller.signal.aborted) { setSelected(body.client); setChoosing(false); setError(''); }
       } catch (err) { if (!controller.signal.aborted) { setError(err.message); setChoosing(true); } }
@@ -41,12 +38,8 @@ export default function ClientLookup({ value = '', onChange, label = 'Find a cli
     setBusy(true);
     const timer = setTimeout(async () => {
       try {
-        const { data } = await supabase.auth.getSession();
-        if (!data.session) throw new Error('Sign in again to load clients.');
         const params = new URLSearchParams({ search: query.trim(), page: String(page), per_page: '8' });
-        const res = await fetch(`${API_BASE}/api/clients?${params}`, { headers: { Authorization: `Bearer ${data.session.access_token}` }, signal: controller.signal });
-        if (!res.ok) throw new Error('Could not load clients. Try again.');
-        const body = await res.json();
+        const body = await readAuthenticatedJson({ auth: supabase.auth, url: `${API_BASE}/api/clients?${params}` });
         if (!Array.isArray(body.data)) throw new Error('Could not load clients. Try again.');
         if (!controller.signal.aborted) {
           setRows(body.data);

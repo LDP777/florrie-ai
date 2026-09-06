@@ -31,9 +31,13 @@ try {
       const url=String(input), method=opts.method||'GET';
       const json=(body,status=200)=>Promise.resolve(new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json'}}));
       if(url.includes('/rest/v1/clients?')) return json([person]);
+      if(url.includes('/api/clients?')) return json({data:[person,{...person,id:'other-client',first_name:'Other'}],pagination:{total_pages:1}});
+      if(url.includes('/api/clients/care-client')) return json({client:person});
+      if(url.includes('/api/clients/other-client')) return json({client:{...person,id:'other-client',first_name:'Other'}});
       if(url.includes('/rest/v1/appointments?')||url.includes('/rest/v1/messages?')||url.includes('/rest/v1/loyalty_points?')) return json([]);
       if(url.includes('/api/consultation-forms/responses/list')) {
         if(window.__care.failRecords) return json({error:'Synthetic record read failure'},500);
+        if(url.includes('client_id=other-client')) return json({responses:[],requests:[],templates:[]});
         return json({responses:[answer],requests:[{id:'pending',form_id:'waiting',form_name:'Awaiting consultation',status:'pending',sent_at:'2026-09-01T12:00:00Z',expires_at:'2099-01-01'},{id:'expired',form_id:'expired',form_name:'Expired consultation',status:'expired',sent_at:'2020-01-01',expires_at:'2020-01-08'},...window.__care.sends.map((s,i)=>({id:`sent-${i}`,form_id:s.form_id,form_name:'New consultation',status:'pending',sent_at:'2026-09-05',expires_at:'2099-01-01'}))],templates:[{id:'new',name:'New consultation',is_default:true},{id:'waiting',name:'Awaiting consultation'}]});
       }
       if(url.includes('/api/consultation-forms/responses/completed')) return window.__care.failSignature?json({error:'Synthetic signature failure'},500):json({response:{signature_data:signature}});
@@ -82,6 +86,23 @@ try {
   await page.getByRole('button',{name:'Photo consent',exact:true}).click();
   assert.equal(new URL(page.url()).searchParams.get('clientId'),'care-client');
   console.log('✓ Client record: load retry, pending/expired, original answers/consent, signature retry, chosen-template send and patch-test identity');
+  await page.goto(`${origin}/compliance?tab=records`);
+  await page.evaluate(()=>{window.__care.failRecords=false;window.__care.failSignature=false;});
+  await page.getByRole('button',{name:/Care Fixture/}).click();
+  await page.getByText('Brow consultation',{exact:true}).waitFor();
+  assert.equal(new URL(page.url()).pathname,'/compliance');
+  assert.equal(new URL(page.url()).searchParams.get('clientId'),'care-client');
+  await page.locator('summary').filter({hasText:'Brow consultation'}).click();
+  await page.getByText('Latex',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'View signature',exact:true}).click();
+  await page.getByAltText('Client signature',{exact:true}).waitFor();
+  if(shots) await page.screenshot({path:join(shots,'guardian-inline-record-390.png'),fullPage:true});
+  await page.getByRole('button',{name:'Change',exact:true}).click();
+  await page.getByRole('button',{name:/Other Fixture/}).click();
+  await page.getByText('No submitted answers available.',{exact:true}).waitFor();
+  assert.equal(await page.getByText('Brow consultation',{exact:true}).count(),0);
+  assert.equal(await page.getByAltText('Client signature',{exact:true}).count(),0);
+  console.log('✓ Guardian reads answers and signature inline; switching clients clears previous evidence');
   await page.goto(`${origin}/form/care-token`);
   await page.getByLabel('Any allergies?',{exact:false}).fill('Latex');
   await page.getByRole('button',{name:'Submit Form',exact:true}).click();
