@@ -12,7 +12,7 @@ import ErrorCard from '../components/ErrorCard.jsx';
 import { bookingUrl as publicBookingUrl } from '../lib/booking.js';
 import Icon, { iconName } from '../components/ui/Icon';
 import PageHeader from '../components/ui/PageHeader.jsx';
-const fmt = (cents) => `£${(cents / 100).toFixed(0)}`;
+const fmt = (cents) => `£${(cents / 100).toFixed(2)}`;
 
 const CATEGORIES = [
   { key: 'brows', label: 'Brows', icon: 'sparkles' },
@@ -77,7 +77,7 @@ export default function PriceList() {
       const mapped = (data || []).map(t => ({
         id: t.id,
         name: t.name,
-        category: t.category || guessCategory(t.name),
+        category: String(t.category || guessCategory(t.name)).trim().toLowerCase() || guessCategory(t.name),
         price_cents: t.price_cents || 0,
         duration_minutes: t.duration_minutes || 0,
         description: t.description || null,
@@ -112,7 +112,10 @@ export default function PriceList() {
 
   const visibleItems = items.filter(i => !hiddenIds.has(i.id));
   const filtered = selectedCat === 'all' ? visibleItems : visibleItems.filter(i => i.category === selectedCat);
-  const grouped = CATEGORIES.map(cat => ({
+  const knownKeys = new Set(CATEGORIES.map(cat => cat.key));
+  const customCategories = [...new Set(items.map(item => item.category))].filter(key => !knownKeys.has(key)).map(key => ({ key, label: key.charAt(0).toUpperCase() + key.slice(1), icon: 'flower' }));
+  const categories = [...CATEGORIES, ...customCategories];
+  const grouped = categories.map(cat => ({
     ...cat,
     items: filtered.filter(i => i.category === cat.key),
   })).filter(g => g.items.length > 0);
@@ -203,7 +206,7 @@ export default function PriceList() {
               {/* Category filter */}
               <div style={S.catFilterRow}>
                 <button onClick={() => setSelectedCat('all')} style={{ ...S.catChip, ...(selectedCat === 'all' ? { background: currentTheme.accent, color: '#fff' } : { color: currentTheme.muted, borderColor: currentTheme.border }) }}>All</button>
-                {CATEGORIES.filter(c => visibleItems.some(i => i.category === c.key)).map(c => (
+                {categories.filter(c => visibleItems.some(i => i.category === c.key)).map(c => (
                   <button key={c.key} onClick={() => setSelectedCat(c.key)} style={{ ...S.catChip, ...(selectedCat === c.key ? { background: currentTheme.accent, color: '#fff' } : { color: currentTheme.muted, borderColor: currentTheme.border }) }}>
                     <Icon name={iconName(c.icon)} inline /> {c.label}
                   </button>
@@ -299,7 +302,8 @@ export default function PriceList() {
           {/* Share tab */}
           {tab === 'share' && (
             <div style={S.section}>
-              <h3 style={S.sectionTitle}>Share Your Price List</h3>
+              <h3 style={S.sectionTitle}>Share your booking page</h3>
+              <p style={S.shareSub}>Links show your live booking page. Preview colours, descriptions and hidden items apply only here.</p>
 
               <div style={S.shareCard}>
                 <span style={S.shareIcon}><Icon name="link" size={18} /></span>
@@ -322,10 +326,10 @@ export default function PriceList() {
               <div style={S.shareCard}>
                 <span style={S.shareIcon}>📸</span>
                 <div style={S.shareInfo}>
-                  <span style={S.shareLabel}>Save as Image</span>
-                  <span style={S.shareSub}>Print or save for Instagram</span>
+                  <span style={S.shareLabel}>Print</span>
+                  <span style={S.shareSub}>Open your device’s print options</span>
                 </div>
-                <button onClick={saveAsImage} style={S.copyBtn}>Save</button>
+                <button onClick={saveAsImage} style={S.copyBtn}>Print</button>
               </div>
 
               <div style={S.shareCard}>

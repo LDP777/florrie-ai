@@ -828,7 +828,6 @@ export default function BookingPage() {
         setMonthError(false);
       } catch (err) {
         if (cancelled) return;
-        logger.debug('Month availability failed:', err);
         // Only an error if we have nothing trustworthy to show for this month.
         setMonthError(monthDataFor !== monthKey);
       } finally {

@@ -4,6 +4,7 @@ import { supabase, useBeautician } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageHeader from '../components/ui/PageHeader.jsx';
+import Button from '../components/ui/Button.jsx';
 import { bloom } from '../lib/bloom.js';
 import Icon, { iconName } from '../components/ui/Icon';
 
@@ -1438,15 +1439,35 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
  */
 function ClientControls({ clientId, initialAutonomy = null }) {
   const [value, setValue] = useState(initialAutonomy);
-  useEffect(() => { setValue(initialAutonomy); }, [clientId, initialAutonomy]);
+  const [saving, setSaving] = useState(false);
+  const [failure, setFailure] = useState(null);
+  const request = useRef(0);
+  const busy = useRef(false);
+  useEffect(() => {
+    request.current += 1;
+    busy.current = false;
+    setValue(initialAutonomy); setSaving(false); setFailure(null);
+    return () => { request.current += 1; };
+  }, [clientId, initialAutonomy]);
 
   const meDriving = value === 'just_me';
 
   async function save(v) {
-    setValue(v);
+    if (busy.current) return;
+    busy.current = true;
+    const attempt = ++request.current;
+    setSaving(true); setFailure(null);
     try {
-      await supabase.from('clients').update({ messaging_autonomy: v }).eq('id', clientId);
-    } catch { /* optimistic; reload corrects */ }
+      const { data, error } = await supabase.from('clients')
+        .update({ messaging_autonomy: v }).eq('id', clientId)
+        .select('id, messaging_autonomy').single();
+      if (error || data?.id !== clientId || data.messaging_autonomy !== v) throw error || new Error('Change was not confirmed');
+      if (attempt === request.current) setValue(data.messaging_autonomy);
+    } catch {
+      if (attempt === request.current) setFailure({ value: v });
+    } finally {
+      if (attempt === request.current) { busy.current = false; setSaving(false); }
+    }
   }
 
   const PILLS = [
@@ -1464,6 +1485,7 @@ function ClientControls({ clientId, initialAutonomy = null }) {
             type="button"
             role="tab"
             aria-selected={seg.on}
+            disabled={saving}
             onClick={seg.set}
             style={{ ...S.driverSeg,
               background: seg.on ? 'var(--accent, #92405e)' : 'transparent',
@@ -1474,9 +1496,13 @@ function ClientControls({ clientId, initialAutonomy = null }) {
           </button>
         ))}
         <span style={S.driverCaption}>
-          {meDriving ? "You've taken over. Florrie stays quiet here." : 'Florrie is answering this thread.'}
+          {saving ? 'Saving preference…' : meDriving ? "You've taken over. Florrie stays quiet here." : value === 'drafts' ? 'Replies wait for your approval.' : 'Florrie is answering this thread.'}
         </span>
       </div>
+      {failure && <div role="alert" style={{ color: 'var(--danger, #9f3434)', fontSize: 13, padding: '8px 0' }}>
+        Could not save this preference. The previous setting still applies.
+        <Button variant="quiet" size="sm" disabled={saving} onClick={() => save(failure.value)}>Try again</Button>
+      </div>}
       {!meDriving && (
         <div style={S.pillRow}>
           {PILLS.map(o => {
@@ -1485,6 +1511,8 @@ function ClientControls({ clientId, initialAutonomy = null }) {
               <button
                 key={o.key}
                 type="button"
+                disabled={saving}
+                aria-pressed={on}
                 onClick={() => save(on ? null : o.key)}
                 style={{ ...S.finePill,
                   background: on ? 'var(--tone-2, #f6e7dd)' : 'transparent',
