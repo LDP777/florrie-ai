@@ -4,7 +4,7 @@ import { build } from 'esbuild';
 import { launch } from './lib/browser.mjs';
 
 const { outputFiles } = await build({
-  stdin: { contents: `import React from 'react'; import {createRoot} from 'react-dom/client'; import Verification from './src/components/BookingEmailVerification.jsx'; import {bookingHeaders} from './src/lib/booking-auth.js'; window.headers=bookingHeaders; createRoot(document.getElementById('root')).render(<Verification onVerified={email=>window.proof=email}/>);`, resolveDir: new URL('..', import.meta.url).pathname, loader: 'jsx' },
+  stdin: { contents: `import React from 'react'; import {createRoot} from 'react-dom/client'; import Verification from './src/components/BookingEmailVerification.jsx'; import {bookingHeaders} from './src/lib/booking-auth.js'; import {createBookingAuthFetch} from './src/lib/booking-auth-fetch.js'; window.headers=bookingHeaders; window.timeoutRequest=()=>createBookingAuthFetch((_url,{signal})=>new Promise((_resolve,reject)=>signal.addEventListener('abort',()=>reject(signal.reason))),20)('https://fixture.invalid'); createRoot(document.getElementById('root')).render(<Verification onVerified={email=>window.proof=email}/>);`, resolveDir: new URL('..', import.meta.url).pathname, loader: 'jsx' },
   bundle: true, write: false, format: 'iife', jsx: 'automatic', define: { 'process.env.NODE_ENV': '"test"', 'import.meta.env.VITE_SUPABASE_URL': '"https://fixture.invalid"', 'import.meta.env.VITE_SUPABASE_ANON_KEY': '"fixture"' },
   plugins: [{ name: 'synthetic-auth', setup(builder) {
     builder.onResolve({ filter: /^@supabase\/supabase-js$/ }, () => ({ path: 'auth', namespace: 'fixture' }));
@@ -14,7 +14,7 @@ const { outputFiles } = await build({
       return {auth:{
         getSession:async()=>({data:{session}}),
         onAuthStateChange:cb=>{listener=cb;return {data:{subscription:{unsubscribe(){}}}}},
-        signInWithOtp:async request=>{window.requests.push(request);return {error:window.failSend?{message:'transport failed'}:null}},
+        signInWithOtp:async request=>{window.requests.push(request);if(window.hangSend)await window.timeoutRequest();return {error:window.failSend?{message:'transport failed'}:null}},
         verifyOtp:async request=>{window.verifications.push(request);if(window.failVerify)return {error:{message:'bad code'},data:{session:null}};session={access_token:'public-token',user:{email:request.email,email_confirmed_at:'2026-09-06'}};listener('SIGNED_IN',session);return {data:{session}}},
         signOut:async()=>{session=null;listener('SIGNED_OUT',null);return {error:null}}
       }};
@@ -38,6 +38,12 @@ try {
   assert.equal(await page.evaluate(()=>window.proof),'');
   assert.equal((await page.evaluate(()=>window.headers())).Authorization,undefined);
   await page.evaluate(()=>{window.failSend=false});
+  await page.evaluate(()=>{window.hangSend=true});
+  await page.getByRole('button',{name:'Get verification code'}).click();
+  await page.getByRole('alert').filter({hasText:'request failed'}).waitFor();
+  assert.equal(await page.getByText('Check your inbox for a verification code.').count(),0);
+  assert.equal(await page.getByRole('button',{name:'Get verification code'}).isEnabled(),true);
+  await page.evaluate(()=>{window.hangSend=false});
   await page.getByRole('button',{name:'Get verification code'}).click();
   await page.getByText('Check your inbox for a verification code.').waitFor();
   assert.equal(await page.getByRole('button',{name:/Request another code in/}).isDisabled(),true);
@@ -57,5 +63,5 @@ try {
   assert.deepEqual(await page.evaluate(()=>window.authOptions.auth),{storageKey:'florrie-booking-auth',detectSessionInUrl:false,persistSession:true});
   assert.equal(await page.evaluate(()=>localStorage.getItem('owner-auth-sentinel')),'untouched');
   assert.equal(await page.evaluate(()=>window.requests[0].options.data.account_type),'booking_client');
-  console.log('✓ Public booking identity: failed request, retry, cooldown, invalid code, verified headers, account change, isolated auth storage');
+  console.log('✓ Public booking identity: failed request, transport timeout and recovery, retry, cooldown, invalid code, verified headers, account change, isolated auth storage');
 } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }
