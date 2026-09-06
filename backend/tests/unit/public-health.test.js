@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import express from 'express';
-import { createHealthRouter } from '../../src/routes/health.js';
+import { createHealthRouter } from '../../src/lib/health-router.js';
 
 const servers = [];
 async function start(check, options = {}) {

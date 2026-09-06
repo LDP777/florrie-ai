@@ -52,7 +52,7 @@ import { startScheduler, listJobs } from './lib/scheduler.js';
 // Detection layer: heartbeats for the crons and a health endpoint that can
 // actually go red. See lib/health.js for why the old one was a lie.
 import { runHealthChecks, reportDegraded } from './lib/health.js';
-import { createHealthRouter } from './routes/health.js';
+import { createHealthRouter } from './lib/health-router.js';
 import { probeAuthorshipColumn } from './lib/authorship.js';
 import Stripe from 'stripe';
 
