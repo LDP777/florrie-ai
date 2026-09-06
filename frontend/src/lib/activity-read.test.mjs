@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readActivity } from './activity-read.js';
 const session = token => ({ data: { session: token ? { access_token: token } : null } });
-const response = (status, body = { rows: [] }) => new Response(JSON.stringify(body), { status });
+const response = (status, data = { rows: [] }) => ({ ok: status >= 200 && status < 300, status, data });
 
 test('a rejected cached token is refreshed once and the new token loads activity', async () => {
   const sent = [];
@@ -31,7 +31,7 @@ test('no session is an error, not a successful empty feed; a later signed-in rea
 test('API failure remains an error and a later retry recovers', async () => {
   let status = 503;
   const args = { auth: { getSession: async () => session('valid') }, request: async () => response(status), url: '/feed' };
-  await assert.rejects(readActivity(args), /Could not load activity/);
+  await assert.rejects(readActivity(args), /Could not load this section/);
   status = 200;
   assert.deepEqual(await readActivity(args), []);
 });

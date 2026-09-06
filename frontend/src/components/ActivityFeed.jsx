@@ -5,7 +5,6 @@ import { readActivity } from '../lib/activity-read.js';
 import { API_BASE } from '../lib/config.js';
 import { deDash } from '../lib/text.js';
 import Icon, { iconName } from './ui/Icon';
-import { dedupeFetch } from '../lib/dedupe-fetch.js';
 import Button from './ui/Button.jsx';
 
 /**
@@ -164,10 +163,12 @@ export default function ActivityFeed({ limit = 50, compact = false }) {
     const visible = () => { if (document.visibilityState === 'visible') retry(); };
     document.addEventListener('visibilitychange', visible);
     window.addEventListener('focus', visible);
+    window.addEventListener('online', visible);
     window.addEventListener('florrie:refresh-counts', visible);
     return () => {
       document.removeEventListener('visibilitychange', visible);
       window.removeEventListener('focus', visible);
+      window.removeEventListener('online', visible);
       window.removeEventListener('florrie:refresh-counts', visible);
     };
   }, []);
@@ -175,7 +176,7 @@ export default function ActivityFeed({ limit = 50, compact = false }) {
   useEffect(() => {
     let cancelled = false;
     setState({ status: 'loading', rows: [] });
-    readActivity({ auth: supabase.auth, request: dedupeFetch,
+    readActivity({ auth: supabase.auth,
       url: `${API_BASE}/api/activity/feed?limit=${limit}` })
       .then(rows => { if (!cancelled) setState({ status: 'ready', rows }); })
       .catch(error => {

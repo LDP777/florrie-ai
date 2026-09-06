@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
-import { dedupeFetch } from '../lib/dedupe-fetch.js';
+import { readAuthenticatedJson } from '../lib/authenticated-json.js';
 import { salonClock, todayOverview, decisionOverview, appointmentName, appointmentTime } from '../lib/today-overview.js';
 import Button from './ui/Button.jsx';
 import Icon from './ui/Icon.jsx';
@@ -10,15 +10,7 @@ const money = pence => new Intl.NumberFormat('en-GB', {
   style: 'currency', currency: 'GBP', minimumFractionDigits: pence % 100 ? 2 : 0,
 }).format(pence / 100);
 
-async function read(path) {
-  const { data } = await supabase.auth.getSession();
-  if (!data.session?.access_token) throw new Error('Session unavailable');
-  const res = await dedupeFetch(`${API_BASE}${path}`, {
-    headers: { Authorization: `Bearer ${data.session.access_token}` },
-  });
-  if (!res.ok) throw new Error('Could not load Today');
-  return res.json();
-}
+const read = path => readAuthenticatedJson({ auth: supabase.auth, url: `${API_BASE}${path}` });
 
 function useTodayRefresh() {
   const [revision, setRevision] = useState(0);
@@ -28,11 +20,13 @@ function useTodayRefresh() {
     const timer = setInterval(visible, 60_000);
     window.addEventListener('florrie:refresh-counts', refresh);
     window.addEventListener('focus', visible);
+    window.addEventListener('online', visible);
     document.addEventListener('visibilitychange', visible);
     return () => {
       clearInterval(timer);
       window.removeEventListener('florrie:refresh-counts', refresh);
       window.removeEventListener('focus', visible);
+      window.removeEventListener('online', visible);
       document.removeEventListener('visibilitychange', visible);
     };
   }, []);
@@ -65,24 +59,29 @@ function ChannelStatus({ beautician, onNav }) {
 
 export function TodaySummary({ beautician, onNav }) {
   const [state, setState] = useState({ status: 'loading' });
+  const [inbox, setInbox] = useState(null);
   const [revision, refresh] = useTodayRefresh();
   useEffect(() => {
     if (!beautician?.id) return;
     let cancelled = false;
+    setState(previous => previous.status === 'error' ? { status: 'loading' } : previous);
+    // A slow badge request must never hold the diary behind it.
+    setInbox(null);
+    read('/api/agents/counts')
+      .then(counts => {
+        if (!cancelled) setInbox(Number.isInteger(counts?.inbox) && counts.inbox >= 0 ? counts.inbox : null);
+      })
+      .catch(() => { if (!cancelled) setInbox(null); });
     async function load() {
       try {
         const clock = salonClock(new Date(), beautician.timezone);
         const tomorrow = new Date(`${clock.date}T12:00:00Z`);
         tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
-        const [appointments, counts] = await Promise.all([
-          read(`/api/appointments?from=${clock.date}&to=${tomorrow.toISOString().slice(0, 10)}&per_page=100`),
-          read('/api/agents/counts').catch(() => null),
-        ]);
+        const appointments = await read(`/api/appointments?from=${clock.date}&to=${tomorrow.toISOString().slice(0, 10)}&per_page=100`);
         if (!Array.isArray(appointments?.data)) throw new Error('Diary unavailable');
-        if (!cancelled) setState({ status: 'ready', overview: todayOverview(appointments.data, clock),
-          inbox: Number.isInteger(counts?.inbox) && counts.inbox >= 0 ? counts.inbox : null });
-      } catch {
-        if (!cancelled) setState({ status: 'error' });
+        if (!cancelled) setState({ status: 'ready', overview: todayOverview(appointments.data, clock) });
+      } catch (error) {
+        if (!cancelled) setState({ status: 'error', message: error.message });
       }
     }
     load();
@@ -91,7 +90,8 @@ export function TodaySummary({ beautician, onNav }) {
 
   if (state.status === 'error') return <section className="today-card">
     <h2 className="today-section-title">Your day</h2>
-    <LoadError retry={refresh}>Couldn't load your diary. Try again to see who's next.</LoadError>
+    <LoadError retry={refresh}>{state.message || "Couldn't load your diary. Try again to see who's next."}</LoadError>
+    <Button variant="quiet" onClick={() => onNav('/calendar/week')}>Open calendar <Icon name="arrow-right" size={16} /></Button>
   </section>;
   if (state.status === 'loading') return <section className="today-card" aria-busy="true" aria-label="Loading your day">
     <span className="today-eyebrow">Your day</span>
@@ -99,7 +99,7 @@ export function TodaySummary({ beautician, onNav }) {
     <div className="today-skeleton" /><div className="today-skeleton" />
   </section>;
 
-  const { overview: day, inbox } = state;
+  const { overview: day } = state;
   const focus = day.focus;
   const openAppointment = appointment => onNav(`/calendar/week?date=${day.date}&appt=${appointment.id}`);
   const treatment = focus?.treatments?.name || focus?.treatment_name;
@@ -160,7 +160,9 @@ export function ApprovalCard({ onNav, beauticianId }) {
   const [state, setState] = useState({ status: 'loading', items: [] });
   const [revision, refresh] = useTodayRefresh();
   useEffect(() => {
+    if (!beauticianId) return;
     let cancelled = false;
+    setState(previous => previous.status === 'error' ? { status: 'loading', items: [] } : previous);
     Promise.all([read('/api/outbound/pending'), read('/api/escalations')])
       .then(([pending, escalations]) => {
         const items = decisionOverview(pending, escalations);

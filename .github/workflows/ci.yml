@@ -85,6 +85,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
         working-directory: frontend
       - run: npm run check:drag --workspace frontend
+      - run: npm run check:today:browser --workspace frontend
 
       # The rest of the browser checks ride along free — chromium is already
       # installed by the step above, so these cost seconds, not minutes.

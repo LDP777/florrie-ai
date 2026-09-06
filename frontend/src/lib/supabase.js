@@ -11,6 +11,7 @@ import { isIOSNative } from './platform.js';
 import { useState, useEffect, useCallback } from 'react';
 import logger from './logger.js';
 import { API_BASE } from './config.js';
+import { readAuthenticatedJson } from './authenticated-json.js';
 
 const url = import.meta.env?.VITE_SUPABASE_URL || '';
 const key = import.meta.env?.VITE_SUPABASE_ANON_KEY || '';
@@ -43,6 +44,7 @@ const BEAUTICIAN_CACHE_MS = 30000;
 // A sign-in/sign-out must not serve the previous user's row.
 if (supabase) {
   supabase.auth.onAuthStateChange(() => {
+    readAuthenticatedJson.invalidateSession(supabase.auth);
     beauticianCache = null;
     beauticianCacheAt = 0;
     beauticianInFlight = null;

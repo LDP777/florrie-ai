@@ -103,15 +103,11 @@ function boot(ph, key, host) {
     return;
   }
 
-  // Hook into Supabase auth so every signed-in session is identified
-  // without each page needing to remember to call identify().
+  // INITIAL_SESSION also covers an already signed-in owner. Analytics must
+  // not make an extra auth network request while the diary is loading.
   if (supabase) {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user?.id) identify(user.id, { email_domain: emailDomain(user.email) });
-    });
-
     supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' && session?.user?.id) {
+      if (['INITIAL_SESSION', 'SIGNED_IN', 'TOKEN_REFRESHED'].includes(event) && session?.user?.id) {
         identify(session.user.id, { email_domain: emailDomain(session.user.email) });
       } else if (event === 'SIGNED_OUT') {
         reset();

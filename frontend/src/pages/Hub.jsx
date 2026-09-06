@@ -139,9 +139,9 @@ export default function Hub() {
         <>
           <div className="today-layout">
             <div className="today-main">
-              <TodaySummary beautician={beautician} onNav={navigate} />
-              <ApprovalCard beauticianId={beautician?.id} onNav={navigate} />
-              <ActivityFeed limit={50} compact />
+              <TodaySummary key={`day-${beautician?.id}`} beautician={beautician} onNav={navigate} />
+              <ApprovalCard key={`decisions-${beautician?.id}`} beauticianId={beautician?.id} onNav={navigate} />
+              {beautician?.id && <ActivityFeed key={beautician.id} limit={50} compact />}
             </div>
             <aside className="today-support" aria-label="Suggestions and business overview">
               <div id="florrie-suggestions"><SuggestionCards /></div>
