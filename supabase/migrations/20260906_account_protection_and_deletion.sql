@@ -101,7 +101,13 @@ BEGIN
  WHERE beautician_id=request.beautician_id
  OR data #>> '{data,object,metadata,beautician_id}' = request.beautician_id::text
  OR data #>> '{metadata,beautician_id}' = request.beautician_id::text;
+ -- Clear old archive IDs first so a previously restored appointment can be
+ -- archived again by the trigger without a primary-key collision.
+ DELETE FROM public.deleted_appointments WHERE beautician_id=request.beautician_id;
  DELETE FROM public.beauticians WHERE id=request.beautician_id AND auth_id=request.auth_id;
+ -- The appointment BEFORE DELETE audit trigger creates full snapshots during
+ -- this cascade. Erase archives afterward, in the same transaction.
+ DELETE FROM public.deleted_appointments WHERE beautician_id=request.beautician_id;
 END $$;
 REVOKE ALL ON FUNCTION public.erase_deletion_business(uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.erase_deletion_business(uuid) TO service_role;

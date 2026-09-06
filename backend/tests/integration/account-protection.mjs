@@ -24,6 +24,12 @@ CREATE TABLE public.stripe_events(id text PRIMARY KEY,beautician_id uuid REFEREN
 CREATE TABLE storage.objects(bucket_id text,name text,owner_id text);
 INSERT INTO public.beauticians(id,auth_id,first_name) VALUES('${owner}','${owner}','Owner'),('${other}','${other}','Other');
 `);
+await db.exec(`CREATE TABLE public.appointments(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),beautician_id uuid REFERENCES public.beauticians(id) ON DELETE CASCADE,client_id uuid,starts_at timestamptz,status text,price_cents integer,deposit_paid boolean,stripe_payment_intent_id text);`);
+// Install the actual production archive table and BEFORE DELETE trigger.
+const archiveMigration = await readFile(new URL('../../../supabase/migrations/20260805_protect_paid_bookings.sql',import.meta.url),'utf8');
+await db.exec(archiveMigration.slice(archiveMigration.indexOf('CREATE TABLE IF NOT EXISTS deleted_appointments')));
+await db.exec(`INSERT INTO public.appointments(beautician_id,status) VALUES('${owner}','confirmed'),('${other}','confirmed');
+ INSERT INTO public.deleted_appointments(id,beautician_id,row_snapshot) VALUES(gen_random_uuid(),'${owner}','{"notes":"old private snapshot"}'),(gen_random_uuid(),'${other}','{"notes":"other salon archive"}');`);
 await db.exec(await readFile(new URL('../../../supabase/migrations/20260906_account_protection_and_deletion.sql',import.meta.url),'utf8'));
 async function asUser(sql) {
   await db.exec(`BEGIN; SET LOCAL ROLE authenticated; SET LOCAL request.jwt.claim.sub='${owner}';`);
@@ -60,6 +66,9 @@ await db.exec(`INSERT INTO public.account_deletions(auth_id,beautician_id,snapsh
 const job=(await db.query('SELECT id FROM public.account_deletions')).rows[0];
 await db.exec(`SET ROLE service_role; SELECT public.erase_deletion_business('${job.id}'); RESET ROLE;`);
 assert.equal((await db.query(`SELECT * FROM public.beauticians WHERE id='${owner}'`)).rows.length,0);
+assert.equal((await db.query(`SELECT * FROM public.deleted_appointments WHERE beautician_id='${owner}'`)).rows.length,0,'both old and cascade-created snapshots are erased');
+assert.equal((await db.query(`SELECT * FROM public.deleted_appointments WHERE beautician_id='${other}'`)).rows.length,1,'other salon archives survive');
+assert.equal((await db.query(`SELECT * FROM public.appointments WHERE beautician_id='${other}'`)).rows.length,1,'other salon appointments survive');
 assert.deepEqual((await db.query(`SELECT data FROM public.stripe_events WHERE id='evt_test'`)).rows[0].data,{account_deleted:true});
 for (const id of ['evt_nested','evt_legacy']) assert.deepEqual((await db.query('SELECT data FROM public.stripe_events WHERE id=$1',[id])).rows[0].data,{account_deleted:true});
 assert.equal((await db.query("SELECT processed_at FROM public.stripe_events WHERE id='evt_foreign'")).rows[0].processed_at,null);
@@ -83,5 +92,18 @@ await db.query("INSERT INTO stripe_events(id,data) VALUES ('evt_late',$1)",[{dat
 assert.deepEqual((await db.query("SELECT data FROM stripe_events WHERE id='evt_late'")).rows[0].data,{account_deleted:true});
 await db.query("UPDATE stripe_events SET data=$1 WHERE id='evt_late'",[{email:'restored@example.test'}]);
 assert.deepEqual((await db.query("SELECT data FROM stripe_events WHERE id='evt_late'")).rows[0].data,{account_deleted:true});
+// Exercise the final replacement erase function, including a restored ID that
+// already has an archive row. Both cleanup passes must be one transaction.
+await db.exec(`INSERT INTO public.account_deletions(auth_id,beautician_id,snapshot_encrypted,status_token_hash) VALUES('${other}','${other}','encrypted','other-hash');
+ INSERT INTO public.deleted_appointments(id,beautician_id,row_snapshot) SELECT id,beautician_id,to_jsonb(appointments) FROM public.appointments WHERE beautician_id='${other}';`);
+const otherJob=(await db.query(`SELECT id FROM public.account_deletions WHERE beautician_id='${other}'`)).rows[0];
+await db.exec(`CREATE FUNCTION fail_deletion_fixture() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'pending recovery'; END $$;
+ CREATE TRIGGER fail_deletion_fixture BEFORE DELETE ON public.appointments FOR EACH ROW EXECUTE FUNCTION fail_deletion_fixture();`);
+await assert.rejects(db.query('SELECT erase_deletion_business($1)',[otherJob.id]),/pending recovery/);
+assert.equal((await db.query(`SELECT * FROM public.deleted_appointments WHERE beautician_id='${other}'`)).rows.length,2,'a failed cascade restores archives removed earlier in the transaction');
+await db.exec('DROP TRIGGER fail_deletion_fixture ON public.appointments');
+await db.query('SELECT erase_deletion_business($1)',[otherJob.id]);
+assert.equal((await db.query(`SELECT * FROM public.deleted_appointments WHERE beautician_id='${other}'`)).rows.length,0,'final migration removes historic, restored-ID and newly created archive rows');
+assert.equal((await db.query(`SELECT * FROM public.beauticians WHERE id='${other}'`)).rows.length,0);
 console.log('PASS: late webhook customer hashes, exact metadata ownership, private RPC and race-safe persistent event redaction');
 await db.close();

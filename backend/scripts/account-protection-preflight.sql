@@ -29,4 +29,4 @@ SELECT required.table_name,required.column_name,EXISTS(
  SELECT 1 FROM information_schema.columns actual WHERE actual.table_schema='public'
  AND actual.table_name=required.table_name AND actual.column_name=required.column_name
 ) AS column_exists FROM (VALUES ('beauticians','id'),('beauticians','auth_id'),
- ('stripe_events','beautician_id'),('stripe_events','data'),('stripe_events','processed_at')) AS required(table_name,column_name);
+ ('deleted_appointments','beautician_id'),('stripe_events','beautician_id'),('stripe_events','data'),('stripe_events','processed_at')) AS required(table_name,column_name);

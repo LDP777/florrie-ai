@@ -51,7 +51,12 @@ BEGIN
  IF request.snapshot_encrypted IS NULL AND request.status <> 'completed' THEN RAISE EXCEPTION 'Missing deletion recovery snapshot'; END IF;
  UPDATE public.stripe_events SET beautician_id=NULL,data='{"account_deleted":true}'::jsonb,processed_at=coalesce(processed_at,now())
  WHERE beautician_id=request.beautician_id OR public.deleted_account_event_owner(data)=request.id;
+ -- Clear old archive IDs first so a previously restored appointment can be
+ -- archived again by the trigger without a primary-key collision.
+ DELETE FROM public.deleted_appointments WHERE beautician_id=request.beautician_id;
  DELETE FROM public.beauticians WHERE id=request.beautician_id AND auth_id=request.auth_id;
+ -- Cascading appointment deletion just created new archive snapshots.
+ DELETE FROM public.deleted_appointments WHERE beautician_id=request.beautician_id;
 END $$;
 REVOKE ALL ON FUNCTION public.erase_deletion_business(uuid) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.erase_deletion_business(uuid) TO service_role;
