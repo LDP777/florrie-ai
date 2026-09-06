@@ -96,7 +96,7 @@ export async function clientsOwingPatchTest(supabase, beauticianId, clientIds = 
 }
 
 /**
- * The whole truthful picture for one client, in one round trip.
+ * The patch-test record and any linked appointments for one client.
  *
  * Returns a `state`, never a verdict:
  *   none        no patch test on record at all
@@ -109,16 +109,29 @@ export async function clientsOwingPatchTest(supabase, beauticianId, clientIds = 
  * appointments are completed and not one of the 22 rows has ever had a result
  * written to it, so "she came in on the 14th" is true and "she passed" is not.
  */
+// Production has appointment_id but no PostgREST relationship to appointments.
+// Read links explicitly, with both salon and client ownership, rather than
+// making every patch-test lookup depend on an optional foreign key.
+async function readPatchTestRows(supabase, beauticianId, clientId, orderBy, limit) {
+  const result = await supabase.from('patch_tests')
+    .select('id, status, result, test_date, confirmed_at, appointment_id')
+    .eq('beautician_id', beauticianId).eq('client_id', clientId)
+    .order(orderBy, { ascending: false }).limit(limit);
+  if (result.error) return result;
+  const rows = result.data || [];
+  const ids = [...new Set(rows.map(row => row.appointment_id).filter(Boolean))];
+  if (!ids.length) return { data: rows, error: null };
+  const linked = await supabase.from('appointments').select('id, starts_at, status')
+    .eq('beautician_id', beauticianId).eq('client_id', clientId).in('id', ids);
+  if (linked.error) return { data: null, error: linked.error };
+  const byId = new Map((linked.data || []).map(appointment => [appointment.id, appointment]));
+  return { data: rows.map(row => ({ ...row, appointments: byId.get(row.appointment_id) || null })), error: null };
+}
+
 export async function patchTestPicture(supabase, beauticianId, clientId, logger = null) {
   if (!clientId || !beauticianId) return { state: 'none', when: null, row: null };
 
-  const { data, error } = await supabase
-    .from('patch_tests')
-    .select('id, status, result, test_date, confirmed_at, appointment_id, appointments(starts_at, status)')
-    .eq('beautician_id', beauticianId)
-    .eq('client_id', clientId)
-    .order('created_at', { ascending: false })
-    .limit(10);
+  const { data, error } = await readPatchTestRows(supabase, beauticianId, clientId, 'created_at', 10);
 
   // Checked, always. An unchecked error here reads as "no patch test on
   // record", which is the reassuring answer, and she is holding a tint brush.
@@ -451,13 +464,7 @@ export async function patchTestEvidence(supabase, beauticianId, clientId, opts =
   if (!clientId || !beauticianId) return base;
 
   const [ptRes, apptRes, history] = await Promise.all([
-    supabase
-      .from('patch_tests')
-      .select('id, status, result, test_date, confirmed_at, appointment_id, appointments(starts_at, status)')
-      .eq('beautician_id', beauticianId)
-      .eq('client_id', clientId)
-      .order('test_date', { ascending: false })
-      .limit(20),
+    readPatchTestRows(supabase, beauticianId, clientId, 'test_date', 20),
     supabase
       .from('appointments')
       .select('id, starts_at, status, treatment_id, extra_treatment_ids')

@@ -154,6 +154,9 @@ function parseSelect(table, spec) {
     const nested = /^([\w]+)\s*\(([\s\S]*)\)$/.exec(item);
     if (nested) {
       const [, rel, inner] = nested;
+      // Live schema checked with a zero-row PostgREST request on 6 September:
+      // appointment_id exists but no foreign-key relationship is exposed.
+      if (table === 'patch_tests' && rel === 'appointments') return { error: { code: 'PGRST200', message: 'Could not find a relationship between patch_tests and appointments' }, embeds };
       embeds.push(rel);
       const relTable = RELATIONS[table]?.[rel]?.table || rel;
       const known = COLUMNS[relTable];
@@ -1280,5 +1283,36 @@ describe('lookup-client tells the booking page who is actually returning', () =>
     seedPriorVisit(WAX);
     const res = await lookup({ email: 'sophie@example.com' });
     expect(res.body.returningClient).toBe(true);
+  });
+});
+
+
+describe('Guardian without an optional patch-test appointment relationship', () => {
+  it('the schema fixture rejects the exact embedding that made every client unknown', async () => {
+    const result = await fakeSupabase.from('patch_tests').select('id, appointments(starts_at, status)');
+    expect(result.error.code).toBe('PGRST200');
+    const evidence = await patchTestEvidence(fakeSupabase, BIZ, SOPHIE);
+    expect(evidence.kind).toBe('none');
+  });
+
+  it('resolves a completed linked patch-test appointment with separate owned reads', async () => {
+    db.appointments.push({ id: 'patch-visit', beautician_id: BIZ, client_id: SOPHIE, status: 'completed', starts_at: day(-3) });
+    db.patch_tests.push({ id: 'patch-record', beautician_id: BIZ, client_id: SOPHIE, appointment_id: 'patch-visit', result: 'pending', status: 'pending', confirmed_at: day(-5), test_date: day(-3) });
+    expect((await patchTestPicture(fakeSupabase, BIZ, SOPHIE)).state).toBe('attended');
+    expect((await patchTestEvidence(fakeSupabase, BIZ, SOPHIE)).kind).toBe('attended');
+  });
+
+  it('does not use another client or salon appointment as evidence', async () => {
+    db.appointments.push({ id: 'other-visit', beautician_id: 'other-salon', client_id: 'other-client', status: 'completed', starts_at: day(-3) });
+    db.patch_tests.push({ id: 'patch-record', beautician_id: BIZ, client_id: SOPHIE, appointment_id: 'other-visit', result: 'pending', status: 'pending', confirmed_at: day(-5) });
+    expect((await patchTestPicture(fakeSupabase, BIZ, SOPHIE)).state).toBe('booked');
+    expect((await patchTestEvidence(fakeSupabase, BIZ, SOPHIE)).ok).toBe(false);
+  });
+
+  it('a failed linked appointment read stays unknown instead of inventing attendance', async () => {
+    db.patch_tests.push({ id: 'patch-record', beautician_id: BIZ, client_id: SOPHIE, appointment_id: 'patch-visit', result: 'pending', status: 'pending', confirmed_at: day(-5) });
+    failing.set('appointments', { code: '57014', message: 'upstream timeout' });
+    expect((await patchTestPicture(fakeSupabase, BIZ, SOPHIE)).state).toBe('unknown');
+    expect((await patchTestEvidence(fakeSupabase, BIZ, SOPHIE)).kind).toBe('unknown');
   });
 });
