@@ -106,6 +106,18 @@ describe('proactive delivery requires consent and readable frequency limits', ()
     expect(await evaluateOutbound(input)).toMatchObject({ decision: 'send', reason: 'client_trusted_florrie' });
   });
 
+  it('does not bypass an unreadable global switch for a trusted client', async () => {
+    state.results.beauticians = { data: null, error: { message: 'database unavailable' } };
+    expect(await evaluateOutbound(input)).toMatchObject({ decision: 'block', reason: 'autonomy_unavailable' });
+  });
+
+  it('uses the client row ID for frequency checks when no separate ID was supplied', async () => {
+    expect((await evaluateOutbound({ ...input, clientId: undefined })).decision).toBe('send');
+    for (const call of state.calls.filter(c => c.table === 'outbound_sends')) {
+      expect(call.filters).toContainEqual(['client_id', client.id]);
+    }
+  });
+
   it('does not apply marketing permission to a booking confirmation', async () => {
     expect(await evaluateOutbound({ ...input, messageType: 'booking_confirmation', client: { ...client, marketing_consent: false } }))
       .toMatchObject({ decision: 'send', reason: 'transactional' });

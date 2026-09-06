@@ -172,6 +172,7 @@ export async function clientAutonomyOverride(beauticianId, clientId, client = nu
  * Pass the client row if you already have it (saves a lookup).
  */
 export async function evaluateOutbound({ beauticianId, clientId, messageType, channel = 'whatsapp', client = null }) {
+  clientId ||= client?.id;
   const tier = classifyTier(messageType);
   if (tier === 'transactional') {
     // Direct AI replies to a client Ellie already knows can land out of context,
@@ -281,11 +282,12 @@ export async function evaluateOutbound({ beauticianId, clientId, messageType, ch
 
     // 6) Trust dial. Auto-send only if the beautician has trusted this category
     //    (or all proactive). Otherwise it waits in the daily outbox.
-    const { data: b } = await supabase
+    const { data: b, error: autonomyError } = await supabase
       .from('beauticians')
       .select('autonomy')
       .eq('id', beauticianId)
       .maybeSingle();
+    if (autonomyError || !b) return decision('block', tier, 'autonomy_unavailable');
     // Per-client override beats the global dial: the relationship is
     // per-person knowledge only Ellie has.
     const override = await clientAutonomyOverride(beauticianId, clientId, c);
