@@ -122,12 +122,16 @@ export async function isKnownClient(beauticianId, clientId, client = null) {
   if (!clientId) return false;
   try {
     if (client && (client.is_regular === true || client.vip === true)) return true;
-    const { count } = await supabase
+    const { count, error } = await supabase
       .from('appointments')
       .select('id', { count: 'exact', head: true })
       .eq('beautician_id', beauticianId)
       .eq('client_id', clientId);
-    return (count || 0) > 0;
+    if (error || !Number.isFinite(count)) {
+      logger.warn({ err: error, beauticianId, clientId }, 'Client history unreadable; holding autonomous sends');
+      return true;
+    }
+    return count > 0;
   } catch {
     // If we cannot tell, err towards asking rather than auto-sending.
     return true;
@@ -146,15 +150,20 @@ export async function clientAutonomyOverride(beauticianId, clientId, client = nu
   if (!clientId) return null;
   try {
     if (client && client.messaging_autonomy !== undefined) return client.messaging_autonomy || null;
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('clients')
       .select('messaging_autonomy')
       .eq('id', clientId)
       .eq('beautician_id', beauticianId)
       .maybeSingle();
-    return data?.messaging_autonomy || null;
-  } catch {
-    return null;
+    if (error || !data || data.messaging_autonomy === undefined) {
+      logger.warn({ err: error, beauticianId, clientId }, 'Client messaging preference unreadable; preparing drafts only');
+      return 'drafts';
+    }
+    return data.messaging_autonomy || null;
+  } catch (err) {
+    logger.warn({ err, beauticianId, clientId }, 'Client messaging preference failed; preparing drafts only');
+    return 'drafts';
   }
 }
 
@@ -194,7 +203,7 @@ export async function evaluateOutbound({ beauticianId, clientId, messageType, ch
     // Re-read rather than block: blocking would break every caller that still
     // under-selects, and a caller that under-selects is the one case where we
     // most need the true answer rather than a refusal.
-    if (c && typeof c === 'object' && !('marketing_opted_out_at' in c)) {
+    if (c && typeof c === 'object' && (!('marketing_opted_out_at' in c) || !('marketing_consent' in c))) {
       logger.warn(
         { beauticianId, messageType, clientId: clientId || c.id || null },
         'evaluateOutbound was handed a client row with no consent columns, re-reading it',
@@ -213,6 +222,7 @@ export async function evaluateOutbound({ beauticianId, clientId, messageType, ch
     }
     if (!c) return decision('block', tier, 'no_client_match');
     if (c.marketing_opted_out_at) return decision('block', tier, 'opted_out');
+    if (c.marketing_consent !== true) return decision('block', tier, 'no_consent');
 
     // 2) Sociable hours only (marketing), in the salon's own timezone. Held, not killed.
     let salonTz = null;
@@ -229,7 +239,7 @@ export async function evaluateOutbound({ beauticianId, clientId, messageType, ch
     // 3) Cross-engine frequency cap: nothing proactive within the last N days,
     //    counting anything already sent, approved, or waiting for approval.
     const sinceIso = new Date(Date.now() - GUARD.FREQUENCY_MIN_DAYS * 86400000).toISOString();
-    const { count: recent } = await supabase
+    const { count: recent, error: recentError } = await supabase
       .from('outbound_sends')
       .select('id', { count: 'exact', head: true })
       .eq('beautician_id', beauticianId)
@@ -237,13 +247,14 @@ export async function evaluateOutbound({ beauticianId, clientId, messageType, ch
       .eq('tier', 'proactive')
       .in('status', ['sent', 'approved', 'pending_approval'])
       .gte('created_at', sinceIso);
+    if (recentError || !Number.isFinite(recent)) return decision('block', tier, 'frequency_unavailable');
     if (recent && recent > 0) return decision('block', tier, 'frequency_cap');
 
     // 4) Monthly per-client cap.
     const monthStart = new Date();
     monthStart.setUTCDate(1);
     monthStart.setUTCHours(0, 0, 0, 0);
-    const { count: monthCount } = await supabase
+    const { count: monthCount, error: monthError } = await supabase
       .from('outbound_sends')
       .select('id', { count: 'exact', head: true })
       .eq('beautician_id', beauticianId)
@@ -251,6 +262,7 @@ export async function evaluateOutbound({ beauticianId, clientId, messageType, ch
       .eq('tier', 'proactive')
       .in('status', ['sent', 'approved'])
       .gte('created_at', monthStart.toISOString());
+    if (monthError || !Number.isFinite(monthCount)) return decision('block', tier, 'frequency_unavailable');
     if (monthCount && monthCount >= GUARD.MONTHLY_CLIENT_CAP) {
       return decision('block', tier, 'monthly_cap');
     }
