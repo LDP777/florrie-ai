@@ -1,15 +1,36 @@
--- Apply before the application release. No historical rows are rewritten.
--- Preflight: this query MUST return no rows. Reconcile duplicates manually;
--- do not delete financial history to make the index pass.
--- SELECT stripe_payment_intent_id, count(*), array_agg(id)
--- FROM public.transactions WHERE stripe_payment_intent_id IS NOT NULL
--- AND type IN ('deposit','full_payment','payment_link','payment','no_show_fee','late_cancel_fee')
--- GROUP BY stripe_payment_intent_id HAVING count(*) > 1;
+-- Apply before the application release. Preserve all historical receipts,
+-- including legacy duplicates, while preventing any new provider-key reuse.
 BEGIN;
-CREATE UNIQUE INDEX IF NOT EXISTS transactions_stripe_receipt_unique
- ON public.transactions (stripe_payment_intent_id)
+LOCK TABLE public.transactions IN SHARE ROW EXCLUSIVE MODE;
+CREATE TABLE IF NOT EXISTS public.stripe_receipt_keys (
+ stripe_payment_intent_id text PRIMARY KEY,
+ first_recorded_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE public.stripe_receipt_keys ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.stripe_receipt_keys FROM PUBLIC,anon,authenticated;
+GRANT SELECT,INSERT ON public.stripe_receipt_keys TO service_role;
+INSERT INTO public.stripe_receipt_keys(stripe_payment_intent_id)
+ SELECT DISTINCT stripe_payment_intent_id FROM public.transactions
  WHERE stripe_payment_intent_id IS NOT NULL
- AND type IN ('deposit','full_payment','payment_link','payment','no_show_fee','late_cancel_fee');
+ AND type IN ('deposit','full_payment','payment_link','payment','no_show_fee','late_cancel_fee')
+ ON CONFLICT DO NOTHING;
+CREATE OR REPLACE FUNCTION public.reserve_stripe_receipt_key() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+BEGIN
+ IF NEW.stripe_payment_intent_id IS NOT NULL
+ AND NEW.type IN ('deposit','full_payment','payment_link','payment','no_show_fee','late_cancel_fee') THEN
+  IF TG_OP='UPDATE' AND OLD.stripe_payment_intent_id IS NOT DISTINCT FROM NEW.stripe_payment_intent_id
+  AND OLD.type IN ('deposit','full_payment','payment_link','payment','no_show_fee','late_cancel_fee') THEN RETURN NEW; END IF;
+  -- Primary-key conflict is the concurrency guard. The reservation rolls back
+  -- with a failed receipt, and survives subsequent receipt/account deletion.
+  INSERT INTO public.stripe_receipt_keys(stripe_payment_intent_id) VALUES(NEW.stripe_payment_intent_id);
+ END IF;
+ RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS reserve_stripe_receipt_key ON public.transactions;
+CREATE TRIGGER reserve_stripe_receipt_key BEFORE INSERT OR UPDATE ON public.transactions
+FOR EACH ROW EXECUTE FUNCTION public.reserve_stripe_receipt_key();
+DROP INDEX IF EXISTS public.transactions_stripe_receipt_unique;
 
 -- One session buys one eligible treatment. Additional treatments are separate
 -- bookings; appointment add-ons must not be included in a free package booking.

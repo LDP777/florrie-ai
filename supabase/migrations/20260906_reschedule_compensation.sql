@@ -36,7 +36,7 @@ CREATE UNIQUE INDEX reschedule_one_active_payment ON public.reschedule_payment_o
 CREATE INDEX reschedule_pending_recovery ON public.reschedule_payment_operations(updated_at)
  WHERE status IN ('pending','refund_pending');
 ALTER TABLE public.reschedule_payment_operations ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON public.reschedule_payment_operations FROM anon, authenticated;
+REVOKE ALL ON public.reschedule_payment_operations FROM PUBLIC, anon, authenticated;
 GRANT ALL ON public.reschedule_payment_operations TO service_role;
 
 CREATE FUNCTION public.prepare_reschedule_payment(p_appointment uuid, p_old_start timestamptz, p_new_start timestamptz, p_new_end timestamptz, p_expected_client uuid, p_expected_beautician uuid, p_expected_payment_method text, p_expected_amount integer)
@@ -53,19 +53,27 @@ BEGIN
  RETURN NEXT o;
 END $$;
 
--- Shared receipt writer runs inside the operation transaction, with the unique
--- PaymentIntent index as the final guard against redirect/webhook concurrency.
+-- Shared receipt writer runs inside the operation transaction, with the private
+-- PaymentIntent key registry as the final guard against redirect/webhook concurrency.
 CREATE FUNCTION public.record_reschedule_receipt(p_operation uuid) RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp AS $$
 DECLARE o public.reschedule_payment_operations%ROWTYPE;
 BEGIN
  SELECT * INTO STRICT o FROM public.reschedule_payment_operations WHERE id=p_operation FOR UPDATE;
  IF o.payment_intent_id IS NULL THEN RAISE EXCEPTION 'payment identity missing'; END IF;
- INSERT INTO public.transactions(beautician_id,appointment_id,client_id,amount_cents,type,status,stripe_payment_intent_id,payment_method)
- VALUES(o.beautician_id,o.appointment_id,o.client_id,o.amount_cents,'deposit','completed',o.payment_intent_id,'card_online') ON CONFLICT DO NOTHING;
+ BEGIN
+  INSERT INTO public.transactions(beautician_id,appointment_id,client_id,amount_cents,type,status,stripe_payment_intent_id,payment_method)
+  VALUES(o.beautician_id,o.appointment_id,o.client_id,o.amount_cents,'deposit','completed',o.payment_intent_id,'card_online');
+ EXCEPTION WHEN unique_violation THEN NULL; -- Verify the conflicting receipt below.
+ END;
  IF NOT EXISTS (SELECT 1 FROM public.transactions WHERE stripe_payment_intent_id=o.payment_intent_id
    AND beautician_id=o.beautician_id AND appointment_id=o.appointment_id AND client_id IS NOT DISTINCT FROM o.client_id
-   AND amount_cents=o.amount_cents AND type='deposit') THEN RAISE EXCEPTION 'payment receipt mismatch'; END IF;
+   AND amount_cents=o.amount_cents AND type='deposit')
+ OR EXISTS (SELECT 1 FROM public.transactions WHERE stripe_payment_intent_id=o.payment_intent_id
+ AND type IN ('deposit','full_payment','payment_link','payment','no_show_fee','late_cancel_fee')
+ AND (beautician_id IS DISTINCT FROM o.beautician_id OR appointment_id IS DISTINCT FROM o.appointment_id
+ OR client_id IS DISTINCT FROM o.client_id OR amount_cents IS DISTINCT FROM o.amount_cents OR type <> 'deposit'))
+ THEN RAISE EXCEPTION 'payment receipt mismatch'; END IF;
 END $$;
 
 CREATE FUNCTION public.finish_paid_reschedule(p_operation uuid) RETURNS boolean

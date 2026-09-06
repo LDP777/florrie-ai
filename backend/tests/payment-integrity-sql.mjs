@@ -12,7 +12,23 @@ CREATE TABLE packages(id uuid PRIMARY KEY, beautician_id uuid, treatment_ids uui
 CREATE TABLE client_packages(id uuid PRIMARY KEY, beautician_id uuid, client_id uuid, package_id uuid, sessions_used integer, sessions_total integer, status text, expires_at timestamptz);
 CREATE TABLE appointments(id uuid PRIMARY KEY DEFAULT gen_random_uuid(), beautician_id uuid, client_id uuid, treatment_id uuid, starts_at timestamptz UNIQUE, ends_at timestamptz, duration_minutes integer, buffer_minutes integer, price_cents integer, deposit_cents integer, payment_type text, client_notes text, booked_via text, payment_method text, status text, client_email text, policy_snapshot jsonb, payment_expires_at timestamptz, discount_meta jsonb, discount_cents integer, photo_consent boolean, package_redemption boolean, client_package_id uuid, extra_treatment_ids jsonb, late_reschedule_charged boolean, rescheduled_at timestamptz, rescheduled_from timestamptz, deposit_paid boolean, deposit_status text, stripe_payment_method_id text);
 `);
+await db.exec("INSERT INTO transactions(type,stripe_payment_intent_id,amount_cents) VALUES ('deposit','pi_legacy',1000),('deposit','pi_legacy',1000)");
 await db.exec(await readFile(new URL('../../supabase/migrations/20260906_payment_integrity.sql', import.meta.url), 'utf8'));
+assert.equal((await db.query("SELECT count(*)::int AS count FROM transactions WHERE stripe_payment_intent_id='pi_legacy'")).rows[0].count,2,'historical duplicates remain intact');
+await assert.rejects(db.exec("INSERT INTO transactions(type,stripe_payment_intent_id) VALUES ('full_payment','pi_legacy')"),/unique/);
+await db.exec("UPDATE transactions SET status='completed' WHERE stripe_payment_intent_id='pi_legacy'");
+await db.exec("INSERT INTO transactions(type,stripe_payment_intent_id) VALUES ('refund','pi_legacy')");
+await assert.rejects(db.exec("UPDATE transactions SET type='deposit' WHERE type='refund' AND stripe_payment_intent_id='pi_legacy'"),/unique/);
+await db.exec("DELETE FROM transactions WHERE stripe_payment_intent_id='pi_legacy'");
+await assert.rejects(db.exec("INSERT INTO transactions(type,stripe_payment_intent_id) VALUES ('deposit','pi_legacy')"),/unique/);
+await db.exec("SET ROLE authenticated");
+await assert.rejects(db.exec('DELETE FROM stripe_receipt_keys'),/permission denied/);
+await db.exec('RESET ROLE');
+const receiptRace=await Promise.allSettled([
+ db.exec("INSERT INTO transactions(type,stripe_payment_intent_id) VALUES ('deposit','pi_race')"),
+ db.exec("INSERT INTO transactions(type,stripe_payment_intent_id) VALUES ('full_payment','pi_race')"),
+]);
+assert.equal(receiptRace.filter(result=>result.status==='fulfilled').length,1,'only one concurrent provider receipt commits');
 const id = n => `00000000-0000-0000-0000-${String(n).padStart(12,'0')}`;
 await db.query('INSERT INTO treatments VALUES ($1,$2)', [id(3),id(2)]);
 await db.query('INSERT INTO packages VALUES ($1,$2,$3)', [id(1), id(2), [id(3)]]);
@@ -62,6 +78,7 @@ await db.query('UPDATE appointments SET client_id=$1 WHERE id=$2',[id(9),appt.id
 await assert.rejects(db.query('SELECT finish_paid_reschedule($1)',[op2.id]),/booking changed/);
 assert.equal((await db.query('SELECT count(*)::int AS count FROM transactions WHERE stripe_payment_intent_id=$1',['pi_success'])).rows[0].count,0);
 await db.query('UPDATE appointments SET client_id=$1 WHERE id=$2',[id(5),appt.id]);
+await db.query("INSERT INTO transactions(beautician_id,appointment_id,client_id,amount_cents,type,status,stripe_payment_intent_id) VALUES ($1,$2,$3,1000,'deposit','completed','pi_success')",[id(2),appt.id,id(5)]);
 await db.query('SELECT finish_paid_reschedule($1)',[op2.id]);
 await db.query('SELECT finish_paid_reschedule($1)',[op2.id]);
 assert.equal((await db.query('SELECT claim_reschedule_refund($1) AS claimed',[op2.id])).rows[0].claimed,false);
