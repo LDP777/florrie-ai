@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '../lib/supabase.js';
+import { readActivity } from '../lib/activity-read.js';
 import { API_BASE } from '../lib/config.js';
 import { deDash } from '../lib/text.js';
 import Icon, { iconName } from './ui/Icon';
@@ -15,16 +17,6 @@ import Button from './ui/Button.jsx';
  * Brand match: cream card, mauve accents, serif italic section labels,
  * same border-radius and shadow language as Hub's existing cards.
  */
-
-function getToken() {
-  const key = Object.keys(localStorage).find(k => /^sb-.+-auth-token$/.test(k));
-  if (!key) return null;
-  try {
-    const raw = localStorage.getItem(key);
-    const parsed = JSON.parse(raw);
-    return parsed?.access_token || parsed?.session?.access_token || raw;
-  } catch { return null; }
-}
 
 const TYPE_ICONS = {
   message_replied:         'message',
@@ -159,6 +151,8 @@ function relativeTime(when, now = new Date()) {
 
 export default function ActivityFeed({ limit = 50, compact = false }) {
   const [state, setState] = useState({ status: 'loading', rows: [] });
+  const [revision, setRevision] = useState(0);
+  const retry = () => setRevision(value => value + 1);
   // Keep the feed glanceable: show Today + Yesterday, tuck the long tail of
   // history behind a "Show earlier" toggle instead of one endless list.
   const [showEarlier, setShowEarlier] = useState(false);
@@ -167,27 +161,28 @@ export default function ActivityFeed({ limit = 50, compact = false }) {
   const navigate = useNavigate();
 
   useEffect(() => {
+    const visible = () => { if (document.visibilityState === 'visible') retry(); };
+    document.addEventListener('visibilitychange', visible);
+    window.addEventListener('focus', visible);
+    window.addEventListener('florrie:refresh-counts', visible);
+    return () => {
+      document.removeEventListener('visibilitychange', visible);
+      window.removeEventListener('focus', visible);
+      window.removeEventListener('florrie:refresh-counts', visible);
+    };
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
-    async function load() {
-      const token = getToken();
-      if (!token) { setState({ status: 'ready', rows: [] }); return; }
-      try {
-        const res = await dedupeFetch(`${API_BASE}/api/activity/feed?limit=${limit}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) {
-          if (!cancelled) setState({ status: 'error', rows: [] });
-          return;
-        }
-        const json = await res.json();
-        if (!cancelled) setState({ status: 'ready', rows: json.rows || [] });
-      } catch {
-        if (!cancelled) setState({ status: 'error', rows: [] });
-      }
-    }
-    load();
+    setState({ status: 'loading', rows: [] });
+    readActivity({ auth: supabase.auth, request: dedupeFetch,
+      url: `${API_BASE}/api/activity/feed?limit=${limit}` })
+      .then(rows => { if (!cancelled) setState({ status: 'ready', rows }); })
+      .catch(error => {
+        if (!cancelled) setState({ status: 'error', rows: [], message: error.message });
+      });
     return () => { cancelled = true; };
-  }, [limit]);
+  }, [limit, revision]);
 
   if (state.status === 'loading') {
     return (
@@ -208,9 +203,10 @@ export default function ActivityFeed({ limit = 50, compact = false }) {
         <div style={F.header}>
           <span style={F.title}>What Florrie did</span>
         </div>
-        <p style={F.errorText}>
-          Couldn't load activity. Pull down to refresh, or check back in a bit.
+        <p style={F.errorText} role="status">
+          {state.message || 'Could not load activity. Please try again.'}
         </p>
+        <Button variant="secondary" onClick={retry}>Retry</Button>
       </section>
     );
   }
