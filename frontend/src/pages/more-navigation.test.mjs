@@ -129,3 +129,12 @@ test('invalid saved schedules and salon changes remain unknown rather than count
     { date: '2026-09-06', type: 'amended', start_time: 'bad', end_time: '14:00' },
   ]).hours, null);
 });
+
+test('a holiday saved as one date range removes each affected shift including Sunday and both boundaries', () => {
+  const dates = weekDates(0, new Date(2026, 8, 6, 12));
+  const member = { is_active: true, working_hours: Object.fromEntries(ROTA_KEYS.map(day => [day, { start: '09:00', end: '17:00' }])) };
+  const holiday = [{ date: '2026-09-04', end_date: '2026-09-07', type: 'closed' }];
+  assert.deepEqual(ROTA_KEYS.map((day, i) => effectiveShift(member, day, dates[i], holiday).hours), [8, 8, 8, 8, 0, 0, 0]);
+  assert.equal(effectiveShift(member, 'mon', new Date(2026, 8, 7, 12), holiday).hours, 0);
+  assert.equal(effectiveShift(member, 'tue', new Date(2026, 8, 8, 12), holiday).hours, 8);
+});

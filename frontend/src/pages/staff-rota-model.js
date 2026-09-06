@@ -21,7 +21,8 @@ export function effectiveShift(member, day, date, exceptions = []) {
   const shift = member.working_hours?.[day];
   if (!shift) return { label: 'Off', hours: 0 };
   if (!validShift(shift)) return { label: 'Check hours', hours: null };
-  const applicable = exceptions.filter(item => item.date === localDateKey(date));
+  const dayKey = localDateKey(date);
+  const applicable = exceptions.filter(item => item.date <= dayKey && dayKey <= (item.end_date || item.date));
   if (applicable.some(item => item.type === 'closed' || (item.type === 'time-off' && !item.start_time && !item.end_time))) return { label: 'Salon closed', hours: 0 };
   let intervals = [[minutes(shift.start), minutes(shift.end)]];
   for (const item of applicable) {

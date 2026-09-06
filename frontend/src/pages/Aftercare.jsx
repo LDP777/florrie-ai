@@ -1,71 +1,46 @@
-import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, insertRow, updateRow } from '../lib/supabase.js';
+import { useState, useEffect, useRef } from 'react';
+import { useBeautician, fetchRowsStrict, insertRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
-import EmptyState from '../components/EmptyState.jsx';
-import ErrorCard from '../components/ErrorCard.jsx';
 import Icon, { iconName } from '../components/ui/Icon';
 import PageHeader from '../components/ui/PageHeader.jsx';
-/**
- * Aftercare - Post-treatment care cards.
- *
- * Each treatment can have an aftercare card that florrie.ai
- * automatically sends to clients after their appointment.
- * Beauticians can customise the content, toggle auto-send,
- * and preview exactly what clients receive.
- *
- * Two views:
- *   Cards    - all aftercare templates, grouped by treatment
- *   Preview  - phone-style preview of the client message
- *
- * Per-card auto-send is persisted to aftercare_cards. Page-level
- * defaults (channel, timing, extras) live in DEFAULT_SETTINGS and
- * are read-only for now - there is no backing store to save them,
- * so no Settings tab is shown until one exists.
- */
-
-const DEFAULT_SETTINGS = {
-  auto_send_enabled: true,
-  default_send_after_hours: 1,
-  channel: 'whatsapp',
-  fallback_channel: 'sms',
-  include_rebook_link: true,
-  include_products: true,
-  follow_up_check_in: true,
-  follow_up_days: 3,
-};
+import Button from '../components/ui/Button.jsx';
+import MoreLoadError from '../components/MoreLoadError.jsx';
+// Legacy care cards are saved guidance, not the executor's aftercare_messages.
+// Preserve existing preferences without claiming these cards schedule delivery.
 
 export default function Aftercare() {
-  const { beautician } = useBeautician();
+  const { beautician, loading: bLoading } = useBeautician();
   const [cards, setCards] = useState([]);
   const [tab, setTab] = useState('cards');
   const [loading, setLoading] = useState(true);
   const [selectedCard, setSelectedCard] = useState(null);
   const [showPreview, setShowPreview] = useState(false);
-  const [editingCard, setEditingCard] = useState(null);
-  // Read-only display defaults. No backing store to persist these yet,
-  // so they are not editable (no Settings tab) to avoid implying saved state.
-  const settings = DEFAULT_SETTINGS;
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const [loadError, setLoadError] = useState(null);
+  const busy = useRef(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
 
   // New card form state
   const [newCard, setNewCard] = useState({
     treatment_name: '', icon: 'sparkles', instructions: [{ title: '', text: '' }],
-    products: [''], personal_note: '', send_after_hours: 1, auto_send: true,
+    products: [''], personal_note: '', send_after_hours: 1, auto_send: false,
     rebook_nudge_days: 28,
   });
 
   useEffect(() => {
-    loadData();
+    if (beautician) loadData();
   }, [beautician]);
 
   async function loadData() {
-    setLoading(true);
+    setLoading(true); setLoadError(null);
     try {
-      const rows = await fetchRows('aftercare_cards', beautician?.id, { order: 'created_at', ascending: false });
+      const rows = await fetchRowsStrict('aftercare_cards', beautician?.id, { order: 'created_at', ascending: false });
       setCards(rows);
     } catch (err) {
       logger.error('Aftercare load error:', err);
+      setLoadError('Could not load your care cards. Try again.');
     } finally {
       setLoading(false);
     }
@@ -104,51 +79,26 @@ export default function Aftercare() {
   }
 
   async function handleSaveCard() {
-    if (!newCard.treatment_name.trim() || newCard.instructions.some(i => !i.title.trim() || !i.text.trim())) return;
-    const cleanProducts = newCard.products.filter(p => p.trim());
-    const card = {
-      ...newCard,
-      products: cleanProducts,
-      id: crypto.randomUUID(),
-      created_at: new Date().toISOString(),
-    };
-
-    if (beautician) {
-      try {
-        const saved = await insertRow('aftercare_cards', {
-          beautician_id: beautician.id,
-          treatment_name: card.treatment_name,
-          icon: card.icon,
-          instructions: card.instructions,
-          products: card.products,
-          personal_note: card.personal_note,
-          send_after_hours: card.send_after_hours,
-          auto_send: card.auto_send,
-          rebook_nudge_days: card.rebook_nudge_days,
-        });
-        card.id = saved.id;
-      } catch (err) {
-        logger.error('Save aftercare card error:', err);
-      }
+    if (!beautician || busy.current) return;
+    if (!newCard.treatment_name.trim() || !newCard.instructions.length || newCard.instructions.some(i => !i.title.trim() || !i.text.trim())) {
+      setError('Add a treatment name and a title and instruction for each step.'); return;
     }
-
-    setCards(prev => [card, ...prev]);
-    setNewCard({
-      treatment_name: '', icon: 'sparkles', instructions: [{ title: '', text: '' }],
-      products: [''], personal_note: '', send_after_hours: 1, auto_send: true,
-      rebook_nudge_days: 28,
-    });
-    setShowCreateForm(false);
-  }
-
-  async function handleToggleAutoSend(card) {
-    const updated = { ...card, auto_send: !card.auto_send };
-    setCards(prev => prev.map(c => c.id === card.id ? updated : c));
+    busy.current = true; setSaving(true); setError(null);
     try {
-      await updateRow('aftercare_cards', card.id, { auto_send: updated.auto_send });
+      const saved = await insertRow('aftercare_cards', {
+        ...newCard, beautician_id: beautician.id,
+        treatment_name: newCard.treatment_name.trim(),
+        products: newCard.products.map(p => p.trim()).filter(Boolean), auto_send: false,
+      });
+      if (!saved?.id) throw new Error('Save was not confirmed');
+      setCards(prev => [saved, ...prev]);
+      setNewCard({ treatment_name: '', icon: 'sparkles', instructions: [{ title: '', text: '' }],
+        products: [''], personal_note: '', send_after_hours: 1, auto_send: false, rebook_nudge_days: 28 });
+      setShowCreateForm(false);
     } catch (err) {
-      logger.error('Toggle aftercare auto-send error:', err);
-    }
+      logger.error('Save aftercare card error:', err);
+      setError('Could not save this care card. Your instructions are still here. Try again.');
+    } finally { busy.current = false; setSaving(false); }
   }
 
   function openPreview(card) {
@@ -158,26 +108,24 @@ export default function Aftercare() {
 
   const ICON_OPTIONS = ['sparkles', 'eye', 'edit', 'sparkle', 'hand', 'flower', 'spray', 'heart', 'star', 'palette'];
 
+  if (bLoading) return <PageLoader />;
+  if (loadError) return <MoreLoadError title="Aftercare" message={loadError} onRetry={loadData} />;
+
   return (
     <div style={styles.page}>
+      {error && <p role="alert" style={{ color: 'var(--danger, #9f3434)' }}>{error}</p>}
       <PageHeader title="Aftercare" subtitle="Post-treatment care cards" />
 
 
       {/* === CARDS TAB === */}
       {tab === 'cards' && (
         <div>
-          {/* Auto-send status bar */}
           <div style={styles.statusBar}>
-            <div style={{ ...styles.statusDot, background: settings.auto_send_enabled ? 'var(--success, #386F52)' : 'var(--text-muted, #6B5D54)' }} />
-            <span style={styles.statusText}>
-              Auto-send {settings.auto_send_enabled ? 'on' : 'off'} - via {settings.channel}
-            </span>
-            <span style={styles.statusCount}>{cards.filter(c => c.auto_send).length} active</span>
+            <span style={styles.statusText}>Automatic sending is not connected to these care cards. Save and preview your guidance here.</span>
+            <span style={styles.statusCount}>{cards.length} saved</span>
           </div>
 
-          <button onClick={() => setShowCreateForm(!showCreateForm)} style={styles.createBtn}>
-            + New Care Card
-          </button>
+          <Button disabled={saving || loading} onClick={() => setShowCreateForm(!showCreateForm)} style={styles.createBtn}>+ New Care Card</Button>
 
           {/* Create form */}
           {showCreateForm && (
@@ -186,7 +134,7 @@ export default function Aftercare() {
 
               <div style={styles.formGroup}>
                 <label style={styles.formLabel}>Treatment name</label>
-                <input
+                <input disabled={saving}
                   type="text" placeholder="e.g. Lash Lift & Tint"
                   value={newCard.treatment_name}
                   onChange={e => setNewCard(p => ({ ...p, treatment_name: e.target.value }))}
@@ -198,7 +146,7 @@ export default function Aftercare() {
                 <label style={styles.formLabel}>Icon</label>
                 <div style={styles.iconGrid}>
                   {ICON_OPTIONS.map(icon => (
-                    <button
+                    <button disabled={saving}
                       key={icon}
                       onClick={() => setNewCard(p => ({ ...p, icon }))}
                       style={{ ...styles.iconBtn,
@@ -217,13 +165,13 @@ export default function Aftercare() {
                 {newCard.instructions.map((inst, idx) => (
                   <div key={idx} style={styles.instructionRow}>
                     <div style={{ flex: 1 }}>
-                      <input
+                      <input disabled={saving}
                         type="text" placeholder="e.g. First 24 hours"
                         value={inst.title}
                         onChange={e => handleInstructionChange(idx, 'title', e.target.value)}
                         style={{ ...styles.formInput, marginBottom: 6 }}
                       />
-                      <textarea
+                      <textarea disabled={saving}
                         placeholder="What the client should do..."
                         value={inst.text}
                         onChange={e => handleInstructionChange(idx, 'text', e.target.value)}
@@ -232,17 +180,17 @@ export default function Aftercare() {
                       />
                     </div>
                     {newCard.instructions.length > 1 && (
-                      <button onClick={() => handleRemoveInstruction(idx)} style={styles.removeBtn}>×</button>
+                      <button disabled={saving} onClick={() => handleRemoveInstruction(idx)} style={styles.removeBtn}>×</button>
                     )}
                   </div>
                 ))}
-                <button onClick={handleAddInstruction} style={styles.addStepBtn}>+ Add step</button>
+                <button disabled={saving} onClick={handleAddInstruction} style={styles.addStepBtn}>+ Add step</button>
               </div>
 
               <div style={styles.formGroup}>
                 <label style={styles.formLabel}>Recommended products</label>
                 {newCard.products.map((product, idx) => (
-                  <input
+                  <input disabled={saving}
                     key={idx}
                     type="text" placeholder="e.g. Brow oil"
                     value={product}
@@ -250,12 +198,12 @@ export default function Aftercare() {
                     style={{ ...styles.formInput, marginBottom: 6 }}
                   />
                 ))}
-                <button onClick={handleAddProduct} style={styles.addStepBtn}>+ Add product</button>
+                <button disabled={saving} onClick={handleAddProduct} style={styles.addStepBtn}>+ Add product</button>
               </div>
 
               <div style={styles.formGroup}>
-                <label style={styles.formLabel}>Personal note (sent with the card)</label>
-                <textarea
+                <label style={styles.formLabel}>Personal note</label>
+                <textarea disabled={saving}
                   placeholder="A warm message in your voice..."
                   value={newCard.personal_note}
                   onChange={e => setNewCard(p => ({ ...p, personal_note: e.target.value }))}
@@ -264,39 +212,9 @@ export default function Aftercare() {
                 />
               </div>
 
-              <div style={styles.formRow}>
-                <div style={{ flex: 1 }}>
-                  <label style={styles.formLabel}>Send after</label>
-                  <select
-                    value={newCard.send_after_hours}
-                    onChange={e => setNewCard(p => ({ ...p, send_after_hours: parseInt(e.target.value) }))}
-                    style={styles.formSelect}
-                  >
-                    <option value={1}>1 hour</option>
-                    <option value={2}>2 hours</option>
-                    <option value={4}>4 hours</option>
-                    <option value={24}>Next day</option>
-                  </select>
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={styles.formLabel}>Rebook nudge</label>
-                  <select
-                    value={newCard.rebook_nudge_days}
-                    onChange={e => setNewCard(p => ({ ...p, rebook_nudge_days: parseInt(e.target.value) }))}
-                    style={styles.formSelect}
-                  >
-                    <option value={14}>2 weeks</option>
-                    <option value={21}>3 weeks</option>
-                    <option value={28}>4 weeks</option>
-                    <option value={35}>5 weeks</option>
-                    <option value={42}>6 weeks</option>
-                  </select>
-                </div>
-              </div>
-
               <div style={styles.formActions}>
-                <button onClick={handleSaveCard} style={styles.saveBtn}>Save Card</button>
-                <button onClick={() => setShowCreateForm(false)} style={styles.cancelBtn}>Cancel</button>
+                <Button disabled={saving} onClick={handleSaveCard} style={styles.saveBtn}>{saving ? 'Saving…' : 'Save Card'}</Button>
+                <Button variant="quiet" disabled={saving} onClick={() => setShowCreateForm(false)} style={styles.cancelBtn}>Cancel</Button>
               </div>
             </div>
           )}
@@ -308,7 +226,7 @@ export default function Aftercare() {
             <div style={styles.emptyState}>
               <span style={{ fontSize: 32, display: 'block', marginBottom: 8 }}><Icon name="flower" size={32} /></span>
               <p style={styles.emptyTitle}>No care cards yet</p>
-              <p style={styles.emptyDesc}>Create an aftercare card for each treatment. florrie.ai sends them automatically after appointments.</p>
+              <p style={styles.emptyDesc}>Create an aftercare card for each treatment to keep your guidance ready to review.</p>
             </div>
           ) : (
             <div style={styles.cardList}>
@@ -319,15 +237,10 @@ export default function Aftercare() {
                     <div style={styles.cardHeaderText}>
                       <span style={styles.cardName}>{card.treatment_name}</span>
                       <span style={styles.cardMeta}>
-                        {card.instructions.length} steps · Sends {card.send_after_hours}h after
+                        {card.instructions.length} steps · Stored auto-send preference: {card.auto_send ? 'on' : 'off'}
                       </span>
                     </div>
-                    <div style={{ ...styles.autoSendBadge,
-                      background: card.auto_send ? 'var(--success-bg, #E9F0EB)' : 'var(--bg-hover, #f3ede9)',
-                      color: card.auto_send ? '#2c7130' : '#68635d',
-                    }}>
-                      {card.auto_send ? 'Auto' : 'Off'}
-                    </div>
+                    <span style={{ ...styles.autoSendBadge, background: 'var(--bg-hover, #f3ede9)', color: 'var(--text-secondary, #574A42)' }}>Saved</span>
                   </div>
 
                   {/* Instruction preview */}
@@ -353,9 +266,7 @@ export default function Aftercare() {
 
                   <div style={styles.cardActions}>
                     <button onClick={() => openPreview(card)} style={styles.previewBtn}>Preview</button>
-                    <button onClick={() => handleToggleAutoSend(card)} style={styles.toggleAutoBtn}>
-                      {card.auto_send ? 'Pause' : 'Enable'}
-                    </button>
+                    <span style={styles.cardMeta}>Sending unavailable</span>
                   </div>
                 </div>
               ))}
@@ -369,7 +280,7 @@ export default function Aftercare() {
         <div style={styles.previewOverlay} onClick={() => setShowPreview(false)}>
           <div style={styles.previewModal} onClick={e => e.stopPropagation()}>
             <div style={styles.previewHeader}>
-              <span style={{ fontSize: 14, fontWeight: 600 }}>Client preview</span>
+              <span style={{ fontSize: 14, fontWeight: 600 }}>Guidance preview</span>
               <button onClick={() => setShowPreview(false)} style={styles.closeBtn}>×</button>
             </div>
 
@@ -413,10 +324,7 @@ export default function Aftercare() {
                     <p style={styles.phoneNote}>{selectedCard.personal_note}</p>
                   )}
 
-                  {settings.include_rebook_link && (
-                    <div style={styles.phoneRebook}><Icon name="calendar" size={14} inline /> Ready to rebook? → florrie.ai/book/{beautician?.booking_slug || 'your-link'}
-                    </div>
-                  )}
+
                 </div>
               </div>
             </div>
