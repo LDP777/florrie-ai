@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../../src/config.js',()=>({supabase:{}}));
-const { createAccountDeletionService, processDeletion, CleanupReviewRequired } = await import('../../src/services/account-deletion.js');
+const { createAccountDeletionService, deletionSnapshot, processDeletion, CleanupReviewRequired } = await import('../../src/services/account-deletion.js');
 const { createDeletionOperations, deleteBilling, deleteStoredObjects } = await import('../../src/services/account-deletion-operations.js');
 
 const user={id:'u1',identities:[{provider:'email'}]};
@@ -104,4 +104,10 @@ describe('provider and storage boundaries',()=>{
  it('legacy Apple identity stays pending without a revocable token',async()=>{
   await expect(createDeletionOperations({}, {stripe:null}).providers.apple({identity_providers:['apple']})).rejects.toBeInstanceOf(CleanupReviewRequired);
  });
+});
+
+it('preserves an SMS-only channel and requires provider cleanup before completion', async()=>{
+ const snapshot=deletionSnapshot({id:'b1',sms_channel_id:'channel-owned'},user);
+ expect(snapshot.sms_channel_id).toBe('channel-owned');
+ await expect(createDeletionOperations({}, {stripe:null}).providers.sms(snapshot)).rejects.toBeInstanceOf(CleanupReviewRequired);
 });

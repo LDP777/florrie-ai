@@ -76,7 +76,7 @@ export function createDeletionOperations(db, { stripe = process.env.STRIPE_SECRE
       stripe_connect: manual('Stripe Connect', s => !!s.stripe_account_id),
       apple: manual('Apple', s => s.identity_providers?.includes('apple')),
       other_identity: manual('Sign-in provider', s => s.identity_providers?.some(provider => !['apple','email','phone'].includes(provider))),
-      sms: manual('SMS channel', s => !!(s.bird_channel_id || s.sms_inbound_number)),
+      sms: manual('SMS channel', s => !!(s.bird_channel_id || s.sms_channel_id || s.sms_inbound_number)),
     },
     auth: async snapshot => {
       const { data, error } = await db.auth.admin.deleteUser(snapshot.auth_id);

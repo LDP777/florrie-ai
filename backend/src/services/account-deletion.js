@@ -16,7 +16,7 @@ export function deletionView(row) {
 }
 
 export function deletionSnapshot(profile, user) {
-  const credentials = Object.fromEntries(Object.entries(profile).filter(([key]) => /^(stripe_|subscription_stripe_id$|google_calendar_|instagram_|whatsapp_|xero_|quickbooks_|bird_|sms_inbound_number$)/.test(key)));
+  const credentials = Object.fromEntries(Object.entries(profile).filter(([key]) => /^(stripe_|subscription_stripe_id$|google_calendar_|instagram_|whatsapp_|xero_|quickbooks_|bird_|sms_(?:inbound_number|channel_id)$)/.test(key)));
   return { ...credentials, beautician_id: profile.id, auth_id: user.id,
     identity_providers: [...new Set([...(user.identities || []).map(identity => identity.provider), ...(user.app_metadata?.providers || [])])] };
 }
