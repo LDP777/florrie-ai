@@ -981,6 +981,7 @@ export default function Onboarding({ onComplete }) {
               </div>
             );
           })()}
+          {!isIOSNative() && (<>
           <p style={styles.trialNote}>
             Your 14 day trial is already running, with everything in the Florrie
             plan switched on and no card needed. Add a card now and Florrie carries straight on when
@@ -1002,6 +1003,7 @@ export default function Onboarding({ onComplete }) {
               ))}
             </ul>
           </div>
+          </>)}
           {billingError && (
             <div style={styles.errorBanner}>
               <span style={{ fontSize: 13, color: 'var(--danger-text)', fontWeight: 500 }}>{<Icon name="alert-triangle" inline />} {billingError}</span>

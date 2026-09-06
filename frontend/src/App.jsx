@@ -245,7 +245,7 @@ function TrialExpiredScreen({ onSignOut, variant = 'trial' }) {
         </h1>
         <p style={{ color: 'var(--text-secondary, #574A42)', fontSize: 15, lineHeight: 1.6, marginBottom: 32 }}>
           {iosNative
-            ? (variant === 'past_due' ? 'Your subscription is waiting on a payment. Update your card from the web app.' : 'Your plan is no longer active on this account.')
+            ? (variant === 'past_due' ? 'Your subscription is waiting on a payment. Account access is currently limited.' : 'Your plan is no longer active on this account.')
             : copy.body}
         </p>
         {!iosNative && (

@@ -25,7 +25,7 @@ export default function Pricing() {
         <div style={S.iosCard}>
           <div style={S.iosTitle}>Plans &amp; Billing</div>
           <p style={S.iosBody}>
-            To view plans or manage your subscription, visit florrie.ai on the web.
+            Subscription changes are not available in the iPhone app.
           </p>
         </div>
       </div>
