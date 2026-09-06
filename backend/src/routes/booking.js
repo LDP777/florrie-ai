@@ -385,7 +385,7 @@ router.get('/confirm/:sessionId', async (req, res) => {
     if (stripe && sessionId) {
       const session = await stripe.checkout.sessions.retrieve(sessionId);
       const appointmentId = session?.metadata?.appointment_id;
-      const paid = session?.payment_status === 'paid' || session?.status === 'complete';
+      const paid = session?.payment_status === 'paid';
       if (appointmentId && paid) {
         const { data: appt } = await supabase
           .from('appointments')
@@ -3311,6 +3311,10 @@ router.patch('/appointments/:id/status', requireAuth, validate(statusTransitionS
       return res.status(500).json({ error: 'Failed to update appointment status' });
     }
 
+    if (newStatus === 'confirmed') {
+      await announceBookingConfirmed(id, { source: 'manual_status', claim: false });
+    }
+
     if (newStatus === 'no_show') {
       // Reverse assumed/auto takings (type 'payment' with a null method) so the
       // Money tab drops the income for an appointment that auto-completed but was
@@ -4448,7 +4452,9 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
   // A booking she is never told about is worse than no booking, so the gate
   // stays but inverts: it picks the wording rather than deciding whether to
   // speak at all.
-  pushNewBooking(beautician.id, firstName, treatmentNames, `${dateStr} at ${timeStr}`, {
+  if (appointment.status === 'confirmed') {
+    await announceBookingConfirmed(appointment.id, { source: 'public_booking', claim: false });
+  } else pushNewBooking(beautician.id, firstName, treatmentNames, `${dateStr} at ${timeStr}`, {
     appointmentId: appointment.id,
     apptDate: appointment.starts_at,
     pending: appointment.status === 'pending',

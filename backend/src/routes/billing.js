@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import Stripe from 'stripe';
+import * as Sentry from '@sentry/node';
 import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
@@ -7,6 +8,7 @@ import { verifyWebhook } from '../lib/stripe-webhook-secret.js';
 import { internalStatusFor, isCardlessDraft } from '../lib/subscription-status.js';
 import { teamSeatQuantity } from '../lib/team-seats.js';
 import { handleDunningEvent } from '../services/dunning.js';
+import { claimBillingEvent, completeBillingEvent, releaseBillingEvent } from '../services/billing-webhook-events.js';
 
 const router = Router();
 
@@ -81,8 +83,10 @@ async function liveSubscriptionFor(beautician) {
     const sub = await stripe.subscriptions.retrieve(id);
     return ['active', 'trialing', 'past_due', 'unpaid'].includes(sub.status) ? sub : null;
   } catch (err) {
-    logger.warn({ err, subscriptionId: id }, 'Could not read the subscription on file; treating as none');
-    return null;
+    logger.warn({ err, subscriptionId: id }, 'Could not verify the existing subscription; refusing to create another');
+    const error = new Error('We could not check your current subscription. Please try again.');
+    error.code = 'subscription_lookup_unavailable';
+    throw error;
   }
 }
 
@@ -319,6 +323,7 @@ router.post('/create-checkout', requireAuth, async (req, res) => {
       res.json({ url: session.url });
     }
   } catch (error) {
+    if (error.code === 'subscription_lookup_unavailable') return res.status(503).json({ error: error.message });
     logger.error({ err: error }, 'Failed to create checkout session');
     res.status(500).json({ error: 'Something went wrong' });
   }
@@ -443,6 +448,7 @@ router.post('/create-subscription-intent', requireAuth, async (req, res) => {
         : null,
     });
   } catch (error) {
+    if (error.code === 'subscription_lookup_unavailable') return res.status(503).json({ error: error.message });
     logger.error({ err: error }, 'Failed to create subscription intent');
     res.status(500).json({ error: 'Something went wrong' });
   }
@@ -480,41 +486,42 @@ router.post('/portal', requireAuth, async (req, res) => {
  * Stripe webhook handler — updates subscription status in Supabase.
  */
 router.post('/webhook', async (req, res) => {
-  if (!stripe) return res.status(200).json({ received: true });
+  if (!stripe || !process.env.STRIPE_WEBHOOK_SECRET) return res.status(503).json({ error: 'Billing webhook is not configured' });
 
   const sig = req.headers['stripe-signature'];
   const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
-  let event;
-
-  if (endpointSecret) {
-    // Same multi-secret rule as /api/stripe/webhook: two endpoints, two
-    // secrets, one variable. See lib/stripe-webhook-secret.js.
-    const verified = verifyWebhook({
-      stripe, payload: req.rawBody || req.body, signature: sig, rawSecret: endpointSecret,
-    });
-    if (!verified.event) {
-      logger.error({ reason: verified.reason, secretsTried: verified.secretsTried }, 'Billing webhook signature verification failed');
-      // 400 not 5xx, so Stripe does not flag and disable the endpoint.
-      return res.status(400).json({ error: 'Webhook signature invalid' });
-    }
-    event = verified.event;
-  } else {
-    event = req.body;
+  const verified = verifyWebhook({
+    stripe, payload: req.rawBody || req.body, signature: sig, rawSecret: endpointSecret,
+  });
+  if (!verified.event) {
+    logger.error({ reason: verified.reason, secretsTried: verified.secretsTried }, 'Billing webhook signature verification failed');
+    return res.status(400).json({ error: 'Webhook signature invalid' });
   }
+  const event = verified.event;
 
-  // Idempotency: dedupe via the shared stripe_events table (same as
-  // /api/stripe/webhook). If both webhook URLs are configured in Stripe, the
-  // first to record the event id wins and the second skips, so a subscription
-  // event is never processed twice.
+  return handleBillingEvent(event, res);
+});
+
+const BILLING_EVENT_TYPES = new Set([
+  'customer.subscription.created', 'customer.subscription.updated', 'customer.subscription.deleted',
+  'invoice.payment_failed', 'invoice.paid', 'invoice.payment_succeeded',
+]);
+
+export function isBillingEvent(event) {
+  return BILLING_EVENT_TYPES.has(event?.type)
+    || (event?.type === 'checkout.session.completed' && event.data?.object?.mode === 'subscription');
+}
+
+// Both webhook URLs use this consumer, before either can claim a payment event.
+export async function handleBillingEvent(event, res) {
+  if (!isBillingEvent(event)) return res.json({ received: true, ignored: true });
+  let claim;
   try {
-    const { error: insErr } = await supabase
-      .from('stripe_events')
-      .insert({ id: event.id, type: event.type, processed_at: new Date().toISOString() });
-    if (insErr && insErr.code === '23505') {
-      return res.json({ received: true, duplicate: true });
-    }
-  } catch (err) {
-    logger.error({ err, eventId: event.id }, 'billing webhook: stripe_events insert threw, processing anyway');
+    claim = await claimBillingEvent(event);
+    if (claim.duplicate) return res.json({ received: true, duplicate: true });
+  } catch (error) {
+    logger.error({ err: error, eventId: event.id }, 'Billing webhook claim unavailable');
+    return res.status(503).json({ error: 'Billing event is awaiting processing' });
   }
 
   try {
@@ -540,6 +547,7 @@ router.post('/webhook', async (req, res) => {
             .eq('id', beauticianId);
           if (actErr) {
             logger.error({ err: actErr, beauticianId, plan, sessionId: session.id }, 'Subscription activation could not be written');
+            throw actErr;
           } else {
             logger.info({ beauticianId, plan }, 'Subscription activated');
           }
@@ -547,21 +555,21 @@ router.post('/webhook', async (req, res) => {
         break;
       }
 
+      case 'customer.subscription.created':
       case 'customer.subscription.updated': {
         const sub = event.data.object;
         const beauticianId = sub.metadata?.beautician_id;
-        // M2: routes/stripe.js is the canonical subscription webhook. This
-        // handler is kept so a Stripe dashboard pointing here doesn't 404, but
-        // its status/plan mapping is aligned with stripe.js so that if BOTH
-        // URLs are configured the double-write converges instead of flip-
-        // flopping (e.g. trialing -> active). Long-term: remove one webhook URL
-        // in the Stripe dashboard.
+        // Both webhook URLs delegate here, sharing the same claim and mapping.
         const { plan, problem, found } = readPlanFromMetadata(sub.metadata);
         if (problem) {
           logger.error(
             { beauticianId, subscriptionId: sub.id, problem, found },
             'Subscription webhook could not read the plan, leaving subscription_plan untouched'
           );
+          Sentry.captureMessage('Subscription webhook could not read the plan', {
+            level: 'error', tags: { area: 'billing', check: 'subscription_plan_metadata' },
+            extra: { beauticianId, subscriptionId: sub.id, problem, found },
+          });
         }
         if (beauticianId && isCardlessDraft(sub)) {
           logger.info({ beauticianId, subscriptionId: sub.id }, 'Cardless draft subscription, leaving the account untouched');
@@ -573,6 +581,7 @@ router.post('/webhook', async (req, res) => {
           // silently for months. See lib/subscription-status.js.
           const status = internalStatusFor(sub.status);
           const updates = {
+            subscription_stripe_id: sub.id,
             subscription_status: status,
             subscription_current_period_end: sub.current_period_end
               ? new Date(sub.current_period_end * 1000).toISOString()
@@ -585,6 +594,11 @@ router.post('/webhook', async (req, res) => {
             .eq('id', beauticianId);
           if (updErr) {
             logger.error({ err: updErr, beauticianId, subscriptionId: sub.id, stripeStatus: sub.status, updates }, 'Subscription status update failed');
+            Sentry.captureException(updErr, {
+              tags: { area: 'billing', check: 'subscription_status_write' },
+              extra: { beauticianId, subscriptionId: sub.id, eventType: event.type },
+            });
+            throw updErr;
           } else {
             logger.info({ beauticianId, plan, status }, 'Subscription updated');
           }
@@ -596,11 +610,12 @@ router.post('/webhook', async (req, res) => {
         const sub = event.data.object;
         const beauticianId = sub.metadata?.beautician_id;
         if (beauticianId) {
-          const { data: current } = await supabase
+          const { data: current, error: readErr } = await supabase
             .from('beauticians')
             .select('subscription_stripe_id')
             .eq('id', beauticianId)
             .maybeSingle();
+          if (readErr) throw readErr;
           if (current?.subscription_stripe_id && current.subscription_stripe_id !== sub.id) {
             logger.info({ beauticianId, subscriptionId: sub.id, onFile: current.subscription_stripe_id }, 'Deleted subscription is not the one on file, ignoring');
             break;
@@ -615,6 +630,7 @@ router.post('/webhook', async (req, res) => {
             .eq('id', beauticianId);
           if (delErr) {
             logger.error({ err: delErr, beauticianId, subscriptionId: sub.id }, 'Subscription cancellation could not be written');
+            throw delErr;
           } else {
             logger.info({ beauticianId }, 'Subscription cancelled');
           }
@@ -627,15 +643,21 @@ router.post('/webhook', async (req, res) => {
       case 'invoice.payment_failed':
       case 'invoice.paid':
       case 'invoice.payment_succeeded': {
-        await handleDunningEvent(event);
+        const result = await handleDunningEvent(event, { strict: true });
+        if (result?.handled && (!result.statusWritten || (!result.marker?.written && !result.marker?.missing))) {
+          throw new Error('Subscription invoice update incomplete');
+        }
         break;
       }
     }
+    await completeBillingEvent(event, claim);
   } catch (error) {
-    logger.error({ err: error, eventType: event.type }, 'Webhook handler error');
+    logger.error({ err: error, eventId: event.id, eventType: event.type }, 'Billing event failed; awaiting retry');
+    await releaseBillingEvent(event, claim).catch(releaseError => logger.error({ err: releaseError, eventId: event.id }, 'Billing claim release failed; lease will expire'));
+    return res.status(503).json({ error: 'Billing event could not be processed' });
   }
 
-  res.json({ received: true });
-});
+  return res.json({ received: true });
+}
 
 export default router;

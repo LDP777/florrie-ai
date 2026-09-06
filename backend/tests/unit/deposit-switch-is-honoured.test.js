@@ -76,7 +76,7 @@ function makeBuilder(table) {
     insert(p) { pending = { op: 'insert', payload: p }; return b; },
     update(p) { pending = { op: 'update', payload: p }; return b; },
     delete() { pending = { op: 'delete' }; return b; },
-    eq(c, v) { filters.push(r => r[c] === v); return b; },
+    eq(c, v) { filters.push(r => c.split(/->>?/).reduce((value, key) => value?.[key], r) === v); return b; },
     neq(c, v) { filters.push(r => r[c] !== v); return b; },
     in(c, v) { filters.push(r => v.includes(r[c])); return b; },
     is(c, v) { filters.push(r => (r[c] ?? null) === v); return b; },
@@ -132,7 +132,7 @@ vi.mock('../../src/services/notifications.js', () => ({
   pickChannel: () => 'sms',
 }));
 
-const pushes = { newBooking: [], team: [] };
+const pushes = { newBooking: [], confirmed: [], team: [] };
 vi.mock('../../src/services/push-notifications.js', () => ({
   pushNewBooking: async (beauticianId, clientName, treatmentName, dateStr, opts = {}) => {
     pushes.newBooking.push({ beauticianId, clientName, treatmentName, dateStr, ...opts });
@@ -142,7 +142,10 @@ vi.mock('../../src/services/push-notifications.js', () => ({
     pushes.team.push({ beauticianId, type, body, ...opts });
     return true;
   },
-  pushBookingConfirmed: async () => true,
+  pushBookingConfirmed: async (beauticianId, clientName, treatmentName, dateStr, opts = {}) => {
+    pushes.confirmed.push({ beauticianId, clientName, treatmentName, dateStr, ...opts });
+    return { sent: 1, delivered: 1 };
+  },
   pushReschedule: async () => true,
   pushPatchTestBooked: async () => true,
   pushClientCancelled: async () => true,
@@ -231,6 +234,7 @@ beforeEach(() => {
   idCounter = 0;
   told.confirmed.length = 0;
   pushes.newBooking.length = 0;
+  pushes.confirmed.length = 0;
   pushes.team.length = 0;
   toldClient.length = 0;
   stripeState.sessions.length = 0;
@@ -383,8 +387,8 @@ describe('a booking page that has never been set up takes an ordinary booking', 
     expect(appt.payment_expires_at ?? null).toBeNull();
 
     expect(told.confirmed, 'the client was not told she is booked').toContain(appt.id);
-    expect(pushes.newBooking, 'the owner was never told about her first booking').toHaveLength(1);
-    expect(pushes.newBooking[0].pending).toBe(false);
+    expect(pushes.confirmed, 'the owner was never told about her first booking').toHaveLength(1);
+    expect(pushes.confirmed[0].depositPaid).toBe(false);
   });
 
   it('leaves nothing for the sweep to release', async () => {
@@ -425,7 +429,7 @@ describe('a salon that does want a deposit but cannot take one', () => {
     await run(bookingRouter, 'post', '/:slug/book', { params: { slug: 'sadie' }, body: bookBody() });
     await settle();
 
-    expect(pushes.newBooking).toHaveLength(1);
+    expect(pushes.confirmed).toHaveLength(1);
     const money = pushes.team.find(p => /could not be taken online/i.test(p.body));
     expect(money, 'nothing told her the deposit had not been collected').toBeTruthy();
     expect(money.body).toContain('£10.00');

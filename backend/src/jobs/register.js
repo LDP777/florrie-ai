@@ -1,3 +1,4 @@
+import { retryBookingConfirmedAlerts } from '../services/booking-confirmed-alert.js';
 /**
  * Every background job, in one list.
  *
@@ -67,6 +68,12 @@ const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
 export const JOBS = [
+  {
+    name: 'booking-confirmation-delivery',
+    description: 'retry recent unsuccessful booking confirmation pushes',
+    intervalMs: 5 * MINUTE,
+    handler: retryBookingConfirmedAlerts,
+  },
   {
     name: 'reminders',
     description: '24h appointment reminders',
