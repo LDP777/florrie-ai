@@ -52,6 +52,7 @@ import { startScheduler, listJobs } from './lib/scheduler.js';
 // Detection layer: heartbeats for the crons and a health endpoint that can
 // actually go red. See lib/health.js for why the old one was a lie.
 import { runHealthChecks, reportDegraded } from './lib/health.js';
+import { createHealthRouter } from './routes/health.js';
 import { probeAuthorshipColumn } from './lib/authorship.js';
 import Stripe from 'stripe';
 
@@ -291,47 +292,12 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(sanitiseBody);
 app.use(locationScope);
 
-// ── Liveness: is this process running at all? ──────────────────────────────
-// Railway restarts a container whose liveness probe fails. That MUST NOT be
-// wired to the dependency checks below: if Supabase has a wobble, killing and
-// restarting the API makes it worse, and a restart loop turns a five minute
-// dependency blip into a full outage. This endpoint answers 200 as long as the
-// event loop is turning, and nothing else.
-app.get('/health/live', (req, res) => {
-  res.json({ status: 'alive' });
-});
-
-// ── Readiness: is this service actually able to do its job? ────────────────
-// This used to be res.json({ status: 'ok' }), a literal that returned ok while
-// the Stripe webhook rejected every event for six weeks and while Instagram
-// outbound was dead for five. BetterStack monitors this URL, so it has to be
-// capable of going red. 200 = all critical checks passed, 503 = at least one
-// critical dependency is down. Never throws: an unanswered health check tells
-// a human nothing.
-app.get('/health', async (req, res) => {
-  try {
-    // Pass the live registry rather than a hardcoded list, so the names
-    // /health reports and the names that actually run cannot drift apart.
-    const result = await runHealthChecks({ stripe: healthStripe, jobs: listJobs() });
-    if (result.status === 'degraded') {
-      reportDegraded(result);
-      return res.status(503).json({
-        status: 'degraded',
-        failing: result.failing,
-        warnings: result.warnings,
-        checks: result.checks,
-        service: result.service,
-        checked_at: result.checked_at,
-      });
-    }
-    return res.json(result);
-  } catch (err) {
-    // The check harness itself failing is a degraded service, not a 500 with
-    // no information. Say what happened.
-    logger.error({ err }, 'Health check harness failed');
-    return res.status(503).json({ status: 'degraded', failing: ['health_check_harness'], error: err?.message || 'unknown' });
-  }
-});
+// Public readiness retains dependency failure status; operational details require x-cron-key.
+app.use('/health', createHealthRouter({
+  check: () => runHealthChecks({ stripe: healthStripe, jobs: listJobs() }),
+  report: reportDegraded,
+  onError: err => logger.error({ err }, 'Health check harness failed'),
+}));
 
 // API routes
 //
