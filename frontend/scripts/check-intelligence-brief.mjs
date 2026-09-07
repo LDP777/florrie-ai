@@ -54,9 +54,35 @@ try {
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Insights fits a phone');
   await page.getByText('Background checks', { exact: true }).click();
   await page.getByText('Not recorded yet', { exact: true }).waitFor();
+  const network = page.getByRole('region', { name: 'Florrie at work', exact: true });
+  assert.equal(await network.getByRole('button', { name: /^Explore / }).count(), 6);
+  await network.getByRole('button', { name: 'Explore Guardian', exact: true }).click();
+  await network.getByRole('heading', { name: 'Guardian', exact: true }).waitFor();
+  assert.equal(await network.getByRole('button', { name: 'Explore Guardian', exact: true }).getAttribute('aria-pressed'), 'true');
+  await network.getByText('Completed count unavailable', { exact: false }).waitFor();
+  await network.getByText('Check unavailable', { exact: true }).waitFor();
+  await network.getByRole('button', { name: 'Explore Front Desk', exact: true }).click();
+  await network.getByText('Latest action awaits review', { exact: true }).waitFor();
+  const nodes = await network.locator('.agent-network__node').evaluateAll(items => items.map(item => {
+    const r = item.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height };
+  }));
+  for (let i = 0; i < nodes.length; i++) {
+    assert.ok(nodes[i].width >= 44 && nodes[i].height >= 44, 'role has a usable tap target');
+    for (let j = i + 1; j < nodes.length; j++) {
+      const a = nodes[i], b = nodes[j];
+      assert.ok(a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y, 'role tap targets do not overlap');
+    }
+  }
   if (process.env.INSIGHTS_SCREENSHOTS) {
-    await page.evaluate(() => document.getElementById('app-scroll')?.scrollTo(0, 0));
     mkdirSync(process.env.INSIGHTS_SCREENSHOTS, { recursive: true });
+    await network.screenshot({ path: join(process.env.INSIGHTS_SCREENSHOTS, 'agent-network-phone.png') });
+    await page.setViewportSize({ width: 320, height: 900 });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'network fits a small phone');
+    await network.screenshot({ path: join(process.env.INSIGHTS_SCREENSHOTS, 'agent-network-small-phone.png') });
+    await page.setViewportSize({ width: 1200, height: 1000 });
+    await network.screenshot({ path: join(process.env.INSIGHTS_SCREENSHOTS, 'agent-network-desktop.png') });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.evaluate(() => document.getElementById('app-scroll')?.scrollTo(0, 0));
     await page.screenshot({ path: join(process.env.INSIGHTS_SCREENSHOTS, 'insights-phone.png'), fullPage: true });
     await page.setViewportSize({ width: 1200, height: 1000 });
     await page.screenshot({ path: join(process.env.INSIGHTS_SCREENSHOTS, 'insights-desktop.png'), fullPage: true });
@@ -69,5 +95,5 @@ try {
   assert.equal(await page.evaluate(() => window.__brief.voices), 0, 'No voice command submits itself');
   assert.deepEqual(failures, []);
   await context.close();
-  console.log('✓ Insights: partial evidence, permission visibility, dismissal failure/retry, phone layout, and editable voice handoff');
+  console.log('✓ Insights: partial evidence, permission visibility, dismissal failure/retry, connected roles and unknown status, phone tap targets, and editable voice handoff');
 } finally { await browser.close(); server.close(); }

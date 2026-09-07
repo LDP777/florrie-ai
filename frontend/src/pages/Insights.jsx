@@ -1,3 +1,4 @@
+import { AgentNetwork } from '../components/AgentNetwork.jsx';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase, useBeautician } from '../lib/supabase.js';
@@ -71,11 +72,7 @@ export default function Insights() {
           </aside>
         </div>
         <section className="insights-section"><div className="insights-section-title"><span>04</span><h2>Working across your business</h2></div><p className="insights-muted">Each area uses your shared diary, clients and preferences. A recent background check records a service run; delivery is recorded separately in activity.</p>
-          <div className="insights-team">{data.agents?.map(agent => {
-            const attention = agent.checks?.some(c => c.state === 'attention');
-            const unknown = agent.checks?.some(c => c.state === 'unknown');
-            return <article key={agent.id} className="insights-agent"><div className="insights-agent-top"><h3>{agent.name}</h3><span className={`insights-check ${attention || unknown ? 'is-uncertain' : ''}`}>{attention ? 'Check needs attention' : unknown ? 'Check unverified' : 'Recent checks'}</span></div><p>{agent.statusLine}</p><p className="insights-muted">{number(agent.actionsThisWeek)} completed · 7 days</p><details><summary>Background checks</summary>{agent.checks?.map(check => <p className="insights-check-row" key={check.name}><span>{check.name.replaceAll('-', ' ').replace(' v2', '')}</span><span>{check.state === 'attention' ? 'Needs attention · ' : ''}{stamp(check.last_success_at)}</span></p>)}</details><Button variant="secondary" onClick={() => navigate(agent.link_to)}>Open {agent.name}</Button></article>;
-          })}</div>
+          <AgentNetwork key={beautician?.id} agents={data.agents} learning={data.learning} />
         </section>
         <footer className="insights-footer">Checked {stamp(data.checked_at)}. Refreshes may reuse evidence from the last 30 seconds.</footer>
       </>}
