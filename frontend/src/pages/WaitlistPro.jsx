@@ -28,7 +28,7 @@ const STATUS_CONFIG = {
   waiting: { label: 'Waiting', bg: '#FFF5E6', color: 'var(--gold, #79581C)' },
   active: { label: 'Waiting', bg: '#FFF5E6', color: 'var(--gold, #79581C)' },
   notified: { label: 'Notified', bg: '#E3F2FD', color: 'var(--info, #2E6DA4)' },
-  offered: { label: 'Slot offered', bg: '#E8F5E9', color: '#306F33' },
+  offered: { label: 'Offer recorded', bg: '#E8F5E9', color: '#306F33' },
   booked: { label: 'Booked', bg: '#E8F5E9', color: '#306F33' },
   expired: { label: 'Expired', bg: '#F0ECE8', color: 'var(--text-muted, #6B5D54)' },
 };
@@ -301,7 +301,7 @@ export default function WaitlistPro() {
 
                 {w.status === 'offered' && w.offer_expires_at && (
                   <div style={S.offerBanner}>
-                    <span style={S.offerText}>Slot offered</span>
+                    <span style={S.offerText}>Offer recorded</span>
                     <span style={S.offerExpiry}>Expires {formatDateTime(w.offer_expires_at)}</span>
                   </div>
                 )}
@@ -335,12 +335,13 @@ export default function WaitlistPro() {
                       )}
                     </div>
                     {w.notes && <p style={S.wlNotes}>{w.notes}</p>}
+                    <p style={S.wlNotes}>Record offer made tracks an offer you have already discussed for 24 hours. It does not send a message or reserve an appointment.</p>
                     <div style={S.actionRow}>
                       <button style={S.actionBtn} disabled={isBusy} onClick={e => { e.stopPropagation(); handleNotify(w.id); }}>
                         {isBusy ? '...' : 'Notify'}
                       </button>
                       <button style={{ ...S.actionBtn, background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)' }} disabled={isBusy} onClick={e => { e.stopPropagation(); handleOfferSlot(w.id); }}>
-                        Offer slot
+                        Record offer made
                       </button>
                       <button style={S.actionBtn} disabled={isBusy} onClick={e => { e.stopPropagation(); handleRemove(w.id); }}>
                         Remove

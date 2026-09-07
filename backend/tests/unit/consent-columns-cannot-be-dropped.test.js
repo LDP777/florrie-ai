@@ -198,9 +198,9 @@ describe('no new sender joins clients without the consent columns', () => {
     'src/routes/features.js:1086',
     'src/routes/features.js:1116',
     'src/routes/features.js:2566',
-    'src/routes/features.js:2791',
-    'src/routes/features.js:2832',
-    'src/routes/features.js:3317',
+    'src/routes/features.js:2792',
+    'src/routes/features.js:2833',
+    'src/routes/features.js:3318',
     // Both moved down again, by the 27 August 2026 template-parameter fix:
     // resolveTemplateForSend grew the refusal path and sendBookingLink's
     // comment was rewritten, both above these two joins. Then again by the

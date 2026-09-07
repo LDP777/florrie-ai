@@ -159,6 +159,9 @@ export default function ContentAutopilot() {
   const [composeImageFile, setComposeImageFile] = useState(null);
   const [composeImagePreview, setComposeImagePreview] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [draftAction, setDraftAction] = useState(null);
+  const draftActionRef = useRef(false);
+  const [draftErrors, setDraftErrors] = useState({});
   const fileRef = useRef(null);
   // Treatments for template fill
   const [treatments, setTreatments] = useState([]);
@@ -752,21 +755,30 @@ export default function ContentAutopilot() {
     }
   }
   async function handleEditSave(postId) {
+    if (draftActionRef.current) return;
+    draftActionRef.current = true;
+    setDraftAction(postId); setDraftErrors(prev => ({ ...prev, [postId]: null }));
+    const caption = editCaption;
     try {
-      await updateRow('content_posts', postId, { caption: editCaption });
-      setDrafts(prev => prev.map(p => p.id === postId ? { ...p, caption: editCaption } : p));
+      await updateRow('content_posts', postId, { caption });
+      setDrafts(prev => prev.map(p => p.id === postId ? { ...p, caption } : p));
       setEditingId(null);
     } catch (err) {
       logger.error('Edit error:', err);
-    }
+      setDraftErrors(prev => ({ ...prev, [postId]: 'Could not save this caption. Your edits are still here. Try Save again.' }));
+    } finally { draftActionRef.current = false; setDraftAction(null); }
   }
   async function handleDiscard(postId) {
+    if (draftActionRef.current) return;
+    draftActionRef.current = true;
+    setDraftAction(postId); setDraftErrors(prev => ({ ...prev, [postId]: null }));
     try {
       await deleteRow('content_posts', postId);
       setDrafts(prev => prev.filter(p => p.id !== postId));
     } catch (err) {
       logger.error('Discard error:', err);
-    }
+      setDraftErrors(prev => ({ ...prev, [postId]: 'Could not discard this draft. It is still here. Try Discard again.' }));
+    } finally { draftActionRef.current = false; setDraftAction(null); }
   }
   function getFilledTemplate(type) {
     const templates = CAPTION_TEMPLATES[type] || CAPTION_TEMPLATES.general;
@@ -1290,10 +1302,13 @@ export default function ContentAutopilot() {
                   <img src={post.image_url} alt="" onError={hideBrokenImage} style={styles.postImage} />
                 </div>
               )}
+              {draftErrors[post.id] && <p role="alert" style={styles.failureReason}>{draftErrors[post.id]}</p>}
               {/* Caption */}
               {editingId === post.id ? (
                 <div style={styles.editArea}>
                   <textarea
+                    aria-label="Draft caption"
+                    disabled={draftAction !== null}
                     value={editCaption}
                     onChange={e => setEditCaption(e.target.value)}
                     style={styles.editTextarea}
@@ -1301,8 +1316,8 @@ export default function ContentAutopilot() {
                     autoFocus
                   />
                   <div style={styles.editActions}>
-                    <Button size="sm" onClick={() => handleEditSave(post.id)}>Save</Button>
-                    <button className="fl-tap" onClick={() => setEditingId(null)} style={styles.cancelEditBtn}>Cancel</button>
+                    <Button size="sm" disabled={draftAction !== null} onClick={() => handleEditSave(post.id)}>{draftAction === post.id ? 'Saving…' : 'Save'}</Button>
+                    <button className="fl-tap" disabled={draftAction !== null} onClick={() => setEditingId(null)} style={styles.cancelEditBtn}>Cancel</button>
                   </div>
                 </div>
               ) : (
@@ -1332,7 +1347,7 @@ export default function ContentAutopilot() {
                   <Button
                     size="sm"
                     onClick={() => handleApprove(post.id)}
-                    disabled={publishing === post.id || !post.image_url || igBlocked}
+                    disabled={draftAction !== null || publishing === post.id || !post.image_url || igBlocked}
                     style={{ flex: 1 }}
                   >
                     {publishing === post.id ? 'Posting...'
@@ -1343,15 +1358,17 @@ export default function ContentAutopilot() {
                   <Button
                     variant="tonal"
                     size="sm"
+                    disabled={draftAction !== null || publishing === post.id}
                     onClick={() => { setEditingId(post.id); setEditCaption(post.caption || ''); }}
                   >
                     Edit
                   </Button>
                   <button className="fl-tap"
+                    disabled={draftAction !== null || publishing === post.id}
                     onClick={() => handleDiscard(post.id)}
                     style={styles.discardBtn}
                   >
-                    Discard
+                    {draftAction === post.id ? 'Discarding…' : 'Discard'}
                   </button>
                 </div>
               )}

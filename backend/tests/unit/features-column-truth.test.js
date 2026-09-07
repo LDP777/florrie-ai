@@ -200,7 +200,7 @@ const RELATIONS = {
 
 const db = {};
 const TABLES = [
-  ...Object.keys(COLUMNS), 'beauticians', 'appointments',
+  ...Object.keys(COLUMNS), 'beauticians', 'appointments', 'waitlist',
 ];
 const reset = () => { for (const t of TABLES) db[t] = []; };
 
@@ -391,7 +391,8 @@ function makeBuilder(table) {
 vi.mock('../../src/config.js', () => ({ supabase: { from: (t) => makeBuilder(t) } }));
 vi.mock('../../src/middleware/auth.js', () => ({ requireAuth: (_q, _s, next) => next() }));
 vi.mock('../../src/lib/outbound-guard.js', () => ({ guardedSend: async () => ({ delivered: false, decision: 'block' }) }));
-vi.mock('../../src/services/notifications.js', () => ({ sendNudge: async () => ({ skipped: true }) }));
+let notificationAccepted = false;
+vi.mock('../../src/services/notifications.js', () => ({ sendNudge: async () => ({ skipped: true }), sendSMS: async () => notificationAccepted ? { id: 'sms1' } : null, sendEmail: async () => notificationAccepted ? { id: 'email1' } : null }));
 vi.mock('@sentry/node', () => ({ captureMessage: () => {}, captureException: () => {} }));
 
 const featuresRouter = (await import('../../src/routes/features.js')).default;
@@ -794,5 +795,25 @@ describe('client tag assignments', () => {
     const out = await run('delete', '/client-tag-assignments/:id', { params: { id: 'aX' } });
     expect(out.status).toBe(404);
     expect(db.client_tag_assignments).toHaveLength(2);
+  });
+});
+
+
+describe('waitlist notification acceptance', () => {
+  it.each(['sms', 'email'])('does not mark a rejected %s as notified', async channel => {
+    notificationAccepted = false;
+    const entry = {id:'w1', beautician_id:B, status:'waiting', notify_count:0, clients:{first_name:'Test', ...(channel==='sms' ? {phone:'07700900000'} : {email:'test@example.com'})}};
+    db.waitlist.push(entry);
+    const failed=await run('post','/waitlist/:id/notify',{params:{id:'w1'}});
+    expect(failed.status).toBe(502);
+    expect(failed.body.delivered).toBe(false);
+    expect(entry.status).toBe('waiting');
+    expect(entry.notify_count).toBe(0);
+    notificationAccepted = true;
+    const retried=await run('post','/waitlist/:id/notify',{params:{id:'w1'}});
+    expect(retried.status).toBe(200);
+    expect(retried.body.delivered).toBe(true);
+    expect(retried.body.waitlistEntry.status).toBe('notified');
+    expect(retried.body.waitlistEntry.notify_count).toBe(1);
   });
 });

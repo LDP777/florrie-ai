@@ -2714,15 +2714,16 @@ router.post('/waitlist/:id/notify', requireAuth, async (req, res) => {
   try {
     const { sendSMS, sendEmail } = await import('../services/notifications.js');
     if (client.phone) {
-      await sendSMS({ to: client.phone, body: msg, beauticianId: req.beautician.id, messageType: 'waitlist_alert' });
-      delivered = true;
+      delivered = !!(await sendSMS({ to: client.phone, body: msg, beauticianId: req.beautician.id, messageType: 'waitlist_alert' }));
     } else if (client.email) {
-      await sendEmail({ to: client.email, subject: 'A slot may have opened up', html: `<p>${msg}</p>`, text: msg });
-      delivered = true;
+      const email = await sendEmail({ to: client.email, subject: 'A slot may have opened up', html: `<p>${msg}</p>`, text: msg });
+      delivered = !!email?.id;
     }
   } catch (err) {
     logger.error({ err }, 'Waitlist notify send failed');
   }
+
+  if (!delivered) return res.status(502).json({ delivered: false, error: 'Could not send the notification. The waitlist entry has not changed. Please try again.' });
 
   const nowIso = new Date().toISOString();
   const { data, error } = await supabase
