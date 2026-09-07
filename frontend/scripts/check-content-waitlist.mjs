@@ -83,7 +83,6 @@ try {
   await page.getByText('Synthetic diary answer',{exact:true}).waitFor();
   assert.equal(await page.evaluate(()=>window.__voiceCalls),1);
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth));
-  await page.screenshot({path:'/Users/levipither/ai-company/Codex-pa/work/florrie-headless/voice-mobile.png'});
   console.log('✓ Voice: suggestion is editable, sends once, renders actual reply without mobile overflow');
   await ctx.close();
 } finally { await browser.close(); server.close(); }
