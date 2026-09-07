@@ -125,6 +125,9 @@ const STATUS_BADGES = {
 export default function ContentAutopilot() {
   const { beautician, loading: bLoading } = useBeautician();
   const [drafts, setDrafts] = useState([]);
+  const [draftSearch, setDraftSearch] = useState('');
+  const [attentionOnly, setAttentionOnly] = useState(false);
+  const visibleDrafts = drafts.filter(p => (!attentionOnly || p.status === 'failed' || !p.image_url) && `${p.caption || ''} ${POST_TYPE_LABELS[p.post_type] || ''}`.toLowerCase().includes(draftSearch.trim().toLowerCase()));
   const [scheduled, setScheduled] = useState([]);
   const [deckIndex, setDeckIndex] = useState(null); // null = list view, number = review-one-by-one
   const [posted, setPosted] = useState([]);
@@ -802,7 +805,7 @@ export default function ContentAutopilot() {
       {error && <ErrorCard message={error} onDismiss={() => setError(null)} />}
       <PageHeader
         title="Content"
-        subtitle="Florrie writes your captions and posts"
+        subtitle="Draft, review and schedule your next post"
         action={(
           <Button onClick={() => startCompose('before_after', '')}>
             + New Post
@@ -1203,10 +1206,17 @@ export default function ContentAutopilot() {
       {/* ═══ DRAFTS TAB ═══ */}
       {tab === 'drafts' && !composing && (
         <div style={styles.postList}>
+          <div style={{ padding: 18, background: 'var(--tone-1)', border: '1px solid var(--border)', borderRadius: 20 }}>
+            <h2 style={{ fontFamily: 'var(--font-display)', margin: '0 0 6px', fontSize: 24 }}>Your next posts</h2>
+            <p style={{ margin: '0 0 14px', color: 'var(--text-secondary)', fontSize: 13 }}>Find a caption, add its photo and review it before publishing.</p>
+            <input aria-label="Search content drafts" value={draftSearch} onChange={e => { setDraftSearch(e.target.value); setDeckIndex(null); }} placeholder="Search captions or post types" style={{ ...styles.streamFormInput, minHeight: 44, width: '100%', boxSizing: 'border-box' }} />
+            <Button variant={attentionOnly ? 'primary' : 'secondary'} aria-pressed={attentionOnly} style={{ marginTop: 10 }} onClick={() => { setAttentionOnly(v => !v); setDeckIndex(null); }}>Needs attention</Button>
+          </div>
+          {!!drafts.length && !visibleDrafts.length && <p role="status">No drafts match. Change your search or turn off Needs attention.</p>}
           {scheduled.length > 0 && (
             <div style={{ background: 'var(--tone-2, #f6e7dd)', borderRadius: 16, padding: '12px 14px', marginBottom: 4 }}>
               <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--text-secondary, #574A42)', margin: '0 0 8px', textTransform: 'uppercase' }}>
-                Scheduled, posting themselves
+                Scheduled posts
               </p>
               {scheduled.map(sp => (
                 <div key={sp.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderTop: '1px solid rgba(146,64,94,0.08)' }}>
@@ -1245,19 +1255,19 @@ export default function ContentAutopilot() {
               subtitle="Head to Ideas to pick a template, or tap + New Post to start from scratch."
             />
           )}
-          {deckIndex !== null && drafts.length > 0 && (
+          {deckIndex !== null && visibleDrafts.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 2px 0' }}>
               <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary, #574A42)' }}>
-                {Math.min(deckIndex + 1, drafts.length)} of {drafts.length}
+                {Math.min(deckIndex + 1, visibleDrafts.length)} of {visibleDrafts.length}
               </span>
               <div style={{ display: 'flex', gap: 10 }}>
                 <Button variant="quiet" size="sm" onClick={() => setDeckIndex(i => Math.max(0, i - 1))} disabled={deckIndex === 0}>‹ Back</Button>
-                <Button variant="quiet" size="sm" onClick={() => setDeckIndex(i => (i + 1 < drafts.length ? i + 1 : i))} disabled={deckIndex + 1 >= drafts.length}>Skip ›</Button>
+                <Button variant="quiet" size="sm" onClick={() => setDeckIndex(i => (i + 1 < visibleDrafts.length ? i + 1 : i))} disabled={deckIndex + 1 >= visibleDrafts.length}>Skip ›</Button>
                 <button className="fl-tap" onClick={() => setDeckIndex(null)} style={{ background: 'none', border: 'none', color: 'var(--text-muted, #6B5D54)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', minHeight: 44, padding: '0 8px' }}>List</button>
               </div>
             </div>
           )}
-          {(deckIndex === null ? drafts : drafts.slice(Math.min(deckIndex, Math.max(0, drafts.length - 1)), Math.min(deckIndex, Math.max(0, drafts.length - 1)) + 1)).map(post => (
+          {(deckIndex === null ? visibleDrafts : visibleDrafts.slice(Math.min(deckIndex, Math.max(0, visibleDrafts.length - 1)), Math.min(deckIndex, Math.max(0, visibleDrafts.length - 1)) + 1)).map(post => (
             <div key={post.id} style={styles.postCard}>
               {/* Type badge */}
               <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>

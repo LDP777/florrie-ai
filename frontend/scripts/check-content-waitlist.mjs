@@ -19,10 +19,12 @@ try {
   await ctx.addInitScript(sessionSeedSource(bundleSupabaseUrl(dist)));
   await ctx.addInitScript(() => {
     const base = window.fetch;
+    window.__voiceCalls = 0;
     window.__draftTest = {fail:true, caption:'Original caption', writes:[]};
     window.fetch = (input,opts={}) => {
       const url=String(input), method=opts.method||'GET';
       const json=(data,status=200)=>Promise.resolve(new Response(JSON.stringify(data),{status,headers:{'content-type':'application/json'}}));
+      if (url.includes('/api/voice/command')) { window.__voiceCalls++; return json({reply:'Synthetic diary answer',tools_used:[]}); }
       if (/\/api\/content(?:\?|$)/.test(url)) return json({posts:[{id:'draft1',status:'draft',post_type:'general',caption:window.__draftTest.caption,created_at:'2026-09-07'}]});
       if(url.includes('/rest/v1/content_posts?') && ['PATCH','DELETE'].includes(method)) {
         window.__draftTest.writes.push(method);
@@ -42,6 +44,14 @@ try {
   const page=await ctx.newPage();
   await page.goto(`http://127.0.0.1:${server.address().port}/content`);
   await page.getByRole('button',{name:/Drafts/}).click();
+  await page.getByRole('textbox',{name:'Search content drafts'}).fill('no such caption');
+  await page.getByRole('status').filter({hasText:'No drafts match'}).waitFor();
+  assert.equal(await page.getByRole('button',{name:'Edit',exact:true}).count(),0);
+  await page.getByRole('textbox',{name:'Search content drafts'}).fill('original');
+  await page.getByRole('button',{name:'Needs attention',exact:true}).click();
+  await page.getByRole('button',{name:'Edit',exact:true}).waitFor();
+  await page.getByRole('button',{name:'Needs attention',exact:true}).click();
+  await page.getByRole('textbox',{name:'Search content drafts'}).fill('');
   await page.getByRole('button',{name:'Edit',exact:true}).click();
   await page.getByRole('textbox',{name:'Draft caption'}).fill('Keep my revised caption');
   await page.getByRole('button',{name:'Save',exact:true}).click();
@@ -65,5 +75,15 @@ try {
   await page.getByText('Offer recorded',{exact:true}).first().waitFor();
   assert.deepEqual(await page.evaluate(()=>window.__draftTest.writes),['offer']);
   console.log('✓ Waitlist: recording an existing offer is labelled and does not call Notify');
+  await page.goto(`http://127.0.0.1:${server.address().port}/voice`);
+  await page.getByRole('button',{name:'My day',exact:true}).click();
+  assert.equal(await page.getByRole('textbox',{name:'Message Florrie'}).inputValue(),'What does today look like?');
+  assert.equal(await page.evaluate(()=>window.__voiceCalls),0);
+  await page.getByRole('button',{name:'Send message',exact:true}).click();
+  await page.getByText('Synthetic diary answer',{exact:true}).waitFor();
+  assert.equal(await page.evaluate(()=>window.__voiceCalls),1);
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth));
+  await page.screenshot({path:'/Users/levipither/ai-company/Codex-pa/work/florrie-headless/voice-mobile.png'});
+  console.log('✓ Voice: suggestion is editable, sends once, renders actual reply without mobile overflow');
   await ctx.close();
 } finally { await browser.close(); server.close(); }

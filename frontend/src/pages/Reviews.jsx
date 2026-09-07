@@ -43,8 +43,8 @@ export default function Reviews() {
           author: r.author || r.client_name || 'Client',
           text: r.text || r.comment || '',
           reply: r.reply || r.response || '',
-          // Clamp rating to 1 to 5 so star maths and reduce() never go NaN on a bad row.
-          rating: Math.min(5, Math.max(1, Math.round(Number(r.rating) || 5))),
+          // Unknown ratings stay unrated and are excluded from the average.
+          rating: r.rating !== null && r.rating !== '' && Number.isInteger(Number(r.rating)) && Number(r.rating) >= 1 && Number(r.rating) <= 5 ? Number(r.rating) : null,
         })));
     } catch (err) {
       logger.error('Load reviews error:', err);
@@ -68,11 +68,12 @@ export default function Reviews() {
     setReplyingTo(review.id);
   }
 
-  const avgRating = reviews.length > 0
-    ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
-    : '0.0';
-  const fiveStarPct = reviews.length > 0
-    ? Math.round((reviews.filter(r => r.rating === 5).length / reviews.length) * 100)
+  const ratedReviews = reviews.filter(r => r.rating !== null);
+  const avgRating = ratedReviews.length > 0
+    ? (ratedReviews.reduce((sum, r) => sum + r.rating, 0) / ratedReviews.length).toFixed(1)
+    : 'No rating';
+  const fiveStarPct = ratedReviews.length > 0
+    ? Math.round((ratedReviews.filter(r => r.rating === 5).length / ratedReviews.length) * 100)
     : 0;
 
   if (bLoading || loading) {
@@ -88,7 +89,7 @@ export default function Reviews() {
       {/* Rating hero */}
       <div style={styles.heroCard}>
         <div style={styles.heroLeft}>
-          <span style={styles.heroRating}>{avgRating}</span>
+          <span style={{ ...styles.heroRating, ...(ratedReviews.length ? {} : { fontSize: 24 }) }}>{avgRating}</span>
           <div style={styles.heroStars}>
             {[1, 2, 3, 4, 5].map(i => (
               <span key={i} style={{ fontSize: 16, color: i <= Math.round(parseFloat(avgRating)) ? 'var(--warning, #79581C)' : 'var(--text-muted, #6B5D54)' }}><Icon name="star" size={15} /></span>
@@ -105,8 +106,8 @@ export default function Reviews() {
             <span style={styles.ratingBarPct}>{fiveStarPct}%</span>
           </div>
           {[4, 3, 2, 1].map(star => {
-            const pct = reviews.length > 0
-              ? Math.round((reviews.filter(r => r.rating === star).length / reviews.length) * 100)
+            const pct = ratedReviews.length > 0
+              ? Math.round((ratedReviews.filter(r => r.rating === star).length / ratedReviews.length) * 100)
               : 0;
             return (
               <div key={star} style={styles.ratingBar}>
@@ -168,6 +169,7 @@ export default function Reviews() {
                     </div>
                   </div>
                   <div style={styles.reviewStars}>
+                    {review.rating === null && <span style={styles.settingHint}>Unrated</span>}
                     {[1, 2, 3, 4, 5].map(i => (
                       <span key={i} style={{ fontSize: 13, color: i <= review.rating ? 'var(--warning, #79581C)' : 'var(--text-muted, #6B5D54)' }}><Icon name="star" size={15} /></span>
                     ))}
@@ -183,18 +185,19 @@ export default function Reviews() {
                 {/* Reply section */}
                 {review.reply ? (
                   <div style={styles.replyCard}>
-                    <span style={styles.replyLabel}>Your reply</span>
+                    <span style={styles.replyLabel}>Reply saved in Florrie</span>
                     <p style={styles.replyText}>{review.reply}</p>
                   </div>
                 ) : replyingTo === review.id ? (
                   <div style={styles.replyForm}>
-                    <span style={styles.replyDraftLabel}><Icon name="sparkles" size={14} inline /> AI-drafted reply</span>
+                    <span style={styles.replyDraftLabel}><Icon name="sparkles" size={14} inline /> Suggested reply</span>
                     <textarea
                       value={replyText}
                       onChange={e => setReplyText(e.target.value)}
                       style={styles.replyTextarea}
                       rows={3}
                     />
+                    <p style={styles.settingHint}>Saves inside Florrie. Publish it on the review platform separately.</p>
                     <div style={styles.replyActions}>
                       <button
                         onClick={async () => {
@@ -215,7 +218,7 @@ export default function Reviews() {
                         }}
                         style={styles.replySubmitBtn}
                       >
-                        Post Reply
+                        Save reply
                       </button>
                       <button onClick={() => setReplyingTo(null)} style={styles.replyCancelBtn}>
                         Cancel
@@ -240,7 +243,7 @@ export default function Reviews() {
             <span style={{ fontSize: 28, display: 'block', marginBottom: 8 }}><Icon name="phone" size={28} /></span>
             <h3 style={styles.requestTitle}>Review requests are automatic</h3>
             <p style={styles.requestDesc}>
-              florrie.ai sends a friendly review request 2 hours after each completed appointment, written in your voice. You don't need to do a thing.
+              Florrie schedules a review request after a completed appointment, with a two-hour delay. Sending depends on the client’s preferences, approval settings and contact details.
             </p>
 
             <div style={styles.requestPreview}>
@@ -263,7 +266,7 @@ export default function Reviews() {
             <div style={styles.settingRow}>
               <div style={{ flex: 1 }}>
                 <span style={styles.settingLabel}>Auto-ask after appointments</span>
-                <span style={styles.settingHint}>A review request goes out 2 hours after each completed appointment</span>
+                <span style={styles.settingHint}>Requests become eligible two hours after completion</span>
               </div>
               <span style={styles.settingValue}>On</span>
             </div>
@@ -271,9 +274,9 @@ export default function Reviews() {
             <div style={styles.settingRow}>
               <div style={{ flex: 1 }}>
                 <span style={styles.settingLabel}>Max requests per client</span>
-                <span style={styles.settingHint}>The same client is not asked more than once every 3 months</span>
+                <span style={styles.settingHint}>The scheduler checks for an existing request in the previous seven days</span>
               </div>
-              <span style={styles.settingValue}>1 per 90 days</span>
+              <span style={styles.settingValue}>7-day check</span>
             </div>
 
             <div style={styles.settingRow}>
@@ -281,7 +284,7 @@ export default function Reviews() {
                 <span style={styles.settingLabel}>Review platform</span>
                 <span style={styles.settingHint}>Where clients are sent to leave a review</span>
               </div>
-              <span style={styles.settingValue}>Google</span>
+              <span style={styles.settingValue}>{beautician?.google_place_id ? 'Google' : 'No Google link set'}</span>
             </div>
           </div>
 

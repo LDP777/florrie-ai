@@ -1,8 +1,10 @@
+import Button from '../components/ui/Button';
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useBeautician, supabase, fetchRows } from '../lib/supabase.js'
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
+import { sendVoiceCommand } from '../lib/voice-command.js';
 import { deDash } from '../lib/text.js';
 import { bloom } from '../lib/bloom.js';
 import Icon, { iconName } from '../components/ui/Icon';
@@ -452,6 +454,7 @@ export default function VoiceCommander() {
   const [loading, setLoading] = useState(true);
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const processingRef = useRef(false);
   const [textInput, setTextInput] = useState('');
   const [pulseAnim, setPulseAnim] = useState(false);
   const [interimTranscript, setInterimTranscript] = useState('');
@@ -560,8 +563,8 @@ export default function VoiceCommander() {
       const greeting = {
         id: '0', role: 'assistant',
         text: speechSupported
-          ? "Hey lovely! Tap the mic and talk to me, or type below. I'll handle everything."
-          : "Hey lovely! Type anything below and I'll take care of it. Voice isn't supported in this browser, but I've got you covered.",
+          ? "Hold the petal to talk, or type below. Ask about your diary, find a client or draft some content."
+          : "Type below to ask about your diary, find a client or draft some content. Voice recording is unavailable in this browser.",
         agent: 'general',
         timestamp: new Date().toISOString(),
       };
@@ -687,7 +690,8 @@ export default function VoiceCommander() {
     }]);
   }
   async function processMessage(text, isVoice = false) {
-    if (!text.trim()) return;
+    if (!text.trim() || processingRef.current) return;
+    processingRef.current = true;
     const userMsg = {
       id: crypto.randomUUID(),
       role: 'user',
@@ -699,29 +703,7 @@ export default function VoiceCommander() {
     setTextInput('');
     setIsProcessing(true);
     try {
-      const token = (await supabase?.auth.getSession())?.data?.session?.access_token;
-      if (!token) {
-        // Dev mode fallback - local keyword matching
-        await new Promise(r => setTimeout(r, 800));
-        const response = generateDevResponse(text.trim());
-        setMessages(prev => [...prev, response]);
-        setIsProcessing(false);
-        return;
-      }
-      // Real backend call
-      const res = await fetch(`${API_BASE}/api/voice/command`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ text: text.trim() }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || `Server error ${res.status}`);
-      }
-      const data = await res.json();
+      const data = await sendVoiceCommand({ auth: supabase.auth, url: `${API_BASE}/api/voice/command`, text: text.trim() });
       // Determine agent from which tools were called
       const toolsUsed = (data.actions || []).map(a => a.tool);
       const primaryTool = toolsUsed[0];
@@ -749,7 +731,7 @@ export default function VoiceCommander() {
       const aiMsg = {
         id: crypto.randomUUID(),
         role: 'assistant',
-        text: data.reply || "Done.",
+        text: data.reply || 'Review the proposed action below.',
         agent,
         action,
         multiStep,
@@ -771,50 +753,9 @@ export default function VoiceCommander() {
         : "Something went wrong. Try again in a moment.";
       addSystemMessage(friendly);
     } finally {
+      processingRef.current = false;
       setIsProcessing(false);
     }
-  }
-  // Dev mode fallback
-  function generateDevResponse(input) {
-    const lower = input.toLowerCase();
-    let agent = 'general';
-    let text = '';
-    let action = null;
-    if (lower.includes('move') || lower.includes('reschedule') || lower.includes('appointment') || lower.includes('block') || lower.includes('book')) {
-      agent = 'calendar';
-      text = "I'd move that for you but I'm in demo mode right now. Once you're logged in, voice commands hit the real backend and I'll handle bookings, rescheduling, and time blocks.";
-      action = { label: 'View Calendar', path: '/calendar' };
-    } else if (lower.includes('earn') || lower.includes('revenue') || lower.includes('money') || lower.includes('paid') || lower.includes('week')) {
-      agent = 'money';
-      text = "In demo mode I can't pull real numbers, but once live I'll fetch your earnings, breakdowns, and comparisons instantly.";
-      action = { label: 'View Money', path: '/money' };
-    } else if (lower.includes('comeback') || lower.includes('dormant') || lower.includes('send') || lower.includes('message') || lower.includes('campaign')) {
-      agent = 'campaigns';
-      text = "Campaign commands work when you're logged in. I'll find dormant clients, draft messages in your voice, and queue them for your approval.";
-      action = { label: 'View Inbox', path: '/inbox' };
-    } else if (lower.includes('post') || lower.includes('instagram') || lower.includes('content') || lower.includes('draft')) {
-      agent = 'content';
-      text = "Content drafting is live when connected. I generate captions, hashtags, and schedule posts. Type or say what you want and I'll draft it.";
-      action = { label: 'View Content', path: '/content' };
-    } else if (lower.includes('schedule') || lower.includes('today') || lower.includes('tomorrow')) {
-      agent = 'calendar';
-      text = "Once you're logged in I'll pull your real schedule. In demo mode I can't see your bookings.";
-      action = { label: 'View Calendar', path: '/calendar' };
-    } else if (lower.includes('loyal') || lower.includes('client') || lower.includes('who')) {
-      agent = 'clients';
-      text = "Client lookups need your real data. Log in and ask me again. I'll tell you visit counts, spend totals, and when they're due back.";
-      action = { label: 'View Clients', path: '/clients' };
-    } else {
-      text = "I'm in demo mode so I can't take real actions yet. Once you're logged in, I handle bookings, schedule, messages, notes, and more. Just speak naturally.";
-    }
-    return {
-      id: crypto.randomUUID(),
-      role: 'assistant',
-      text,
-      agent,
-      action,
-      timestamp: new Date().toISOString(),
-    };
   }
   function handleTextSubmit(e) {
     e.preventDefault();
@@ -834,9 +775,12 @@ export default function VoiceCommander() {
           <h1 style={styles.title}>Ask Florrie</h1>
         </div>
         <p style={styles.subtitle}>
-          {speechSupported ? 'Tap the petal or type, I handle the rest.' : 'Type anything, I handle the rest.'}
+          {speechSupported ? 'Your diary, clients and next steps. Hold the petal to talk, or type below.' : 'Your diary, clients and next steps. Type a request below.'}
         </p>
       </div>
+      {messages.length <= 2 && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8, padding: '0 16px 16px' }}>
+        {[['My day', "What does today look like?"], ['Client care', 'Who needs a consultation form?'], ['Content', 'Help me draft a post about my work']].map(([label, prompt]) => <Button variant="secondary" key={label} disabled={isProcessing} onClick={() => { setTextInput(prompt); inputRef.current?.focus(); }} style={{ ...styles.promptChip, borderRadius: 16, padding: '16px 10px', textAlign: 'center', border: '1px solid var(--border)' }}>{label}</Button>)}
+      </div>}
       {/* Messages */}
       <div style={styles.messagesContainer}>
         {messages.map(msg => (
@@ -922,12 +866,12 @@ export default function VoiceCommander() {
       {/* Example prompts */}
       {messages.length <= 2 && !isProcessing && (
         <div style={styles.promptsSection}>
-          <span style={styles.promptsLabel}>Try saying:</span>
+          <span style={styles.promptsLabel}>Choose a starting point</span>
           <div style={styles.promptsGrid}>
             {suggestions.map((prompt, i) => (
               <button
                 key={prompt}
-                onClick={() => processMessage(prompt, false)}
+                onClick={() => { setTextInput(prompt); inputRef.current?.focus(); }}
                 style={styles.promptChip}
               >
                 {prompt}
@@ -963,6 +907,7 @@ export default function VoiceCommander() {
           <input
             ref={inputRef}
             type="text"
+            aria-label="Message Florrie"
             value={textInput}
             onChange={e => setTextInput(e.target.value)}
             placeholder={isRecording ? 'Listening…' : 'Or type a message…'}
@@ -970,7 +915,7 @@ export default function VoiceCommander() {
             disabled={isProcessing || isRecording}
           />
           {textInput.trim() && (
-            <button type="submit" style={styles.sendBtn} disabled={isProcessing}>
+            <button type="submit" aria-label="Send message" style={styles.sendBtn} disabled={isProcessing}>
               ↑
             </button>
           )}
@@ -1002,10 +947,10 @@ const styles = {
   page: {
     display: 'flex', flexDirection: 'column',
     background: 'var(--bg)', fontFamily: "var(--font-body, 'Plus Jakarta Sans', -apple-system, sans-serif)",
-    maxWidth: 480, margin: '0 auto', color: 'var(--text-primary)',
+    maxWidth: 720, margin: '0 auto', color: 'var(--text-primary)',
     animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
   },
-  header: { padding: '30px 16px 14px', flexShrink: 0 },
+  header: { padding: '28px 20px 20px', flexShrink: 0, background: 'var(--tone-1)', borderRadius: 24, margin: '12px 16px 16px', border: '1px solid var(--border)' },
   headerTitleRow: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 },
   title: { fontSize: 27, fontWeight: 700, margin: 0, letterSpacing: '-0.01em', fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" },
   subtitle: { fontSize: 13.5, color: 'var(--text-secondary, #574A42)', margin: 0, fontWeight: 500 },

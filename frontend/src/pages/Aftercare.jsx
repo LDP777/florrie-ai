@@ -37,7 +37,7 @@ export default function Aftercare() {
     setLoading(true); setLoadError(null);
     try {
       const rows = await fetchRowsStrict('aftercare_cards', beautician?.id, { order: 'created_at', ascending: false });
-      setCards(rows);
+      setCards(rows.map(card => ({ ...card, instructions: Array.isArray(card.instructions) ? card.instructions.filter(i => i && typeof i === 'object').map(i => ({ title: String(i.title || ''), text: String(i.text || '') })) : [], products: Array.isArray(card.products) ? card.products.filter(p => typeof p === 'string') : [] })));
     } catch (err) {
       logger.error('Aftercare load error:', err);
       setLoadError('Could not load your care cards. Try again.');
@@ -237,7 +237,7 @@ export default function Aftercare() {
                     <div style={styles.cardHeaderText}>
                       <span style={styles.cardName}>{card.treatment_name}</span>
                       <span style={styles.cardMeta}>
-                        {card.instructions.length} steps · Stored auto-send preference: {card.auto_send ? 'on' : 'off'}
+                        {card.instructions.length} steps · Saved guidance
                       </span>
                     </div>
                     <span style={{ ...styles.autoSendBadge, background: 'var(--bg-hover, #f3ede9)', color: 'var(--text-secondary, #574A42)' }}>Saved</span>
