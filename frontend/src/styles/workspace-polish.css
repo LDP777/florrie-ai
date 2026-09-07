@@ -1,0 +1,84 @@
+/* Florrie's working spaces. All colours follow the existing light/dark tokens. */
+.fl-workspace-eyebrow { display: flex; align-items: center; gap: 7px; color: var(--accent); font-size: 10px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; }
+.fl-voice-hero { position: relative; padding: 36px 24px 24px; text-align: center; overflow: hidden; }
+.fl-voice-hero .fl-workspace-eyebrow { justify-content: center; margin-top: 24px; }
+.fl-voice-hero h1 { font: 500 clamp(38px, 7vw, 54px)/1.1 var(--font-display); letter-spacing: -.045em; margin: 12px 0; }
+.fl-voice-hero h1 em, .fl-content-heading h1 em { color: var(--accent); font-weight: 500; }
+.fl-voice-hero p { color: var(--text-secondary); font-size: 14px; line-height: 1.7; margin: 0; }
+.fl-voice-emblem { position: relative; display: grid; place-items: center; width: 96px; height: 96px; margin: 0 auto; border-radius: 50%; background: var(--accent-light); box-shadow: 0 0 0 12px var(--tone-1); }
+.fl-voice-emblem > span { position: absolute; inset: -22px; border: 1px solid var(--border-light); border-radius: 50%; pointer-events: none; }
+.fl-voice-emblem > span:last-child { inset: -33px; border-style: dashed; opacity: .6; }
+.fl-voice-hero.is-conversation { padding: 22px 24px; text-align: left; border-bottom: 1px solid var(--border-light); margin: 0 16px 20px; }
+.fl-voice-hero.is-conversation .fl-voice-emblem { display: none; }
+.fl-voice-hero.is-conversation .fl-workspace-eyebrow { margin: 0; justify-content: flex-start; }
+.fl-voice-hero.is-conversation h1 { font-size: 32px; margin: 7px 0; }
+.fl-voice-hero.is-conversation p { display: none; }
+.fl-voice-starts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 10px 16px 20px; }
+.fl-voice-start.fl-btn { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 9px; padding: 16px 12px 26px; white-space: normal; text-align: left; border-radius: 20px; background: var(--bg-card); border: 1px solid var(--border-light); color: var(--accent); box-shadow: var(--elev-1); }
+.fl-voice-start strong { font-size: 13px; color: var(--text-primary); }
+.fl-voice-start > span:not(.fl-start-arrow) { color: var(--text-secondary); font-size: 11px; font-weight: 400; line-height: 1.5; }
+.fl-voice-start .fl-start-arrow { position: absolute; bottom: 9px; right: 13px; font-size: 16px; }
+.fl-voice-start:hover, .fl-idea-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+.fl-voice-examples { text-align: center; }
+.fl-voice-examples > div { justify-content: center; }
+.fl-voice-examples button { background: transparent !important; border: 1px solid var(--border-light) !important; color: var(--text-secondary) !important; font-weight: 500 !important; font-size: 12px !important; }
+.fl-voice-composer form { border: 1px solid var(--border); border-radius: 20px; padding: 5px; background: var(--bg-card); box-shadow: var(--elev-1); }
+.fl-voice-composer input { background: transparent !important; }
+.fl-voice-composer form:focus-within, .fl-chat-composer textarea:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+.fl-content-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; padding: 24px 0; }
+.fl-content-heading h1 { font: 500 clamp(30px, 5vw, 42px)/1.1 var(--font-display); letter-spacing: -.04em; margin: 9px 0; }
+.fl-content-heading p { margin: 0; font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+.fl-content-heading > .fl-btn { flex-shrink: 0; gap: 6px; }
+.fl-week-planner { position: relative; border: 1px solid var(--border); overflow: hidden; }
+.fl-week-planner > .fl-workspace-eyebrow { margin-bottom: 14px; }
+.fl-week-planner::after { content: ''; pointer-events: none; position: absolute; right: -42px; top: -54px; width: 200px; height: 200px; border: 1px solid var(--border); border-radius: 50%; box-shadow: 0 0 0 20px var(--tone-1), 0 0 0 21px var(--border-light); }
+.fl-week-planner > * { position: relative; z-index: 1; }
+.fl-week-planner > p { max-width: 470px; }
+.fl-grid-preview { border: 1px solid var(--border-light); border-radius: 18px; padding: 5px 14px; margin: 0 0 16px; background: var(--bg-card); }
+.fl-grid-preview summary { cursor: pointer; list-style: none; }
+.fl-grid-preview summary::-webkit-details-marker, .fl-chat-settings summary::-webkit-details-marker { display: none; }
+.fl-grid-preview[open] { padding-bottom: 14px; }
+.fl-grid-preview[open] summary { margin-bottom: 10px; }
+.fl-studio-tabs { border-radius: 16px !important; padding: 4px !important; }
+.fl-studio-tabs button { border-radius: 12px !important; padding: 8px 10px !important; }
+.fl-idea-grid .fl-idea-card { border-radius: 18px !important; padding: 20px !important; transition: transform .15s ease, border-color .15s ease; }
+.fl-idea-grid .fl-idea-card p { font-size: 14px; font-weight: 400; }
+.fl-idea-grid .fl-idea-card > span { display: flex; justify-content: space-between; align-items: center; padding-top: 12px; border-top: 1px solid var(--border-light); }
+.fl-chat-header { padding: 14px 16px 8px !important; background: var(--bg-card) !important; border-bottom: 1px solid var(--border-light) !important; }
+.fl-chat-next { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; font-size: 11px; color: var(--text-secondary); padding: 8px 12px; border-radius: 10px; background: var(--tone-1); margin-top: 5px; }
+.fl-chat-next strong { color: var(--text-primary); font-weight: 600; }
+.fl-chat-settings { border-top: 1px solid var(--border-light); margin-top: 6px !important; }
+.fl-chat-settings > summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; cursor: pointer; list-style: none; font-size: 11px; color: var(--text-secondary); }
+.fl-chat-settings > summary > span:first-child { display: inline-flex; align-items: center; gap: 6px; color: var(--accent); font-weight: 600; }
+.fl-chat-settings[open] { padding-bottom: 8px; }
+.fl-chat-settings [role=tablist] { flex-wrap: wrap; border-radius: 14px; }
+.fl-chat-composer { flex-shrink: 0; background: var(--bg-card) !important; border-top: 1px solid var(--border-light) !important; border-radius: 20px 20px 0 0; padding: 10px 14px 12px !important; }
+.fl-chat-composer [role=tablist] { gap: 3px !important; border-bottom: 1px solid var(--border-light); padding-bottom: 6px; scrollbar-width: none; }
+.fl-chat-composer [role=tab] { background: transparent !important; border-color: transparent !important; color: var(--text-secondary) !important; padding: 6px 9px !important; font-size: 11px !important; min-height: 44px; }
+.fl-chat-composer [role=tab][aria-selected=true] { color: var(--accent) !important; background: var(--accent-light) !important; border-radius: 11px !important; }
+.fl-chat-composer [role=tab] svg { color: currentColor !important; }
+.fl-client-chat button:focus-visible, .fl-content-studio summary:focus-visible, .fl-chat-settings summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media(min-width: 700px) {
+ .fl-voice-hero { padding-top: 54px; }
+ .fl-voice-starts { gap: 14px; padding: 16px 36px 26px; }
+ .fl-voice-start.fl-btn { padding: 23px 22px 28px; }
+ .fl-voice-start strong { font-size: 16px; }
+ .fl-voice-start > span:not(.fl-start-arrow) { font-size: 13px; }
+ .fl-voice-composer, .fl-voice-messages { padding-left: 36px !important; padding-right: 36px !important; }
+ .fl-content-studio { padding-left: 28px !important; padding-right: 28px !important; }
+ .fl-week-planner { padding: 30px !important; }
+ .fl-idea-grid { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px !important; }
+ .fl-idea-grid > p, .fl-idea-grid > div:first-child:not(:has(.fl-idea-card)) { grid-column: 1 / -1; }
+}
+@media(max-width: 359px) {
+ .fl-content-heading { align-items: flex-start; flex-direction: column; }
+ .fl-voice-starts { gap: 6px; padding-inline: 12px; }
+ .fl-voice-start.fl-btn { padding-inline: 9px; }
+ .fl-chat-header { padding-inline: 10px !important; }
+ .fl-chat-settings summary { font-size: 10px; }
+}
+@media(prefers-reduced-motion: reduce) {
+ .fl-voice-workspace *, .fl-content-studio *, .fl-client-chat * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+
+.fl-chat-history > * { flex-shrink: 0; }

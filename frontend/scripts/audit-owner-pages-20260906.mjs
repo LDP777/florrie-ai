@@ -72,6 +72,7 @@ try {
       assert.equal(await page.getByText('£30.25', { exact: true }).count(), 1);
       console.log('PASS: price list preserves exact pence, imported and custom categories');
     } else if (mode === 'inbox') {
+      await page.locator('summary').filter({hasText: 'Reply settings'}).click();
       await page.getByRole('tab', { name: 'Me', exact: true }).click();
       await page.getByRole('alert').filter({ hasText: 'Could not save this preference' }).waitFor();
       assert.equal(await page.getByRole('tab', { name: 'Me', exact: true }).getAttribute('aria-selected'), 'false');

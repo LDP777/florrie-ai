@@ -1216,7 +1216,7 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
 
   if (state.status === 'loading') {
     return (
-      <div style={embedded ? S.convoEmbedded : S.convoFull}>
+      <div className="fl-client-chat" style={embedded ? S.convoEmbedded : S.convoFull}>
         <ConvoHeader onBack={onBack} embedded={embedded} clientName="…" navigate={navigate} clientId={clientId} />
         <div style={{ padding: 16, color: 'var(--text-muted)', fontSize: 13 }}>Loading conversation…</div>
       </div>
@@ -1224,7 +1224,7 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
   }
   if (state.status === 'error') {
     return (
-      <div style={embedded ? S.convoEmbedded : S.convoFull}>
+      <div className="fl-client-chat" style={embedded ? S.convoEmbedded : S.convoFull}>
         <ConvoHeader onBack={onBack} embedded={embedded} clientName="Conversation" navigate={navigate} clientId={clientId} />
         <div style={S.errorCard}>{state.error || "Couldn't load this conversation."}</div>
       </div>
@@ -1303,7 +1303,7 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
   });
 
   return (
-    <div style={embedded ? S.convoEmbedded : S.convoFull}>
+    <div className="fl-client-chat" style={embedded ? S.convoEmbedded : S.convoFull}>
       <ConvoHeader
         onBack={onBack}
         embedded={embedded}
@@ -1316,7 +1316,7 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
         initialAutonomy={client?.messaging_autonomy ?? null}
       />
 
-      <div ref={scrollerRef} style={S.scroller}>
+      <div className="fl-chat-history" ref={scrollerRef} style={S.scroller}>
         {messages.length === 0 && (
           <div style={{ padding: '40px 16px', color: 'var(--text-muted)', fontSize: 13, textAlign: 'center' }}>
             No messages yet. Type below to start the conversation.
@@ -1353,7 +1353,7 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
           <Link to="/clients" state={client?.id ? { clientId: client.id } : undefined} style={S.waHintLink}>Open profile</Link>
         </div>
       ) : (
-        <div style={S.composerBar}>
+        <div className="fl-chat-composer" style={S.composerBar}>
           <div style={S.channelToggle} role="tablist" aria-label="Choose channel">
             {channels.map(c => {
               const meta = channelOf(c);
@@ -1404,6 +1404,7 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
 
           <div style={S.composerRow}>
             <textarea
+              aria-label={`Reply via ${channelOf(channel).label}`}
               ref={composerRef}
               value={composer}
               onChange={e => setComposer(e.target.value)}
@@ -1420,7 +1421,7 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
               aria-label="Send"
             >
               {sending ? '…' : (
-                <Icon name={iconName('arrow_upward')} size={18} inline />
+                <Icon name="arrow-up" size={18} inline />
               )}
             </button>
           </div>
@@ -1476,7 +1477,8 @@ function ClientControls({ clientId, initialAutonomy = null }) {
   ];
 
   return (
-    <div style={S.controlsWrap}>
+    <details className="fl-chat-settings" style={S.controlsWrap}>
+      <summary style={{ minHeight: 44 }}><span><Icon name={meDriving ? 'user' : 'sparkles'} size={14} /> {meDriving ? 'You’re replying' : value === 'drafts' ? 'Drafts for your approval' : 'Florrie is replying'}</span><span>Reply settings <span aria-hidden="true">⌄</span></span></summary>
       <div style={S.driverRow} role="tablist" aria-label="Who drives this thread">
         {[{ k: 'florrie_side', label: '\u{1F337} Florrie', on: !meDriving, set: () => save(null) },
           { k: 'me_side', label: 'Me', on: meDriving, set: () => save('just_me') }].map(seg => (
@@ -1489,7 +1491,7 @@ function ClientControls({ clientId, initialAutonomy = null }) {
             onClick={seg.set}
             style={{ ...S.driverSeg,
               background: seg.on ? 'var(--accent, #92405e)' : 'transparent',
-              color: seg.on ? '#fff' : 'var(--text-secondary, #574A42)',
+              color: seg.on ? 'var(--on-accent)' : 'var(--text-secondary, #574A42)',
             }}
           >
             {seg.label}
@@ -1527,7 +1529,7 @@ function ClientControls({ clientId, initialAutonomy = null }) {
           {value === null && <span style={{ fontSize: 11, color: 'var(--text-muted, #6B5D54)' }}>Auto</span>}
         </div>
       )}
-    </div>
+    </details>
   );
 }
 
@@ -1563,10 +1565,10 @@ function ConvoHeader({ onBack, embedded, clientName, navigate, clientId, channel
     // and "last in yesterday" for the recent cases. relDays already carries the
     // preposition, so the label must not add a second one.
     if (meta.last_visit_at) metaBits.push(`last visit ${relDays(meta.last_visit_at)}`);
-    metaBits.push(meta.next_appointment_at ? `next: ${nextApptLabel(meta.next_appointment_at)}` : 'next: none booked');
+
   }
   return (
-    <div style={S.convoHeader}>
+    <div className="fl-chat-header" style={S.convoHeader}>
       <div style={S.convoTopRow}>
         {!embedded && (
           <button onClick={onBack} style={S.backBtn} aria-label="Back to inbox">
@@ -1591,6 +1593,7 @@ function ConvoHeader({ onBack, embedded, clientName, navigate, clientId, channel
           </button>
         )}
       </div>
+      {meta?.next_appointment_at && <div className="fl-chat-next"><Icon name="calendar" size={14} /><span>Next visit</span><strong>{nextApptLabel(meta.next_appointment_at)}</strong></div>}
       {clientId && meta && !meta.next_appointment_at && (
         <div style={S.headerActions}>
           <button
@@ -1861,7 +1864,7 @@ const S = {
     borderRadius: 22,
     display: 'flex',
     flexDirection: 'column',
-    minHeight: 'var(--shell-viewport)',
+    height: 'calc(var(--shell-viewport-nav) - 64px)', minHeight: 0,
     overflow: 'hidden',
     marginTop: 16,
   },
@@ -1893,12 +1896,12 @@ const S = {
     fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
     transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease',
   },
-  filterChipActive: { background: 'var(--accent, #92405e)', color: '#fff' },
+  filterChipActive: { background: 'var(--accent, #92405e)', color: 'var(--on-accent)' },
   filterChipCount: {
     fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 999,
     background: 'var(--accent-light, rgba(146,64,94,0.10))', color: 'var(--accent, #92405e)',
   },
-  filterChipCountActive: { background: 'rgba(255,255,255,0.24)', color: '#fff' },
+  filterChipCountActive: { background: 'rgba(255,255,255,0.24)', color: 'var(--on-accent)' },
 
   // The two space tabs. Bigger than the chips on purpose: this is the page's
   // first decision, not another filter. 44px minimum stands.
@@ -2172,7 +2175,7 @@ const S = {
   placeholder: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 },
 
   convoFull: {
-    height: 'var(--shell-viewport-nav)', overflow: 'hidden', background: 'var(--bg, #FBF6F1)',
+    height: 'calc(var(--shell-viewport-nav) - 48px)', overflow: 'hidden', background: 'var(--bg, #FBF6F1)',
     fontFamily: "'Plus Jakarta Sans', sans-serif",
     display: 'flex', flexDirection: 'column', color: 'var(--text-primary, #241B17)',
   },
@@ -2189,7 +2192,7 @@ const S = {
     fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 44, minHeight: 44,
   },
   convoAvatar: {
-    width: 36, height: 36, borderRadius: 16,
+    flexShrink: 0, width: 40, height: 40, borderRadius: 16,
     background: 'var(--accent-light, #F6E7EC)', color: 'var(--accent, #92405e)',
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     fontSize: 15, fontWeight: 600, fontFamily: "'Playfair Display', Georgia, serif",
@@ -2197,7 +2200,7 @@ const S = {
   convoNameWrap: { display: 'flex', flexDirection: 'column', gap: 1, flex: 1, minWidth: 0 },
   convoNameRow: { display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 },
   convoName: {
-    fontSize: 15, fontWeight: 700, color: 'var(--text-primary, #241B17)',
+    fontSize: 17, fontWeight: 700, color: 'var(--text-primary, #241B17)',
     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0,
   },
   viewProfileBtn: {
@@ -2209,7 +2212,7 @@ const S = {
 
   scroller: { flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '12px 14px 12px', display: 'flex', flexDirection: 'column', gap: 10 },
   bubbleRow: { display: 'flex', width: '100%' },
-  bubbleStack: { display: 'flex', flexDirection: 'column', gap: 3, maxWidth: '78%' },
+  bubbleStack: { display: 'flex', flexDirection: 'column', gap: 5, maxWidth: '86%', minWidth: 0 },
   // These three were referenced but never defined, so React got style={undefined}
   // and the day dividers and the failed-send Retry rendered as bare unstyled
   // text. DateDivider was also never rendered at all until now.
@@ -2229,7 +2232,7 @@ const S = {
     padding: '10px 14px', border: '1px solid', borderRadius: 22,
     boxShadow: 'var(--elev-1)',
   },
-  bubbleText: { fontSize: 14, lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word' },
+  bubbleText: { fontSize: 15, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word' },
   bubbleMeta: { fontSize: 10, marginTop: 4, display: 'flex', alignItems: 'center', gap: 5, justifyContent: 'flex-end' },
 
   /* --- Action receipts -------------------------------------------------
@@ -2298,22 +2301,22 @@ const S = {
     cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 5,
     whiteSpace: 'nowrap', flexShrink: 0,
   },
-  suggestionRow: { display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 },
+  suggestionRow: { display: 'flex', gap: 6, overflowX: 'auto', padding: '2px 0', scrollbarWidth: 'none' },
   suggestionChip: {
     background: 'var(--surface-container-low, #f8f2ef)', border: '1px solid rgba(146,64,94,0.14)', color: 'var(--accent, #92405e)',
-    borderRadius: 999, padding: '13px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+    flexShrink: 0, minHeight: 44, borderRadius: 12, padding: '8px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
     lineHeight: 1.2, maxWidth: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
     transition: 'background 0.15s ease',
   },
   composerRow: { display: 'flex', alignItems: 'flex-end', gap: 8 },
   composerInput: {
-    flex: 1, padding: '11px 15px', border: '1px solid var(--border-light, #ede7e3)', borderRadius: 22,
-    background: 'var(--bg, #FBF6F1)', fontSize: 14, fontFamily: 'inherit', resize: 'none', maxHeight: 140,
+    flex: 1, minWidth: 0, minHeight: 52, padding: '13px 15px', border: '1px solid var(--border-light, #ede7e3)', borderRadius: 22,
+    background: 'var(--bg-card)', fontSize: 16, fontFamily: 'inherit', resize: 'none', maxHeight: 140,
     color: 'var(--text-primary, #241B17)', outline: 'none', lineHeight: 1.4,
     transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
   },
   sendBtn: {
-    width: 44, height: 44, borderRadius: 22, border: 'none', background: 'var(--accent, #92405e)', color: '#fff',
+    width: 44, height: 44, borderRadius: 22, border: 'none', background: 'var(--accent, #92405e)', color: 'var(--on-accent)',
     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
     boxShadow: 'var(--elev-1)', transition: 'opacity 0.15s ease, transform 0.1s ease',
   },

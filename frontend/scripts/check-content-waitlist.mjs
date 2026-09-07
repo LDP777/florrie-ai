@@ -76,7 +76,7 @@ try {
   assert.deepEqual(await page.evaluate(()=>window.__draftTest.writes),['offer']);
   console.log('✓ Waitlist: recording an existing offer is labelled and does not call Notify');
   await page.goto(`http://127.0.0.1:${server.address().port}/voice`);
-  await page.getByRole('button',{name:'My day',exact:true}).click();
+  await page.getByRole('button',{name:/^My day/}).click();
   assert.equal(await page.getByRole('textbox',{name:'Message Florrie'}).inputValue(),'What does today look like?');
   assert.equal(await page.evaluate(()=>window.__voiceCalls),0);
   await page.getByRole('button',{name:'Send message',exact:true}).click();

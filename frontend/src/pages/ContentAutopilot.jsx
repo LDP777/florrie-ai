@@ -801,30 +801,26 @@ export default function ContentAutopilot() {
     return <PageLoader />;
   }
   return (
-    <div style={styles.page}>
+    <div className="fl-content-studio" style={styles.page}>
       {error && <ErrorCard message={error} onDismiss={() => setError(null)} />}
-      <PageHeader
-        title="Content"
-        subtitle="Draft, review and schedule your next post"
-        action={(
-          <Button onClick={() => startCompose('before_after', '')}>
-            + New Post
-          </Button>
-        )}
-      />
+      <header className="fl-content-heading">
+        <div><span className="fl-workspace-eyebrow">Made from your everyday</span><h1>Content <em>studio.</em></h1><p>A little inspiration. A plan that feels like you.</p></div>
+        <Button onClick={() => startCompose('before_after', '')}><Icon name="plus" size={17} /> New Post</Button>
+      </header>
       {/* Plan my week — the lead action (Levi, 9 Jul: planner-first) */}
       {!composing && (
-        <div style={{ background: 'var(--tone-1, #fbf1ea)', borderRadius: 22, padding: '18px 18px 16px',
+        <div className="fl-week-planner" style={{ background: 'var(--tone-1, #fbf1ea)', borderRadius: 22, padding: '24px',
           marginBottom: 14,
         }}>
+          <span className="fl-workspace-eyebrow"><Icon name="sparkles" size={14} /> Your week, taking shape</span>
           <h2 style={{ fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
-            fontSize: 20, fontWeight: 600, color: 'var(--text-primary, #241B17)', margin: '0 0 4px',
+            fontSize: 30, fontWeight: 600, color: 'var(--text-primary, #241B17)', margin: '0 0 4px',
           }}>
             Plan my week
           </h2>
           <p style={{ fontSize: 13, color: 'var(--text-secondary, #574A42)', margin: '0 0 12px', lineHeight: 1.45 }}>
-            One tap and Florrie drafts a week of posts in your voice, from your real work,
-            reviews and openings. Nothing goes out until you say so.
+            Turn your work, reviews and openings into a week of drafts.
+            Make them yours before anything is published.
           </p>
           <Button onClick={handlePlanWeek} disabled={planning}>
             {planning ? 'Drafting your week...' : 'Draft my week'}
@@ -865,11 +861,11 @@ export default function ContentAutopilot() {
 
       {/* Feed grid preview — see your Instagram feed before it goes out (hero) */}
       {!composing && (scheduled.length + posted.length + drafts.length) > 0 && (
-        <div style={{ marginBottom: 18 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <details className="fl-grid-preview">
+          <summary style={{ minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
             <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--accent, #92405E)' }}>Your grid preview</span>
-            <span style={{ fontSize: 12, color: 'var(--text-secondary, #574A42)' }}>{scheduled.length} scheduled · {drafts.length} drafts</span>
-          </div>
+            <span style={{ fontSize: 12, color: 'var(--text-secondary, #574A42)' }}>{scheduled.length} scheduled · {drafts.length} drafts <span aria-hidden="true">⌄</span></span>
+          </summary>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, borderRadius: 16, overflow: 'hidden' }}>
             {[...scheduled, ...drafts, ...posted].slice(0, 12).map(post => {
               // 'failed' and 'approved' were both rendered as an unlabelled
@@ -898,7 +894,7 @@ export default function ContentAutopilot() {
             })}
           </div>
           <p style={{ fontSize: 11.5, color: 'var(--text-secondary, #574A42)', margin: '8px 0 0' }}>How your feed will look. Tap a tile to edit or reschedule.</p>
-        </div>
+        </details>
       )}
 
       {/* Stream selector pills */}
@@ -1008,10 +1004,11 @@ export default function ContentAutopilot() {
         </div>
       )}
       {/* Tabs */}
-      <div style={styles.tabs}>
+      <div className="fl-studio-tabs" style={styles.tabs} aria-label="Content views">
         {['ideas', 'drafts', 'posted', 'calendar', 'gallery'].map(t => (
           <button className="fl-tap"
             key={t}
+            aria-pressed={tab === t || (tab === 'compose' && t === 'drafts')}
             onClick={() => { setTab(t); setComposing(false); }}
             style={{ ...styles.tab,
               background: (tab === t || (tab === 'compose' && t === 'drafts')) ? 'var(--accent, #92405E)' : 'transparent',
@@ -1027,7 +1024,7 @@ export default function ContentAutopilot() {
       </div>
       {/* ═══ IDEAS TAB ═══ */}
       {tab === 'ideas' && (
-        <div style={styles.postList}>
+        <div className="fl-idea-grid" style={styles.postList}>
           {/* AI suggestions, from recent appointments */}
           {(loadingSuggestions || suggestions.length > 0) && (
             <div style={styles.aiSuggestionsSection}>
@@ -1051,17 +1048,17 @@ export default function ContentAutopilot() {
             </div>
           )}
           <p style={styles.ideaIntro}>
-            Tap any idea to customise and save as a draft. Fresh templates every time.
+            Start with a spark. Choose a template and add your own words.
           </p>
           {Object.entries(POST_TYPE_LABELS).map(([type, label]) => (
             <div key={type} style={styles.ideaGroup}>
               <div style={styles.ideaGroupHeader}>
                 <span style={styles.ideaGroupLabel}>{label}</span>
               </div>
-              <div style={styles.ideaCard} onClick={() => startCompose(type, getFilledTemplate(type))}>
+              <Button variant="secondary" className="fl-idea-card" style={styles.ideaCard} onClick={() => startCompose(type, getFilledTemplate(type))}>
                 <p style={styles.ideaCaption}>{getFilledTemplate(type)}</p>
-                <span style={styles.ideaTap}>Tap to use</span>
-              </div>
+                <span style={styles.ideaTap}>Make it yours <span aria-hidden="true">↗</span></span>
+              </Button>
             </div>
           ))}
         </div>
@@ -1627,7 +1624,7 @@ const styles = {
     background: 'transparent',
     fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
     padding: '0 16px var(--scroll-pad-bottom)',
-    maxWidth: 480,
+    maxWidth: 920,
     margin: '0 auto',
     color: 'var(--text-primary, #241B17)'
   },
@@ -1668,10 +1665,11 @@ const styles = {
   },
   // Ideas
   ideaIntro: { fontSize: 13, color: 'var(--text-secondary, #574A42)', marginBottom: 16, lineHeight: 1.5 },
-  ideaGroup: { marginBottom: 16 },
+  ideaGroup: { marginBottom: 0, minWidth: 0 },
   ideaGroupHeader: { marginBottom: 6 },
   ideaGroupLabel: { fontSize: 11, fontWeight: 600, color: 'var(--accent, #92405e)', textTransform: 'uppercase', letterSpacing: '0.04em' },
   ideaCard: {
+    width: '100%', textAlign: 'left', display: 'block', whiteSpace: 'normal', border: '1px solid var(--border-light)',
     background: 'var(--bg-card, #FFFCF9)',
     borderRadius: 10,
     padding: 16,
@@ -1766,7 +1764,8 @@ const styles = {
   // Posts
   postList: { display: 'flex', flexDirection: 'column', gap: 14 },
   postCard: {
-    background: 'var(--tone-1, #fbf1ea)',
+    border: '1px solid var(--border-light)', boxShadow: 'var(--elev-1)',
+    background: 'var(--bg-card, #FFFCF9)',
     borderRadius: 22,
     padding: 16,
   },

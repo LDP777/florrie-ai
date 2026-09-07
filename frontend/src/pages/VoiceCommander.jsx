@@ -586,7 +586,7 @@ export default function VoiceCommander() {
   }
   // Auto-scroll on new messages
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messages.some(m => m.role === 'user')) messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [messages]);
   // Persist the conversation (last 40 messages) so it survives navigating away.
   //
@@ -767,23 +767,25 @@ export default function VoiceCommander() {
     if (path) navigate(path);
   }
   return (
-    <div style={styles.page}>
-      {/* Header */}
-      <div style={styles.header}>
-        <div style={styles.headerTitleRow}>
-          <FloriePetal size={22} />
-          <h1 style={styles.title}>Ask Florrie</h1>
-        </div>
-        <p style={styles.subtitle}>
-          {speechSupported ? 'Your diary, clients and next steps. Hold the petal to talk, or type below.' : 'Your diary, clients and next steps. Type a request below.'}
-        </p>
-      </div>
-      {messages.length <= 2 && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8, padding: '0 16px 16px' }}>
-        {[['My day', "What does today look like?"], ['Client care', 'Who needs a consultation form?'], ['Content', 'Help me draft a post about my work']].map(([label, prompt]) => <Button variant="secondary" key={label} disabled={isProcessing} onClick={() => { setTextInput(prompt); inputRef.current?.focus(); }} style={{ ...styles.promptChip, borderRadius: 16, padding: '16px 10px', textAlign: 'center', border: '1px solid var(--border)' }}>{label}</Button>)}
+    <div className="fl-voice-workspace" style={styles.page}>
+      <header className={`fl-voice-hero ${messages.some(m => m.role === 'user') ? 'is-conversation' : ''}`}>
+        <div className="fl-voice-emblem" aria-hidden="true"><FloriePetal size={56} /><span /><span /></div>
+        <span className="fl-workspace-eyebrow">A little space to think</span>
+        <h1>Ask <em>Florrie.</em></h1>
+        <p>Your diary, your clients, your next idea.<br />What can I help with?</p>
+      </header>
+      {messages.length <= 2 && <div className="fl-voice-starts">
+        {[
+          ['My day', 'Make room for what matters', 'calendar', 'What does today look like?'],
+          ['Client care', 'Keep the little things covered', 'heart', 'Who needs a consultation form?'],
+          ['Content', 'Find your next idea', 'camera', 'Help me draft a post about my work'],
+        ].map(([label, detail, icon, prompt]) => <Button variant="secondary" key={label} disabled={isProcessing} onClick={() => { setTextInput(prompt); inputRef.current?.focus(); }} className="fl-voice-start">
+          <Icon name={icon} size={21} /><strong>{label}</strong><span>{detail}</span><span className="fl-start-arrow" aria-hidden="true">↗</span>
+        </Button>)}
       </div>}
       {/* Messages */}
-      <div style={styles.messagesContainer}>
-        {messages.map(msg => (
+      <div className="fl-voice-messages" style={styles.messagesContainer} aria-live="polite">
+        {messages.filter((msg, i) => !(i === 0 && messages.length === 1 && msg.role === 'assistant')).map(msg => (
           <div
             key={msg.id}
             style={{ ...styles.msgRow,
@@ -865,10 +867,10 @@ export default function VoiceCommander() {
       </div>
       {/* Example prompts */}
       {messages.length <= 2 && !isProcessing && (
-        <div style={styles.promptsSection}>
-          <span style={styles.promptsLabel}>Choose a starting point</span>
+        <div className="fl-voice-examples" style={styles.promptsSection}>
+          <span style={styles.promptsLabel}>Or try asking</span>
           <div style={styles.promptsGrid}>
-            {suggestions.map((prompt, i) => (
+            {suggestions.slice(0, 2).map((prompt, i) => (
               <button
                 key={prompt}
                 onClick={() => { setTextInput(prompt); inputRef.current?.focus(); }}
@@ -881,9 +883,9 @@ export default function VoiceCommander() {
         </div>
       )}
       {/* Input area */}
-      <div style={styles.inputArea}>
+      <div className="fl-voice-composer" style={styles.inputArea}>
         {/* Insight chips: safe read-only questions, answered instantly */}
-        {!isProcessing && !isRecording && (
+        {messages.some(m => m.role === 'user') && !isProcessing && !isRecording && (
           <div style={{ display: 'flex', gap: 6, overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 8, scrollbarWidth: 'none' }}>
             {['How was my week?', "Who's gone quiet lately?", 'What does tomorrow look like?', 'Who are my top clients?', 'Which days are busiest?'].map(q => (
               <button className="fl-tap"
@@ -910,7 +912,7 @@ export default function VoiceCommander() {
             aria-label="Message Florrie"
             value={textInput}
             onChange={e => setTextInput(e.target.value)}
-            placeholder={isRecording ? 'Listening…' : 'Or type a message…'}
+            placeholder={isRecording ? 'Listening…' : 'Ask me anything about your business…'}
             style={styles.textInput}
             disabled={isProcessing || isRecording}
           />
@@ -947,7 +949,7 @@ const styles = {
   page: {
     display: 'flex', flexDirection: 'column',
     background: 'var(--bg)', fontFamily: "var(--font-body, 'Plus Jakarta Sans', -apple-system, sans-serif)",
-    maxWidth: 720, margin: '0 auto', color: 'var(--text-primary)',
+    maxWidth: 820, margin: '0 auto', color: 'var(--text-primary)',
     animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
   },
   header: { padding: '28px 20px 20px', flexShrink: 0, background: 'var(--tone-1)', borderRadius: 24, margin: '12px 16px 16px', border: '1px solid var(--border)' },
@@ -970,7 +972,7 @@ const styles = {
   },
   userBubble: {
     background: 'var(--accent, #92405e)',
-    color: '#fff', borderBottomRightRadius: 6,
+    color: 'var(--on-accent)', borderBottomRightRadius: 6,
   },
   aiBubble: {
     background: 'var(--tone-1, #fbf1ea)', color: 'var(--text-primary)',
@@ -981,7 +983,7 @@ const styles = {
     fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
     letterSpacing: '0.06em', marginBottom: 6,
   },
-  msgText: { fontSize: 14, lineHeight: 1.5, margin: 0, whiteSpace: 'pre-wrap' },
+  msgText: { overflowWrap: 'anywhere', fontSize: 15, lineHeight: 1.65, margin: 0, whiteSpace: 'pre-wrap' },
   voiceBadge: { display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, opacity: 0.7, marginTop: 4 },
   multiStepBadge: {
     display: 'inline-flex', alignItems: 'center', gap: 4,
@@ -1013,8 +1015,8 @@ const styles = {
   inputArea: { flexShrink: 0, padding: '8px 16px 16px', background: 'var(--bg)' },
   inputForm: { display: 'flex', gap: 8, alignItems: 'center' },
   textInput: {
-    flex: 1, padding: '13px 18px', minHeight: 48, borderRadius: 999,
-    border: 'none', fontSize: 14, fontFamily: 'inherit',
+    flex: 1, minWidth: 0, padding: '15px 16px', minHeight: 52, borderRadius: 18,
+    border: 'none', fontSize: 16, fontFamily: 'inherit',
     outline: 'none', background: 'var(--tone-1, #fbf1ea)', boxSizing: 'border-box',
     color: 'var(--text-primary)',
   },

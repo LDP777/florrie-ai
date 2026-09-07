@@ -7,6 +7,7 @@ import { afterPaint } from './lib/after-paint.js';
 import { initAnalytics } from './lib/analytics.js';
 import App from './App.jsx';
 import './index.css';
+import './styles/workspace-polish.css';
 
 // Analytics + Sentry must never be able to blank the app on a bad init.
 try {
