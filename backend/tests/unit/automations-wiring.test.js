@@ -40,6 +40,7 @@ const db = {
   clients: [], beauticians: [],
 };
 const writes = [];
+let failSequenceRead = false;
 
 // aftercare_messages as 007_all_features.sql actually defines it. `message_text`
 // and `timing_days`, which the old code read, are in no migration, so anything
@@ -79,7 +80,7 @@ function builder(table) {
     lte(c, v) { filters.push(r => String(r[c] ?? '') <= String(v)); return b; },
     neq() { return b; }, gt() { return b; }, lt() { return b; }, or() { return b; },
     order() { return b; }, limit() { return b; },
-    maybeSingle() { return Promise.resolve({ data: rows()[0] || null, error: null }); },
+    maybeSingle() { return Promise.resolve(table === 'follow_up_sequences' && failSequenceRead ? { data: null, error: { message: 'Read failed' } } : { data: rows()[0] || null, error: null }); },
     single() { return Promise.resolve({ data: rows()[0] || null, error: null }); },
     then(res, rej) { return Promise.resolve(settle()).then(res, rej); },
   };
@@ -279,6 +280,7 @@ describe('the rebook reminder queue', () => {
   it('leaves a reminder that is not due yet alone', async () => {
     db.rebook_reminders[0].reminder_date = new Date(Date.now() + 7 * 86400_000).toISOString().slice(0, 10);
     const result = await automations.processRebookNudges();
+    failSequenceRead = false;
     expect(result.sent).toBe(0);
     expect(gateCalls).toHaveLength(0);
   });
@@ -329,6 +331,31 @@ describe('follow-up sequences', () => {
     expect(gateCalls[0].messageType).toBe('marketing');
     expect(gateCalls[0].body).toContain('Step one');
     expect(db.follow_up_enrollments[0].current_step).toBe(1);
+  });
+
+  it.each(['paused', 'missing', 'unsupported', 'unreadable', 'other salon'])('holds queued steps for a %s sequence', async state => {
+    db.follow_up_enrollments.push({
+      id: 'e1', sequence_id: 's1', beautician_id: 'b1', client_id: 'c1',
+      current_step: 0, next_send_at: minsAgo(5), status: 'active',
+      clients: client, beauticians: beautician,
+      follow_up_sequences: { ...db.follow_up_sequences[0] },
+    });
+    const dueAt = db.follow_up_enrollments[0].next_send_at;
+    failSequenceRead = state === 'unreadable';
+    if (state === 'other salon') db.follow_up_sequences[0].beautician_id = 'b2';
+    if (state === 'paused') db.follow_up_sequences[0].active = false;
+    if (state === 'missing') db.follow_up_sequences = [];
+    if (state === 'unsupported') db.follow_up_sequences[0].trigger = 'birthday';
+    const result = await automations.processFollowUpSequences();
+    failSequenceRead = false;
+    expect(result.sent).toBe(0);
+    expect(gateCalls).toHaveLength(0);
+    expect(db.follow_up_enrollments[0]).toMatchObject({current_step:0, next_send_at:dueAt, status:'active'});
+    if (state === 'paused') {
+      db.follow_up_sequences[0].active = true;
+      expect((await automations.processFollowUpSequences()).sent).toBe(1);
+      expect(db.follow_up_enrollments[0].current_step).toBe(1);
+    }
   });
 
   it('counts a held step as progress but not as a send', async () => {

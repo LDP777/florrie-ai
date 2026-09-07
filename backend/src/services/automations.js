@@ -658,7 +658,15 @@ export async function processFollowUpSequences() {
   if (dueEnrollments?.length) {
     for (const enrollment of dueEnrollments) {
       try {
-        const seq = enrollment.follow_up_sequences;
+        // Re-read before each due step: the owner may pause a sequence after
+        // this worker loaded its queue. Hold progress when state is unreadable.
+        const { data: seq, error: sequenceError } = await supabase
+          .from('follow_up_sequences')
+          .select('steps, name, active, trigger')
+          .eq('id', enrollment.sequence_id)
+          .eq('beautician_id', enrollment.beautician_id)
+          .maybeSingle();
+        if (sequenceError || !seq || seq.active !== true || seq.trigger !== 'after-appointment') continue;
         const steps = seq?.steps || [];
         const stepIndex = enrollment.current_step;
 
