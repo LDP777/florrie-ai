@@ -2002,7 +2002,7 @@ export async function notifyBookingConfirmed(appointmentId) {
       `,
     });
 
-    await sendEmail({
+    const emailResult = await sendEmail({
       to: client.email,
       subject: `Confirmed: ${treatment.name}, ${shortDate} at ${timeStr}`,
       text: textMsg,
@@ -2016,8 +2016,12 @@ export async function notifyBookingConfirmed(appointmentId) {
       // salon rather than with Florrie's noreply mailbox.
       replyTo: biz?.email,
     });
-    channels.push('email');
-    logOutboundToThread({ beauticianId: appt.beautician_id, clientId: appt.client_id, channel: 'email', body: textMsg });
+    // Provider acceptance is required before recording an outbound email.
+    // sendEmail returns null for both missing configuration and failed sends.
+    if (emailResult?.id) {
+      channels.push('email');
+      logOutboundToThread({ beauticianId: appt.beautician_id, clientId: appt.client_id, channel: 'email', body: textMsg });
+    }
   }
 
   // Only stamp it if something actually left. The timestamp is shown on the

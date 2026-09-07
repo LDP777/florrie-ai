@@ -12,7 +12,7 @@
  * The result was the worst available outcome: silence to the client, and a
  * timestamp to Ellie saying otherwise. She would only find out by asking.
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 const db = { appointments: [], beauticians: [], clients: [], treatments: [] };
 const updates = [];      // every write to appointments, so a stamp cannot hide
@@ -53,6 +53,7 @@ vi.mock('../../src/config.js', () => ({
 vi.mock('../../src/lib/logger.js', () => ({ default: { info() {}, warn() {}, error() {}, debug() {} } }));
 vi.mock('@sentry/node', () => ({ captureMessage: () => {}, captureException: () => {} }));
 
+process.env.RESEND_API_KEY = 'test-resend-key';
 const { notifyBookingConfirmed } = await import('../../src/services/notifications.js');
 
 /**
@@ -71,6 +72,8 @@ function seed(client, prefs = {}) {
     beauticians: { business_name: 'Ellindigo', first_name: 'Ellie', client_reminder_prefs: prefs },
   }];
 }
+
+afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 beforeEach(() => {
   db.appointments = [];
@@ -101,6 +104,19 @@ describe('notifyBookingConfirmed tells the truth about what it did', () => {
     const result = await notifyBookingConfirmed('a1');
 
     expect(result.reason).not.toBe('paused');
+  });
+
+  it.each([true, false])('records email only after provider acceptance: %s', async (accepted) => {
+    vi.useFakeTimers();
+    seed({ email: 'client@example.com' });
+    const fetchMock = vi.fn().mockResolvedValue({ ok: accepted, json: async () => accepted ? { id: 'email-1' } : { message: 'provider rejected' } });
+    vi.stubGlobal('fetch', fetchMock);
+    const pending = notifyBookingConfirmed('a1');
+    await vi.runAllTimersAsync();
+    const result = await pending;
+    expect(result.sent).toBe(accepted);
+    expect(result.channels).toEqual(accepted ? ['email'] : []);
+    expect(updates.filter(u => 'confirmation_sent_at' in u)).toHaveLength(accepted ? 1 : 0);
   });
 
   it('says which appointment it could not find, rather than returning undefined', async () => {

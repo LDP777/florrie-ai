@@ -53,7 +53,7 @@ function confirmOrTellTheOwner(appointmentId, beauticianId, clientFirstName) {
       logger.warn({ appointmentId, beauticianId, reason: result.reason }, 'Booking confirmation reached no channel');
       if (!beauticianId) return;
       return pushTeamUpdate(beauticianId, 'booking_confirmed',
-        `${clientFirstName || 'A client'} booked in, but no confirmation could be sent (no email or text channel). Message them yourself to confirm.`,
+        `${clientFirstName || 'A client'} has a booking, but its confirmation could not be sent. Check the booking and contact them to confirm.`,
         { url: '/calendar/week', clientName: clientFirstName });
     })
     .catch(err => logger.warn({ err, appointmentId }, 'Booking confirmation notification failed (non-fatal)'));
@@ -2263,25 +2263,33 @@ router.post('/:slug/manage/:token/reschedule', async (req, res) => {
       }
     }
 
-    // Log AI action
-    await supabase.from('ai_actions').insert({
-      beautician_id: appt.beautician_id,
-      action_type: 'booking_rescheduled',
-      digital_employee: 'front_desk',
-      summary: `${appt.clients?.first_name || 'Client'} rescheduled ${appt.treatments?.name} from ${new Date(oldStartsAt).toLocaleDateString('en-GB')} to ${newStart.toLocaleDateString('en-GB')}`,
-      details: {
+    // The move is committed. A failed activity log must not report that the
+    // booking failed or prevent the client receiving their updated details.
+    try {
+      const { error: activityError } = await supabase.from('ai_actions').insert({
+        beautician_id: appt.beautician_id,
+        action_type: 'booking_rescheduled',
+        digital_employee: 'front_desk',
+        summary: `${appt.clients?.first_name || 'Client'} rescheduled ${appt.treatments?.name} from ${new Date(oldStartsAt).toLocaleDateString('en-GB')} to ${newStart.toLocaleDateString('en-GB')}`,
+        details: {
+          appointment_id: appt.id,
+          from: oldStartsAt,
+          to: newStart.toISOString(),
+          isLateReschedule,
+          chargePercent: isLateReschedule ? (policy.late_cancel_charge_percent || 0) : 0,
+        },
+        client_id: appt.client_id,
         appointment_id: appt.id,
-        from: oldStartsAt,
-        to: newStart.toISOString(),
-        isLateReschedule,
-        chargePercent: isLateReschedule ? (policy.late_cancel_charge_percent || 0) : 0,
-      },
-      client_id: appt.client_id,
-      appointment_id: appt.id,
-      confidence: 1.0,
-      autonomous: false,
-      outcome: 'success',
-    }).catch(() => {});
+        confidence: 1.0,
+        autonomous: false,
+        outcome: 'success',
+      });
+      if (activityError) logger.warn({ err: activityError, appointmentId: appt.id }, 'Reschedule activity log failed');
+    } catch (err) {
+      logger.warn({ err, appointmentId: appt.id }, 'Reschedule activity log failed');
+    }
+
+    confirmOrTellTheOwner(appt.id, appt.beautician_id, appt.clients?.first_name);
 
     // iOS/web push: tell Ellie her client moved the booking themselves, deep
     // linked to the new day. Fail-soft, never blocks the response.

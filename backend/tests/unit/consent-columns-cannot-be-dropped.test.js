@@ -182,9 +182,9 @@ describe('no new sender joins clients without the consent columns', () => {
     // 2400 / 2666 / 3077, then 1095 / 2032 / 2586 / 2852 / 3263.)
     'src/routes/booking.js:1107',
     'src/routes/booking.js:2046',
-    'src/routes/booking.js:2603',
-    'src/routes/booking.js:2892',
-    'src/routes/booking.js:3303',
+    'src/routes/booking.js:2611',
+    'src/routes/booking.js:2900',
+    'src/routes/booking.js:3311',
     'src/routes/features.js:132',
     'src/routes/features.js:169',
     'src/routes/features.js:194',
@@ -224,7 +224,7 @@ describe('no new sender joins clients without the consent columns', () => {
     // (Previously 1236 / 1514, then 1393 / 1685, then 1526 / 1818, then
     // 1532 / 1824, then 1540 / 1845, then 1693 / 2008, then 1705 / 2020.)
     'src/services/notifications.js:1738',
-    'src/services/notifications.js:2053',
+    'src/services/notifications.js:2057',
   ]);
 
   function walk(dir) {

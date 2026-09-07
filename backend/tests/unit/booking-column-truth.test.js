@@ -222,7 +222,7 @@ function makeBuilder(table) {
     maybeSingle() { const o = settle(); return Promise.resolve(o.error ? o : { data: (o.data || [])[0] || null, error: null }); },
     single() { const o = settle(); return Promise.resolve(o.error ? o : { data: (o.data || [])[0] || null, error: null }); },
     then(res, rej) { return Promise.resolve(settle()).then(res, rej); },
-    catch(rej) { return Promise.resolve(settle()).catch(rej); },
+
   };
   return b;
 }
@@ -254,9 +254,9 @@ vi.mock('stripe', () => ({
   },
 }));
 
-const sent = { sms: [], email: [] };
+const sent = { sms: [], email: [], confirmations: [] };
 vi.mock('../../src/services/notifications.js', () => ({
-  notifyBookingConfirmed: async () => true,
+  notifyBookingConfirmed: async (id) => { sent.confirmations.push({ id, starts_at: db.appointments.find(a => a.id === id)?.starts_at }); return { sent: true, channels: ['email'] }; },
   sendMessage: async () => ({ channel: 'sms' }),
   sendWhatsApp: async () => true,
   sendSMS: async (args) => { sent.sms.push(args); return { channel: 'sms' }; },
@@ -365,6 +365,7 @@ beforeEach(() => {
   for (const t of Object.keys(db)) db[t] = [];
   failing.clear();
   idCounter = 0;
+  sent.confirmations.length = 0;
   sent.sms.length = 0;
   sent.email.length = 0;
   consultation.sent.length = 0;
@@ -735,6 +736,15 @@ describe('telling somebody a slot opened up', () => {
     await settleBackground();
     return out;
   };
+
+  it.each([false, true])('confirms the committed new time even if activity logging fails: %s', async (logFails) => {
+    seedAppointment();
+    if (logFails) failing.set('ai_actions', { message: 'activity unavailable' });
+    const out = await reschedule();
+    expect(out.status).toBe(200);
+    expect(sent.confirmations).toEqual([{ id: 'a1', starts_at: db.appointments[0].starts_at }]);
+    expect(sent.confirmations[0].starts_at.slice(0, 16)).toBe(nextWeekday(4, 2).slice(0, 16));
+  });
 
   it('reaches the client on the waitlist at all', async () => {
     seedAppointment();
