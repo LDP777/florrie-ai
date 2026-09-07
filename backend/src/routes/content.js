@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
-import { createPostFromPhoto, publishPost, draftAvailabilityPost, generateCaption, planWeek } from '../services/content-autopilot.js';
+import { createPostFromPhoto, publishPost, draftAvailabilityPost, generateCaption, planWeek, imageUrlProblem } from '../services/content-autopilot.js';
 import logger from '../lib/logger.js';
 
 const router = Router();
@@ -15,6 +15,7 @@ router.get('/', requireAuth, async (req, res) => {
     .from('content_posts')
     .select('*')
     .eq('beautician_id', req.beautician.id)
+    .or('post_type.neq.gallery,post_type.is.null')
     .order('created_at', { ascending: false })
     .limit(30);
 
@@ -61,13 +62,15 @@ router.get('/', requireAuth, async (req, res) => {
  */
 router.post('/plan-week', requireAuth, async (req, res) => {
   try {
-    // Don't pile plans on plans: if she still has 5+ untouched drafts,
+    // Don't pile plans on plans: if she still has 10+ untouched drafts,
     // nudge her to clear those first.
-    const { count } = await supabase
+    const { count, error: countError } = await supabase
       .from('content_posts')
       .select('id', { count: 'exact', head: true })
       .eq('beautician_id', req.beautician.id)
-      .eq('status', 'draft');
+      .eq('status', 'draft')
+      .or('post_type.neq.gallery,post_type.is.null');
+    if (countError || !Number.isFinite(count)) return res.status(503).json({ error: 'Could not check existing drafts. Try again before making another plan.' });
     if ((count || 0) >= 10) {
       return res.status(409).json({ error: 'You already have a stack of drafts. Approve or bin some first, then plan again.' });
     }
@@ -110,10 +113,11 @@ router.get('/suggestions', requireAuth, async (req, res) => {
 
     const { data: recentAppointments, error: aptError } = await supabase
       .from('appointments')
-      .select('*, treatments(name, duration_minutes), clients(first_name)')
+      .select('id, ends_at, treatments(name, duration_minutes)')
       .eq('beautician_id', req.beautician.id)
-      .eq('status', 'confirmed')
+      .eq('status', 'completed')
       .gte('ends_at', sevenDaysAgo.toISOString())
+      .lte('ends_at', new Date().toISOString())
       .order('ends_at', { ascending: false })
       .limit(5);
 
@@ -149,9 +153,7 @@ router.get('/suggestions', requireAuth, async (req, res) => {
       const appt = recentAppointments[i];
       try {
         const treatmentName = appt.treatments?.name || 'treatment';
-        const context = appt.clients?.first_name
-          ? `Client: ${appt.clients.first_name}. Duration: ${appt.treatments?.duration_minutes || '?'} mins.`
-          : '';
+        const context = 'Based on a completed treatment. No photo has been supplied. Do not invent visual results or identify the client.';
 
         const { caption, hashtags } = await generateCaption(
           req.beautician.id,
@@ -167,7 +169,7 @@ router.get('/suggestions', requireAuth, async (req, res) => {
           hashtags,
           created_at: new Date().toISOString(),
           appointment_id: appt.id,
-          ready_to_post: true,
+          ready_to_post: false,
         });
       } catch (err) {
         logger.warn({ appointmentId: appt.id, err }, 'Failed to generate suggestion');
@@ -187,17 +189,21 @@ router.get('/suggestions', requireAuth, async (req, res) => {
 
 /**
  * POST /api/content/caption
- * Text-only caption generation — no image required.
- * Used by the compose flow when Florrie writes a caption from scratch.
- * Body: { post_type, treatment_type?, context? }
+ * Caption generation from a brief and an optional saved photo.
+ * Body: { post_type, treatment_type?, context?, image_url? }
  */
 router.post('/caption', requireAuth, async (req, res) => {
-  const { post_type, treatment_type, context } = req.body;
+  const { post_type, treatment_type, context, image_url } = req.body;
 
   if (!post_type) {
     return res.status(400).json({ error: 'post_type is required' });
   }
 
+  if (image_url !== undefined && image_url !== null) {
+    if (typeof image_url !== 'string') return res.status(400).json({error:'Choose a saved photo.'});
+    const problem=imageUrlProblem(image_url);
+    if(problem)return res.status(400).json({error:problem});
+  }
   try {
     const additionalContext = [
       post_type !== 'before_after' ? `Post type: ${post_type}` : null,
@@ -206,7 +212,7 @@ router.post('/caption', requireAuth, async (req, res) => {
 
     const { caption, hashtags } = await generateCaption(
       req.beautician.id,
-      null, // no image
+      image_url || null,
       treatment_type || null,
       additionalContext || null,
     );
@@ -388,71 +394,59 @@ router.delete('/streams/:id', requireAuth, async (req, res) => {
 
 /**
  * PATCH /api/content/:id
- * Edit a draft post's caption or hashtags before publishing.
+ * Edit a draft post's caption, hashtags or saved photo before publishing.
  */
+function editablePostQuery(beauticianId, postId, updates, statuses) {
+  return supabase.from('content_posts').update(updates)
+    .eq('id', postId).eq('beautician_id', beauticianId)
+    .in('status', statuses).or('post_type.neq.gallery,post_type.is.null')
+    .is('external_post_id', null).is('publish_claimed_at', null);
+}
+
 router.patch('/:id', requireAuth, async (req, res) => {
-  const { caption, hashtags } = req.body;
-  const updates = {};
-  if (caption !== undefined) updates.caption = caption;
-  if (hashtags !== undefined) updates.hashtags = hashtags;
-
-  const { data, error } = await supabase
-    .from('content_posts')
-    .update(updates)
-    .eq('id', req.params.id)
-    .eq('beautician_id', req.beautician.id)
-    .select()
-    .single();
-
-  if (error) {
-    logger.error({ err: error }, 'Failed to update content post');
-    return res.status(500).json({ error: 'Something went wrong' });
+  const { caption, hashtags, image_url } = req.body;
+  if (caption !== undefined && (typeof caption !== 'string' || !caption.trim())) return res.status(400).json({error:'Write a caption before saving.'});
+  if (hashtags !== undefined && (!Array.isArray(hashtags) || hashtags.some(tag => typeof tag !== 'string'))) return res.status(400).json({error:'Hashtags must be a list of text tags.'});
+  if (image_url !== undefined && image_url !== null) {
+    if (typeof image_url !== 'string') return res.status(400).json({error:'Choose a saved photo.'});
+    const problem = imageUrlProblem(image_url);
+    if (problem) return res.status(400).json({error:problem});
   }
-  res.json({ post: data });
+  const updates = {};
+  if (caption !== undefined) updates.caption = caption.trim();
+  if (hashtags !== undefined) updates.hashtags = hashtags;
+  if (image_url !== undefined) updates.image_url = image_url;
+  if (!Object.keys(updates).length) return res.status(400).json({error:'No draft changes supplied.'});
+  const { data, error } = await editablePostQuery(req.beautician.id, req.params.id, updates, ['draft','failed','approved']).select().maybeSingle();
+  if (error) return res.status(503).json({error:'Could not save this draft. Your edits are still on screen.'});
+  if (!data) return res.status(409).json({error:'This post has changed or is being published. Refresh it before editing.'});
+  res.json({post:data});
 });
 
-/**
- * POST /api/content/:id/schedule
- * Schedule a draft to publish itself at a chosen time. The content
- * scheduler cron (index.js, every 5 min) does the actual publishing.
- * Body: { scheduled_for: ISO timestamp } — or null to unschedule back to draft.
- */
+// Scheduled posts are explicit publishing approvals, so require a saved photo
+// and never move a published record or a post currently claimed by the worker.
 router.post('/:id/schedule', requireAuth, async (req, res) => {
   const { scheduled_for } = req.body;
-
+  const statuses = ['draft','failed','approved','scheduled'];
   if (scheduled_for === null) {
-    const { data, error } = await supabase
-      .from('content_posts')
-      .update({ status: 'draft', scheduled_for: null })
-      .eq('id', req.params.id)
-      .eq('beautician_id', req.beautician.id)
-      .select()
-      .single();
-    if (error) return res.status(500).json({ error: 'Something went wrong' });
-    return res.json({ post: data });
+    const { data, error } = await editablePostQuery(req.beautician.id, req.params.id, {status:'draft',scheduled_for:null}, statuses).select().maybeSingle();
+    if (error) return res.status(503).json({error:'Could not return this post to drafts.'});
+    if (!data) return res.status(409).json({error:'This post has changed or is being published. Refresh its status.'});
+    return res.json({post:data});
   }
-
+  if (typeof scheduled_for !== 'string' || !/(Z|[+-]\d{2}:\d{2})$/i.test(scheduled_for)) return res.status(400).json({error:'Choose a date and time with a timezone.'});
   const when = new Date(scheduled_for);
-  if (isNaN(when.getTime())) {
-    return res.status(400).json({ error: 'scheduled_for must be a valid timestamp' });
-  }
-  if (when.getTime() < Date.now() - 60 * 1000) {
-    return res.status(400).json({ error: 'That time has already passed' });
-  }
-
-  const { data, error } = await supabase
-    .from('content_posts')
-    .update({ status: 'scheduled', scheduled_for: when.toISOString() })
-    .eq('id', req.params.id)
-    .eq('beautician_id', req.beautician.id)
-    .select()
-    .single();
-
-  if (error) {
-    logger.error({ err: error }, 'Failed to schedule content post');
-    return res.status(500).json({ error: 'Something went wrong' });
-  }
-  res.json({ post: data });
+  if (!Number.isFinite(when.getTime()) || when.getTime() <= Date.now()) return res.status(400).json({error:'Choose a time in the future.'});
+  const {data: post, error: readError} = await supabase.from('content_posts').select('id,image_url').eq('id',req.params.id).eq('beautician_id',req.beautician.id).maybeSingle();
+  if (readError) return res.status(503).json({error:'Could not check this post. Try again.'});
+  if (!post) return res.status(404).json({error:'Post not found.'});
+  const problem = imageUrlProblem(post.image_url);
+  if (problem) return res.status(400).json({error:problem});
+  const {data,error} = await editablePostQuery(req.beautician.id,req.params.id,{status:'scheduled',scheduled_for:when.toISOString()},statuses)
+    .eq('image_url',post.image_url).select().maybeSingle();
+  if (error) return res.status(503).json({error:'Could not schedule this post. Your chosen time is still on screen.'});
+  if (!data) return res.status(409).json({error:'This post has changed or is being published. Refresh its status.'});
+  res.json({post:data});
 });
 
 /**
@@ -474,14 +468,13 @@ router.post('/:id/publish', requireAuth, async (req, res) => {
  * Discard a draft post.
  */
 router.delete('/:id', requireAuth, async (req, res) => {
-  await supabase
-    .from('content_posts')
-    .delete()
-    .eq('id', req.params.id)
-    .eq('beautician_id', req.beautician.id)
-    .eq('status', 'draft');
-
-  res.json({ success: true });
+  const {data,error} = await supabase.from('content_posts').delete()
+    .eq('id',req.params.id).eq('beautician_id',req.beautician.id)
+    .in('status',['draft','failed','approved']).or('post_type.neq.gallery,post_type.is.null')
+    .is('external_post_id',null).is('publish_claimed_at',null).select('id');
+  if (error) return res.status(503).json({error:'Could not discard this draft. Try again.'});
+  if (!data?.length) return res.status(409).json({error:'This post has changed or is being published. Refresh its status.'});
+  res.json({success:true});
 });
 
 export default router;

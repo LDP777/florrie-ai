@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { contentRequest, parseHashtags, localScheduleValue, scheduleInstant } from '../lib/content-workflow.js';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
-import { useBeautician, supabase, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js'
+import { useBeautician, supabase, fetchRows, insertRow } from '../lib/supabase.js'
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import { localDateStr } from '../lib/dates.js';
@@ -18,7 +19,6 @@ function getToken() {
 }
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
-import PageHeader from '../components/ui/PageHeader.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import Icon, { iconName } from '../components/ui/Icon';
 import Button from '../components/ui/Button.jsx';
@@ -33,39 +33,15 @@ import Button from '../components/ui/Button.jsx';
  * Quick-post flow:
  *   Pick type → write or use template → optional photo → save draft → approve
  *
- * Caption generation calls the backend when available;
- * template-based fallback always works offline.
+ * Templates provide a starting point. AI suggestions wait for acceptance
+ * before replacing the owner's caption.
  */
 const CAPTION_TEMPLATES = {
-  before_after: [
-    "Cannot get over this set {treatment}, the definition is unreal. DM me to book yours {emoji}",
-    "Before ➡️ After. This is why I love what I do. {treatment} looking fresh {emoji}",
-    "Happy Friday with this gorgeous {treatment} glow-up. Slots going fast for next week, grab one {emoji}",
-    "Obsessed isn't even the word. {treatment} results that speak for themselves {emoji}",
-    "That crisp, fluffy finish {emoji} Love a good {treatment} transformation. DM to book xx",
-    "Before and after a {treatment} session, she left buzzing and honestly same {emoji}",
-  ],
-  last_minute_availability: [
-    "Gap alert {emoji} I've had a cancellation on {day}, who wants it? DM me quick xx",
-    "Last minute slot just opened up {day} afternoon. Perfect for a {treatment}. First to DM gets it {emoji}",
-    "Cancellation = your lucky day {emoji} {day} is free. Grab it before it goes xx",
-    "Unexpected gap on {day}! If you've been putting off rebooking, this is your sign {emoji} DM me xx",
-  ],
-  promotion: [
-    "Treat yourself this week, {offer}. Book via DM or the link in my bio {emoji}",
-    "Something special for my regulars {emoji} {offer}. Limited slots, don't sleep on it xx",
-    "{offer}, because you deserve it {emoji} DM to book xx",
-  ],
-  testimonial: [
-    "When your client sends you this {emoji} Best feeling ever. If you want results like this, you know where I am xx",
-    "Client love is the best kind of love {emoji} Thank you for trusting me with your {treatment} xx",
-    "Reviews like this make my whole week {emoji} If you've been thinking about booking, this is your sign xx",
-  ],
-  general: [
-    "Morning from the studio {emoji} Ready for a full day of gorgeous {treatment} bookings. Love this job xx",
-    "New week, fresh brows {emoji} Let's get you booked in. Link in bio or DM me xx",
-    "That feeling when every slot this week is full {emoji} If you want in next week, book now, they go fast xx",
-  ],
+  before_after: ['A closer look at {treatment}. Add the details behind your work here {emoji}', 'From the studio: {treatment}. Tell the story behind this photo {emoji}'],
+  last_minute_availability: ['Looking for a {treatment} appointment? Check my booking link for the latest available times {emoji}'],
+  promotion: ['A little time for you {emoji} Explore {treatment} and book through the link in my bio.'],
+  testimonial: ['Kind words mean so much {emoji} Add a review you have permission to share, and tell us what made your client’s visit special.'],
+  general: ['A little look at {treatment} {emoji} Send me a message if you’d like to know more.'],
 };
 const EMOJIS = ['✨', '💫', '🤍', '🫶', '💕', '👏'];
 const POST_TYPE_LABELS = {
@@ -137,6 +113,26 @@ export default function ContentAutopilot() {
   const [publishing, setPublishing] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [editCaption, setEditCaption] = useState('');
+  const [editHashtags, setEditHashtags] = useState('');
+  const [editPhoto, setEditPhoto] = useState(null);
+  const [editPhotoUrl, setEditPhotoUrl] = useState(null);
+  const [editPhotoPreview, setEditPhotoPreview] = useState(null);
+  const [schedulePost, setSchedulePost] = useState(null);
+  const [scheduleTime, setScheduleTime] = useState('');
+  const [scheduleError, setScheduleError] = useState(null);
+  const [scheduling, setScheduling] = useState(false);
+  const scheduleBusy = useRef(false);
+  const scheduleRef = useRef(null);
+  useEffect(() => { if (schedulePost) scheduleRef.current?.scrollIntoView({block: 'center', behavior: 'smooth'}); }, [schedulePost?.id]);
+  const loadGeneration = useRef(0);
+  const [composeTreatment, setComposeTreatment] = useState('');
+  const [composeBrief, setComposeBrief] = useState('');
+  const [aiDraft, setAiDraft] = useState(null);
+  const [aiError, setAiError] = useState(null);
+  const aiGeneration = useRef(0);
+  const [composeExistingImage, setComposeExistingImage] = useState(null);
+  const composeBusy = useRef(false);
+
   // AI suggestions (from recent appointments)
   const [suggestions, setSuggestions] = useState([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
@@ -199,10 +195,8 @@ export default function ContentAutopilot() {
   const [cancelledPrompt, setCancelledPrompt] = useState(null);
   useEffect(() => {
     if (beautician) {
-      loadAll();
       loadTreatments();
       loadGallery();
-      loadSuggestions();
       loadStreams();
       loadCancelledAppointments();
       loadInstagramStatus();
@@ -241,34 +235,37 @@ export default function ContentAutopilot() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state]);
   useEffect(() => {
-    if (beautician && selectedStreamId) {
-      loadAll();
-      loadStreamProgress();
-    }
-  }, [selectedStreamId]);
+    if (!beautician) return;
+    loadAll();
+    setStreamProgress(null);
+    if (selectedStreamId) loadStreamProgress();
+    return () => { loadGeneration.current += 1; };
+  }, [beautician?.id, selectedStreamId]);
+  useEffect(() => () => { if (editPhotoPreview?.startsWith('blob:')) URL.revokeObjectURL(editPhotoPreview); }, [editPhotoPreview]);
+  useEffect(() => () => { if (composeImagePreview?.startsWith('blob:')) URL.revokeObjectURL(composeImagePreview); }, [composeImagePreview]);
   // Plan my week: one tap, Florrie drafts the week into the Drafts tab.
   const [planning, setPlanning] = useState(false);
+  const planBusy = useRef(false);
   const [planNote, setPlanNote] = useState(null);
   const [planBlocked, setPlanBlocked] = useState(false);
   async function handlePlanWeek() {
-    if (planning) return;
+    if (planBusy.current) return;
+    planBusy.current = true;
     setPlanning(true);
     setPlanNote(null);
     setPlanBlocked(false);
     try {
-      const token = getToken();
-      const res = await fetch(`${API_BASE}/api/content/plan-week`, {
-        method: 'POST',
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-      });
-      const d = await res.json().catch(() => ({}));
-      if (!res.ok) { setPlanBlocked(res.status === 409); throw new Error(d.error || 'Could not draft the week'); }
+      const d = await contentRequest(`${API_BASE}/api/content/plan-week`, {token:getToken(),method:'POST',timeoutMs:90000});
+      if (!d.posts?.length) throw new Error('No drafts were created. Try again or start with a template.');
       setPlanNote(`${(d.posts || []).length} posts drafted, each with a suggested day. Approve, edit or bin them below.`);
       setTab('drafts');
-      await loadAll();
+      if (selectedStreamId) setSelectedStreamId(null);
+      else await loadAll();
     } catch (err) {
+      setPlanBlocked(err.status === 409);
       setPlanNote(err.message);
     } finally {
+      planBusy.current = false;
       setPlanning(false);
     }
   }
@@ -288,37 +285,16 @@ export default function ContentAutopilot() {
     }
   }
 
-  async function handleApproveSchedule(post) {
-    try {
-      const token = getToken();
-      const res = await fetch(`${API_BASE}/api/content/${post.id}/schedule`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ scheduled_for: post.scheduled_for }),
-      });
-      const d = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(d.error || 'Could not schedule');
-      setPlanNote(post.image_url
-        ? 'Scheduled. It will post itself at that time.'
-        : 'Scheduled. Add a photo before then, otherwise it drops back into Drafts instead of posting.');
-      await loadAll();
-    } catch (err) {
-      setError(err.message);
-    }
-  }
-
   async function loadAll() {
+    const generation = ++loadGeneration.current;
     setLoading(true);
     setError(null);
     try {
       // Fetch from API to support stream_id filtering
       const token = getToken();
       const streamParam = selectedStreamId ? `?stream_id=${selectedStreamId}` : '';
-      const res = await fetch(`${API_BASE}/api/content${streamParam}`, {
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-      });
-      if (!res.ok) throw new Error('Failed to fetch posts');
-      const data = await res.json();
+      const data = await contentRequest(`${API_BASE}/api/content${streamParam}`, {token,timeoutMs:15000});
+      if (generation !== loadGeneration.current) return;
       const allPosts = data.posts || [];
       // 'failed' and 'approved' sit with the drafts on purpose. There are only
       // three tabs (drafts, scheduled, posted), so a post in either of those
@@ -337,9 +313,10 @@ export default function ContentAutopilot() {
       setScheduled(feed.filter(p => p.status === 'scheduled').sort((a, b) => new Date(a.scheduled_for || 0) - new Date(b.scheduled_for || 0)));
     } catch (err) {
       logger.error('Load content error:', err);
+      if (generation !== loadGeneration.current) return;
       setError(err.message || 'Failed to load content');
     } finally {
-      setLoading(false);
+      if (generation === loadGeneration.current) setLoading(false);
     }
   }
   async function loadTreatments() {
@@ -347,17 +324,17 @@ export default function ContentAutopilot() {
     setTreatments(data);
   }
   async function loadSuggestions() {
+    if (loadingSuggestions) return;
     setLoadingSuggestions(true);
+    setError(null);
     try {
       const token = getToken();
-      const res = await fetch(`${API_BASE}/api/content/suggestions`, {
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-      });
-      if (!res.ok) return;
-      const data = await res.json();
+      const data = await contentRequest(`${API_BASE}/api/content/suggestions`, {token,timeoutMs:90000});
       setSuggestions(data.suggestions || []);
+      if (!data.suggestions?.length) setPlanNote(data.message || 'No ideas yet. Start with a template below.');
     } catch (err) {
       logger.warn('Suggestions load failed:', err);
+      setError(err.message || 'Could not load ideas.');
     } finally {
       setLoadingSuggestions(false);
     }
@@ -417,6 +394,7 @@ export default function ContentAutopilot() {
       setShowStreamForm(false);
     } catch (err) {
       logger.error('Create stream error:', err);
+      setError(err.message || 'Could not create this stream. Your details are still here.');
     } finally {
       setSavingStream(false);
     }
@@ -477,45 +455,28 @@ export default function ContentAutopilot() {
   }
   async function handleAIWrite() {
     if (!beautician || generatingAI) return;
-    setGeneratingAI(true);
+    const generation = ++aiGeneration.current;
+    setGeneratingAI(true); setAiError(null); setAiDraft(null);
     try {
-      const token = getToken();
-      const treatmentName = treatments.length > 0 ? pickRandom(treatments).name : null;
-      const res = await fetch(`${API_BASE}/api/content/caption`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          post_type: composeType,
-          treatment_type: treatmentName,
-        }),
-      });
-      if (!res.ok) throw new Error('AI write failed');
-      const data = await res.json();
-      if (data.caption) setComposeCaption(data.caption);
-      if (data.hashtags?.length) setComposeHashtags(data.hashtags.join(' '));
+      let imageUrl = composeExistingImage;
+      if (composeImageFile) {
+        const {path} = await uploadFile({bucket:PUBLIC_BUCKET,path:objectPath(beautician.id,'gallery',composeImageFile.name),file:composeImageFile});
+        imageUrl = publicUrl(path,{bucket:PUBLIC_BUCKET});
+        if (!imageUrl) throw new Error('Could not upload the photo. Your caption is unchanged.');
+        if (generation !== aiGeneration.current) return;
+        setComposeExistingImage(imageUrl); setComposeImageFile(null); setComposeImagePreview(imageUrl);
+      }
+      const data = await contentRequest(`${API_BASE}/api/content/caption`, { token: getToken(), method: 'POST', body: {
+        post_type: composeType, image_url: imageUrl || null, treatment_type: composeTreatment || null,
+        context: [composeBrief.trim(), composeCaption.trim() ? `Existing draft to improve: ${composeCaption.trim()}` : '', 'Do not invent discounts, availability, client names or treatment results.'].filter(Boolean).join('\n'),
+      } });
+      if (generation !== aiGeneration.current) return;
+      if (!data.caption?.trim()) throw new Error('Florrie returned no caption. Your draft is unchanged.');
+      setAiDraft(data);
     } catch (err) {
-      logger.warn('AI write failed, falling back to template:', err);
-      setComposeCaption(getFilledTemplate(composeType));
-    } finally {
-      setGeneratingAI(false);
-    }
+      if (generation === aiGeneration.current) setAiError(err.message || 'Could not write a caption. Your draft is unchanged.');
+    } finally { if (generation === aiGeneration.current) setGeneratingAI(false); }
   }
-  /**
-   * The grid, starting on MONDAY, because the headers say Mon.
-   *
-   * 31 August 2026. The headers row is ['Mon'..'Sun'] and this function
-   * started the grid on the Sunday before the 1st, so every single date in
-   * every month sat one column to the left of its own weekday name. On the
-   * calendar tab of a content planner, that is the whole feature: she looks at
-   * the column under "Sat", and it is Friday's posts.
-   *
-   * getDay() is 0 for Sunday. Shifting by (getDay() + 6) % 7 makes Monday 0,
-   * and the trailing fill runs until the row is complete, which is now the
-   * Sunday cell rather than the Saturday one.
-   */
   function getCalendarDays() {
     const year = calendarDate.getFullYear();
     const month = calendarDate.getMonth();
@@ -537,7 +498,7 @@ export default function ContentAutopilot() {
   function getPostsForDate(date) {
     const dateStr = localDateStr(date);
     return drafts.concat(scheduled).concat(posted).filter(post => !isGalleryRow(post)).filter(post => {
-      const postDate = (post.scheduled_for || post.posted_at || post.created_at).split('T')[0];
+      const postDate = localDateStr(post.scheduled_for || post.posted_at || post.created_at);
       return postDate === dateStr;
     });
   }
@@ -648,28 +609,33 @@ export default function ContentAutopilot() {
     }
     setSavingGallery(false);
   }
-  function startCompose(type, prefillCaption) {
+  function startCompose(type, prefillCaption, imageUrl = null) {
+    aiGeneration.current += 1; setGeneratingAI(false); setAiDraft(null); setAiError(null);
+    setComposeBrief(''); setComposeTreatment(''); setComposeMediaKind('feed');
+    setComposeExistingImage(imageUrl);
     setComposeType(type);
     setComposeCaption(prefillCaption || '');
     const category = treatments[0]?.category || 'brows';
     setComposeHashtags((DEFAULT_HASHTAGS[category] || DEFAULT_HASHTAGS.other).join(' '));
     setComposeImageFile(null);
-    setComposeImagePreview(null);
+    setComposeImagePreview(imageUrl);
     setComposing(true);
     setTab('compose');
   }
   function handleImageSelect(e) {
     const file = e.target.files?.[0];
     if (!file) return;
+    setComposeExistingImage(null);
     setComposeImageFile(file);
     setComposeImagePreview(URL.createObjectURL(file));
   }
   async function handleSaveDraft() {
-    if (!composeCaption.trim() || !beautician) return;
+    if (!composeCaption.trim() || !beautician || composeBusy.current) return;
+    composeBusy.current = true;
     setSaving(true);
     setError(null);
     try {
-      let imageUrl = null;
+      let imageUrl = composeExistingImage;
       // The image is what Instagram fetches at publish time, so it goes in the
       // public bucket and the row holds a public URL.
       //
@@ -687,7 +653,7 @@ export default function ContentAutopilot() {
         imageUrl = publicUrl(path, { bucket: PUBLIC_BUCKET });
         if (!imageUrl) throw new Error('Could not save that photo. Please try again.');
       }
-      const hashtags = composeHashtags.trim().split(/\s+/).filter(h => h.startsWith('#'));
+      const hashtags = parseHashtags(composeHashtags);
       const post = await insertRow('content_posts', {
         beautician_id: beautician.id,
         caption: composeCaption.trim(),
@@ -696,6 +662,7 @@ export default function ContentAutopilot() {
         platform: 'instagram',
         post_type: composeType,
         media_kind: composeMediaKind,
+        stream_id: selectedStreamId,
         status: 'draft',
       });
       setDrafts(prev => [post, ...prev]);
@@ -705,6 +672,7 @@ export default function ContentAutopilot() {
       logger.error('Save draft error:', err);
       setError(err.message || 'Could not save that draft. Please try again.');
     } finally {
+      composeBusy.current = false;
       setSaving(false);
     }
   }
@@ -763,12 +731,19 @@ export default function ContentAutopilot() {
     setDraftAction(postId); setDraftErrors(prev => ({ ...prev, [postId]: null }));
     const caption = editCaption;
     try {
-      await updateRow('content_posts', postId, { caption });
-      setDrafts(prev => prev.map(p => p.id === postId ? { ...p, caption } : p));
+      let imageUrl = editPhotoUrl;
+      if (editPhoto) {
+        const { path } = await uploadFile({ bucket: PUBLIC_BUCKET, path: objectPath(beautician.id, 'gallery', editPhoto.name), file: editPhoto });
+        imageUrl = publicUrl(path, { bucket: PUBLIC_BUCKET });
+        if (!imageUrl) throw new Error('Photo upload did not finish.');
+      }
+      const result = await contentRequest(`${API_BASE}/api/content/${postId}`, {token: getToken(), method: 'PATCH', body: {caption, hashtags: parseHashtags(editHashtags), image_url: imageUrl}});
+      if (result.post?.id !== postId) throw new Error('Save was not confirmed.');
+      setDrafts(prev => prev.map(p => p.id === postId ? result.post : p));
       setEditingId(null);
     } catch (err) {
       logger.error('Edit error:', err);
-      setDraftErrors(prev => ({ ...prev, [postId]: 'Could not save this caption. Your edits are still here. Try Save again.' }));
+      setDraftErrors(prev => ({ ...prev, [postId]: 'Could not save this draft. Your caption and photo are still here. Try Save again.' }));
     } finally { draftActionRef.current = false; setDraftAction(null); }
   }
   async function handleDiscard(postId) {
@@ -776,7 +751,7 @@ export default function ContentAutopilot() {
     draftActionRef.current = true;
     setDraftAction(postId); setDraftErrors(prev => ({ ...prev, [postId]: null }));
     try {
-      await deleteRow('content_posts', postId);
+      await contentRequest(`${API_BASE}/api/content/${postId}`, {token:getToken(),method:'DELETE'});
       setDrafts(prev => prev.filter(p => p.id !== postId));
     } catch (err) {
       logger.error('Discard error:', err);
@@ -784,18 +759,27 @@ export default function ContentAutopilot() {
     } finally { draftActionRef.current = false; setDraftAction(null); }
   }
   function getFilledTemplate(type) {
-    const templates = CAPTION_TEMPLATES[type] || CAPTION_TEMPLATES.general;
-    const template = pickRandom(templates);
-    const treatmentName = treatments.length > 0
-      ? pickRandom(treatments).name.toLowerCase()
-      : 'brow treatment';
-    const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-    return fillTemplate(template, {
-      treatment: treatmentName,
-      emoji: pickRandom(EMOJIS),
-      day: pickRandom(dayNames),
-      offer: '10% off all lamination this week',
-    });
+    const treatment = treatments.find(t => t.name === composeTreatment)?.name || treatments[0]?.name || 'your treatment';
+    return fillTemplate(pickRandom(CAPTION_TEMPLATES[type] || CAPTION_TEMPLATES.general), { treatment, emoji: pickRandom(EMOJIS) });
+  }
+  const templateIdeas = useMemo(() => Object.fromEntries(Object.keys(POST_TYPE_LABELS).map(type => [type, getFilledTemplate(type)])), [treatments]);
+  function beginEdit(post) {
+    setEditingId(post.id); setEditCaption(post.caption || ''); setEditHashtags((post.hashtags || []).join(' '));
+    setEditPhoto(null); setEditPhotoUrl(post.image_url || null); setEditPhotoPreview(post.image_url || null);
+  }
+  function chooseSchedule(post) {
+    setSchedulePost(post); setScheduleTime(localScheduleValue(post.scheduled_for)); setScheduleError(null);
+  }
+  async function saveSchedule() {
+    if (scheduleBusy.current) return;
+    scheduleBusy.current = true; setScheduling(true); setScheduleError(null);
+    try {
+      const when = scheduleInstant(scheduleTime);
+      await contentRequest(`${API_BASE}/api/content/${schedulePost.id}/schedule`, { token: getToken(), method: 'POST', body: {scheduled_for: when} });
+      setSchedulePost(null); await loadAll();
+      setPlanNote('Scheduled. You can change the time or return it to drafts.');
+    } catch (err) { setScheduleError(err.message || 'Could not schedule. Your chosen time is still here.'); }
+    finally { scheduleBusy.current = false; setScheduling(false); }
   }
   if (bLoading || loading) {
     return <PageLoader />;
@@ -882,7 +866,7 @@ export default function ContentAutopilot() {
               return (
                 <button className="fl-tap"
                   key={post.id}
-                  onClick={() => { setEditingId(post.id); setEditCaption(post.caption || ''); setTab(post.status === 'posted' ? 'posted' : 'drafts'); }}
+                  onClick={() => { if (['draft', 'failed', 'approved'].includes(post.status)) beginEdit(post); setTab(post.status === 'posted' ? 'posted' : 'drafts'); }}
                   style={{ position: 'relative', aspectRatio: '1', border: 'none', padding: 0, cursor: 'pointer', overflow: 'hidden', background: post.image_url ? 'var(--bg-subtle, #ede7e3)' : 'var(--accent-bg, rgba(146,64,94,0.05))', WebkitTapHighlightColor: 'transparent' }}
                 >
                   {post.image_url
@@ -1025,6 +1009,7 @@ export default function ContentAutopilot() {
       {/* ═══ IDEAS TAB ═══ */}
       {tab === 'ideas' && (
         <div className="fl-idea-grid" style={styles.postList}>
+          <div style={{gridColumn:'1 / -1'}}><Button variant="secondary" disabled={loadingSuggestions} onClick={loadSuggestions}><Icon name="sparkles" size={16} /> {loadingSuggestions ? 'Finding ideas…' : 'Find ideas from recent work'}</Button></div>
           {/* AI suggestions, from recent appointments */}
           {(loadingSuggestions || suggestions.length > 0) && (
             <div style={styles.aiSuggestionsSection}>
@@ -1055,8 +1040,8 @@ export default function ContentAutopilot() {
               <div style={styles.ideaGroupHeader}>
                 <span style={styles.ideaGroupLabel}>{label}</span>
               </div>
-              <Button variant="secondary" className="fl-idea-card" style={styles.ideaCard} onClick={() => startCompose(type, getFilledTemplate(type))}>
-                <p style={styles.ideaCaption}>{getFilledTemplate(type)}</p>
+              <Button variant="secondary" className="fl-idea-card" style={styles.ideaCard} onClick={() => startCompose(type, templateIdeas[type])}>
+                <p style={styles.ideaCaption}>{templateIdeas[type]}</p>
                 <span style={styles.ideaTap}>Make it yours <span aria-hidden="true">↗</span></span>
               </Button>
             </div>
@@ -1111,6 +1096,7 @@ export default function ContentAutopilot() {
           {/* Photo control (the live preview above shows the image) */}
           <button className="fl-tap"
             type="button"
+            disabled={generatingAI || saving}
             onClick={() => fileRef.current?.click()}
             style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: '11px 14px', marginBottom: 10, borderRadius: 10, border: `1.5px dashed ${composeImagePreview ? 'var(--accent, #92405E)' : 'var(--border-light, #ede7e3)'}`, background: composeImagePreview ? 'rgba(146,64,94,0.05)' : 'transparent', color: composeImagePreview ? 'var(--accent, #92405E)' : 'var(--text-secondary, #574A42)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
           >
@@ -1119,6 +1105,7 @@ export default function ContentAutopilot() {
           </button>
           <input
             ref={fileRef}
+            disabled={generatingAI || saving}
             type="file"
             accept="image/*"
             onChange={handleImageSelect}
@@ -1142,8 +1129,20 @@ export default function ContentAutopilot() {
               </button>
             ))}
           </div>
+          <label style={styles.fieldLabel}>Treatment
+            <select aria-label="Caption treatment" value={composeTreatment} onChange={e=>setComposeTreatment(e.target.value)} style={styles.streamFormInput} disabled={generatingAI || saving}>
+              <option value="">General business post</option>{treatments.map(t=><option key={t.id} value={t.name}>{t.name}</option>)}
+            </select>
+          </label>
+          <p style={{fontSize:12,color:'var(--text-secondary)'}}>Florrie uses your treatment, brief and any attached photo. Review the suggestion before using it.</p>
+          <label style={styles.fieldLabel}>Give Florrie a brief
+            <textarea aria-label="Caption brief" placeholder="What should this post say? Add the real offer, occasion or details." value={composeBrief} onChange={e=>setComposeBrief(e.target.value)} style={styles.composeTextarea} rows={2} disabled={generatingAI || saving} />
+          </label>
+          {aiError && <p role="alert" style={styles.failureReason}>{aiError}</p>}
+          {aiDraft && <section aria-label="Suggested caption" style={{padding:16,border:'1px solid var(--border)',borderRadius:16,background:'var(--tone-1)'}}><strong>Florrie’s suggestion</strong><p style={styles.caption}>{aiDraft.caption}</p><div style={{display:'flex',gap:8,flexWrap:'wrap'}}><Button onClick={()=>{setComposeCaption(aiDraft.caption);if(aiDraft.hashtags?.length)setComposeHashtags(aiDraft.hashtags.join(' '));setAiDraft(null);}}>Use this caption</Button><Button variant="quiet" onClick={()=>setAiDraft(null)}>Keep mine</Button></div></section>}
           {/* Caption */}
           <textarea
+            aria-label="Post caption"
             value={composeCaption}
             onChange={e => setComposeCaption(e.target.value)}
             placeholder="Write your caption..."
@@ -1179,6 +1178,7 @@ export default function ContentAutopilot() {
           </div>
           {/* Hashtags */}
           <input
+            aria-label="Post hashtags"
             value={composeHashtags}
             onChange={e => setComposeHashtags(e.target.value)}
             placeholder="#brows #beauty #browlamination"
@@ -1189,12 +1189,12 @@ export default function ContentAutopilot() {
             <Button
               size="lg"
               onClick={handleSaveDraft}
-              disabled={!composeCaption.trim() || saving}
+              disabled={!composeCaption.trim() || saving || generatingAI}
               style={{ flex: 1 }}
             >
               {saving ? 'Saving...' : 'Save as Draft'}
             </Button>
-            <button onClick={() => { setComposing(false); setTab('ideas'); }} style={styles.cancelBtn}>
+            <button disabled={saving} onClick={() => { aiGeneration.current += 1; setGeneratingAI(false); setComposing(false); setTab('ideas'); }} style={styles.cancelBtn}>
               Cancel
             </button>
           </div>
@@ -1209,6 +1209,13 @@ export default function ContentAutopilot() {
             <input aria-label="Search content drafts" value={draftSearch} onChange={e => { setDraftSearch(e.target.value); setDeckIndex(null); }} placeholder="Search captions or post types" style={{ ...styles.streamFormInput, minHeight: 44, width: '100%', boxSizing: 'border-box' }} />
             <Button variant={attentionOnly ? 'primary' : 'secondary'} aria-pressed={attentionOnly} style={{ marginTop: 10 }} onClick={() => { setAttentionOnly(v => !v); setDeckIndex(null); }}>Needs attention</Button>
           </div>
+          {schedulePost && <section ref={scheduleRef} aria-label="Schedule post" style={{padding:18,background:'var(--bg-card)',border:'1px solid var(--border)',borderRadius:18}}>
+            <h3 style={{margin:'0 0 8px'}}>Choose a posting time</h3><p style={{fontSize:13,color:'var(--text-secondary)'}}>{schedulePost.caption?.slice(0,160)}</p>
+            <label style={styles.fieldLabel}>Date and time<input aria-label="Posting date and time" type="datetime-local" value={scheduleTime} min={localScheduleValue(new Date().toISOString())} onChange={e=>setScheduleTime(e.target.value)} disabled={scheduling} style={styles.streamFormInput} /></label>
+            <p style={{fontSize:12,color:'var(--text-secondary)'}}>Times use this device’s timezone: {Intl.DateTimeFormat().resolvedOptions().timeZone}.</p>
+            {scheduleError && <p role="alert" style={styles.failureReason}>{scheduleError}</p>}
+            <div style={{display:'flex',gap:8}}><Button disabled={scheduling} onClick={saveSchedule}>{scheduling?'Scheduling…':'Schedule post'}</Button><Button variant="quiet" disabled={scheduling} onClick={()=>setSchedulePost(null)}>Cancel</Button></div>
+          </section>}
           {!!drafts.length && !visibleDrafts.length && <p role="status">No drafts match. Change your search or turn off Needs attention.</p>}
           {scheduled.length > 0 && (
             <div style={{ background: 'var(--tone-2, #f6e7dd)', borderRadius: 16, padding: '12px 14px', marginBottom: 4 }}>
@@ -1216,7 +1223,7 @@ export default function ContentAutopilot() {
                 Scheduled posts
               </p>
               {scheduled.map(sp => (
-                <div key={sp.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderTop: '1px solid rgba(146,64,94,0.08)' }}>
+                <div key={sp.id} style={{ flexWrap: 'wrap', display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderTop: '1px solid rgba(146,64,94,0.08)' }}>
                   {/* #3B82F6 on --tone-2 measured 3.05:1, which fails in LIGHT
                       mode as well as dark. The accent is the branded colour
                       for "this is scheduled" and reads on tone-2 either way. */}
@@ -1230,11 +1237,12 @@ export default function ContentAutopilot() {
                       caption-sized string needs. --warning-text is the token
                       built for this and 11.5px is above the floor. */}
                   {!sp.image_url && <span style={{ fontSize: 11.5, color: 'var(--warning-text, #79581C)', whiteSpace: 'nowrap' }}>needs photo</span>}
+                  <Button variant="quiet" size="sm" disabled={scheduling || igBlocked} onClick={() => chooseSchedule(sp)}>Change time</Button>
                   <button className="fl-tap"
                     onClick={() => handleUnschedule(sp.id)}
                     style={{ background: 'none', border: 'none', color: 'var(--text-muted, #6B5D54)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', padding: '10px 8px', minHeight: 44 }}
                   >
-                    Undo
+                    Return to drafts
                   </button>
                 </div>
               ))}
@@ -1285,13 +1293,7 @@ export default function ContentAutopilot() {
                     {STATUS_BADGES[post.status].label}
                   </div>
                 )}
-                {post.scheduled_for && (
-                  <Button variant="secondary" size="xs" onClick={() => handleApproveSchedule(post)} disabled={igBlocked}>
-                    {igBlocked
-                      ? 'Connect Instagram to schedule'
-                      : `Approve for ${new Date(post.scheduled_for).toLocaleDateString('en-GB', { weekday: 'short' })} ${new Date(post.scheduled_for).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`}
-                  </Button>
-                )}
+                {post.scheduled_for && <span style={{fontSize: 12, color: 'var(--text-secondary)'}}>Suggested: {new Date(post.scheduled_for).toLocaleString('en-GB', {weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</span>}
               </div>
               {/* WHY IT DID NOT GO OUT, in Meta's own words.
                   content_posts.failure_reason has been written by the backend
@@ -1303,6 +1305,7 @@ export default function ContentAutopilot() {
                   {post.failure_reason || 'Instagram would not accept this post. Check the photo and try again.'}
                 </p>
               )}
+              {!post.image_url && <Button variant="secondary" onClick={() => beginEdit(post)} disabled={draftAction !== null || publishing === post.id}><Icon name="camera" size={16} /> Add a photo</Button>}
               {/* Image */}
               {post.image_url && (
                 <div style={styles.imageContainer}>
@@ -1313,6 +1316,16 @@ export default function ContentAutopilot() {
               {/* Caption */}
               {editingId === post.id ? (
                 <div style={styles.editArea}>
+                  <label style={styles.fieldLabel}>Photo
+                    <input aria-label="Draft photo" type="file" accept="image/*" disabled={draftAction !== null} style={styles.fileInput} onChange={e => { const file=e.target.files?.[0]; if(file) {setEditPhoto(file);setEditPhotoPreview(URL.createObjectURL(file));} }} />
+                  </label>
+                  {editPhotoPreview && <img src={editPhotoPreview} alt="Draft photo preview" style={{width:'100%',maxHeight:220,objectFit:'contain',borderRadius:12,marginBottom:10}} />}
+                  {gallery.length > 0 && <label style={styles.fieldLabel}>Or use a gallery photo
+                    <select aria-label="Draft gallery photo" disabled={draftAction !== null} value={editPhoto ? '' : (editPhotoUrl || '')} style={styles.streamFormInput} onChange={e => {setEditPhoto(null);setEditPhotoUrl(e.target.value || null);setEditPhotoPreview(e.target.value || null);}}>
+                      <option value="">Choose a photo</option>
+                      {gallery.flatMap(item => [['Before',item.before_url],['After',item.after_url]]).filter(([,url])=>url).map(([label,url],i)=><option key={`${url}-${i}`} value={url}>{label} photo {i+1}</option>)}
+                    </select>
+                  </label>}
                   <textarea
                     aria-label="Draft caption"
                     disabled={draftAction !== null}
@@ -1322,6 +1335,7 @@ export default function ContentAutopilot() {
                     rows={4}
                     autoFocus
                   />
+                  <label style={styles.fieldLabel}>Hashtags<input aria-label="Draft hashtags" value={editHashtags} disabled={draftAction !== null} onChange={e=>setEditHashtags(e.target.value)} style={styles.streamFormInput} /></label>
                   <div style={styles.editActions}>
                     <Button size="sm" disabled={draftAction !== null} onClick={() => handleEditSave(post.id)}>{draftAction === post.id ? 'Saving…' : 'Save'}</Button>
                     <button className="fl-tap" disabled={draftAction !== null} onClick={() => setEditingId(null)} style={styles.cancelEditBtn}>Cancel</button>
@@ -1338,6 +1352,7 @@ export default function ContentAutopilot() {
                   ))}
                 </div>
               )}
+              {editingId !== post.id && <Button variant="secondary" style={{marginBottom:10}} disabled={draftAction !== null || publishing === post.id || !post.image_url || igBlocked} onClick={() => chooseSchedule(post)}><Icon name="calendar" size={15} /> Choose posting time</Button>}
               {/* Actions */}
               {editingId !== post.id && (
                 <div style={styles.actions}>
@@ -1366,7 +1381,7 @@ export default function ContentAutopilot() {
                     variant="tonal"
                     size="sm"
                     disabled={draftAction !== null || publishing === post.id}
-                    onClick={() => { setEditingId(post.id); setEditCaption(post.caption || ''); }}
+                    onClick={() => beginEdit(post)}
                   >
                     Edit
                   </Button>
@@ -1569,6 +1584,7 @@ export default function ContentAutopilot() {
               <div style={styles.galleryCardFooter}>
                 <span style={styles.galleryTreatmentName}>{item.treatment_name}</span>
                 {item.caption && <span style={styles.galleryCaption}>{item.caption}</span>}
+                <Button variant="secondary" onClick={() => startCompose('before_after', item.caption || '', item.after_url || item.image_url)}>Draft with this after photo</Button>
                 <span style={styles.galleryDate}>
                   {new Date(item.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
                 </span>
@@ -1619,6 +1635,8 @@ const DEV_DRAFTS = [
   },
 ];
 const styles = {
+  fieldLabel: {display:'flex',flexDirection:'column',gap:7,fontSize:12,fontWeight:600,color:'var(--text-secondary)',marginBottom:12},
+  fileInput: {width:'100%',minHeight:44,fontSize:14,marginTop:4},
   page: {
     minHeight: 'var(--shell-viewport)',
     background: 'transparent',

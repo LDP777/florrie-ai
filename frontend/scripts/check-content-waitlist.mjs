@@ -26,11 +26,11 @@ try {
       const json=(data,status=200)=>Promise.resolve(new Response(JSON.stringify(data),{status,headers:{'content-type':'application/json'}}));
       if (url.includes('/api/voice/command')) { window.__voiceCalls++; return json({reply:'Synthetic diary answer',tools_used:[]}); }
       if (/\/api\/content(?:\?|$)/.test(url)) return json({posts:[{id:'draft1',status:'draft',post_type:'general',caption:window.__draftTest.caption,created_at:'2026-09-07'}]});
-      if(url.includes('/rest/v1/content_posts?') && ['PATCH','DELETE'].includes(method)) {
+      if((url.includes('/rest/v1/content_posts?') || url.includes('/api/content/draft1')) && ['PATCH','DELETE'].includes(method)) {
         window.__draftTest.writes.push(method);
         if(window.__draftTest.fail) return json({message:'Synthetic write refused'},500);
-        if(method==='PATCH') { window.__draftTest.caption=JSON.parse(opts.body).caption;return json({id:'draft1',caption:window.__draftTest.caption}); }
-        return Promise.resolve(new Response(null,{status:204}));
+        if(method==='PATCH') { window.__draftTest.caption=JSON.parse(opts.body).caption;return json({post:{id:'draft1',status:'draft',post_type:'general',...JSON.parse(opts.body)}}); }
+        return json({success:true});
       }
       if(url.includes('/api/features/waitlist')) {
         const entry={id:'w1',client_id:'c1',status:'waiting',priority:'regular',created_at:'2026-09-06',clients:{first_name:'Waitlist',last_name:'Fixture'},treatments:{name:'Brows'}};
@@ -55,7 +55,7 @@ try {
   await page.getByRole('button',{name:'Edit',exact:true}).click();
   await page.getByRole('textbox',{name:'Draft caption'}).fill('Keep my revised caption');
   await page.getByRole('button',{name:'Save',exact:true}).click();
-  await page.getByRole('alert').filter({hasText:'Could not save this caption.'}).waitFor();
+  await page.getByRole('alert').filter({hasText:'Could not save this draft.'}).waitFor();
   assert.equal(await page.getByRole('textbox',{name:'Draft caption'}).inputValue(),'Keep my revised caption');
   await page.evaluate(()=>{window.__draftTest.fail=false;});
   await page.getByRole('button',{name:'Save',exact:true}).click();

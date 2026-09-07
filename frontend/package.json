@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "vite",
     "check:native-auth": "node --test src/lib/native-auth.test.mjs",
-    "check:today-load": "node --test src/lib/dedupe-json-fetch.test.mjs src/lib/authenticated-json.test.mjs src/lib/activity-read.test.mjs src/lib/voice-command.test.mjs",
+    "check:today-load": "node --test src/lib/dedupe-json-fetch.test.mjs src/lib/authenticated-json.test.mjs src/lib/activity-read.test.mjs src/lib/voice-command.test.mjs src/lib/content-workflow.test.mjs",
     "check:today:browser": "node scripts/check-today-loading.mjs",
     "build": "npm run check:native-auth && npm run check:today-load && npm run check:icons && npm run check:icon-usage && npm run check:chrome && npm run check:primitives && npm run check:tap && npm run check:dedupe && npm run check:brand && npm run check:em-dash && npm run check:render && vite build",
     "preview": "vite preview",
@@ -43,7 +43,7 @@
     "check:swatches": "node scripts/check-swatches.mjs",
     "check:live": "node scripts/check-live.mjs",
     "check:care": "node scripts/check-care-hub.mjs && node scripts/check-care-workflows.mjs",
-    "check:more": "node --test src/pages/more-*.test.mjs && node scripts/check-more-reliability.mjs && node scripts/audit-owner-pages-20260906.mjs && node scripts/check-content-waitlist.mjs && node scripts/check-workspace-visuals.mjs"
+    "check:more": "node --test src/pages/more-*.test.mjs && node scripts/check-more-reliability.mjs && node scripts/audit-owner-pages-20260906.mjs && node scripts/check-content-waitlist.mjs && node scripts/check-workspace-visuals.mjs && node scripts/check-content-completion.mjs"
   },
   "dependencies": {
     "@capacitor-community/apple-sign-in": "^6.0.0",

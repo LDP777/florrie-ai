@@ -130,7 +130,7 @@ Return ONLY the caption text. No quotes, no explanation, no hashtag suggestions 
           type: 'text',
           text: canSeePhoto
             ? `Write an Instagram caption for this ${treatmentType || 'beauty treatment'} photo. Describe what you can actually see in it: the shape, the colour, the finish. Never describe anything that is not in the picture.${additionalContext ? ` Context: ${additionalContext}` : ''}`
-            : `Write an Instagram caption for a ${treatmentType || 'beauty treatment'} before/after photo.${additionalContext ? ` Context: ${additionalContext}` : ''}`,
+            : `Write an Instagram caption about ${treatmentType || 'the salon'} using the supplied context. No photo has been supplied: do not claim visual results, name clients, or invent offers or availability.${additionalContext ? ` Context: ${additionalContext}` : ''}`,
         },
       ],
     }],
