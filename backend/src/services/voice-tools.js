@@ -35,6 +35,11 @@ const stripe = process.env.STRIPE_SECRET_KEY
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://florrie.ai';
 
 export const TOOL_DEFINITIONS = [
+  {
+    name: 'get_florrie_brief',
+    description: 'Read the same evidence shown in Insights: completed work, approval queue, background checks, writing learned and business patterns. Use when asked what needs attention, what Florrie has done or learned, or how the business is doing. Unknown or partial data is not zero. Checks do not prove message delivery. Do not claim these are independent AI minds.',
+    input_schema: { type: 'object', properties: {}, additionalProperties: false },
+  },
 
   {
     name: 'check_schedule',
@@ -422,6 +427,11 @@ Nothing happens on your say-so: this comes back as a card she confirms.`,
 export async function executeTool(toolName, toolInput, beautician, supabase) {
   try {
     switch (toolName) {
+      case 'get_florrie_brief': {
+        const { buildIntelligenceBrief } = await import('./intelligence-brief.js');
+        const data = await buildIntelligenceBrief(beautician, supabase);
+        return { result: JSON.stringify({ instruction: 'Explain evidence, sampling and missing sources; ask before any changes or messages.', brief: data }), data };
+      }
       case 'get_settings':          return await toolGetSettings(toolInput, beautician);
       case 'change_setting':        return await toolChangeSetting(toolInput, beautician, supabase);
       case 'check_schedule':        return await toolCheckSchedule(toolInput, beautician, supabase);

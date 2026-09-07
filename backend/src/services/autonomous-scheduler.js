@@ -1,3 +1,4 @@
+import { processReviewRequests } from './review-requests.js';
 /**
  * Autonomous Scheduler — Florrie's proactive brain.
  *
@@ -12,13 +13,10 @@
  */
 import { supabase } from '../config.js';
 import { normaliseOutcome } from '../lib/ai-actions.js';
-import { refreshAllIntelligence } from './client-intelligence.js';
 import { draftAvailabilityPost } from './content-autopilot.js';
 import { processInboundMessage } from './ai-front-desk.js';
 import { sendNudge } from './notifications.js';
 import { shouldAutoSend } from './sms-metering.js';
-import { runValueCoaching } from './value-coaching.js';
-import { processReviewRequests } from './review-requests.js';
 import { pushTeamUpdate } from './push-notifications.js';
 import { checkGapFillOpportunities } from './gap-fill-engine.js';
 import { guardedSend } from '../lib/outbound-guard.js';
@@ -75,25 +73,14 @@ export async function runAutonomousCycle() {
     }
 
     logger.info(`Autonomous scheduler: cycle complete for ${beauticians.length} beauticians`);
-
-    // Value coaching self-gates per beautician (weekly cadence lives inside
-    // runValueCoaching now), so just run it each cycle - it skips anyone already
-    // coached this week and only does real work for those due.
-    try {
-      await runValueCoaching();
-    } catch (err) {
-      logger.error({ err }, 'Value coaching trigger failed');
-    }
-
-    // Process any due review requests (2hr delayed from appointment completion)
+    // Preserve the existing review-request trigger and messaging permissions.
     try {
       const reviewResult = await processReviewRequests();
-      if (reviewResult.sent > 0) {
-        logger.info(reviewResult, 'Review requests: sent');
-      }
+      if (reviewResult.sent > 0) logger.info(reviewResult, 'Review requests: sent');
     } catch (err) {
       logger.error({ err }, 'Review requests processing failed');
     }
+
   } catch (err) {
     logger.error({ err }, 'Autonomous scheduler: fatal error');
   }

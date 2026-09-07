@@ -1,3 +1,4 @@
+import { getFlorrieThoughts } from '../services/florrie-thinking.js';
 import { Router } from 'express';
 import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -112,9 +113,10 @@ router.post('/respond', requireAuth, async (req, res) => {
 
   if (error) {
     logger.error({ err: error }, 'Failed to record florrie_decision');
-    // Don't fail the request, the user already tapped, we don't want to crash the UI.
+    return res.status(503).json({ error: 'Could not save your choice. Try again.' });
   }
 
+  getFlorrieThoughts.invalidate(beauticianId);
   res.json({ ok: true, decision_id: data?.id || null, acted_on: actedOn });
 });
 

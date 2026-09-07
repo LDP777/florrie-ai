@@ -1,3 +1,4 @@
+import { correctionVoiceHints } from '../lib/voice-corrections.js';
 import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import { supabase } from '../config.js';
@@ -1995,18 +1996,17 @@ move it themselves and see the real availability.`;
  * 2. Failing that, whatever her own corrections have taught us.
  * 3. Failing that, plain and neutral.
  *
- * These are alternatives, never a stack. The old code emitted the hardcoded
+ * Choose one base, then let recent structural corrections override older habits. The old code emitted the hardcoded
  * default tone AND the voice profile together, so a prompt could carry
  * 'Use "Hi [name]" not "Hey [name]"' and 'she opens with "hey lovely"' in the
  * same breath, plus "no emojis unless the client uses them first" over the top
  * of her measured emoji habit. Handed a contradiction, a model splits the
  * difference, and the difference is the generic message her clients spotted.
  */
-function buildVoiceInstructions(beautician, incomingMessage) {
+export function buildVoiceInstructions(beautician, incomingMessage) {
   const measured = renderVoiceSection(beautician?.voice_profile, incomingMessage);
-  if (measured) return measured;
-  const learned = buildToneGuide(beautician?.tone_model);
-  return learned || NEUTRAL_VOICE_SECTION;
+  const base = measured || buildToneGuide(beautician?.tone_model) || NEUTRAL_VOICE_SECTION;
+  return [base, correctionVoiceHints(beautician?.tone_model)].filter(Boolean).join('\n\n');
 }
 
 function buildToneGuide(toneModel) {
@@ -2033,106 +2033,30 @@ function buildToneGuide(toneModel) {
 /**
  * Learn from a tone correction.
  * Called when the beautician edits a suggested response before sending.
- * After 10 corrections, the tone model stabilises.
+ * Saved after delivery; structural preferences inform the next draft.
  */
 export async function learnFromCorrection(beauticianId, originalResponse, correctedResponse) {
-  const { data: beautician } = await supabase
-    .from('beauticians')
-    .select('tone_model')
-    .eq('id', beauticianId)
-    .single();
-
-  const toneModel = beautician?.tone_model || {};
-  const corrections = toneModel.corrections || [];
-
-  corrections.push({
-    original: originalResponse,
-    corrected: correctedResponse,
-    timestamp: new Date().toISOString()
-  });
-
-  // After enough corrections, analyse patterns
-  if (corrections.length >= 5) {
-    const analysed = await analyseTonePatterns(corrections);
-    Object.assign(toneModel, analysed);
+  if (!originalResponse || !correctedResponse || originalResponse === correctedResponse) return { saved: false };
+  // Save before any model work. Learning is never part of the delivery gate.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { data, error } = await supabase.from('beauticians').select('tone_model').eq('id', beauticianId).single();
+    if (error || !data) throw new Error('Could not read the voice correction history');
+    const previous = data.tone_model;
+    const toneModel = { ...(previous || {}) };
+    toneModel.corrections = [...(toneModel.corrections || []), {
+      original: String(originalResponse).slice(0, 2000),
+      corrected: String(correctedResponse).slice(0, 2000),
+      timestamp: new Date().toISOString(),
+    }].slice(-20);
+    let query = supabase.from('beauticians').update({ tone_model: toneModel }).eq('id', beauticianId);
+    query = previous == null ? query.is('tone_model', null) : query.eq('tone_model', JSON.stringify(previous));
+    const result = await query.select('id');
+    if (result.error) throw new Error('Could not save the voice correction');
+    if (result.data?.length) return { saved: true };
   }
-
-  toneModel.corrections = corrections.slice(-20); // Keep last 20
-
-  await supabase
-    .from('beauticians')
-    .update({ tone_model: toneModel })
-    .eq('id', beauticianId);
+  throw new Error('Voice correction changed concurrently; refresh required');
 }
 
-async function analyseTonePatterns(corrections) {
-  const examples = corrections.map(c =>
-    `Original: "${c.original}"\nCorrected: "${c.corrected}"`
-  ).join('\n\n');
-
-  const response = await anthropic.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 300,
-    system: `Analyse these message corrections to extract communication style patterns. The "corrected" versions show how this beautician actually talks to clients.
-
-Return JSON with:
-{
-  "greetingStyle": "how they typically open messages",
-  "signoffStyle": "how they end messages",
-  "emojiUsage": "never / rarely / moderate / frequent",
-  "formality": "casual / warm-professional / formal",
-  "keyPhrases": ["phrases they commonly use"],
-  "avoidPhrases": ["phrases they consistently removed"],
-  "exampleMessages": ["2-3 corrected messages that best represent their style"]
-}`,
-    messages: [{ role: 'user', content: examples }]
-  });
-
-  try {
-    const text = response.content[0].text.trim();
-    const jsonStr = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    const raw = JSON.parse(jsonStr);
-
-    // Validate tone analysis output
-    const toneSchema = z.object({
-      greetingStyle: z.string().max(500).default(''),
-      signoffStyle: z.string().max(500).default(''),
-      emojiUsage: z.enum(['never', 'rarely', 'moderate', 'frequent']).default('moderate'),
-      formality: z.enum(['casual', 'warm-professional', 'formal']).default('warm-professional'),
-      keyPhrases: z.array(z.string().max(200)).max(20).default([]),
-      avoidPhrases: z.array(z.string().max(200)).max(20).default([]),
-      exampleMessages: z.array(z.string().max(1000)).max(5).default([])
-    });
-
-    const validated = toneSchema.safeParse(raw);
-    if (!validated.success) {
-      logger.warn({ issues: validated.error.issues, raw }, 'Tone pattern AI output failed validation');
-      return {};
-    }
-    return validated.data;
-  } catch (err) {
-    logger.warn({ err }, 'Tone pattern analysis parse error');
-    return {};
-  }
-}
-
-// HELPERS
-
-// Wall-frame labels. The date string already IS the salon's wall clock, so it
-// is parsed as UTC and read with getUTC*: any locale conversion here would
-// shift the day by an hour in BST and put a client at the wrong door.
-const SLOT_DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const SLOT_MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-// Prompts get a readable list, not 200 lines of it. The guard's allow-list
-// still holds every slot, so trimming the prompt can only make Florrie offer
-// fewer real times, never a fake one.
-const SLOTS_SHOWN_IN_PROMPT = 40;
-
-function formatSlot(slot) {
-  const d = new Date(`${slot.date}T00:00:00Z`);
-  return `${SLOT_DAY_NAMES[d.getUTCDay()]} ${d.getUTCDate()} ${SLOT_MONTH_NAMES[d.getUTCMonth()]} ${slot.time}`;
-}
 
 /**
  * The availability block every reply prompt gets.

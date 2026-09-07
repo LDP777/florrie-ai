@@ -144,7 +144,11 @@ export default function Hub() {
               {beautician?.id && <ActivityFeed key={beautician.id} limit={50} compact />}
             </div>
             <aside className="today-support" aria-label="Suggestions and business overview">
-              <div id="florrie-suggestions"><SuggestionCards /></div>
+              <div id="florrie-suggestions"><SuggestionCards key={beautician?.id} /></div>
+              <button className="today-card" style={{ width: '100%', textAlign: 'left', padding: 20, color: 'var(--accent)', cursor: 'pointer' }} onClick={() => navigate('/insights')}>
+                <strong>Florrie’s brief <Icon name="arrow-right" size={16} /></strong>
+                <p style={{ margin: '8px 0 0', fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>Your insights, what she’s learned and the work happening in the background.</p>
+              </button>
               <ValueReceipt />
               <details className="today-card today-disclosure today-setup">
                 <summary><span>Setup & message usage</span><Icon name="chevron-down" size={16} /></summary>

@@ -455,7 +455,7 @@ export default function VoiceCommander() {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const processingRef = useRef(false);
-  const [textInput, setTextInput] = useState('');
+  const [textInput, setTextInput] = useState(() => typeof location.state?.prompt === 'string' ? location.state.prompt.slice(0, 1000) : '');
   const [pulseAnim, setPulseAnim] = useState(false);
   const [interimTranscript, setInterimTranscript] = useState('');
   const [speechSupported, setSpeechSupported] = useState(!!SpeechRecognition);

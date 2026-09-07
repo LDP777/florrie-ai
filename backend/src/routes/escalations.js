@@ -163,11 +163,6 @@ router.post('/:messageId/resolve', requireAuth, async (req, res) => {
     finalResponse = guarded.text;
   }
 
-  // If they edited the response, learn from the correction
-  if (action === 'send_edited' && message.ai_response && response !== message.ai_response) {
-    await learnFromCorrection(req.beautician.id, message.ai_response, response);
-  }
-
   // Fetch client for sending
   const { data: client } = await supabase
     .from('clients')
@@ -224,6 +219,10 @@ router.post('/:messageId/resolve', requireAuth, async (req, res) => {
 
   logger.info({ clientId: client?.id, channel: sentChannel }, 'Escalation response sent');
   res.json({ success: true, sent: finalResponse });
+  if (action === 'send_edited' && message.ai_response && finalResponse !== message.ai_response) {
+    learnFromCorrection(req.beautician.id, message.ai_response, finalResponse)
+      .catch(err => logger.warn({ err, beauticianId: req.beautician.id }, 'Reply delivered; voice correction could not be saved'));
+  }
 });
 
 /**

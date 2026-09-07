@@ -36,6 +36,7 @@ export const MORE_CATEGORIES = [
   ] },
   { id: 'money', label: 'Money & reports', desc: 'Income, expenses and performance', matIcon: 'payments', items: [
     { path: '/money',          label: 'Money',            matIcon: 'account_balance_wallet', desc: 'Income and revenue dashboard'            },
+    { path: '/insights', label: 'Florrie’s brief', matIcon: 'auto_awesome', desc: 'Insights, learning and background work', keywords: 'agents intelligence thinks does voice' },
     { path: '/analytics',     label: 'Analytics',        matIcon: 'analytics',   desc: 'Performance and reports'   },
     { path: '/expenses',      label: 'Expenses',         matIcon: 'receipt_long', desc: 'Track outgoings'          },
     { path: '/deposits',      label: 'Deposits',         matIcon: 'savings',     desc: 'Held payments'             },

@@ -119,9 +119,9 @@ router.get('/stats', requireAuth, async (req, res) => {
       return count || 0;
     };
     const [total, messages, bookings, gaps] = await Promise.all([
-      countOf(null),
-      countOf(q => q.eq('action_type', 'message_replied')),
-      countOf(q => q.eq('action_type', 'booking_created')),
+      countOf(q => q.eq('outcome', 'success').or('details->>heartbeat.is.null,details->>heartbeat.eq.false')),
+      countOf(q => q.eq('action_type', 'message_replied').eq('outcome', 'success')),
+      countOf(q => q.eq('action_type', 'booking_created').eq('outcome', 'success')),
       countOf(q => q.in('action_type', ['gap_fill', 'gap_fill_waitlist', 'gap_fill_rebook', 'gap_fill_dormant', 'gap_fill_rebook_overdue', 'cancellation_filled']).eq('outcome', 'success')),
     ]);
     res.json({ total_actions: total, messages_handled: messages, bookings_created: bookings, gaps_closed: gaps });
@@ -175,7 +175,7 @@ function friendlySummary(row) {
     case 'bundle_suggested':      return who ? `Suggested a bundle for ${who}` : 'Suggested a bundle';
     case 'predictive_nudge':      return who ? `Nudged ${who} to rebook` : 'Sent a rebook nudge';
     case 'rebook_nudge':          return who ? `Reminded ${who} to rebook` : 'Sent a rebook reminder';
-    case 'value_coaching':        return 'Spotted a pricing opportunity';
+    case 'value_coaching':        return 'Reviewed your business patterns';
     case 'booking_auto_cancelled':return 'Auto-cancelled an unpaid booking';
     case 'referral_rewarded':     return who ? `Rewarded ${who}'s referral` : 'Issued a referral reward';
     case 'gap_post':              return 'Drafted a post to fill a gap';
@@ -261,7 +261,7 @@ function resolveLink(row) {
     case 'price_suggestion':
       return '/treatments';
     case 'value_coaching':
-      return '/money';
+      return '/insights';
 
     // → clients
     case 'dormant_detected':

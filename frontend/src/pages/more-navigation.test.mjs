@@ -17,13 +17,13 @@ const existingDestinations = [
   '/price-list', '/aftercare', '/compliance', '/patch-tests', '/consultation-forms',
   '/photo-consent', '/analytics', '/expenses', '/packages', '/deposits', '/vouchers',
   '/promos', '/cancellations', '/content', '/campaigns', '/rebook', '/team', '/rota',
-  '/staff-performance', '/locations',
+  '/staff-performance', '/locations', '/insights',
 ];
 
-test('More retains all 44 existing destinations and each still has an application route', () => {
+test('More retains all 45 existing destinations and each still has an application route', () => {
   const cataloguePaths = paths(getVisibleCategories());
-  assert.equal(cataloguePaths.length, 44);
-  assert.equal(new Set(cataloguePaths).size, 44, 'A duplicate must not hide a missing destination');
+  assert.equal(cataloguePaths.length, 45);
+  assert.equal(new Set(cataloguePaths).size, 45, 'A duplicate must not hide a missing destination');
   assert.deepEqual([...cataloguePaths].sort(), [...existingDestinations].sort());
   const app = readFileSync(new URL('../App.jsx', import.meta.url), 'utf8');
   const routes = new Set([...app.matchAll(/<Route\s+path="([^"]+)"/g)].map(match => match[1]));
@@ -40,7 +40,7 @@ test('clients can find renamed care tools using the old name or the task they ne
     ['outbox', '/outbox'],
     ['income', '/money'],
   ]) assert.ok(paths(searchCategories(catalogue, query)).includes(expected), `No useful result for ${query}`);
-  assert.equal(paths(searchCategories(catalogue, '   ')).length, 44);
+  assert.equal(paths(searchCategories(catalogue, '   ')).length, 45);
   assert.deepEqual(searchCategories(catalogue, 'nonexistent-zebra-tool'), []);
 });
 
@@ -69,7 +69,7 @@ test('a pricing link saved on web stays hidden in iOS search and recent history'
   const savedOnWeb = storageWith([{ path: '/pricing' }, { path: '/settings' }]);
   assert.deepEqual(readRecentPages(getVisibleCategories(false), savedOnWeb).map(item => item.path), ['/pricing', '/settings']);
   const ios = getVisibleCategories(true);
-  assert.equal(paths(ios).length, 43);
+  assert.equal(paths(ios).length, 44);
   assert.ok(!paths(ios).includes('/pricing'));
   assert.ok(!paths(searchCategories(ios, 'billing')).includes('/pricing'));
   assert.deepEqual(readRecentPages(ios, savedOnWeb).map(item => item.path), ['/settings']);

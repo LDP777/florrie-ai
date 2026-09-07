@@ -44,7 +44,7 @@ import {
   AUTHOR,
 } from '../lib/idiolect.js';
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: 15000, maxRetries: 0 });
 
 // How far back to look. Deliberately generous: a solo beautician sends a few
 // hundred real messages a month, and the more of her own words we have the less
@@ -222,9 +222,9 @@ Respond with JSON only: {"never_say": ["..."]}, at most 10 items, lower case, no
  * Build (or refresh) the voice profile for one beautician.
  * Returns the profile, or null when there is not enough of her own writing yet.
  */
-export async function buildVoiceProfile(beauticianId) {
+export async function buildVoiceProfile(beauticianId, { strict = false } = {}) {
   const history = await loadHistory(beauticianId);
-  if (!history) return null;
+  if (!history) { if (strict) throw new Error('Could not read voice history'); return null; }
 
   const names = await loadClientNames(history.map(m => m.client_id));
   const knownDrafts = await loadKnownDrafts(beauticianId);
@@ -280,7 +280,8 @@ export async function buildVoiceProfile(beauticianId) {
   if (upErr) {
     // This failed silently every week for anyone whose database never got the
     // voice_profile column, which lived only in docs/sql. Loud now.
-    logger.error({ err: upErr, beauticianId }, 'voice profile: SAVE FAILED, replies will keep using the neutral voice');
+    logger.error({ err: upErr, beauticianId }, 'voice profile: save failed; existing voice preserved');
+    if (strict) throw new Error('Could not save voice profile');
     return null;
   }
 
@@ -296,27 +297,38 @@ export async function buildVoiceProfile(beauticianId) {
 }
 
 /**
- * Weekly sweep: refresh every active beautician's profile.
+ * Hourly sweep: refresh profiles only when there is new human-authored writing.
  */
 export async function runVoiceProfileRefresh() {
   const { data: beauticians, error } = await supabase
     .from('beauticians')
-    .select('id')
+    .select('id, voice_profile_updated_at')
+    .order('id')
     .limit(500);
   if (error) {
     logger.warn({ err: error }, 'voice profile sweep: beautician list failed');
-    return { refreshed: 0 };
+    throw new Error('Voice profile refresh could not read owners');
   }
 
   let refreshed = 0;
+  let failed = 0;
   for (const b of beauticians || []) {
     try {
-      const p = await buildVoiceProfile(b.id);
+      if (b.voice_profile_updated_at) {
+        const { data: newer, error: changedError } = await supabase.from('messages')
+          .select('id').eq('beautician_id', b.id).eq('direction', 'outbound').eq('authored_by', AUTHOR.HUMAN)
+          .gt('created_at', b.voice_profile_updated_at).limit(1);
+        if (changedError) throw new Error('Could not check new writing');
+        if (!newer?.length) continue;
+      }
+      const p = await buildVoiceProfile(b.id, { strict: true });
       if (p) refreshed++;
     } catch (err) {
+      failed++;
       logger.warn({ err, beauticianId: b.id }, 'voice profile sweep: one beautician failed');
     }
   }
+  if (failed) throw new Error(`Voice refresh failed for ${failed} owners; ${refreshed} refreshed`);
   return { refreshed, total: (beauticians || []).length };
 }
 

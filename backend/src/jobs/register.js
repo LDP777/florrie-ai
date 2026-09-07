@@ -1,3 +1,5 @@
+import { runValueCoaching } from '../services/value-coaching.js';
+import { runClientIntelligenceRefresh } from '../services/client-intelligence.js';
 import { retryAccountDeletions } from '../services/account-deletion.js';
 import { retryReschedulePayments } from '../services/reschedule-payments.js';
 import { retryBookingConfirmedAlerts } from '../services/booking-confirmed-alert.js';
@@ -70,6 +72,8 @@ const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
 export const JOBS = [
+  { name: 'value-coaching', description: 'derive weekly insights from completed bookings', intervalMs: HOUR, startupDelayMs: 4 * MINUTE, handler: runValueCoaching },
+  { name: 'client-intelligence-refresh', description: 'refresh visit patterns from completed appointments', intervalMs: HOUR, startupDelayMs: 4 * MINUTE, leaseMs: 30 * MINUTE, handler: runClientIntelligenceRefresh },
   { name: 'account-deletion-cleanup', description: 'resume incomplete account deletion requests', intervalMs: 5 * MINUTE, handler: retryAccountDeletions },
   {
     name: 'reschedule-payment-recovery',
@@ -143,15 +147,10 @@ export const JOBS = [
     handler: runWeekInReview,
   },
   {
-    // Renamed from 'voice-profile-refresh' on purpose. The scheduler keys off
-    // job_runs by NAME and only reruns a job a week after its last success, so
-    // under the old name every profile would stay in the v1 shape (adjectives,
-    // trained on Florrie's own output) for up to seven days after this deploy.
-    // A new name has no history, so it runs at startup and every profile is
-    // rebuilt from her real messages on the first boot after the migration.
+    // Keep the durable job identity. Check hourly, rebuild only after new writing.
     name: 'voice-profile-refresh-v2',
     description: 'measure each beautician own writing style from her own messages',
-    intervalMs: 7 * DAY,
+    intervalMs: HOUR,
     handler: runVoiceProfileRefresh,
     startupDelayMs: 5 * MINUTE,
     leaseMs: 30 * MINUTE,

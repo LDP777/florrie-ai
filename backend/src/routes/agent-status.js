@@ -1,3 +1,5 @@
+import { AGENTS, agentEvidence, EVIDENCE_JOBS } from '../lib/agent-evidence.js';
+import { getIntelligenceBrief } from '../services/intelligence-brief.js';
 /**
  * Agent Status API - powers the iOS widget + dashboard agent avatars.
  *
@@ -22,140 +24,32 @@ import logger from '../lib/logger.js';
 
 const router = Router();
 
-// Agent definitions - each maps to action_types in ai_actions table
-const AGENTS = [
-  {
-    id: 'front_desk',
-    name: 'Front Desk',
-    avatar: '💬',
-    colour: '#C76B8A',
-    actionTypes: ['message_replied', 'message_escalated', 'booking_confirmed', 'booking_rescheduled', 'booking_cancelled', 'booking_auto_cancelled'],
-    sleepLabel: 'Waiting for messages',
-    activeVerbs: ['Replied to a client', 'Booked an appointment', 'Escalated a message', 'Confirmed a booking', 'Rescheduled an appointment', 'Cancelled a booking', 'Freed up a no-show slot'],
-  },
-  {
-    id: 'content_creator',
-    name: 'Content Studio',
-    avatar: '🎨',
-    colour: '#D4943A',
-    actionTypes: ['content_drafted', 'content_posted', 'gap_post'],
-    sleepLabel: 'Brainstorming content',
-    activeVerbs: ['Drafted a post', 'Published to Instagram', 'Created a gap-filler post'],
-  },
-  {
-    id: 'client_intel',
-    name: 'Client Intel',
-    avatar: '🔮',
-    colour: '#7B6BA8',
-    actionTypes: ['rebook_nudge', 'predictive_nudge'],
-    sleepLabel: 'Analysing client patterns',
-    activeVerbs: ['Sent a rebook nudge', 'Predicted a client need', 'Spotted a lapsed regular'],
-  },
-  {
-    id: 'bookkeeper',
-    name: 'Bookkeeper',
-    avatar: '💷',
-    colour: '#5BA97B',
-    actionTypes: ['income_logged', 'expense_logged', 'tax_drafted', 'receipt_processed'],
-    sleepLabel: 'Balancing the books',
-    activeVerbs: ['Logged an income', 'Flagged an expense', 'Drafted a tax filing', 'Processed a receipt'],
-  },
-  {
-    id: 'business_coach',
-    name: 'Biz Coach',
-    avatar: '📊',
-    colour: '#4A90D9',
-    actionTypes: ['value_coaching'],
-    sleepLabel: 'Crunching numbers',
-    activeVerbs: ['Delivered weekly insights', 'Found a pricing opportunity', 'Spotted a revenue trend'],
-  },
-  {
-    id: 'guardian',
-    name: 'Guardian',
-    avatar: '🛡️',
-    colour: '#C9A96E',
-    actionTypes: ['review_request', 'follow_up', 'aftercare_sent'],
-    sleepLabel: 'Protecting your reputation',
-    activeVerbs: ['Requested a review', 'Sent aftercare instructions', 'Followed up with a client'],
-  },
-];
-
 /**
  * GET /api/agents/status — full agent status for dashboard widget
  */
+router.get('/brief', requireAuth, async (req, res) => {
+  try { res.json(await getIntelligenceBrief(req.beautician)); }
+  catch { res.status(503).json({ error: 'Could not check Florrie’s work. Try again.' }); }
+});
+
 router.get('/status', requireAuth, async (req, res) => {
   try {
-    const beauticianId = req.beautician.id;
-    const now = new Date();
-    const twentyFourHoursAgo = new Date(now - 24 * 60 * 60 * 1000);
-    const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
-
-    // Pull last 7 days of ai_actions for this beautician
-    const { data: actions, error } = await supabase
-      .from('ai_actions')
-      .select('id, action_type, status, created_at, details')
-      .eq('beautician_id', beauticianId)
-      .gte('created_at', sevenDaysAgo.toISOString())
-      .order('created_at', { ascending: false })
-      .limit(200);
-
-    if (error) {
-      return res.status(500).json({ error: 'Failed to fetch agent data' });
-    }
-
-    const agents = AGENTS.map((agent) => {
-      const agentActions = (actions || []).filter((a) =>
-        agent.actionTypes.includes(a.action_type)
-      );
-
-      const last24h = agentActions.filter(
-        (a) => new Date(a.created_at) >= twentyFourHoursAgo
-      );
-
-      const lastAction = agentActions[0] || null;
-      const isActive = last24h.length > 0;
-
-      // Pick a human-readable status line
-      let statusLine = agent.sleepLabel;
-      if (lastAction) {
-        const verb = agent.activeVerbs[
-          agent.actionTypes.indexOf(lastAction.action_type)
-        ] || agent.activeVerbs[0];
-        const ago = timeAgo(new Date(lastAction.created_at), now);
-        statusLine = `${verb} ${ago}`;
-      }
-
-      return {
-        id: agent.id,
-        name: agent.name,
-        avatar: agent.avatar,
-        colour: agent.colour,
-        isActive,
-        actionsToday: last24h.length,
-        actionsThisWeek: agentActions.length,
-        statusLine,
-        lastActionAt: lastAction?.created_at || null,
-      };
+    // Dashboard badges stay lightweight; the fuller brief loads only on request.
+    const [activity, jobs] = await Promise.all([
+      supabase.from('ai_actions').select('action_type,outcome,summary,created_at,details')
+        .eq('beautician_id', req.beautician.id).gte('created_at', new Date(Date.now() - 7 * 86400000).toISOString())
+        .order('created_at', { ascending: false }).limit(300).abortSignal(AbortSignal.timeout(6000)),
+      supabase.from('job_runs').select('job_name,last_success_at,consecutive_failures').in('job_name', EVIDENCE_JOBS).abortSignal(AbortSignal.timeout(6000)),
+    ]);
+    const agents = agentEvidence((activity.data || []).filter(a => !a.details?.heartbeat), jobs.data, {
+      actionsAvailable: !activity.error, jobsAvailable: !jobs.error,
     });
-
-    // Overall summary
-    const totalToday = agents.reduce((sum, a) => sum + a.actionsToday, 0);
-    const activeCount = agents.filter((a) => a.isActive).length;
-
-    res.json({
-      agents,
-      summary: {
-        totalActionsToday: totalToday,
-        activeAgents: activeCount,
-        totalAgents: agents.length,
-        headline: activeCount === 0
-          ? 'Your team is resting'
-          : `${activeCount} agent${activeCount > 1 ? 's' : ''} working, ${totalToday} actions today`,
-      },
-    });
-  } catch (err) {
-    res.status(500).json({ error: 'Agent status failed' });
-  }
+    const totalToday = activity.error ? null : agents.reduce((sum, a) => sum + a.actionsToday, 0);
+    res.json({ agents, partial: !!activity.error || !!jobs.error, summary: {
+      totalActionsToday: totalToday, activeAgents: agents.filter(a => a.isActive).length, totalAgents: agents.length,
+      headline: totalToday == null ? 'Activity unavailable' : `${totalToday} completed actions in the last 24 hours`,
+    } });
+  } catch { res.status(503).json({ error: 'Agent status unavailable' }); }
 });
 
 /**
@@ -175,7 +69,7 @@ router.get('/widget', requireAuth, async (req, res) => {
 
     const { data: actions, error } = await supabase
       .from('ai_actions')
-      .select('action_type, created_at')
+      .select('action_type, created_at, outcome, details')
       .eq('beautician_id', beauticianId)
       .gte('created_at', twentyFourHoursAgo.toISOString())
       .order('created_at', { ascending: false })
@@ -187,7 +81,7 @@ router.get('/widget', requireAuth, async (req, res) => {
 
     const agents = AGENTS.map((agent) => {
       const agentActions = (actions || []).filter((a) =>
-        agent.actionTypes.includes(a.action_type)
+        agent.actionTypes.includes(a.action_type) && a.outcome === 'success' && !a.details?.heartbeat
       );
       const isActive = agentActions.length > 0;
       const lastAction = agentActions[0] || null;
@@ -214,8 +108,8 @@ router.get('/widget', requireAuth, async (req, res) => {
     res.json({
       agents,
       headline: activeCount === 0
-        ? 'Team resting'
-        : `${activeCount}/${agents.length} active · ${totalToday} actions`,
+        ? 'No completed actions in the last 24h'
+        : `${activeCount}/${agents.length} with activity · ${totalToday} completed`,
       updatedAt: now.toISOString(),
     });
   } catch (err) {

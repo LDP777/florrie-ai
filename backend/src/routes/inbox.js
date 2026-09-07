@@ -4,7 +4,7 @@ import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
 import { sendOnChannel, shapeMessage } from '../services/messaging.js';
 import { authorshipForSend } from '../lib/idiolect.js';
-import { generateReplySuggestions, replyIsOwed } from '../services/ai-front-desk.js';
+import { generateReplySuggestions, replyIsOwed, learnFromCorrection } from '../services/ai-front-desk.js';
 import { isMissingColumnError } from '../lib/junk-classifier.js';
 import { isSocialLead, clientsEverBooked } from '../lib/inbox-space.js';
 
@@ -742,6 +742,8 @@ router.post('/send', requireAuth, async (req, res) => {
   recordVoiceMetric({ beauticianId: req.beautician.id, clientId: client_id, draft: draft_text, sent: body });
 
   res.json({ ok: true, message: result.message });
+  if (draft_text && body && draft_text !== body) learnFromCorrection(req.beautician.id, draft_text, body)
+    .catch(err => logger.warn({ err, beauticianId: req.beautician.id }, 'Reply delivered; correction could not be saved'));
 });
 
 /** Normalised Levenshtein similarity, 0..1. Texts capped to keep it cheap. */

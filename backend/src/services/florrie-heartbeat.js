@@ -100,17 +100,15 @@ export async function runHeartbeatFor(beautician) {
     () => quietWeekCheck(bid),
   ];
 
-  // Stagger the timestamps over the last hour so the feed shows a natural
-  // sequence rather than five rows at the same second.
-  const now = Date.now();
+  // Each check records when it happened; activity must not invent a timeline.
   const rows = [];
   for (let i = 0; i < checks.length; i++) {
     try {
       const payload = await checks[i]();
       if (!payload) continue;
 
-      // Spread: oldest first by 12 minutes per row, ending now.
-      const ts = new Date(now - (checks.length - 1 - i) * 12 * 60 * 1000);
+      // Actual completion time of this check.
+      const ts = new Date();
       rows.push({
         ...payload,
         beautician_id: bid,

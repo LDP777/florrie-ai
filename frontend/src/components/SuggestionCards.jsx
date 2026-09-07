@@ -1,5 +1,8 @@
+import Button from './ui/Button.jsx';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '../lib/supabase.js';
+import { readAuthenticatedJson } from '../lib/authenticated-json.js';
 import { API_BASE } from '../lib/config.js';
 import Icon, { iconName } from './ui/Icon';
 
@@ -26,16 +29,6 @@ import Icon, { iconName } from './ui/Icon';
  * 30 days.
  */
 
-function getToken() {
-  const key = Object.keys(localStorage).find(k => /^sb-.+-auth-token$/.test(k));
-  if (!key) return null;
-  try {
-    const raw = localStorage.getItem(key);
-    const parsed = JSON.parse(raw);
-    return parsed?.access_token || parsed?.session?.access_token || raw;
-  } catch { return null; }
-}
-
 function poundsFromPence(pence) {
   if (!pence || pence <= 0) return null;
   const pounds = pence / 100;
@@ -43,58 +36,43 @@ function poundsFromPence(pence) {
 }
 
 async function api(path, { method = 'GET', body } = {}) {
-  const token = getToken();
-  const res = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: token ? `Bearer ${token}` : '',
-    },
-    body: body ? JSON.stringify(body) : undefined,
+  return readAuthenticatedJson({ auth: supabase.auth, url: `${API_BASE}${path}`,
+    ...(method !== 'GET' ? { request: async (url, options) => {
+      const response = await fetch(url, { ...options, method,
+        headers: { ...options.headers, 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(12000), body: JSON.stringify(body),
+      });
+      return { ok: response.ok, status: response.status, data: await response.json() };
+    } } : {}),
   });
-  let json = null;
-  try { json = await res.json(); } catch { /* no body */ }
-  return { ok: res.ok, status: res.status, json: json || {} };
 }
 
-export default function SuggestionCards() {
+export default function SuggestionCards({ showEmpty = false }) {
   const [state, setState] = useState({ status: 'loading', cards: [] });
+  const [revision, refresh] = useState(0);
+  const [dismissState, setDismissState] = useState({ busy: null, error: null });
   const navigate = useNavigate();
 
   useEffect(() => {
     let cancelled = false;
-    async function load() {
-      const token = getToken();
-      if (!token) { setState({ status: 'ready', cards: [] }); return; }
-      try {
-        const { ok, json } = await api('/api/florrie-thinks');
-        if (cancelled) return;
-        setState({ status: ok ? 'ready' : 'error', cards: ok ? (json.cards || []) : [] });
-      } catch {
-        if (!cancelled) setState({ status: 'error', cards: [] });
-      }
-    }
-    load();
+    setState(s => ({ ...s, status: 'loading' }));
+    api('/api/florrie-thinks').then(json => {
+      if (!cancelled) setState({ status: 'ready', cards: json.cards || [], partial: json.partial });
+    }).catch(() => { if (!cancelled) setState({ status: 'error', cards: [] }); });
     return () => { cancelled = true; };
-  }, []);
+  }, [revision]);
 
-  function removeCard(id) {
-    setState(prev => ({ ...prev, cards: prev.cards.filter(x => x.id !== id) }));
-  }
-
-  // Persist a dismissal (fire and forget) so the server keeps this card away.
-  // The card id is the stable key: same subject, same key, stays dismissed.
-  function dismiss(card) {
-    api('/api/suggestions/respond', {
-      method: 'POST',
-      body: {
-        suggestion_id: card.id,
-        suggestion_type: card.type,
-        suggestion_payload: { key: card.id },
-        response: 'dismissed',
-      },
-    }).catch(() => {});
-    removeCard(card.id);
+  async function dismiss(card) {
+    if (dismissState.busy) return;
+    setDismissState({ busy: card.id, error: null });
+    try {
+      await api('/api/suggestions/respond', { method: 'POST', body: {
+        suggestion_id: card.id, suggestion_type: card.type,
+        suggestion_payload: { key: card.id }, response: 'dismissed',
+      } });
+      setState(prev => ({ ...prev, cards: prev.cards.filter(x => x.id !== card.id) }));
+      setDismissState({ busy: null, error: null });
+    } catch { setDismissState({ busy: null, error: 'Could not save that choice. Please try again.' }); }
   }
 
   function open(card) {
@@ -118,7 +96,8 @@ export default function SuggestionCards() {
     );
   }
 
-  if (state.status === 'error' || state.cards.length === 0) return null;
+  if (state.status === 'error') return <section style={SC.wrap}><span style={SC.title}>Florrie thinks</span><p role="status">Could not check your priorities.</p><Button variant="secondary" onClick={() => refresh(n => n + 1)}>Retry priorities</Button></section>;
+  if (!state.cards.length && !state.partial && !showEmpty) return null;
 
   return (
     <section style={SC.wrap}>
@@ -126,11 +105,16 @@ export default function SuggestionCards() {
         <span style={SC.title}>Florrie thinks</span>
         <span style={SC.count}>{state.cards.length}</span>
       </div>
+      {state.partial && <p role="status" style={{ fontSize: 13, color: 'var(--text-muted)' }}>Some priorities could not be checked. <Button variant="secondary" onClick={() => refresh(n => n + 1)}>Retry priorities</Button></p>}
+      {!state.cards.length && !state.partial && <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>No priorities found in the sources checked. Your diary and inbox are still here when you need them.</p>}
+      {dismissState.error && <p role="alert">{dismissState.error}</p>}
       <div style={SC.row}>
         {state.cards.map(card => (
           <SuggestionCard
             key={card.id}
             card={card}
+            dismissing={dismissState.busy === card.id}
+            dismissDisabled={!!dismissState.busy}
             onOpen={() => open(card)}
             onEvidence={() => openEvidence(card)}
             onDismiss={() => dismiss(card)}
@@ -141,7 +125,7 @@ export default function SuggestionCards() {
   );
 }
 
-function SuggestionCard({ card, onOpen, onEvidence, onDismiss }) {
+function SuggestionCard({ card, onOpen, onEvidence, onDismiss, dismissing, dismissDisabled }) {
   const impact = poundsFromPence(card.impact_pence);
   return (
     <article style={SC.card}>
@@ -162,8 +146,8 @@ function SuggestionCard({ card, onOpen, onEvidence, onDismiss }) {
         <button onClick={onOpen} style={{ ...SC.btn, ...SC.btnYes }}>
           {card.action_label || 'Open'}
         </button>
-        <button onClick={onDismiss} style={{ ...SC.btn, ...SC.btnNo }}>
-          No
+        <button disabled={dismissDisabled} onClick={onDismiss} style={{ ...SC.btn, ...SC.btnNo }}>
+          {dismissing ? 'Saving…' : 'Not now'}
         </button>
       </div>
     </article>
