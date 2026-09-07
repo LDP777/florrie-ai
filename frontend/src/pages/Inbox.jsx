@@ -4,6 +4,7 @@ import { supabase, useBeautician } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageHeader from '../components/ui/PageHeader.jsx';
+import { FlorrieOrb, EffectFrame } from '../components/ui/FlorrieEffects.jsx';
 import Button from '../components/ui/Button.jsx';
 import { bloom } from '../lib/bloom.js';
 import Icon, { iconName } from '../components/ui/Icon';
@@ -1402,7 +1403,7 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
             </div>
           )}
 
-          <div style={S.composerRow}>
+          <EffectFrame focus active={sending}><div style={S.composerRow}>
             <textarea
               aria-label={`Reply via ${channelOf(channel).label}`}
               ref={composerRef}
@@ -1420,11 +1421,11 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
               style={{ ...S.sendBtn, opacity: composer.trim() && !sending ? 1 : 0.45 }}
               aria-label="Send"
             >
-              {sending ? '…' : (
+              {sending ? <FlorrieOrb state="connecting" size={20} inverse /> : (
                 <Icon name="arrow-up" size={18} inline />
               )}
             </button>
-          </div>
+          </div></EffectFrame>
         </div>
       )}
     </div>

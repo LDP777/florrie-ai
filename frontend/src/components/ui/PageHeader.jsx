@@ -37,7 +37,7 @@ export default function PageHeader({ title, subtitle, eyebrow, action }) {
     : eyebrow;
 
   return (
-    <div style={S.wrap}>
+    <div className="fl-page-heading" style={S.wrap}>
       <div style={S.text}>
         {eyebrowNode ? <div style={S.eyebrowSlot}>{eyebrowNode}</div> : null}
         <h1 style={S.title}>{title}</h1>

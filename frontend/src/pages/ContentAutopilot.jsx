@@ -21,6 +21,7 @@ import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import Icon, { iconName } from '../components/ui/Icon';
+import { FlorrieOrb, EffectFrame, LiquidIndicator } from '../components/ui/FlorrieEffects.jsx';
 import Button from '../components/ui/Button.jsx';
 /**
  * Content Autopilot, Ellie's #1 pain point.
@@ -988,24 +989,23 @@ export default function ContentAutopilot() {
         </div>
       )}
       {/* Tabs */}
-      <div className="fl-studio-tabs" style={styles.tabs} aria-label="Content views">
+      <div className="fl-studio-tabs fl-liquid-tabs" style={{ ...styles.tabs, '--selection-fill': 'var(--accent-light)' }} aria-label="Content views">
+        <LiquidIndicator count={5} index={['ideas', 'drafts', 'posted', 'calendar', 'gallery'].indexOf(tab === 'compose' ? 'drafts' : tab)} />
         {['ideas', 'drafts', 'posted', 'calendar', 'gallery'].map(t => (
           <button className="fl-tap"
             key={t}
             aria-pressed={tab === t || (tab === 'compose' && t === 'drafts')}
             onClick={() => { setTab(t); setComposing(false); }}
             style={{ ...styles.tab,
-              background: (tab === t || (tab === 'compose' && t === 'drafts')) ? 'var(--accent, #92405E)' : 'transparent',
-              // --on-accent, not '#fff'. In dark mode --accent is #ffb1c8 and
-              // white on it measures 1.70:1, so the selected tab's own name
-              // became the least readable word on the screen.
-              color: (tab === t || (tab === 'compose' && t === 'drafts')) ? 'var(--on-accent, #fff)' : 'var(--text-secondary, #574A42)',
+              // Text stays readable while the separate liquid surface moves.
+              color: (tab === t || (tab === 'compose' && t === 'drafts')) ? 'var(--accent)' : 'var(--text-secondary, #574A42)',
             }}
           >
             {t === 'ideas' ? 'Ideas' : t === 'drafts' ? `Drafts${drafts.length ? ` (${drafts.length})` : ''}` : t === 'posted' ? 'Posted' : t === 'calendar' ? 'Calendar' : 'Gallery'}
           </button>
         ))}
       </div>
+      {generatingAI && <EffectFrame active><div className="fl-studio-ai-state" role="status"><FlorrieOrb state="composing" size={48} /><p><strong>Finding your words</strong>Using your treatment, brief and writing style.</p></div></EffectFrame>}
       {/* ═══ IDEAS TAB ═══ */}
       {tab === 'ideas' && (
         <div className="fl-idea-grid" style={styles.postList}>

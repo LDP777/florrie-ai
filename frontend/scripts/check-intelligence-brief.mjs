@@ -52,6 +52,7 @@ try {
   await page.getByRole('button', { name: 'Not now', exact: true }).click();
   await page.getByText('No priorities found', { exact: false }).waitFor();
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Insights fits a phone');
+  await page.getByRole('tab', { name: 'The team', exact: true }).click();
   await page.getByText('Background checks', { exact: true }).click();
   await page.getByText('Not recorded yet', { exact: true }).waitFor();
   const network = page.getByRole('region', { name: 'Florrie at work', exact: true });
@@ -82,11 +83,13 @@ try {
     await page.setViewportSize({ width: 1200, height: 1000 });
     await network.screenshot({ path: join(process.env.INSIGHTS_SCREENSHOTS, 'agent-network-desktop.png') });
     await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByRole('tab', { name: 'Your brief', exact: true }).click();
     await page.evaluate(() => document.getElementById('app-scroll')?.scrollTo(0, 0));
     await page.screenshot({ path: join(process.env.INSIGHTS_SCREENSHOTS, 'insights-phone.png'), fullPage: true });
     await page.setViewportSize({ width: 1200, height: 1000 });
     await page.screenshot({ path: join(process.env.INSIGHTS_SCREENSHOTS, 'insights-desktop.png'), fullPage: true });
   }
+  await page.getByRole('tab', { name: 'Your brief', exact: true }).click();
   await page.getByRole('button', { name: 'Talk it through with Florrie', exact: true }).click();
   await page.waitForURL('**/voice');
   await page.locator('textarea,input').filter({ visible: true }).first().waitFor();

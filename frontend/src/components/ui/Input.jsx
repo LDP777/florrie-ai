@@ -7,6 +7,7 @@
  */
 
 import React, { useState } from 'react';
+import { EffectFrame } from './FlorrieEffects.jsx';
 
 const Input = ({
   label,
@@ -71,7 +72,7 @@ const Input = ({
         </label>
       )}
 
-      {isTextarea ? (
+      <EffectFrame focus className="fl-input-frame">{isTextarea ? (
         <textarea
           value={value}
           onChange={onChange}
@@ -94,7 +95,7 @@ const Input = ({
           style={inputStyle}
           {...props}
         />
-      )}
+      )}</EffectFrame>
 
       {error && (
         <p

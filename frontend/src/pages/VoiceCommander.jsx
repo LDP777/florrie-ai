@@ -1,3 +1,4 @@
+import { FlorrieOrb, EffectFrame } from '../components/ui/FlorrieEffects.jsx';
 import Button from '../components/ui/Button';
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -769,7 +770,7 @@ export default function VoiceCommander() {
   return (
     <div className="fl-voice-workspace" style={styles.page}>
       <header className={`fl-voice-hero ${messages.some(m => m.role === 'user') ? 'is-conversation' : ''}`}>
-        <div className="fl-voice-emblem" aria-hidden="true"><FloriePetal size={56} /><span /><span /></div>
+        <div className="fl-voice-emblem" aria-hidden="true"><FlorrieOrb size={100} state={isRecording ? 'listening' : isProcessing ? 'working' : 'weaving'} /><span /><span /></div>
         <span className="fl-workspace-eyebrow">A little space to think</span>
         <h1>Ask <em>Florrie.</em></h1>
         <p>Your diary, your clients, your next idea.<br />What can I help with?</p>
@@ -848,21 +849,7 @@ export default function VoiceCommander() {
             </div>
           </div>
         ))}
-        {/* Processing indicator */}
-        {isProcessing && (
-          <div style={styles.msgRow}>
-            <div style={styles.agentAvatar}>
-              <FloriePetal size={18} spinning />
-            </div>
-            <div style={{ ...styles.bubble, ...styles.aiBubble }}>
-              <div style={styles.typingDots}>
-                <span style={{ ...styles.typingDot, animationDelay: '0s' }}>·</span>
-                <span style={{ ...styles.typingDot, animationDelay: '0.2s' }}>·</span>
-                <span style={{ ...styles.typingDot, animationDelay: '0.4s' }}>·</span>
-              </div>
-            </div>
-          </div>
-        )}
+        {isProcessing && <div className="fl-voice-processing" role="status"><FlorrieOrb state="working" size={40} /><span>Thinking it through…</span></div>}
         <div ref={messagesEndRef} />
       </div>
       {/* Example prompts */}
@@ -905,7 +892,7 @@ export default function VoiceCommander() {
           </div>
         )}
         {/* Text input row */}
-        <form onSubmit={handleTextSubmit} style={styles.inputForm}>
+        <EffectFrame focus active={isProcessing || isRecording}><form onSubmit={handleTextSubmit} style={styles.inputForm}>
           <input
             ref={inputRef}
             type="text"
@@ -921,7 +908,7 @@ export default function VoiceCommander() {
               ↑
             </button>
           )}
-        </form>
+        </form></EffectFrame>
         {/* Hold-to-talk hint. The mic now lives on the centre nav petal:
             press and hold it to talk. This line teaches the gesture and
             points down toward the nav. */}

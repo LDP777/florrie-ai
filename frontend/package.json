@@ -44,7 +44,7 @@
     "check:live": "node scripts/check-live.mjs",
     "check:care": "node scripts/check-care-hub.mjs && node scripts/check-care-workflows.mjs",
     "check:more": "node --test src/pages/more-*.test.mjs && node scripts/check-more-reliability.mjs && node scripts/audit-owner-pages-20260906.mjs && node scripts/check-content-waitlist.mjs && node scripts/check-workspace-visuals.mjs && node scripts/check-content-completion.mjs && npm run check:intelligence",
-    "check:intelligence": "node scripts/check-intelligence-brief.mjs && node scripts/check-agent-network-loading.mjs"
+    "check:intelligence": "node scripts/check-intelligence-brief.mjs && node scripts/check-agent-network-loading.mjs && node scripts/check-effects.mjs"
   },
   "dependencies": {
     "@capacitor-community/apple-sign-in": "^6.0.0",
@@ -59,11 +59,14 @@
     "@capacitor/status-bar": "^6.0.0",
     "@sentry/react": "^8.0.0",
     "@supabase/supabase-js": "^2.45.0",
+    "border-beam": "1.3.0",
     "exceljs": "^4.4.0",
+    "liquid-gooey": "0.2.1",
     "posthog-js": "^1.369.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-router-dom": "^7.0.0"
+    "react-router-dom": "^7.0.0",
+    "thinking-orbs": "0.3.1"
   },
   "devDependencies": {
     "@capacitor/cli": "^6.0.0",

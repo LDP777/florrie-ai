@@ -25,13 +25,13 @@ const Card = ({
   const variants = {
     default: {
       background: 'var(--bg-card)',
-      border: '1px solid var(--border)',
-      boxShadow: 'var(--shadow-xs)',
+      border: '1px solid transparent',
+      boxShadow: 'var(--fl-card-shadow), var(--fl-card-ring)',
     },
     elevated: {
       background: 'var(--bg-card)',
-      border: '1px solid var(--border-light)',
-      boxShadow: 'var(--shadow-md)',
+      border: '1px solid transparent',
+      boxShadow: 'var(--fl-card-shadow), var(--fl-card-ring)',
     },
     outlined: {
       background: 'transparent',
@@ -47,14 +47,14 @@ const Card = ({
   };
 
   const cardStyle = {
-    borderRadius: 16,
+    borderRadius: 'var(--fl-card-radius)',
     padding: paddings[padding],
     ...variants[variant],
     ...style,
   };
 
   return (
-    <div style={cardStyle}>
+    <div className="fl-ui-card" style={cardStyle}>
       {header && (
         <div
           style={{ display: 'flex',

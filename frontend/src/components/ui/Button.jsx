@@ -30,6 +30,8 @@
  *   <Button as="a" href={url}>Open</Button>
  */
 
+import { FlorrieOrb } from './FlorrieEffects.jsx';
+
 const cx = (...parts) => parts.filter(Boolean).join(' ');
 
 export default function Button({
@@ -71,16 +73,5 @@ export default function Button({
 }
 
 function Spinner() {
-  return (
-    <span
-      aria-hidden
-      style={{
-        width: 14, height: 14, flexShrink: 0,
-        border: '2px solid currentColor',
-        borderRightColor: 'transparent',
-        borderRadius: '50%',
-        animation: 'spin 0.6s linear infinite',
-      }}
-    />
-  );
+  return <FlorrieOrb state="working" size={20} />;
 }

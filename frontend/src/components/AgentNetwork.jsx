@@ -5,6 +5,7 @@ import { API_BASE } from '../lib/config.js';
 import { readAuthenticatedJson } from '../lib/authenticated-json.js';
 import Button from './ui/Button.jsx';
 import Icon from './ui/Icon.jsx';
+import { FlorrieOrb, EffectFrame } from './ui/FlorrieEffects.jsx';
 
 const ROLES = [
   { id: 'front_desk', name: 'Front Desk', short: 'Front desk', icon: 'message', x: 50, y: 11, link: '/inbox', purpose: 'Replies and booking steps, guided by your writing and your diary.', sources: ['Conversations', 'Diary', 'Your writing'] },
@@ -26,16 +27,23 @@ function checkState(agent) {
 /** A map of connected capabilities. Selection highlights a connection, not a live task. */
 export function AgentNetwork({ agents = [], learning, compact = false, loading = false, error = false, onRefresh }) {
   const [selected, setSelected] = useState('front_desk');
+  const [expanded, setExpanded] = useState(false);
   const uid = useId();
   const navigate = useNavigate();
   const role = ROLES.find(item => item.id === selected) || ROLES[0];
   const agent = Array.isArray(agents) ? agents.find(item => item.id === role.id) : null;
   const status = checkState(agent);
+  if (compact && !expanded) return <EffectFrame active={loading} className="today-team-frame"><section className="today-team-teaser" aria-labelledby={`${uid}-title`}>
+    <FlorrieOrb size={60} state={loading ? 'connecting' : 'weaving'} />
+    <div className="today-team-teaser__copy"><h2 id={`${uid}-title`}>Florrie at work</h2><p>{loading ? 'Checking recent work…' : error ? 'Recent work could not be checked.' : 'Six roles. Your business, connected.'}</p></div>
+    <Button variant="quiet" size="icon" icon aria-label="Explore Florrie’s team" aria-expanded="false" onClick={() => setExpanded(true)}><Icon name="chevron-down" size={18} /></Button>
+    <Button variant="quiet" className="today-team-teaser__link" onClick={() => navigate('/insights')}>Open your brief <Icon name="arrow-right" size={14} /></Button>
+  </section></EffectFrame>;
   return (
     <section className={`agent-network ${compact ? 'agent-network--compact' : ''}`} aria-labelledby={`${uid}-title`}>
       <header className="agent-network__heading">
-        <div><p className="agent-network__eyebrow">CONNECTED INTELLIGENCE</p><h2 id={`${uid}-title`}>Florrie at work</h2></div>
-        <span className="agent-network__role-count">6 roles</span>
+        <div><p className="agent-network__eyebrow">YOUR CONNECTED TEAM</p><h2 id={`${uid}-title`}>Florrie at work</h2></div>
+        {compact ? <Button variant="quiet" icon size="icon" aria-label="Collapse Florrie’s team" aria-expanded="true" onClick={() => setExpanded(false)}><Icon name="chevron-up" size={18} /></Button> : <span className="agent-network__role-count">6 roles</span>}
       </header>
       <p className="agent-network__intro">Your diary, clients and preferences. Shared across the work.</p>
       <div className="agent-network__layout">
@@ -45,8 +53,7 @@ export function AgentNetwork({ agents = [], learning, compact = false, loading =
             {ROLES.map(item => <path key={item.id} className={selected === item.id ? 'is-selected' : ''} d={`M160 146 Q${item.x < 50 ? 110 : item.x > 50 ? 210 : 160} 146 ${item.x * 3.2} ${item.y * 2.92}`} />)}
           </svg>
           <div className="agent-network__core" aria-hidden="true">
-            <svg viewBox="0 0 100 100" width="47" height="47">{[0, 72, 144, 216, 288].map((angle, index) => <ellipse key={angle} cx="50" cy="30" rx="16" ry="24" fill="currentColor" opacity={[0.9, 0.72, 0.54, 0.64, 0.8][index]} transform={`rotate(${angle} 50 50)`} />)}<circle cx="50" cy="50" r="7" fill="currentColor" /></svg>
-            <span>florrie</span>
+            <FlorrieOrb state={loading ? 'connecting' : 'weaving'} size={compact ? 64 : 80} inverse />
           </div>
           {ROLES.map(item => <Button key={item.id} variant="quiet" className={`agent-network__node ${selected === item.id ? 'is-selected' : ''}`} style={{ left: `${item.x}%`, top: `${item.y}%` }} aria-pressed={selected === item.id} aria-label={`Explore ${item.name}`} aria-controls={`${uid}-detail`} onClick={() => setSelected(item.id)}>
             <Icon name={item.icon} size={19} /><span>{item.short}</span>
@@ -71,12 +78,8 @@ export function AgentNetwork({ agents = [], learning, compact = false, loading =
           </>}
         </div>
       </div>
-      {!compact && learning && <div className="agent-network__learning" aria-label="Learning from your business">
-        <span><strong>{learning.human_samples == null ? 'Unavailable' : learning.human_samples}</strong> human-written samples</span>
-        <span><strong>{learning.client_profiles == null ? 'Unavailable' : learning.client_profiles}</strong> client visit profiles</span>
-      </div>}
       <footer className="agent-network__footer">
-        {compact ? <Button variant="quiet" onClick={() => navigate('/insights')}>Explore Florrie’s brief <Icon name="arrow-right" size={15} /></Button> : <p>Recent records are a sample of up to 300 events. Background checks and completed actions are recorded separately.</p>}
+        {compact ? <Button variant="quiet" onClick={() => navigate('/insights')}>Explore Florrie’s brief <Icon name="arrow-right" size={15} /></Button> : <p>Tap a role to see its work and the information it uses.</p>}
         {onRefresh && <Button variant="quiet" size="sm" aria-label="Refresh Florrie’s work" disabled={loading} onClick={onRefresh}><Icon name="refresh" size={15} /></Button>}
       </footer>
     </section>

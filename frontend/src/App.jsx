@@ -1,3 +1,4 @@
+import { FlorrieOrb, LiquidIndicator } from './components/ui/FlorrieEffects.jsx';
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from './lib/supabase.js';
@@ -107,29 +108,7 @@ const StatusPage = lazy(() => import('./pages/StatusPage.jsx'));
 const UpdatePassword = lazy(() => import('./pages/UpdatePassword.jsx'));
 
 function PageLoader() {
-  return (
-    <div style={{ display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      minHeight: '40vh',
-      gap: 12,
-      animation: 'fadeIn 0.3s ease'
-    }}>
-      <div style={{ width: 32,
-        height: 32,
-        border: '2.5px solid var(--border, #E8DDD4)',
-        borderTopColor: 'var(--accent, #92405e)',
-        borderRadius: '50%',
-        animation: 'spin 0.8s linear infinite',
-      }} />
-      <span style={{ fontSize: 12,
-        color: 'var(--text-muted, #6B5D54)',
-        fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
-        letterSpacing: '0.04em',
-      }}>Loading...</span>
-    </div>
-  );
+  return <div className="fl-route-loader" role="status"><FlorrieOrb state="searching" size={64} /><span>Opening your workspace…</span></div>;
 }
 
 /** Length of the free trial, in days. Matches the backend TIERS.trial. */
@@ -776,7 +755,8 @@ function BottomNav({ current, session }) {
   ];
 
   return (
-    <nav style={styles.nav}>
+    <nav className="fl-app-dock" style={styles.nav}>
+      <LiquidIndicator count={5} index={isTodayActive ? 0 : isInboxActive ? 1 : current === '/voice' ? 2 : isContentActive ? 3 : isMoneyActive ? 4 : -1} />
       {leftTabs.map(tab => (
         <NavTab key={tab.path} tab={tab} onNav={() => navigate(tab.path)} />
       ))}
@@ -796,7 +776,7 @@ function BottomNav({ current, session }) {
         style={styles.navPetalWrap}
       >
         <div style={styles.navPetal}>
-          <img src="/florrie-petal.svg" alt="" style={{ width: 24, height: 24, filter: 'brightness(0) invert(1)' }} />
+          <FlorrieOrb size={42} inverse />
         </div>
         <span style={styles.navPetalLabel}>Florrie</span>
       </button>
@@ -811,7 +791,7 @@ function BottomNav({ current, session }) {
 function NavTab({ tab, onNav }) {
   // #867277 on the nav's near-white is 4.44:1 — just under AA, on five labels
   // that are always on screen. #6E5C61 is the same warm grey at 5.6:1.
-  const color = tab.active ? '#92405e' : '#6E5C61';
+  const color = tab.active ? 'var(--accent)' : 'var(--text-secondary)';
   const showBadge = tab.badge > 0;
   return (
     <button onClick={onNav} style={styles.navItem} aria-label={tab.label} aria-current={tab.active ? 'page' : undefined}>
@@ -1022,10 +1002,11 @@ const styles = {
     alignItems: 'flex-end',
     gap: 2,
     maxWidth: 'calc(100vw - 24px)',
-    background: 'rgba(255, 255, 255, 0.88)',
+    width: 340,
+    background: 'color-mix(in srgb, var(--surface) 92%, transparent)',
     backdropFilter: 'blur(16px) saturate(1.3)',
     WebkitBackdropFilter: 'blur(16px) saturate(1.3)',
-    border: '1px solid rgba(146, 64, 94, 0.10)',
+    border: '1px solid color-mix(in srgb, var(--border) 45%, transparent)',
     borderRadius: 22,
     padding: '6px 8px',
     zIndex: 100,
@@ -1033,6 +1014,8 @@ const styles = {
     boxShadow: 'var(--elev-3)',
   },
   navItem: {
+    flex: '1 1 0',
+    minWidth: 0,
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
@@ -1040,7 +1023,7 @@ const styles = {
     background: 'none',
     border: 'none',
     cursor: 'pointer',
-    padding: '5px 11px',
+    padding: '5px 4px',
     position: 'relative',
     fontFamily: 'inherit',
     WebkitTapHighlightColor: 'transparent',
@@ -1050,12 +1033,14 @@ const styles = {
     width: 4,
     height: 4,
     borderRadius: 'var(--radius-xs)',
-    background: '#92405e',
+    background: 'var(--accent)',
     position: 'absolute',
     bottom: -1,
   },
 
   navPetalWrap: {
+    flex: '1 1 0',
+    minWidth: 0,
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
@@ -1076,7 +1061,7 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
     boxShadow: 'var(--elev-2)',
-    border: '3px solid #FBF6F1',
+    border: '3px solid var(--bg)',
     marginTop: -20,
   },
   navPetalLabel: {

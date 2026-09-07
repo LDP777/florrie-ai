@@ -50,6 +50,7 @@ try {
   await page.getByRole('heading', { name: 'Florrie at work' }).scrollIntoViewIfNeeded();
   await page.waitForFunction(() => fixture.reads.length === 1);
   assert.equal(await page.evaluate(() => fixture.reads[0].url), '/api/agents/status', 'Today uses the light endpoint');
+  await page.getByRole('button', { name: 'Explore Florrie’s team', exact: true }).click();
   await page.getByRole('button', { name: 'Explore Guardian', exact: true }).click();
   await page.getByRole('heading', { name: 'Guardian', exact: true }).waitFor();
   assert.equal(await page.evaluate(() => fixture.reads.length), 1, 'role selection does not refetch');
@@ -64,6 +65,7 @@ try {
   await page.getByRole('button', { name: 'Refresh Florrie’s work' }).click();
   await page.waitForFunction(() => fixture.reads.length === 3);
   await page.evaluate(() => window.mount('owner-b'));
+  await page.getByRole('button', { name: 'Explore Florrie’s team', exact: true }).click();
   await page.getByRole('heading', { name: 'Front Desk', exact: true }).waitFor();
   await page.getByRole('heading', { name: 'Florrie at work' }).scrollIntoViewIfNeeded();
   await page.waitForFunction(() => fixture.reads.length === 4);
