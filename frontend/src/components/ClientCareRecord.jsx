@@ -80,6 +80,12 @@ export default function ClientCareRecord({ clientId, data }) {
       {notice && <p role="status" style={styles.consultSendResult}>{notice}</p>}
       {busy && !record && <p role="status">Loading consultation records…</p>}
       {record && !error && <>
+        {!!record.requests?.length && <div style={{ marginTop: 18 }}><h5 style={{ margin: '0 0 8px' }}>Form requests ({record.requests.length})</h5>
+          {[...record.requests].sort((a, b) => Number(b.status === 'pending') - Number(a.status === 'pending')).map(r => <div key={r.id} style={{ padding: '10px 0', borderBottom: '1px solid var(--border-light)' }}>
+            <strong>{r.form_name}</strong><p style={{ ...styles.consultDate, margin: '4px 0' }}>{r.status === 'answers_removed' ? 'Answers no longer held' : r.status === 'expired' ? 'Link expired' : 'Awaiting response'} · Requested {dateLabel(r.sent_at)}{r.expires_at ? ` · Link ${r.status === 'expired' ? 'expired' : 'expires'} ${dateLabel(r.expires_at)}` : ''}</p>
+          </div>)}
+        </div>}
+        <h5 style={{ margin: '20px 0 8px' }}>Submitted forms ({record.responses?.length || 0})</h5>
         {!record.responses?.length && <p style={styles.noHistory}>No submitted answers available.</p>}
         {(record.responses || []).map(r => <details key={r.id} style={styles.consultSubmission}>
           <summary style={{ cursor: 'pointer', padding: '12px 0', minHeight: 44, boxSizing: 'border-box' }}>
@@ -96,11 +102,6 @@ export default function ClientCareRecord({ clientId, data }) {
           {r.has_signature && (signatures[r.id] ? <img src={signatures[r.id]} alt="Client signature" style={styles.consultSignature} /> : <Button onClick={() => loadSignature(r.id)}>View signature</Button>)}
           {signatureErrors[r.id] && <p role="alert">{signatureErrors[r.id]}</p>}
         </details>)}
-        {!!record.requests?.length && <div style={{ marginTop: 18 }}><h5 style={{ margin: '0 0 8px' }}>Requests</h5>
-          {record.requests.map(r => <div key={r.id} style={{ padding: '10px 0', borderBottom: '1px solid var(--border-light)' }}>
-            <strong>{r.form_name}</strong><p style={{ ...styles.consultDate, margin: '4px 0' }}>{r.status === 'answers_removed' ? 'Answers no longer held' : r.status === 'expired' ? 'Link expired' : 'Awaiting response'} · Requested {dateLabel(r.sent_at)}{r.expires_at ? ` · Link expires ${dateLabel(r.expires_at)}` : ''}</p>
-          </div>)}
-        </div>}
         <div style={{ marginTop: 18 }}>
           {!!templates.length && <><label htmlFor={`consultation-template-${clientId}`} style={{ display: 'block', marginBottom: 6 }}>Send a form</label>
             <select id={`consultation-template-${clientId}`} value={formId} onChange={e => setSelectedForm(e.target.value)} style={{ width: '100%', minHeight: 44, padding: 10, borderRadius: 10, marginBottom: 8, background: 'var(--bg-card)', color: 'var(--text-primary)', border: '1px solid var(--border-light)' }}>

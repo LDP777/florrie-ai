@@ -22,7 +22,7 @@ try {
   await ctx.addInitScript(() => {
     const base=window.fetch;
     const person={id:'care-client',beautician_id:'b1',first_name:'Care',last_name:'Fixture',phone:'07700900111',total_visits:4,total_spend_cents:4000};
-    window.__care={failRecords:true,failSignature:true,failSubmit:true,submissions:[],sends:[]};
+    window.__care={failPublic:true,failRecords:true,failSignature:true,failSubmit:true,submissions:[],sends:[]};
     const signatureCanvas=document.createElement('canvas');signatureCanvas.width=280;signatureCanvas.height=70;
     const ink=signatureCanvas.getContext('2d');ink.font='italic 28px cursive';ink.fillStyle='#241B17';ink.fillText('Care Fixture',12,44);
     const signature=signatureCanvas.toDataURL('image/png');
@@ -44,6 +44,8 @@ try {
       if(url.endsWith('/api/consultation-forms/send')&&method==='POST'){window.__care.sends.push(JSON.parse(opts.body));return json({sent:true});}
       if(url.includes('/api/consultation-forms/public/care-token')) {
         if(method==='POST'){window.__care.submissions.push(JSON.parse(opts.body));return window.__care.failSubmit?json({error:'Synthetic save failure; try again.'},500):json({success:true});}
+        if(window.__care.hangPublic) return new Promise((resolve,reject)=>opts.signal.addEventListener('abort',()=>reject(new DOMException('Aborted','AbortError')),{once:true}));
+        if(window.__care.failPublic) return json({error:'Synthetic form load failure'},503);
         return json({form:{name:'Care consultation',consent_text:'Please review these answers.',fields:[{id:'allergy',type:'text',label:'Any allergies?',required:true},{id:'signature',type:'signature',label:'Client signature',required:true}]},client_name:'Care',beautician:{name:'Fixture Salon',brand_color:'#92405e'}});
       }
       return base(input,opts);
@@ -104,6 +106,12 @@ try {
   assert.equal(await page.getByAltText('Client signature',{exact:true}).count(),0);
   console.log('✓ Guardian reads answers and signature inline; switching clients clears previous evidence');
   await page.goto(`${origin}/form/care-token`);
+  await page.getByRole('alert').filter({hasText:'Synthetic form load failure'}).waitFor();
+  await page.evaluate(()=>{window.__care.failPublic=false;window.__care.hangPublic=true;});
+  await page.getByRole('button',{name:'Retry form',exact:true}).click();
+  await page.getByRole('alert').filter({hasText:'The form took too long to load.'}).waitFor({timeout:20000});
+  await page.evaluate(()=>{window.__care.hangPublic=false;});
+  await page.getByRole('button',{name:'Retry form',exact:true}).click();
   await page.getByLabel('Any allergies?',{exact:false}).fill('Latex');
   await page.getByRole('button',{name:'Submit Form',exact:true}).click();
   await page.getByText('Please complete all required fields marked with *',{exact:true}).waitFor();

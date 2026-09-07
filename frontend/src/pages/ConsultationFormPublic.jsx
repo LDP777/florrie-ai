@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { API_BASE } from '../lib/config.js';
 import Icon from '../components/ui/Icon';
+import Button from '../components/ui/Button.jsx';
 
 /**
  * ConsultationFormPublic - the client-facing form page.
@@ -21,6 +22,7 @@ import Icon from '../components/ui/Icon';
 export default function ConsultationFormPublic() {
   const { token } = useParams();
   const [loading, setLoading] = useState(true);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [error, setError] = useState(null);
   const [submitError, setSubmitError] = useState(null);
   const [completed, setCompleted] = useState(false);
@@ -34,24 +36,35 @@ export default function ConsultationFormPublic() {
   const [answers, setAnswers] = useState({});
   const [signatureData, setSignatureData] = useState(null);
 
-  // Load form
+  // Keep links isolated when navigation reuses this page for another client.
   useEffect(() => {
-    fetch(`${API_BASE}/api/consultation-forms/public/${token}`)
-      .then(r => r.json())
-      .then(data => {
-        if (data.completed) {
-          setCompleted(true);
-        } else if (data.error) {
-          setError(data.error);
-        } else {
-          setForm(data.form);
-          setClientName(data.client_name || '');
+    let active = true;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    setLoading(true); setError(null); setCompleted(false); setForm(null);
+    setClientName(''); setBeautician(null); setAnswers({}); setSignatureData(null);
+    setValidationErrors([]); setSubmitError(null);
+    (async () => {
+      try {
+        const response = await fetch(`${API_BASE}/api/consultation-forms/public/${token}`, { signal: controller.signal });
+        const data = await response.json();
+        if (!response.ok || data.error) throw new Error(data.error || 'Unable to load the form. Please try again.');
+        if (!data.completed && (!data.form || !Array.isArray(data.form.fields))) throw new Error('Unable to load the form. Please try again.');
+        if (!active) return;
+        if (data.completed) setCompleted(true);
+        else {
+          setForm(data.form); setClientName(data.client_name || '');
           setBeautician(data.beautician);
         }
-      })
-      .catch(() => setError('Unable to load the form. Please try again.'))
-      .finally(() => setLoading(false));
-  }, [token]);
+      } catch (err) {
+        if (active) setError(controller.signal.aborted ? 'The form took too long to load. Please try again.' : err.message || 'Unable to load the form. Please try again.');
+      } finally {
+        clearTimeout(timeout);
+        if (active) setLoading(false);
+      }
+    })();
+    return () => { active = false; clearTimeout(timeout); controller.abort(); };
+  }, [token, loadAttempt]);
 
   // Update answer
   function setAnswer(fieldId, value) {
@@ -137,7 +150,8 @@ export default function ConsultationFormPublic() {
       <div style={styles.page}>
         <div style={styles.errorCard}>
           <div style={{ fontSize: 32, marginBottom: 12 }}>😔</div>
-          <p style={styles.errorText}>{error}</p>
+          <p role="alert" style={styles.errorText}>{error}</p>
+          <Button onClick={() => setLoadAttempt(n => n + 1)}>Retry form</Button>
         </div>
       </div>
     );
