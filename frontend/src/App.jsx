@@ -776,7 +776,7 @@ function BottomNav({ current, session }) {
         style={styles.navPetalWrap}
       >
         <div style={styles.navPetal}>
-          <FlorrieOrb size={42} inverse />
+          <img src="/florrie-petal.svg" alt="" style={{ width: 24, height: 24, filter: 'brightness(0) invert(1)' }} />
         </div>
         <span style={styles.navPetalLabel}>Florrie</span>
       </button>

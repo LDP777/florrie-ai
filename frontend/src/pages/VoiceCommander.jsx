@@ -770,7 +770,7 @@ export default function VoiceCommander() {
   return (
     <div className="fl-voice-workspace" style={styles.page}>
       <header className={`fl-voice-hero ${messages.some(m => m.role === 'user') ? 'is-conversation' : ''}`}>
-        <div className="fl-voice-emblem" aria-hidden="true"><FlorrieOrb size={100} state={isRecording ? 'listening' : isProcessing ? 'working' : 'weaving'} /><span /><span /></div>
+        <div className="fl-voice-emblem" aria-hidden="true"><FloriePetal size={56} /><span /><span /></div>
         <span className="fl-workspace-eyebrow">A little space to think</span>
         <h1>Ask <em>Florrie.</em></h1>
         <p>Your diary, your clients, your next idea.<br />What can I help with?</p>
