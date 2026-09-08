@@ -1,4 +1,3 @@
-import { LiquidIndicator } from '../components/ui/FlorrieEffects.jsx';
 import TodayAgentNetwork from '../components/AgentNetwork.jsx';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -120,8 +119,7 @@ export default function Hub() {
       </header>
 
       {/* 2. Sub-tab strip , Day / Week / Smart Schedule */}
-      <div className="fl-liquid-tabs" role="tablist" aria-label="Today views" style={{ ...S.subTabs, '--selection-fill': 'var(--accent-light)' }}>
-        <LiquidIndicator count={SUB_TABS.length} index={SUB_TABS.findIndex(tab => tab.id === activeTab)} />
+      <div role="tablist" aria-label="Today views" style={S.subTabs}>
         {SUB_TABS.map(tab => {
           const active = tab.id === activeTab;
           return (
@@ -140,7 +138,6 @@ export default function Hub() {
 
       {activeTab === 'day' && (
         <>
-          {beautician?.id && <TodayAgentNetwork key={beautician.id} beauticianId={beautician.id} />}
           <div className="today-layout">
             <div className="today-main">
               <TodaySummary key={`day-${beautician?.id}`} beautician={beautician} onNav={navigate} />
@@ -157,6 +154,7 @@ export default function Hub() {
               </details>
             </aside>
           </div>
+          {beautician?.id && <TodayAgentNetwork key={beautician.id} beauticianId={beautician.id} />}
           <MilestoneWatcher />
 
         </>
@@ -274,7 +272,9 @@ const S = {
     transition: 'background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out)',
   },
   subTabActive: {
-    color: 'var(--accent)',
+    background: '#92405e',
+    color: '#fff',
+    boxShadow: 'var(--elev-2)',
   },
   subPane: {
     marginTop: 4,

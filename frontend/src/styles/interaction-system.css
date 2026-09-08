@@ -12,19 +12,12 @@
 .fl-liquid-tabs>button{position:relative;z-index:1;background:transparent!important}
 .fl-app-dock{isolation:isolate}
 .fl-app-dock>button{position:relative;z-index:1}
-.fl-app-dock .fl-liquid-indicator{inset:8px 10px;--selection-fill:color-mix(in srgb,var(--accent) 8%,transparent)}
-.fl-app-dock .fl-orb{color:white}
 .fl-route-loader{min-height:35vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:var(--text-muted);font-size:13px}
-.fl-ui-card{box-shadow:var(--fl-card-shadow),var(--fl-card-ring);border-radius:var(--fl-card-radius)}
 .fl-page-heading h1{font-size:var(--fl-title)!important;letter-spacing:-.6px!important;line-height:1.2!important}
 .fl-page-heading p{font-size:var(--fl-body)!important;line-height:1.55}
-.fl-btn--secondary{box-shadow:0 2px 6px color-mix(in srgb,var(--accent) 3%,transparent);border-color:color-mix(in srgb,var(--border) 70%,transparent)}
-.fl-btn--primary{box-shadow:0 4px 12px color-mix(in srgb,var(--accent) 12%,transparent)}
 .fl-btn--chip{border-radius:var(--fl-control-radius)}
-.today-card,.today-activity,.fl-studio-planner,.fl-voice-start,.fl-chat-composer{box-shadow:var(--fl-card-shadow),var(--fl-card-ring);border-color:transparent!important}
 .today-page .today-section-title{font-size:var(--fl-section);letter-spacing:-.35px}
 .fl-voice-emblem .fl-orb{position:relative;z-index:1}
-.fl-voice-emblem{background:radial-gradient(circle,color-mix(in srgb,var(--accent) 12%,transparent),transparent 70%)}
 .fl-voice-processing{display:flex;align-items:center;gap:12px;font-size:14px;color:var(--text-muted);padding:10px 0}
 .fl-voice-composer>.fl-effect-frame{border-radius:20px}
 .fl-chat-composer>.fl-effect-frame{border-radius:24px}
@@ -33,9 +26,9 @@
 .fl-studio-ai-state strong{display:block;color:var(--text);font-size:15px;margin-bottom:2px}
 @media(prefers-reduced-motion:reduce){.fl-effect-overlay{display:none}.fl-liquid-static{transition:none}.fl-btn,.fl-app-dock button{transition:none!important}}
 .fl-input-frame{border-radius:12px}
-.fl-studio-tabs.fl-liquid-tabs{gap:0!important;padding:4px!important}
-.fl-studio-tabs.fl-liquid-tabs>button{flex:1 1 0;min-width:0;padding:9px 4px!important;font-size:12px!important;white-space:nowrap}
-@media(max-width:350px){.fl-studio-tabs.fl-liquid-tabs>button{font-size:10px!important}}
+.fl-studio-tabs{gap:0!important;padding:4px!important}
+.fl-studio-tabs>button{flex:1 1 0;min-width:0;padding:9px 4px!important;font-size:12px!important;white-space:nowrap}
+@media(max-width:350px){.fl-studio-tabs>button{font-size:10px!important}}
 @media(max-width:760px){.fl-input-frame input,.fl-input-frame textarea{font-size:16px!important}}
 
 .fl-liquid-indicator *, .fl-effect-overlay *{pointer-events:none!important}

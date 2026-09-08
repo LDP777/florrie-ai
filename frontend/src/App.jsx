@@ -1,4 +1,4 @@
-import { FlorrieOrb, LiquidIndicator } from './components/ui/FlorrieEffects.jsx';
+import { FlorrieOrb } from './components/ui/FlorrieEffects.jsx';
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from './lib/supabase.js';
@@ -756,7 +756,6 @@ function BottomNav({ current, session }) {
 
   return (
     <nav className="fl-app-dock" style={styles.nav}>
-      <LiquidIndicator count={5} index={isTodayActive ? 0 : isInboxActive ? 1 : current === '/voice' ? 2 : isContentActive ? 3 : isMoneyActive ? 4 : -1} />
       {leftTabs.map(tab => (
         <NavTab key={tab.path} tab={tab} onNav={() => navigate(tab.path)} />
       ))}
@@ -791,7 +790,7 @@ function BottomNav({ current, session }) {
 function NavTab({ tab, onNav }) {
   // #867277 on the nav's near-white is 4.44:1 — just under AA, on five labels
   // that are always on screen. #6E5C61 is the same warm grey at 5.6:1.
-  const color = tab.active ? 'var(--accent)' : 'var(--text-secondary)';
+  const color = tab.active ? '#92405e' : '#6E5C61';
   const showBadge = tab.badge > 0;
   return (
     <button onClick={onNav} style={styles.navItem} aria-label={tab.label} aria-current={tab.active ? 'page' : undefined}>
@@ -1003,10 +1002,10 @@ const styles = {
     gap: 2,
     maxWidth: 'calc(100vw - 24px)',
     width: 340,
-    background: 'color-mix(in srgb, var(--surface) 92%, transparent)',
+    background: 'rgba(255, 255, 255, 0.88)',
     backdropFilter: 'blur(16px) saturate(1.3)',
     WebkitBackdropFilter: 'blur(16px) saturate(1.3)',
-    border: '1px solid color-mix(in srgb, var(--border) 45%, transparent)',
+    border: '1px solid rgba(146, 64, 94, 0.10)',
     borderRadius: 22,
     padding: '6px 8px',
     zIndex: 100,
@@ -1033,7 +1032,7 @@ const styles = {
     width: 4,
     height: 4,
     borderRadius: 'var(--radius-xs)',
-    background: 'var(--accent)',
+    background: '#92405e',
     position: 'absolute',
     bottom: -1,
   },
@@ -1061,7 +1060,7 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
     boxShadow: 'var(--elev-2)',
-    border: '3px solid var(--bg)',
+    border: '3px solid #FBF6F1',
     marginTop: -20,
   },
   navPetalLabel: {

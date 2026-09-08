@@ -1,20 +1,20 @@
 # Florrie brief and shared interactions
 
-The brief now separates next steps, connected roles and learning into three views. Today places a compact, expandable team widget above the diary. Its work records come from the existing light status endpoint. Switching brief views reuses the same response, and missing evidence stays unavailable.
+The brief now separates next steps, connected roles and learning into three views. Following Levi’s feedback, Today places the collapsed team widget at the bottom, after the diary, decisions, activity, suggestions and setup. Its work records come from the existing light status endpoint. Switching brief views reuses the same response, and missing evidence stays unavailable.
 
 The app uses three actual MIT packages listed on [Libraries.dev](https://libraries.dev/), pinned in the workspace lockfile:
 
 - `thinking-orbs` 0.3.1: the Florrie avatar, route and button loading, voice listening and processing, caption generation, and message sending.
 - `border-beam` 1.3.0: focused shared inputs and composers, plus actual pending work.
-- `liquid-gooey` 0.2.1: the shared navigation dock, Today, Content and brief view selection.
+- `liquid-gooey` 0.2.1: brief view selection. Today and Content retain their original plum selected tabs, and the navigation dock retains its white surface.
 
-[Harshil Tomar’s design reference](https://x.com/hartdrawss/status/2096841131338150047) informed the shared type sizes, spacing, softer surfaces, consistent radii and semantic colour tokens. Florrie keeps its plum palette and existing fonts. Shared cards, headers, buttons and inputs carry these rules into the other pages; this is not a claim that every bespoke screen has been rebuilt.
+[Harshil Tomar’s design reference](https://x.com/hartdrawss/status/2096841131338150047) informed the shared type sizes, spacing, softer surfaces, consistent radii and semantic colour tokens. Florrie keeps its plum palette and existing fonts. Shared headers and inputs carry the interaction rules into other pages. The original card borders, button colours, navigation surface and Voice welcome background were restored after Levi’s feedback. The Florrie flower remains the brand identity.
 
 ## Runtime behaviour
 
 Effects load in separate chunks when visible. Offscreen effects pause or unmount; reduced-motion users get paused orbs and static selection. Motion is decorative. The working and listening states follow real UI requests and recording state, rather than inventing agent activity.
 
-Decoration errors have local boundaries. Inputs and buttons sit outside those boundaries and retain their DOM nodes, drafts and handlers if an effect cannot load. All decoration layers ignore pointer events. Tab labels remain readable while their highlight travels.
+Decoration errors have local boundaries. Inputs and buttons sit outside those boundaries and retain their DOM nodes, drafts and handlers if an effect cannot load. All decoration layers ignore pointer events. Brief tab labels remain readable while their highlight travels. The working screens use their original plum-and-white selected tabs.
 
 Today’s diary does not await the team status request. The brief discards responses from a previous account. Authentication, payment, subscription, treatment records, message permissions and posting logic are unchanged.
 

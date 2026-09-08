@@ -45,16 +45,21 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(`${origin}/today`);
   await page.locator('.today-team-teaser').waitFor();
-  assert.ok(await page.locator('.today-team-teaser').evaluate(el => el.getBoundingClientRect().top < innerHeight - 140), 'Today widget is easy to find');
+  assert.ok(await page.locator('.today-team-teaser').evaluate(el => el.getBoundingClientRect().top >= document.querySelector('.today-layout').getBoundingClientRect().bottom), 'the collapsed widget follows the whole working day');
+  assert.equal(await page.evaluate(() => __effects.statusReads), 0, 'the bottom widget does not fetch during the first view of the diary');
+  assert.equal(await page.getByRole('tab', { name: 'Day', exact: true }).evaluate(el => getComputedStyle(el).backgroundColor), 'rgb(146, 64, 94)', 'Today keeps its original plum selection');
+  assert.equal(await page.getByRole('tab', { name: 'Day', exact: true }).evaluate(el => getComputedStyle(el).color), 'rgb(255, 255, 255)', 'Today keeps white selected text');
+  if (shots) await page.screenshot({ path: join(shots, 'today.png') });
+  await page.locator('.today-team-teaser').scrollIntoViewIfNeeded();
   await page.locator('.today-team-teaser canvas').waitFor();
-  await page.waitForFunction(() => [...document.querySelectorAll('.fl-liquid-surface svg rect')].some(el => el.getBoundingClientRect().height > 20));
   await page.getByRole('button', { name: 'Explore Florrie’s team', exact: true }).click();
   await page.getByText('Appointment reminder delivered', { exact: true }).waitFor();
   await page.getByRole('button', { name: 'Collapse Florrie’s team', exact: true }).click();
-  if (shots) await page.screenshot({ path: join(shots, 'today.png') });
+  if (shots) await page.screenshot({ path: join(shots, 'today-bottom.png') });
   await page.getByRole('button', { name: 'Open your brief', exact: true }).click();
   await page.getByRole('heading', { name: 'Florrie’s brief' }).waitFor();
   await page.locator('.brief-hero canvas').waitFor();
+  await page.waitForFunction(() => [...document.querySelectorAll('.fl-liquid-surface svg rect')].some(el => el.getBoundingClientRect().height > 20));
   await page.getByRole('tab', { name: 'The team', exact: true }).click();
   await page.getByRole('button', { name: 'Explore Guardian', exact: true }).click();
   await page.getByText('Completed count unavailable', { exact: false }).waitFor();
@@ -90,10 +95,11 @@ try {
   assert.deepEqual(errors, []);
   await ctx.close();
   const reduced = await context({ reducedMotion: 'reduce' }); const calm = await reduced.newPage();
-  await calm.goto(`${origin}/voice`); await calm.getByRole('textbox', { name: 'Message Florrie' }).fill('Keep this draft');
-  await calm.locator('.fl-app-dock .fl-liquid-static').waitFor();
-  assert.equal(await calm.locator('.fl-effect-beam').count(), 0, 'reduced motion has no animated beam');
+  await calm.goto(`${origin}/insights`);
+  await calm.locator('.brief-view-tabs .fl-liquid-static').waitFor();
   assert.equal(await calm.locator('.fl-liquid-surface').count(), 0, 'reduced motion uses a static selection');
+  await calm.goto(`${origin}/voice`); await calm.getByRole('textbox', { name: 'Message Florrie' }).fill('Keep this draft');
+  assert.equal(await calm.locator('.fl-effect-beam').count(), 0, 'reduced motion has no animated beam');
   await reduced.close();
   const fallback = await context();
   const beamFile = readdirSync(join(dist, 'assets')).find(name => name.endsWith('.js') && name.startsWith('index.es-') && readFileSync(join(dist, 'assets', name), 'utf8').includes('data-beam-bloom'));
@@ -110,5 +116,5 @@ try {
   assert.equal(await retained.inputValue(), 'My writing must stay');
   assert.equal(await retained.evaluate(el => el === window.__retainedInput), true, 'failed decoration cannot replace the draft input');
   await fallback.close();
-  console.log('✓ Libraries.dev: visible Today widget, real orb/canvas and liquid surface, reusable brief, stable input, actual working state, reduced motion and failed-effect fallback');
+  console.log('✓ Libraries.dev: bottom-of-Today widget, original plum selection, real orb/canvas and liquid surface, reusable brief, stable input, actual working state, reduced motion and failed-effect fallback');
 } finally { await browser.close(); server.close(); }

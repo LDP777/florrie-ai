@@ -21,7 +21,7 @@ import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import Icon, { iconName } from '../components/ui/Icon';
-import { FlorrieOrb, EffectFrame, LiquidIndicator } from '../components/ui/FlorrieEffects.jsx';
+import { FlorrieOrb, EffectFrame } from '../components/ui/FlorrieEffects.jsx';
 import Button from '../components/ui/Button.jsx';
 /**
  * Content Autopilot, Ellie's #1 pain point.
@@ -989,16 +989,15 @@ export default function ContentAutopilot() {
         </div>
       )}
       {/* Tabs */}
-      <div className="fl-studio-tabs fl-liquid-tabs" style={{ ...styles.tabs, '--selection-fill': 'var(--accent-light)' }} aria-label="Content views">
-        <LiquidIndicator count={5} index={['ideas', 'drafts', 'posted', 'calendar', 'gallery'].indexOf(tab === 'compose' ? 'drafts' : tab)} />
+      <div className="fl-studio-tabs" style={styles.tabs} aria-label="Content views">
         {['ideas', 'drafts', 'posted', 'calendar', 'gallery'].map(t => (
           <button className="fl-tap"
             key={t}
             aria-pressed={tab === t || (tab === 'compose' && t === 'drafts')}
             onClick={() => { setTab(t); setComposing(false); }}
             style={{ ...styles.tab,
-              // Text stays readable while the separate liquid surface moves.
-              color: (tab === t || (tab === 'compose' && t === 'drafts')) ? 'var(--accent)' : 'var(--text-secondary, #574A42)',
+              background: (tab === t || (tab === 'compose' && t === 'drafts')) ? 'var(--accent, #92405E)' : 'transparent',
+              color: (tab === t || (tab === 'compose' && t === 'drafts')) ? 'var(--on-accent, #fff)' : 'var(--text-secondary, #574A42)',
             }}
           >
             {t === 'ideas' ? 'Ideas' : t === 'drafts' ? `Drafts${drafts.length ? ` (${drafts.length})` : ''}` : t === 'posted' ? 'Posted' : t === 'calendar' ? 'Calendar' : 'Gallery'}
