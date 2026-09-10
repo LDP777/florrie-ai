@@ -1867,14 +1867,16 @@ export default function Settings({ onLogout }) {
           </div>
 
           <div style={styles.card}>
-            <h3 style={styles.cardTitle}>Auto-reply</h3>
+            <h3 style={styles.cardTitle}>New enquiries</h3>
             <p style={styles.cardDesc}>
-              When enabled, Florrie answers messages automatically when she's confident enough.
-              Messages below the confidence threshold get escalated to you.
+              Let Florrie answer new enquiries when she has enough information.
+              Booking-change requests can still receive service replies with this off, through
+              "Let Florrie answer the easy ones" above. Pause Florrie to stop automatic replies,
+              or use Me and Drafts first for an individual client.
             </p>
 
             <div style={styles.toggleRow}>
-              <span style={styles.toggleLabel}>Auto-reply enabled</span>
+              <span style={styles.toggleLabel}>Reply to new enquiries</span>
               <button
                 onClick={() => saveProfile({ auto_reply_enabled: !beautician.auto_reply_enabled })}
                 style={{ ...styles.toggle, background: beautician.auto_reply_enabled ? 'var(--accent)' : 'var(--border)' }}
