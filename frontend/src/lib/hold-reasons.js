@@ -9,6 +9,14 @@
  * new reason is never hidden, only unpolished.
  */
 const EXACT = {
+  'appointment_change:short_notice': 'A short-notice booking change needs your decision. Check the diary and any fees before confirming it.',
+  'appointment_change:booking_unclear': 'Florrie could not tell which booking they want to change. Check the date and treatment with them.',
+  'appointment_change:booking_not_found': 'Florrie could not find the booking they want to change. Check their details before confirming anything.',
+  'appointment_change:diary_unavailable': 'Florrie could not check the diary. This booking change still needs your attention.',
+  'appointment_change:already_rescheduled': 'This booking has already been moved once. You need to decide whether to allow another change.',
+  'appointment_change:manage_link_unavailable': 'Florrie could not get a management link. Help this client change their booking.',
+  'appointment_change:delivery_failed': 'The booking-change reply did not send. This client still needs an answer.',
+  'appointment_change:booking_manage_link': 'Their booking-management link is ready for you to send.',
   client_expressed_apprehension: 'She sounds nervous. She wants you, not an answer. Florrie has drafted something, but this one reads better in your words.',
   training_enquiry: 'A training enquiry, not a treatment. Course sales are yours: Florrie has drafted the date, price and enrol link for you to send or change.',
   florrie_paused: 'Florrie is paused, so she drafted this and left it for you.',

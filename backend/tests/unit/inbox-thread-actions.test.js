@@ -129,6 +129,26 @@ beforeEach(() => {
 
 const byId = (body, id) => body.messages.find(m => m.id === id);
 
+it('keeps an acknowledged appointment change in the Needs you inbox', async () => {
+  const base = { beautician_id: 'b1', client_id: 'c1', channel: 'sms', clients: db.clients[0] };
+  db.messages = [
+    { ...base, id: 'ack', direction: 'outbound', content: 'Your change needs a decision.', created_at: new Date().toISOString(), ai_handled: true },
+    { ...base, id: 'request', direction: 'inbound', content: 'Can I reschedule today?',
+      created_at: new Date(Date.now() - 60_000).toISOString(), escalated: true, resolved: false,
+      escalated_reason: 'appointment_change:short_notice' },
+  ];
+  const layer = router.stack.find(l => l.route?.path === '/threads' && l.route.methods.get);
+  const handler = layer.route.stack[layer.route.stack.length - 1].handle;
+  const out = { status: 200, body: null };
+  const res = { status(c) { out.status = c; return res; }, json(p) { out.body = p; return res; } };
+  await handler({ query: {}, beautician: { id: 'b1' } }, res);
+  expect(out.status).toBe(200);
+  expect(out.body.threads[0]).toMatchObject({ segment: 'needs', needs_appointment_decision: true });
+  db.messages[1].resolved = true;
+  await handler({ query: {}, beautician: { id: 'b1' } }, res);
+  expect(out.body.threads[0].segment).not.toBe('needs');
+});
+
 describe('GET /api/inbox/thread returns what Florrie actually did', () => {
   it('attaches a completed action to the message that claimed it', async () => {
     db.ai_actions.push({

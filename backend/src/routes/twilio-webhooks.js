@@ -22,6 +22,7 @@
 import { Router } from 'express';
 import { supabase } from '../config.js';
 import { processInboundMessage } from '../services/ai-front-desk.js';
+import { shouldProcessInbound } from '../lib/appointment-message-scenario.js';
 import { twilioValidateSignature } from '../services/whatsapp-twilio.js';
 import logger from '../lib/logger.js';
 import { autoUnarchiveClient } from '../lib/client-archive.js';
@@ -141,7 +142,7 @@ router.post('/whatsapp', async (req, res) => {
 
     // Hand off to the AI Front Desk — text only, exactly like the Meta path
     // (which gates on message.type === 'text').
-    if (beautician.auto_reply_enabled && messageContent && !hasMedia) {
+    if (shouldProcessInbound(beautician, messageContent) && messageContent && !hasMedia) {
       const result = await processInboundMessage(
         storedMessage.id, beautician, client, messageContent
       );

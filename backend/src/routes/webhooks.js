@@ -2,6 +2,7 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import { supabase } from '../config.js';
 import { processInboundMessage } from '../services/ai-front-desk.js';
+import { shouldProcessInbound } from '../lib/appointment-message-scenario.js';
 import { applyWhatsAppStatuses } from '../services/delivery-receipts.js';
 import { pushMessagesWaiting } from '../services/push-notifications.js';
 import { classifyInboundMessage, looksLikeKnownClient } from '../lib/junk-classifier.js';
@@ -399,7 +400,7 @@ router.post('/whatsapp', async (req, res) => {
     }
 
     // Pass to AI Front Desk for intent classification + autonomous response
-    if (beautician.auto_reply_enabled && messageContent && message.type === 'text') {
+    if (shouldProcessInbound(beautician, messageContent) && messageContent && message.type === 'text') {
       const result = await processInboundMessage(
         storedMessage.id, beautician, client, messageContent
       );
@@ -577,7 +578,7 @@ router.post('/twilio-sms', async (req, res) => {
     }
 
     // Pass to AI Front Desk for intent classification + autonomous response
-    if (beautician.auto_reply_enabled && messageContent) {
+    if (shouldProcessInbound(beautician, messageContent) && messageContent) {
       const result = await processInboundMessage(
         storedMessage.id, beautician, client, messageContent
       );
@@ -837,7 +838,7 @@ router.post('/bird-sms', async (req, res) => {
     }
 
     // Route to AI Front Desk
-    if (beautician.auto_reply_enabled && messageBody) {
+    if (shouldProcessInbound(beautician, messageBody) && messageBody) {
       const result = await processInboundMessage(
         storedMessage.id, beautician, client, messageBody
       );

@@ -88,8 +88,8 @@ describe('what still waits for Ellie, and must keep waiting', () => {
     expect(decide('availability_check', { message: 'is Saturday free?' })).toBe(false);
   });
 
-  it('holds a booking request even at full confidence', () => {
-    expect(decide('booking_request', { confidence: 1 })).toBe(false);
+  it('uses the verified booking flow for regulars at sufficient confidence', () => {
+    expect(decide('booking_request', { confidence: 1 })).toBe(true);
   });
 
   it.each(['reschedule', 'cancellation', 'complaint', 'unknown'])('holds %s', (intent) => {
@@ -104,6 +104,11 @@ describe('what still waits for Ellie, and must keep waiting', () => {
 
   it('holds a price enquiry with no price list behind it', () => {
     expect(decide('price_enquiry', { context: { treatments: [] } })).toBe(false);
+  });
+
+  it.each([true, false])('requires evidence for factual replies even at full confidence (known=%s)', known => {
+    expect(decide('price_enquiry', { known, confidence: 1, context: { treatments: [] } })).toBe(false);
+    expect(decide('booking_lookup', { known, confidence: 1, context: { clientUpcoming: [] } })).toBe(false);
   });
 
   it('holds a booking lookup when there is nothing in the diary', () => {
@@ -162,10 +167,8 @@ describe('somebody who has never booked', () => {
     expect(decide('booking_request', { known: false, confidence: 0.7 })).toBe(false);
   });
 
-  it('is treated as a stranger, not as a regular, for the ungrounded intents', () => {
-    // The asymmetry is deliberate: a regular's booking request is a
-    // relationship Ellie manages, a stranger's is a lead Florrie may work.
-    expect(decide('booking_request', { known: true, confidence: 0.95 })).toBe(false);
+  it('applies the same booking threshold regardless of visit history', () => {
+    expect(decide('booking_request', { known: true, confidence: 0.95 })).toBe(true);
     expect(decide('booking_request', { known: false, confidence: 0.95 })).toBe(true);
   });
 });

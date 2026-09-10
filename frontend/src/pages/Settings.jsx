@@ -1648,39 +1648,11 @@ export default function Settings({ onLogout }) {
                   );
                 })}
 
-                {/* Clients you know: how many completed visits before Florrie
-                    treats a client as known. Florrie always checks with Ellie
-                    before messaging a known client, so this sets who counts.
-                    Writes autonomy.known_client_min_visits, merged into the same
-                    autonomy object as the modes above so per-type modes are kept.
-                    Default 2 when unset (matches isKnownClient in outbound-guard.js). */}
                 <div style={{ marginTop: 20, paddingTop: 18, borderTop: '1px solid var(--border-light)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: 'var(--radius-xs)', background: 'var(--accent)', flexShrink: 0 }} />
-                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Clients you know</span>
-                  </div>
-                  <p style={{ fontSize: 11.5, color: 'var(--text-muted)', margin: '0 0 10px 14px', lineHeight: 1.5 }}>
-                    Florrie always checks with you before messaging a client you know, so nothing lands out of context. Choose who counts.
+                  <h4 style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 8px' }}>Replies follow the request</h4>
+                  <p style={{ fontSize: 11.5, color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
+                    Regular clients can ask Florrie for help too. Booking changes use their existing management link. Short-notice changes get an acknowledgement and stay in your inbox for a decision. Your Me, Drafts first and pause controls still apply.
                   </p>
-                  <div style={{ paddingLeft: 14 }}>
-                    <select
-                      value={String(auto.known_client_min_visits ?? 2)}
-                      onChange={(e) => {
-                        const next = { ...auto, known_client_min_visits: Number(e.target.value) };
-                        setPendingAutonomy(next);
-                        saveProfile({ autonomy: next }).finally(() => setPendingAutonomy(null));
-                      }}
-                      style={{ minHeight: 44, width: '100%', padding: '10px 12px', borderRadius: 10,
-                        border: '1.5px solid var(--border)', background: 'var(--bg-card)',
-                        color: 'var(--text-primary)', fontSize: 13, fontWeight: 600,
-                        fontFamily: 'inherit', cursor: 'pointer',
-                      }}
-                    >
-                      <option value="1">After their first visit</option>
-                      <option value="2">Once they have been twice</option>
-                      <option value="3">Only regulars, three or more visits</option>
-                    </select>
-                  </div>
                 </div>
 
                 {/* The dial Ellie actually noticed.
@@ -1696,7 +1668,7 @@ export default function Settings({ onLogout }) {
                     <div>
                       <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Let Florrie answer the easy ones</span>
                       <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0', lineHeight: 1.4 }}>
-                        Questions she can answer from your diary and price list, like "when am I booked in?" or "how much is a lash lift?", go out straight away signed as Florrie, with a way for the client to ask for you instead. Anything about availability, moving a booking, or a complaint still comes to you.
+                        Questions she can answer from your diary and price list, like "when am I booked in?" or "how much is a lash lift?", go out straight away signed as Florrie, with a way for the client to ask for you instead. Short-notice or unclear booking changes still come to you for a decision. Florrie can acknowledge the request; she does not promise a change or waive a fee.
                       </p>
                     </div>
                     <AutonomyToggle

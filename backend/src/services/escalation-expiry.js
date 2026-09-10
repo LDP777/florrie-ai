@@ -55,6 +55,10 @@ export const escalationCutoff = (now = Date.now()) =>
  */
 export function movedOn(escalations, lastOutboundByClient) {
   return (escalations || []).filter((m) => {
+    // Florrie's acknowledgement does not settle the requested diary change.
+    // Keep it open for an explicit resolution, rather than closing it because
+    // any later message (including that acknowledgement) exists.
+    if (String(m.escalated_reason || '').startsWith('appointment_change:')) return false;
     if (!m.client_id) return false;
     const last = lastOutboundByClient[m.client_id];
     return !!last && last > m.created_at;
@@ -72,7 +76,7 @@ export async function expireStaleEscalations() {
     // by rule 2 anyway, and this keeps the query small.
     const { data: open, error: openErr } = await supabase
       .from('messages')
-      .select('id, client_id, created_at')
+      .select('id, client_id, created_at, escalated_reason')
       .eq('direction', 'inbound')
       .eq('escalated', true)
       .eq('resolved', false)

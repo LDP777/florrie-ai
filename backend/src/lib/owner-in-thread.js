@@ -76,6 +76,10 @@ export const OWNER_PRESENT_WINDOW_MS = 6 * 60 * 60 * 1000;
  */
 export const THREAD_STAYS_HERS_MS = 7 * 24 * 60 * 60 * 1000;
 
+// A fresh appointment request can restart a thread she used earlier. Give an
+// active exchange fifteen minutes before acknowledging it on her behalf.
+export const ACTIVE_REPLY_WINDOW_MS = 15 * 60 * 1000;
+
 /** authored_by values that mean the owner typed it herself. */
 const HER_OWN_WORDS = new Set(['human', 'ai_edited']);
 
@@ -91,7 +95,7 @@ const HER_OWN_WORDS = new Set(['human', 'ai_edited']);
  *   excluded so a client's own message can never look like the owner's.
  * @returns {{present: boolean, at: string|null, reason: string}}
  */
-export function ownerIsInThread({ conversation, now = Date.now(), currentMessageId = null }) {
+export function ownerIsInThread({ conversation, now = Date.now(), currentMessageId = null, appointmentRequest = false }) {
   const nowMs = now instanceof Date ? now.getTime() : Number(now);
   const rows = Array.isArray(conversation) ? conversation : [];
 
@@ -128,6 +132,10 @@ export function ownerIsInThread({ conversation, now = Date.now(), currentMessage
   if (latest === null) return { present: false, at: null, reason: 'owner_not_in_thread' };
 
   const at = new Date(latest).toISOString();
+
+  if (appointmentRequest && nowMs - latest > ACTIVE_REPLY_WINDOW_MS) {
+    return { present: false, at, reason: 'new_appointment_request' };
+  }
 
   // 1. She is in it now. A timestamp in the future is a clock problem rather
   //    than evidence of absence, and negative age satisfies this anyway, which

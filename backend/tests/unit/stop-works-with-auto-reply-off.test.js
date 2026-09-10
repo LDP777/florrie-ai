@@ -40,12 +40,12 @@ describe('the opt-out check sits above the auto-reply gate in every handler', ()
   ];
 
   for (const [file, route, label] of cases) {
-    it(`${label}: isOptOutMessage runs before auto_reply_enabled is consulted`, () => {
+    it(`${label}: isOptOutMessage runs before the scenario reply gate`, () => {
       const body = handlerBody(src(file), route);
       const optOutAt = body.indexOf('isOptOutMessage(');
-      const gateAt = body.indexOf('auto_reply_enabled');
+      const gateAt = body.indexOf('shouldProcessInbound(');
       expect(optOutAt, `${label} never calls isOptOutMessage`).toBeGreaterThan(-1);
-      expect(gateAt, `${label} has no auto_reply_enabled gate`).toBeGreaterThan(-1);
+      expect(gateAt, `${label} has no scenario reply gate`).toBeGreaterThan(-1);
       expect(optOutAt).toBeLessThan(gateAt);
       // The write and the confirmation, not just the recognition. Reading the
       // word and doing nothing with it is the bug in a different coat.

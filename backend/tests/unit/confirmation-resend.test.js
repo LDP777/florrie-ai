@@ -31,6 +31,7 @@ process.env.TZ = 'UTC';
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { checkReplyClaims } from '../../src/lib/reply-claims-guard.js';
+import { __resetInboundBudget } from '../../src/lib/inbound-budget.js';
 
 /* ------------------------------------------------------------------ schema --
  * Columns copied from supabase/migrations for the two tables this change
@@ -189,8 +190,8 @@ const delivered = [];
 vi.mock('../../src/services/notifications.js', () => ({
   notifyBookingConfirmed: async (id) => { confirmations.push(id); return confirmResult; },
   sendMessage: async () => ({ channel: 'sms' }),
-  sendInstagramDM: async () => true,
-  sendWhatsAppText: async () => true,
+  sendInstagramDM: async (args) => { delivered.push({ ...args, body: args.text }); return true; },
+  sendWhatsAppText: async (args) => { delivered.push(args); return true; },
   sendSMS: async (args) => { delivered.push(args); return { channel: 'sms' }; },
 }));
 
@@ -219,7 +220,8 @@ vi.mock('../../src/lib/knowledge.js', () => ({
   arrivalNoteFrom: () => '',
   writtenNotesFrom: () => '',
 }));
-vi.mock('../../src/lib/free-slots.js', () => ({ getFreeSlots: async () => [] }));
+let freeSlots = [];
+vi.mock('../../src/lib/free-slots.js', () => ({ getFreeSlots: async () => freeSlots }));
 
 // The REAL outbound guard runs. Only its two outside dependencies are pinned so
 // the test does not depend on what time of day it happens to run.
@@ -245,7 +247,9 @@ let beautician;
 let client;
 
 beforeEach(() => {
+  __resetInboundBudget();
   for (const t of Object.keys(db)) db[t] = [];
+  freeSlots = [];
   confirmations.length = 0;
   delivered.length = 0;
   promptsSeen.length = 0;
@@ -259,7 +263,7 @@ beforeEach(() => {
     timezone: 'Europe/London', client_reminder_prefs: {},
   };
   client = {
-    id: 'c1', first_name: 'Sophie', phone: '+447700900123', preferred_channel: 'sms',
+    id: 'c1', beautician_id: 'b1', first_name: 'Sophie', phone: '+447700900123', preferred_channel: 'sms',
     messaging_autonomy: null, marketing_consent: true, marketing_opted_out_at: null,
   };
   db.beauticians.push(beautician);
@@ -509,5 +513,86 @@ describe('choosing the appointment', () => {
     const lateSunday = { id: 'a3', starts_at: '2026-09-06T23:30:00.000Z', treatments: { name: 'Pedicure' } };
     const v = pickConfirmationAppointment([lateSunday, fri], 'no confirmation for Sunday');
     expect(v.appointment.id).toBe('a3');
+  });
+});
+
+// Exercise the real front desk with service scenarios and synthetic deliveries.
+describe('appointment requests from an existing client', () => {
+  const request = "Hi Ellie, can I reschedule my appointment today? I've got a bad cold x";
+  const run = (text = request, channel = 'sms') => processInboundMessage(MSG_ID, beautician, client, text, channel);
+  const shortNoticeBooking = () => nextWeekBooking({ starts_at: new Date(Date.now() + 2 * 3_600_000).toISOString(), management_token: 'private-test-token' });
+
+  it.each(['sms', 'whatsapp', 'instagram'])('acknowledges on %s, keeps the request open, and leaves the diary alone', async channel => {
+    const booking = shortNoticeBooking();
+    const before = JSON.stringify(db.appointments);
+    client.is_regular = true;
+    client.whatsapp_id = '447700900123';
+    client.instagram_id = 'test-instagram';
+    beautician.whatsapp_phone_id = 'test-salon';
+    const result = await run(request, channel);
+    expect(result).toMatchObject({ handled: true, escalated: true, scenario: 'short_notice' });
+    expect(delivered).toHaveLength(1);
+    expect(textsToClient()[0]).toContain("I haven't changed or cancelled");
+    const inbound = db.messages.find(m => m.id === MSG_ID);
+    expect(inbound).toMatchObject({ escalated: true, ai_handled: false, ai_response: null });
+    expect(db.ai_actions.some(a => a.appointment_id === booking.id && a.details?.acknowledgement_sent && a.details.booking_changed === false)).toBe(true);
+    expect(JSON.stringify(db.appointments)).toBe(before);
+    expect(promptsSeen).toHaveLength(0);
+  });
+
+  it.each(['just_me', 'drafts'])('honours an explicit %s choice and leaves a draft', async mode => {
+    shortNoticeBooking();
+    client.messaging_autonomy = mode;
+    expect(await run()).toMatchObject({ handled: false, escalated: true });
+    expect(delivered).toHaveLength(0);
+    expect(draftOnMessage()).toBeTruthy();
+  });
+
+  it('honours the pause switch', async () => {
+    shortNoticeBooking();
+    beautician.client_reminder_prefs = { paused: true };
+    expect(await run()).toMatchObject({ handled: false, escalated: true });
+    expect(delivered).toHaveLength(0);
+  });
+
+  it('honours an explicit request for Ellie', async () => {
+    shortNoticeBooking();
+    await run('Can I speak to Ellie please? I need to reschedule my appointment today.');
+    expect(delivered).toHaveLength(0);
+    expect(client.messaging_autonomy).toBe('just_me');
+  });
+
+  it('gives a future booking its existing management link, without making another booking', async () => {
+    nextWeekBooking({ management_token: 'test-token' });
+    const result = await run('Can I reschedule my appointment next week?');
+    expect(result).toMatchObject({ handled: true, escalated: false, scenario: 'booking_manage_link' });
+    expect(textsToClient()[0]).toContain('/manage/test-token');
+    expect(db.appointments).toHaveLength(1);
+  });
+
+  it('cannot see or share another salon’s booking for this client', async () => {
+    nextWeekBooking({ beautician_id: 'another-salon', management_token: 'secret-other-salon-token' });
+    const result = await run();
+    expect(result).toMatchObject({ handled: true, escalated: true, scenario: 'booking_not_found' });
+    expect(textsToClient()[0]).not.toContain('secret-other-salon-token');
+  });
+
+  it('does not claim to have saved a handoff if the inbound record is missing', async () => {
+    shortNoticeBooking();
+    db.messages = [];
+    expect(await run()).toMatchObject({ handled: false });
+    expect(delivered).toHaveLength(0);
+  });
+
+  it('renders a draft with real free slots without crashing on undefined helpers', async () => {
+    nextWeekBooking();
+    client.messaging_autonomy = 'drafts';
+    freeSlots = [{ date: '2026-09-17', time: '14:00', iso: '2026-09-17T14:00:00Z' }];
+    script.classification = { intent: 'price_enquiry', confidence: 0.95, extracted: {} };
+    script.reply = 'A lash lift costs £50.';
+    const result = await run('How much is a lash lift?');
+    expect(result).toMatchObject({ escalated: true });
+    expect(result.error).toBeUndefined();
+    expect(promptsSeen.some(prompt => prompt.includes('Thursday 17 September at 2pm'))).toBe(true);
   });
 });

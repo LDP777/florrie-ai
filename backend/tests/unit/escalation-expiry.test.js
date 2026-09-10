@@ -99,6 +99,15 @@ describe('a thread that moved on', () => {
 });
 
 describe('the sweep', () => {
+  it('keeps a short-notice request open after Florrie acknowledges it', async () => {
+    db.messages = [
+      { ...escalation('change', 1), escalated_reason: 'appointment_change:short_notice' },
+      { ...outbound(0), authored_by: 'ai' },
+    ];
+    await expireStaleEscalations();
+    expect(db.messages[0].resolved).toBe(false);
+    expect(updates).toHaveLength(0);
+  });
   it('closes a recent escalation the thread moved past', async () => {
     db.messages = [escalation('m1', 3), outbound(2)];
     const out = await expireStaleEscalations();

@@ -123,6 +123,7 @@ const NEEDS_YOU_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
  * spoken since, nobody is waiting, whatever the old rows say.
  */
 function needsYou(bucket) {
+  if (bucket.needs_appointment_decision) return true;
   if (bucket.last_message_direction !== 'inbound') return false;
   if (Date.now() - new Date(bucket.last_message_at).getTime() > NEEDS_YOU_WINDOW_MS) return false;
   return replyIsOwed(bucket.last_inbound_preview || bucket.last_message_preview, {
@@ -163,6 +164,7 @@ const THREAD_BASE_COLUMNS = `
         read_at,
         ai_handled,
         escalated,
+        escalated_reason,
         ai_response,
         digital_employee,
         ai_intent,
@@ -194,6 +196,7 @@ async function computeThreads(beauticianId, limit) {
         read_at,
         ai_handled,
         escalated,
+        escalated_reason,
         ai_response,
         digital_employee,
         ai_intent,
@@ -346,6 +349,10 @@ async function computeThreads(beauticianId, limit) {
       }
       if (row.escalated && !row.resolved) {
         bucket.needs_attention = true;
+        if (String(row.escalated_reason || '').startsWith('appointment_change:')
+          && Date.now() - new Date(row.created_at).getTime() <= NEEDS_YOU_WINDOW_MS) {
+          bucket.needs_appointment_decision = true;
+        }
         // Rows arrive newest-first, so the FIRST unresolved escalation we meet
         // is the live one. Its draft is what the card offers her to send, so
         // she can answer without opening the conversation at all.

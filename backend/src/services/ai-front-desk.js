@@ -18,7 +18,7 @@ import { createBookingSuggestion } from './automations.js';
 import { sendMessage, sendInstagramDM, sendWhatsAppText, sendSMS, notifyBookingConfirmed } from './notifications.js';
 import { pushEscalation, pushTeamUpdate, pushAtTheDoor } from './push-notifications.js';
 import { refreshLiveActivity } from './live-activity.js';
-import { isKnownClient, clientAutonomyOverride, guardedSend, classifyTier } from '../lib/outbound-guard.js';
+import { clientAutonomyOverride, guardedSend, classifyTier } from '../lib/outbound-guard.js';
 import { ownerIsInThread } from '../lib/owner-in-thread.js';
 import { needsAPerson } from '../lib/needs-a-person.js';
 import { authorshipAvailable } from '../lib/authorship.js';
@@ -33,7 +33,8 @@ import { patchTestEvidence, patchTestStance } from '../lib/patch-test-status.js'
 import { inboundBudget } from '../lib/inbound-budget.js';
 import { isTrainingEnquiry, renderCoursesBlock } from '../lib/training-enquiry.js';
 import { hasColumn } from '../lib/schema-probe.js';
-import { isReturningVersion } from '../lib/booking-rules.js';
+import { isReturningVersion, describeSlot } from '../lib/booking-rules.js';
+import { appointmentChangeIntent, planAppointmentChange } from '../lib/appointment-message-scenario.js';
 import { isBillable, billabilityEnforced } from '../lib/billable.js';
 
 /**
@@ -79,7 +80,6 @@ const AUTONOMOUS_INTENTS = [
   INTENTS.BOOKING_REQUEST,
   INTENTS.PRICE_ENQUIRY,
   INTENTS.AVAILABILITY_CHECK,
-  INTENTS.RESCHEDULE,
   INTENTS.BOOKING_LOOKUP,
   INTENTS.GREETING,
   INTENTS.REVIEW_THANKS
@@ -290,51 +290,21 @@ export async function processInboundMessage(messageId, beautician, client, messa
     const writtenNotes = writtenNotesFrom(context.knowledge);
 
     // 2. Classify intent
-    const classification = await classifyIntent(messageContent, context);
+    const changeIntent = appointmentChangeIntent(messageContent);
+    const classification = changeIntent
+      ? { intent: changeIntent, confidence: 1, extracted: {} }
+      : await classifyIntent(messageContent, context);
+    const appointmentPlan = planAppointmentChange({ message: messageContent, classification, context, beautician });
 
-    // 3. Decide: act or escalate?
-    //
-    // TWO GATES, AND FOR MONTHS ONLY ONE OF THEM EVER RAN.
-    //
-    // canActAutonomously is the original: is the intent on a list, and is the
-    // classifier's confidence over her threshold (0.9). isGroundedReply is the
-    // one built to answer Ellie's actual complaint: is the ANSWER a fact we
-    // already hold?
-    //
-    // The grounded check used to sit INSIDE `if (shouldAct)`, so it could only
-    // ever narrow what the confidence gate had already allowed. And the
-    // confidence gate almost never allows anything, because 0.9 is a number
-    // this classifier does not return: it says 0.85 when it is sure. Thirty
-    // days of her inbox, measured:
-    //
-    //   177 messages in. Florrie wrote a reply to 147 of them. She sent 5.
-    //   142 escalated — 43 of those at exactly 85% confidence.
-    //
-    // One of the held ones was a client saying "So don't rush xx" and Florrie
-    // wanting to answer "no worries! take your time". That went to Ellie for
-    // approval. Twenty-one greetings and six thank-yous did the same. About
-    // twelve of the hundred and forty-two genuinely needed her.
-    //
-    // So the guards decide now, rather than a number nobody can reach. The
-    // grounded check runs FIRST and on its own terms, and everything it
-    // refuses — availability, reschedules, cancellations, complaints, anything
-    // it cannot evidence — escalates exactly as it does today. The 28 July
-    // incident ("4.30 Thursday is free" when it was not) was an availability
-    // claim, and availability is still ungrounded, still gated, unchanged.
-    //
-    // One switch, so this is reversible without a deploy: autonomy.grounded_replies.
+    // Facts can be answered from the diary, menu and written notes. Booking
+    // changes use a service plan; short-notice requests remain open for the
+    // owner after an acknowledgement. Visit history never grants or removes
+    // permission to answer a request.
     const groundedRepliesOn = beautician.autonomy?.grounded_replies !== false;
     let groundedDecision = groundedRepliesOn
       ? isGroundedReply({ intent: classification.intent, message: messageContent, context, beauticianFirstName: beautician.first_name, arrivalNote })
       : { grounded: false, reason: 'grounded_replies_switched_off' };
 
-    // A client Ellie already knows is a relationship she manages personally, so
-    // the grounded check is the ONLY way Florrie speaks in that thread — the
-    // confidence gate cannot let a booking request through on a 0.95. For
-    // somebody who has never booked, either gate will do: a stranger asking
-    // what a lash lift costs is answered from the price list, and a stranger
-    // asking for a slot still goes down the old path with its threshold intact.
-    const known = await isKnownClient(beautician.id, client?.id, client);
     // Per-client driver setting. 'just_me' / 'drafts' means she asked Florrie
     // not to speak in this thread. 'florrie' is an explicit whitelist.
     const autonomyOverride = await clientAutonomyOverride(beautician.id, client?.id, client);
@@ -349,6 +319,7 @@ export async function processInboundMessage(messageId, beautician, client, messa
       : ownerIsInThread({
         conversation: context.conversation,
         currentMessageId: messageId,
+        appointmentRequest: !!appointmentPlan,
       });
 
     const florriePaused = beautician.client_reminder_prefs?.paused === true;
@@ -383,7 +354,7 @@ export async function processInboundMessage(messageId, beautician, client, messa
     let shouldAct = mayFlorrieSend({
       classification,
       groundedDecision,
-      known,
+      appointmentPlan: beautician.autonomy?.grounded_replies !== false ? appointmentPlan : null,
       autonomyOverride,
       threshold: beautician.confidence_threshold,
       message: messageContent,
@@ -423,13 +394,20 @@ export async function processInboundMessage(messageId, beautician, client, messa
       }
     }
 
+    if (appointmentPlan) {
+      return await handleAppointmentChange({
+        plan: appointmentPlan, maySend: shouldAct, beautician, client, messageId,
+        classification, messageContent, replyChannel,
+      });
+    }
+
     // 3b. THE BOOKING CONVERSATION, and it runs HERE for a reason.
     //
     // Booking someone in end to end is the one thing a prompt cannot do: it
     // reads the real diary, holds the slot under the same database guards the
     // booking page uses, and takes a deposit. Those are WRITES. It used to run
     // above the three gates, which meant that for a client Ellie had set to
-    // "just me", or for any client she already knows, or with her autonomy dial
+    // "just me", or with her autonomy dial
     // where it is today, Florrie would still hold a slot out of her diary and
     // open a Stripe session while the reply itself sat unsent in her queue.
     // The slot then expired thirty minutes later and the cleanup texted the
@@ -971,7 +949,7 @@ async function gatherContext(beautician, client, messageContent = '') {
     // somebody is only safe if we are looking at all of them.
     client?.id ? supabase
       .from('appointments')
-      .select('id, starts_at, ends_at, status, treatments(name)')
+      .select('id, starts_at, ends_at, status, management_token, policy_snapshot, rescheduled_at, treatments(name)')
       .eq('beautician_id', beautician.id)
       .eq('client_id', client.id)
       .gte('starts_at', new Date(now.getTime() - 12 * 60 * 60 * 1000).toISOString())
@@ -985,6 +963,7 @@ async function gatherContext(beautician, client, messageContent = '') {
       .from('appointments')
       .select('starts_at, status, treatments(name), price_cents')
       .eq('client_id', client.id)
+      .eq('beautician_id', beautician.id)
       .order('starts_at', { ascending: false })
       .limit(5) : { data: [] },
 
@@ -993,6 +972,7 @@ async function gatherContext(beautician, client, messageContent = '') {
       .from('client_intelligence')
       .select('*')
       .eq('client_id', client.id)
+      .eq('beautician_id', beautician.id)
       .single() : { data: null },
 
     // Recent conversation thread with this client, so replies continue the chat
@@ -1006,6 +986,7 @@ async function gatherContext(beautician, client, messageContent = '') {
       // all: worse than the out-of-context replies it is here to prevent.
       .select(`id, direction, content, channel, created_at${authorshipAvailable() ? ', authored_by' : ''}`)
       .eq('client_id', client.id)
+      .eq('beautician_id', beautician.id)
       .order('created_at', { ascending: false })
       .limit(12) : { data: [] },
 
@@ -1165,6 +1146,7 @@ async function gatherContext(beautician, client, messageContent = '') {
     treatmentsError: treatments.error || null,
     upcomingAppointments: upcomingAppointments.data || [],
     clientUpcoming: clientUpcoming?.data || [],
+    clientUpcomingReadable: !clientUpcoming?.error,
     clientHistory: clientHistory.data || [],
     clientIntelligence: clientIntelligence.data,
     conversation: conversationThread,
@@ -1283,7 +1265,7 @@ Intents:
 - booking_request: wants to book an appointment
 - price_enquiry: asking about prices or costs
 - availability_check: asking when the beautician is free
-- reschedule: wants to move an existing appointment
+- reschedule: wants to move an existing appointment, including "I can't make it today", "something has come up" in a booking conversation, or asking for a different time without a question mark. An already-completed change or "thanks for moving it" is not a new request. Familiarity with the client must not change the intent.
 - cancellation: wants to cancel an appointment
 - general_question: question about treatments, products, patch tests, etc.
 - booking_lookup: asking about an appointment they ALREADY have — when is it, is it still booked, confirming a date or time back to you ("I have an appointment tomorrow at 6pm correct?", "when am I booked in?", "am I still in for Tuesday?"). NOT wanting to change it and NOT asking when you are free.
@@ -1328,6 +1310,51 @@ Only include extracted fields if they're mentioned in the message. Confidence is
     logger.error({ err }, 'Classification parse error');
     return { intent: INTENTS.UNKNOWN, confidence: 0.0, extracted: {} };
   }
+}
+
+async function handleAppointmentChange({ plan, maySend, beautician, client, messageId, classification, messageContent, replyChannel }) {
+  const needsOwner = plan.needsOwner || !maySend;
+  const reason = `appointment_change:${plan.reason}`;
+  // Save the request before saying it is in her inbox. An acknowledgement is
+  // not completion: a short-notice change stays escalated after it is sent.
+  const saved = await supabase.from('messages').update({
+    ai_handled: false, ai_intent: plan.intent, ai_confidence: classification.confidence,
+    escalated: true, escalated_reason: reason, ai_response: maySend ? null : plan.reply,
+    digital_employee: 'front_desk',
+  }).eq('id', messageId).select('id');
+  if (saved.error || !saved.data?.length) throw new Error('Could not save appointment change request');
+
+  let alerted = false;
+  if (needsOwner) {
+    alerted = !!await pushEscalation(beautician.id, client?.first_name || 'A client',
+      `${plan.reason === 'short_notice' ? 'Short-notice ' : ''}${plan.intent} request: ${messageContent}`,
+    ).catch(() => false);
+    refreshLiveActivity(beautician.id).catch(() => {});
+  }
+  const sent = maySend && await sendResponse(beautician, client,
+    signAsFlorrie(plan.reply, beautician.first_name), classification, messageId, replyChannel);
+  const held = needsOwner || !sent;
+  const updated = await supabase.from('messages').update({
+    ai_handled: sent && !held,
+    escalated: held,
+    escalated_reason: held ? (sent || !maySend ? reason : 'appointment_change:delivery_failed') : null,
+    ai_response: sent ? null : plan.reply,
+  }).eq('id', messageId);
+  if (updated.error) logger.error({ err: updated.error, messageId }, 'Could not record appointment reply delivery');
+  const logged = await supabase.from('ai_actions').insert({
+    beautician_id: beautician.id, client_id: client?.id, message_id: messageId,
+    appointment_id: plan.appointmentId, action_type: held ? 'message_escalated' : 'message_replied',
+    digital_employee: 'front_desk',
+    summary: held
+      ? `${plan.reason === 'short_notice' ? 'Short-notice ' : ''}${plan.intent} from ${client?.first_name || 'a client'} needs your decision`
+      : `Sent ${client?.first_name || 'a client'} their booking management link`,
+    details: { scenario: plan.reason, acknowledgement_sent: !!sent, booking_changed: false,
+      reason, channel: replyChannel, suggested_response: sent ? null : plan.reply },
+    confidence: classification.confidence, autonomous: !!sent,
+    outcome: held ? 'escalated' : 'success', notification_sent: alerted,
+  });
+  if (logged.error) logger.error({ err: logged.error, messageId }, 'Could not log appointment change handoff');
+  return { handled: !!sent, escalated: held, intent: plan.intent, scenario: plan.reason };
 }
 
 /**
@@ -1457,14 +1484,14 @@ NEVER say when an appointment is unless it is in that list, and say the day that
  * @param {object} a
  * @param {{intent: string, confidence: number}} a.classification
  * @param {{grounded: boolean, reason: string}} a.groundedDecision from isGroundedReply
- * @param {boolean} a.known has this client ever booked
+ * @param {object|null} a.appointmentPlan verified appointment reply, without diary writes
  * @param {string|null} a.autonomyOverride 'just_me' | 'drafts' | 'florrie' | null
  * @param {number} a.threshold her confidence threshold, for the old path
  * @param {string} a.message the client's own words, for the doorstep check
  * @param {string} a.arrivalNote what she has written down about arriving
  * @param {{present: boolean, reason: string}} [a.ownerPresent] is Ellie already in this thread
  */
-export function mayFlorrieSend({ classification, groundedDecision, known, autonomyOverride, threshold, message, arrivalNote = '', ownerPresent = null, florriePaused = false, salonHasAMenu = true, subscriptionLapsed = false }) {
+export function mayFlorrieSend({ classification, groundedDecision, autonomyOverride, threshold, message, appointmentPlan = null, arrivalNote = '', ownerPresent = null, florriePaused = false, salonHasAMenu = true, subscriptionLapsed = false }) {
   // NOBODY IS PAYING FOR THIS REPLY.
   //
   // The webhooks are un-paywalled on purpose (a client's message must land
@@ -1554,23 +1581,20 @@ export function mayFlorrieSend({ classification, groundedDecision, known, autono
 
   // She said not in this thread. Nothing else matters.
   if (autonomyOverride === 'just_me' || autonomyOverride === 'drafts') return false;
+  if (asksForHuman(message)) return false;
+
+  // A fixed service reply can acknowledge a request or share its verified link.
+  // This permission does not allow the booking engine to change the diary.
+  if (appointmentPlan?.reply) return true;
 
   const grounded = !!groundedDecision?.grounded;
   const classic = canActAutonomously(classification, threshold);
 
-  // A client she has explicitly whitelisted is one she has said Florrie may
-  // speak to, so the known-client narrowing below does not apply.
-  if (autonomyOverride === 'florrie') return grounded || classic;
-
-  // A client she already knows is a relationship she manages personally: the
-  // grounded check is the ONLY way in. A booking request at 0.95 confidence
-  // still waits for her, which is what the 28 July availability incident was.
-  if (known) return grounded;
-
-  // A stranger: either gate will do. Answering "what does a lash lift cost"
-  // from the price list needs no permission, and asking for a Saturday slot
-  // still goes down the old path with its threshold intact.
-  return grounded || classic;
+  // Visit count is context, not permission. Apply the same evidence and
+  // confidence checks to a new enquiry and an existing client's request.
+  // Only the booking flow verifies availability and can reserve a slot. A
+  // confident label alone cannot supply a missing price, booking or policy.
+  return grounded || (classic && [INTENTS.BOOKING_REQUEST, INTENTS.AVAILABILITY_CHECK].includes(classification.intent));
 }
 
 function canActAutonomously(classification, threshold) {
@@ -2066,12 +2090,13 @@ export async function learnFromCorrection(beauticianId, originalResponse, correc
  * never looked at her blocks, and never produced a clock time at all, so the
  * model filled the gap itself. That guess is the 28 Jul incident.
  */
+const SLOTS_SHOWN_IN_PROMPT = 12;
 function renderFreeSlots(freeSlots) {
   const slots = freeSlots || [];
   if (!slots.length) {
     return 'No free slots found. Do not name any time. Offer to check the book and come back to them.';
   }
-  const shown = slots.slice(0, SLOTS_SHOWN_IN_PROMPT).map(formatSlot).join(', ');
+  const shown = slots.slice(0, SLOTS_SHOWN_IN_PROMPT).map(slot => describeSlot(slot)).join(', ');
   const more = slots.length > SLOTS_SHOWN_IN_PROMPT ? ', and more after that' : '';
   return `Free slots (ONLY offer times from this list, never invent one): ${shown}${more}`;
 }
