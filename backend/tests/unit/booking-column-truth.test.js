@@ -400,6 +400,75 @@ const bookBody = (over = {}) => ({
   ...over,
 });
 
+describe('48-hour patch-test notice', () => {
+  async function atFixedTime(check) {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-12-04T11:00:00Z'));
+    try { await check(); } finally { vi.useRealTimers(); }
+  }
+
+  it.each([
+    ['2026-12-06T10:59:00', 409],
+    ['2026-12-06T11:00:00', 201],
+  ])('validates a new client booking at %s', async (starts_at, expectedStatus) => {
+    await atFixedTime(async () => {
+      db.clients.length = 0;
+      db.treatments[0].requires_patch_test = true;
+      const out = await run(bookingRouter, 'post', '/:slug/book', {
+        params: { slug: 'ellindigo' }, body: bookBody({ starts_at }),
+      });
+      expect(out.status, JSON.stringify(out.body)).toBe(expectedStatus);
+      if (expectedStatus === 409) {
+        expect(out.body.error).toContain('48 hours');
+        expect(db.appointments).toHaveLength(0);
+        expect(stripeState.sessions).toHaveLength(0);
+      }
+    });
+  });
+
+  function seedManagedAppointment() {
+    db.appointments.push({
+      id: 'main', beautician_id: 'b1', client_id: 'c1', management_token: 'manage-48',
+      starts_at: '2026-12-08T11:00:00.000Z', ends_at: '2026-12-08T12:00:00.000Z', status: 'confirmed',
+      beauticians: db.beauticians[0], clients: db.clients[0],
+    });
+  }
+
+  it('offers patch-test slots at least 48 hours before the treatment', async () => {
+    await atFixedTime(async () => {
+      seedManagedAppointment();
+      const out = await run(bookingRouter, 'get', '/:slug/manage/:token/patch-test/slots', {
+        params: { slug: 'ellindigo', token: 'manage-48' },
+      });
+      expect(out.status, JSON.stringify(out.body)).toBe(200);
+      expect(out.body.lead_hours).toBe(48);
+      expect(out.body.slots.length).toBeGreaterThan(0);
+      expect(out.body.slots).toContain('2026-12-06T11:00:00.000Z');
+      for (const slot of out.body.slots) {
+        expect(Date.parse('2026-12-08T11:00:00Z') - Date.parse(slot)).toBeGreaterThanOrEqual(48 * 3600000);
+      }
+    });
+  });
+
+  it.each([
+    ['2026-12-06T11:01:00.000Z', 400],
+    ['2026-12-06T11:00:00.000Z', 200],
+  ])('validates the chosen patch-test time %s on the server', async (slot, expectedStatus) => {
+    await atFixedTime(async () => {
+      seedManagedAppointment();
+      const out = await run(bookingRouter, 'post', '/:slug/manage/:token/patch-test/confirm', {
+        params: { slug: 'ellindigo', token: 'manage-48' }, body: { slot },
+      });
+      expect(out.status, JSON.stringify(out.body)).toBe(expectedStatus);
+      if (expectedStatus === 400) {
+        expect(out.body.error).toContain('48 hours');
+        expect(db.appointments).toHaveLength(1);
+      }
+      expect(db.appointments[0].status).toBe('confirmed');
+    });
+  });
+});
+
 /* ============================================================== A. closures == */
 
 describe('a closure is a range, not the first day of one', () => {

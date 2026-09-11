@@ -1,3 +1,4 @@
+import { PATCH_TEST_LEAD_HOURS } from '../lib/patch-test-policy.js';
 import { correctionVoiceHints } from '../lib/voice-corrections.js';
 import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
@@ -1189,7 +1190,7 @@ async function gatherContext(beautician, client, messageContent = '') {
  */
 function renderPatchTestBlock(patchTest) {
   if (!patchTest) return '';
-  const head = `Patch test: these treatments need one at least 24h before the first visit: ${patchTest.treatmentsNeedingTest.join(', ')}.`;
+  const head = `Patch test: these treatments need one at least ${PATCH_TEST_LEAD_HOURS}h before the first visit: ${patchTest.treatmentsNeedingTest.join(', ')}.`;
   const never = 'Never invent a patch test, a result, or a date.';
 
   switch (patchTest.status) {
@@ -1205,7 +1206,7 @@ function renderPatchTestBlock(patchTest) {
     case 'reaction':
       return `${head} There is a note on her last patch test. Do not offer a booking and do not reassure her. Say you want a quick chat before this one and that you will come back to her. ${never}`;
     case 'unidentified':
-      return `${head} You have not matched this person to a client record, so say nothing about HER: state the condition instead, that a first visit needs a quick patch test at least 24h before, and offer a real time for it if that is her. If she says she has been in before, do not argue, say you will check her notes and come back to her. ${never}`;
+      return `${head} You have not matched this person to a client record, so say nothing about HER: state the condition instead, that a first visit needs a quick patch test at least ${PATCH_TEST_LEAD_HOURS}h before, and offer a real time for it if that is her. If she says she has been in before, do not argue, say you will check her notes and come back to her. ${never}`;
     default:
       return `${head} You could not check her record just now, so claim nothing either way. Do not tell her she needs one. Say you will check and come straight back to her. ${never}`;
   }

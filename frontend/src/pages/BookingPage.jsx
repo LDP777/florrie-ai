@@ -1,3 +1,4 @@
+import { PATCH_TEST_LEAD_HOURS } from '../lib/patch-test-policy.js';
 import BookingEmailVerification from '../components/BookingEmailVerification.jsx';
 import { bookingAuth, bookingHeaders } from '../lib/booking-auth.js';
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
@@ -1235,7 +1236,7 @@ export default function BookingPage() {
             <div style={{ marginTop: 16, padding: '14px 16px', borderRadius: 10, background: brandLight, border: `1.5px solid ${brandMedium}`, textAlign: 'left' }}>
               <p style={{ fontSize: 14, fontWeight: 700, color: brand, margin: '0 0 4px' }}>One more step: your patch test 🩹</p>
               <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 10px', lineHeight: 1.5 }}>
-                This treatment needs a quick patch test at least 24 hours before your appointment. It only takes a few minutes, tap below to pick a time.
+                This treatment needs a quick patch test at least {PATCH_TEST_LEAD_HOURS} hours before your appointment. It only takes a few minutes, tap below to pick a time.
               </p>
               <a className="fl-tap" href={`${success.manageUrl}?book=patch`} style={{ display: 'block', width: '100%', boxSizing: 'border-box', padding: '12px 0', borderRadius: 10, textAlign: 'center', background: brand, color: '#fff', fontWeight: 600, fontSize: 14, textDecoration: 'none' }}>
                 Book my patch test →
@@ -1607,7 +1608,7 @@ export default function BookingPage() {
                 client who has already been recognised is told nothing. */}
             {needsPatchTest && !returningClient && (
               <div style={{ margin: '0 0 12px', padding: '11px 13px', borderRadius: 10, background: brandLight, border: `1px solid ${brandMedium}`, fontSize: 12.5, lineHeight: 1.5, color: 'var(--text-secondary)' }}>
-                <strong style={{ color: brand }}>Heads up:</strong> if this is your first time with us, this treatment needs a quick patch test at least 24 hours beforehand, so pick a time from tomorrow onwards and we'll sort it right after you book. If you have been in before, you are already sorted and there is nothing to do.
+                <strong style={{ color: brand }}>Heads up:</strong> if this is your first time with us, this treatment needs a quick patch test at least {PATCH_TEST_LEAD_HOURS} hours beforehand, so allow time for that when choosing your appointment and we'll sort it right after you book. If you already have a patch test on record, we can check whether you need another.
               </div>
             )}
             {fieldErrors.date && (
@@ -1761,9 +1762,9 @@ export default function BookingPage() {
                 which is only "there is a row for her" and is true of all 277
                 imported first timers as well as the 673 regulars. */}
             {needsPatchTest && !returningClient && selectedSlot &&
-              ((new Date(selectedSlot.starts_at).getTime() - Date.now()) / 3600000) < 24 && (
+              ((new Date(selectedSlot.starts_at).getTime() - Date.now()) / 3600000) < PATCH_TEST_LEAD_HOURS && (
               <div style={{ margin: '0 0 12px', padding: '11px 13px', borderRadius: 10, background: '#FEF3C7', border: '1px solid #F5D67E', fontSize: 12.5, lineHeight: 1.5, color: '#8A5A00' }}>
-                That time is under 24 hours away. As a new client you'll need a quick patch test first, so please <button className="fl-tap" type="button" onClick={() => setStep(1)} style={{ background: 'none', border: 'none', padding: 0, color: '#8A5A00', fontWeight: 700, textDecoration: 'underline', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5 }}>pick a time from tomorrow onwards</button>.
+                That time is under {PATCH_TEST_LEAD_HOURS} hours away. As a new client you'll need a quick patch test first, so please <button className="fl-tap" type="button" onClick={() => setStep(1)} style={{ background: 'none', border: 'none', padding: 0, color: '#8A5A00', fontWeight: 700, textDecoration: 'underline', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5 }}>choose a later appointment</button>.
               </div>
             )}
             <div style={styles.form}>

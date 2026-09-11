@@ -1,3 +1,4 @@
+import { PATCH_TEST_LEAD_HOURS } from '../lib/patch-test-policy.js';
 import MoreLoadError from '../components/MoreLoadError.jsx';
 import { useState, useEffect, Fragment } from 'react';
 import { useBeautician, fetchRowsStrict, insertRow, updateRow, supabase } from '../lib/supabase.js';
@@ -498,7 +499,7 @@ export default function Treatments() {
               >
                 {form.requires_patch_test ? 'Required' : 'Not needed'}
               </button>
-              <span style={styles.formHint}>For dye treatments - client must patch test 24h before</span>
+              <span style={styles.formHint}>For dye treatments - client must patch test {PATCH_TEST_LEAD_HOURS}h before</span>
             </div>
           </div>
 

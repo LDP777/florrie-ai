@@ -1,3 +1,4 @@
+import { PATCH_TEST_LEAD_HOURS } from '../lib/patch-test-policy.js';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { API_BASE } from '../lib/config.js';
@@ -609,7 +610,7 @@ export default function ClientManagePage() {
                 Book your patch test
               </span>
               <span style={{ display: 'block', fontSize: 13, lineHeight: 1.5, color: '#2D1B1B' }}>
-                You need one before this appointment, at least 24 hours before, or it cannot go ahead.
+                You need one before this appointment, at least {PATCH_TEST_LEAD_HOURS} hours before, or it cannot go ahead.
                 It only takes {patchTestDuration} minutes. Tap to pick a time.
               </span>
             </span>
@@ -959,7 +960,7 @@ export default function ClientManagePage() {
                     </p>
                     <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)' }}>
                       {needsPatchTest
-                        ? `Before your ${appointment.treatment?.name} on ${apptDate.toLocaleDateString('en-GB', { timeZone: 'UTC' })} - must be done at least 24 hours before`
+                        ? `Before your ${appointment.treatment?.name} on ${apptDate.toLocaleDateString('en-GB', { timeZone: 'UTC' })} - must be done at least ${PATCH_TEST_LEAD_HOURS} hours before`
                         : `If you would rather not wait for me to check, pick a time before your ${appointment.treatment?.name} on ${apptDate.toLocaleDateString('en-GB', { timeZone: 'UTC' })}.`}
                     </p>
                   </div>

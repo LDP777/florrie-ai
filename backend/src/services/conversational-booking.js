@@ -1,3 +1,4 @@
+import { PATCH_TEST_LEAD_HOURS } from '../lib/patch-test-policy.js';
 /**
  * Booking a client in over the course of a conversation.
  *
@@ -66,9 +67,6 @@ export const SESSION_GRACE_MINUTES = 2;
 // "any chance of lashes friday?" without turning the reply into a timetable.
 const SCAN_DAYS = 14;
 
-// Treatments needing a patch test cannot be booked inside 24 hours: the test
-// has to happen first. Same number as the booking page gate and the client copy.
-const PATCH_TEST_LEAD_HOURS = 24;
 
 // Intents that mean this conversation is not a new booking. If one of these
 // arrives mid negotiation the state is dropped and the normal reply path takes

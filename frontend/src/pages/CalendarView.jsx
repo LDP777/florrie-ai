@@ -1,3 +1,4 @@
+import { PATCH_TEST_LEAD_HOURS } from '../lib/patch-test-policy.js';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -2917,7 +2918,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                 <span style={{ fontSize: 15, lineHeight: 1.2 }}><Icon name="syringe" size={15} /></span>
                 <p style={{ margin: 0, fontSize: 12, lineHeight: 1.45, color: '#6B4E2E' }}>
                   <strong>This client still needs a patch test.</strong> Sending this link opens straight
-                  on the patch test picker, so they can book it themselves. It has to be at least 24 hours
+                  on the patch test picker, so they can book it themselves. It has to be at least {PATCH_TEST_LEAD_HOURS} hours
                   before their appointment.
                 </p>
               </div>

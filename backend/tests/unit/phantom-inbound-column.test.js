@@ -16,9 +16,9 @@
  *
  * The worst of the three is the pre-appointment reminder, which is why it is
  * the one driven end to end here. A first-time client books a lash lift for
- * Thursday. She needs a patch test at least 24 hours before, or she cannot be
+ * Thursday. She needs a patch test at least 48 hours before, or she cannot be
  * treated, and if she is treated anyway she is the one who finds out why the
- * rule exists. The reminder that tells her goes out 24 to 72 hours ahead. It
+ * rule exists. The reminder that tells her goes out up to 96 hours ahead. It
  * has never gone out.
  *
  * The column was only ever carried so sendNudge could decide whether the 24h
@@ -144,7 +144,7 @@ describe('the first-time client booked in for a lash lift on Thursday', () => {
     });
     db.appointments.push({
       id: 'a1', beautician_id: 'b1', client_id: 'c1', status: 'confirmed',
-      starts_at: inHours(48), management_token: 'tok-1',
+      starts_at: inHours(60), management_token: 'tok-1',
       treatments: { name: 'lash lift', requires_patch_test: true, requires_consultation: false },
       clients: {
         id: 'c1', first_name: 'Nadia', last_name: 'Okafor', phone: '+447700900002',
@@ -165,6 +165,48 @@ describe('the first-time client booked in for a lash lift on Thursday', () => {
   it('is given the link to book it', async () => {
     await runAutonomousCycle();
     expect(nudges[0].body).toContain('/manage/tok-1?book=patch');
+  });
+
+  it('reminds four days ahead so there is time to arrange the test', async () => {
+    db.appointments[0].starts_at = inHours(84);
+    await runAutonomousCycle();
+    expect(nudges).toHaveLength(1);
+    expect(nudges[0].body).toContain('48 hours');
+    expect(nudges[0].body).toContain('?book=patch');
+  });
+
+  it('asks for contact instead of offering an impossible patch-test slot inside 48 hours', async () => {
+    db.appointments[0].starts_at = inHours(36);
+    await runAutonomousCycle();
+    expect(nudges).toHaveLength(1);
+    expect(nudges[0].body).toContain('please message me');
+    expect(nudges[0].body).toContain('48 hours');
+    expect(nudges[0].body).not.toContain('?book=patch');
+    expect(db.appointments[0].status).toBe('confirmed');
+  });
+
+  it('includes an outstanding consultation with an early patch reminder', async () => {
+    db.appointments[0].starts_at = inHours(84);
+    db.consultation_responses.push({
+      id: 'form1', beautician_id: 'b1', client_id: 'c1', appointment_id: 'a1',
+      status: 'pending', token: 'form-token',
+    });
+    await runAutonomousCycle();
+    expect(nudges).toHaveLength(1);
+    expect(nudges[0].body).toContain('48 hours');
+    expect(nudges[0].body).toContain('/form/form-token');
+  });
+
+  it.each([[84, 0], [60, 1]])('keeps consultation-only reminder timing at %s hours', async (hours, count) => {
+    db.appointments[0].starts_at = inHours(hours);
+    db.appointments[0].treatments.requires_patch_test = false;
+    db.appointments[0].treatments.requires_consultation = true;
+    db.consultation_responses.push({
+      id: 'form1', beautician_id: 'b1', client_id: 'c1', appointment_id: 'a1',
+      status: 'pending', token: 'form-token',
+    });
+    await runAutonomousCycle();
+    expect(nudges).toHaveLength(count);
   });
 
   it('and no select in that path was rejected for naming a column that does not exist', async () => {
@@ -197,7 +239,7 @@ describe('the clients who should still be left alone', () => {
     });
     db.appointments.push({
       id: 'a1', beautician_id: 'b1', client_id: 'c1', status: 'confirmed',
-      starts_at: inHours(48), management_token: 'tok-1',
+      starts_at: inHours(60), management_token: 'tok-1',
       treatments: { name: 'lash lift', requires_patch_test: true, requires_consultation: false },
       clients: { id: 'c1', first_name: 'Jo', phone: '+447700900003', imported_from: 'timely' },
     });
@@ -221,7 +263,7 @@ describe('the clients who should still be left alone', () => {
       });
       db.appointments.push({
         id: `a-${id}`, beautician_id: 'b1', client_id: id, status: 'confirmed',
-        starts_at: inHours(48), management_token: 'tok-1',
+        starts_at: inHours(60), management_token: 'tok-1',
         treatments: { name: 'lash lift', requires_patch_test: true, requires_consultation: false },
         clients: { id, first_name: 'Jo', phone: '+447700900003', imported_from: 'timely' },
       });
@@ -234,7 +276,7 @@ describe('the clients who should still be left alone', () => {
   it('a client with a valid patch test already on file is not chased', async () => {
     db.appointments.push({
       id: 'a1', beautician_id: 'b1', client_id: 'c2', status: 'confirmed',
-      starts_at: inHours(48), management_token: 'tok-2',
+      starts_at: inHours(60), management_token: 'tok-2',
       treatments: { name: 'lash lift', requires_patch_test: true, requires_consultation: false },
       clients: { id: 'c2', first_name: 'Priya', phone: '+447700900004', imported_from: null },
     });
@@ -261,7 +303,7 @@ describe('the clients who should still be left alone', () => {
     db.clients.push({ id: 'c9', beautician_id: 'b1', first_name: 'Amara', phone: '+447700900009' });
     db.appointments.push({
       id: 'a1', beautician_id: 'b1', client_id: 'c9', status: 'confirmed',
-      starts_at: inHours(48), management_token: 'tok-9',
+      starts_at: inHours(60), management_token: 'tok-9',
       treatments: { name: 'lash lift', requires_patch_test: true, requires_consultation: false },
       clients: { id: 'c9', first_name: 'Amara', phone: '+447700900009', imported_from: null },
     });

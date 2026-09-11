@@ -297,11 +297,12 @@ describe('step 3: what she is allowed to offer', () => {
     }
   });
 
-  it('keeps a patch-test treatment at least 24 hours out', async () => {
+  it('keeps a patch-test treatment at least 48 hours out', async () => {
     freezeSalonClock();
     await say('lash lift please', 'booking_request', { patchTest: { status: 'none', treatmentsNeedingTest: ['Lash Lift'] } });
+    expect(state().offered.length).toBeGreaterThan(0);
     for (const o of state().offered) {
-      expect(new Date(o.iso).getTime() - new Date(`${BST_FRIDAY_WALL}Z`).getTime()).toBeGreaterThanOrEqual(24 * 3600 * 1000);
+      expect(new Date(o.iso).getTime() - new Date(`${BST_FRIDAY_WALL}Z`).getTime()).toBeGreaterThanOrEqual(48 * 3600 * 1000);
     }
   });
 

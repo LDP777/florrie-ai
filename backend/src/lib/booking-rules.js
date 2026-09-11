@@ -1,3 +1,4 @@
+import { PATCH_TEST_LEAD_HOURS } from './patch-test-policy.js';
 /**
  * The pure half of booking: money arithmetic, wall clock formatting, and the
  * language a client uses to pick a slot.
@@ -864,7 +865,7 @@ export function looksLikeABookingOpening(text, treatments = []) {
  */
 export function patchTestLine({ patchTest, depositDue, depositAlreadyMentioned = false }) {
   if (!patchTest) return '';
-  const base = " There's a quick patch test to do at least 24 hours before, I'll sort that with you";
+  const base = ` There's a quick patch test to do at least ${PATCH_TEST_LEAD_HOURS} hours before, I'll sort that with you`;
   if (depositDue && !depositAlreadyMentioned) return `${base} once the deposit is in.`;
   return `${base}.`;
 }

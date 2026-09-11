@@ -1,3 +1,4 @@
+import { PATCH_TEST_LEAD_HOURS } from '../lib/patch-test-policy.js';
 import { requireBookingIdentity, exactEmailPattern } from '../lib/booking-identity.js';
 import { bookingManagementGuard } from '../lib/booking-management-access.js';
 import { performPaidReschedule } from '../services/reschedule-payments.js';
@@ -2761,7 +2762,7 @@ router.post('/:slug/manage/:token/resend-payment', async (req, res) => {
 /**
  * GET /api/booking/:slug/manage/:token/patch-test/slots
  * Return available 10-minute slots for a patch test appointment.
- * Must be at least 24 hours before the main appointment, within working hours.
+ * Must be at least 48 hours before the main appointment, within working hours.
  * Checks for conflicts with existing appointments.
  */
 /**
@@ -2772,7 +2773,6 @@ router.post('/:slug/manage/:token/resend-payment', async (req, res) => {
  * Mixing a real UTC `now` into this frame is what made patch-test slots ignore
  * the real diary and drift by an hour in BST.
  */
-const PATCH_TEST_LEAD_HOURS = 24; // must match the booking gate + the client copy
 
 router.get('/:slug/manage/:token/patch-test/slots', async (req, res) => {
   try {
@@ -2842,7 +2842,7 @@ router.get('/:slug/manage/:token/patch-test/slots', async (req, res) => {
 
     const slots = [];
     const MAX_SLOTS = 800;
-    while (cursor < deadline && slots.length < MAX_SLOTS) {
+    while (cursor <= deadline && slots.length < MAX_SLOTS) {
       const slotEnd = new Date(cursor.getTime() + ptDuration * 60 * 1000);
       const dh = wallDayHours(workingHours, cursor);
       if (dh) {
@@ -2919,7 +2919,7 @@ router.post('/:slug/manage/:token/patch-test/confirm', async (req, res) => {
     const nowWall = nowInSalonWall(timezone);
     const slotEnd = new Date(slotTime.getTime() + ptDuration * 60 * 1000);
 
-    if (slotTime >= deadline) {
+    if (slotTime > deadline) {
       return res.status(400).json({ error: `That time is too close to your appointment. A patch test must be at least ${PATCH_TEST_LEAD_HOURS} hours before.` });
     }
     if (slotTime < nowWall) {
@@ -3984,18 +3984,18 @@ router.post('/:slug/book', requireBookingIdentity, validate(bookingSchema), veri
   }
 
   // ---- New-client safety gate (Ellie's rule, 2026-07-04) -------------------
-  // First-time clients booking a patch-test treatment must be 24h+ out so the
-  // test can happen at least 24 hours before the appointment. Measured against
+  // First-time clients booking a patch-test treatment must be 48h+ out so the
+  // test can happen at least 48 hours before the appointment. Measured against
   // the salon wall clock, not a real instant: against Date.now() this read an
   // hour generous in BST and let a 23 hour booking through. The confirmation +
   // manage portal then walk the client through booking the actual patch-test
-  // slot (24h validation there).
+  // slot (48h validation there).
   const gateNeedsPatchTest = isNewClient && allTreatments.some(t => t.requires_patch_test === true);
   if (gateNeedsPatchTest) {
     const hoursAway = (startsDate.getTime() - salonNow.getTime()) / 3600000;
-    if (hoursAway < 24) {
+    if (hoursAway < PATCH_TEST_LEAD_HOURS) {
       return res.status(409).json({
-        error: 'As a new client, this treatment needs a quick patch test at least 24 hours before your appointment. Please choose a time from tomorrow onwards so there is time to fit it in.',
+        error: `As a new client, this treatment needs a quick patch test at least ${PATCH_TEST_LEAD_HOURS} hours before your appointment. Please choose a later appointment so there is time to fit it in.`,
       });
     }
   }

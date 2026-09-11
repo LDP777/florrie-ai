@@ -1,3 +1,5 @@
+import { PATCH_TEST_LEAD_HOURS } from '../lib/patch-test-policy.js';
+import { nowInSalonWall } from '../lib/free-slots.js';
 import { processReviewRequests } from './review-requests.js';
 /**
  * Autonomous Scheduler — Florrie's proactive brain.
@@ -521,22 +523,22 @@ async function checkPatchTestsExpiring(beauticianId, beautician) {
 
 /**
  * 6. Pre-appointment requirements reminder. For NEW clients only (first visit,
- *    no prior completed appointment), for appointments 24-72h away, nudge them if
+ *    no prior completed appointment), for appointments 24-96h away, nudge them if
  *    their treatment needs a patch test they haven't got/booked, or if they have
  *    an outstanding consultation form. Reminds, never blocks. One per appointment.
  */
 async function checkPreAppointmentRequirements(beauticianId) {
   const { data: b } = await supabase
     .from('beauticians')
-    .select('booking_slug, patch_test_auto_remind, patch_test_expiry_months, whatsapp_phone_id, client_reminder_prefs')
+    .select('booking_slug, timezone, patch_test_auto_remind, patch_test_expiry_months, whatsapp_phone_id, client_reminder_prefs')
     .eq('id', beauticianId)
     .maybeSingle();
   if (!b) return 0;
 
-  const now = new Date();
-  // 24-72h out: enough lead time to act (a patch test must be booked >=24h before).
+  const now = nowInSalonWall(b.timezone || 'Europe/London');
+  // Patch-test reminders start earlier; consultation-only reminders retain 24-72h.
   const windowStart = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-  const windowEnd = new Date(now.getTime() + 72 * 60 * 60 * 1000);
+  const windowEnd = new Date(now.getTime() + (PATCH_TEST_LEAD_HOURS + 48) * 60 * 60 * 1000);
 
   const { data: appts } = await supabase
     .from('appointments')
@@ -544,7 +546,7 @@ async function checkPreAppointmentRequirements(beauticianId) {
     // migration, so PostgREST rejected the whole select, `appts` came back
     // null, and this returned 0 on every run since it shipped. That is not a
     // cosmetic miss: a first-time client booked for a lash lift was never told
-    // she needs a patch test at least 24 hours beforehand, and that reminder
+    // she needs a patch test at least 48 hours beforehand, and that reminder
     // exists for a safety reason. The 24h-window question it was fetched for
     // is answered from the messages table now.
     .select('id, starts_at, client_id, management_token, treatments(name, requires_patch_test, requires_consultation), clients(id, first_name, last_name, phone, whatsapp_id, email, imported_from, marketing_consent, marketing_opted_out_at, messaging_autonomy)')
@@ -603,6 +605,7 @@ async function checkPreAppointmentRequirements(beauticianId) {
     if ((count || 0) > 0) continue;
 
     const parts = [];
+    const hoursUntil = (new Date(appt.starts_at).getTime() - now.getTime()) / 3600000;
     let needsPatchTest = false;
 
     /* Patch test gap (gated on the same toggle as expiry reminders).
@@ -622,7 +625,11 @@ async function checkPreAppointmentRequirements(beauticianId) {
       if (stance.tellClient) {
         needsPatchTest = true;
         const link = appt.management_token ? `${FRONTEND}/book/${b.booking_slug}/manage/${appt.management_token}?book=patch` : null;
-        parts.push(`you'll need a quick patch test beforehand${link ? `, you can book one here: ${link}` : ''}`);
+        if (hoursUntil <= PATCH_TEST_LEAD_HOURS) {
+          parts.push(`your patch test needs to be at least ${PATCH_TEST_LEAD_HOURS} hours before treatment, so please message me to arrange what happens next`);
+        } else {
+          parts.push(`you'll need a quick patch test at least ${PATCH_TEST_LEAD_HOURS} hours beforehand${link ? `, you can book one here: ${link}` : ''}`);
+        }
       }
     }
 
@@ -661,7 +668,9 @@ async function checkPreAppointmentRequirements(beauticianId) {
       const rows = forms || [];
       const form = rows.find(r => r.appointment_id === appt.id)
         || (t.requires_consultation ? rows[0] : null);
-      if (form) {
+      // Include an outstanding form with an earlier patch-test reminder: the
+      // shared per-appointment dedup would otherwise suppress its later nudge.
+      if (form && (hoursUntil <= 72 || needsPatchTest)) {
         const formLink = form.form_url || (form.token ? `${FRONTEND}/form/${form.token}` : null);
         parts.push(`please fill in your consultation form${formLink ? `: ${formLink}` : ''}`);
       }
@@ -676,7 +685,7 @@ async function checkPreAppointmentRequirements(beauticianId) {
       // BELOW THE GATE, same bypass as the patch-test expiry reminder above.
       //
       // This one is TRANSACTIONAL, and deliberately so: it is about a booking
-      // this client has already made, in the next 24 to 72 hours, and it tells
+      // this client has already made, in the next 24 to 96 hours, and it tells
       // her the one thing she has to do before she can be treated. 'patch_test'
       // and 'consultation_form' are both in the guard's transactional set
       // (lib/outbound-guard.js), so it passes straight through rather than
