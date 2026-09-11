@@ -630,7 +630,7 @@ export default function BookingPage() {
    * consultation, and that wall is older than this change and stays exactly as
    * it was. `block` comes from the server and is true for nobody else.
    */
-  const missingConsultation = consultationDecision?.block === true ? unansweredConsultation : [];
+  const missingConsultation = []; // Final consultation follows booking confirmation.
 
 
   function rebookSameAgain() {
@@ -951,7 +951,7 @@ export default function BookingPage() {
   const canGoNext = calMonth ? !sameMonth(calMonth, horizonDate) && calMonth < startOfMonth(horizonDate) : false;
   /* The dots along the top. The health form earns one the moment we know she
    * is going to be asked for it, and keeps it while she is on it. */
-  const showFormStep = step === 2.5 || (consultationDecision?.forKey === consultationKey && consultationDecision.ask);
+  const showFormStep = step === 2.5;
   const progressSteps = showFormStep
     ? [...STEPS.slice(0, 3), CONSULTATION_STEP, ...STEPS.slice(3)]
     : STEPS;
@@ -1299,6 +1299,8 @@ export default function BookingPage() {
           {/* Manage booking portal link */}
           {success.manageUrl && (
             <div style={{ marginTop: 20 }}>
+              <h3 style={{ fontSize: 18, margin: '0 0 8px' }}>Before your appointment</h3>
+              <p style={{ fontSize: 14, lineHeight: 1.6 }}>Once your booking is confirmed, your checklist keeps patch-test times and your consultation together.</p>
               <a
                 href={success.manageUrl}
                 style={{ display: 'block', width: '100%', boxSizing: 'border-box',
@@ -1311,7 +1313,7 @@ export default function BookingPage() {
                 Manage my booking
               </a>
               <p style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', marginTop: 8 }}>
-                View, cancel or check patch test status
+                Manage booking, patch test and consultation
               </p>
             </div>
           )}
@@ -1850,8 +1852,7 @@ export default function BookingPage() {
                    * for all of them. The rule is now the server's, it is
                    * hybrid, and the button waits for it.
                    */
-                  const decision = await resolveConsultationDecision();
-                  setStep(decision.ask ? 2.5 : 3);
+                  setStep(3);
                 }}
                 disabled={!bookingEmail || !clientDetails.name || !clientDetails.phone || decidingConsultation}
                 style={{ ...styles.primaryBtn,
@@ -1862,7 +1863,7 @@ export default function BookingPage() {
                 {decidingConsultation
                   ? 'Just a moment...'
                   : consultationDecision?.forKey === consultationKey
-                    ? (consultationDecision.ask ? 'Next: Health form' : 'Review booking')
+                    ? 'Review booking'
                     : 'Next'}
               </button>
             </div>

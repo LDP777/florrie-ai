@@ -35,6 +35,7 @@ try {
       if(url.includes('/api/clients/care-client')) return json({client:person});
       if(url.includes('/api/clients/other-client')) return json({client:{...person,id:'other-client',first_name:'Other'}});
       if(url.includes('/rest/v1/appointments?')||url.includes('/rest/v1/messages?')||url.includes('/rest/v1/loyalty_points?')) return json([]);
+      if(url.includes('/api/consultation-forms/reviews/pending')) return json({reviews:[]});
       if(url.includes('/api/consultation-forms/responses/list')) {
         if(window.__care.failRecords) return json({error:'Synthetic record read failure'},500);
         if(url.includes('client_id=other-client')) return json({responses:[],requests:[],templates:[]});

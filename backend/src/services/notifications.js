@@ -1877,7 +1877,7 @@ export async function notifyBookingConfirmed(appointmentId) {
   // and then messaged Ellie. The landing page carries change-or-cancel too.
   const linkLine = calendarUrl
     ? ` Add it to your calendar: ${calendarUrl}`
-    : (manageUrl ? ` Change it, add a treatment or cancel: ${manageUrl}` : '');
+    : (manageUrl ? ` Manage your booking, patch test and consultation: ${manageUrl}` : '');
   const textMsg = `Hi ${client.first_name}, your ${treatment.name} with ${bizName} is confirmed for ${shortDate} at ${timeStr}.${receiptLine ? ` ${receiptLine}` : ''}${linkLine}`;
 
   // SMS/WhatsApp — only if beautician has opted in
@@ -2006,7 +2006,7 @@ export async function notifyBookingConfirmed(appointmentId) {
           <p style="margin:0;font-size:12px;line-height:1.6;color:#9c9388">On an iPhone, tap the <strong>booking.ics</strong> file attached to this email and it will drop straight into your calendar with a reminder.</p>
         </div>
         ${manageUrl ? `<div style="padding:14px 32px 4px;text-align:center">
-          <a href="${manageUrl}" style="display:inline-block;color:${accent};text-decoration:underline;font-size:13px;font-weight:600">Change or cancel this booking</a>
+          <a href="${manageUrl}" style="display:inline-block;color:${accent};text-decoration:underline;font-size:13px;font-weight:600">Manage booking &amp; preparation</a>
         </div>` : ''}
         <div style="padding:14px 32px 28px;text-align:center">
           <p style="margin:0;font-size:13px;line-height:1.6;color:#9c9388">Need to change something? Just reply to this email and ${biz.first_name || bizName} will sort it.</p>

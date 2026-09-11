@@ -391,7 +391,7 @@ const book = async (pop, over = {}) => {
 };
 
 /** The forms that were actually texted out during one test. */
-const formsTexted = () => sentSms.filter(m => /consultation form/i.test(m.body || ''));
+const formsTexted = () => sentSms.filter(m => /consultation|preparation checklist/i.test(m.body || ''));
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -407,37 +407,21 @@ afterEach(() => { vi.useRealTimers(); });
 // ---------------------------------------------------------------------------
 
 /**
- * THE LOAD-BEARING SAFETY TEST. DO NOT DELETE THIS DESCRIBE BLOCK.
- *
- * A client who is not in the database at all has never been able to book a
- * treatment that requires a consultation without filling the form in, and she
- * still cannot. Everything else in this file loosened something on purpose.
- * This did not, and if a future change makes these two tests fail then that
- * change has removed a working safety gate rather than the bug it was aiming
- * at.
+ * Consultation now follows confirmation. The waiting-period and signature
+ * gates are covered by booking-preparation.test.js; they must not prevent the
+ * client from securing and paying for the treatment first.
  */
-describe('THE WALL: a client not in the database still cannot book a consultation treatment without the form', () => {
-  it('is refused, server side, with nothing written to the diary', async () => {
+describe('booking confirmation precedes consultation', () => {
+  it('allows a new client to confirm without pre-checkout health answers', async () => {
     const pop = seed('stranger');
-    expect(db.clients).toHaveLength(0);
-
     const out = await book(pop);
-
-    expect(out.status).toBe(400);
-    expect(out.body.error).toBe('Please fill in the quick consultation form to book this treatment.');
-    // Refused before anything existed. No appointment, and no form texted to
-    // somebody who has not booked anything.
-    expect(db.appointments).toHaveLength(0);
+    expect(out.status).toBe(201);
+    expect(db.appointments).toHaveLength(1);
     expect(formsTexted()).toHaveLength(0);
   });
-
-  it('and the booking page is told to wall her too, before she ever submits', async () => {
-    const pop = seed('stranger');
-    const out = await lookup(pop);
-
-    expect(out.body.found).toBe(false);
-    expect(out.body.consultation.ask).toBe(true);
-    expect(out.body.consultation.block).toBe(true);
+  it('tells the booking page to collect consultation after confirmation', async () => {
+    const out = await lookup(seed('stranger'));
+    expect(out.body.consultation).toMatchObject({ ask: true, block: false, stage: 'after_confirmation' });
   });
 
   it('books the moment she answers the questions', async () => {
@@ -449,7 +433,7 @@ describe('THE WALL: a client not in the database still cannot book a consultatio
     expect(db.appointments).toHaveLength(1);
   });
 
-  it('is not walled for a treatment that asks nothing of her, and is still sent the form', async () => {
+  it('allows a treatment with no required consultation without a separate form text', async () => {
     // The other arm of the hybrid rule. A first timer booking a lip wax has no
     // prior history, so she is asked, and asking has never been refusing.
     const pop = { ...POPULATIONS.stranger, treatment: WAX };
@@ -457,12 +441,12 @@ describe('THE WALL: a client not in the database still cannot book a consultatio
     const out = await book(pop);
 
     expect(out.status).toBe(201);
-    expect(formsTexted()).toHaveLength(1);
+    expect(formsTexted()).toHaveLength(0);
   });
 });
 
 describe('the populations the page used to wave through', () => {
-  it('an imported contact who has never attended is ASKED, is NOT blocked, and gets the form', async () => {
+  it('an imported contact can book; consultation delivery follows confirmation', async () => {
     const pop = seed('importedNeverAttended');
 
     const seen = await lookup(pop);
@@ -475,13 +459,9 @@ describe('the populations the page used to wave through', () => {
     expect(out.status).toBe(201);
     expect(db.appointments).toHaveLength(1);
 
-    // The form went out, and it left behind the PENDING row that the 24 to 72
-    // hour pre-appointment reminder chases. Without that row nothing chases.
-    expect(formsTexted()).toHaveLength(1);
-    const pending = db.consultation_responses.filter(r => r.status === 'pending');
-    expect(pending).toHaveLength(1);
-    expect(pending[0].client_id).toBe('c_never');
-    expect(pending[0].form_id).toBe('f_brow');
+    // This fixture stops before confirmation delivery. Issuance is tested
+    // independently from SMS in booking-preparation.test.js.
+    expect(formsTexted()).toHaveLength(0);
   });
 
   it('an imported regular with real history and no form on file is ASKED, and not blocked', async () => {
@@ -496,7 +476,7 @@ describe('the populations the page used to wave through', () => {
 
     const out = await book(pop);
     expect(out.status).toBe(201);
-    expect(formsTexted()).toHaveLength(1);
+    expect(formsTexted()).toHaveLength(0);
   });
 
   it('an imported regular with a COMPLETED form for that treatment is not asked again', async () => {
@@ -617,7 +597,7 @@ describe('the booking page and Florrie reach the same verdict', () => {
  * and a form nobody can read is a form nobody filled in.
  */
 describe('answers given at booking are filed, for everybody who is asked', () => {
-  it('files a completed response for an imported regular, keyed to the right form', async () => {
+  it('keeps early answers as an unsigned draft for the correct form', async () => {
     const pop = seed('importedRegular');
 
     const out = await book(pop, {
@@ -625,14 +605,17 @@ describe('answers given at booking are filed, for everybody who is asked', () =>
     });
 
     expect(out.status).toBe(201);
-    const completed = db.consultation_responses.filter(r => r.status === 'completed');
+    const completed = db.consultation_responses.filter(r => r.status === 'pending');
     expect(completed, 'her answers never reached consultation_responses').toHaveLength(1);
     expect(completed[0].form_id).toBe('f_brow');
     expect(completed[0].client_id).toBe('c_reg');
     expect(completed[0].appointment_id).toBe(db.appointments[0].id);
     expect(completed[0].answers[FIELD_ALLERGIES]).toBe('Nut oils');
 
-    // Answered inline, so she is not texted the same form ten seconds later.
+    expect(completed[0].signature_data).toBeNull();
+    expect(completed[0].completed_at).toBeNull();
+    expect(completed[0].booking_care.version).toBe(1);
+    // Early answers cannot bypass the outcome and signature gates.
     expect(formsTexted()).toHaveLength(0);
   });
 
@@ -641,18 +624,18 @@ describe('answers given at booking are filed, for everybody who is asked', () =>
 
     await book(pop, { consultation: { [FIELD_ALLERGIES]: 'Latex', [FIELD_MEDICAL]: 'Asthma' } });
 
-    const completed = db.consultation_responses.filter(r => r.status === 'completed');
+    const completed = db.consultation_responses.filter(r => r.status === 'pending');
     expect(completed).toHaveLength(1);
     expect(completed[0].answers[FIELD_MEDICAL]).toBe('Asthma');
   });
 
-  it('a filed answer is what suppresses the next ask, which is the whole loop', async () => {
+  it('early unsigned answers do not count as a completed consultation', async () => {
     const pop = seed('importedRegular');
     await book(pop, { consultation: { [FIELD_ALLERGIES]: 'Nut oils', [FIELD_MEDICAL]: 'None' } });
 
-    // Same client, same treatment, second booking. She has told us once.
+    // These are drafts, so the final consultation is still outstanding.
     const again = await lookup(pop);
-    expect(again.body.consultation.ask).toBe(false);
+    expect(again.body.consultation.ask).toBe(true);
   });
 });
 
@@ -754,9 +737,8 @@ describe('the booking page obeys the server rather than its own copy of the rule
   it('no longer decides who gets the form from `found`', () => {
     expect(page).not.toContain('const askForms = !recognisedClient?.found');
     expect(page).not.toContain('!recognisedClient?.found ? consultationAnswers : null');
-    // It waits for the verdict instead of reading state a blur handler is
-    // still filling in. That await IS the race fix.
-    expect(page).toContain('await resolveConsultationDecision()');
+    // The confirmed management page now owns the consultation journey.
+    // The browser regression covers its saved answers and final signature.
   });
 
   it('sends the answers it collected', () => {

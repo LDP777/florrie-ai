@@ -1,3 +1,6 @@
+import { ensureBookingConsultations, readBookingPreparation, PREPARATION_APPOINTMENT_SELECT } from '../lib/booking-preparation.js';
+import bookingCareRouter, { notifyConsultationReview } from './consultation-booking-care.js';
+import { CARE_RESPONSE_SELECT, consultationBookingContext, assertCareSubmission, updatedCare, careCompareAndSet } from '../lib/consultation-booking-care.js';
 import { Router } from 'express';
 import crypto from 'crypto';
 import { supabase } from '../config.js';
@@ -23,6 +26,7 @@ import {
 import { authorship } from '../lib/authorship.js';
 
 const router = Router();
+router.use(bookingCareRouter);
 const FRONTEND_URL = process.env.FRONTEND_URL;
 
 // ═══════════════════════════════════════════════
@@ -119,7 +123,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
  * one exists: the blob itself never leaves in a list payload.
  */
 const RESPONSE_SELECT =
-  'id, form_id, client_id, appointment_id, status, completed_at, created_at, answers, signature_data, form_snapshot, ' +
+  'id, form_id, client_id, appointment_id, status, completed_at, created_at, answers, signature_data, form_snapshot, booking_care, ' +
   'consultation_forms(name, consent_text, consultation_form_fields(id, type, label, options, sort_order))';
 
 /**
@@ -162,7 +166,7 @@ router.get('/responses/list', requireAuth, async (req, res) => {
   if (handleQueryError(error, res, 'fetch consultation responses')) return;
 
   let requestsQuery = supabase.from('consultation_responses')
-    .select('id, form_id, client_id, appointment_id, status, completed_at, created_at, expires_at, form_snapshot, consultation_forms(name)')
+    .select('id, form_id, client_id, appointment_id, status, completed_at, created_at, expires_at, form_snapshot, booking_care, consultation_forms(name)')
     .eq('beautician_id', req.beautician.id).in('status', ['pending', 'expired']).order('created_at', { ascending: false });
   if (client_id) requestsQuery = requestsQuery.eq('client_id', client_id);
   if (appointment_id) requestsQuery = requestsQuery.eq('appointment_id', appointment_id);
@@ -175,7 +179,7 @@ router.get('/responses/list', requireAuth, async (req, res) => {
     requests: (requests || []).map(r => ({ id: r.id, form_id: r.form_id, client_id: r.client_id,
       appointment_id: r.appointment_id, form_name: r.form_snapshot?.name || r.consultation_forms?.name || 'Consultation form',
       status: r.completed_at ? 'answers_removed' : r.status === 'expired' || (r.expires_at && new Date(r.expires_at) < new Date()) ? 'expired' : 'pending',
-      sent_at: r.created_at, expires_at: r.expires_at })),
+      sent_at: r.created_at, expires_at: r.expires_at, booking_care: r.booking_care || null })),
     templates: templates || [],
     form_available: (templates || []).length > 0,
   });
@@ -416,9 +420,10 @@ router.post('/send', requireAuth, async (req, res) => {
  * Returns the form structure + client name for personalisation.
  */
 router.get('/public/:token', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
   const { data: response, error } = await supabase
     .from('consultation_responses')
-    .select('id, status, expires_at, form_id, form_snapshot, consultation_forms(name, consent_text, consultation_form_fields(*)), clients(first_name), beauticians(business_name, first_name, brand_color, logo_url)')
+    .select(`${CARE_RESPONSE_SELECT}, consultation_forms(name, consent_text, consultation_form_fields(*)), clients(first_name), beauticians(business_name, first_name, brand_color, logo_url)`)
     .eq('token', req.params.token)
     .maybeSingle();
 
@@ -444,8 +449,12 @@ router.get('/public/:token', async (req, res) => {
     return res.json({ completed: true, message: 'You have already submitted this form. Thank you!' });
   }
 
+  let prep;
+  try { prep = await consultationBookingContext(supabase, response); }
+  catch (err) { return res.status(err.status || 503).json({ error: err.status ? err.message : 'Could not check preparation. Please try again.' }); }
   // Sort fields
   const form = response.form_snapshot || response.consultation_forms;
+  if (!form) return res.status(503).json({ error: 'This form is unavailable. Please contact your tech.' });
   if (form?.consultation_form_fields) {
     form.consultation_form_fields.sort((a, b) => a.sort_order - b.sort_order);
   }
@@ -454,8 +463,12 @@ router.get('/public/:token', async (req, res) => {
     form: {
       name: form.name,
       consent_text: form.consent_text,
-      fields: form.consultation_form_fields || [],
+      fields: prep && !(form.consultation_form_fields || []).some(f => f.type === 'signature')
+        ? [...(form.consultation_form_fields || []), { id: 'booking-signature', type: 'signature', required: true, label: 'Your signature' }]
+        : (form.consultation_form_fields || []).map(f => prep && f.type === 'signature' ? { ...f, required: true } : f),
     },
+    preparation: prep?.patch || null,
+    draft: prep ? { answers: response.answers || {}, revision: response.booking_care?.revision || 0, patch_outcome: response.booking_care?.patch_outcome || null } : null,
     client_name: response.clients?.first_name || null,
     beautician: {
       name: response.beauticians?.business_name || response.beauticians?.first_name,
@@ -475,17 +488,20 @@ router.post('/public/:token/submit', validate(submitConsultationFormSchema), asy
   // Load response
   const { data: response } = await supabase
     .from('consultation_responses')
-    .select('id, status, expires_at, form_id, form_snapshot')
+    .select(CARE_RESPONSE_SELECT)
     .eq('token', req.params.token)
     .single();
 
   if (!response) return res.status(404).json({ error: 'Form not found' });
-  if (response.status === 'completed') return res.status(400).json({ error: 'Form already submitted' });
+  if (response.status === 'completed') return res.json({ success: true, completed: true, message: 'Consultation received.', review_required: response.booking_care?.review_required || false });
   if (response.status !== 'pending') return res.status(410).json({ error: 'This form link is no longer active.' });
   if (response.expires_at && new Date(response.expires_at) < new Date()) {
     return res.status(410).json({ error: 'Form link has expired' });
   }
 
+  let prep;
+  try { prep = await consultationBookingContext(supabase, response); assertCareSubmission(response, prep, req.body); }
+  catch (err) { return res.status(err.status || 503).json({ error: err.status ? err.message : 'Could not check preparation. Your answers are still here. Please try again.' }); }
   let fields = response.form_snapshot?.consultation_form_fields;
   if (!fields) {
     const { data, error } = await supabase.from('consultation_form_fields').select('id, type, required, label').eq('form_id', response.form_id);
@@ -501,21 +517,24 @@ router.post('/public/:token/submit', validate(submitConsultationFormSchema), asy
     });
   }
 
-  // Save
-  const { data: saved, error } = await supabase
+  const care = prep ? updatedCare(response, req.body, prep, { completed: true }) : null;
+  // The revision protects saved drafts and signatures against overlapping submissions.
+  const { data: saved, error } = await careCompareAndSet(supabase
     .from('consultation_responses')
     .update({
       answers,
       signature_data,
       status: 'completed',
       completed_at: new Date().toISOString(),
+      ...(care ? { booking_care: care } : {}),
     })
-    .eq('id', response.id).eq('status', 'pending').select('id').maybeSingle();
+    .eq('id', response.id).eq('status', 'pending'), response).select('id').maybeSingle();
 
   if (error) return res.status(500).json({ error: 'Failed to save form' });
   if (!saved) return res.status(409).json({ error: 'This form has already changed. Refresh to check its status.' });
 
-  res.json({ success: true, message: 'Thank you, your form has been submitted.' });
+  if (care) notifyConsultationReview(response, care);
+  res.json({ success: true, message: 'Consultation received. Thank you.', review_required: care?.review_required || false });
 });
 
 // ═══════════════════════════════════════════════
@@ -540,6 +559,24 @@ export async function sendConsultationFormSMS({
   beauticianId, clientId, appointmentId, clientPhone, clientFirstName,
   treatmentId, beauticianName, extraTreatmentIds = [], formId: requestedFormId = null, skipCompleted = false,
 }) {
+  if (appointmentId) {
+    const { data: booking, error: bookingError } = await supabase.from('appointments').select(PREPARATION_APPOINTMENT_SELECT)
+      .eq('id', appointmentId).eq('beautician_id', beauticianId).eq('client_id', clientId).maybeSingle();
+    if (bookingError) throw bookingError;
+    if (booking?.management_token && ['confirmed', 'in_progress'].includes(booking.status)) {
+      await ensureBookingConsultations(supabase, booking);
+      const prep = await readBookingPreparation(supabase, booking);
+      if (!requestedFormId || prep.forms.some(f => f.id === requestedFormId)) {
+        if (prep.forms.length && prep.forms.every(f => f.status === 'received')) return { already_completed: true };
+        if (!prep.forms.length) return null;
+        const manageUrl = `${FRONTEND_URL || 'https://florrie.ai'}/book/${booking.beauticians.booking_slug}/manage/${booking.management_token}`;
+        const body = `Hi ${clientFirstName}, your booking with ${beauticianName} has a preparation checklist. ${prep.patch.can_complete ? 'Please complete your consultation here' : 'Check your patch-test steps and save any consultation answers here'}: ${manageUrl}`;
+        const delivery = await sendSMS({ to: clientPhone, body, beauticianId, clientId, messageType: 'consultation_form' });
+        if (!delivery) throw new Error('The text service did not accept this request. Your consultation is still available in Manage my booking.');
+        return { id: prep.forms[0].response?.id, form_id: prep.forms[0].id, status: 'pending' };
+      }
+    }
+  }
   // Resolve an explicit choice, or every form required by this booking.
   let formIds = requestedFormId ? [requestedFormId] : [];
   if (!requestedFormId && (treatmentId || extraTreatmentIds.length)) {
@@ -762,7 +799,7 @@ async function ensureDefaultBookingForm(beauticianId) {
  *   keep it rather than lose it
  */
 export async function recordBookingConsultation({
-  beauticianId, clientId, appointmentId, answers, formIds = [],
+  beauticianId, clientId, appointmentId, answers, formIds = [], asDraft = false, expiresAt = null,
 }) {
   const blob = (answers && typeof answers === 'object' && !Array.isArray(answers)) ? answers : {};
   if (!beauticianId || !appointmentId || Object.keys(blob).length === 0) {
@@ -838,10 +875,11 @@ export async function recordBookingConsultation({
       // says "you have already submitted this form".
       token: crypto.randomUUID(),
       answers: g.answers,
-      signature_data: g.signature || null,
-      status: 'completed',
-      completed_at: completedAt,
-      expires_at: null,
+      signature_data: asDraft ? null : g.signature || null,
+      status: asDraft ? 'pending' : 'completed',
+      completed_at: asDraft ? null : completedAt,
+      expires_at: asDraft ? expiresAt : null,
+      ...(asDraft ? { booking_care: { version: 1, revision: 0, saved_at: completedAt, draft_from_booking: true } } : {}),
     }));
 
     const { data: inserted, error: insErr } = await supabase

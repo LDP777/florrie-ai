@@ -46,5 +46,20 @@ assert.equal((await db.query('SELECT count(*)::int n FROM consultation_forms')).
 // Rerunning a deployment must not replace snapshots with today's template.
 await db.exec(migration);
 assert.deepEqual((await db.query("SELECT form_snapshot FROM consultation_responses WHERE form_snapshot->>'name'='Original'")).rows.map(r=>r.form_snapshot), [original,original]);
+// The booking preparation migration is additive, replayable and leaves the
+// snapshot trigger and signed answers untouched.
+await db.exec(`CREATE TABLE appointments (id uuid PRIMARY KEY); CREATE TABLE patch_tests (id uuid PRIMARY KEY, test_date date);`);
+const careMigration = await readFile(new URL('../../../supabase/migrations/20260911_booking_preparation.sql', import.meta.url), 'utf8');
+const beforeCare = (await db.query('SELECT * FROM consultation_responses ORDER BY id')).rows;
+await db.exec(careMigration); await db.exec(careMigration);
+const afterCare = (await db.query('SELECT * FROM consultation_responses ORDER BY id')).rows;
+assert.deepEqual(afterCare.map(({booking_care, ...row}) => row), beforeCare);
+assert.ok(afterCare.every(row => row.booking_care === null));
+const responseId = afterCare[0].id;
+await db.query(`UPDATE consultation_responses SET booking_care = '{"version":1,"revision":0}' WHERE id=$1`, [responseId]);
+const update = `UPDATE consultation_responses SET booking_care = '{"version":1,"revision":1}' WHERE id=$1 AND booking_care->>'revision'='0' RETURNING id`;
+assert.equal((await db.query(update,[responseId])).rows.length,1);
+assert.equal((await db.query(update,[responseId])).rows.length,0);
+assert.deepEqual((await db.query('SELECT form_snapshot FROM consultation_responses WHERE id=$1',[responseId])).rows[0].form_snapshot, afterCare[0].form_snapshot);
 await db.close();
 console.log('PASS: migration backfill, issued evidence, new requests, immutable submissions, atomic edit/create rollback, ownership, repeat migration');

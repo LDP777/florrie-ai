@@ -33,7 +33,7 @@ vi.mock('../../src/lib/logger.js', () => ({ default: { info(){},warn(){},error()
 import router from '../../src/routes/consultation-forms.js';
 async function run(method, path, options = {}) {
   const req = { beautician: { id:'owner' }, params:{}, query:{}, body:{}, ...options };
-  const out = { status:200,body:null }; const res = { status(n){out.status=n;return res;},json(body){out.body=body;return res;} };
+  const out = { status:200,body:null }; const res = { set(){return res;}, status(n){out.status=n;return res;},json(body){out.body=body;return res;} };
   const layer = router.stack.find(l => l.route?.path === path && l.route.methods[method]);
   for (const middleware of layer.route.stack) {
     let next = false;

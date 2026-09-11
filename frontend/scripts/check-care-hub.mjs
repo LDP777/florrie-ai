@@ -85,7 +85,8 @@ try {
   const failed = await context('error');
   await failed.page.goto(`${base}/compliance`);
   await failed.page.getByText('Unavailable', { exact: true }).waitFor();
-  await failed.page.getByRole('button', { name: 'Try again', exact: true }).waitFor();
+  await failed.page.getByRole('region', { name: 'Upcoming patch-test checks' }).getByRole('button', { name: 'Try again', exact: true }).waitFor();
+  await failed.page.getByRole('region', { name: 'Consultations to review' }).getByRole('button', { name: 'Try again', exact: true }).waitFor();
   assert.equal(await failed.page.getByText('No patch-test checks in this window', { exact: true }).count(), 0);
   await failed.ctx.close();
   console.log('✓ Failed Guardian read remains unknown');

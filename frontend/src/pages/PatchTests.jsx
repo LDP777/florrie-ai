@@ -134,7 +134,7 @@ export default function PatchTests() {
    * pass the salon never gave it, for every test she logs without thinking
    * about the dropdown. Absent is the honest default and the honest value. */
   const [form, setForm] = useState({
-    client_id: filterClientId, test_date: todayLocal(),
+    client_id: filterClientId, test_date: todayLocal(), test_time: '',
     result: '', notes: '', treatment_id: '',
   });
 
@@ -265,6 +265,7 @@ export default function PatchTests() {
         body: JSON.stringify({
           client_id: form.client_id,
           test_date: form.test_date,
+          test_time: form.test_time || undefined,
           treatment_id: form.treatment_id || undefined,
           // Only sent when she actually chose one. Empty means nobody stated
           // an outcome, and nothing is written for it.
@@ -275,7 +276,7 @@ export default function PatchTests() {
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || 'Could not save that just then.');
 
-      setForm({ client_id: filterClientId, test_date: todayLocal(), result: '', notes: '', treatment_id: '' });
+      setForm({ client_id: filterClientId, test_date: todayLocal(), test_time: '', result: '', notes: '', treatment_id: '' });
       setShowAdd(false);
       // Reload rather than guess: the alert this clears is computed server
       // side, and a list that disagrees with it is worse than a short wait.
@@ -400,6 +401,12 @@ export default function PatchTests() {
                 style={styles.formInput}
               />
             </div>
+          </div>
+
+          <div style={styles.formGroup}>
+            <label style={styles.formLabel} htmlFor="patch-applied-time">Time applied (if known, salon time)</label>
+            <input id="patch-applied-time" type="time" value={form.test_time} onChange={e => setForm(p => ({ ...p, test_time: e.target.value }))} style={styles.formInput} />
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>This starts the consultation’s 48-hour waiting period. If you only know the date, we count from the end of that day. Choose the treatment it covers below.</p>
           </div>
 
           <div style={styles.formGroup}>

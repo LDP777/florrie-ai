@@ -1,3 +1,4 @@
+import { sendBookingPreparationReminder } from './booking-preparation-reminder.js';
 import { PATCH_TEST_LEAD_HOURS } from '../lib/patch-test-policy.js';
 import { nowInSalonWall } from '../lib/free-slots.js';
 import { processReviewRequests } from './review-requests.js';
@@ -537,7 +538,7 @@ async function checkPreAppointmentRequirements(beauticianId) {
 
   const now = nowInSalonWall(b.timezone || 'Europe/London');
   // Patch-test reminders start earlier; consultation-only reminders retain 24-72h.
-  const windowStart = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const windowStart = now; // Staged forms may unlock in the final 24 hours.
   const windowEnd = new Date(now.getTime() + (PATCH_TEST_LEAD_HOURS + 48) * 60 * 60 * 1000);
 
   const { data: appts } = await supabase
@@ -549,13 +550,17 @@ async function checkPreAppointmentRequirements(beauticianId) {
     // she needs a patch test at least 48 hours beforehand, and that reminder
     // exists for a safety reason. The 24h-window question it was fetched for
     // is answered from the messages table now.
-    .select('id, starts_at, client_id, management_token, treatments(name, requires_patch_test, requires_consultation), clients(id, first_name, last_name, phone, whatsapp_id, email, imported_from, marketing_consent, marketing_opted_out_at, messaging_autonomy)')
+    .select('id, starts_at, ends_at, status, beautician_id, treatment_id, extra_treatment_ids, client_id, management_token, treatments(name, requires_patch_test, requires_consultation), clients(id, first_name, last_name, phone, whatsapp_id, email, imported_from, marketing_consent, marketing_opted_out_at, messaging_autonomy)')
     .eq('beautician_id', beauticianId)
     .in('status', ['confirmed', 'pending'])
     .gte('starts_at', windowStart.toISOString())
     .lte('starts_at', windowEnd.toISOString());
   if (!appts?.length) return 0;
 
+  const staged = await supabase.from('consultation_responses').select('appointment_id')
+    .eq('beautician_id', beauticianId).eq('booking_care->>version', '1').in('appointment_id', appts.map(a => a.id));
+  if (staged.error) { logger.warn('Could not check preparation reminder stages'); return 0; }
+  const stagedIds = new Set((staged.data || []).map(r => r.appointment_id));
   const expiryMonths = b.patch_test_expiry_months || 6;
   const beauticianPrefs = { whatsapp_connected: !!b.whatsapp_phone_id, ...(b.client_reminder_prefs || {}) };
   const FRONTEND = process.env.FRONTEND_URL || 'https://florrie.ai';
@@ -565,6 +570,23 @@ async function checkPreAppointmentRequirements(beauticianId) {
     const client = appt.clients;
     const t = appt.treatments;
     if (!client || !t) continue;
+    if (stagedIds.has(appt.id)) {
+      try {
+        const delivered = await sendBookingPreparationReminder({ db: supabase,
+          appointment: { ...appt, beautician_id: beauticianId, beauticians: { ...b, id: beauticianId } },
+          patchReminders: !!b.patch_test_auto_remind,
+          deliver: async ({ body, messageType }) => {
+            const result = await guardedSend({ beauticianId, clientId: client.id, messageType,
+              channel: beauticianPrefs.whatsapp_connected ? 'whatsapp' : 'sms', client, body,
+              send: async () => await sendNudge({ client, body, beauticianId, beauticianPrefs }) });
+            return result.delivered;
+          },
+        });
+        if (delivered) sent++;
+      } catch (err) { logger.warn({ message: err.message, apptId: appt.id }, 'Preparation reminder will retry'); }
+      continue;
+    }
+    if ((new Date(appt.starts_at).getTime() - now.getTime()) / 3600000 < 24) continue;
     if (!t.requires_patch_test && !t.requires_consultation) continue;
 
     /* WHO IS ACTUALLY NEW, AND WHY BOTH OF THE OLD TESTS WERE WRONG.

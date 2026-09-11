@@ -19,8 +19,9 @@ import Button from '../components/ui/Button.jsx';
  *   signature    → canvas signature pad
  */
 
-export default function ConsultationFormPublic() {
-  const { token } = useParams();
+export default function ConsultationFormPublic({ formToken, embedded = false, onBack, onComplete } = {}) {
+  const { token: routeToken } = useParams();
+  const token = formToken || routeToken;
   const [loading, setLoading] = useState(true);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [error, setError] = useState(null);
@@ -35,6 +36,11 @@ export default function ConsultationFormPublic() {
   const [beautician, setBeautician] = useState(null);
   const [answers, setAnswers] = useState({});
   const [signatureData, setSignatureData] = useState(null);
+  const [preparation, setPreparation] = useState(null);
+  const [revision, setRevision] = useState(0);
+  const [patchOutcome, setPatchOutcome] = useState(null);
+  const [saveNotice, setSaveNotice] = useState('');
+  const [reviewRequired, setReviewRequired] = useState(false);
 
   // Keep links isolated when navigation reuses this page for another client.
   useEffect(() => {
@@ -43,7 +49,7 @@ export default function ConsultationFormPublic() {
     const timeout = setTimeout(() => controller.abort(), 15000);
     setLoading(true); setError(null); setCompleted(false); setForm(null);
     setClientName(''); setBeautician(null); setAnswers({}); setSignatureData(null);
-    setValidationErrors([]); setSubmitError(null);
+    setValidationErrors([]); setSubmitError(null); setPreparation(null); setSaveNotice(''); setPatchOutcome(null); setRevision(0);
     (async () => {
       try {
         const response = await fetch(`${API_BASE}/api/consultation-forms/public/${token}`, { signal: controller.signal });
@@ -54,7 +60,8 @@ export default function ConsultationFormPublic() {
         if (data.completed) setCompleted(true);
         else {
           setForm(data.form); setClientName(data.client_name || '');
-          setBeautician(data.beautician);
+          setBeautician(data.beautician); setPreparation(data.preparation || null);
+          setAnswers(data.draft?.answers || {}); setRevision(data.draft?.revision || 0); setPatchOutcome(data.draft?.patch_outcome || null);
         }
       } catch (err) {
         if (active) setError(controller.signal.aborted ? 'The form took too long to load. Please try again.' : err.message || 'Unable to load the form. Please try again.');
@@ -66,8 +73,42 @@ export default function ConsultationFormPublic() {
     return () => { active = false; clearTimeout(timeout); controller.abort(); };
   }, [token, loadAttempt]);
 
+  // Re-check the clock without replacing any answers being edited.
+  useEffect(() => {
+    if (!preparation || completed) return;
+    const controller = new AbortController();
+    const refresh = async () => {
+      const timeout = setTimeout(() => controller.abort(), 15000);
+      try {
+        const res = await fetch(`${API_BASE}/api/consultation-forms/public/${token}`, { signal: controller.signal });
+        const body = await res.json();
+        if (res.ok && body.preparation) setPreparation(body.preparation);
+      } catch {} finally { clearTimeout(timeout); }
+    };
+    window.addEventListener('focus', refresh);
+    const delay = Date.parse(preparation.ready_at) - Date.now();
+    const timer = delay > 0 && delay < 2147483000 ? setTimeout(refresh, delay + 500) : null;
+    return () => { controller.abort(); window.removeEventListener('focus', refresh); if (timer) clearTimeout(timer); };
+  }, [token, preparation?.ready_at, completed]);
+  async function saveDraft() {
+    setSubmitting(true); setSubmitError(null); setSaveNotice('');
+    const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 15000);
+    try {
+      const res = await fetch(`${API_BASE}/api/consultation-forms/public/${token}/draft`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
+        body: JSON.stringify({ answers, revision, patch_outcome: patchOutcome }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || 'Could not save your answers.');
+      setRevision(body.revision); setPreparation(body.preparation); setValidationErrors([]);
+      setSaveNotice(body.review_required ? 'Answers saved. Your tech has been asked to review them.' : 'Answers saved. Come back here to finish your consultation.');
+    } catch (err) { setSubmitError(controller.signal.aborted ? 'Saving took too long. Your answers are still here. Try again.' : err.message); }
+    finally { clearTimeout(timer); setSubmitting(false); }
+  }
+
   // Update answer
   function setAnswer(fieldId, value) {
+    setSaveNotice(''); setSignatureData(null);
     setAnswers(prev => ({ ...prev, [fieldId]: value }));
     // Clear validation error for this field
     setValidationErrors(prev => prev.filter(e => e !== fieldId));
@@ -75,6 +116,7 @@ export default function ConsultationFormPublic() {
 
   // Toggle multi-select option
   function toggleMultiOption(fieldId, option) {
+    setSaveNotice(''); setSignatureData(null);
     setAnswers(prev => {
       const current = Array.isArray(prev[fieldId]) ? prev[fieldId] : [];
       const next = current.includes(option)
@@ -87,6 +129,8 @@ export default function ConsultationFormPublic() {
 
   // Submit
   async function handleSubmit() {
+    if (preparation && !preparation.can_complete) return;
+    if (preparation?.required && !patchOutcome) { setSubmitError('Please tell us the outcome of your patch test.'); return; }
     // Validate required fields
     setSubmitError(null);
     const missing = [];
@@ -112,32 +156,35 @@ export default function ConsultationFormPublic() {
     }
 
     setSubmitting(true);
+    const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 15000);
     try {
       const res = await fetch(`${API_BASE}/api/consultation-forms/public/${token}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ answers, signature_data: signatureData }),
+        signal: controller.signal,
+        body: JSON.stringify({ answers, signature_data: signatureData, ...(preparation ? { revision, patch_outcome: patchOutcome } : {}) }),
       });
 
       const data = await res.json();
       if (res.ok) {
-        setCompleted(true);
+        setCompleted(true); setReviewRequired(!!data.review_required); onComplete?.();
       } else {
         setSubmitError(data.error || 'Failed to submit form. Please try again.');
       }
     } catch {
       setSubmitError('Connection error. Your answers are still here. Please try again.');
     } finally {
-      setSubmitting(false);
+      clearTimeout(timer); setSubmitting(false);
     }
   }
 
-  const brandColor = beautician?.brand_color || '#C4A882';
+  const brandColor = beautician?.brand_color || '#92405E';
+  const pageStyle = embedded ? { ...styles.page, minHeight: 0, padding: 0 } : styles.page;
 
   // Loading state
   if (loading) {
     return (
-      <div style={{ ...styles.page, textAlign: 'center', paddingTop: 80 }}>
+      <div style={{ ...pageStyle, textAlign: 'center', paddingTop: 80 }}>
         <div style={styles.spinner} />
         <p style={{ color: '#6E6862', marginTop: 16 }}>Loading your form...</p>
       </div>
@@ -147,7 +194,7 @@ export default function ConsultationFormPublic() {
   // Error state
   if (error) {
     return (
-      <div style={styles.page}>
+      <div style={pageStyle}>
         <div style={styles.errorCard}>
           <div style={{ fontSize: 32, marginBottom: 12 }}>😔</div>
           <p role="alert" style={styles.errorText}>{error}</p>
@@ -160,14 +207,15 @@ export default function ConsultationFormPublic() {
   // Completed state
   if (completed) {
     return (
-      <div style={styles.page}>
+      <div style={pageStyle}>
         <div style={{ ...styles.successCard, borderTopColor: brandColor }}>
           <div style={{ fontSize: 40, marginBottom: 12 }}><Icon name="check" size={40} /></div>
-          <h2 style={styles.successTitle}>All done!</h2>
+          <h2 style={styles.successTitle}>{preparation ? 'Consultation received' : 'All done!'}</h2>
           <p style={styles.successText}>
             Thanks{clientName ? `, ${clientName}` : ''}. Your form has been submitted to {beautician?.name || 'your beautician'}.
           </p>
-          <p style={styles.successHint}>You can close this page now.</p>
+          {reviewRequired && <p style={styles.successHint}>Your tech will review your answers before treatment.</p>}
+          {onBack ? <Button onClick={onBack}>Back to my booking</Button> : <p style={styles.successHint}>You can close this page now.</p>}
         </div>
       </div>
     );
@@ -175,7 +223,8 @@ export default function ConsultationFormPublic() {
 
   // Form view
   return (
-    <div style={styles.page}>
+    <div style={pageStyle}>
+      {onBack && <Button variant="quiet" onClick={onBack}>Back to my booking</Button>}
       {/* Branded header */}
       <div style={{ ...styles.brandHeader, background: brandColor }}>
         {beautician?.logo ? (
@@ -195,9 +244,20 @@ export default function ConsultationFormPublic() {
 
       {submitError && <p role="alert" style={styles.errorCard}>{submitError}</p>}
 
+      {saveNotice && <p role="status" style={styles.consentBlock}>{saveNotice}</p>}
+      {preparation && <section aria-label="Patch-test outcome" style={styles.consentBlock}>
+        {!preparation.can_complete && <p style={styles.greeting}>{preparation.state === 'waiting'
+          ? `You can sign after ${new Date(preparation.ready_at).toLocaleString('en-GB', { timeZone: preparation.timezone || 'Europe/London', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} (salon time), once the 48-hour waiting period has finished.`
+          : 'Your patch test and waiting period need to be recorded before you sign. You can save answers or tell your tech about a concern now.'}</p>}
+        {preparation.required && <><h3 style={styles.fieldLabel}>How did your patch test go? *</h3><p style={styles.greeting}>Choose what happened. If you noticed a reaction or are unsure, contact your tech before treatment.</p>
+          {[['no_reaction', 'No reaction after 48 hours'], ['reaction', 'I noticed a reaction'], ['not_done', 'I have not had my patch test'], ['unsure', 'I’m not sure']].filter(([value]) => preparation.can_complete || value !== 'no_reaction').map(([value, label]) => <label key={value} style={{ ...styles.radioOption, marginBottom: 8 }}>
+            <input type="radio" name="patch-outcome" checked={patchOutcome === value} onChange={() => { setPatchOutcome(value); setSignatureData(null); setSaveNotice(''); }} />{label}
+          </label>)}
+        </>}
+      </section>}
       {/* Fields */}
       <div style={styles.fields}>
-        {(form?.fields || []).map(field => (
+        {(form?.fields || []).filter(field => !preparation || preparation.can_complete || field.type !== 'signature').map(field => (
           <div
             key={field.id}
             id={`field-${field.id}`}
@@ -341,13 +401,14 @@ export default function ConsultationFormPublic() {
         <a href="/privacy" style={styles.privacyLink} target="_blank" rel="noopener noreferrer">Privacy Policy</a>
       </p>
 
+      {preparation && <Button fullWidth variant="secondary" disabled={submitting} onClick={saveDraft}>{submitting ? 'Saving…' : 'Save answers'}</Button>}
       {/* Submit */}
       <button
         style={{ ...styles.submitBtn, background: brandColor }}
         onClick={handleSubmit}
-        disabled={submitting}
+        disabled={submitting || (preparation && !preparation.can_complete)}
       >
-        {submitting ? 'Submitting...' : 'Submit Form'}
+        {submitting ? 'Submitting...' : preparation && !preparation.can_complete ? 'Sign after your waiting period' : 'Submit Form'}
       </button>
 
       {/* Footer */}
@@ -360,6 +421,8 @@ function SignaturePad({ brandColor, value, onChange, hasError, required = false,
   const canvasRef = useRef(null);
   const [drawing, setDrawing] = useState(false);
   const [hasDrawn, setHasDrawn] = useState(false);
+
+  useEffect(() => { if (!value && canvasRef.current) { canvasRef.current.getContext('2d')?.clearRect(0, 0, 600, 200); setHasDrawn(false); } }, [value]);
 
   function getPos(e) {
     const rect = canvasRef.current.getBoundingClientRect();

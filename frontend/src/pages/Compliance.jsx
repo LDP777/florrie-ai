@@ -25,6 +25,7 @@ export default function Compliance() {
   const { beautician, loading } = useBeautician();
   const [checks, setChecks] = useState({ loading: true });
   const [forms, setForms] = useState({ loading: true });
+  const [reviews, setReviews] = useState({ loading: true });
   const [retry, setRetry] = useState(0);
   useEffect(() => {
     if (loading) return;
@@ -40,6 +41,7 @@ export default function Compliance() {
     };
     void load('/api/appointments/patch-test-alerts?days=21', setChecks, 'alerts');
     void load('/api/consultation-forms', setForms, 'forms');
+    void load('/api/consultation-forms/reviews/pending', setReviews, 'reviews');
     return () => controller.abort();
   }, [beautician?.id, loading, retry]);
   const openClient = id => setParams({ tab: 'records', clientId: id });
@@ -68,6 +70,12 @@ export default function Compliance() {
       {[['checks', 'Upcoming checks'], ['records', 'Client records'], ['templates', 'Form templates']].map(([key, label]) =>
         <Button key={key} variant={tab === key ? 'primary' : 'quiet'} aria-pressed={tab === key} onClick={() => setParams(key === 'checks' ? {} : { tab: key })} style={{ whiteSpace: 'normal', minWidth: 0, flex: '1 1 0', fontSize: 12, padding: '8px 5px' }}>{label}</Button>)}
     </nav>
+    {tab === 'checks' && <section aria-label="Consultations to review" style={{ marginBottom: 28 }}>
+      <h2 style={S.heading}>Consultations to review</h2><p style={{ ...S.description, margin: '8px 0 16px' }}>Client-reported concerns and answers needing your attention. Receiving a form does not clear a client for treatment.</p>
+      {reviews.loading ? <p role="status">Checking consultations…</p> : reviews.error ? renderError(reviews.error) : !reviews.rows?.length ? <p style={S.description}>No consultation concerns waiting for review.</p> : <div className="care-hub__queue">
+        {reviews.rows.map(r => <article key={r.id} style={S.card}><h3 style={S.client}>{r.client_name}</h3><p style={{ ...S.description, margin: '8px 0 14px' }}>{r.starts_at ? `${dateLabel(r.starts_at)} · ` : ''}{r.status === 'completed' ? 'Consultation received' : 'Concern reported in saved answers'}{r.booking_status?.startsWith('cancelled') ? ' · Booking cancelled' : ''}</p><Button variant="secondary" onClick={() => openClient(r.client_id)}>Read and review</Button></article>)}
+      </div>}
+    </section>}
     {tab === 'checks' && <section aria-label="Upcoming patch-test checks">
       <div style={S.sectionHeader}><div><h2 style={S.heading}>Give these a look</h2><p style={S.description}>{checks.until ? `Bookings through ${dateLabel(checks.until)}.` : 'Upcoming bookings that need their patch-test record reviewed.'}</p></div><Link to="/patch-tests" style={S.textLink}>All patch tests <Icon name="arrow-right" size={16} inline /></Link></div>
       {checks.loading ? <p role="status">Loading upcoming checks…</p> : checks.error ? renderError(checks.error) : checks.rows.length ? <div className="care-hub__queue">

@@ -32,6 +32,7 @@ export function careFixtureSource(supabaseUrl, scenario = 'populated') {
         return respond({ data: scenario === 'empty' ? [] : found, pagination: { page: 1, per_page: 8, total: found.length, total_pages: 1 } });
       }
       if (/^\\/api\\/clients\\/c[123]$/.test(url.pathname)) return respond({ client: people.find(p => p.id === url.pathname.split('/').pop()), appointments: [], messages: [] });
+      if (url.pathname === '/api/consultation-forms/reviews/pending') return respond({ reviews: [] });
       if (url.pathname === '/api/consultation-forms') return respond({ forms: scenario === 'empty' ? [] : forms });
       if (url.pathname === '/api/photo-consent' && method === 'POST') { const row = JSON.parse(options.body); const saved = { ...row, id: 'photo-new', status: 'pending', clients: people.find(p => p.id === row.client_id), created_at: new Date().toISOString() }; photos.unshift(saved); return respond({ data: saved }, 201); }
       if (url.pathname === '/api/photo-consent') return respond({ data: scenario === 'empty' ? [] : photos });

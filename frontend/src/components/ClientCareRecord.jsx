@@ -13,6 +13,7 @@ export default function ClientCareRecord({ clientId, data }) {
   const [notice, setNotice] = useState(null);
   const [selectedForm, setSelectedForm] = useState('');
   const [signatures, setSignatures] = useState({});
+  const [drafts, setDrafts] = useState({});
   const [signatureErrors, setSignatureErrors] = useState({});
   const read = path => readAuthenticatedJson({ auth: supabase.auth, url: `${API_BASE}${path}` });
   const readRecords = async () => {
@@ -22,7 +23,7 @@ export default function ClientCareRecord({ clientId, data }) {
   };
   useEffect(() => {
     let cancelled = false;
-    setRecord(data); setSelectedForm(''); setSignatures({}); setSignatureErrors({}); setNotice(null);
+    setDrafts({}); setRecord(data); setSelectedForm(''); setSignatures({}); setSignatureErrors({}); setNotice(null);
     setError(data === null ? 'Could not load consultation records.' : null);
     setBusy(data === undefined);
     if (data === undefined && clientId) {
@@ -67,6 +68,26 @@ export default function ClientCareRecord({ clientId, data }) {
       setSignatures(prev => ({ ...prev, [id]: body.response.signature_data }));
     } catch { setSignatureErrors(prev => ({ ...prev, [id]: 'Could not load the signature. Try again.' })); }
   }
+  async function loadDraft(id) {
+    try { const body = await read(`/api/consultation-forms/responses/${id}`); setDrafts(prev => ({ ...prev, [id]: body.response })); }
+    catch { setError('Could not read the saved answers. Please try again.'); }
+  }
+  async function markReviewed(row) {
+    setBusy(true); setError(null);
+    try {
+      const { data } = await supabase.auth.getSession();
+      const res = await fetch(`${API_BASE}/api/consultation-forms/responses/${row.id}/review`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data?.session?.access_token}` },
+        body: JSON.stringify({ revision: row.booking_care?.revision }),
+      });
+      const body = await res.json(); if (!res.ok) throw new Error(body.error || 'Could not save the review.');
+      setDrafts({}); await refresh(); setNotice('Marked as reviewed. The client’s original answers and signature have been kept.');
+    } catch (err) { setError(err.message); } finally { setBusy(false); }
+  }
+  const careNote = r => r.booking_care && <div style={{ margin: '12px 0', padding: 12, border: '1px solid var(--border)', borderRadius: 12 }}>
+    {r.booking_care.patch_outcome && <p style={{ margin: '0 0 8px', fontSize: 13 }}><strong>Client’s patch-test outcome: </strong>{({ no_reaction: 'No reaction after 48 hours', reaction: 'Reaction reported', not_done: 'Has not had a patch test', unsure: 'Unsure' })[r.booking_care.patch_outcome]}</p>}
+    {r.booking_care.reviewed_at ? <p style={styles.consultDate}>Reviewed {dateLabel(r.booking_care.reviewed_at)}</p> : r.booking_care.review_required ? <><p style={styles.worthKnowingNote}>Review before treatment. This is a client report, not an automatic clearance.</p><Button disabled={busy} variant="secondary" style={{ marginTop: 10 }} onClick={() => markReviewed(r)}>I have reviewed these answers</Button></> : null}
+  </div>;
   return (
     <section style={styles.paymentsCard} aria-label="Client care records">
       <h4 style={{ ...styles.sectionLabel, margin: '0 0 12px' }}>Client care</h4>
@@ -82,7 +103,7 @@ export default function ClientCareRecord({ clientId, data }) {
       {record && !error && <>
         {!!record.requests?.length && <div style={{ marginTop: 18 }}><h5 style={{ margin: '0 0 8px' }}>Form requests ({record.requests.length})</h5>
           {[...record.requests].sort((a, b) => Number(b.status === 'pending') - Number(a.status === 'pending')).map(r => <div key={r.id} style={{ padding: '10px 0', borderBottom: '1px solid var(--border-light)' }}>
-            <strong>{r.form_name}</strong><p style={{ ...styles.consultDate, margin: '4px 0' }}>{r.status === 'answers_removed' ? 'Answers no longer held' : r.status === 'expired' ? 'Link expired' : 'Awaiting response'} · Requested {dateLabel(r.sent_at)}{r.expires_at ? ` · Link ${r.status === 'expired' ? 'expired' : 'expires'} ${dateLabel(r.expires_at)}` : ''}</p>
+            <strong>{r.form_name}</strong>{r.booking_care?.review_required && !r.booking_care?.reviewed_at && <span style={styles.worthKnowingChip}>Needs your review</span>}<p style={{ ...styles.consultDate, margin: '4px 0' }}>{r.status === 'answers_removed' ? 'Answers no longer held' : r.status === 'expired' ? 'Link expired' : 'Awaiting response'} · Requested {dateLabel(r.sent_at)}{r.expires_at ? ` · Link ${r.status === 'expired' ? 'expired' : 'expires'} ${dateLabel(r.expires_at)}` : ''}</p>{r.booking_care?.saved_at && (drafts[r.id] ? <div>{drafts[r.id].pairs?.filter(p => p.answered).map(pair => <p key={pair.field_id} style={styles.consultAnswer}><strong>{pair.question}</strong><br />{pair.answer}</p>)}{careNote(drafts[r.id])}</div> : <Button variant="quiet" onClick={() => loadDraft(r.id)}>Read saved answers</Button>)}
           </div>)}
         </div>}
         <h5 style={{ margin: '20px 0 8px' }}>Submitted forms ({record.responses?.length || 0})</h5>
@@ -92,6 +113,7 @@ export default function ClientCareRecord({ clientId, data }) {
             <strong>{r.form_name}</strong><span style={{ display: 'block', marginTop: 4 }}>{dateLabel(r.completed_at)} · {r.has_signature ? 'Signed' : 'No signature recorded'}</span>
             {!!r.worth_knowing?.length && <span style={styles.worthKnowingChip}>{r.worth_knowing.length} {r.worth_knowing.length === 1 ? 'answer' : 'answers'} to review</span>}
           </summary>
+          {careNote(r)}
           {(r.worth_knowing || []).map((note, i) => <p key={i} style={styles.worthKnowingNote}>{note}</p>)}
           {!r.pairs?.length && <p>No answers recorded.</p>}
           {(r.pairs || []).filter(p => p.type !== 'signature').map(pair => <div key={pair.field_id} style={styles.consultPair}>

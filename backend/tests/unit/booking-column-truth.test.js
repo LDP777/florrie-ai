@@ -526,16 +526,18 @@ describe('48-hour patch-test notice', () => {
       expect(out.status, JSON.stringify(out.body)).toBe(200);
       expect(out.body.lead_hours).toBe(48);
       expect(out.body.slots.length).toBeGreaterThan(0);
-      expect(out.body.slots).toContain('2026-12-06T11:00:00.000Z');
+      expect(out.body.slots).toContain('2026-12-06T10:45:00.000Z');
+      expect(out.body.slots).not.toContain('2026-12-06T11:00:00.000Z');
       for (const slot of out.body.slots) {
-        expect(Date.parse('2026-12-08T11:00:00Z') - Date.parse(slot)).toBeGreaterThanOrEqual(48 * 3600000);
+        expect(Date.parse('2026-12-08T11:00:00Z') - Date.parse(slot) - out.body.duration_minutes * 60000).toBeGreaterThanOrEqual(48 * 3600000);
       }
     });
   });
 
   it.each([
     ['2026-12-06T11:01:00.000Z', 400],
-    ['2026-12-06T11:00:00.000Z', 200],
+    ['2026-12-06T11:00:00.000Z', 400],
+    ['2026-12-06T10:50:00.000Z', 200],
   ])('validates the chosen patch-test time %s on the server', async (slot, expectedStatus) => {
     await atFixedTime(async () => {
       seedManagedAppointment();
@@ -1006,7 +1008,7 @@ describe('the past is the past on the salon clock, not the server clock', () => 
     // how the 926 imported clients went unasked for four months. The rule
     // itself is pinned in tests/unit/consultation-gate.test.js.
     await new Promise(r => setTimeout(r, 0));
-    expect(consultation.sent).toHaveLength(1);
+    expect(consultation.sent).toHaveLength(0); // Consultation lives in the confirmed booking checklist.
   });
 
   it('measures the notice period on the same clock', async () => {

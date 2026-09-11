@@ -1,3 +1,4 @@
+import AppointmentPreparation from '../components/AppointmentPreparation.jsx';
 import { PATCH_TEST_LEAD_HOURS } from '../lib/patch-test-policy.js';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
@@ -2516,6 +2517,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               </p>
             )}
           </div>
+          <AppointmentPreparation appointmentId={appointment.id} clientId={appointment.client_id} />
           {/* Consultation form. Two states worth a line on this sheet: there
               is one on file (read it here, in place), or the treatment needs
               one and there is nothing (say so BEFORE the client arrives). */}

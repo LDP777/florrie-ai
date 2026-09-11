@@ -352,6 +352,10 @@ export function shapeResponse(row) {
     hasSignature,
   });
 
+  const outcomeNote = { reaction: 'Client reports a reaction to the patch test.', not_done: 'Client says their patch test has not been done.', unsure: 'Client is unsure about their patch-test outcome.' }[row?.booking_care?.patch_outcome];
+  if (outcomeNote) worth_knowing.push(outcomeNote);
+  if (row?.booking_care?.review_required && !row.booking_care.reviewed_at && !worth_knowing.length) worth_knowing.push('These consultation answers need your review before treatment.');
+
   return {
     id: row?.id,
     form_id: row?.form_id,
@@ -367,5 +371,6 @@ export function shapeResponse(row) {
     answered_count,
     pairs,
     worth_knowing,
+    booking_care: row?.booking_care || null,
   };
 }

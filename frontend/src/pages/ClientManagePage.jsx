@@ -1,3 +1,4 @@
+import BookingPreparation from '../components/BookingPreparation.jsx';
 import { PATCH_TEST_LEAD_HOURS } from '../lib/patch-test-policy.js';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -53,6 +54,7 @@ export default function ClientManagePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
+  const [preparation, setPreparation] = useState(null);
   const [cancelling, setCancelling] = useState(false);
   const [cancelConfirm, setCancelConfirm] = useState(false);
   const [cancelResult, setCancelResult] = useState(null);
@@ -414,7 +416,7 @@ export default function ClientManagePage() {
     </div>
   );
 
-  const { appointment, policy, patchTests, needsPatchTest, pendingForms, payment } = data;
+  const { appointment, policy, patchTests, needsPatchTest, payment } = data;
   /* What the salon actually knows about her patch test, and how sure it is.
    *
    * On 26 August Sophie moved her appointment with this page and was then
@@ -456,7 +458,8 @@ export default function ClientManagePage() {
   const isPast = apptDate < new Date() && !isCancelled;
   // A client who knows perfectly well she needs one can still book it, from
   // any of these states. What changes is whether we DEMAND it of her.
-  const canOfferPatchTest = patchTest.required &&
+  const canOfferPatchTest = patchTest.required && !patchTestBooked &&
+    (!preparation || ['needed', 'check_record'].includes(preparation.patch.state)) &&
     (needsPatchTest || patchTestUnsure || askedForPatchPicker) && !isCancelled && !isPast;
   // Everything already on this booking, so the add picker never offers
   // something they have got. The backend refuses a duplicate anyway; this is
@@ -617,6 +620,8 @@ export default function ClientManagePage() {
             <span style={{ fontSize: 18, color: brandInk, alignSelf: 'center' }}>{'\u203A'}</span>
           </button>
         )}
+
+
 
         {/* Add to calendar, above everything except the patch-test warning.
             This page is where the confirmation text and WhatsApp message land,
@@ -802,6 +807,9 @@ export default function ClientManagePage() {
             {appointment.client.phone && <p style={S.clientMeta}>{appointment.client.phone}</p>}
           </div>
         </div>
+
+        {!isCancelled && <BookingPreparation slug={slug} token={token} refreshKey={data.appointment} onStatus={setPreparation}
+          onPatch={() => { setAskedForPatchPicker(true); void loadPatchTestSlots(); setTimeout(() => document.getElementById('patch-test-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100); }} />}
 
         {/* Payment summary. States exactly what was paid and what remains,
             because clients kept assuming the deposit was the full amount (or
@@ -991,7 +999,7 @@ export default function ClientManagePage() {
               </div>
             )}
 
-            {patchTests && patchTests.map(pt => {
+            {patchTests && patchTests.filter(pt => pt.confirmed_at || pt.status === 'recorded_by_owner' || ['pass', 'fail', 'reaction'].includes(pt.result)).map(pt => {
               // Check if this patch test needs auto-booking (pending, not confirmed).
               // A row Ellie recorded herself is neither pending nor bookable:
               // it already happened, in her chair, and asking the client to
@@ -1108,27 +1116,6 @@ export default function ClientManagePage() {
                 </div>
               );
             })}
-          </div>
-        )}
-
-        {/* Pending consultation forms */}
-        {pendingForms && pendingForms.length > 0 && (
-          <div style={{ ...S.card, borderLeft: `3px solid #7B6BA8` }}>
-            <p style={S.sectionLabel}>Consultation forms</p>
-            {pendingForms.map(form => (
-              <div key={form.id} style={S.formRow}>
-                <Icon name={iconName('assignment')} size={18} inline style={{ color: '#7B6BA8' }} />
-                <div style={{ flex: 1 }}>
-                  <p style={S.formName}>{form.consultation_forms?.name || 'Consultation form'}</p>
-                  <p style={S.formMeta}>Please complete this before your appointment</p>
-                </div>
-                {form.form_url && (
-                  <a href={form.form_url} style={{ ...S.formLink, color: '#7B6BA8', borderColor: '#7B6BA830', background: '#7B6BA810' }}>
-                    Complete
-                  </a>
-                )}
-              </div>
-            ))}
           </div>
         )}
 

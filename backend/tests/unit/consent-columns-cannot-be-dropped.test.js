@@ -160,14 +160,14 @@ describe('no new sender joins clients without the consent columns', () => {
   // Recorded 2026-08-23, after the three real senders were fixed. Shorten it,
   // never lengthen it.
   const KNOWN = new Set([
-    'src/routes/appointments.js:68',
-    'src/routes/appointments.js:436',
+    'src/routes/appointments.js:69',
+    'src/routes/appointments.js:437',
     // Moved down by the patch-test record and alert routes added above it in
     // routes/appointments.js, then again by the assumed-versus-settled takings
     // read added to GET /:id/card on 27 August 2026, then again by the prior
     // history rule added to the patch-test alerts route the same day. Same
     // join, same file. (Previously 1598, 1826, then 1873.)
-    'src/routes/appointments.js:1911',
+    'src/routes/appointments.js:1919',
     // All five moved down again, by the patch-test evidence rule replacing the
     // `status === 'passed'` test in routes/booking.js, and again by the prior
     // history rule that separated the 673 imported regulars from the 277 true
@@ -180,11 +180,11 @@ describe('no new sender joins clients without the consent columns', () => {
     // (Previously 857 / 1572 / 2126 / 2392 / 2803, then 993 / 1708 / 2262 /
     // 2528 / 2939, then 994 / 1777 / 2331 / 2597 / 3008, then 1019 / 1846 /
     // 2400 / 2666 / 3077, then 1095 / 2032 / 2586 / 2852 / 3263.)
-    'src/routes/booking.js:1109',
-    'src/routes/booking.js:2048',
-    'src/routes/booking.js:2613',
-    'src/routes/booking.js:2901',
-    'src/routes/booking.js:3312',
+    'src/routes/booking.js:1113',
+    'src/routes/booking.js:2052',
+    'src/routes/booking.js:2617',
+    'src/routes/booking.js:2907',
+    'src/routes/booking.js:3326',
     'src/routes/features.js:132',
     'src/routes/features.js:169',
     'src/routes/features.js:194',

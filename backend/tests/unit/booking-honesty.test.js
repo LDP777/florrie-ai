@@ -275,8 +275,7 @@ describe('a failed checkout must not tell the client she is booked', () => {
     // answered nothing inline, so the form is texted to her once and there is
     // nothing to file.
     await new Promise(r => setTimeout(r, 0));
-    expect(consultation.sent).toHaveLength(1);
-    expect(consultation.sent[0].clientPhone).toBe('07700900123');
+    expect(consultation.sent).toHaveLength(0); // Preparation starts after confirmation, not while the deposit is unpaid.
     expect(consultation.filed).toHaveLength(0);
   });
 });

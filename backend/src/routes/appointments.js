@@ -1,3 +1,4 @@
+import { salonWallInstant } from '../lib/booking-preparation.js';
 import { announceBookingConfirmed } from '../services/booking-confirmed-alert.js';
 import { Router } from 'express';
 import { mapBounded } from '../lib/map-bounded.js';
@@ -1691,7 +1692,7 @@ const STATEABLE_RESULTS = new Set(['pass', 'reaction', 'fail']);
  * appointment behind it, because there was not one: it happened in the chair.
  */
 router.post('/patch-test-records', requireAuth, async (req, res) => {
-  const { client_id, test_date, treatment_id, result, product_used, notes } = req.body || {};
+  const { client_id, test_date, test_time, treatment_id, result, product_used, notes } = req.body || {};
 
   if (!client_id) return res.status(400).json({ error: 'Please choose a client.' });
   if (!test_date || !/^\d{4}-\d{2}-\d{2}$/.test(String(test_date))) {
@@ -1713,10 +1714,17 @@ router.post('/patch-test-records', requireAuth, async (req, res) => {
     { table: 'treatments', id: treatment_id },
   ])) return;
 
+  let performedAt = null;
+  if (test_time) {
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(test_time)) return res.status(400).json({ error: 'Please enter the time the test was applied.' });
+    performedAt = salonWallInstant(`${test_date}T${test_time}:00`, req.beautician.timezone || 'Europe/London');
+    if (!performedAt || Date.parse(performedAt) > Date.now()) return res.status(400).json({ error: 'Record the application time after the patch test has happened.' });
+  }
   const row = {
     beautician_id: req.beautician.id,
     client_id,
     treatment_id: treatment_id || null,
+    ...(performedAt ? { performed_at: performedAt } : {}),
     test_date: String(test_date),
     status: RECORDED_BY_OWNER,
     // No slot, no appointment. That is the whole point of this route.

@@ -1,3 +1,4 @@
+import { ensureBookingConsultations, PREPARATION_APPOINTMENT_SELECT } from '../lib/booking-preparation.js';
 /** Booking status and owner delivery are separate facts. ai_actions is the
  * durable delivery ledger; its primary key also serializes concurrent senders.
  * A failed attempt can be retried without undoing the confirmed booking. */
@@ -47,11 +48,19 @@ async function announce(appointmentId, { source = 'unknown', claim = true } = {}
     if (transition.reason === 'claim_unreadable') return skipped(transition.reason);
   }
   const { data: appt, error } = await supabase.from('appointments')
-    .select('id, status, deposit_paid, beautician_id, client_id, starts_at, clients(first_name), treatments(name)')
+    .select(`${PREPARATION_APPOINTMENT_SELECT}, deposit_paid, clients(first_name), treatments(name)`)
     .eq('id', appointmentId).maybeSingle();
   if (error || !appt) return skipped('appointment_unreadable');
   if (appt.status !== 'confirmed') return skipped('not_confirmed');
   if (!appt.beautician_id) return skipped('no_beautician');
+
+  // Care issuance cannot delay or prevent the owner's booking notification.
+  void (async () => {
+    const existing = await supabase.from('consultation_responses').select('id').eq('appointment_id', appointmentId)
+      .eq('beautician_id', appt.beautician_id).eq('booking_care->>version', '1').limit(1);
+    if (existing.error) throw new Error('Could not check existing booking preparation');
+    if (!existing.data?.length) await ensureBookingConsultations(supabase, appt);
+  })().catch(err => logger.warn({ message: err.message, appointmentId }, 'Consultation preparation will retry when opened'));
 
   const id = actionId(appointmentId);
   const { data: previous, error: ledgerError } = await supabase.from('ai_actions').select('*')
