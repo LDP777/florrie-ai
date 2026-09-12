@@ -515,15 +515,14 @@ function checkLockfiles() {
   const out = [];
   const tracked = git('ls-files').split('\n').filter((f) => f.endsWith('package-lock.json'));
 
-  // Reuse rather than reimplement: scripts/check-lockfile.mjs stays the one
-  // source of the platform matrix rule for the root lock.
+  // Reuse the same platform and standalone manifest checks as CI.
   try {
     const text = execFileSync('node', [path.join(REPO, 'scripts', 'check-lockfile.mjs')], { cwd: REPO, encoding: 'utf8' });
-    out.push(finding('info', 'lock_platform_root', 'the root lockfile still installs on a Mac',
+    out.push(finding('info', 'lock_platform_root', 'lockfile platform and manifest checks passed',
       text.trim().replace(/^✓\s*/, '')));
   } catch (err) {
-    out.push(finding('fail', 'lock_platform_root', 'the root lockfile has lost its platform binaries',
-      String(err?.stdout || err?.stderr || err?.message || '').trim()));
+    out.push(finding('fail', 'lock_platform_root', 'lockfile integrity check failed',
+      [err?.stdout, err?.stderr].filter(Boolean).join('\n').trim() || String(err?.message || err)));
   }
 
   let rootLock;

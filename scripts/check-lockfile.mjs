@@ -69,18 +69,27 @@ if (missing.length) {
 
 console.log(`✓ lockfile: ${REQUIRED.length} platform binaries present, so it still installs on a Mac as well as on CI`);
 
-// Railway builds from backend/ and consumes its standalone lock, not the
-// workspace lock tested by root npm ci. Include dev dependencies: npm ci
-// validates their graph even when Docker installs with --omit=dev.
-const backendManifest = JSON.parse(readFileSync(new URL('../backend/package.json', import.meta.url), 'utf8'));
-const backendLock = JSON.parse(readFileSync(new URL('../backend/package-lock.json', import.meta.url), 'utf8'));
-for (const group of ['dependencies', 'devDependencies', 'optionalDependencies']) {
-  const expected = backendManifest[group] || {};
-  const declared = backendLock.packages?.['']?.[group] || {};
-  for (const name of new Set([...Object.keys(expected), ...Object.keys(declared)])) {
-    if (expected[name] !== declared[name] || !backendLock.packages?.[`node_modules/${name}`]) {
-      throw new Error(`Railway backend lock is out of sync: ${group}.${name}`);
+// A root npm ci does not validate either standalone lock. Keep both deploy
+// inputs current when adding a library, rather than discovering drift nightly.
+// Include dev dependencies: npm ci validates them even with --omit=dev.
+for (const workspace of ['backend', 'frontend']) {
+  const manifest = JSON.parse(readFileSync(new URL(`../${workspace}/package.json`, import.meta.url), 'utf8'));
+  const standalone = JSON.parse(readFileSync(new URL(`../${workspace}/package-lock.json`, import.meta.url), 'utf8'));
+  for (const group of ['dependencies', 'devDependencies', 'optionalDependencies']) {
+    const expected = manifest[group] || {};
+    const declared = standalone.packages?.['']?.[group] || {};
+    for (const name of new Set([...Object.keys(expected), ...Object.keys(declared)])) {
+      if (expected[name] !== declared[name] || !standalone.packages?.[`node_modules/${name}`]) {
+        throw new Error(`${workspace}/package-lock.json is out of sync: ${group}.${name}`);
+      }
     }
   }
+  if (workspace === 'frontend') {
+    for (const name of REQUIRED) {
+      if (!standalone.packages?.[`node_modules/${name}`]) {
+        throw new Error(`frontend/package-lock.json is missing platform binary: ${name}`);
+      }
+    }
+  }
+  console.log(`✓ lockfile: ${workspace} standalone manifest and locked packages agree`);
 }
-console.log('✓ lockfile: Railway standalone backend manifest and locked packages agree');
