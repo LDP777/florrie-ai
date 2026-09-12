@@ -416,3 +416,12 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .calendar-page, .calendar-page * { animation: none !important; transition: none !important; }
 }
+/* The flower is a voice control, so iOS must not open image/text actions. */
+.fl-voice-petal, .fl-voice-petal * {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.fl-voice-petal { touch-action: none; }
+.fl-voice-petal > * { pointer-events: none; }

@@ -8,6 +8,7 @@ import logger from '../lib/logger.js';
 import { sendVoiceCommand } from '../lib/voice-command.js';
 import { deDash } from '../lib/text.js';
 import { bloom } from '../lib/bloom.js';
+import { isVoiceEnabled, setVoiceEnabled } from '../lib/voicePref.js';
 import Icon, { iconName } from '../components/ui/Icon';
 /**
  * Voice Commander - Talk to florrie.ai.
@@ -450,7 +451,7 @@ export default function VoiceCommander() {
   const { beautician, loading: bLoading } = useBeautician();
   const navigate = useNavigate();
   const location = useLocation();
-  const autoListenedRef = useRef(false);
+  const autoListenedRef = useRef(null);
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isRecording, setIsRecording] = useState(false);
@@ -460,11 +461,18 @@ export default function VoiceCommander() {
   const [pulseAnim, setPulseAnim] = useState(false);
   const [interimTranscript, setInterimTranscript] = useState('');
   const [speechSupported, setSpeechSupported] = useState(!!SpeechRecognition);
+  const [voiceEnabled, setVoiceOn] = useState(isVoiceEnabled);
   const [suggestions, setSuggestions] = useState(FALLBACK_PROMPTS);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const recognitionRef = useRef(null);
   const suggestionsDataRef = useRef(null);
+
+  useEffect(() => {
+    const sync = () => setVoiceOn(isVoiceEnabled());
+    window.addEventListener('florrie:voice-pref', sync);
+    return () => window.removeEventListener('florrie:voice-pref', sync);
+  }, []);
 
   // Fetch live data for suggestions
   useEffect(() => {
@@ -603,17 +611,32 @@ export default function VoiceCommander() {
       localStorage.setItem('florrie_voice_chat', JSON.stringify(safe));
     } catch {}
   }, [messages]);
-  // Auto-start listening when arrived via a hold gesture on the nav petal.
-  // Fires once, and only if speech is supported.
+  // Consume each deliberate hold once, including another hold on this page.
+  // Clearing the route flag also prevents Back/Forward replaying a recording.
   useEffect(() => {
-    if (autoListenedRef.current) return;
-    if (location.state?.autoListen === true && speechSupported && !isRecording && !isProcessing) {
-      autoListenedRef.current = true;
-      startRecording();
+    if (location.state?.autoListen !== true || autoListenedRef.current === location.key) return;
+    // Cancel before starting if this mount is discarded (including StrictMode's
+    // development remount), instead of consuming a hold and aborting its mic.
+    const timer = setTimeout(() => {
+      autoListenedRef.current = location.key;
+      navigate(location.pathname, { replace: true, state: { ...location.state, autoListen: false } });
+      if (isVoiceEnabled() && !isProcessing) startRecording();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [location.key, location.state, speechSupported, isProcessing]);
+
+  useEffect(() => () => {
+    const recognition = recognitionRef.current;
+    recognitionRef.current = null;
+    if (recognition) {
+      recognition.onstart = recognition.onresult = recognition.onerror = recognition.onend = null;
+      try { recognition.abort(); } catch { /* already ended */ }
     }
-  }, [location.state, speechSupported]);
+  }, []);
+
   function startRecording() {
-    if (!SpeechRecognition) {
+    if (recognitionRef.current || processingRef.current || !isVoiceEnabled()) return;
+    if (!SpeechRecognition || !speechSupported) {
       inputRef.current?.focus();
       return;
     }
@@ -658,12 +681,21 @@ export default function VoiceCommander() {
       }
     };
     recognition.onend = () => {
+      if (recognitionRef.current !== recognition) return;
+      recognitionRef.current = null;
       setIsRecording(false);
       setPulseAnim(false);
       setInterimTranscript('');
     };
     recognitionRef.current = recognition;
-    recognition.start();
+    try {
+      recognition.start();
+    } catch (error) {
+      recognitionRef.current = null;
+      setIsRecording(false);
+      setPulseAnim(false);
+      addSystemMessage(error.name === 'NotAllowedError' ? MIC_DENIED_MSG : "Voice couldn't start. Try again or type your message.");
+    }
   }
   function stopRecording() {
     if (recognitionRef.current) {
@@ -915,17 +947,18 @@ export default function VoiceCommander() {
         {speechSupported && !isRecording && (
           <div style={styles.holdHint}>
             <span style={styles.holdHintText}>
-              {isProcessing ? 'Thinking…' : 'Hold the petal below to talk to me'}
+              {isProcessing ? 'Thinking…' : voiceEnabled ? 'Hold the petal below to talk to me' : 'Voice is off on this device'}
             </span>
-            {!isProcessing && (
-              <Icon name={iconName('keyboard_arrow_down')} inline style={styles.holdHintChevron} />
-            )}
+            {!isProcessing && <Button variant="ghost" onClick={() => { if (!voiceEnabled) setVoiceEnabled(true); handleRecord(); }}>
+              {voiceEnabled ? 'Tap to speak' : 'Turn on voice'}
+            </Button>}
           </div>
         )}
         {/* Live listening indicator while recording */}
         {isRecording && (
           <div style={styles.holdHint}>
             <span style={styles.holdHintText}>Listening, I'm all ears…</span>
+            <Button variant="ghost" onClick={stopRecording}>Stop listening</Button>
           </div>
         )}
       </div>

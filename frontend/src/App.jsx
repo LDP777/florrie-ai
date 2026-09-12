@@ -662,15 +662,7 @@ export default function App() {
   );
 }
 
-/**
- * Mobile bottom navigation , Day 3 of the refactor sprint.
- *
- * Three tabs only: Today, Inbox, Money. A decorative florrie petal sits in
- * the middle for brand presence (no tap behaviour). The Inbox badge stays
- * because unread message counts are the one number the salon owner needs
- * at a glance. Everything else lives behind the FloatingMore affordance
- * above the strip.
- */
+/** Main navigation; the centre flower opens Florrie and holds start voice. */
 function BottomNav({ current, session }) {
   const navigate = useNavigate();
   const [inboxCount, setInboxCount] = useState(0);
@@ -681,12 +673,17 @@ function BottomNav({ current, session }) {
   // the click that fires after a long press from double-navigating.
   const holdTimerRef = useRef(null);
   const didHoldRef = useRef(false);
+  const holdPointerRef = useRef(null);
 
-  function startHold() {
-    if (!isVoiceEnabled()) return; // voice off: petal never starts listening
+  function startHold(event) {
+    if (!event.isPrimary || event.button !== 0) return;
+    cancelHold();
     didHoldRef.current = false;
-    clearTimeout(holdTimerRef.current);
+    if (!isVoiceEnabled()) return;
+    holdPointerRef.current = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* pointer already released */ }
     holdTimerRef.current = setTimeout(() => {
+      holdTimerRef.current = null;
       didHoldRef.current = true;
       try { hapticTap(); } catch {}
       navigate('/voice', { state: { autoListen: true } });
@@ -694,6 +691,15 @@ function BottomNav({ current, session }) {
   }
   function cancelHold() {
     clearTimeout(holdTimerRef.current);
+    holdTimerRef.current = null;
+    holdPointerRef.current = null;
+  }
+  function moveHold(event) {
+    const start = holdPointerRef.current;
+    if (start && (event.pointerId !== start.id || Math.hypot(event.clientX - start.x, event.clientY - start.y) > 12)) {
+      didHoldRef.current = true; // a drag must not become a tap after cancellation
+      cancelHold();
+    }
   }
   function handlePetalClick() {
     if (didHoldRef.current) {
@@ -703,6 +709,19 @@ function BottomNav({ current, session }) {
     }
     navigate('/voice');
   }
+
+  useEffect(() => { cancelHold(); }, [current]);
+
+  useEffect(() => {
+    const onHidden = () => { if (document.hidden) cancelHold(); };
+    window.addEventListener('blur', cancelHold);
+    document.addEventListener('visibilitychange', onHidden);
+    return () => {
+      cancelHold();
+      window.removeEventListener('blur', cancelHold);
+      document.removeEventListener('visibilitychange', onHidden);
+    };
+  }, []);
 
   useEffect(() => {
     if (!session) return;
@@ -764,18 +783,20 @@ function BottomNav({ current, session }) {
           The brand mark itself is the way to reach Florrie; Today is the left tab. */}
       <button
         type="button"
+        className="fl-voice-petal"
         aria-label="Talk to Florrie, hold to speak"
         onClick={handlePetalClick}
-        onTouchStart={startHold}
-        onTouchEnd={cancelHold}
-        onTouchMove={cancelHold}
-        onMouseDown={startHold}
-        onMouseUp={cancelHold}
-        onMouseLeave={cancelHold}
+        onPointerDown={startHold}
+        onPointerUp={cancelHold}
+        onPointerMove={moveHold}
+        onPointerCancel={cancelHold}
+        onLostPointerCapture={cancelHold}
+        onContextMenu={event => event.preventDefault()}
+        onDragStart={event => event.preventDefault()}
         style={styles.navPetalWrap}
       >
         <div style={styles.navPetal}>
-          <img src="/florrie-petal.svg" alt="" style={{ width: 24, height: 24, filter: 'brightness(0) invert(1)' }} />
+          <span aria-hidden="true" style={{ width: 24, height: 24, background: 'url(/florrie-petal.svg) center / contain no-repeat', filter: 'brightness(0) invert(1)' }} />
         </div>
         <span style={styles.navPetalLabel}>Florrie</span>
       </button>
