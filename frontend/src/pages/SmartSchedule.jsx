@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useBeautician, fetchRows, supabase } from '../lib/supabase.js';
 import { useCoach } from '../contexts/CoachContext.jsx';
 import { API_BASE } from '../lib/config.js';
+import { bookingUrl as buildBookingUrl } from '../lib/booking.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -197,7 +198,7 @@ export default function SmartSchedule() {
   function copyBookingLink() {
     const slug = beautician?.booking_slug;
     if (!slug) { navigate('/business'); return; }
-    const url = `https://florrie.ai/book/${slug}`;
+    const url = buildBookingUrl(slug);
     try {
       navigator.clipboard?.writeText(url);
       setCopied(true);

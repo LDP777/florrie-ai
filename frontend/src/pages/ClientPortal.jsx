@@ -6,6 +6,7 @@ import ErrorCard from '../components/ErrorCard.jsx';
 import Icon from '../components/ui/Icon';
 import Button from '../components/ui/Button.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
+import { bookingUrl as buildBookingUrl } from '../lib/booking.js';
 
 export default function ClientPortal() {
   const { beautician, loading } = useBeautician();
@@ -13,7 +14,7 @@ export default function ClientPortal() {
   const [error, setError] = useState(null);
   if (loading) return <PageLoader />;
   const slug = beautician?.booking_slug;
-  const bookingUrl = slug ? `https://florrie.ai/book/${encodeURIComponent(slug)}` : null;
+  const bookingUrl = slug ? buildBookingUrl(slug) : null;
   async function copyLink() {
     setCopyState('copying'); setError(null);
     try {

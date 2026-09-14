@@ -195,7 +195,7 @@ export default function Login({ supabase, initialMode }) {
         const nonce = await appleNoncePair();
         const options = {
           clientId: 'ai.florrie.app',
-          redirectURI: 'https://florrie.ai/login',
+          redirectURI: `${import.meta.env.VITE_PUBLIC_URL || 'https://florrie.ai'}/login`,
           scopes: 'email name',
           state: crypto.randomUUID(),
           nonce: nonce.hashed,
