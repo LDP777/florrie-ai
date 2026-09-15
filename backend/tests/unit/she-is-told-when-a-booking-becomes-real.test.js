@@ -44,7 +44,7 @@ process.env.VAPID_PUBLIC_KEY = 'test-public';
 process.env.VAPID_PRIVATE_KEY = 'test-private';
 process.env.VAPID_EMAIL = 'mailto:test@florrie.ai';
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import express from 'express';
 import { createServer } from 'node:http';
 
@@ -355,7 +355,15 @@ function checkoutCompleted(metadata, { id = 'evt_1', sessionId = 'cs_live', amou
 const confirmedAlerts = () => db.ai_actions.filter(a => a.action_type === 'booking_confirmed');
 const bookingPushes = () => webSent.filter(p => p.payload.data?.actionType === 'booking_confirmed');
 
-beforeEach(() => { seed(); apnsFails = false; failAppointmentRead = false; failDepositWrite = false; failAlertInsert = false; delete process.env.BOOKING_ALERT_RECONCILE_FROM; });
+beforeEach(() => {
+  // The fixture is a September 8 booking. Keep it in the future instead of
+  // letting its management link expire as the real calendar moves on. Only
+  // fake Date: the HTTP server and notification delivery need real timers.
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-09-07T08:00:00Z'));
+  seed(); apnsFails = false; failAppointmentRead = false; failDepositWrite = false; failAlertInsert = false; delete process.env.BOOKING_ALERT_RECONCILE_FROM;
+});
+afterEach(() => vi.useRealTimers());
 
 /* ========================================================================== */
 
@@ -518,6 +526,13 @@ describe('the two booking switches are independent', () => {
 });
 
 describe('a resent deposit link', () => {
+  it('refuses an expired management link without creating a new payment', async () => {
+    vi.setSystemTime(new Date('2026-09-16T08:00:00Z'));
+    const res = await post('/api/booking/ellindigo/manage/mt-1/resend-payment', {});
+    expect(res.status).toBe(410);
+    expect(stripeState.created).toHaveLength(0);
+  });
+
   it('puts the salon in the SESSION metadata, which is the copy the webhook reads', async () => {
     const res = await post('/api/booking/ellindigo/manage/mt-1/resend-payment', {});
     expect(res.status).toBe(200);
