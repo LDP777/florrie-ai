@@ -1,21 +1,7 @@
 /**
- * Prove the deferred chunks still arrive.
- *
- * PostHog and Sentry were moved behind first paint, which took 340 KB and
- * ~110 ms off the boot Ellie waits through. The risk in that change is not a
- * crash — it is silence. If the scheduling is wrong the chunks simply never
- * load, no error is thrown, and the first anyone knows is a dashboard that has
- * been empty for a month.
- *
- * That is not hypothetical. Two implementations of afterPaint() shipped past a
- * green build and a passing render check while loading NEITHER chunk:
- * requestIdleCallback (absent on iOS, and discarded by the boot redirect), and
- * waiting for `load` (which never fires when the Google Fonts request stalls).
- * Both were caught only by watching the network.
- *
- * So this loads the real build and watches.
- *
- *   npm run build && node scripts/check-deferred.mjs
+ * Check that configured error reporting loads after first paint, while the
+ * disabled product-analytics SDK is absent from the release build.
+ * Run after the frontend build. No signed-in session or real data is used.
  */
 import { readFileSync, existsSync } from 'node:fs';
 import { join, extname } from 'node:path';
@@ -28,15 +14,8 @@ if (!existsSync(join(DIST, 'index.html'))) {
   process.exit(1);
 }
 
-// Whether a chunk is EXPECTED to load has nothing to do with whether its file
-// exists. vite.config declares posthog and sentry in manualChunks, so both
-// chunks are emitted on every build regardless of configuration — but the code
-// only imports them when a key or DSN is present. Keying the precondition off
-// the filename made this fail in CI, where the build runs without a PostHog
-// key: the chunk was there, nothing imported it, and the check called that a
-// scheduling bug. It was correct behaviour.
-//
-// So the precondition is the KEY, read out of the built bundle.
+// A named vendor chunk can exist even when no DSN is configured. Inspect
+// the application entry point so SDK-internal strings cannot imply a DSN.
 const { readdirSync } = await import('node:fs');
 const assets = readdirSync(join(DIST, 'assets'));
 // Only the APP chunk. Vite inlines import.meta.env values there, and scanning
@@ -45,15 +24,18 @@ const assets = readdirSync(join(DIST, 'assets'));
 const bundleJs = assets.filter(f => /^index-.*\.js$/.test(f))
   .map(f => readFileSync(join(DIST, 'assets', f), 'utf8')).join('\n');
 
+// Optional product analytics were disabled on 15 September 2026.
+// A recording SDK must not return through a manually included vendor chunk.
+if (assets.some(f => /posthog.*\.js$/.test(f))) {
+  throw new Error('Optional analytics SDK is present in the release build');
+}
+
 const expect = [
-  { name: 'posthog', re: /posthog.*\.js$/, configured: /["']phc_[A-Za-z0-9_-]+["']/.test(bundleJs) },
   { name: 'sentry', re: /sentry.*\.js$/, configured: /https:\/\/[a-z0-9]+@[a-z0-9.]*sentry\.io/.test(bundleJs) },
 ].filter(e => assets.some(f => e.re.test(f)) && e.configured);
 
 if (!expect.length) {
-  console.log('… deferred: this build has no PostHog key and no Sentry DSN, so neither');
-  console.log('  chunk is meant to load. Nothing to prove — set VITE_POSTHOG_KEY and');
-  console.log('  VITE_SENTRY_DSN to exercise the deferral properly.');
+  console.log('… deferred: no Sentry DSN is configured; no reporting chunk should load.');
   process.exit(0);
 }
 

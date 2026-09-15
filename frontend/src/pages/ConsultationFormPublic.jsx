@@ -337,7 +337,7 @@ export default function ConsultationFormPublic() {
           and many forms have none, so this line is always shown. */}
       <p style={styles.privacyNote}>
         Your salon asks about allergies and medical conditions to help prepare for your treatment.
-        It is stored securely and only your salon can see it.{' '}
+        Your salon uses these answers to prepare for your appointment. Florrie stores and processes them on the salon’s behalf using the providers described in our privacy policy.{' '}
         <a href="/privacy" style={styles.privacyLink} target="_blank" rel="noopener noreferrer">Privacy Policy</a>
       </p>
 

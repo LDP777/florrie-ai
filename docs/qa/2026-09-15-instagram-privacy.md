@@ -17,6 +17,8 @@ Data deletion requires operator review. The callback saves the request and disco
 3. Deploy, check invalid signatures return 403, and confirm the public instructions page is reachable.
 4. Register deauthorization URL `https://api.florrie.ai/api/instagram/privacy/deauthorize` and data-deletion callback URL `https://api.florrie.ai/api/instagram/privacy/data-deletion` in the Instagram Business Login settings.
 
+Production deployment `8bcd712` succeeded on both backend services. The health and public instructions endpoints returned 200, unsigned callbacks returned 403, and an unknown receipt returned 404. Both callback URLs were saved in Meta’s Instagram Business Login settings and reopened to verify persistence. The OAuth redirect remained unchanged.
+
 ## Operator cleanup
 
 Run `node backend/scripts/instagram-privacy-requests.mjs list` with the existing private production configuration. Review the referenced salon IDs and the request timestamp. Requests after disconnect retain hashed routing references; unmatched requests also remain in the review queue.

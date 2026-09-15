@@ -33,10 +33,8 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          // @sentry/react + Replay weighs ~150 KB on its own
+          // Deferred error and performance reporting.
           sentry: ['@sentry/react'],
-          // PostHog ~70 KB
-          posthog: ['posthog-js'],
           // Spreadsheet parser. ClientImport imports this dynamically, so the
           // chunk is only fetched once someone actually drops an .xls/.xlsx on
           // the migration page. Kept as a named chunk so it cannot get inlined

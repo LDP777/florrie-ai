@@ -1,179 +1,99 @@
-import { useTheme } from '../lib/theme.jsx';
-
-/**
- * Privacy Policy. Explains how Florrie handles user data.
- * Route: /privacy
- */
+/** Public privacy notice. Keep provider and retention statements tied to the service. */
 export default function PrivacyPolicy() {
-  const { dark } = useTheme();
-
   return (
     <div style={s.container}>
       <article style={s.article}>
         <h1 style={s.h1}>Privacy Policy</h1>
-        <p style={s.meta}>Last updated: May 2026</p>
+        <p style={s.meta}>Last updated: 15 September 2026</p>
 
         <section style={s.section}>
           <h2 style={s.h2}>Who we are</h2>
-          <p style={s.p}>
-            <strong>FLORRIE.AI LTD</strong> (company number 17141774, registered in England and Wales, registered office: 89 Pitcroft Avenue, Reading, United Kingdom, RG6 1NN) is the Data Controller for the personal data we collect through florrie.ai. References to "Florrie", "we", "us" or "our" mean FLORRIE.AI LTD.
-          </p>
+          <p style={s.p}><strong>FLORRIE.AI LTD</strong> provides Florrie, a booking and business management service for beauty professionals. Our company number is 17141774 and our registered office is 89 Pitcroft Avenue, Reading, United Kingdom, RG6 1NN.</p>
+          <p style={s.p}>We are responsible for the account, billing and support information we use to run Florrie. Your salon decides how it uses its client records and treatment information; we process those records on its behalf. Contact your salon about its treatment records, or contact us at <a href="mailto:hello@florrie.ai" style={s.link}>hello@florrie.ai</a> for help with Florrie data.</p>
         </section>
 
         <section style={s.section}>
-          <h2 style={s.h2}>What data we collect</h2>
-          <p style={s.p}>
-            Florrie collects the following information to provide our booking and salon management services:
-          </p>
+          <h2 style={s.h2}>Information Florrie handles</h2>
+          <p style={s.p}>The information depends on which features and connections your salon uses. It comes from you, your salon, and services the salon connects.</p>
           <ul style={s.list}>
-            <li>Your name, phone number, and email address</li>
-            <li>Appointment history and treatment preferences</li>
-            <li>Payment information (processed securely by Stripe; we never store card details)</li>
-            <li>Messages sent through our SMS, WhatsApp, and email systems</li>
-            <li>Optional: photos for treatment progress tracking (with your consent)</li>
+            <li>Names, contact details, business details, account identifiers and preferences.</li>
+            <li>Bookings, attendance, treatment history, notes, patch-test records and consultation answers, including health information and signatures supplied for treatment preparation.</li>
+            <li>Message content, attachments, sender and recipient identifiers, timestamps and delivery information from connected Instagram, WhatsApp, SMS and email channels.</li>
+            <li>Photos, captions, content drafts, publishing instructions and the identifiers of published posts.</li>
+            <li>Voice commands, transcripts and, when an audio feature is used, the audio supplied for processing.</li>
+            <li>AI-generated drafts, client context, action records, corrections and writing-style preferences used within the salon’s account.</li>
+            <li>Payment amounts, status and provider references. Stripe handles card details; Florrie does not store full card numbers.</li>
+            <li>Connection credentials and technical information needed to authenticate users, operate the service and investigate errors.</li>
           </ul>
         </section>
 
         <section style={s.section}>
-          <h2 style={s.h2}>How we use your data</h2>
-          <p style={s.p}>
-            We use your information only to provide the Florrie service:
-          </p>
-          <ul style={s.list}>
-            <li>Manage your appointments and booking information</li>
-            <li>Send appointment reminders and updates</li>
-            <li>Process payments securely</li>
-            <li>Improve our service (anonymised usage patterns only)</li>
-          </ul>
-          <p style={s.p}>
-            We never sell or share your personal data with third parties. We don't use your data for marketing without your explicit consent.
-          </p>
+          <h2 style={s.h2}>How and why information is used</h2>
+          <p style={s.p}>Florrie uses this information to manage bookings and payments, provide the inbox, prepare for appointments, send updates, draft or publish content, and carry out the salon’s instructions. It also supports account administration, fraud prevention, troubleshooting and service reliability.</p>
+          <p style={s.p}>For our own account and billing operations, we use information to provide the service under our contract, meet applicable legal obligations, and pursue our legitimate interests in security and reliability. Where a feature relies on consent, that consent can be withdrawn. The salon is responsible for explaining its basis for processing client information, including the additional requirements for health information.</p>
+          <p style={s.p}>We do not sell personal data. Information is shared with the providers needed to deliver the features below, and where legally required. Marketing messages need the relevant permission; providing a phone number for a booking is not permission for unrelated marketing.</p>
+        </section>
+
+        <section id="ai" style={s.section}>
+          <h2 style={s.h2}>AI replies, voice and personalisation</h2>
+          <p style={s.p}>Florrie uses Anthropic’s AI services to interpret requests, prepare replies and content, and work with business information. Relevant message text, conversation context, instructions, photos or other information supplied to the feature may be sent to that provider. Voice recognition can also use your device or browser provider’s speech service; transcripts are sent to Florrie, and an audio fallback may send the recording for processing.</p>
+          <p style={s.p}>Personalisation is more than anonymous usage statistics. Florrie can build a writing-style profile from the salon’s own messages, keep example phrases, learn from saved corrections and use client context in future replies. These records belong to the salon’s account and are used in its AI instructions; they are not a separate AI model trained for that salon.</p>
+          <p style={s.p}>Depending on the salon’s settings, replies may be drafted for review or sent automatically. AI can make mistakes. Clients can ask to speak to the salon, and the salon can review drafts, take over a conversation or change its reply settings. Do not rely on an AI reply as medical advice or confirmation that a treatment is safe.</p>
         </section>
 
         <section style={s.section}>
-          <h2 style={s.h2}>Third parties we trust</h2>
-          <p style={s.p}>
-            To operate Florrie, we use the following services with your data:
-          </p>
+          <h2 style={s.h2}>Service providers</h2>
           <ul style={s.list}>
-            <li><strong>Supabase.</strong> Database hosting and user authentication (EU servers).</li>
-            <li><strong>Stripe.</strong> Secure payment processing (PCI DSS Level 1 compliant).</li>
-            <li><strong>Bird.</strong> SMS delivery for appointment reminders and two-way messaging.</li>
-            <li><strong>Meta (WhatsApp Business Cloud API).</strong> Delivery and receipt of WhatsApp messages between beauticians and their clients.</li>
-            <li><strong>Resend.</strong> Transactional email delivery.</li>
+            <li><strong>Supabase:</strong> database, file storage and account authentication.</li>
+            <li><strong>Railway and Vercel:</strong> application hosting and delivery.</li>
+            <li><strong>Anthropic:</strong> AI processing for the features described above.</li>
+            <li><strong>Meta:</strong> Instagram and WhatsApp account connections, messaging and Instagram publishing.</li>
+            <li><strong>Bird and configured SMS providers:</strong> SMS delivery and receipt.</li>
+            <li><strong>Resend:</strong> email delivery.</li>
+            <li><strong>Stripe:</strong> payments, subscriptions and connected payout accounts.</li>
+            <li><strong>Apple and Google:</strong> device notifications, sign-in or calendar features where used; your device or browser provider may also process speech recognition.</li>
+            <li><strong>Sentry:</strong> error and performance reports used to investigate problems.</li>
+            <li><strong>Connected accounting services:</strong> information the salon chooses to exchange with Xero or QuickBooks.</li>
           </ul>
-          <p style={s.p}>
-            All these partners are contractually obligated to protect your data and use it only as needed to provide their services.
-          </p>
+          <p style={s.p}>Some providers process information outside the UK or EEA. Database hosting in one region does not mean all processing stays there. Contact us for details of the providers, processing locations and transfer arrangements relevant to your account.</p>
         </section>
 
-        <section id="sms" style={s.section}>
-          <h2 style={s.h2}>SMS messaging</h2>
-          <p style={s.p}>
-            When a beautician on Florrie has SMS enabled, we send transactional messages to clients on the beautician's behalf using Bird as our carrier:
-          </p>
-          <ul style={s.list}>
-            <li>Clients are added to SMS only when they provide their phone number to book or be booked by their beautician. The opt-in is captured at the point of booking.</li>
-            <li>Typical message frequency is two to four SMS per booking: confirmation, day-before reminder, any rescheduling, and replies to client messages.</li>
-            <li>Clients can opt out at any time by replying <strong>STOP</strong>. Replying <strong>HELP</strong> returns contact information.</li>
-            <li>Standard message and data rates from the client's mobile carrier may apply.</li>
-            <li>SMS content (message body, timestamps, sender and recipient numbers) is stored in our EU-hosted Supabase database for the life of the beautician's account, then purged within 30 days of account deletion.</li>
-            <li>We never sell SMS data and never share message content with any third party except Bird (the carrier delivering the message) and the infrastructure providers named above.</li>
-          </ul>
+        <section id="instagram" style={s.section}>
+          <h2 style={s.h2}>Instagram</h2>
+          <p style={s.p}>Connecting a professional Instagram account gives Florrie access to the permissions shown during Meta’s sign-in. We use account identifiers and profile details to connect the right salon, receive and reply to messages in its inbox, and publish content the salon approves or schedules. We store the connection token, conversation records and publishing results needed for these features.</p>
+          <p style={s.p}>You can disconnect Instagram in Florrie’s Instagram settings. You can also remove Florrie in Instagram’s Apps and websites settings. Disconnecting stops Florrie using that connection; it does not automatically erase existing messages, bookings or learned context.</p>
+          <p style={s.p}>To request removal of Instagram-derived data, use Instagram’s data-deletion option when removing the app, or email <a href="mailto:hello@florrie.ai" style={s.link}>hello@florrie.ai</a> with your Instagram username and Florrie account email. A verified request from Meta receives a reference and status link. The request remains pending while we review and remove affected information; it is not marked complete just because the token has been cleared. See <a href="https://api.florrie.ai/api/instagram/privacy/data-deletion" style={s.link}>Instagram data request instructions</a>.</p>
         </section>
 
         <section id="whatsapp" style={s.section}>
-          <h2 style={s.h2}>WhatsApp Business messaging</h2>
-          <p style={s.p}>
-            When a beautician connects their WhatsApp Business Account to Florrie, we exchange messages with their clients on their behalf using Meta's WhatsApp Business Cloud API. Specifically:
-          </p>
-          <ul style={s.list}>
-            <li>We receive inbound client messages (text, media, voice notes) forwarded from Meta's servers to our backend.</li>
-            <li>We send outbound messages (appointment confirmations, reminders, replies drafted by the beautician or the Florrie AI) via the Cloud API.</li>
-            <li>We store message content, timestamps, and phone numbers in our EU-hosted Supabase database so beauticians can review conversation history and so the AI can produce contextually relevant replies.</li>
-            <li>We retain messages for the life of the beautician's account. On account deletion, we purge all message content within 30 days.</li>
-            <li>We never sell WhatsApp data. We never share WhatsApp message content with any third party except the infrastructure providers named above. We never use WhatsApp data to train models owned by anyone other than the beautician's own account.</li>
-            <li>The beautician can disconnect at any time from Settings &rarr; WhatsApp, which revokes the sharing permission and stops message ingestion immediately.</li>
-          </ul>
+          <h2 style={s.h2}>WhatsApp, SMS and email</h2>
+          <p style={s.p}>Connected messaging services exchange client messages, confirmations, reminders and replies on the salon’s behalf. Florrie stores conversation and delivery records for the salon’s inbox and, where used, supplies relevant context to its AI features.</p>
+          <p id="sms" style={s.p}>For SMS, clients can reply <strong>STOP</strong> to opt out or <strong>HELP</strong> for help. Message frequency depends on bookings and conversations. Mobile network charges may apply. Contact the salon if you want to change how it communicates with you.</p>
+        </section>
+
+        <section id="retention" style={s.section}>
+          <h2 style={s.h2}>How long records are kept</h2>
+          <p style={s.p}>Client records, conversations, completed consultation forms and saved AI context remain available while the salon uses them in its account, unless removed through a deletion process. A consultation link expiring does not delete a submitted treatment record. Expired, unsubmitted consultation answers are cleared by a scheduled cleanup.</p>
+          <p style={s.p}>Retention depends on the purpose of the record, the salon’s instructions, payment-provider requirements and any applicable legal obligation or claim. A deletion request includes review of derived information such as writing examples and client context. Provider records and backups may have separate retention periods; disconnecting an account does not erase every copy immediately.</p>
         </section>
 
         <section id="delete" style={s.section}>
-          <h2 style={s.h2}>Data deletion</h2>
-          <p style={s.p}>
-            To delete your account and all associated data (including SMS and WhatsApp message history), email <a href="mailto:hello@florrie.ai" style={s.link}>hello@florrie.ai</a> with the subject line "Delete my account". We will:
-          </p>
-          <ul style={s.list}>
-            <li>Confirm the request from the email address on your account within 24 hours.</li>
-            <li>Revoke all third-party tokens (Meta WhatsApp, Stripe, Bird) within 72 hours of confirmation.</li>
-            <li>Purge all personal data and message content from our database within 30 days.</li>
-            <li>Send you a final confirmation when deletion is complete.</li>
-          </ul>
-          <p style={s.p}>
-            Clients of beauticians on Florrie can also request deletion of their own records. Contact the beautician directly or email us.
-          </p>
+          <h2 style={s.h2}>Access, correction and deletion</h2>
+          <p style={s.p}>To delete your Florrie account, use <strong>Settings → Account → Delete account</strong>, or email us from the address associated with your account. The app shows the progress of its cleanup. A request may need manual review of connected services before it can be completed. See <a href="/data-deletion" style={s.link}>data deletion instructions</a>.</p>
+          <p style={s.p}>Clients can ask their salon to correct or delete their records, or contact us for help identifying the right account. We verify the request before disclosing or removing information. We respond to data-rights requests without undue delay, normally within one calendar month. If a lawful extension or exception applies, we explain it and any information that must be retained.</p>
+          <p style={s.p}>Depending on the circumstances, you may ask for access, correction, deletion, restriction, portability, or object to processing. You can withdraw consent where we rely on it. Contact <a href="mailto:hello@florrie.ai" style={s.link}>hello@florrie.ai</a>. You can also complain to the <a href="https://ico.org.uk/make-a-complaint/" style={s.link} target="_blank" rel="noopener noreferrer">Information Commissioner’s Office</a>.</p>
         </section>
 
         <section style={s.section}>
-          <h2 style={s.h2}>Your data rights (UK GDPR)</h2>
-          <p style={s.p}>
-            If you're in the UK or EU, you have rights under UK GDPR / EU GDPR:
-          </p>
-          <ul style={s.list}>
-            <li><strong>Access:</strong> Request a copy of all data we hold about you.</li>
-            <li><strong>Correction:</strong> Ask us to fix incorrect information.</li>
-            <li><strong>Deletion:</strong> Request we delete your data (right to be forgotten).</li>
-            <li><strong>Portability:</strong> Get your data in a machine-readable format.</li>
-            <li><strong>Objection:</strong> Opt out of processing for certain purposes.</li>
-          </ul>
-          <p style={s.p}>
-            Contact us at <a href="mailto:hello@florrie.ai" style={s.link}>hello@florrie.ai</a> to exercise any of these rights.
-          </p>
-          <p style={s.p}>
-            You also have the right to lodge a complaint with the UK Information Commissioner's Office (ICO) at <a href="https://ico.org.uk" style={s.link} target="_blank" rel="noopener noreferrer">ico.org.uk</a>.
-          </p>
+          <h2 style={s.h2}>Security and device storage</h2>
+          <p style={s.p}>Florrie uses encrypted connections, authentication and access controls to protect account data. Contact us promptly if you suspect unauthorised access.</p>
+          <p style={s.p}>The app uses device storage to keep you signed in and remember settings. Optional product analytics and session recording are disabled. Error and performance reporting helps us investigate failures. Services you visit for payments or account connections have their own privacy and storage notices.</p>
         </section>
 
         <section style={s.section}>
-          <h2 style={s.h2}>Data security</h2>
-          <p style={s.p}>
-            We take security seriously. Your data is encrypted in transit (HTTPS) and at rest. We regularly audit our systems and comply with industry best practices.
-          </p>
-          <p style={s.p}>
-            In the event of a personal data breach that affects your rights and freedoms, we will notify the UK Information Commissioner's Office within 72 hours of becoming aware of it, and notify affected users without undue delay where required.
-          </p>
-          <p style={s.p}>
-            However, no system is 100% secure. If you believe your data has been compromised, contact us immediately at <a href="mailto:hello@florrie.ai" style={s.link}>hello@florrie.ai</a>.
-          </p>
-        </section>
-
-        <section style={s.section}>
-          <h2 style={s.h2}>Cookies</h2>
-          <p style={s.p}>
-            We use essential cookies only, to keep you logged in and remember your preferences. We don't use tracking or advertising cookies.
-          </p>
-        </section>
-
-        <section style={s.section}>
-          <h2 style={s.h2}>Changes to this policy</h2>
-          <p style={s.p}>
-            We may update this privacy policy as our service evolves. We'll notify you of any material changes by email or on this page.
-          </p>
-        </section>
-
-        <section style={s.section}>
-          <h2 style={s.h2}>Contact us</h2>
-          <p style={s.p}>
-            Questions about our privacy practices? Get in touch:
-          </p>
-          <p style={s.p}>
-            Email: <a href="mailto:hello@florrie.ai" style={s.link}>hello@florrie.ai</a>
-          </p>
-          <p style={s.p}>
-            Post: FLORRIE.AI LTD, 89 Pitcroft Avenue, Reading, United Kingdom, RG6 1NN
-          </p>
-          <p style={s.p}>
-            We're here to help.
-          </p>
+          <h2 style={s.h2}>Contact and updates</h2>
+          <p style={s.p}>Email <a href="mailto:hello@florrie.ai" style={s.link}>hello@florrie.ai</a>, or write to FLORRIE.AI LTD, 89 Pitcroft Avenue, Reading, United Kingdom, RG6 1NN.</p>
+          <p style={s.p}>We update this page when our practices change and make material changes available in the app or by email where appropriate.</p>
         </section>
       </article>
     </div>
