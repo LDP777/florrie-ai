@@ -3,7 +3,7 @@ import { calculatePlatformFee, estimateStripeFee, totalApplicationFee, feePrevie
 
 // The fee preview shown to Ellie BEFORE a charge must use the same maths as
 // the charge paths, or the "you receive about" line would lie. These pin the
-// documented model: Florrie 1.5% (min 5p, max £5) + Stripe est. 1.4% + 20p.
+// documented model: Florrie 1.5% (min 5p, max £5) + Stripe est. 1.5% + 20p.
 describe('platform fees', () => {
   it('takes 1.5% with a 5p floor and a £5 cap', () => {
     expect(calculatePlatformFee(1000)).toBe(15);    // £10 -> 15p
@@ -12,16 +12,16 @@ describe('platform fees', () => {
     expect(calculatePlatformFee(0)).toBe(0);
   });
 
-  it('estimates Stripe at 1.4% + 20p for UK cards', () => {
-    expect(estimateStripeFee(1000)).toBe(34);  // the £10 example in the header comment
+  it('estimates Stripe at 1.5% + 20p for UK cards', () => {
+    expect(estimateStripeFee(1000)).toBe(35);  // the £10 example in the header comment
     expect(estimateStripeFee(0)).toBe(0);
   });
 
   it('preview nets off both fees and matches the £10 worked example', () => {
     const f = feePreview(1000);
     expect(f.platform_fee_cents).toBe(15);
-    expect(f.estimated_stripe_fee_cents).toBe(34);
-    expect(f.estimated_net_cents).toBe(951);  // "Beautician receives: £9.51"
+    expect(f.estimated_stripe_fee_cents).toBe(35);
+    expect(f.estimated_net_cents).toBe(950);  // "Beautician receives: £9.50"
   });
 
   it('exposes the model constants the app mirrors client-side', () => {
@@ -29,7 +29,7 @@ describe('platform fees', () => {
     expect(m.platform_percent).toBe(1.5);
     expect(m.platform_min_cents).toBe(5);
     expect(m.platform_max_cents).toBe(500);
-    expect(m.stripe_percent_estimate).toBe(1.4);
+    expect(m.stripe_percent_estimate).toBe(1.5);
     expect(m.stripe_fixed_cents_estimate).toBe(20);
   });
 
@@ -37,10 +37,10 @@ describe('platform fees', () => {
   // On destination charges the platform pays Stripe's processing fee, so the
   // application fee must be Florrie's cut PLUS the Stripe estimate. Charging
   // only the 1.5% cut is how the platform balance went into arrears: a GBP 10
-  // deposit collected 15p but cost ~34p in processing, minus 19p per booking.
+  // deposit collected 15p but cost ~35p in processing, minus 20p per booking.
   it('totalApplicationFee recovers the Stripe estimate on top of the platform cut', () => {
-    expect(totalApplicationFee(1000)).toBe(49);   // £10 deposit: 15p Florrie + 34p Stripe
-    expect(totalApplicationFee(10000)).toBe(310); // £100: £1.50 Florrie + £1.60 Stripe
+    expect(totalApplicationFee(1000)).toBe(50);   // £10 deposit: 15p Florrie + 35p Stripe
+    expect(totalApplicationFee(10000)).toBe(320); // £100: £1.50 Florrie + £1.70 Stripe
   });
 
   it('totalApplicationFee never exceeds the charge amount itself', () => {

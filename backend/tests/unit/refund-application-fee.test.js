@@ -12,8 +12,8 @@
  * The refund route then set `refund_application_fee: true`, which returns the
  * WHOLE application fee. Stripe does not give its own processing fee back on a
  * UK refund, so Florrie handed back money it never had. On a GBP 10 deposit:
- * 49p collected, 34p of it went straight to Stripe, 15p kept, 49p given back,
- * 34p out of pocket. The same leak, running backwards.
+ * 50p collected, 35p of it went straight to Stripe, 15p kept, 50p given back,
+ * 35p out of pocket. The same leak, running backwards.
  *
  * The honest number is the RETAINED part only, prorated by how much of the
  * charge is coming back.
@@ -113,24 +113,30 @@ beforeEach(() => { refundSeq = 0; calls.refunds = []; calls.appFeeRefunds = []; 
 /* ========================================================== the arithmetic */
 describe('what may honestly be handed back', () => {
   it('the GBP 10 deposit from the platform-fees header comment', () => {
-    // 15p Florrie + 34p Stripe = 49p collected, 15p of it kept.
+    // 15p Florrie + 35p Stripe = 50p collected, 15p of it kept.
     expect(calculatePlatformFee(1000)).toBe(15);
-    expect(estimateStripeFee(1000)).toBe(34);
-    expect(totalApplicationFee(1000)).toBe(49);
+    expect(estimateStripeFee(1000)).toBe(35);
+    expect(totalApplicationFee(1000)).toBe(50);
 
     expect(refundableApplicationFeeCents({
-      chargeAmountCents: 1000, refundAmountCents: 1000, applicationFeeCents: 49,
+      chargeAmountCents: 1000, refundAmountCents: 1000, applicationFeeCents: 50,
     })).toBe(15);
   });
 
-  it('Ellie refunding GBP 15 of a GBP 50 deposit', () => {
-    // 75p Florrie + 90p Stripe = 165p collected, 75p kept.
-    expect(totalApplicationFee(5000)).toBe(165);
-    expect(estimateStripeFee(5000)).toBe(90);
-    // 75 * 1500/5000 = 22.5 -> 23p. The old behaviour gave back
-    // 165 * 1500/5000 = 49.5 -> 50p, so 27p of Florrie's money went with it.
+  it('does not refund more margin than an older under-recovered charge retained', () => {
     expect(refundableApplicationFeeCents({
-      chargeAmountCents: 5000, refundAmountCents: 1500, applicationFeeCents: 165,
+      chargeAmountCents: 1000, refundAmountCents: 1000, applicationFeeCents: 49,
+    })).toBe(14);
+  });
+
+  it('Ellie refunding GBP 15 of a GBP 50 deposit', () => {
+    // 75p Florrie + 95p Stripe = 170p collected, 75p kept.
+    expect(totalApplicationFee(5000)).toBe(170);
+    expect(estimateStripeFee(5000)).toBe(95);
+    // 75 * 1500/5000 = 22.5 -> 23p. The old behaviour gave back
+    // 170 * 1500/5000 = 51p, so 28p of Florrie's money went with it.
+    expect(refundableApplicationFeeCents({
+      chargeAmountCents: 5000, refundAmountCents: 1500, applicationFeeCents: 170,
     })).toBe(23);
   });
 
@@ -163,10 +169,10 @@ describe('what may honestly be handed back', () => {
     // GBP 50, retained 75p. GBP 15 back takes 23p, the remaining GBP 35 takes
     // the other 52p, and the two together are exactly 75p.
     const first = refundableApplicationFeeCents({
-      chargeAmountCents: 5000, refundAmountCents: 1500, alreadyRefundedCents: 0, applicationFeeCents: 165,
+      chargeAmountCents: 5000, refundAmountCents: 1500, alreadyRefundedCents: 0, applicationFeeCents: 170,
     });
     const second = refundableApplicationFeeCents({
-      chargeAmountCents: 5000, refundAmountCents: 3500, alreadyRefundedCents: 1500, applicationFeeCents: 165,
+      chargeAmountCents: 5000, refundAmountCents: 3500, alreadyRefundedCents: 1500, applicationFeeCents: 170,
     });
     expect(first).toBe(23);
     expect(second).toBe(52);
@@ -183,8 +189,8 @@ describe('what may honestly be handed back', () => {
   });
 
   it('handles nonsense without going negative', () => {
-    expect(refundableApplicationFeeCents({ chargeAmountCents: 0, refundAmountCents: 100, applicationFeeCents: 49 })).toBe(0);
-    expect(refundableApplicationFeeCents({ chargeAmountCents: 1000, refundAmountCents: 0, applicationFeeCents: 49 })).toBe(0);
+    expect(refundableApplicationFeeCents({ chargeAmountCents: 0, refundAmountCents: 100, applicationFeeCents: 50 })).toBe(0);
+    expect(refundableApplicationFeeCents({ chargeAmountCents: 1000, refundAmountCents: 0, applicationFeeCents: 50 })).toBe(0);
     expect(refundableApplicationFeeCents({ chargeAmountCents: 1000, refundAmountCents: 1000, applicationFeeCents: -5 })).toBe(0);
   });
 

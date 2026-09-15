@@ -1066,11 +1066,11 @@ export default function Settings({ onLogout }) {
             <div style={styles.cardTitle}>Payouts</div>
             <div style={styles.payoutRow}>
               <span style={styles.payoutLabel}>Schedule</span>
-              <span style={styles.payoutValue}>Daily (arrives next business day)</span>
+              <span style={styles.payoutValue}>See your schedule in Stripe</span>
             </div>
             <div style={styles.payoutRow}>
               <span style={styles.payoutLabel}>Card processing</span>
-              <span style={styles.payoutValue}>About 2.9% + 20p (Stripe 1.4% + 20p, Florrie 1.5%)</span>
+              <span style={styles.payoutValue}>About 3% + 20p for standard UK cards</span>
             </div>
             <div style={styles.payoutRow}>
               <span style={styles.payoutLabel}>Account</span>
@@ -1078,11 +1078,11 @@ export default function Settings({ onLogout }) {
             </div>
             <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, marginBottom: 8 }}>
               When a client pays by card through Florrie, two small fees come off before the
-              money reaches you. Stripe takes 1.4% + 20p to process the card, and Florrie takes
+              money reaches you. The deduction includes estimated Stripe processing at 1.5% + 20p, plus
               1.5% of the amount (at least 5p, never more than £5). Everything else lands in
-              your bank on the next payout. On a £10 deposit that is 34p to Stripe and 15p to
-              Florrie, so you keep £9.51. On a £45 balance you keep about £43.49. The app shows
-              you this figure before every charge, so there are never surprises.
+              your bank on the next payout. On a £10 deposit that is 35p for processing and 15p for
+              Florrie, so you keep £9.50. On a £45 balance you keep about £43.44. These
+              examples use the standard UK card estimate; actual Stripe fees can vary by card.
             </p>
             <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 0, marginBottom: 8 }}>
               Bank transfers and cash are always fee free. Add your bank details above and the

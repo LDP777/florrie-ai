@@ -2,15 +2,16 @@
  * Platform fee configuration for Florrie.
  *
  * Florrie takes a small cut on every payment processed through the platform.
- * This is ON TOP of Stripe's own processing fee (1.4% + 20p for UK cards).
+ * This is ON TOP of Stripe's own processing fee (1.5% + 20p for UK cards).
  *
  * Example on a £10 deposit:
- *   Stripe processing: ~34p  (1.4% + 20p)
+ *   Stripe processing: ~35p  (1.5% + 20p)
  *   Florrie platform:  ~15p  (1.5%)
- *   Beautician receives: £9.51
+ *   Beautician receives: £9.50
  *
  * The application_fee_amount goes to Florrie's Stripe account.
- * The rest (minus Stripe processing) goes to the beautician's connected account.
+ * The beautician receives the charge minus that application fee. Stripe then
+ * debits its actual processing fee from Florrie's platform account.
  */
 
 // Platform fee: 1.5% of total payment amount
@@ -36,11 +37,11 @@ export function calculatePlatformFee(amountCents) {
 
 
 // Stripe's own processing charge for a standard UK consumer card, per the
-// header comment above: 1.4% + 20p. We cannot know the exact fee before the
+// header comment above: 1.5% + 20p. We cannot know the exact fee before the
 // charge (EU and international cards cost more), so everywhere this figure
 // surfaces it is labelled an ESTIMATE. Kept here, next to the platform fee,
 // so the two numbers that make up "what comes off a payment" live together.
-const STRIPE_PERCENT_ESTIMATE = 1.4;
+const STRIPE_PERCENT_ESTIMATE = 1.5;
 const STRIPE_FIXED_PENCE_ESTIMATE = 20;
 
 /**
@@ -60,8 +61,8 @@ export function estimateStripeFee(amountCents) {
  * platform account with transfer_data to the beautician. Stripe takes its
  * processing fee from the PLATFORM, not from the beautician. If the
  * application fee only recovered Florrie's 1.5% cut, every booking would
- * lose money (on a GBP 10 deposit: collect 15p, pay Stripe ~34p, net
- * MINUS 19p). That exact leak put the platform balance in arrears, so the
+ * lose money (on a GBP 10 deposit: collect 15p, pay Stripe ~35p, net
+ * MINUS 20p). That exact leak put the platform balance in arrears, so the
  * application fee is Florrie's cut PLUS the estimated Stripe processing
  * fee. The Settings explainer already tells the beautician she pays both.
  *
@@ -119,6 +120,6 @@ export function getFeeDescription() {
     min_pence: MIN_FEE_PENCE,
     max_pence: MAX_FEE_PENCE,
     summary: `${PLATFORM_FEE_PERCENT}% per transaction (min ${MIN_FEE_PENCE}p, max £${(MAX_FEE_PENCE / 100).toFixed(2)})`,
-    stripe_note: 'Stripe processing fees (1.4% + 20p for UK cards) are charged separately by Stripe.',
+    stripe_note: 'The payment deduction includes estimated Stripe processing at 1.5% + 20p for standard UK cards, plus the Florrie transaction fee.',
   };
 }
