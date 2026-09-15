@@ -178,7 +178,6 @@ const ALLOWED_MISSING = new Map([
   // deliberate degrade rather than an oversight, which is the only reason it
   // is allowed to stay. Nothing creates it: 021_instagram_columns.sql adds
   // instagram_page_id and instagram_page_token and stops there.
-  ['instagram_token_expires_at', 'src/lib/health.js'],
 ]);
 
 describe('the backend never selects a beauticians column no migration creates', () => {

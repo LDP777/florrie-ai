@@ -198,7 +198,7 @@ export async function findBeauticianForIds(candidateIds) {
     // A failed query and an unknown account look identical at the call site
     // unless the error is read. Say which one this was.
     logger.error({ err: primaryErr, candidateIds }, 'Instagram DM: beautician lookup by instagram_page_id failed');
-  } else if (primary?.length) {
+  } else if (primary?.[0]?.instagram_page_id && primary[0].instagram_page_token) {
     return { beautician: primary[0], matchedOn: 'instagram_page_id' };
   }
 
@@ -213,7 +213,7 @@ export async function findBeauticianForIds(candidateIds) {
       'Instagram DM: could not search instagram_account_ids (is the column there?); matched on instagram_page_id only');
     return { beautician: null, matchedOn: null };
   }
-  if (alt?.length) return { beautician: alt[0], matchedOn: 'instagram_account_ids' };
+  if (alt?.[0]?.instagram_page_id && alt[0].instagram_page_token) return { beautician: alt[0], matchedOn: 'instagram_account_ids' };
 
   return { beautician: null, matchedOn: null };
 }

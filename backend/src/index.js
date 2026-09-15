@@ -92,6 +92,7 @@ import waitlistRoutes from './routes/waitlist.js';
 import instagramWebhookRoutes from './routes/instagram-webhooks.js';
 import twilioWebhookRoutes from './routes/twilio-webhooks.js';
 import instagramRoutes from './routes/instagram.js';
+import instagramPrivacyRoutes from './routes/instagram-privacy.js';
 import referralRoutes from './routes/referrals.js';
 import pushRoutes from './routes/push.js';
 import agentStatusRoutes from './routes/agent-status.js';
@@ -383,6 +384,7 @@ app.use('/api/whatsapp', apiLimiter, whatsappConfigRoutes);
 app.use('/api/webhooks/instagram', webhookLimiter, instagramWebhookRoutes);
 app.use('/api/webhooks/twilio', webhookLimiter, twilioWebhookRoutes); // Twilio BSP WhatsApp inbound
 app.use('/api/coach', apiLimiter, paywall, coachRoutes);
+app.use('/api/instagram/privacy', webhookLimiter, instagramPrivacyRoutes);
 app.use('/api/instagram', apiLimiter, instagramRoutes);
 app.use('/api/courses', bookingLimiter, courseRoutes); // public course enrollment API
 app.use('/api/suggestions', apiLimiter, suggestionsRoutes);

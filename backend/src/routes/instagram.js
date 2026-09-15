@@ -502,6 +502,7 @@ router.get('/callback', async (req, res) => {
     const patch = {
       instagram_page_id:    String(accountId),
       instagram_page_token: userToken,
+      instagram_connected_at: new Date().toISOString(),
     };
     if (username) patch.instagram_page_name = username;
 
@@ -669,7 +670,8 @@ router.get('/status', requireAuth, async (req, res) => {
       const { error: nameErr } = await supabase
         .from('beauticians')
         .update({ instagram_page_name: liveHandle })
-        .eq('id', req.beautician.id);
+        .eq('id', req.beautician.id)
+        .eq('instagram_page_token', data.instagram_page_token);
       if (nameErr) logger.warn({ err: nameErr }, 'Instagram: could not save the repaired handle');
     }
 
@@ -732,25 +734,21 @@ router.get('/status', requireAuth, async (req, res) => {
 // Clears the stored Instagram credentials.
 router.post('/disconnect', requireAuth, async (req, res) => {
   try {
-    await supabase
+    const { data, error } = await supabase
       .from('beauticians')
       .update({
         instagram_page_id:    null,
         instagram_page_token: null,
         instagram_page_name:  null,
+        instagram_account_ids: null,
+        instagram_connected_at: null,
+        instagram_token_expires_at: null,
       })
-      .eq('id', req.beautician.id);
-
-    // Separate and fail-soft for the same reason as the connect path: a column
-    // that may not be there yet must not take the disconnect down with it.
-    // Leaving stale ids behind would let a later webhook route a DM to an
-    // account she has explicitly unhooked.
-    const { error: idsErr } = await supabase
-      .from('beauticians')
-      .update({ instagram_account_ids: null })
-      .eq('id', req.beautician.id);
-    if (idsErr) logger.warn({ err: idsErr }, 'Instagram disconnect: could not clear instagram_account_ids');
-
+      .eq('id', req.beautician.id).select('id');
+    if (error || data?.length !== 1) {
+      logger.warn({ beauticianId: req.beautician.id }, 'Instagram disconnect was not saved');
+      return res.status(503).json({ error: 'Could not disconnect Instagram. Please try again.' });
+    }
     res.json({ success: true });
   } catch (err) {
     logger.error({ err }, 'Instagram disconnect error');

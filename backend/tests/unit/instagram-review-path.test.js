@@ -86,6 +86,8 @@ const BASE_COLUMNS = {
     'instagram_dm_mode', 'instagram_redirect_message',
     // 038_instagram_page_name.sql
     'instagram_page_name',
+    // 20260915_instagram_privacy_requests.sql, applied before this release.
+    'instagram_connected_at',
     // docs/sql/20260709_voice_profile.sql
     'voice_profile', 'voice_profile_updated_at',
   ],
@@ -528,6 +530,28 @@ describe('connect: every id the login reports is kept, not one guess', () => {
  * VIDEO 1, STEP 2: the Settings card
  * ======================================================================== */
 describe('status: the card tells the truth about the token and the handle', () => {
+  it('disconnects credentials and routing together, keeping other salons intact', async () => {
+    applyProposedColumns();
+    seedConnected({instagram_account_ids:[IG_APP_SCOPED_ID]});
+    db.beauticians.push({id:'b-other',instagram_page_id:'other-account',instagram_page_token:'other-token'});
+    const response=await realFetch(base+'/api/instagram/disconnect',{method:'POST'});
+    expect(response.status).toBe(200); expect(await response.json()).toEqual({success:true});
+    expect(db.beauticians[0]).toMatchObject({instagram_page_id:null,instagram_page_token:null,instagram_account_ids:null,instagram_token_expires_at:null});
+    expect(db.beauticians[1].instagram_page_token).toBe('other-token');
+  });
+  it('keeps the old connection intact and reports failure if the atomic write is rejected', async () => {
+    // Emulates PostgREST rejecting a write with a missing required migration.
+    seedConnected({instagram_account_ids:[IG_APP_SCOPED_ID]});
+    const response=await realFetch(base+'/api/instagram/disconnect',{method:'POST'});
+    expect(response.status).toBe(503);
+    expect(db.beauticians[0].instagram_page_token).toBeTruthy();
+    expect(db.beauticians[0].instagram_account_ids).toEqual([IG_APP_SCOPED_ID]);
+  });
+  it('does not report disconnect success for an absent profile', async () => {
+    applyProposedColumns();
+    db.beauticians=[];
+    expect((await realFetch(base+'/api/instagram/disconnect',{method:'POST'})).status).toBe(503);
+  });
   it('reports needs_reconnect when Instagram rejects the token', async () => {
     seedConnected();
     graph['graph.instagram.com/v21.0/me'] = () => fail(401, { message: 'Error validating access token: Session has expired', code: 190 });

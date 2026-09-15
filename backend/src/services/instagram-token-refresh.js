@@ -27,6 +27,7 @@ export async function refreshInstagramTokens() {
 
   let refreshed = 0;
   let failed = 0;
+  let skipped = 0;
 
   for (const b of rows || []) {
     try {
@@ -36,15 +37,20 @@ export async function refreshInstagramTokens() {
       const d = await res.json().catch(() => ({}));
 
       if (res.ok && d.access_token) {
-        const { error: upErr } = await supabase
+        const { data: saved, error: upErr } = await supabase
           .from('beauticians')
           .update({ instagram_page_token: d.access_token })
-          .eq('id', b.id);
+          .eq('id', b.id)
+          // A refresh in flight must not restore a disconnected/replaced token.
+          .eq('instagram_page_token', b.instagram_page_token).select('id');
         if (upErr) {
           failed++;
           logger.warn({ err: upErr, beauticianId: b.id }, 'IG token refresh: save failed');
-        } else {
+        } else if (saved?.length === 1) {
+          b.instagram_page_token = d.access_token;
           refreshed++;
+        } else {
+          skipped++;
         }
       } else {
         // These two cases used to share one logger.info line, which is how a
@@ -93,7 +99,7 @@ export async function refreshInstagramTokens() {
   // working token to fetch. Cheap, self-correcting, no manual DB work.
   await backfillInstagramNames(rows || []);
 
-  return { refreshed, failed, total: (rows || []).length };
+  return { refreshed, failed, skipped, total: (rows || []).length };
 }
 
 /**
@@ -113,6 +119,12 @@ export async function backfillInstagramNames(beauticians) {
   let handled = 0;
   for (const b of beauticians) {
     if (!b.instagram_page_token) continue;
+    // The initial worker list may predate a disconnect or a different login.
+    // Do not fetch more Instagram data using that old credential.
+    const { data: current, error: currentError } = await supabase.from('beauticians')
+      .select('instagram_page_id,instagram_page_token').eq('id',b.id)
+      .eq('instagram_page_token',b.instagram_page_token).maybeSingle();
+    if (currentError || !current?.instagram_page_id || !current.instagram_page_token) continue;
 
     // Anyone missing a real name OR missing a handle, in one query. If
     // migration 016 has not been applied the username half is not there yet,
