@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { useBeautician, fetchRows } from '../lib/supabase.js';
 import { supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
+import { readAuthenticatedJson } from '../lib/authenticated-json.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import Icon, { iconName } from '../components/ui/Icon';
@@ -78,14 +79,13 @@ function UsageBar({ usage }) {
 const DIAGNOSTIC_META = {
   on_consumer_whatsapp: {
     icon: 'phone',
-    title: 'Delete WhatsApp on this number first',
+    title: 'Keep your existing WhatsApp account',
     tone: 'warning',
     steps: [
-      'Open WhatsApp or WhatsApp Business on the phone.',
-      'Go to Settings → Account → Delete my account.',
-      'Enter this exact number and confirm.',
-      'Wait at least 2 hours for Meta to release the number.',
-      'Come back here and tap Try again.',
+      'This setup cannot connect a number already used in WhatsApp.',
+      'Keep your account and chat history. Do not delete them to connect Florrie.',
+      'Contact hello@florrie.ai to check the supported options for your number.',
+      'You can continue using Florrie while we help, or use a separate unused business number.',
     ],
   },
   on_other_waba: {
@@ -681,16 +681,16 @@ function ConnectFlow({ onConnected, onPending, onReset }) {
         </svg>
       </div>
 
-      <h2 style={styles.connectTitle}>Your WhatsApp does the bookings now</h2>
+      <h2 style={styles.connectTitle}>Connect a business number</h2>
       <p style={styles.connectDesc}>
-        Florrie replies to clients in your voice, 24/7. Books them in, sends reminders,
-        chases no-shows. SMS keeps running in the background as backup.
+        Once connected, you can manage client conversations in Inbox and choose
+        whether Florrie drafts replies for approval or handles eligible enquiries.
       </p>
 
       <ul style={styles.outcomeList}>
         <li style={styles.outcomeItem}>
           <span style={styles.outcomeTick}><Icon name="check" size={15} /></span>
-          Replies to every DM, even at 11pm on a Sunday
+          Helps answer booking enquiries with your reply settings
         </li>
         <li style={styles.outcomeItem}>
           <span style={styles.outcomeTick}><Icon name="check" size={15} /></span>
@@ -698,13 +698,13 @@ function ConnectFlow({ onConnected, onPending, onReset }) {
         </li>
         <li style={styles.outcomeItem}>
           <span style={styles.outcomeTick}><Icon name="check" size={15} /></span>
-          Sends 24h reminders so no-shows stop hurting your week
+          Sends appointment reminders when enabled
         </li>
       </ul>
 
-      <div style={styles.connectNote}><Icon name="alert-triangle" size={14} inline /> The number must not already be active on personal WhatsApp. Use a business
-        number or second SIM. If it is on WhatsApp, delete that account first (you can
-        export your chat history beforehand).
+      <div style={styles.connectNote}><Icon name="alert-triangle" size={14} inline /> This setup is for a separate business number that is not already on WhatsApp.
+        Keep your existing WhatsApp account and chats. To connect an existing number,
+        contact hello@florrie.ai so we can check a supported option before changing anything.
       </div>
 
       {step === 'phone' ? (
@@ -1068,6 +1068,7 @@ export default function WhatsAppConfig() {
   const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(true);
   const [disconnecting, setDisconnecting] = useState(false);
+  const [loadError, setLoadError] = useState(null);
   const [pendingPhone, setPendingPhone] = useState(null);
 
   useEffect(() => {
@@ -1077,8 +1078,9 @@ export default function WhatsAppConfig() {
 
   async function loadData() {
     setLoading(true);
+    setLoadError(null);
     try {
-      const data = await apiFetch('/status');
+      const data = await readAuthenticatedJson({ auth: supabase.auth, url: `${API_BASE}/api/whatsapp/status` });
       setStatus(data);
       // If the server already knows this beautician is pending activation,
       // jump straight to the polling UI. This handles the "closed the tab"
@@ -1090,7 +1092,7 @@ export default function WhatsAppConfig() {
       }
     } catch (err) {
       logger.error('WhatsApp load error:', err);
-      setStatus({ connected: false });
+      setLoadError('Could not check your WhatsApp connection. Your saved connection has not been changed.');
     } finally {
       setLoading(false);
     }
@@ -1151,10 +1153,15 @@ export default function WhatsAppConfig() {
               ? 'var(--success, #386F52)'
               : pendingActivation ? '#2E4A6B' : '#B33F00',
           }}>
-            {connected ? 'Connected' : pendingActivation ? '⏳ Activating' : 'Not connected'}
+            {loadError ? 'Could not check' : connected ? 'Connected' : pendingActivation ? '⏳ Activating' : 'Not connected'}
           </div>
         )}
       />
+
+      {loadError && <div role="alert" style={styles.connectionCard}>
+        <p>{loadError}</p>
+        <button className="fl-tap" onClick={loadData}>Retry</button>
+      </div>}
 
       {/* Retry exhausted, shown when retry worker has given up after max attempts */}
       {!connected && !pendingActivation && status?.retry_exhausted && (
@@ -1235,7 +1242,7 @@ export default function WhatsAppConfig() {
       )}
 
       {/* Not connected and nothing in flight, show setup flow */}
-      {!connected && !pendingActivation && (
+      {!loadError && !connected && !pendingActivation && (
         <ConnectFlow
           onConnected={handleConnected}
           onPending={handlePending}

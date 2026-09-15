@@ -4,6 +4,7 @@ import { useBeautician, updateRow, supabase } from '../lib/supabase.js';
 import { useTheme } from '../lib/theme.jsx';
 import { API_BASE } from '../lib/config.js';
 import { isNativeApp } from '../lib/platform.js';
+import { startInstagramConnection } from '../lib/instagram-connect.js';
 import SMSUsageWidget from '../components/SMSUsageWidget.jsx';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
@@ -315,47 +316,21 @@ export default function Settings({ onLogout }) {
     finally { setGcalDisconnecting(false); }
   }
 
-  /**
-   * Start the Instagram OAuth.
-   *
-   * THIS IS WHY THE RECONNECT BUTTON DID NOTHING ON HER PHONE. It used to do
-   * `window.location.href = data.url`, which points the app's own WKWebView at
-   * instagram.com. Instagram refuses to render its login inside an embedded
-   * webview: the page half draws, shows a "Loading" bar and a row of grey
-   * placeholder cards, and stops there for ever. No error, no way back except
-   * force quitting. That is exactly the screen Ellie sent.
-   *
-   * On native it has to leave the app. Capacitor's iOS shell hands a
-   * `target="_blank"` window to the system browser, so this needs no new plugin
-   * and no native rebuild. The callback then renders its own "you are done, go
-   * back to Florrie" page, because that Safari tab has no Florrie session.
-   */
   async function handleConnectInstagram() {
-    const native = isNativeApp();
+    if (igConnecting) return;
     setIgConnecting(true);
+    setIgDetail(null);
+    const native = isNativeApp();
     try {
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const res = await fetch(`${API_BASE}/api/instagram/connect${native ? '?platform=native' : ''}`, {
-        headers: { 'Authorization': `Bearer ${token}` },
+      await startInstagramConnection({
+        api: API_BASE, native,
+        getToken: async () => (await supabase.auth.getSession()).data.session?.access_token,
       });
-      const data = await res.json();
-      if (!data.url) {
-        setIgBanner('error');
-        setIgConnecting(false);
-        return;
-      }
-      if (native) {
-        // Opened before any await returns elsewhere, so iOS still counts this
-        // as a user gesture and does not swallow it as a popup.
-        window.open(data.url, '_blank');
-        setIgAwaitingReturn(true);
-        setIgConnecting(false);
-      } else {
-        window.location.href = data.url;
-      }
+      if (native) setIgAwaitingReturn(true);
     } catch (err) {
-      logger.error('Instagram connect error:', err);
       setIgBanner('error');
+      setIgDetail(err.message || 'Could not start the connection. Try again.');
+    } finally {
       setIgConnecting(false);
     }
   }

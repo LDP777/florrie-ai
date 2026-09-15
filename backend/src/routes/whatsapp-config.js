@@ -178,10 +178,10 @@ function interpretMetaError(meta, { context = 'register', now = new Date() } = {
   if (sub === 2388023 || /already.*whatsapp|registered.*consumer|already active on whatsapp/i.test(userMsg)) {
     return {
       diagnosis: 'on_consumer_whatsapp',
-      suggestedAction: 'delete_account',
-      retryAfter: new Date(now.getTime() + 2 * 60 * 60 * 1000).toISOString(),
+      suggestedAction: 'contact_support',
+      retryAfter: null,
       userMessage:
-        "This number is currently registered on WhatsApp or WhatsApp Business. Open that app, go to Settings then Account then Delete my account, and confirm with this exact number. Wait 2 hours for Meta to release it, then try again.",
+        "Keep your existing WhatsApp account and chats. This connection method only supports a number that is not already on WhatsApp. Contact Florrie support to check a supported connection for your existing number, or use a separate unused business number.",
     };
   }
 

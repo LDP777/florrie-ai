@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { track } from '../lib/analytics.js';
 import { useBeautician, updateRow, insertRow, supabase } from '../lib/supabase.js'
 import { PLAN } from '../lib/subscription.js';
@@ -9,6 +9,7 @@ import Icon from '../components/ui/Icon';
 import Button from '../components/ui/Button';
 import { cleanSlug, slugProblem, suggestSlug, withSuffix, isUniqueViolation } from '../lib/booking-slug.js';
 import { parseCsv, clientsFromCsv } from '../lib/csv.js';
+import { startInstagramConnection } from '../lib/instagram-connect.js';
 
 /** The zone the browser is running in, or null if it cannot say. */
 function detectBrowserTimezone() {
@@ -526,41 +527,31 @@ export default function Onboarding({ onComplete }) {
       setSmsSaving(false);
     }
   }
-  // Instagram-first channel connect (Levi, 9 Jul): DMs are where brow
-  // clients already live and the OAuth flow has zero telecom pain. Honest
-  // states: not-configured shows a plain "soon" note, never a dead end.
   const [igNote, setIgNote] = useState(null);
+  const [igConnecting, setIgConnecting] = useState(false);
+  const igConnectBusy = useRef(false);
   async function connectInstagram() {
+    if (igConnectBusy.current) return;
+    igConnectBusy.current = true;
+    setIgConnecting(true);
+    setIgNote(null);
     try {
       try { track('onboarding_instagram_connect_tapped', { step }); } catch { /* noop */ }
-      // Instagram will not render its login inside the app's WKWebView — it
-      // hangs on a half-drawn page with no way back. On native the url has to
-      // leave the app, and the backend needs ?platform=native so the callback
-      // ends on its own "go back to Florrie" page rather than a redirect into
-      // a browser tab with no session.
       const native = isNativeApp();
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(`${API}/api/instagram/connect${native ? '?platform=native' : ''}`, {
-        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
+      await startInstagramConnection({
+        api: API, getToken: getAuthToken, native,
+        beforeOpen: async () => {
+          // Basics are saved before step 6. Finish this optional step before
+          // leaving so OAuth returns to Settings instead of restarting import.
+          if (!await markOnboardingComplete()) throw new Error('Could not save your setup. Try again.');
+        },
       });
-      const d = await res.json().catch(() => ({}));
-      if (res.ok && d.url) {
-        if (native) {
-          window.open(d.url, '_blank');
-          setIgNote('Finish in the browser, then come back here. We will pick it up.');
-        } else {
-          window.location.href = d.url;
-        }
-        return;
-      }
-      // The server says exactly what is missing (routes/instagram.js). Show
-      // that rather than a roadmap promise for what is usually a config gap.
-      const detail = Array.isArray(d.problems) && d.problems[0] ? d.problems[0] : (d.error || '');
-      setIgNote(res.status === 503
-        ? 'Instagram connect is not switched on for this account yet. Finish setup now; you can connect from Settings once it is.'
-        : `Could not start the Instagram connection${detail ? `: ${detail}` : ''}. Finish setup and try again from Settings.`);
-    } catch {
-      setIgNote('Could not reach Instagram just now. Finish setup and connect from Settings any time.');
+      if (native && onComplete) onComplete('/settings?section=ai');
+    } catch (err) {
+      setIgNote(err.message || 'Could not start the connection. Try again from Settings.');
+    } finally {
+      igConnectBusy.current = false;
+      setIgConnecting(false);
     }
   }
 
@@ -940,19 +931,20 @@ export default function Onboarding({ onComplete }) {
           )}
           <div style={{ background: 'var(--tone-1, #fbf1ea)', borderRadius: 16, padding: '14px 16px', margin: '0 0 14px', textAlign: 'left' }}>
             <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary, #241B17)', margin: '0 0 4px' }}>
-              Connect Instagram (recommended)
+              Connect your Instagram
             </p>
             <p style={{ fontSize: 12.5, color: 'var(--text-secondary, #574A42)', margin: '0 0 10px', lineHeight: 1.45 }}>
-              Most booking chats start in your DMs. Connect and Florrie answers them,
-              takes bookings, and posts for you. WhatsApp can come later, no phone
-              number wrangling needed today.
+              Use an Instagram Business or Creator account. Sign in with Instagram on this
+              device and choose what Florrie can access. You can then read and reply to
+              DMs in Inbox and prepare posts in Content. You can also connect later.
             </p>
             <Button
               variant="primary"
               size="sm"
               onClick={connectInstagram}
+              disabled={igConnecting}
             >
-              Connect Instagram
+              {igConnecting ? 'Opening Instagram…' : 'Connect Instagram'}
             </Button>
             {igNote && <p style={{ fontSize: 12, color: 'var(--text-secondary, #574A42)', margin: '8px 0 0' }}>{igNote}</p>}
           </div>

@@ -8,7 +8,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "check:native-auth": "node --test src/lib/native-auth.test.mjs",
+    "check:native-auth": "node --test src/lib/native-auth.test.mjs src/lib/instagram-connect.test.mjs",
+    "check:channels": "node scripts/check-channel-onboarding.mjs",
     "check:today-load": "node --test src/lib/dedupe-json-fetch.test.mjs src/lib/authenticated-json.test.mjs src/lib/activity-read.test.mjs src/lib/voice-command.test.mjs src/lib/content-workflow.test.mjs",
     "check:today:browser": "node scripts/check-today-loading.mjs",
     "build": "npm run check:native-auth && npm run check:today-load && npm run check:icons && npm run check:icon-usage && npm run check:chrome && npm run check:primitives && npm run check:tap && npm run check:dedupe && npm run check:brand && npm run check:em-dash && npm run check:render && vite build",
