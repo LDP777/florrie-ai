@@ -5,7 +5,7 @@ import { resolveWhatsAppCredentials, tenantWhatsAppEnabled } from '../lib/whatsa
 import { processInboundMessage } from '../services/ai-front-desk.js';
 import { shouldProcessInbound } from '../lib/appointment-message-scenario.js';
 import { applyWhatsAppStatuses } from '../services/delivery-receipts.js';
-import { applyWhatsAppLifecycle } from '../services/whatsapp-lifecycle.js';
+import { applyWhatsAppLifecycle, hasWhatsAppLifecycleEvent } from '../services/whatsapp-lifecycle.js';
 import { pushMessagesWaiting } from '../services/push-notifications.js';
 import { classifyInboundMessage, looksLikeKnownClient } from '../lib/junk-classifier.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -190,9 +190,7 @@ router.post('/whatsapp', async (req, res) => {
   // message delivery is in a development grace period. Preserve provider retry
   // until revocation and its receipt have committed.
   if (tenantWhatsAppEnabled()) {
-    const hasRemoval = Array.isArray(req.body?.entry) && req.body.entry.some(entry =>
-      Array.isArray(entry?.changes) && entry.changes.some(change =>
-        change?.field === 'account_update' && change.value?.event === 'PARTNER_REMOVED'));
+    const hasRemoval = hasWhatsAppLifecycleEvent(req.body);
     if (hasRemoval && !secret) return res.status(503).json({ error: 'Webhook not configured' });
     try { await applyWhatsAppLifecycle(req.body); }
     catch {
