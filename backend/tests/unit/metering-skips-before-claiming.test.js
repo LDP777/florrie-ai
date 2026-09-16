@@ -117,4 +117,17 @@ describe('billMonthlySurplus and the trial skip', () => {
     expect(claims[0]).toEqual({ ids: ['mu_1'], billed: true });
     expect(invoiceItems[0].opts.idempotencyKey).toBe('msgusage_mu_1');
   });
+
+  it('does not reprice or rebill historical usage after a message-rate change', async () => {
+    const historical = usageRow({
+      billed: true, stripe_invoice_id: 'ii_historical', overage_total_pence: 70,
+      overage_sms_count: 4, overage_wa_count: 6,
+      beauticians: { stripe_customer_id: 'cus_paid_fixture', subscription_plan: 'florrie' },
+    });
+    db.message_usage = [structuredClone(historical)];
+    expect(await billMonthlySurplus()).toEqual({ processed: 0, charged: 0, skipped: 0, failed: 0 });
+    expect(db.message_usage).toEqual([historical]);
+    expect(claims).toEqual([]);
+    expect(invoiceItems).toEqual([]);
+  });
 });

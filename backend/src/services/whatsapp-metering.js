@@ -5,7 +5,7 @@
  * 120/month plan limit defined in tiers.js.
  *
  * Overage rate (per tiers.js):
- *   All messages (SMS + WhatsApp): 7p per surplus message
+ *   WhatsApp: 5p; SMS: 6p per surplus message
  *
  * Called BEFORE every WhatsApp send. SMS sends continue to use sms-metering.js
  * for weekly tracking but ALSO write into message_usage for combined quota.
@@ -13,9 +13,7 @@
 
 import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
-import { getTier } from '../lib/tiers.js';
-
-const OVERAGE_PENCE = 7; // flat rate regardless of channel
+import { getTier, MESSAGE_OVERAGE_PENCE } from '../lib/tiers.js';
 
 /**
  * Returns the first day of the current month as YYYY-MM-DD (UTC).
@@ -106,7 +104,7 @@ export async function checkWhatsAppQuota(beauticianId) {
       used: totalUsed,
       limit: freeLimit,
       remaining: 0,
-      overageRate: OVERAGE_PENCE,
+      overageRate: MESSAGE_OVERAGE_PENCE.whatsapp,
     };
   } catch (err) {
     logger.error({ err, beauticianId }, 'checkWhatsAppQuota error');
@@ -125,6 +123,7 @@ export async function checkWhatsAppQuota(beauticianId) {
  * so sends keep being metered.
  */
 async function incrementMonthlyUsage(beauticianId, channel) {
+  const overagePence = MESSAGE_OVERAGE_PENCE[channel];
   const { data: b } = await supabase
     .from('beauticians')
     .select('subscription_plan')
@@ -140,7 +139,7 @@ async function incrementMonthlyUsage(beauticianId, channel) {
     p_month: month,
     p_free_limit: freeLimit,
     p_channel: channel,
-    p_overage_pence: OVERAGE_PENCE,
+    p_overage_pence: overagePence,
   });
   if (!error && data) {
     const row = Array.isArray(data) ? data[0] : data;
@@ -161,8 +160,8 @@ async function incrementMonthlyUsage(beauticianId, channel) {
   const updates = { [field]: (usage[field] || 0) + 1, updated_at: new Date().toISOString() };
   if (isOverage) {
     updates[overageCountField] = (usage[overageCountField] || 0) + 1;
-    updates[overagePenceField] = (usage[overagePenceField] || 0) + OVERAGE_PENCE;
-    updates.overage_total_pence = (usage.overage_total_pence || 0) + OVERAGE_PENCE;
+    updates[overagePenceField] = (usage[overagePenceField] || 0) + overagePence;
+    updates.overage_total_pence = (usage.overage_total_pence || 0) + overagePence;
   }
   const { data: updated, error: updErr } = await supabase
     .from('message_usage')
