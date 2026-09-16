@@ -35,7 +35,7 @@ import { readFileSync } from 'node:fs';
  * health.js reads several tables. Nothing here is under test, so the builder
  * only has to answer without throwing.
  */
-const db = { messages: [], beauticians: [], stripe_events: [], transactions: [] };
+const db = { messages: [], beauticians: [], stripe_events: [], transactions: [], whatsapp_connections: [] };
 
 function builder(table) {
   const filters = [];
@@ -276,6 +276,7 @@ describe('/health asks Meta, and never invents an outage when it cannot', () => 
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs(); db.whatsapp_connections = []; db.beauticians = [];
     if (REAL_TOKEN === undefined) delete process.env.WHATSAPP_TOKEN;
     else process.env.WHATSAPP_TOKEN = REAL_TOKEN;
     if (REAL_WABA === undefined) delete process.env.WHATSAPP_WABA_ID;
@@ -331,6 +332,17 @@ describe('/health asks Meta, and never invents an outage when it cannot', () => 
 
     expect(result.checks.template_params.status).toBe('skipped');
     expect(result.checks.template_params.ok).toBe(true);
+    expect(graph).not.toHaveBeenCalled();
+  });
+
+  it('does not audit a customer WABA using the platform token', async () => {
+    vi.stubEnv('WHATSAPP_TENANT_CREDENTIALS_ENABLED', 'true');
+    db.beauticians = [{ id: 'customer', whatsapp_phone_id: 'customer-phone' }];
+    db.whatsapp_connections = [{ beautician_id: 'customer', mode: 'embedded', phone_id: 'customer-phone', waba_id: 'customer-waba' }];
+    const { runHealthChecks } = await health();
+    const result = await runHealthChecks({ stripe: null, jobs: [] });
+    expect(result.checks.template_params.status).toBe('skipped');
+    expect(result.checks.template_params.scope).toBe('legacy_connections_only');
     expect(graph).not.toHaveBeenCalled();
   });
 

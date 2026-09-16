@@ -27,6 +27,7 @@ import { TEMPLATE_SPECS, splitTemplateName, paramFieldsFor } from './whatsapp-te
 import { explainPhoneParentWaba, wabaIdsThisTokenIsScopedTo } from '../services/notifications.js';
 import { isApnsConfigured } from '../services/apns.js';
 import { unsecuredWebhookChannels } from './unsigned-webhook-policy.js';
+import { tenantWhatsAppEnabled } from './whatsapp-connection.js';
 
 const DEFAULT_TIMEOUT_MS = 3000;
 
@@ -715,18 +716,20 @@ let _templateAudit = { at: 0, result: null, ok: false, inFlight: null };
 async function resolveAuditWaba() {
   const envWaba = process.env.WHATSAPP_WABA_ID || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || null;
   try {
-    const { data, error } = await supabase
-      .from('beauticians')
-      .select('whatsapp_phone_id')
-      .not('whatsapp_phone_id', 'is', null)
-      .limit(1);
+    // This global diagnostic uses the platform token, so it must select only
+    // an explicit legacy connection. Embedded accounts have customer tokens.
+    const tenantMode = tenantWhatsAppEnabled();
+    const { data, error } = tenantMode
+      ? await supabase.from('whatsapp_connections').select('phone_id').eq('mode', 'legacy').order('beautician_id').limit(1)
+      : await supabase.from('beauticians').select('whatsapp_phone_id').not('whatsapp_phone_id', 'is', null).limit(1);
     // Read, because an unread error here would silently send us back to the
     // env var, which is the exact wrong answer this function was written for.
     if (error) {
       logger.warn({ err: error }, 'template audit: could not read a sending phone id, falling back to the env WABA');
       return { waba: envWaba, source: 'env_after_db_error' };
     }
-    const phoneId = data?.[0]?.whatsapp_phone_id;
+    const phoneId = tenantMode ? data?.[0]?.phone_id : data?.[0]?.whatsapp_phone_id;
+    if (tenantMode && !phoneId) return { waba: null, source: 'no_legacy_sender' };
     if (!phoneId) return { waba: envWaba, source: 'env_no_sender_connected' };
 
     const parent = await explainPhoneParentWaba(phoneId);
@@ -820,7 +823,9 @@ async function fetchApprovedTemplates() {
 
   const resolved = await resolveAuditWaba();
   const waba = resolved.waba;
-  if (!waba) return { skipped: 'no sending WhatsApp number connected and WHATSAPP_WABA_ID not set' };
+  if (!waba) return { skipped: resolved.source === 'no_legacy_sender'
+    ? 'No legacy WhatsApp sender. This global template audit does not assess customer-owned accounts.'
+    : 'no sending WhatsApp number connected and WHATSAPP_WABA_ID not set' };
 
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), TEMPLATE_AUDIT_TIMEOUT_MS);
@@ -993,10 +998,10 @@ async function checkWebhookSecrets() {
  */
 async function checkTemplateCoverage() {
   const params = await checkTemplateParams();
-  if (params.coverage) return params.coverage;
+  if (params.coverage) return { ...params.coverage, ...(params.scope ? { scope: params.scope } : {}) };
   // skipped / unknown: the params check already explains why, and repeating it
   // as a second line does not add a fact.
-  return { ok: true, status: params.status, critical: false, detail: params.detail };
+  return { ok: true, status: params.status, critical: false, detail: params.detail, ...(params.scope ? { scope: params.scope } : {}) };
 }
 
 async function checkTemplateParams() {
@@ -1065,6 +1070,7 @@ async function runTemplateAudit() {
     };
   }
 
+  if (tenantWhatsAppEnabled()) result.scope = 'legacy_connections_only';
   _templateAudit = { ..._templateAudit, at: Date.now(), result, ok: !answer.error };
   return result;
 }

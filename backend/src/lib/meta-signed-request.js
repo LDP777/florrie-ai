@@ -3,8 +3,9 @@ import { createHmac, timingSafeEqual, createHash } from 'node:crypto';
 export class InvalidMetaRequest extends Error {}
 
 // Meta signs the encoded payload, not JSON re-serialised after decoding.
-export function verifyMetaSignedRequest(value, secret, now = Date.now()) {
-  if (!secret) throw new Error('Instagram callback verification is not configured');
+export function verifyMetaSignedRequest(value, secret, now = Date.now(), namespace = 'instagram') {
+  if (!secret) throw new Error('Meta callback verification is not configured');
+  if (!['instagram', 'whatsapp:user'].includes(namespace)) throw new Error('Unknown Meta callback namespace');
   const fail = () => { throw new InvalidMetaRequest('Invalid signed request'); };
   if (typeof value !== 'string' || value.length > 16384) fail();
   const parts = value.split('.');
@@ -22,7 +23,7 @@ export function verifyMetaSignedRequest(value, secret, now = Date.now()) {
   // Old, authentic callbacks remain retryable. The database compares issued_at
   // with the connection time so a replay cannot revoke a newer connection.
   return {
-    accountHash: createHash('sha256').update('instagram:' + payload.user_id).digest('hex'),
+    accountHash: createHash('sha256').update(namespace + ':' + payload.user_id).digest('hex'),
     issuedAt: new Date(payload.issued_at * 1000).toISOString(),
     eventHash: createHash('sha256').update(encoded).digest('hex'),
   };

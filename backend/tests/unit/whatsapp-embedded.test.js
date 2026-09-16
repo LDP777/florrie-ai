@@ -26,7 +26,7 @@ const complete=()=>completeWhatsAppSignup({db,session,code:'authorisation-code',
 beforeEach(()=>{
  vi.stubEnv('WHATSAPP_TENANT_CREDENTIALS_ENABLED','true');vi.stubEnv('ENCRYPTION_KEY','ab'.repeat(32));
  vi.stubEnv('WHATSAPP_APP_SECRET','app-secret');vi.stubEnv('WHATSAPP_TOKEN','legacy-token');
- calls.length=0;tokenData={is_valid:true,app_id:'100',scopes:['whatsapp_business_management','whatsapp_business_messaging'],granular_scopes:[{scope:'whatsapp_business_management',target_ids:['300']}]};
+ calls.length=0;tokenData={is_valid:true,user_id:'555',app_id:'100',scopes:['whatsapp_business_management','whatsapp_business_messaging'],granular_scopes:[{scope:'whatsapp_business_management',target_ids:['300']}]};
  phoneData={id:'400',display_phone_number:'+44 7700 900001',code_verification_status:'VERIFIED',status:'VERIFIED'};
  db={rpc:vi.fn(async()=>({data:true,error:null}))};
 });
@@ -46,7 +46,7 @@ describe('customer WhatsApp isolation',()=>{
  it('shares WhatsApp credentials across deployments without rotating other integration keys',async()=>{
    vi.stubEnv('WHATSAPP_CREDENTIALS_KEY','cd'.repeat(32));
    const oldIntegration=encrypt({refreshToken:'existing-integration'});
-   await complete();const cipher=db.rpc.mock.calls[1][1].p_credentials;
+   await complete();const cipher=db.rpc.mock.calls[2][1].p_credentials;
    vi.stubEnv('ENCRYPTION_KEY','ef'.repeat(32));
    const row={mode:'embedded',phone_id:'400',waba_id:'300',credentials:cipher};
    expect((await resolveWhatsAppCredentials(salon,'400',connectionDb(row))).token).toBe('customer-token');
@@ -59,11 +59,12 @@ describe('customer WhatsApp isolation',()=>{
 describe('provider ownership and activation',()=>{
  it('validates the customer grant, reserves ownership, verifies activation and stores encrypted credentials',async()=>{
    expect(await complete()).toMatchObject({connected:true});
-   expect(db.rpc.mock.calls.map(c=>c[0])).toEqual(['reserve_whatsapp_phone','finish_whatsapp_signup']);
-   const saved=db.rpc.mock.calls[1][1];expect(saved.p_credentials).not.toContain('customer-token');
+   expect(db.rpc.mock.calls.map(c=>c[0])).toEqual(['bind_whatsapp_signup_identity','reserve_whatsapp_phone','finish_whatsapp_signup']);
+   const saved=db.rpc.mock.calls[2][1];expect(saved.p_credentials).not.toContain('customer-token');
    expect(calls.filter(c=>!/oauth|debug_token/.test(c.path)).every(c=>c.headers.Authorization==='Bearer customer-token')).toBe(true);
  });
- it.each(['invalid','wrong-app','missing-scope','wrong-waba','expired'])('rejects %s tokens before registration or storage',async(reason)=>{
+ it.each(['invalid','wrong-app','missing-scope','wrong-waba','expired','missing-subject'])('rejects %s tokens before registration or storage',async(reason)=>{
+   if(reason==='missing-subject')delete tokenData.user_id;
    if(reason==='invalid')tokenData.is_valid=false;
    if(reason==='wrong-app')tokenData.app_id='evil';
    if(reason==='missing-scope')tokenData.scopes=[];
@@ -75,15 +76,19 @@ describe('provider ownership and activation',()=>{
  it('rejects a phone outside the granted WABA',async()=>{
    phoneData.id='999';await expect(complete()).rejects.toThrow('does not belong');expect(db.rpc).not.toHaveBeenCalled();
  });
+ it('does not register or subscribe after a revoked or unrecordable identity',async()=>{
+   db.rpc.mockResolvedValue({data:false});await expect(complete()).rejects.toThrow('authorisation changed');
+   expect(calls.some(c=>/register|subscribed_apps/.test(c.path))).toBe(false);
+ });
  it('does not register a phone claimed by another salon',async()=>{
-   db.rpc.mockResolvedValue({data:false});await expect(complete()).rejects.toThrow('already connected');
+   db.rpc.mockImplementation(async name=>({data:name!=='reserve_whatsapp_phone'}));await expect(complete()).rejects.toThrow('already connected');
    expect(calls.some(c=>c.path.endsWith('/register'))).toBe(false);
  });
  it('does not reset an already connected Meta number',async()=>{
    phoneData.status='CONNECTED';await complete();expect(calls.some(c=>c.path.endsWith('/register'))).toBe(false);
  });
  it('does not report success when the atomic save is refused',async()=>{
-   db.rpc.mockImplementation(async(name)=>({data:name==='reserve_whatsapp_phone'}));
+   db.rpc.mockImplementation(async(name)=>({data:name!=='finish_whatsapp_signup'}));
    await expect(complete()).rejects.toThrow('could not be saved');
  });
 });

@@ -55,7 +55,7 @@ export async function completeWhatsAppSignup({ db, session, code, wabaId, phoneI
   const debug = await graph(`debug_token?input_token=${encodeURIComponent(token)}`,{token:`${config.appId}|${getAppSecret()}`});
   const d = debug.data;
   const required = ['whatsapp_business_management','whatsapp_business_messaging'];
-  if (!d?.is_valid || String(d.app_id) !== config.appId || required.some(scope => !d.scopes?.includes(scope)) ||
+  if (!d?.is_valid || !metaId(d.user_id) || String(d.app_id) !== config.appId || required.some(scope => !d.scopes?.includes(scope)) ||
     (d.expires_at && d.expires_at * 1000 <= Date.now()) || (d.data_access_expires_at && d.data_access_expires_at * 1000 <= Date.now())) {
     throw new SignupError('invalid_grant','Meta has not granted the required WhatsApp access. Start again and approve both requested permissions.');
   }
@@ -75,6 +75,13 @@ export async function completeWhatsAppSignup({ db, session, code, wabaId, phoneI
   }
   if (!phone) throw new SignupError('wrong_phone','That number does not belong to the authorised WhatsApp account.');
   if (phone.code_verification_status !== 'VERIFIED') throw new SignupError('unverified_phone','Finish verifying your phone number with Meta before connecting it.');
+  // Only Meta's verified token subject can route later privacy callbacks.
+  const identity = await db.rpc('bind_whatsapp_signup_identity', {
+    p_session: session.id,
+    p_subject_hash: createHash('sha256').update('whatsapp:user:' + d.user_id).digest('hex'),
+    p_waba_hash: createHash('sha256').update('whatsapp:waba:' + wabaId).digest('hex'),
+  });
+  if (identity.error || !identity.data) throw new SignupError('grant_changed', 'This authorisation changed or could not be saved. Return to Florrie and connect again.', 409);
   const reserved = await db.rpc('reserve_whatsapp_phone',{p_session:session.id,p_phone:phoneId});
   if (reserved.error) throw new SignupError('storage_unavailable','We could not save this connection. Return to Florrie and try again.',503);
   if (!reserved.data) throw new SignupError('phone_in_use','This number is already connected, or this setup has expired. Return to Florrie to check it.',409);

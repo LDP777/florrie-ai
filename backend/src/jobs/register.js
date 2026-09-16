@@ -2,6 +2,7 @@ import { runValueCoaching } from '../services/value-coaching.js';
 import { runClientIntelligenceRefresh } from '../services/client-intelligence.js';
 import { retryAccountDeletions } from '../services/account-deletion.js';
 import { reviewInstagramDataRequests } from '../services/instagram-privacy-review.js';
+import { reviewWhatsAppDataRequests } from '../services/whatsapp-privacy-review.js';
 import { retryReschedulePayments } from '../services/reschedule-payments.js';
 import { retryBookingConfirmedAlerts } from '../services/booking-confirmed-alert.js';
 /**
@@ -76,6 +77,7 @@ export const JOBS = [
   { name: 'value-coaching', description: 'derive weekly insights from completed bookings', intervalMs: HOUR, startupDelayMs: 4 * MINUTE, handler: runValueCoaching },
   { name: 'client-intelligence-refresh', description: 'refresh visit patterns from completed appointments', intervalMs: HOUR, startupDelayMs: 4 * MINUTE, leaseMs: 30 * MINUTE, handler: runClientIntelligenceRefresh },
   { name: 'account-deletion-cleanup', description: 'resume incomplete account deletion requests', intervalMs: 5 * MINUTE, handler: retryAccountDeletions },
+  { name: 'whatsapp-privacy-review', description: 'flag WhatsApp privacy requests requiring operator review', intervalMs: HOUR, startupDelayMs: 6 * MINUTE, handler: reviewWhatsAppDataRequests },
   { name: 'instagram-privacy-review', description: 'flag Instagram data requests requiring operator cleanup', intervalMs: HOUR, startupDelayMs: 5 * MINUTE, handler: reviewInstagramDataRequests },
   {
     name: 'reschedule-payment-recovery',
