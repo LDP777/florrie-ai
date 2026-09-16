@@ -87,6 +87,7 @@ const db = {
 };
 const failing = new Map();      // table -> PostgREST style error
 let idCounter = 0;
+let afterReplayProbe = null;
 const nextId = (p) => `${p}_${++idCounter}`;
 
 /** Split "a, b(c, d), e" on top-level commas only. */
@@ -239,16 +240,42 @@ function makeBuilder(table) {
   return b;
 }
 
-vi.mock('../../src/config.js', () => ({ supabase: { from: (t) => makeBuilder(t), rpc: (name, { p_booking }) => ({ single: async () => {
-  if (name !== 'create_package_booking') throw new Error('unexpected RPC');
-  const result = await makeBuilder('appointments').insert(p_booking).single();
-  if (!result.error) {
-    const cp = db.client_packages.find(p => p.id === p_booking.client_package_id);
-    cp.sessions_used += 1;
-    if (cp.sessions_used >= cp.sessions_total) cp.status = 'completed';
-  }
-  return result;
-} }) } }));
+vi.mock('../../src/config.js', () => ({ supabase: {
+  from: (t) => makeBuilder(t),
+  rpc: (name, args) => {
+    const result = async () => {
+      if (name === 'book_managed_patch_test') {
+        const parent = db.appointments.find(a => a.id === args.p_parent_appointment_id && a.beautician_id === args.p_beautician_id);
+        if (!parent) return { data: null, error: { message: 'patch_parent_unavailable' } };
+        const prior = db.patch_tests.find(p => p.parent_appointment_id === parent.id && p.appointment_id);
+        const existing = prior && db.appointments.find(a => a.id === prior.appointment_id && ['confirmed', 'pending', 'in_progress', 'completed'].includes(a.status));
+        if (existing) return existing.starts_at === args.p_starts_at
+          ? { data: { ...existing, already_booked: true }, error: null }
+          : { data: null, error: { message: 'patch_already_booked' } };
+        if (!args.p_create) {
+          const effect = afterReplayProbe; afterReplayProbe = null; effect?.();
+          return { data: null, error: null };
+        }
+        if (failing.has('patch_rpc')) return { data: null, error: failing.get('patch_rpc') };
+        // Transaction rollback/concurrency is verified in disposable PostgreSQL.
+        const visit = { id: nextId('patch-visit'), beautician_id: parent.beautician_id, client_id: parent.client_id,
+          starts_at: args.p_starts_at, ends_at: new Date(Date.parse(args.p_starts_at) + 10 * 60000).toISOString(), status: 'confirmed', treatment_id: null };
+        db.appointments.push(visit);
+        db.patch_tests.push({ id: nextId('patch'), beautician_id: parent.beautician_id, client_id: parent.client_id, parent_appointment_id: parent.id, appointment_id: visit.id });
+        return { data: { ...visit, already_booked: false }, error: null };
+      }
+      if (name !== 'create_package_booking') throw new Error('unexpected RPC');
+      const result = await makeBuilder('appointments').insert(args.p_booking).single();
+      if (!result.error) {
+        const cp = db.client_packages.find(p => p.id === args.p_booking.client_package_id);
+        cp.sessions_used += 1;
+        if (cp.sessions_used >= cp.sessions_total) cp.status = 'completed';
+      }
+      return result;
+    };
+    return { single: result, maybeSingle: result };
+  },
+} }));
 
 /* ------------------------------------------------------------------- mocks -- */
 const stripeState = { sessions: [] };
@@ -377,6 +404,7 @@ beforeEach(() => {
   for (const t of Object.keys(db)) db[t] = [];
   failing.clear();
   idCounter = 0;
+  afterReplayProbe = null;
   sent.confirmations.length = 0;
   sent.sms.length = 0;
   sent.email.length = 0;
@@ -587,6 +615,66 @@ describe('48-hour patch-test notice', () => {
       expect(out.body.error).toContain('closed');
       expect(db.appointments).toHaveLength(1);
       expect(db.patch_tests).toHaveLength(0);
+    });
+  });
+
+  it('recovers a lost success response without duplicating the patch visit or confirmation messages', async () => {
+    await atFixedTime(async () => {
+      seedManagedAppointment();
+      const request = { params: { slug: 'ellindigo', token: 'manage-48' }, body: { slot: '2026-12-06T10:45:00.000Z' } };
+      const first = await run(bookingRouter, 'post', '/:slug/manage/:token/patch-test/confirm', request);
+      await settleBackground();
+      const messageCount = sent.sms.length + sent.email.length;
+      const retry = await run(bookingRouter, 'post', '/:slug/manage/:token/patch-test/confirm', request);
+      await settleBackground();
+      expect(first.status).toBe(200);
+      expect(retry).toEqual(first);
+      expect(db.appointments).toHaveLength(2);
+      expect(db.patch_tests).toHaveLength(1);
+      expect(sent.sms.length + sent.email.length).toBe(messageCount);
+      const changed = await run(bookingRouter, 'post', '/:slug/manage/:token/patch-test/confirm', { ...request, body: { slot: '2026-12-05T09:00:00.000Z' } });
+      expect(changed.status).toBe(409);
+      expect(changed.body.error).toContain('already booked');
+      expect(db.appointments).toHaveLength(2);
+    });
+  });
+
+  it('keeps a failed atomic save retryable without claiming the patch test is booked', async () => {
+    await atFixedTime(async () => {
+      seedManagedAppointment();
+      const request = { params: { slug: 'ellindigo', token: 'manage-48' }, body: { slot: '2026-12-06T10:45:00.000Z' } };
+      failing.set('patch_rpc', { code: 'P0001', message: 'synthetic evidence failure' });
+      const failed = await run(bookingRouter, 'post', '/:slug/manage/:token/patch-test/confirm', request);
+      expect(failed.status).toBe(503);
+      expect(failed.body.error).toContain('retry the same time');
+      expect(db.appointments).toHaveLength(1);
+      expect(db.patch_tests).toHaveLength(0);
+      expect(sent.sms).toHaveLength(0);
+      expect(sent.email).toHaveLength(0);
+      failing.clear();
+      const retry = await run(bookingRouter, 'post', '/:slug/manage/:token/patch-test/confirm', request);
+      expect(retry.status).toBe(200);
+      expect(db.appointments).toHaveLength(2);
+    });
+  });
+
+  it('recognises a retry that commits between the first probe and the diary check', async () => {
+    await atFixedTime(async () => {
+      seedManagedAppointment();
+      const slot = '2026-12-06T10:45:00.000Z';
+      afterReplayProbe = () => {
+        db.appointments.push({ id: 'race-visit', beautician_id: 'b1', client_id: 'c1', starts_at: slot, ends_at: '2026-12-06T10:55:00.000Z', status: 'confirmed', treatment_id: null });
+        db.patch_tests.push({ id: 'race-record', parent_appointment_id: 'main', appointment_id: 'race-visit', beautician_id: 'b1', client_id: 'c1' });
+      };
+      const out = await run(bookingRouter, 'post', '/:slug/manage/:token/patch-test/confirm', {
+        params: { slug: 'ellindigo', token: 'manage-48' }, body: { slot },
+      });
+      expect(out.status).toBe(200);
+      expect(out.body.appointment.starts_at).toBe(slot);
+      expect(db.appointments).toHaveLength(2);
+      expect(db.patch_tests).toHaveLength(1);
+      expect(sent.sms).toHaveLength(0);
+      expect(sent.email).toHaveLength(0);
     });
   });
 

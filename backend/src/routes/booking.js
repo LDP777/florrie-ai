@@ -2891,6 +2891,13 @@ router.get('/:slug/manage/:token/patch-test/slots', async (req, res) => {
  * Client confirms a patch test appointment slot.
  * Creates a new appointment record for the patch test.
  */
+function patchBookingFailure(res, error) {
+  if (error?.message?.includes('patch_already_booked')) return res.status(409).json({ error: 'Your patch test is already booked. Refresh your booking to see its time, or contact your tech to change it.' });
+  if (['23505', '23P01'].includes(error?.code) || /patch_(time|parent)_unavailable/.test(error?.message || '')) return res.status(409).json({ error: 'Your booking or that time has changed. Refresh before choosing a patch-test slot.' });
+  logger.warn({ code: error?.code }, 'Atomic patch-test booking could not be confirmed');
+  return res.status(503).json({ error: 'We could not confirm your patch test just now. Please retry the same time; we will check for an existing booking before creating one.' });
+}
+
 router.post('/:slug/manage/:token/patch-test/confirm', async (req, res) => {
   try {
     const { slot } = req.body;
@@ -2917,8 +2924,11 @@ router.post('/:slug/manage/:token/patch-test/confirm', async (req, res) => {
 
     if (!['confirmed', 'in_progress'].includes(appt.status)) return res.status(409).json({ error: 'Confirm your booking before booking its patch test.' });
     const beautician = appt.beauticians;
+    const bookingArgs = { p_parent_appointment_id: appt.id, p_beautician_id: beautician.id, p_starts_at: slotTime.toISOString() };
+    const existing = await supabase.rpc('book_managed_patch_test', { ...bookingArgs, p_create: false }).maybeSingle();
+    if (existing.error) return patchBookingFailure(res, existing.error);
+    if (existing.data) return res.json({ success: true, appointment: { starts_at: existing.data.starts_at, ends_at: existing.data.ends_at } });
     const ptDuration = beautician.patch_test_duration_minutes || 10;
-    const ptPrice = beautician.patch_test_price_cents || 0;
     const timezone = beautician.timezone || 'Europe/London';
 
     // Same WALL frame as the slot generator, so a slot the client was offered
@@ -2969,6 +2979,10 @@ router.post('/:slug/manage/:token/patch-test/confirm', async (req, res) => {
     }
 
     if (conflicts && conflicts.length > 0) {
+      // Another retry may have committed after the first replay probe.
+      const replay = await supabase.rpc('book_managed_patch_test', { ...bookingArgs, p_create: false }).maybeSingle();
+      if (replay.error) return patchBookingFailure(res, replay.error);
+      if (replay.data) return res.json({ success: true, appointment: { starts_at: replay.data.starts_at, ends_at: replay.data.ends_at } });
       return res.status(409).json({ error: 'This slot is no longer available' });
     }
 
@@ -2979,76 +2993,11 @@ router.post('/:slug/manage/:token/patch-test/confirm', async (req, res) => {
       return res.status(409).json({ error: 'That time is not free any more, please pick another.' });
     }
 
-    // Create patch test appointment
-    const { data: patchTestAppt, error: insertErr } = await supabase
-      .from('appointments')
-      .insert({
-        beautician_id: beautician.id,
-        client_id: appt.client_id,
-        client_email: appt.client_email,
-        // client_name/client_phone are not appointment columns; client_id
-        // carries the person. Their presence rejected the insert whole.
-        treatment_id: null,
-        starts_at: slotTime.toISOString(),
-        ends_at: slotEnd.toISOString(),
-        duration_minutes: ptDuration,
-        status: 'confirmed',
-        // NOT `notes`: appointments has no such column, so the insert errored
-        // every time and no patch test could ever be booked.
-        beautician_notes: 'Patch test (auto-booked)',
-        booked_via: 'booking_page',
-        price_cents: ptPrice,
-      })
-      .select('id, starts_at, ends_at')
-      .single();
-
-    if (insertErr) {
-      logger.error({ err: insertErr }, 'Patch test appointment creation failed');
-      return res.status(500).json({ error: 'Something went wrong' });
-    }
-
-    // Upsert patch_tests row — update if one exists (unconfirmed), otherwise create
-    const { data: existingPT } = await supabase
-      .from('patch_tests')
-      .select('id')
-      .eq('client_id', appt.client_id)
-      .eq('beautician_id', beautician.id)
-      .eq('parent_appointment_id', appt.id)
-      .is('confirmed_at', null)
-      .maybeSingle();
-
-    if (existingPT) {
-      const { error: patchErr } = await supabase
-        .from('patch_tests')
-        .update({
-          appointment_id: patchTestAppt.id,
-          parent_appointment_id: appt.id,
-          covered_treatment_ids: [appt.treatment_id, ...(appt.extra_treatment_ids || [])].filter(Boolean),
-          test_date: slotTime.toISOString().slice(0, 10),
-          suggested_slot: slotTime.toISOString(),
-          confirmed_at: new Date().toISOString(),
-          auto_booked: true,
-        })
-        .eq('id', existingPT.id);
-      if (patchErr) logger.error({ err: patchErr }, 'Patch test update failed (non-fatal)');
-    } else {
-      // No existing row — create one so manage page reflects the confirmed booking
-      const { error: patchErr } = await supabase
-        .from('patch_tests')
-        .insert({
-          client_id: appt.client_id,
-          beautician_id: beautician.id,
-          appointment_id: patchTestAppt.id,
-          parent_appointment_id: appt.id,
-          covered_treatment_ids: [appt.treatment_id, ...(appt.extra_treatment_ids || [])].filter(Boolean),
-          test_date: slotTime.toISOString().slice(0, 10),
-          suggested_slot: slotTime.toISOString(),
-          confirmed_at: new Date().toISOString(),
-          auto_booked: true,
-          status: 'pending', // awaiting result
-        });
-      if (patchErr) logger.error({ err: patchErr }, 'Patch test insert failed (non-fatal)');
-    }
+    // The database locks the parent and commits the diary visit and patch
+    // evidence together. Lost responses and concurrent retries reuse the visit.
+    const { data: patchTestAppt, error: insertErr } = await supabase.rpc('book_managed_patch_test', { ...bookingArgs, p_create: true }).single();
+    if (insertErr || !patchTestAppt) return patchBookingFailure(res, insertErr);
+    if (patchTestAppt.already_booked) return res.json({ success: true, appointment: { starts_at: patchTestAppt.starts_at, ends_at: patchTestAppt.ends_at } });
 
     // Tell Ellie it landed. Fire and forget: a push problem must never fail
     // a patch test the client has already booked.
