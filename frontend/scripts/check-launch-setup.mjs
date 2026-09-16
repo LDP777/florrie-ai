@@ -15,13 +15,14 @@ export const updateRow=async(table,id,changes)=>{if(window.fixture.failProfile)t
 const entry = `
 import React from 'react';import {createRoot} from 'react-dom/client';import {BrowserRouter,useLocation} from 'react-router-dom';
 import Onboarding from './src/pages/Onboarding.jsx';import Login from './src/pages/Login.jsx';import UpdatePassword from './src/pages/UpdatePassword.jsx';import {supabase} from './src/lib/supabase.js';
-function Harness(){const l=useLocation();return l.pathname==='/signup'?<Login supabase={supabase} initialMode="signup"/>:l.pathname==='/login'?<Login supabase={supabase}/>:l.pathname==='/update-password'?<UpdatePassword supabase={supabase}/>:<Onboarding onComplete={()=>{}}/>;}
+import Settings from './src/pages/Settings.jsx';import Pricing from './src/pages/Pricing.jsx';
+function Harness(){const l=useLocation();return l.pathname==='/settings'?<Settings/>:l.pathname==='/pricing'?<Pricing/>:l.pathname==='/signup'?<Login supabase={supabase} initialMode="signup"/>:l.pathname==='/login'?<Login supabase={supabase}/>:l.pathname==='/update-password'?<UpdatePassword supabase={supabase}/>:<Onboarding onComplete={()=>{}}/>;}
 createRoot(document.getElementById('root')).render(<BrowserRouter><Harness/></BrowserRouter>);
 `;
 const bundle = await build({stdin:{contents:entry,resolveDir:root,loader:'jsx'},bundle:true,write:false,format:'iife',platform:'browser',jsx:'automatic',define:{'import.meta.env':JSON.stringify({VITE_API_URL:'http://fixture.invalid',VITE_SUPABASE_URL:'http://fixture.invalid',VITE_SUPABASE_ANON_KEY:'fixture'})},plugins:[{name:'fixture-stores',setup(b){
  b.onResolve({filter:/\/lib\/supabase\.js$/},()=>({path:'store',namespace:'fixture'}));
  b.onResolve({filter:/\/lib\/platform\.js$/},()=>({path:'platform',namespace:'fixture'}));
- b.onLoad({filter:/.*/,namespace:'fixture'},args=>({contents:args.path==='store'?store:'export const isIOSNative=()=>false;export const isNativeApp=()=>false;',loader:'js'}));
+ b.onLoad({filter:/.*/,namespace:'fixture'},args=>({contents:args.path==='store'?store:'export const isIOSNative=()=>new URLSearchParams(location.search).get("native")==="ios";export const isNativeApp=isIOSNative;',loader:'js'}));
 }}]});
 const server=http.createServer((req,res)=>{res.setHeader('content-type',req.url==='/bundle.js'?'text/javascript':'text/html');res.end(req.url==='/bundle.js'?bundle.outputFiles[0].text:'<div id="root"></div><script src="/bundle.js"></script>');}).listen(0);
 const browser=await launch();
@@ -88,5 +89,28 @@ try {
  await page.getByRole('heading',{name:'Your booking link'}).waitFor();
  assert.deepEqual(await page.evaluate(()=>window.fixture.profile.working_hours.mon),{start:'09:00',end:'17:00'});
  console.log('PASS: invalid opening hours stay editable; corrected hours save before booking-link setup');
+ for (const [plan,status,action] of [
+  ['trial','trial','Choose a plan'],['florrie','active','Manage billing'],
+  ['florrie_team','past_due','Update card'],['florrie','cancelled','Subscribe again'],
+ ]) {
+  await page.evaluate(({plan,status})=>sessionStorage.setItem('setup-profile',JSON.stringify({
+   id:'salon-fixture',email:'fictional@example.test',first_name:'Alex',business_name:'Fictional salon',
+   subscription_plan:plan,subscription_status:status,trial_ends_at:'2027-01-01T00:00:00Z',
+  })),{plan,status});
+  await page.goto(`${origin}/settings?section=account&native=ios`);
+  await page.getByRole('heading',{name:'Subscription',exact:true}).waitFor();
+  assert.equal(await page.getByRole('button',{name:/^(Choose a plan|Manage billing|Update card|Subscribe again)$/}).count(),0);
+  assert.doesNotMatch(await page.locator('body').innerText(),/£|Update your card/);
+  await page.getByText('fictional@example.test',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'Delete account',exact:true}).waitFor();
+  if(status==='past_due')await page.getByText('There is a payment issue with this subscription.',{exact:true}).waitFor();
+  await page.goto(`${origin}/settings?section=account`);
+  await page.getByRole('button',{name:action,exact:true}).click();
+  assert.equal(new URL(page.url()).pathname,'/pricing');
+ }
+ await page.goto(`${origin}/pricing?native=ios`);
+ await page.getByText('Subscription changes are not available in the iPhone app.',{exact:true}).waitFor();
+ assert.equal(await page.getByRole('button',{name:/Subscribe|subscription|billing|checkout/i}).count(),0);
+ console.log('PASS: four iPhone account states preserve account details without billing dead ends; web actions still open pricing');
  await ctx.close();
 } finally {await browser.close();server.close();}

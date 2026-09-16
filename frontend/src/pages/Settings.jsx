@@ -2101,10 +2101,13 @@ export default function Settings({ onLogout }) {
             // warning when a payment failed.
             const plan = beautician.subscription_plan;
             const status = beautician.subscription_status;
+            const iosNative = isIOSNative();
             const paid = plan === 'florrie' || plan === 'florrie_team';
             const onTrial = !paid || status === 'trial';
             const fmt = (d) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-            const planName = plan === 'florrie_team' ? `Florrie Team (${PLAN.monthlyLabel} plus seats)` : paid ? `Florrie (${PLAN.monthlyLabel})` : '14-day free trial';
+            const planName = plan === 'florrie_team'
+              ? iosNative ? 'Florrie Team' : `Florrie Team (${PLAN.monthlyLabel} plus seats)`
+              : paid ? iosNative ? 'Florrie' : `Florrie (${PLAN.monthlyLabel})` : '14-day free trial';
             const standing = !paid ? null
               : status === 'active' ? { text: 'Active', color: 'var(--success, #386F52)' }
               : status === 'past_due' ? { text: 'Payment failed', color: 'var(--danger, #9E2B32)' }
@@ -2137,18 +2140,20 @@ export default function Settings({ onLogout }) {
                 )}
                 {paid && status === 'past_due' && (
                   <p style={{ fontSize: 13, color: 'var(--danger, #9E2B32)', margin: '8px 0 4px', lineHeight: 1.5 }}>
-                    Your last payment did not go through. Update your card within 7 days of the failed payment to keep Florrie running. Your clients are not affected.
+                    {iosNative
+                      ? 'There is a payment issue with this subscription.'
+                      : 'Your last payment did not go through. Update your card within 7 days of the failed payment to keep Florrie running. Your clients are not affected.'}
                   </p>
                 )}
                 <div style={styles.fieldRow}>
                   <span style={styles.fieldLabel}>Email</span>
                   <span style={styles.fieldValue}>{beautician.email}</span>
                 </div>
-                <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                {!iosNative && <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
                   {paid && status !== 'cancelled'
                     ? <Button variant={status === 'past_due' ? 'primary' : 'secondary'} size="sm" onClick={() => navigate('/pricing')}>{status === 'past_due' ? 'Update card' : 'Manage billing'}</Button>
                     : <Button size="sm" onClick={() => navigate('/pricing')}>{onTrial ? 'Choose a plan' : 'Subscribe again'}</Button>}
-                </div>
+                </div>}
               </div>
             );
           })()}
