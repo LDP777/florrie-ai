@@ -1,5 +1,7 @@
 import { Component } from 'react';
 import logger from '../lib/logger.js';
+import { isNativeApp } from '../lib/platform.js';
+import { isChunkLoadError, recoverMissingChunk } from '../lib/chunk-recovery.js';
 
 export default class ErrorBoundary extends Component {
   constructor(props) {
@@ -12,6 +14,9 @@ export default class ErrorBoundary extends Component {
   }
 
   componentDidCatch(error, info) {
+    try {
+      if (recoverMissingChunk({ error, native: isNativeApp(), storage: window.sessionStorage, reload: () => window.location.reload() })) return;
+    } catch { /* The recovery button remains available if storage is blocked. */ }
     logger.error('ErrorBoundary caught:', error, info);
   }
 
@@ -41,13 +46,15 @@ export default class ErrorBoundary extends Component {
               color: 'var(--text-primary, #241B17)',
               marginBottom: 8,
             }}>
-              Something went wrong
+              {isChunkLoadError(this.state.error) ? "This page couldn’t load" : "Something went wrong"}
             </h2>
             <p style={{ color: 'var(--text-secondary, #574A42)',
               marginBottom: 24,
               lineHeight: 1.5,
             }}>
-              We hit an unexpected error. Try refreshing the page.
+              {isChunkLoadError(this.state.error)
+                ? "Florrie may have updated, or your connection was interrupted. Refresh to try again."
+                : "We hit an unexpected error. Try refreshing the page."}
             </p>
             <button className="fl-tap"
               onClick={() => window.location.reload()}
