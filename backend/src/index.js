@@ -19,6 +19,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
 import logger from './lib/logger.js';
+import { sentryPrivacyOptions } from './lib/sentry-privacy.js';
 
 // Initialise Sentry before anything else so it captures startup errors too.
 // If SENTRY_DSN is not set the SDK is a no-op , safe in all environments.
@@ -26,8 +27,10 @@ if (process.env.SENTRY_DSN) {
   Sentry.init({
     dsn: process.env.SENTRY_DSN,
     environment: process.env.NODE_ENV || 'development',
+    ...sentryPrivacyOptions,
+    includeLocalVariables: false,
     integrations: [
-      Sentry.httpIntegration(),
+      Sentry.httpIntegration({ maxIncomingRequestBodySize: 'none' }),
       Sentry.expressIntegration(),
     ],
     // Capture 10% of transactions for performance monitoring
