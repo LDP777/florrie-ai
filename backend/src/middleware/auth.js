@@ -105,7 +105,15 @@ const TRIAL_DAYS = 14;
  * left alone entirely.
  */
 export function withTrialWindow(beautician) {
-  if (!beautician || beautician.trial_ends_at) return beautician;
+  if (!beautician) return beautician;
+
+  // Earlier signup inserts inherited the database's free/trial defaults.
+  // Recognise only that trial state, even when its end date already exists.
+  // Keep its original clock and leave the stored row and paid plans unchanged.
+  if (beautician.subscription_plan === 'free' && beautician.subscription_status === 'trial') {
+    beautician = { ...beautician, subscription_plan: 'trial' };
+  }
+  if (beautician.trial_ends_at) return beautician;
 
   // A live paid subscription has no trial window worth enforcing.
   const plan = beautician.subscription_plan;

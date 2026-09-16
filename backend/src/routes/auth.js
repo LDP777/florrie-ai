@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { supabase, supabaseAnon } from '../config.js';
-import { requireAuth, sanitizeBeautician } from '../middleware/auth.js';
+import { requireAuth, sanitizeBeautician, withTrialWindow } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { triggerSequence } from '../services/email-sequences.js';
 import logger from '../lib/logger.js';
@@ -37,6 +37,8 @@ async function createProfileWithWelcome(fields) {
     .from('beauticians')
     .insert({
       ...fields,
+      subscription_plan: 'trial',
+      subscription_status: 'trial',
       trial_ends_at: new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000).toISOString(),
     })
     .select()
@@ -92,7 +94,7 @@ router.post('/ensure-profile', async (req, res) => {
   }
 
   if (existing) {
-    return res.json({ beautician: sanitizeBeautician(existing), created: false });
+    return res.json({ beautician: sanitizeBeautician(withTrialWindow(existing)), created: false });
   }
 
   const meta = user.user_metadata || {};
@@ -112,13 +114,13 @@ router.post('/ensure-profile', async (req, res) => {
         .select('*')
         .eq('auth_id', user.id)
         .maybeSingle();
-      if (raced) return res.json({ beautician: sanitizeBeautician(raced), created: false });
+      if (raced) return res.json({ beautician: sanitizeBeautician(withTrialWindow(raced)), created: false });
     }
     logger.error({ err: error }, 'ensure-profile: insert failed');
     return res.status(500).json({ error: 'Failed to create profile' });
   }
 
-  res.status(201).json({ beautician: sanitizeBeautician(beautician), created });
+  res.status(201).json({ beautician: sanitizeBeautician(withTrialWindow(beautician)), created });
 });
 
 // The browser uses Supabase signUp and its configured email verification.
@@ -154,7 +156,7 @@ router.patch('/me', requireAuth, validate(profileUpdateSchema), async (req, res)
     return res.status(500).json({ error: 'Something went wrong' });
   }
 
-  res.json({ beautician: sanitizeBeautician(data) });
+  res.json({ beautician: sanitizeBeautician(withTrialWindow(data)) });
 });
 
 
