@@ -383,12 +383,14 @@ app.use('/api/migrate', apiLimiter, migrateRoutes);
 app.use('/api/import', apiLimiter, paywall, importAppointmentsRoutes); // Timely appointment CSV import
 app.use('/api/usage', apiLimiter, usageRoutes);
 app.use('/api/setup', apiLimiter, setupRoutes);
+// Meta has no Florrie login. Mount signed callbacks and public request status
+// before the WhatsApp settings router's catch-all authentication middleware.
+app.use('/api/whatsapp/privacy', webhookLimiter, whatsappPrivacyRoutes);
 app.use('/api/whatsapp', apiLimiter, whatsappEmbeddedRoutes, whatsappConfigRoutes);
 app.use('/api/webhooks/instagram', webhookLimiter, instagramWebhookRoutes);
 app.use('/api/webhooks/twilio', webhookLimiter, twilioWebhookRoutes); // Twilio BSP WhatsApp inbound
 app.use('/api/coach', apiLimiter, paywall, coachRoutes);
 app.use('/api/instagram/privacy', webhookLimiter, instagramPrivacyRoutes);
-app.use('/api/whatsapp/privacy', webhookLimiter, whatsappPrivacyRoutes);
 app.use('/api/instagram', apiLimiter, instagramRoutes);
 app.use('/api/courses', bookingLimiter, courseRoutes); // public course enrollment API
 app.use('/api/suggestions', apiLimiter, suggestionsRoutes);

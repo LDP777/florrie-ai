@@ -1,11 +1,15 @@
 import { beforeAll, afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createHmac } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import express from 'express';
 import { verifyMetaSignedRequest } from '../../src/lib/meta-signed-request.js';
 
 const fake = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn() }));
 vi.mock('../../src/config.js', () => ({ supabase: fake }));
+vi.mock('../../src/middleware/auth.js', () => ({ requireAuth: (_req, res) => res.status(401).json({ error: 'Login required' }) }));
 const { default: router } = await import('../../src/routes/whatsapp-privacy.js');
+const { default: whatsappEmbeddedRoutes } = await import('../../src/routes/whatsapp-embedded.js');
+const { default: whatsappConfigRoutes } = await import('../../src/routes/whatsapp-config.js');
 const secret = 'whatsapp-test-secret';
 const code = 'a'.repeat(48);
 const signed = (data = {}, key = secret) => {
@@ -14,9 +18,19 @@ const signed = (data = {}, key = secret) => {
 };
 let server, base;
 beforeAll(async () => {
-  const app = express(); app.use(express.json()); app.use(express.urlencoded({ extended: false })); app.use(router);
+  const app = express(); app.use(express.json()); app.use(express.urlencoded({ extended: true }));
+  // Exercise the real mount sequence from the application entry point. Mounting
+  // privacy alone missed the settings router intercepting Meta with its auth gate.
+  const source = await readFile(new URL('../../src/index.js', import.meta.url), 'utf8');
+  const mounts = [...source.matchAll(/^app\.use\('(\/api\/whatsapp(?:\/privacy)?)',\s*([^;\n]+)\);$/gm)];
+  expect(mounts).toHaveLength(2);
+  const pass = (_req, _res, next) => next();
+  const handlers = { whatsappPrivacyRoutes: router, whatsappEmbeddedRoutes, whatsappConfigRoutes, apiLimiter: pass, webhookLimiter: pass };
+  for (const [, path, names] of mounts) app.use(path, ...names.split(',').map(name => {
+    const handler = handlers[name.trim()]; if (!handler) throw new Error('Unknown WhatsApp mount handler'); return handler;
+  }));
   server = app.listen(0,'127.0.0.1'); await new Promise(resolve => server.once('listening',resolve));
-  base = `http://127.0.0.1:${server.address().port}`;
+  base = `http://127.0.0.1:${server.address().port}/api/whatsapp/privacy`;
 });
 afterAll(() => new Promise(resolve => server.close(resolve)));
 beforeEach(() => {
@@ -29,6 +43,14 @@ beforeEach(() => {
 const post = (path, value) => fetch(base + path, { method:'POST', body:new URLSearchParams({signed_request:value}) });
 
 describe('WhatsApp privacy callbacks', () => {
+  it('exposes public deletion guidance while keeping settings behind the login gate', async () => {
+    const guidance = await fetch(base + '/data-deletion');
+    expect(guidance.status).toBe(200);
+    expect(await guidance.text()).toContain('WhatsApp data requests');
+    const settings = await fetch(base.replace('/privacy', '/status'));
+    expect(settings.status).toBe(401);
+    expect(fake.rpc).not.toHaveBeenCalled();
+  });
   it('saves a verified deletion request before returning its unique status link', async () => {
     const response = await post('/data-deletion',signed());
     expect(response.status).toBe(200);
