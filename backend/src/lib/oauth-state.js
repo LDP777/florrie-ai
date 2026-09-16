@@ -65,28 +65,18 @@ export class OAuthStateError extends Error {
 }
 
 /**
- * Which server secret this uses, and why it is not a new env var.
- *
- * ENCRYPTION_KEY first: it is already the server's "secret material" knob, it
- * is already listed in OPTIONAL_ENV in index.js, and the Google tokens this
- * flow writes are encrypted with it anyway.
- *
- * SUPABASE_SERVICE_KEY second: it is in REQUIRED_ENV, so on any box that
- * booted at all it is present. lib/crypto.js already falls back the same way,
- * so this is the house pattern rather than a new one.
- *
- * A new required variable was the wrong shape twice over. It would have to go
- * somewhere, and the documented trap is that a feature scoped variable in
- * REQUIRED_ENV takes the WHOLE server down at boot (that is what happened with
- * the WhatsApp vars). Left out of REQUIRED_ENV it would just be silently
- * missing, which is the failure mode this helper is supposed to end.
+ * OAUTH_STATE_SECRET must match on every API that starts or finishes a
+ * connection. Production has two API hosts with different encryption keys;
+ * borrowing those keys broke callbacks when the browser used the other host.
+ * A separate secret fixes the handshake without rotating stored-token keys.
+ * Keep the original fallbacks for installations without the dedicated secret.
  *
  * The raw secret is never used as the HMAC key directly. It is hashed with a
  * label first, so this key cannot be confused with the AES key crypto.js
  * derives from the same material.
  */
 function stateSecret() {
-  return process.env.ENCRYPTION_KEY || process.env.SUPABASE_SERVICE_KEY || null;
+  return process.env.OAUTH_STATE_SECRET || process.env.ENCRYPTION_KEY || process.env.SUPABASE_SERVICE_KEY || null;
 }
 
 function stateKey() {
@@ -103,7 +93,7 @@ function stateKey() {
  */
 export function oauthStateSecretProblem() {
   if (stateSecret()) return null;
-  return 'Neither ENCRYPTION_KEY nor SUPABASE_SERVICE_KEY is set on the server, so the OAuth handshake cannot be signed.';
+  return 'No OAUTH_STATE_SECRET, ENCRYPTION_KEY or SUPABASE_SERVICE_KEY is set on the server, so the OAuth handshake cannot be signed.';
 }
 
 const encode = (value) => Buffer.from(value).toString('base64url');

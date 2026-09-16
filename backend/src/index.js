@@ -141,6 +141,7 @@ const OPTIONAL_ENV = [
   'GOOGLE_CLIENT_ID',
   'GOOGLE_CLIENT_SECRET',
   'ENCRYPTION_KEY',
+  'OAUTH_STATE_SECRET',
   'BIRD_API_KEY',        // outbound SMS via MessageBird
   'BIRD_ORIGINATOR',     // default sender (phone number for 2-way, alpha for 1-way)
   'BIRD_WEBHOOK_TOKEN',  // query-param auth for inbound POST /api/webhooks/bird-sms

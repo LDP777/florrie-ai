@@ -35,10 +35,13 @@ const encode = (obj) => Buffer.from(JSON.stringify(obj)).toString('base64url');
 
 let savedEncryptionKey;
 let savedServiceKey;
+let savedOAuthSecret;
 
 beforeEach(() => {
   savedEncryptionKey = process.env.ENCRYPTION_KEY;
   savedServiceKey = process.env.SUPABASE_SERVICE_KEY;
+  savedOAuthSecret = process.env.OAUTH_STATE_SECRET;
+  delete process.env.OAUTH_STATE_SECRET;
   process.env.ENCRYPTION_KEY = 'a'.repeat(64);
 });
 
@@ -47,6 +50,8 @@ afterEach(() => {
   else process.env.ENCRYPTION_KEY = savedEncryptionKey;
   if (savedServiceKey === undefined) delete process.env.SUPABASE_SERVICE_KEY;
   else process.env.SUPABASE_SERVICE_KEY = savedServiceKey;
+  if (savedOAuthSecret === undefined) delete process.env.OAUTH_STATE_SECRET;
+  else process.env.OAUTH_STATE_SECRET = savedOAuthSecret;
 });
 
 describe('a valid round trip', () => {
@@ -215,6 +220,30 @@ describe('a state signed for a different beautician', () => {
 });
 
 describe('the secret', () => {
+  it('verifies across API hosts with different encryption keys and a shared OAuth secret', () => {
+    process.env.OAUTH_STATE_SECRET = 'shared-oauth-secret';
+    process.env.SUPABASE_SERVICE_KEY = 'first-api-service-key';
+    const state = signOAuthState({ beauticianId: VICTIM, platform: 'native' });
+    process.env.ENCRYPTION_KEY = 'b'.repeat(64);
+    process.env.SUPABASE_SERVICE_KEY = 'second-api-service-key';
+    expect(verifyOAuthState(state)).toMatchObject({ beauticianId: VICTIM, platform: 'native' });
+  });
+
+  it('does not fall back to the encryption key when the dedicated OAuth secret differs', () => {
+    process.env.OAUTH_STATE_SECRET = 'first-oauth-secret';
+    const state = signOAuthState({ beauticianId: VICTIM });
+    process.env.OAUTH_STATE_SECRET = 'different-oauth-secret';
+    expect(inspectOAuthState(state).reason).toBe(OAUTH_STATE_REASONS.BAD_SIGNATURE);
+  });
+
+  it('works with only the dedicated OAuth secret', () => {
+    process.env.OAUTH_STATE_SECRET = 'dedicated-oauth-secret';
+    delete process.env.ENCRYPTION_KEY;
+    delete process.env.SUPABASE_SERVICE_KEY;
+    expect(oauthStateSecretProblem()).toBeNull();
+    expect(verifyOAuthState(signOAuthState({ beauticianId: VICTIM }))).toMatchObject({ beauticianId: VICTIM });
+  });
+
   it('uses ENCRYPTION_KEY when it is set', () => {
     process.env.SUPABASE_SERVICE_KEY = 'service-key';
     const state = signOAuthState({ beauticianId: VICTIM });
