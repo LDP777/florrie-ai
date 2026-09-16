@@ -29,5 +29,17 @@ target 'App' do
 end
 
 post_install do |installer|
+  # The app already requires iOS 15, but the Capacitor 6 podspecs still declare
+  # iOS 13. Xcode 27 rejects those generated targets. Apply the app's minimum
+  # to every pod configuration without lowering a dependency's higher target.
+  minimum_ios = Gem::Version.new('15.0')
+  installer.pods_project.targets.each do |target|
+    target.build_configurations.each do |config|
+      declared = Gem::Version.new(config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] || '0')
+      if declared < minimum_ios
+        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = minimum_ios.to_s
+      end
+    end
+  end
   assertDeploymentTarget(installer)
 end
