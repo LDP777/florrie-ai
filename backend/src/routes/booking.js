@@ -1,5 +1,6 @@
 import { PATCH_TEST_LEAD_HOURS } from '../lib/patch-test-policy.js';
 import { requireBookingIdentity, exactEmailPattern } from '../lib/booking-identity.js';
+import { resolveBookingClient } from '../lib/booking-client.js';
 import { bookingManagementGuard } from '../lib/booking-management-access.js';
 import { performPaidReschedule } from '../services/reschedule-payments.js';
 import { insertPaymentReceipt } from '../lib/payment-receipt.js';
@@ -3820,51 +3821,25 @@ router.post('/:slug/book', requireBookingIdentity, validate(bookingSchema), veri
   const firstName = nameParts[0];
   const lastName = nameParts.slice(1).join(' ') || null;
 
-  let client;
-  let isNewClient = false;
-
-  // Reuse only the record matching the verified email. A typed phone number
-  // never establishes ownership of saved records or prepaid benefits.
-  let existingClient = null;
-
-  // Until migration 018 runs, archived_at does not exist and selecting it
-  // errors 42703. Ignoring that error is how a returning client silently
-  // becomes null here, which creates a DUPLICATE record and, far worse,
-  // bypasses the blocked-client check below. So: try with archived_at,
-  // and on a missing-column error retry without it rather than shrugging.
-  let clientLookupFailed = false;
-  const lookupClient = async (build) => {
-    let { data, error } = await build('id, stripe_customer_id, blocked_at, archived_at');
-    if (error && isMissingColumnError(error)) {
-      ({ data, error } = await build('id, stripe_customer_id, blocked_at'));
-    }
-    if (error) {
-      logger.error({ err: error }, 'booking client lookup failed');
-      clientLookupFailed = true;
-      return null;
-    }
-    return data;
-  };
-
-  if (client_email) {
-    existingClient = await lookupClient((cols) => supabase
-      .from('clients')
-      .select(cols)
-      .eq('beautician_id', beautician.id)
-      .ilike('email', exactEmailPattern(client_email))
-      .maybeSingle());
+  const resolved = await resolveBookingClient(supabase, {
+    beautician_id: beautician.id,
+    first_name: firstName,
+    last_name: lastName,
+    email: client_email,
+    phone: client_phone || null,
+    status: 'new',
+    ...(marketing_opt_in === true && { marketing_consent: true, marketing_consent_at: new Date().toISOString() }),
+  });
+  if (resolved.error) {
+    if (resolved.diagnostic) logger.error({ beauticianId: beautician.id, ...resolved.diagnostic }, 'book: client resolution failed');
+    return res.status(resolved.status).json({ error: resolved.error });
   }
+  const client = resolved.client;
+  const isNewClient = resolved.created;
+  const bookingPhone = resolved.contactReview ? null : client_phone;
 
-  if (clientLookupFailed) return res.status(503).json({ error: 'Your client record could not be checked. Please try again.' });
-
-  // A client Ellie has blocked cannot book online. Kept deliberately vague so
-  // it does not invite an argument; she can still add them by hand if she wants.
-  if (existingClient?.blocked_at) {
-    return res.status(403).json({ error: 'Online booking is not available for this account. Please contact us directly.' });
-  }
-
-  if (existingClient) {
-    client = existingClient;
+  if (!isNewClient) {
+    const existingClient = client;
     // An archived client booking again is the clearest possible sign they are
     // back: clear the flag so they reappear in the client list. Fail-soft and
     // fire-and-forget, the booking must never wait on (or break over) this.
@@ -3887,26 +3862,6 @@ router.post('/:slug/book', requireBookingIdentity, validate(bookingSchema), veri
     if (marketing_opt_in === true) {
       await recordReturningClientConsent(existingClient.id, beautician.id);
     }
-  } else {
-    // Create new client
-    const { data: newClient, error: cError } = await supabase
-      .from('clients')
-      .insert({
-        beautician_id: beautician.id,
-        first_name: firstName,
-        last_name: lastName,
-        email: client_email || null,
-        phone: client_phone,
-        status: 'new',
-        // PECR: consent only when the box was actively ticked
-        ...(marketing_opt_in && { marketing_consent: true, marketing_consent_at: new Date().toISOString() }),
-      })
-      .select('id, stripe_customer_id')
-      .single();
-
-    if (cError) return res.status(500).json({ error: 'Failed to create client record' });
-    client = newClient;
-    isNewClient = true;
   }
 
   // Calculate times (use combined duration for multi-treatment bookings)
@@ -4398,6 +4353,20 @@ router.post('/:slug/book', requireBookingIdentity, validate(bookingSchema), veri
   });
   if (logErr) logger.warn({ err: logErr }, 'AI action log failed (non-fatal)');
 
+  if (resolved.contactReview) {
+    const { error: reviewError } = await supabase.from('ai_actions').insert({
+      beautician_id: beautician.id,
+      action_type: 'client_contact_review',
+      digital_employee: 'front_desk',
+      summary: `${firstName}'s booking uses a new email. Check their contact details before linking their client records.`,
+      details: { appointment_id: appointment.id, client_id: client.id, review: 'phone_already_on_file' },
+      client_id: client.id,
+      appointment_id: appointment.id,
+      autonomous: false,
+      outcome: 'escalated',
+    });
+    if (reviewError) logger.warn({ code: reviewError.code, appointmentId: appointment.id }, 'Booking contact review log failed; client note retained');
+  }
   // Push notification — beautician gets a team-style alert
   // timeZone UTC: wall time lives in the UTC slot
   const timeStr = startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
@@ -4466,12 +4435,12 @@ router.post('/:slug/book', requireBookingIdentity, validate(bookingSchema), veri
     // everybody newly in scope since 29 August 2026 gets asked without being
     // stopped. Skipped when they answered inline during booking, which was
     // Ellie's double-ask bug.
-    if (consultationStatus.ask && client_phone && !consultationAnswered) {
+    if (consultationStatus.ask && bookingPhone && !consultationAnswered) {
       sendConsultationFormSMS({
         beauticianId: beautician.id,
         clientId: client.id,
         appointmentId: appointment.id,
-        clientPhone: client_phone,
+        clientPhone: bookingPhone,
         clientFirstName: firstName,
         treatmentId: (allTreatments.find(t => t.consultation_form_id)?.id) || treatment_id,
         beauticianName: beautician.business_name || beautician.first_name,
@@ -4521,7 +4490,7 @@ router.post('/:slug/book', requireBookingIdentity, validate(bookingSchema), veri
         const customer = await stripe.customers.create({
           name: client_name,
           email: client_email || undefined,
-          phone: client_phone,
+          ...(bookingPhone && { phone: bookingPhone }),
           metadata: { client_id: client.id, beautician_id: beautician.id },
         });
         stripeCustomerId = customer.id;
@@ -4680,12 +4649,12 @@ router.post('/:slug/book', requireBookingIdentity, validate(bookingSchema), veri
       // Send the consultation form (non-blocking). CHASE, NOT BLOCK, exactly as
       // in the branch above. SKIPPED when they answered inline during booking:
       // texting the same form again straight after was Ellie's double-ask bug.
-      if (consultationStatus.ask && client_phone && !consultationAnswered) {
+      if (consultationStatus.ask && bookingPhone && !consultationAnswered) {
         sendConsultationFormSMS({
           beauticianId: beautician.id,
           clientId: client.id,
           appointmentId: appointment.id,
-          clientPhone: client_phone,
+          clientPhone: bookingPhone,
           clientFirstName: firstName,
           treatmentId: (allTreatments.find(t => t.consultation_form_id)?.id) || treatment_id,
           beauticianName: beautician.business_name || beautician.first_name,
@@ -4785,12 +4754,12 @@ router.post('/:slug/book', requireBookingIdentity, validate(bookingSchema), veri
   // Send the consultation form (non-blocking). CHASE, NOT BLOCK, exactly as in
   // the two branches above. Skipped when they answered inline during booking
   // (the double-ask bug).
-  if (consultationStatus.ask && client_phone && !consultationAnswered) {
+  if (consultationStatus.ask && bookingPhone && !consultationAnswered) {
     sendConsultationFormSMS({
       beauticianId: beautician.id,
       clientId: client.id,
       appointmentId: appointment.id,
-      clientPhone: client_phone,
+      clientPhone: bookingPhone,
       clientFirstName: firstName,
       treatmentId: (allTreatments.find(t => t.consultation_form_id)?.id) || treatment_id,
       beauticianName: beautician.business_name || beautician.first_name,

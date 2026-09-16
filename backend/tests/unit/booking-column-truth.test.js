@@ -167,6 +167,15 @@ function makeBuilder(table) {
     if (selectError) return { data: null, error: selectError, count: null };
     if (pending?.op === 'insert') {
       const payload = Array.isArray(pending.payload) ? pending.payload : [pending.payload];
+      // Match the real client constraints; returning success for every insert
+      // hid checkout failures when a verified email changed but a phone did not.
+      if (table === 'clients') {
+        for (const row of payload) for (const field of ['email', 'phone']) {
+          if (row[field] != null && db.clients.some(c => c.beautician_id === row.beautician_id && c[field] === row[field])) {
+            return { data: null, error: { code: '23505', message: `duplicate key violates unique constraint "clients_beautician_id_${field}_key"` } };
+          }
+        }
+      }
       const created = payload.map(p => ({ id: nextId(table), management_token: nextId('mt'), created_at: new Date().toISOString(), ...p }));
       db[table].push(...created);
       return { data: created, error: null, count: created.length };
@@ -398,6 +407,80 @@ const bookBody = (over = {}) => ({
   client_phone: '07700900123',
   payment_type: 'deposit',
   ...over,
+});
+
+describe('booking with a changed email and an existing phone', () => {
+  it('reaches checkout without borrowing the old client’s saved cards or changing their record', async () => {
+    db.clients[0].stripe_customer_id = 'cus_old_private';
+    const original = structuredClone(db.clients[0]);
+    const out = await run(bookingRouter, 'post', '/:slug/book', {
+      params: { slug: 'ellindigo' }, body: bookBody({ client_email: 'new-address@example.com', marketing_opt_in: true }),
+    });
+    expect(out.status, JSON.stringify(out.body)).toBe(201);
+    expect(db.clients[0]).toEqual(original);
+    const fresh = db.clients.find(c => c.email === 'new-address@example.com');
+    expect(fresh.id).not.toBe(original.id);
+    expect(fresh.phone).toBeNull();
+    expect(fresh.preferred_channel).toBe('email');
+    expect(fresh.notes).toContain(original.phone);
+    expect(fresh.preferences.booking_contact_review).toBe('pending');
+    expect(fresh.marketing_consent).toBe(true);
+    expect(db.appointments[0].client_id).toBe(fresh.id);
+    expect(db.appointments[0].client_email).toBe('new-address@example.com');
+    expect(stripeState.sessions[0].customer).not.toBe('cus_old_private');
+    expect(JSON.stringify(out.body)).not.toContain('cus_old_private');
+    expect(db.ai_actions.some(a => a.action_type === 'client_contact_review' && a.client_id === fresh.id)).toBe(true);
+    // Until the phone has been checked, email is the contact channel.
+    expect(consultation.sent).toHaveLength(0);
+  });
+
+  it('continues using the separate record on a later attempt', async () => {
+    const first = await run(bookingRouter, 'post', '/:slug/book', {
+      params: { slug: 'ellindigo' }, body: bookBody({ client_email: 'new-address@example.com' }),
+    });
+    expect(first.status).toBe(201);
+    const clientId = db.appointments[0].client_id;
+    db.appointments.length = 0; // Simulate an abandoned checkout releasing its slot.
+    const second = await run(bookingRouter, 'post', '/:slug/book', {
+      params: { slug: 'ellindigo' }, body: bookBody({ client_email: 'new-address@example.com' }),
+    });
+    expect(second.status).toBe(201);
+    expect(db.clients).toHaveLength(2);
+    expect(db.appointments[0].client_id).toBe(clientId);
+    expect(consultation.sent).toHaveLength(0);
+  });
+
+  it('does not use a phone collision to bypass an owner’s booking block', async () => {
+    db.clients[0].blocked_at = '2026-09-01T00:00:00Z';
+    const out = await run(bookingRouter, 'post', '/:slug/book', {
+      params: { slug: 'ellindigo' }, body: bookBody({ client_email: 'changed@example.com' }),
+    });
+    expect(out.status).toBe(403);
+    expect(db.clients).toHaveLength(1);
+    expect(db.appointments).toHaveLength(0);
+    expect(stripeState.sessions).toHaveLength(0);
+  });
+
+  it('does not treat a different salon’s phone as a collision', async () => {
+    db.clients[0].beautician_id = 'other-salon';
+    const out = await run(bookingRouter, 'post', '/:slug/book', {
+      params: { slug: 'ellindigo' }, body: bookBody({ client_email: 'new-address@example.com' }),
+    });
+    expect(out.status).toBe(201);
+    const fresh = db.clients.find(c => c.beautician_id === 'b1');
+    expect(fresh.phone).toBe('07700900123');
+    expect(fresh.preferences?.booking_contact_review).toBeUndefined();
+  });
+
+  it('cannot spend the old client’s package under the new email', async () => {
+    db.client_packages.push({ id: 'old-package', beautician_id: 'b1', client_id: 'c1', status: 'active', sessions_total: 5, sessions_used: 0 });
+    const out = await run(bookingRouter, 'post', '/:slug/book', {
+      params: { slug: 'ellindigo' }, body: bookBody({ client_email: 'new-address@example.com', client_package_id: 'old-package' }),
+    });
+    expect(out.status).toBe(409);
+    expect(db.client_packages[0].sessions_used).toBe(0);
+    expect(db.appointments).toHaveLength(0);
+  });
 });
 
 describe('48-hour patch-test notice', () => {
