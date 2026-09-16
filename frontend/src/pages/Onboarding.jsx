@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { track } from '../lib/analytics.js';
-import { useBeautician, updateRow, insertRow, supabase } from '../lib/supabase.js'
+import { useBeautician, updateRow, supabase } from '../lib/supabase.js'
+import { saveSetupTreatments, setupWorkingHours } from '../lib/onboarding-setup.js';
 import { PLAN } from '../lib/subscription.js';
 import { registerPush, getPushStatus } from '../lib/push.js';
 import logger from '../lib/logger.js';
@@ -95,7 +96,7 @@ export default function Onboarding({ onComplete }) {
   const [firstName, setFirstName] = useState('');
   // Step 2: Treatments
   const [treatments, setTreatments] = useState([
-    { name: '', duration_minutes: 60, price_cents: 0, category: 'brows' }
+    { id: crypto.randomUUID(), name: '', duration_minutes: 60, price_cents: 0, category: 'brows' }
   ]);
   // Tracks whether the user has been warned that 0-price treatments will not
   // appear on their public booking page. The second Next press then proceeds.
@@ -240,21 +241,7 @@ export default function Onboarding({ onComplete }) {
         setSaving(false);
         return;
       }
-      let idx = 0;
-      let inserted = 0;
-      for (const t of valid) {
-        await insertRow('treatments', {
-          beautician_id: beautician.id,
-          name: t.name.trim(),
-          duration_minutes: parseInt(t.duration_minutes) || 60,
-          price_cents: Math.round(parseFloat(t.price_cents) * 100) || 0,
-          category: t.category,
-          is_active: true,
-          booking_enabled: true,
-          sort_order: idx++
-        });
-        inserted++;
-      }
+      const inserted = await saveSetupTreatments(supabase, beautician.id, valid);
       setSavedTreatments(prev => (prev || 0) + inserted);
       setStep(3);
     } catch (err) {
@@ -269,20 +256,14 @@ export default function Onboarding({ onComplete }) {
     setSaving(true);
     setError(null);
     try {
-      const workingHours = {};
-      DAY_KEYS.forEach(day => {
-        if (hours[day].enabled && hours[day].start && hours[day].end) {
-          workingHours[day] = { start: hours[day].start, end: hours[day].end };
-        } else {
-          workingHours[day] = null;
-        }
-      });
+      const workingHours = setupWorkingHours(hours);
       await updateRow('beauticians', beautician.id, { working_hours: workingHours });
       await refresh();
       setStep(4);
     } catch (err) {
       logger.error('Hours save error:', err);
-      setError('Failed to save hours. Please try again.');
+      setError(err.message === 'Each working day needs a closing time after its opening time.'
+        ? err.message : 'Failed to save hours. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -564,7 +545,7 @@ export default function Onboarding({ onComplete }) {
   }
   // Treatment helpers
   function addTreatment() {
-    setTreatments(prev => [...prev, { name: '', duration_minutes: 60, price_cents: 0, category: 'brows' }]);
+    setTreatments(prev => [...prev, { id: crypto.randomUUID(), name: '', duration_minutes: 60, price_cents: 0, category: 'brows' }]);
   }
   function updateTreatment(idx, field, value) {
     setTreatments(prev => prev.map((t, i) => i === idx ? { ...t, [field]: value } : t));

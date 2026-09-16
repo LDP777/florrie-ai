@@ -33,8 +33,21 @@ const here = dirname(fileURLToPath(import.meta.url));
 const src = (rel) => readFileSync(join(here, '../../src', rel), 'utf8');
 
 /* ------------------------------------------------------------- the stripe -- */
-const stripeState = { checkoutSessions: [] };
+const stripeState = { checkoutSessions: [], accounts: new Map(), accountCreates: [], accountLinks: [], staleAccount: false };
 const fakeStripe = {
+  accounts: {
+    retrieve: async () => {
+      if (stripeState.staleAccount) throw Object.assign(new Error('No such account'), { statusCode: 404 });
+      return { id: 'acct_1' };
+    },
+    create: async (params, options) => {
+      stripeState.accountCreates.push({ params, options });
+      const key = options?.idempotencyKey;
+      if (!stripeState.accounts.has(key)) stripeState.accounts.set(key, { id: `acct_new_${stripeState.accounts.size + 1}` });
+      return stripeState.accounts.get(key);
+    },
+  },
+  accountLinks: { create: async params => { stripeState.accountLinks.push(params); return { url: 'https://connect.stripe.test/onboard' }; } },
   customers: { create: async () => ({ id: 'cus_new' }) },
   checkout: {
     sessions: {
@@ -52,7 +65,7 @@ vi.mock('stripe', () => ({
 
 /* ----------------------------------------------------------------- the db -- */
 const db = { beauticians: [], plans: [], team_members: [], appointments: [] };
-const dbState = { failCustomerIdWrite: false, failBeauticianRead: false };
+const dbState = { failCustomerIdWrite: false, failBeauticianRead: false, failConnectWrite: false };
 
 function makeBuilder(table) {
   const preds = [];
@@ -60,6 +73,9 @@ function makeBuilder(table) {
   let countMode = false;
   const rows = () => (db[table] || []).filter(r => preds.every(p => p(r)));
   const settle = () => {
+    if (table === 'beauticians' && pending && 'stripe_account_id' in pending && dbState.failConnectWrite) {
+      return { data: null, error: { code: 'XX000', message: 'Synthetic failed account save' } };
+    }
     if (table === 'beauticians' && pending && 'stripe_customer_id' in pending && dbState.failCustomerIdWrite) {
       return { data: null, error: { code: '42703', message: 'column beauticians.stripe_customer_id does not exist' } };
     }
@@ -78,6 +94,7 @@ function makeBuilder(table) {
     select(_c, o) { if (o?.count) countMode = true; return b; },
     update(p) { pending = p; return b; },
     eq(c, v) { preds.push(r => r[c] === v); return b; },
+    is(c, v) { preds.push(r => (r[c] ?? null) === v); return b; },
     maybeSingle() { const s = settle(); return Promise.resolve({ data: s.data?.[0] || null, error: s.error }); },
     single() { const s = settle(); return Promise.resolve({ data: s.data?.[0] || null, error: s.error }); },
     then(res) { return Promise.resolve(settle()).then(res); },
@@ -121,8 +138,13 @@ const post = (path, body) => fetch(`http://127.0.0.1:${PORT}${path}`, {
 
 beforeEach(() => {
   stripeState.checkoutSessions = [];
+  stripeState.accounts.clear();
+  stripeState.accountCreates = [];
+  stripeState.accountLinks = [];
+  stripeState.staleAccount = false;
   loggedErrors.length = 0;
   dbState.failCustomerIdWrite = false;
+  dbState.failConnectWrite = false;
   dbState.failBeauticianRead = false;
   delete process.env.STRIPE_TEAM_PRICE_PER_SEAT;
   currentBeautician = {
@@ -227,5 +249,63 @@ describe('team seats on the checkout line', () => {
     db.team_members = [];
     await post('/api/billing/create-checkout', { plan: 'florrie_team' });
     expect(stripeState.checkoutSessions[0].line_items[0].quantity).toBe(1);
+  });
+});
+
+describe('Stripe Connect setup keeps the account attached to the salon', () => {
+  const onboard = () => post('/api/stripe/connect/onboard', {});
+  beforeEach(() => {
+    currentBeautician.stripe_account_id = null;
+    db.beauticians[0].stripe_account_id = null;
+  });
+  it('saves the new account before returning an onboarding link', async () => {
+    expect((await onboard()).status).toBe(200);
+    expect(db.beauticians[0].stripe_account_id).toBe('acct_new_1');
+    expect(stripeState.accountLinks[0].account).toBe('acct_new_1');
+  });
+  it('does not open Stripe when account persistence failed, and a retry reuses the provider account', async () => {
+    dbState.failConnectWrite = true;
+    expect((await onboard()).status).toBe(500);
+    expect(stripeState.accountLinks).toHaveLength(0);
+    dbState.failConnectWrite = false;
+    expect((await onboard()).status).toBe(200);
+    expect(stripeState.accountCreates).toHaveLength(2);
+    expect(stripeState.accountCreates[0].options.idempotencyKey).toBe(stripeState.accountCreates[1].options.idempotencyKey);
+    expect(stripeState.accounts.size).toBe(1);
+  });
+  it('concurrent first-time requests share one provider account', async () => {
+    const result = await Promise.all([onboard(), onboard()]);
+    expect(result.map(r => r.status)).toEqual([200, 200]);
+    expect(stripeState.accounts.size).toBe(1);
+    expect(stripeState.accountLinks.every(link => link.account === db.beauticians[0].stripe_account_id)).toBe(true);
+  });
+  it('does not overwrite a different connection established after authentication', async () => {
+    db.beauticians[0].stripe_account_id = 'acct_other';
+    expect((await onboard()).status).toBe(500);
+    expect(db.beauticians[0].stripe_account_id).toBe('acct_other');
+    expect(stripeState.accountLinks).toHaveLength(0);
+  });
+  it('does not create another provider account if clearing a stale reference fails', async () => {
+    currentBeautician.stripe_account_id = 'acct_old';
+    db.beauticians[0].stripe_account_id = 'acct_old';
+    stripeState.staleAccount = true;
+    dbState.failConnectWrite = true;
+    expect((await onboard()).status).toBe(500);
+    expect(stripeState.accountCreates).toHaveLength(0);
+    expect(db.beauticians[0].stripe_account_id).toBe('acct_old');
+  });
+  it('uses a different provider retry key for a different salon', async () => {
+    expect((await onboard()).status).toBe(200);
+    currentBeautician.id = 'biz-2';
+    db.beauticians.push({ id: 'biz-2', stripe_account_id: null });
+    expect((await onboard()).status).toBe(200);
+    expect(stripeState.accounts.size).toBe(2);
+  });
+  it('reuses an existing connection without creating an account', async () => {
+    currentBeautician.stripe_account_id = 'acct_existing';
+    db.beauticians[0].stripe_account_id = 'acct_existing';
+    expect((await onboard()).status).toBe(200);
+    expect(stripeState.accountCreates).toHaveLength(0);
+    expect(stripeState.accountLinks[0].account).toBe('acct_existing');
   });
 });

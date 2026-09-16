@@ -4,6 +4,7 @@ import { insertPaymentReceipt } from '../lib/payment-receipt.js';
 import { claimPaymentEvent, completePaymentEvent, releasePaymentEvent } from '../services/payment-webhook-events.js';
 import { isBillingEvent, handleBillingEvent } from './billing.js';
 import { Router } from 'express';
+import { createHash } from 'node:crypto';
 import Stripe from 'stripe';
 import * as Sentry from '@sentry/node';
 import { supabase } from '../config.js';
@@ -53,11 +54,9 @@ function requireStripe(req, res, next) {
 
 /**
  * POST /api/stripe/connect/onboard
- * Creates a Stripe Connect account (Accounts v2) and returns the onboarding link.
- * Uses recipient + merchant configurations for the marketplace model:
- *   - recipient: enables stripe_balance.stripe_transfers (beautician receives payouts)
- *   - merchant: enables card_payments (beautician can accept payments via Florrie)
- * Florrie is the losses_collector and fees_collector (application model).
+ * Creates a Stripe Connect Express account and returns its onboarding link.
+ * Save the account before opening Stripe so a completed setup remains attached
+ * to the salon. Provider retries use the same idempotency key.
  * The beautician completes KYC on Stripe's hosted Express dashboard.
  */
 router.post('/connect/onboard', requireAuth, requireStripe, async (req, res) => {
@@ -72,10 +71,12 @@ router.post('/connect/onboard', requireAuth, requireStripe, async (req, res) => 
         if (verifyErr?.statusCode === 404 || verifyErr?.message?.includes('No such account')) {
           logger.warn({ accountId }, 'Stale Stripe account ID — clearing and creating fresh');
           accountId = null;
-          await supabase
+          const { error } = await supabase
             .from('beauticians')
             .update({ stripe_account_id: null, stripe_onboarding_complete: false })
-            .eq('id', req.beautician.id);
+            .eq('id', req.beautician.id)
+            .eq('stripe_account_id', req.beautician.stripe_account_id);
+          if (error) throw error;
         } else {
           throw verifyErr;
         }
@@ -99,14 +100,32 @@ router.post('/connect/onboard', requireAuth, requireStripe, async (req, res) => 
         metadata: {
           beautician_id: req.beautician.id,
         },
+      }, {
+        idempotencyKey: `florrie-connect-${createHash('sha256')
+          .update(`${req.beautician.id}:${req.beautician.stripe_account_id || 'first'}`)
+          .digest('hex')}`,
       });
 
       accountId = account.id;
 
-      await supabase
+      const { data: saved, error: saveError } = await supabase
         .from('beauticians')
         .update({ stripe_account_id: accountId })
-        .eq('id', req.beautician.id);
+        .eq('id', req.beautician.id)
+        .is('stripe_account_id', null)
+        .select('stripe_account_id')
+        .maybeSingle();
+      if (saveError) throw saveError;
+      if (!saved) {
+        // A concurrent request may have attached this same provider result.
+        // Never replace another account or open a link for an unattached one.
+        const { data: current, error: readError } = await supabase
+          .from('beauticians').select('stripe_account_id')
+          .eq('id', req.beautician.id).maybeSingle();
+        if (readError || current?.stripe_account_id !== accountId) {
+          throw readError || new Error('Stripe connection changed during setup. Try again.');
+        }
+      }
     }
 
     // Generate onboarding link
