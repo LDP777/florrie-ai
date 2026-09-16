@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import crypto from 'crypto';
 import { supabase } from '../config.js';
+import { resolveWhatsAppCredentials, tenantWhatsAppEnabled } from '../lib/whatsapp-connection.js';
 import { processInboundMessage } from '../services/ai-front-desk.js';
 import { shouldProcessInbound } from '../lib/appointment-message-scenario.js';
 import { applyWhatsAppStatuses } from '../services/delivery-receipts.js';
@@ -218,12 +219,17 @@ router.post('/whatsapp', async (req, res) => {
     const contact = change.contacts?.[0];
     const phoneNumberId = change.metadata?.phone_number_id;
 
-    // Find the beautician by their WhatsApp phone ID
-    const { data: beautician } = await supabase
-      .from('beauticians')
-      .select('*')
-      .eq('whatsapp_phone_id', phoneNumberId)
-      .single();
+    // Tenant mode routes only through the server-owned connection registry.
+    // A profile field changed by a client must never redirect another salon's DMs.
+    let ownerId = null;
+    if (tenantWhatsAppEnabled()) {
+      const { data: connection, error } = await supabase.from('whatsapp_connections')
+        .select('beautician_id').eq('phone_id', phoneNumberId).maybeSingle();
+      if (error || !connection) return;
+      ownerId = connection.beautician_id;
+    }
+    const query = supabase.from('beauticians').select('*');
+    const { data: beautician } = await (ownerId ? query.eq('id', ownerId) : query.eq('whatsapp_phone_id', phoneNumberId)).single();
 
     if (!beautician) {
       logger.warn({ phoneNumberId }, 'No beautician found for WhatsApp phone ID');
@@ -297,7 +303,7 @@ router.post('/whatsapp', async (req, res) => {
       // Download audio from WhatsApp and transcribe
       const mimeType = message.audio?.mime_type;
       try {
-        messageContent = await transcribeWhatsAppAudio(message.audio?.id, mimeType);
+        messageContent = await transcribeWhatsAppAudio(message.audio?.id, mimeType, beautician);
       } catch (transcriptErr) {
         logger.warn({ err: transcriptErr, mediaId: message.audio?.id }, 'Voice note transcription failed');
       }
@@ -1003,8 +1009,9 @@ async function findBeauticianByBirdNumber(phoneNumber) {
  * @returns {Promise<string|null>} Transcribed text or null if no transcript
  * @throws {Error} Network or API errors
  */
-async function transcribeWhatsAppAudio(mediaId, mimeType) {
-  const waToken = process.env.WHATSAPP_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN;
+async function transcribeWhatsAppAudio(mediaId, mimeType, beautician) {
+  const credentials = await resolveWhatsAppCredentials(beautician?.id, beautician?.whatsapp_phone_id);
+  const waToken = credentials?.token;
   if (!mediaId || !waToken) return null;
 
   // Determine audio format with fallback

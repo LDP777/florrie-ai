@@ -22,6 +22,7 @@
 
 import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
+import { tenantWhatsAppEnabled, readWhatsAppConnection } from '../lib/whatsapp-connection.js';
 import { _whatsappInternals } from '../routes/whatsapp-config.js';
 
 const {
@@ -262,6 +263,10 @@ export async function processRetryQueue() {
   let processed = 0;
   for (const b of due) {
     try {
+      if (tenantWhatsAppEnabled()) {
+        const connection = await readWhatsAppConnection(b.id);
+        if (connection?.mode !== 'legacy') continue;
+      }
       // If already connected, just clear the queue.
       if (b.whatsapp_connected && !b.whatsapp_pending_activation) {
         await clearRetry(b.id);

@@ -223,8 +223,8 @@ describe('no new sender joins clients without the consent columns', () => {
     // booking of two treatments is confirmed as two.
     // (Previously 1236 / 1514, then 1393 / 1685, then 1526 / 1818, then
     // 1532 / 1824, then 1540 / 1845, then 1693 / 2008, then 1705 / 2020.)
-    'src/services/notifications.js:1738',
-    'src/services/notifications.js:2057',
+    'src/services/notifications.js:1750',
+    'src/services/notifications.js:2069',
   ]);
 
   function walk(dir) {

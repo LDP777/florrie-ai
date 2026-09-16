@@ -19,7 +19,7 @@
  *   DELETE /api/whatsapp/disconnect   remove number from WABA (alias for /reset)
  *
  * Meta's 4-step registration (what this actually does under the hood):
- *   1. POST /{WABA_ID}/phone_numbers       add the number as a WABA entry (with verified_name)
+ *   1. POST /{wabaId()}/phone_numbers       add the number as a WABA entry (with verified_name)
  *   2. POST /{phone_number_id}/request_code Meta sends SMS to the number
  *   3. POST /{phone_number_id}/verify_code  confirm ownership
  *   4. POST /{phone_number_id}/register     activate for Cloud API (with PIN)
@@ -35,6 +35,8 @@
  */
 
 import express from 'express';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { tenantWhatsAppEnabled, resolveWhatsAppCredentials, readWhatsAppConnection } from '../lib/whatsapp-connection.js';
 import crypto from 'crypto';
 import * as Sentry from '@sentry/node';
 import { supabase } from '../config.js';
@@ -47,17 +49,45 @@ import { authorship } from '../lib/authorship.js';
 
 const router = express.Router();
 router.use(requireAuth);
+router.use(async (req, res, next) => {
+  if (!tenantWhatsAppEnabled()) return next();
+  if (['/status','/diagnostics'].includes(req.path)) return next();
+  try {
+    const connection = await readWhatsAppConnection(req.beautician.id);
+    if (req.path === '/disconnect' && req.method === 'DELETE' && connection?.mode === 'embedded') {
+      const { data, error } = await supabase.rpc('disconnect_embedded_whatsapp', { p_salon: req.beautician.id });
+      if (error || !data) return res.status(409).json({ error: 'Could not disconnect. Refresh and try again.' });
+      return res.json({ success: true });
+    }
+    if (!connection) return res.status(409).json({ error: 'Connect your own WhatsApp account using Continue with Meta.' });
+    if (connection.mode === 'legacy' && ['/register', '/reset', '/disconnect'].includes(req.path)) {
+      return res.status(409).json({ error: 'Your existing WhatsApp connection is protected. Contact Florrie to change this number without interrupting your messages.' });
+    }
+    if (connection.mode === 'embedded') {
+      const supported = ['/meta-templates','/meta-templates/starter-pack','/phone-details','/test-send'];
+      if (!supported.includes(req.path) && !(req.method === 'DELETE' && /^\/meta-templates\/[a-z0-9_]+$/.test(req.path))) {
+        return res.status(409).json({ error: 'This control is for an older connection. Your WhatsApp account has not been changed.' });
+      }
+    }
+    const credentials = await resolveWhatsAppCredentials(req.beautician.id, req.beautician.whatsapp_phone_id);
+    if (!credentials) return res.status(409).json({ error: 'WhatsApp access needs reconnecting. Your account has not been changed.' });
+    return connectionContext.run(credentials, next);
+  } catch {
+    return res.status(503).json({ error: 'Could not check your WhatsApp connection. Try again shortly.' });
+  }
+});
 
 // Accept Meta's official Railway env names as fallbacks so we don't have to
 // rename dashboard variables mid-flight. Keep the short names as primary.
-const WA_TOKEN = process.env.WHATSAPP_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN;
-const WABA_ID = process.env.WHATSAPP_WABA_ID || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
+const connectionContext = new AsyncLocalStorage();
+function waToken() { return connectionContext.getStore()?.token ?? (process.env.WHATSAPP_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN); }
+function wabaId() { return connectionContext.getStore()?.wabaId ?? (process.env.WHATSAPP_WABA_ID || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID); }
 const API_VER = process.env.WHATSAPP_API_VERSION || 'v21.0';
 const GRAPH = `https://graph.facebook.com/${API_VER}`;
 
 function metaHeaders() {
   return {
-    'Authorization': `Bearer ${WA_TOKEN}`,
+    'Authorization': `Bearer ${waToken()}`,
     'Content-Type': 'application/json',
   };
 }
@@ -321,7 +351,7 @@ async function findExistingOnWaba(e164) {
     JSON.stringify([{ field: 'phone_number', operator: 'CONTAIN', value: e164 }])
   );
   try {
-    const lookup = await fetch(`${GRAPH}/${WABA_ID}/phone_numbers?filtering=${filter}`, {
+    const lookup = await fetch(`${GRAPH}/${wabaId()}/phone_numbers?filtering=${filter}`, {
       headers: metaHeaders(),
     });
     const data = await lookup.json();
@@ -337,7 +367,7 @@ async function findExistingOnWaba(e164) {
  * Meta says the id is unknown (meaning: already gone, which is the outcome we want).
  */
 async function deleteFromMeta(phoneNumberId) {
-  if (!phoneNumberId || !WA_TOKEN) return { ok: true, alreadyGone: true };
+  if (!phoneNumberId || !waToken()) return { ok: true, alreadyGone: true };
   try {
     const res = await fetch(`${GRAPH}/${phoneNumberId}`, {
       method: 'DELETE',
@@ -404,7 +434,7 @@ async function addPhoneNumberToWaba({ cc, number, verifiedName, e164 }) {
     allow_duplicate_verified_names: true,
   };
 
-  const addRes = await fetch(`${GRAPH}/${WABA_ID}/phone_numbers`, {
+  const addRes = await fetch(`${GRAPH}/${wabaId()}/phone_numbers`, {
     method: 'POST',
     headers: metaHeaders(),
     body: JSON.stringify(body),
@@ -453,8 +483,8 @@ async function addPhoneNumberToWaba({ cc, number, verifiedName, e164 }) {
  * Checks, in order:
  *   1. Format
  *   2. Business name present on beautician
- *   3. Meta token health (GET /{WABA_ID})
- *   4. Number is addable (POST /{WABA_ID}/phone_numbers with our full context)
+ *   3. Meta token health (GET /{wabaId()})
+ *   4. Number is addable (POST /{wabaId()}/phone_numbers with our full context)
  *
  * Step 4 is the same call as /register does, but because it doesn't hit
  * /request_code, no SMS is sent. If it succeeds, we keep the resulting
@@ -492,7 +522,7 @@ async function runPreflight({ beauticianId, phone }) {
   // Meta token health check. Cheap and bails fast with a clear message if the
   // system-user token expired or the WABA id env var is wrong.
   try {
-    const tokenProbe = await fetch(`${GRAPH}/${WABA_ID}?fields=id,name`, {
+    const tokenProbe = await fetch(`${GRAPH}/${wabaId()}?fields=id,name`, {
       headers: metaHeaders(),
     });
     if (!tokenProbe.ok) {
@@ -590,7 +620,7 @@ async function verifyCloudApiActivation(phoneNumberId) {
  * from the UI to gate the Send code button.
  */
 router.post('/preflight', async (req, res) => {
-  if (!WA_TOKEN || !WABA_ID) {
+  if (!waToken() || !wabaId()) {
     return res.status(503).json({ error: 'WhatsApp not configured on this server' });
   }
   const { phone } = req.body;
@@ -644,7 +674,7 @@ router.post('/preflight', async (req, res) => {
  * Kept for legacy UI, now a thin alias of /preflight.
  */
 router.post('/diagnose', async (req, res) => {
-  if (!WA_TOKEN || !WABA_ID) {
+  if (!waToken() || !wabaId()) {
     return res.status(503).json({ error: 'WhatsApp not configured on this server' });
   }
   const { phone } = req.body;
@@ -682,7 +712,7 @@ router.post('/diagnose', async (req, res) => {
  * Safe to call repeatedly. Returns { success: true, cleared: {...} }.
  */
 router.post('/reset', async (req, res) => {
-  if (!WA_TOKEN || !WABA_ID) {
+  if (!waToken() || !wabaId()) {
     return res.status(503).json({ error: 'WhatsApp not configured on this server' });
   }
   const beauticianId = req.beautician.id;
@@ -753,7 +783,7 @@ router.post('/reset', async (req, res) => {
  * This is the "try again from scratch" path for stuck flows.
  */
 router.post('/register', async (req, res) => {
-  if (!WA_TOKEN || !WABA_ID) {
+  if (!waToken() || !wabaId()) {
     return res.status(503).json({ error: 'WhatsApp not configured on this server' });
   }
 
@@ -937,7 +967,7 @@ router.post('/register', async (req, res) => {
  * Trigger another OTP SMS for the beautician's pending number.
  */
 router.post('/resend-code', async (req, res) => {
-  if (!WA_TOKEN) return res.status(503).json({ error: 'WhatsApp not configured on this server' });
+  if (!waToken()) return res.status(503).json({ error: 'WhatsApp not configured on this server' });
 
   const beauticianId = req.beautician.id;
 
@@ -1215,7 +1245,7 @@ router.post('/reconcile', async (req, res) => {
     });
   }
 
-  if (!WA_TOKEN || !WABA_ID) {
+  if (!waToken() || !wabaId()) {
     return res.status(503).json({
       error: 'WhatsApp env not configured',
       code: 'whatsapp_env_missing',
@@ -1407,7 +1437,7 @@ router.post('/webhook-self-test', async (req, res) => {
     const fakeBody = {
       object: 'whatsapp_business_account',
       entry: [{
-        id: WABA_ID,
+        id: wabaId(),
         changes: [{
           field: 'messages',
           value: {
@@ -1561,15 +1591,17 @@ router.post('/test-email', async (req, res) => {
 
 /**
  * ─── Template WABA resolution ───
- * env WABA_ID can point at Florrie's sandbox WABA, but a beautician's
+ * env wabaId() can point at Florrie's sandbox WABA, but a beautician's
  * templates live on the WABA that owns THEIR sending phone (the send path
  * already resolves this). Template management must look at the same WABA.
  */
 const _tplWabaCache = new Map();
 async function resolveTemplateWaba(beauticianId) {
+  const current = connectionContext.getStore();
+  if (current?.mode === 'embedded') return { wabaId: current.wabaId, wabaName: null, source: 'customer_connection' };
   const hit = _tplWabaCache.get(beauticianId);
   if (hit && Date.now() - hit.at < 30 * 60 * 1000) return hit.val;
-  let val = { wabaId: WABA_ID, wabaName: null, source: 'env' };
+  let val = { wabaId: wabaId(), wabaName: null, source: 'env' };
   try {
     const { data: b } = await supabase
       .from('beauticians')
@@ -1662,7 +1694,7 @@ function starterPackFor() {
  * for Meta App Review has a real, audited surface to exercise.
  */
 router.get('/meta-templates', async (req, res) => {
-  if (!WA_TOKEN || !WABA_ID) {
+  if (!waToken() || !wabaId()) {
     return res.status(503).json({ error: 'WhatsApp env not configured', code: 'whatsapp_env_missing' });
   }
   try {
@@ -1716,7 +1748,7 @@ router.get('/meta-templates', async (req, res) => {
  *   footer_text optional, plain-text footer
  */
 router.post('/meta-templates', async (req, res) => {
-  if (!WA_TOKEN || !WABA_ID) {
+  if (!waToken() || !wabaId()) {
     return res.status(503).json({ error: 'WhatsApp env not configured', code: 'whatsapp_env_missing' });
   }
 
@@ -1817,7 +1849,7 @@ router.post('/meta-templates', async (req, res) => {
  * has nothing to submit.
  */
 router.get('/meta-templates/starter-pack', async (req, res) => {
-  if (!WA_TOKEN || !WABA_ID) {
+  if (!waToken() || !wabaId()) {
     return res.status(503).json({ error: 'WhatsApp env not configured', code: 'whatsapp_env_missing' });
   }
   try {
@@ -1859,7 +1891,7 @@ router.get('/meta-templates/starter-pack', async (req, res) => {
  * ready to use, and that is what the response says.
  */
 router.post('/meta-templates/starter-pack', async (req, res) => {
-  if (!WA_TOKEN || !WABA_ID) {
+  if (!waToken() || !wabaId()) {
     return res.status(503).json({ error: 'WhatsApp env not configured', code: 'whatsapp_env_missing' });
   }
   try {
@@ -1941,7 +1973,7 @@ router.post('/meta-templates/starter-pack', async (req, res) => {
  * are unaffected (the message stays in their chat history).
  */
 router.delete('/meta-templates/:name', async (req, res) => {
-  if (!WA_TOKEN || !WABA_ID) {
+  if (!waToken() || !wabaId()) {
     return res.status(503).json({ error: 'WhatsApp env not configured', code: 'whatsapp_env_missing' });
   }
   const name = String(req.params.name || '').trim();
@@ -1995,9 +2027,9 @@ router.get('/full-meta-state', async (req, res) => {
       .eq('id', beauticianId)
       .single();
 
-    if (WA_TOKEN && WABA_ID) {
+    if (waToken() && wabaId()) {
       const wabaRes = await fetch(
-        `${GRAPH}/${WABA_ID}?fields=id,name,timezone_id,message_template_namespace,currency,on_behalf_of_business_info,business_verification_status,account_review_status,health_status,country,phone_numbers{id,display_phone_number,verified_name,status,code_verification_status,name_status,quality_rating,account_mode,messaging_limit_tier,platform_type,throughput}`,
+        `${GRAPH}/${wabaId()}?fields=id,name,timezone_id,message_template_namespace,currency,on_behalf_of_business_info,business_verification_status,account_review_status,health_status,country,phone_numbers{id,display_phone_number,verified_name,status,code_verification_status,name_status,quality_rating,account_mode,messaging_limit_tier,platform_type,throughput}`,
         { headers: metaHeaders() }
       );
       out.waba = await wabaRes.json();
@@ -2010,7 +2042,7 @@ router.get('/full-meta-state', async (req, res) => {
         out.phone = await phoneRes.json();
       }
 
-      const subAppsRes = await fetch(`${GRAPH}/${WABA_ID}/subscribed_apps`, { headers: metaHeaders() });
+      const subAppsRes = await fetch(`${GRAPH}/${wabaId()}/subscribed_apps`, { headers: metaHeaders() });
       out.waba_subscribed_apps = await subAppsRes.json();
     }
 
@@ -2046,7 +2078,7 @@ router.get('/full-meta-state', async (req, res) => {
 router.post('/resubscribe-app-webhook', async (req, res) => {
   try {
     // Derive app id from WABA subscribed_apps (env doesn't have META_APP_ID).
-    const subRes = await fetch(`${GRAPH}/${WABA_ID}/subscribed_apps`, { headers: metaHeaders() });
+    const subRes = await fetch(`${GRAPH}/${wabaId()}/subscribed_apps`, { headers: metaHeaders() });
     const subData = await subRes.json();
     const appId = subData?.data?.[0]?.whatsapp_business_api_data?.id || process.env.META_APP_ID;
     if (!appId) return res.status(500).json({ error: 'Cannot determine app id' });
@@ -2088,7 +2120,7 @@ router.post('/resubscribe-app-webhook', async (req, res) => {
  */
 router.post('/subscribe-phone', async (req, res) => {
   const beauticianId = req.beautician.id;
-  if (!WA_TOKEN) return res.status(503).json({ error: 'WhatsApp env not configured' });
+  if (!waToken()) return res.status(503).json({ error: 'WhatsApp env not configured' });
   try {
     const { data: b } = await supabase
       .from('beauticians')
@@ -2113,19 +2145,19 @@ router.post('/subscribe-phone', async (req, res) => {
  * POST /subscribe-waba
  *
  * Subscribes Florrie's app to the configured WABA's webhooks at the WABA level
- * (POST /{WABA_ID}/subscribed_apps). This is what makes inbound customer messages
+ * (POST /{wabaId()}/subscribed_apps). This is what makes inbound customer messages
  * reach the /api/webhooks/whatsapp handler. Phone-level subscribe is not always
  * supported, so this is the reliable path. Idempotent: re-subscribing is a no-op.
  */
 router.post('/subscribe-waba', async (req, res) => {
-  if (!WA_TOKEN || !WABA_ID) return res.status(503).json({ error: 'WhatsApp env not configured' });
+  if (!waToken() || !wabaId()) return res.status(503).json({ error: 'WhatsApp env not configured' });
   try {
-    const r = await fetch(`${GRAPH}/${WABA_ID}/subscribed_apps`, {
+    const r = await fetch(`${GRAPH}/${wabaId()}/subscribed_apps`, {
       method: 'POST',
       headers: metaHeaders(),
     });
     const data = await r.json();
-    return res.json({ ok: r.ok, status: r.status, waba_id: WABA_ID, body: data });
+    return res.json({ ok: r.ok, status: r.status, waba_id: wabaId(), body: data });
   } catch (err) {
     return res.status(500).json({ error: 'Subscribe-waba failed', detail: err.message });
   }
@@ -2169,21 +2201,21 @@ router.get('/phone-details', async (req, res) => {
 router.get('/webhook-status', async (req, res) => {
   const out = {
     env: {
-      WHATSAPP_TOKEN: !!WA_TOKEN,
-      WHATSAPP_WABA_ID: !!WABA_ID,
+      WHATSAPP_TOKEN: !!waToken(),
+      WHATSAPP_WABA_ID: !!wabaId(),
       WHATSAPP_VERIFY_TOKEN: !!process.env.WHATSAPP_VERIFY_TOKEN,
       WHATSAPP_APP_SECRET: !!process.env.WHATSAPP_APP_SECRET,
       META_APP_ID: !!process.env.META_APP_ID,
       META_APP_SECRET: !!process.env.META_APP_SECRET,
       WHATSAPP_API_VERSION: API_VER,
     },
-    waba_id: WABA_ID || null,
+    waba_id: wabaId() || null,
     meta_app_id: process.env.META_APP_ID || null,
   };
 
-  if (WA_TOKEN && WABA_ID) {
+  if (waToken() && wabaId()) {
     try {
-      const r = await fetch(`${GRAPH}/${WABA_ID}/subscribed_apps`, { headers: metaHeaders() });
+      const r = await fetch(`${GRAPH}/${wabaId()}/subscribed_apps`, { headers: metaHeaders() });
       out.waba_subscribed_apps = await r.json();
     } catch (err) {
       out.waba_subscribed_apps_error = err.message;
@@ -2221,15 +2253,15 @@ router.get('/webhook-status', async (req, res) => {
  *
  * Idempotent: Meta returns success even if already subscribed.
  *
- * No body required. Uses Florrie's env WABA_ID.
+ * No body required. Uses Florrie's env wabaId().
  */
 router.post('/subscribe-webhook', async (req, res) => {
   const beauticianId = req.beautician.id;
-  if (!WA_TOKEN || !WABA_ID) {
+  if (!waToken() || !wabaId()) {
     return res.status(503).json({ error: 'WhatsApp env not configured', code: 'whatsapp_env_missing' });
   }
   try {
-    const subRes = await fetch(`${GRAPH}/${WABA_ID}/subscribed_apps`, {
+    const subRes = await fetch(`${GRAPH}/${wabaId()}/subscribed_apps`, {
       method: 'POST',
       headers: metaHeaders(),
     });
@@ -2246,7 +2278,7 @@ router.post('/subscribe-webhook', async (req, res) => {
       });
     }
     // Verify
-    const checkRes = await fetch(`${GRAPH}/${WABA_ID}/subscribed_apps`, { headers: metaHeaders() });
+    const checkRes = await fetch(`${GRAPH}/${wabaId()}/subscribed_apps`, { headers: metaHeaders() });
     const checkData = await checkRes.json();
     return res.json({
       ok: true,
@@ -2287,7 +2319,7 @@ router.post('/test-send', async (req, res) => {
     });
   }
 
-  if (!WA_TOKEN) {
+  if (!waToken()) {
     return res.status(503).json({ error: 'WhatsApp env not configured', code: 'whatsapp_env_missing' });
   }
 
@@ -2430,7 +2462,7 @@ router.post('/test-send', async (req, res) => {
     // Pass 2: auto-discover an APPROVED template with no required body params
     if (!result) {
       const tplList = await fetch(
-        `${GRAPH}/${WABA_ID}/message_templates?fields=name,language,status,components&limit=50`,
+        `${GRAPH}/${wabaId()}/message_templates?fields=name,language,status,components&limit=50`,
         { headers: metaHeaders() }
       );
       const tplJson = await tplList.json();
@@ -2662,7 +2694,7 @@ router.delete('/disconnect', async (req, res) => {
  *
  * Read-only deep-dive for Meta error 132001 ("Template name does not exist
  * in the translation"). The error fires even when the template shows
- * APPROVED on /{WABA_ID}/message_templates, so we need a way to compare
+ * APPROVED on /{wabaId()}/message_templates, so we need a way to compare
  * the WABA the templates live on, the WABA the phone reports as parent,
  * and what exact language enum Meta will accept on a real send.
  *
@@ -2710,13 +2742,13 @@ router.get('/template-debug', async (req, res) => {
   const explicitLang = req.query?.language ? String(req.query.language).trim() : null;
   const explicitTo = req.query?.to ? String(req.query.to).trim() : null;
 
-  if (!WA_TOKEN || !WABA_ID) {
+  if (!waToken() || !wabaId()) {
     return res.status(503).json({ error: 'WhatsApp env not configured', code: 'whatsapp_env_missing' });
   }
 
   const out = {
     template_name: templateName,
-    env_waba_id: WABA_ID,
+    env_waba_id: wabaId(),
     api_version: API_VER,
     beautician_phone_id: null,
     phone_meta: null,
@@ -2768,7 +2800,7 @@ router.get('/template-debug', async (req, res) => {
     const phoneJson = await phoneRes.json();
     out.phone_meta = phoneJson;
     out.phone_parent_waba_id = phoneJson?.whatsapp_business_account?.id || null;
-    out.waba_match = out.phone_parent_waba_id ? out.phone_parent_waba_id === WABA_ID : null;
+    out.waba_match = out.phone_parent_waba_id ? out.phone_parent_waba_id === wabaId() : null;
 
     if (phoneJson?.name_status && phoneJson.name_status !== 'APPROVED') {
       out.name_status_warning = true;
@@ -2779,7 +2811,7 @@ router.get('/template-debug', async (req, res) => {
 
     // 3. Template lookup against env WABA (filter by name).
     const listEnvRes = await fetch(
-      `${GRAPH}/${WABA_ID}/message_templates?name=${encodeURIComponent(templateName)}&fields=name,language,status,category,id,components&limit=50`,
+      `${GRAPH}/${wabaId()}/message_templates?name=${encodeURIComponent(templateName)}&fields=name,language,status,category,id,components&limit=50`,
       { headers: metaHeaders() }
     );
     const listEnv = await listEnvRes.json();
@@ -2793,7 +2825,7 @@ router.get('/template-debug', async (req, res) => {
 
     // 4. If the phone reports a different parent WABA, look the template up
     //    there too. This is the smoking gun for hypothesis 1.
-    if (out.phone_parent_waba_id && out.phone_parent_waba_id !== WABA_ID) {
+    if (out.phone_parent_waba_id && out.phone_parent_waba_id !== wabaId()) {
       const listPhoneRes = await fetch(
         `${GRAPH}/${out.phone_parent_waba_id}/message_templates?name=${encodeURIComponent(templateName)}&fields=name,language,status,category,id,components&limit=50`,
         { headers: metaHeaders() }
@@ -2861,12 +2893,12 @@ router.get('/template-debug', async (req, res) => {
     } else if (out.waba_match === false) {
       out.verdict = 'waba_mismatch';
       out.notes.push(
-        `Phone is on WABA ${out.phone_parent_waba_id} but env WHATSAPP_WABA_ID is ${WABA_ID}. Update the env var or move the phone.`
+        `Phone is on WABA ${out.phone_parent_waba_id} but env WHATSAPP_WABA_ID is ${wabaId()}. Update the env var or move the phone.`
       );
     } else if (out.template_in_list.match_count === 0) {
       out.verdict = 'template_not_on_waba';
       out.notes.push(
-        `No template named "${templateName}" exists on env WABA ${WABA_ID}. Check spelling or create it.`
+        `No template named "${templateName}" exists on env WABA ${wabaId()}. Check spelling or create it.`
       );
     } else if (out.name_status_warning) {
       out.verdict = 'name_status_declined';

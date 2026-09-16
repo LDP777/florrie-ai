@@ -5,6 +5,7 @@
  * explicitly disables it. SMS and WhatsApp are opt-in.
  */
 import { supabase } from '../config.js';
+import { resolveWhatsAppCredentials, tenantWhatsAppEnabled } from '../lib/whatsapp-connection.js';
 import logger from '../lib/logger.js';
 import { isMarketingTemplate, isMarketingSmsType, canSendMarketing, findClientByPhone } from '../lib/marketing-guard.js';
 import { guardedSend } from '../lib/outbound-guard.js';
@@ -635,15 +636,16 @@ const _tplCatalogueCache = new Map();
  * once to pick the locale. A failed fetch keeps the previous catalogue
  * rather than blanking it, so a Graph blip never downgrades live sends.
  */
-async function loadTemplateCatalogue(wabaId) {
+async function loadTemplateCatalogue(wabaId, token = WA_TOKEN, salonId = 'legacy') {
   const waba = wabaId || WA_WABA_ID;
-  if (!WA_TOKEN || !waba) return null;
-  const hit = _tplCatalogueCache.get(waba);
+  if (!token || !waba) return null;
+  const cacheKey = `${salonId}:${waba}`;
+  const hit = _tplCatalogueCache.get(cacheKey);
   if (hit && Date.now() - hit.at < 10 * 60 * 1000) return hit;
   try {
     const r = await fetch(
       `${WA_GRAPH}/${waba}/message_templates?fields=name,language,status&limit=200`,
-      { headers: { Authorization: `Bearer ${WA_TOKEN}` } }
+      { headers: { Authorization: `Bearer ${token}` } }
     );
     const data = await r.json();
     if (r.ok && Array.isArray(data?.data)) {
@@ -654,7 +656,7 @@ async function loadTemplateCatalogue(wabaId) {
         if (t.status === 'APPROVED') approved.add(t.name);
       }
       const entry = { map, approved, at: Date.now() };
-      _tplCatalogueCache.set(waba, entry);
+      _tplCatalogueCache.set(cacheKey, entry);
       capSize(_tplCatalogueCache, WA_CACHE_MAX);
       logger.info(
         { waba, templates: data.data.map((t) => `${t.name}:${t.language}:${t.status}`) },
@@ -666,11 +668,11 @@ async function loadTemplateCatalogue(wabaId) {
   } catch (err) {
     logger.warn({ err, waba }, 'loadTemplateCatalogue: template list fetch failed');
   }
-  return _tplCatalogueCache.get(waba) || null;
+  return _tplCatalogueCache.get(cacheKey) || null;
 }
 
-async function resolveTemplateLanguage(templateName, wabaId) {
-  const catalogue = await loadTemplateCatalogue(wabaId);
+async function resolveTemplateLanguage(templateName, wabaId, token = WA_TOKEN, salonId = 'legacy') {
+  const catalogue = await loadTemplateCatalogue(wabaId, token, salonId);
   return catalogue ? catalogue.map[templateName] || null : null;
 }
 
@@ -1068,7 +1070,12 @@ export async function sendWhatsApp({
     });
   }
 
-  if (!WA_TOKEN) {
+  let credentials;
+  try { credentials = await resolveWhatsAppCredentials(beauticianId, phoneNumberId); } catch {
+    logger.warn({ beauticianId }, 'WhatsApp credential lookup failed; refusing shared-token fallback');
+    return null;
+  }
+  if (!credentials?.token) {
     logger.debug('WhatsApp token not configured, skipping');
     return null;
   }
@@ -1079,11 +1086,11 @@ export async function sendWhatsApp({
   }
 
   // Resolve the language from the WABA that actually owns this sending phone.
-  const sendingWaba = await getPhoneParentWaba(phoneNumberId);
-  // Every tenant's number sits on the same shared WABA, so the shared _v4
-  // templates (salon name passed as a parameter) win when Meta has approved
-  // them. Until then this stays on whatever version the WABA already has.
-  const catalogue = await loadTemplateCatalogue(sendingWaba);
+  const sendingWaba = credentials.mode === 'embedded' ? credentials.wabaId : await getPhoneParentWaba(phoneNumberId);
+  // Prefer approved _v4 templates on this sending account, with the salon
+  // name passed as a parameter. Otherwise use its existing approved version.
+  // Each customer connection has its own account and catalogue.
+  const catalogue = await loadTemplateCatalogue(sendingWaba, credentials.token, beauticianId);
   const approved = catalogue?.approved || new Set();
   const resolved = resolveTemplateForSend({
     templateName,
@@ -1107,7 +1114,7 @@ export async function sendWhatsApp({
   }
   templateName = resolved.name;
   templateParams = resolved.params;
-  const resolvedLang = await resolveTemplateLanguage(templateName, sendingWaba);
+  const resolvedLang = await resolveTemplateLanguage(templateName, sendingWaba, credentials.token, beauticianId);
   const languages = [...new Set([resolvedLang, 'en_GB', 'en', 'en_US'].filter(Boolean))];
   logger.info({ templateName, phoneNumberId, sendingWaba, resolvedLang, languages }, 'sendWhatsApp: locale candidates');
   let lastErr = null;
@@ -1118,7 +1125,7 @@ export async function sendWhatsApp({
         {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${WA_TOKEN}`,
+            'Authorization': `Bearer ${credentials.token}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -1158,11 +1165,11 @@ export async function sendWhatsApp({
   logger.error({ err: lastErr, templateName, phoneNumberId, languagesTried: languages }, 'WhatsApp template send failed (all locales)');
   await logSendFailure({ beauticianId, to, channel: 'WhatsApp', detail: lastErr?.message || JSON.stringify(lastErr || {}).slice(0, 200) });
   // Diagnostic: is the sending phone number actually on the env WABA whose templates we read?
-  if (WA_WABA_ID && WA_TOKEN) {
+  if (credentials.mode === 'legacy' && WA_WABA_ID) {
     try {
       const pr = await fetch(
         `${WA_GRAPH}/${WA_WABA_ID}/phone_numbers?fields=id,display_phone_number,verified_name&limit=50`,
-        { headers: { Authorization: `Bearer ${WA_TOKEN}` } }
+        { headers: { Authorization: `Bearer ${credentials.token}` } }
       );
       const pj = await pr.json();
       const ids = Array.isArray(pj?.data) ? pj.data.map((p) => `${p.id}:${p.display_phone_number}`) : pj;
@@ -1222,7 +1229,12 @@ export async function sendWhatsAppText({ to, body, beauticianId }) {
     }
   }
 
-  if (!WA_TOKEN) {
+  let credentials;
+  try { credentials = await resolveWhatsAppCredentials(beauticianId, phoneNumberId); } catch {
+    logger.warn({ beauticianId }, 'WhatsApp credential lookup failed; refusing shared-token fallback');
+    return null;
+  }
+  if (!credentials?.token) {
     logger.debug('WhatsApp token not configured, skipping freeform');
     return null;
   }
@@ -1240,7 +1252,7 @@ export async function sendWhatsAppText({ to, body, beauticianId }) {
         {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${WA_TOKEN}`,
+            'Authorization': `Bearer ${credentials.token}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -1347,7 +1359,7 @@ export function pickChannel(client, beauticianPrefs = {}) {
 
   // WhatsApp: client has an active WhatsApp ID, a provider is configured
   // (Meta token or Twilio creds), and beautician has a registered number
-  if (client?.whatsapp_id && (WA_TOKEN || twilioConfigured()) && beauticianPrefs?.whatsapp_connected) return 'whatsapp';
+  if (client?.whatsapp_id && (tenantWhatsAppEnabled() || WA_TOKEN || twilioConfigured()) && beauticianPrefs?.whatsapp_connected) return 'whatsapp';
 
   // SMS: client has a phone and Bird is configured
   if (client?.phone && BIRD_API_KEY) return 'sms';
@@ -1422,7 +1434,7 @@ export async function sendNudge({ client, body, templateName, templateParams, te
   // Master pause — no proactive outbound goes out on the beautician's behalf.
   if (beauticianPrefs?.paused) return { skipped: 'paused' };
   // Path 1: active WhatsApp session — send free-form, it'll land immediately
-  if (client?.whatsapp_id && (WA_TOKEN || twilioConfigured()) && beauticianPrefs?.whatsapp_connected && await inWhatsAppSession(client)) {
+  if (client?.whatsapp_id && (tenantWhatsAppEnabled() || WA_TOKEN || twilioConfigured()) && beauticianPrefs?.whatsapp_connected && await inWhatsAppSession(client)) {
     const result = await sendWhatsAppText({ to: client.whatsapp_id, body, beauticianId });
     if (result) {
       await logComms(beauticianId, client.id, 'whatsapp', 'outbound', body);
@@ -1431,7 +1443,7 @@ export async function sendNudge({ client, body, templateName, templateParams, te
   }
 
   // Path 2: WhatsApp template (client has opted in, we have a template, session not required)
-  if (client?.whatsapp_id && (WA_TOKEN || twilioConfigured()) && beauticianPrefs?.whatsapp_connected && templateName) {
+  if (client?.whatsapp_id && (tenantWhatsAppEnabled() || WA_TOKEN || twilioConfigured()) && beauticianPrefs?.whatsapp_connected && templateName) {
     const result = await sendWhatsApp({ to: client.whatsapp_id, templateName, templateParams, templateFields, templateExtras, beauticianId, clientId: client.id, skipThreadLog: true });
     if (result) {
       await logComms(beauticianId, client.id, 'whatsapp', 'outbound', body);

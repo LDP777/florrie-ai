@@ -103,6 +103,7 @@ import importAppointmentsRoutes from './routes/import-appointments.js';
 import usageRoutes from './routes/usage.js';
 import setupRoutes from './routes/setup.js';
 import whatsappConfigRoutes from './routes/whatsapp-config.js';
+import whatsappEmbeddedRoutes from './routes/whatsapp-embedded.js';
 import coachRoutes from './routes/coach.js';
 import courseRoutes from './routes/courses.js';
 import suggestionsRoutes from './routes/suggestions.js';
@@ -380,7 +381,7 @@ app.use('/api/migrate', apiLimiter, migrateRoutes);
 app.use('/api/import', apiLimiter, paywall, importAppointmentsRoutes); // Timely appointment CSV import
 app.use('/api/usage', apiLimiter, usageRoutes);
 app.use('/api/setup', apiLimiter, setupRoutes);
-app.use('/api/whatsapp', apiLimiter, whatsappConfigRoutes);
+app.use('/api/whatsapp', apiLimiter, whatsappEmbeddedRoutes, whatsappConfigRoutes);
 app.use('/api/webhooks/instagram', webhookLimiter, instagramWebhookRoutes);
 app.use('/api/webhooks/twilio', webhookLimiter, twilioWebhookRoutes); // Twilio BSP WhatsApp inbound
 app.use('/api/coach', apiLimiter, paywall, coachRoutes);

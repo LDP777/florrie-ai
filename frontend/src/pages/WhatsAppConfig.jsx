@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import WhatsAppSignup from '../components/WhatsAppSignup.jsx';
 import { templateDisplay, isClientTemplate } from '../lib/templates.js';
 import { Link } from 'react-router-dom';
 import { useBeautician, fetchRows } from '../lib/supabase.js';
@@ -1076,7 +1077,7 @@ export default function WhatsAppConfig() {
     loadData();
   }, [beautician, bLoading]);
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
     try {
@@ -1096,15 +1097,15 @@ export default function WhatsAppConfig() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   async function handleDisconnect() {
     if (!confirm('Disconnect WhatsApp? Automated messages will stop.')) return;
     setDisconnecting(true);
     try {
       await apiFetch('/disconnect', { method: 'DELETE' });
-      setStatus({ connected: false });
       setPendingPhone(null);
+      await loadData();
     } catch (err) {
       alert('Something went wrong, try again');
     } finally {
@@ -1243,11 +1244,7 @@ export default function WhatsAppConfig() {
 
       {/* Not connected and nothing in flight, show setup flow */}
       {!loadError && !connected && !pendingActivation && (
-        <ConnectFlow
-          onConnected={handleConnected}
-          onPending={handlePending}
-          onReset={handleReset}
-        />
+        <WhatsAppSignup onReturn={loadData} />
       )}
 
       {connected && (

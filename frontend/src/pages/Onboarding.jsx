@@ -1041,8 +1041,8 @@ export default function Onboarding({ onComplete }) {
                   <span style={styles.channelTitle}>WhatsApp: your AI receptionist</span>
                   <span style={styles.waRecommend}>Recommended</span>
                 </div>
-                <div style={styles.channelDesc}>Books, reschedules, answers questions. 24/7, in your voice.</div>
-                <div style={styles.waMeta}>~15 min. Spare number needed.</div>
+                <div style={styles.channelDesc}>Bring client messages into Florrie. Choose drafts first or automatic replies.</div>
+                <div style={styles.waMeta}>Connect securely with Meta. A separate business number is needed.</div>
               </div>
             </div>
             <div style={styles.waButtonRow}>
