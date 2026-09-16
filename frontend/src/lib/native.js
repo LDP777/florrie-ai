@@ -17,9 +17,9 @@ export async function configureStatusBar() {
   if (!isNative) return;
   try {
     const { StatusBar, Style } = await import('@capacitor/status-bar');
-    // App background is near-white, so use dark glyphs (Style.Dark) for legible
-    // status-bar text. Background hex matches capacitor.config.ts + App.jsx shell.
-    await StatusBar.setStyle({ style: Style.Dark });
+    // Capacitor names this for the background: Light means dark glyphs.
+    // Keep the clock and battery legible on the app's cream background.
+    await StatusBar.setStyle({ style: Style.Light });
     await StatusBar.setBackgroundColor({ color: '#FBF6F1' });
   } catch (err) {
     logger.debug('StatusBar plugin not available:', err);

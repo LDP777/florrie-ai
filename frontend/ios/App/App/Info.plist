@@ -34,13 +34,13 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Florrie needs camera access to take before and after appointment photos when you choose to add them to a client's record.</string>
+	<string>Use your camera to add salon content photos or scan a receipt. You choose what to upload.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Florrie uses your microphone so you can talk to her instead of typing.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Florrie needs photo library access to add existing photos to a client's record when you choose to do so.</string>
+	<string>Choose photos for your salon content or a receipt to scan. Florrie only uploads the images you select.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Florrie needs permission to save appointment photos to your photo library when you choose to export them.</string>
+	<string>Save a salon content image to your photo library when you choose to export it.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Florrie uses speech recognition to turn what you say into text, so you can talk to her instead of typing.</string>
 	<key>UILaunchStoryboardName</key>
