@@ -1,6 +1,6 @@
 import { beforeEach,afterEach,describe,it,expect,vi } from 'vitest';
 vi.mock('../../src/config.js',()=>({supabase:{}}));
-import { encrypt } from '../../src/lib/crypto.js';
+import { encrypt, decrypt } from '../../src/lib/crypto.js';
 import { resolveWhatsAppCredentials } from '../../src/lib/whatsapp-connection.js';
 import { completeWhatsAppSignup } from '../../src/lib/whatsapp-signup.js';
 const salon='56b47ba3-4b63-415c-a907-b30f118ca2c3';
@@ -42,6 +42,15 @@ describe('customer WhatsApp isolation',()=>{
    expect(await resolveWhatsAppCredentials(salon,'400',connectionDb(null))).toBeNull();
    await expect(resolveWhatsAppCredentials(salon,'400',connectionDb(null,{code:'42P01'}))).rejects.toThrow();
    expect(await resolveWhatsAppCredentials(salon,'400',connectionDb({mode:'embedded',phone_id:'400',waba_id:'300',credentials:encrypt({token:'old',beauticianId:salon,phoneId:'400',wabaId:'300',expiresAt:'2020-01-01'})}))).toBeNull();
+ });
+ it('shares WhatsApp credentials across deployments without rotating other integration keys',async()=>{
+   vi.stubEnv('WHATSAPP_CREDENTIALS_KEY','cd'.repeat(32));
+   const oldIntegration=encrypt({refreshToken:'existing-integration'});
+   await complete();const cipher=db.rpc.mock.calls[1][1].p_credentials;
+   vi.stubEnv('ENCRYPTION_KEY','ef'.repeat(32));
+   const row={mode:'embedded',phone_id:'400',waba_id:'300',credentials:cipher};
+   expect((await resolveWhatsAppCredentials(salon,'400',connectionDb(row))).token).toBe('customer-token');
+   vi.stubEnv('ENCRYPTION_KEY','ab'.repeat(32));expect(decrypt(oldIntegration).refreshToken).toBe('existing-integration');
  });
  it('preserves explicit legacy connections',async()=>{
    expect((await resolveWhatsAppCredentials(salon,'400',connectionDb({mode:'legacy',phone_id:'400'}))).token).toBe('legacy-token');

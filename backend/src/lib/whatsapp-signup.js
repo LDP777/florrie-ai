@@ -1,6 +1,7 @@
 import { createHash, randomInt } from 'node:crypto';
 import { getAppSecret } from './env.js';
 import { encrypt } from './crypto.js';
+import { whatsAppEncryptionKey } from './whatsapp-connection.js';
 
 export const hashSignupSecret = secret => createHash('sha256').update(secret).digest('hex');
 export const metaId = value => typeof value === 'string' && /^\d{1,40}$/.test(value);
@@ -9,7 +10,8 @@ export function signupConfig() {
   const configId = process.env.WHATSAPP_EMBEDDED_SIGNUP_CONFIG_ID;
   const page = process.env.WHATSAPP_SIGNUP_URL;
   const version = process.env.WHATSAPP_API_VERSION || 'v21.0';
-  if (!metaId(appId) || !metaId(configId) || !getAppSecret() || !/^[a-f0-9]{64}$/i.test(process.env.ENCRYPTION_KEY || '')) return null;
+  if (!metaId(appId) || !metaId(configId) || !getAppSecret()) return null;
+  try { whatsAppEncryptionKey(); } catch { return null; }
   try {
     const u = new URL(page);
     if (u.protocol !== 'https:' || u.username || u.password || u.search || u.hash || u.pathname !== '/api/whatsapp/embedded') return null;
@@ -89,7 +91,7 @@ export async function completeWhatsAppSignup({ db, session, code, wabaId, phoneI
   }
   const expiries = [d.expires_at,d.data_access_expires_at,exchange.expires_in ? Math.floor(Date.now()/1000)+exchange.expires_in : 0].filter(n=>Number(n)>0);
   const credentials = encrypt({token,pin,beauticianId:session.beautician_id,phoneId,wabaId,
-    expiresAt:expiries.length ? new Date(Math.min(...expiries)*1000).toISOString() : null});
+    expiresAt:expiries.length ? new Date(Math.min(...expiries)*1000).toISOString() : null}, whatsAppEncryptionKey());
   const saved = await db.rpc('finish_whatsapp_signup',{p_session:session.id,p_phone:phoneId,p_waba:wabaId,p_display_phone:phone.display_phone_number,p_credentials:credentials});
   if (saved.error || !saved.data) throw new SignupError('save_failed','This setup changed or could not be saved. Return to Florrie to check the connection.',409);
   return {connected:true,phone:phone.display_phone_number};

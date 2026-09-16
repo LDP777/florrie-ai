@@ -9,7 +9,11 @@ const TAG_LENGTH = 16;
  * Set ENCRYPTION_KEY env var to a 64-char hex string in production.
  * Falls back to a SHA-256 hash of SUPABASE_SERVICE_KEY for dev.
  */
-function getKey() {
+function getKey(explicitKey) {
+  if (explicitKey !== undefined) {
+    if (!/^[a-f0-9]{64}$/i.test(explicitKey)) throw new Error('Encryption key must be 64 hex chars');
+    return Buffer.from(explicitKey, 'hex');
+  }
   if (process.env.ENCRYPTION_KEY) {
     const buf = Buffer.from(process.env.ENCRYPTION_KEY, 'hex');
     if (buf.length !== 32) throw new Error('ENCRYPTION_KEY must be 64 hex chars (32 bytes)');
@@ -24,10 +28,10 @@ function getKey() {
 /**
  * Encrypt a JS object → base64 string.
  */
-export function encrypt(obj) {
+export function encrypt(obj, key) {
   const plaintext = JSON.stringify(obj);
   const iv = randomBytes(IV_LENGTH);
-  const cipher = createCipheriv(ALGORITHM, getKey(), iv);
+  const cipher = createCipheriv(ALGORITHM, getKey(key), iv);
 
   const encrypted = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
   const tag = cipher.getAuthTag();
@@ -43,7 +47,7 @@ export function encrypt(obj) {
 /**
  * Decrypt a base64 string → JS object.
  */
-export function decrypt(encoded) {
+export function decrypt(encoded, key) {
   const [ivB64, tagB64, dataB64] = encoded.split(':');
   if (!ivB64 || !tagB64 || !dataB64) throw new Error('Invalid encrypted format');
 
@@ -51,7 +55,7 @@ export function decrypt(encoded) {
   const tag = Buffer.from(tagB64, 'base64');
   const data = Buffer.from(dataB64, 'base64');
 
-  const decipher = createDecipheriv(ALGORITHM, getKey(), iv);
+  const decipher = createDecipheriv(ALGORITHM, getKey(key), iv);
   decipher.setAuthTag(tag);
 
   const decrypted = Buffer.concat([decipher.update(data), decipher.final()]);

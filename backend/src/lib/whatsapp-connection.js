@@ -1,6 +1,14 @@
 import { supabase } from '../config.js';
 import { decrypt } from './crypto.js';
 
+// A separate shared key avoids changing encryption for existing integrations
+// when API deployments have different historical ENCRYPTION_KEY settings.
+export function whatsAppEncryptionKey() {
+  const key = process.env.WHATSAPP_CREDENTIALS_KEY || process.env.ENCRYPTION_KEY;
+  if (!/^[a-f0-9]{64}$/i.test(key || '')) throw new Error('WhatsApp credential encryption is not configured');
+  return key;
+}
+
 export function tenantWhatsAppEnabled() {
   return process.env.WHATSAPP_TENANT_CREDENTIALS_ENABLED === 'true';
 }
@@ -28,7 +36,7 @@ export async function resolveWhatsAppCredentials(salonId, phoneId, db = supabase
   const connection = await readWhatsAppConnection(salonId, db);
   if (!connection || connection.phone_id !== phoneId) return null;
   if (connection.mode === 'legacy') return legacy.token ? legacy : null;
-  const secret = decrypt(connection.credentials);
+  const secret = decrypt(connection.credentials, whatsAppEncryptionKey());
   if (secret.beauticianId !== salonId || secret.phoneId !== phoneId || secret.wabaId !== connection.waba_id) {
     throw new Error('WhatsApp credential ownership mismatch');
   }
