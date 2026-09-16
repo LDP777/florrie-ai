@@ -164,6 +164,9 @@ function makeBuilder(table) {
 
   const settle = () => {
     if (failing.has(table)) return { data: null, error: failing.get(table), count: null };
+    if (table === 'appointments' && selectSpec === 'starts_at, ends_at' && failing.has('patch_diary')) {
+      return { data: null, error: failing.get('patch_diary'), count: null };
+    }
     if (selectError) return { data: null, error: selectError, count: null };
     if (pending?.op === 'insert') {
       const payload = Array.isArray(pending.payload) ? pending.payload : [pending.payload];
@@ -531,6 +534,59 @@ describe('48-hour patch-test notice', () => {
       for (const slot of out.body.slots) {
         expect(Date.parse('2026-12-08T11:00:00Z') - Date.parse(slot) - out.body.duration_minutes * 60000).toBeGreaterThanOrEqual(48 * 3600000);
       }
+    });
+  });
+
+  it('offers times only within the diary window it actually checked', async () => {
+    await atFixedTime(async () => {
+      db.beauticians[0].working_hours = Object.fromEntries(Object.keys(ALL_WEEK).map(day => [day, { start: '09:00', end: '09:10' }]));
+      seedManagedAppointment();
+      Object.assign(db.appointments[0], { starts_at: '2027-02-08T11:00:00.000Z', ends_at: '2027-02-08T12:00:00.000Z' });
+      const out = await run(bookingRouter, 'get', '/:slug/manage/:token/patch-test/slots', {
+        params: { slug: 'ellindigo', token: 'manage-48' },
+      });
+      expect(out.status).toBe(200);
+      expect(out.body.slots.length).toBeGreaterThan(0);
+      expect(out.body.slots.every(slot => Date.parse(slot) <= Date.parse('2027-01-01T11:00:00Z'))).toBe(true);
+    });
+  });
+
+  it('keeps an appointment already in progress out of the patch-test picker', async () => {
+    await atFixedTime(async () => {
+      seedManagedAppointment();
+      db.appointments.push({ id: 'long-visit', beautician_id: 'b1', status: 'in_progress', starts_at: '2026-12-04T10:00:00.000Z', ends_at: '2026-12-04T14:00:00.000Z' });
+      const out = await run(bookingRouter, 'get', '/:slug/manage/:token/patch-test/slots', {
+        params: { slug: 'ellindigo', token: 'manage-48' },
+      });
+      expect(out.status).toBe(200);
+      expect(out.body.slots).not.toContain('2026-12-04T12:00:00.000Z');
+      expect(out.body.slots).toContain('2026-12-04T14:00:00.000Z');
+    });
+  });
+
+  it('offers no patch-test times when the diary cannot be read', async () => {
+    await atFixedTime(async () => {
+      seedManagedAppointment();
+      failing.set('patch_diary', { message: 'synthetic unavailable diary' });
+      const out = await run(bookingRouter, 'get', '/:slug/manage/:token/patch-test/slots', {
+        params: { slug: 'ellindigo', token: 'manage-48' },
+      });
+      expect(out.status).toBe(500);
+      expect(out.body.slots).toBeUndefined();
+    });
+  });
+
+  it('rejects a stale or crafted patch-test choice on a closed day', async () => {
+    await atFixedTime(async () => {
+      db.beauticians[0].working_hours = { ...ALL_WEEK, sun: null };
+      seedManagedAppointment();
+      const out = await run(bookingRouter, 'post', '/:slug/manage/:token/patch-test/confirm', {
+        params: { slug: 'ellindigo', token: 'manage-48' }, body: { slot: '2026-12-06T09:00:00.000Z' },
+      });
+      expect(out.status).toBe(400);
+      expect(out.body.error).toContain('closed');
+      expect(db.appointments).toHaveLength(1);
+      expect(db.patch_tests).toHaveLength(0);
     });
   });
 

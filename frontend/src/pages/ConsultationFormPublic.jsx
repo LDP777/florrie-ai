@@ -76,20 +76,23 @@ export default function ConsultationFormPublic({ formToken, embedded = false, on
   // Re-check the clock without replacing any answers being edited.
   useEffect(() => {
     if (!preparation || completed) return;
-    const controller = new AbortController();
+    let controller;
+    let active = true;
     const refresh = async () => {
-      const timeout = setTimeout(() => controller.abort(), 15000);
+      controller?.abort();
+      const request = new AbortController(); controller = request;
+      const timeout = setTimeout(() => request.abort(), 15000);
       try {
-        const res = await fetch(`${API_BASE}/api/consultation-forms/public/${token}`, { signal: controller.signal });
+        const res = await fetch(`${API_BASE}/api/consultation-forms/public/${token}`, { signal: request.signal });
         const body = await res.json();
-        if (res.ok && body.preparation) setPreparation(body.preparation);
+        if (active && !request.signal.aborted && res.ok && body.preparation) setPreparation(body.preparation);
       } catch {} finally { clearTimeout(timeout); }
     };
     window.addEventListener('focus', refresh);
     const delay = Date.parse(preparation.ready_at) - Date.now();
     const timer = delay > 0 && delay < 2147483000 ? setTimeout(refresh, delay + 500) : null;
-    return () => { controller.abort(); window.removeEventListener('focus', refresh); if (timer) clearTimeout(timer); };
-  }, [token, preparation?.ready_at, completed]);
+    return () => { active = false; controller?.abort(); window.removeEventListener('focus', refresh); if (timer) clearTimeout(timer); };
+  }, [token, !!preparation, preparation?.ready_at, completed]);
   async function saveDraft() {
     setSubmitting(true); setSubmitError(null); setSaveNotice('');
     const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 15000);

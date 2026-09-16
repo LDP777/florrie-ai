@@ -20,7 +20,7 @@ try {
     const base=window.fetch;
     const state=window.__preparation={stage:'needed',answers:{},revision:0,outcome:null,completed:false,review:false,failDraft:true,failSubmit:true,failChecklist:false,submits:[],patchBookings:0};
     const slot='2030-09-13T09:00:00Z';const readyAt=new Date(Date.now()+86400000).toISOString();
-    const patch=()=>({state:state.stage,required:true,can_complete:state.stage==='ready',booked_at:slot,ready_at:state.stage==='ready'?new Date(Date.now()-1000).toISOString():readyAt,evidence:[],timezone:'Europe/London'});
+    const patch=()=>({state:state.stage,required:true,can_complete:state.stage==='ready',booked_at:slot,ready_at:state.stage==='ready'?new Date(Date.now()-1000).toISOString():state.stage==='waiting'?readyAt:undefined,evidence:[],timezone:'Europe/London'});
     window.fetch=(input,opts={})=>{
       const url=String(input),method=opts.method||'GET';
       const json=(body,status=200)=>Promise.resolve(new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json'}}));
@@ -59,6 +59,11 @@ try {
   await page.evaluate(()=>{window.__preparation.failDraft=false;});
   await page.getByRole('button',{name:'Save answers',exact:true}).click();
   await page.getByRole('status').filter({hasText:'Answers saved'}).waitFor();
+  // A booked patch visit has no ready_at yet. Returning to the open draft
+  // after the tech records it must update the waiting period without losing answers.
+  await page.evaluate(()=>{window.__preparation.stage='waiting';window.dispatchEvent(new Event('focus'));});
+  await page.getByText(/You can sign after/).waitFor();
+  assert.equal(await page.getByLabel('Any allergies?',{exact:false}).inputValue(),'None');
   await page.getByRole('button',{name:'Back to my booking',exact:true}).click();
   await page.evaluate(()=>{window.__preparation.stage='waiting';window.dispatchEvent(new Event('focus'));});
   await checklist.getByRole('heading',{name:'Your 48-hour waiting period',exact:true}).waitFor();
