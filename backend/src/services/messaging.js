@@ -16,8 +16,8 @@ import { AUTHOR } from '../lib/idiolect.js';
 import { sendSMS, sendEmail } from './notifications.js';
 import { authorship } from '../lib/authorship.js';
 import { deDash } from '../lib/text.js';
+import { resolveWhatsAppCredentials } from '../lib/whatsapp-connection.js';
 
-const WA_TOKEN = process.env.WHATSAPP_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN;
 const API_VER = process.env.WHATSAPP_API_VERSION || 'v21.0';
 const GRAPH = `https://graph.facebook.com/${API_VER}`;
 
@@ -30,17 +30,18 @@ const GRAPH = `https://graph.facebook.com/${API_VER}`;
  * Returns { ok, message_id, error }.
  */
 async function sendWhatsAppText({ beautician, recipientPhone, body }) {
-  if (!WA_TOKEN) return { ok: false, error: 'WhatsApp not configured on server' };
   if (!beautician?.whatsapp_phone_id) return { ok: false, error: 'WhatsApp not connected' };
 
   const cleanTo = String(recipientPhone || '').replace(/[^0-9]/g, '');
   if (!cleanTo) return { ok: false, error: 'Client has no WhatsApp number' };
 
   try {
+    const credentials = await resolveWhatsAppCredentials(beautician.id, beautician.whatsapp_phone_id);
+    if (!credentials) return { ok: false, error: 'WhatsApp access needs reconnecting. Check your connection in Settings.' };
     const res = await fetch(`${GRAPH}/${beautician.whatsapp_phone_id}/messages`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${WA_TOKEN}`,
+        'Authorization': `Bearer ${credentials.token}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -49,6 +50,7 @@ async function sendWhatsAppText({ beautician, recipientPhone, body }) {
         type: 'text',
         text: { body },
       }),
+      signal: AbortSignal.timeout(15000),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
