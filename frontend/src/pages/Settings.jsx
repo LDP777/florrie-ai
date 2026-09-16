@@ -1300,8 +1300,8 @@ export default function Settings({ onLogout }) {
                 </span>
               </div>
               <AutonomyToggle
-                on={beautician.marketing_emails_enabled !== false}
-                onToggle={() => saveProfile({ marketing_emails_enabled: beautician.marketing_emails_enabled === false })}
+                on={beautician.marketing_emails_enabled === true}
+                onToggle={() => saveProfile({ marketing_emails_enabled: beautician.marketing_emails_enabled !== true })}
                 label="Emails from Florrie"
               />
             </div>

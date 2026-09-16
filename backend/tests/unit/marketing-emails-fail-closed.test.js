@@ -22,7 +22,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 const db = { beauticians: [], email_sends: [] };
 
 /** How the next beauticians select of a given column should answer. */
-const faults = { marketing_emails_enabled: null, trial_query: null };
+const faults = { marketing_emails_enabled: null, trial_query: null, missingPreferenceRow: false };
 
 const MISSING_COLUMN = { code: '42703', message: 'column beauticians.marketing_emails_enabled does not exist' };
 const NETWORK_BLIP = { code: '57P01', message: 'terminating connection due to administrator command' };
@@ -35,6 +35,7 @@ function builder(table) {
   const rows = () => (db[table] || []).filter(r => filters.every(f => f(r)));
   const settle = () => {
     if (selectError) return { data: null, error: selectError };
+    if (table === 'beauticians' && selectSpec === 'marketing_emails_enabled' && faults.missingPreferenceRow) return { data: [], error: null };
     if (pending?.op === 'update') {
       const hit = rows();
       for (const r of hit) Object.assign(r, pending.payload);
@@ -104,6 +105,7 @@ beforeEach(() => {
   logged.warn.length = 0;
   faults.marketing_emails_enabled = null;
   faults.trial_query = null;
+  faults.missingPreferenceRow = false;
 });
 
 describe('marketing emails fail closed when the preference cannot be read', () => {
@@ -122,7 +124,7 @@ describe('marketing emails fail closed when the preference cannot be read', () =
 
     expect(sent).toHaveLength(0);
     expect(db.email_sends[0].status).toBe('skipped');
-    const complaint = logged.error.find(l => /022_email_sends/.test(l.msg || ''));
+    const complaint = logged.error.find(l => /20260916_marketing_email_preference/.test(l.msg || ''));
     expect(complaint).toBeTruthy();
     expect(complaint.ctx.err).toEqual(MISSING_COLUMN);
   });
@@ -155,6 +157,32 @@ describe('marketing emails fail closed when the preference cannot be read', () =
   it('honours an explicit unsubscribe exactly as before', async () => {
     db.beauticians[0].marketing_emails_enabled = false;
     db.email_sends.push(due('welcome', 'welcome_day7'));
+    await processEmailQueue();
+    expect(sent).toHaveLength(0);
+    expect(db.email_sends[0].status).toBe('skipped');
+  });
+
+  it.each([null, undefined, 'true', 1])('does not treat %s as an explicit opt-in', async value => {
+    db.beauticians[0].marketing_emails_enabled = value;
+    db.email_sends.push(due('welcome', 'welcome_day0'));
+    await processEmailQueue();
+    expect(sent).toHaveLength(0);
+    expect(db.email_sends[0].status).toBe('skipped');
+  });
+
+  it('holds a successful preference read that returns no owner row', async () => {
+    faults.missingPreferenceRow = true;
+    db.email_sends.push(due('welcome', 'welcome_day0'));
+    await processEmailQueue();
+    expect(sent).toHaveLength(0);
+    expect(db.email_sends[0].status).toBe('skipped');
+  });
+
+  it('does not replay a skipped email after the owner enables emails', async () => {
+    db.beauticians[0].marketing_emails_enabled = false;
+    db.email_sends.push(due('welcome', 'welcome_day0'));
+    await processEmailQueue();
+    db.beauticians[0].marketing_emails_enabled = true;
     await processEmailQueue();
     expect(sent).toHaveLength(0);
     expect(db.email_sends[0].status).toBe('skipped');

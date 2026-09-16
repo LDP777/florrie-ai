@@ -201,12 +201,14 @@ export async function processEmailQueue() {
         .single();
 
       const isMarketing = record.sequence !== 'post_appointment';
-      let unsubscribed = prefs?.marketing_emails_enabled === false;
+      // Only an explicit saved choice enables optional emails. A nullable or
+      // incomplete legacy profile is not an opt-in, even when the read succeeds.
+      let unsubscribed = prefs?.marketing_emails_enabled !== true;
       if (prefsErr) {
         unsubscribed = true;
         if (isMissingColumnError(prefsErr)) {
           logger.error({ err: prefsErr, beauticianId: record.beautician_id, emailId: record.id },
-            'beauticians.marketing_emails_enabled is missing, so marketing emails are held for everyone. Run supabase/migrations/022_email_sends.sql, then RESTART (not redeploy).');
+            'beauticians.marketing_emails_enabled is missing; optional emails are held. Apply supabase/migrations/20260916_marketing_email_preference.sql.');
         } else {
           logger.error({ err: prefsErr, beauticianId: record.beautician_id, emailId: record.id },
             'Could not read marketing_emails_enabled; holding this marketing email rather than guessing she consented');

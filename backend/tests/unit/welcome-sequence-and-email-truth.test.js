@@ -12,7 +12,7 @@
  * welcome sequence starts there. The three properties that matter are pinned
  * below, because each of them is a way this goes wrong in production:
  *
- *   fires at all         a new account gets welcome_day0 immediately
+ *   schedules at signup  new accounts stay opted out; optional day0 is skipped
  *   fires exactly once   a second call schedules nothing new
  *   never for an existing user  an account that already has a row gets no email,
  *                        including when it lost an insert race (23505)
@@ -54,7 +54,8 @@ function builder(table) {
         db.beauticians.push({ id: 'beauticians_race', created_at: new Date().toISOString(), ...pending.payload });
         return { data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint "beauticians_auth_id_key"' } };
       }
-      const row = { id: `${table}_${nextId++}`, created_at: new Date().toISOString(), ...pending.payload };
+      const row = { id: `${table}_${nextId++}`, created_at: new Date().toISOString(),
+        ...(table === 'beauticians' ? { marketing_emails_enabled: false } : {}), ...pending.payload };
       db[table].push(row);
       return { data: [row], error: null };
     }
@@ -154,18 +155,17 @@ describe('the welcome sequence fires on a real signup', () => {
     expect(db.beauticians[0].trial_ends_at).toBeTruthy();
   });
 
-  it('sends welcome_day0 and schedules the rest', async () => {
+  it('creates the sequence without emailing a new owner who has not opted in', async () => {
     await ensureProfile('good-token');
     await settle();
 
-    expect(sent).toHaveLength(1);
-    expect(sent[0].to).toBe('jo@newsalon.co.uk');
-    // Every email in the sequence is on the books, not just the one that went.
+    expect(sent).toHaveLength(0);
+    expect(db.beauticians[0].marketing_emails_enabled).toBe(false);
     const keys = db.email_sends.map(e => e.email_key.replace(/_beauticians_\d+$/, ''));
     expect(keys).toContain('welcome_day0');
     expect(keys).toContain('welcome_day3');
     expect(keys).toContain('welcome_day7');
-    expect(db.email_sends.find(e => e.email_key.startsWith('welcome_day0')).status).toBe('sent');
+    expect(db.email_sends.find(e => e.email_key.startsWith('welcome_day0')).status).toBe('skipped');
   });
 
   it('never sends a second welcome to the same account', async () => {
@@ -180,7 +180,7 @@ describe('the welcome sequence fires on a real signup', () => {
     expect(again.body.created).toBe(false);
     expect(db.beauticians).toHaveLength(1);
     expect(db.email_sends).toHaveLength(first);
-    expect(sent).toHaveLength(1);
+    expect(sent).toHaveLength(0);
   });
 
   it('sends nothing to an account that already existed before this endpoint did', async () => {
@@ -234,7 +234,7 @@ describe('the emails point at routes that exist', () => {
     db.beauticians.push({
       id: 'b1', auth_id: 'a1', email: 'jo@newsalon.co.uk', first_name: 'Jo',
       business_name: 'Jo Brows', booking_slug: 'jo-brows',
-      subscription_plan: 'trial',
+      subscription_plan: 'trial', marketing_emails_enabled: true,
       trial_ends_at: new Date(Date.now() + 3 * 864e5).toISOString(),
     });
   });
@@ -311,7 +311,7 @@ describe('no testimonial we cannot stand behind', () => {
   it('the day 7 email carries no quote attributed to a named customer', async () => {
     db.beauticians.push({
       id: 'b1', auth_id: 'a1', email: 'jo@newsalon.co.uk', first_name: 'Jo',
-      booking_slug: 'jo-brows', subscription_plan: 'trial',
+      booking_slug: 'jo-brows', subscription_plan: 'trial', marketing_emails_enabled: true,
     });
     await triggerSequence('welcome', 'b1');
     for (const email of db.email_sends) {

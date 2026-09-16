@@ -89,6 +89,38 @@ try {
  await page.getByRole('heading',{name:'Your booking link'}).waitFor();
  assert.deepEqual(await page.evaluate(()=>window.fixture.profile.working_hours.mon),{start:'09:00',end:'17:00'});
  console.log('PASS: invalid opening hours stay editable; corrected hours save before booking-link setup');
+ // Exercise the actual Settings switch, including profiles from before the
+ // preference column existed. Missing/null must render Off and enable on click.
+ for (const preference of [undefined, null, false, true]) {
+  await page.evaluate(preference=>sessionStorage.setItem('setup-profile',JSON.stringify({
+   id:'salon-fixture',first_name:'Alex',business_name:'Fictional salon',
+   marketing_emails_enabled:preference,
+  })),preference);
+  await page.goto(`${origin}/settings?section=notifications`);
+  const emails=page.getByRole('switch',{name:'Emails from Florrie',exact:true});
+  await emails.waitFor();
+  assert.equal(await emails.getAttribute('aria-checked'),String(preference===true));
+  assert.equal(await emails.innerText(),preference===true?'On':'Off');
+  assert.equal(await page.evaluate(()=>window.fixture.writes.length),0);
+  await emails.click();
+  await page.getByRole('switch',{name:'Emails from Florrie',exact:true,checked:preference!==true}).waitFor();
+  assert.deepEqual(await page.evaluate(()=>window.fixture.writes),[
+   {table:'beauticians',changes:{marketing_emails_enabled:preference!==true}},
+  ]);
+  await page.reload();
+  await page.getByRole('switch',{name:'Emails from Florrie',exact:true,checked:preference!==true}).waitFor();
+ }
+ await page.evaluate(()=>{
+  sessionStorage.setItem('setup-profile',JSON.stringify({id:'salon-fixture',first_name:'Alex',marketing_emails_enabled:false}));
+ });
+ await page.goto(`${origin}/settings?section=notifications`);
+ await page.getByRole('switch',{name:'Emails from Florrie',exact:true,checked:false}).waitFor();
+ await page.evaluate(()=>{window.fixture.failProfile=true;});
+ await page.getByRole('switch',{name:'Emails from Florrie',exact:true}).click();
+ await page.getByText('Could not save that. Check your connection and try again.',{exact:true}).waitFor();
+ assert.equal(await page.getByRole('switch',{name:'Emails from Florrie',exact:true}).getAttribute('aria-checked'),'false');
+ assert.equal(await page.evaluate(()=>window.fixture.writes.length),0);
+ console.log('PASS: optional email switch requires explicit true, persists owner changes and leaves failed saves Off');
  for (const [plan,status,action] of [
   ['trial','trial','Choose a plan'],['florrie','active','Manage billing'],
   ['florrie_team','past_due','Update card'],['florrie','cancelled','Subscribe again'],
