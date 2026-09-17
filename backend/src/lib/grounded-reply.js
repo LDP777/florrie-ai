@@ -180,7 +180,7 @@ function nameMatcher(beauticianFirstName) {
 
   const re = new RegExp([
     // The bare word, on its own line, which is what the signature asks for.
-    `^\\s*(?:${group})\\s*[.!?]*\\s*$`,
+    `^\\s*(?:${group})(?:\\s+x{1,3})?\\s*[.!?]*\\s*$`,
     // "can I speak to Priya", "talk with Mary Jane"
     `(speak|talk|chat)\\s+(to|with)\\s+(?:${group})\\b`,
   ].join('|'), 'i');
@@ -350,6 +350,16 @@ function promisesAHumanAction(text, beauticianFirstName) {
  */
 export function isGroundedReply({ intent, message, context, reply, beauticianFirstName, arrivalNote = '' }) {
   if (asksForHuman(message, beauticianFirstName)) return { grounded: false, reason: 'asked_for_a_human' };
+
+  // This answer was checked against cited owner notes or the saved booking
+  // policy. A policy's opening date is not a claim about a booked appointment.
+  if (intent === 'general_question' && context?.questionAnswer) {
+    const answer = context.questionAnswer;
+    const sameReply = reply === undefined || reply === answer.reply;
+    return answer.canAnswer === true && answer.sources?.length && sameReply
+      ? { grounded: true, reason: `grounded:${answer.reason}` }
+      : { grounded: false, reason: answer.reason || 'training:no_approved_answer' };
+  }
 
   // THE DOORSTEP, and it is decided on the note rather than on the category.
   //

@@ -58,7 +58,7 @@ export const MORE_CATEGORIES = [
     { path: '/settings',           label: 'Settings',          matIcon: 'settings',        desc: 'Hours, payments, preferences'   },
     { path: '/portal',             label: 'Booking page',      matIcon: 'open_in_browser', desc: 'Manage your public booking link'       , keywords: 'portal online bookings' },
     { path: '/automations',        label: 'Automations',       matIcon: 'bolt',            desc: 'Appointment follow-up sequences'        },
-    { path: '/knowledge',          label: 'Florrie’s knowledge', matIcon: 'menu_book',     desc: 'Add the notes Florrie uses to answer clients' , keywords: 'knowledge business information ai' },
+    { path: '/knowledge',          label: 'Florrie’s knowledge', matIcon: 'menu_book',     desc: 'Teach answers and practise client questions' , keywords: 'knowledge train teach answers questions business information ai' },
     { path: '/pricing',            label: 'Plans & billing',             matIcon: 'workspace_premium', desc: 'Manage your subscription'     , keywords: 'pricing subscription account' },
   ] },
 ];

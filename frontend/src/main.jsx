@@ -7,6 +7,7 @@ import { afterPaint } from './lib/after-paint.js';
 import { initAnalytics } from './lib/analytics.js';
 import App from './App.jsx';
 import './index.css';
+import './pages/Knowledge.css';
 import './pages/insights.css';
 import './styles/agent-network.css';
 import './styles/workspace-polish.css';

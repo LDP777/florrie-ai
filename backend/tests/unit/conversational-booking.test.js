@@ -272,7 +272,9 @@ describe('step 3: what she is allowed to offer', () => {
     // 10:00 to 13:00 is booked solid, so nothing inside it may be offered.
     db.appointments.push({ id: 'a_busy', beautician_id: 'b1', status: 'confirmed', starts_at: '2026-08-07T10:00:00.000Z', ends_at: '2026-08-07T13:00:00.000Z' });
 
-    const r = await say('can I book a lash lift please, friday');
+    // This case checks same-day availability, so use recorded patch clearance.
+    // The separate lead-time case below covers clients still needing a test.
+    const r = await say('can I book a lash lift please, friday', 'booking_request', { patchTest: { status: 'satisfied' } });
     const offered = state().offered;
     expect(offered.length).toBeGreaterThanOrEqual(2);
     expect(offered.length).toBeLessThanOrEqual(4);

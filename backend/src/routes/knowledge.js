@@ -3,6 +3,7 @@ import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
 import { KNOWLEDGE_CATEGORIES } from '../lib/knowledge.js';
+import { previewClientQuestion } from '../services/ai-front-desk.js';
 
 const router = Router();
 
@@ -74,6 +75,33 @@ router.get('/', requireAuth, async (req, res) => {
   }
 });
 
+// The same reply pipeline as a client question, without sending a message or
+// creating a booking. The authenticated owner is the only tenant selector.
+router.post('/preview', requireAuth, async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const question = req.body?.question;
+  if (typeof question !== 'string' || !question.trim() || question.length > 1000) {
+    return res.status(400).json({ error: 'Write a question using 1 to 1000 characters.' });
+  }
+  try {
+    const result = await previewClientQuestion({ beautician: req.beautician, question: question.trim() });
+    if (result.reason === 'training:answer_unavailable') {
+      return res.status(503).json({ error: 'Could not preview that reply just now. Your saved answers are unchanged. Try again.' });
+    }
+    return res.json({
+      reply: result.reply || null,
+      canAnswer: result.canAnswer === true,
+      reason: result.reason || null,
+      sources: (result.sources || []).map(({ id, title, category }) => ({ id, title, category })),
+    });
+  } catch (err) {
+    logger.warn({ err, beauticianId: req.beautician.id }, 'Knowledge reply preview failed');
+    return res.status(503).json({
+      error: 'Could not preview that reply. Your saved answers are unchanged. Try again.',
+    });
+  }
+});
+
 /**
  * POST /api/knowledge
  * Create an entry. Body: { category, title, content }
@@ -116,6 +144,9 @@ router.post('/', requireAuth, async (req, res) => {
 router.patch('/:id', requireAuth, async (req, res) => {
   try {
     const { category, title, content, is_active } = req.body || {};
+    if (is_active !== undefined && typeof is_active !== 'boolean') {
+      return res.status(400).json({ error: 'is_active must be true or false' });
+    }
     const invalid = validateFields({ category, title, content }, { partial: true });
     if (invalid) return res.status(400).json({ error: invalid });
 

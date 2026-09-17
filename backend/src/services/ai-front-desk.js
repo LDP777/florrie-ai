@@ -1,5 +1,6 @@
 import { PATCH_TEST_LEAD_HOURS } from '../lib/patch-test-policy.js';
 import { correctionVoiceHints } from '../lib/voice-corrections.js';
+import { renderOwnerVoicePreferences, ownerReplyStyle } from '../lib/owner-voice.js';
 import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import { supabase } from '../config.js';
@@ -37,6 +38,8 @@ import { hasColumn } from '../lib/schema-probe.js';
 import { isReturningVersion, describeSlot } from '../lib/booking-rules.js';
 import { appointmentChangeIntent, planAppointmentChange } from '../lib/appointment-message-scenario.js';
 import { isBillable, billabilityEnforced } from '../lib/billable.js';
+import { clientQuestionScenario, questionMissingReply, renderClientHistory } from '../lib/client-question.js';
+import { answerClientQuestion } from './client-answers.js';
 
 /**
  * AI Front Desk — The core agentic service.
@@ -292,10 +295,22 @@ export async function processInboundMessage(messageId, beautician, client, messa
 
     // 2. Classify intent
     const changeIntent = appointmentChangeIntent(messageContent);
+    const questionScenario = clientQuestionScenario(messageContent, context.conversation);
     const classification = changeIntent
       ? { intent: changeIntent, confidence: 1, extracted: {} }
-      : await classifyIntent(messageContent, context);
+      : questionScenario
+        ? { intent: INTENTS.GENERAL_QUESTION, confidence: 1, extracted: {} }
+        : await classifyIntent(messageContent, context);
     const appointmentPlan = planAppointmentChange({ message: messageContent, classification, context, beautician });
+
+    if (!appointmentPlan && classification.intent === INTENTS.GENERAL_QUESTION
+      && !doorstep && !wantsConfirmationResent(messageContent)
+      && !asksForHuman(messageContent, beautician.first_name)) {
+      if (questionScenario?.question && questionScenario.question !== messageContent) {
+        context.knowledge = await retrieveKnowledge(beautician.id, questionScenario.question);
+      }
+      context.questionAnswer = await prepareClientAnswer({ message: messageContent, scenario: questionScenario, context, beautician });
+    }
 
     // Facts can be answered from the diary, menu and written notes. Booking
     // changes use a service plan; short-notice requests remain open for the
@@ -419,7 +434,7 @@ export async function processInboundMessage(messageId, beautician, client, messa
     // either. Everything else falls through to the ordinary draft Ellie already
     // gets, which is what she has today, not a regression.
     let convo = null;
-    if (shouldAct) {
+    if (shouldAct && !context.questionAnswer) {
       try {
         convo = await advanceBookingConversation({ beautician, client, message: messageContent, classification, context });
       } catch (err) {
@@ -461,7 +476,9 @@ export async function processInboundMessage(messageId, beautician, client, messa
 
     if (shouldAct) {
       // 4a. Generate response and take action
-      const result = convo
+      const result = context.questionAnswer
+        ? { response: context.questionAnswer.reply, toneScore: null, actions: [], intent: classification.intent }
+        : convo
         ? { response: convo.reply, toneScore: null, actions: [], intent: classification.intent }
         : await generateResponseAndAct(
           messageContent, classification, context, beautician, client, { resend, arrivalNote, writtenNotes }
@@ -579,7 +596,7 @@ export async function processInboundMessage(messageId, beautician, client, messa
       // held, a real appointment row.
       return await escalateWithDraft({
         beautician, client, messageContent, classification, context, messageId,
-        draft: convo?.reply || null,
+        draft: context.questionAnswer?.reply || convo?.reply || null,
         // A doorstep escalation still gets a draft. An earlier version of this
         // fix skipped it, reasoning that every sentence worth sending to
         // somebody outside is a fact only the person in the room holds. That is
@@ -965,6 +982,8 @@ async function gatherContext(beautician, client, messageContent = '') {
       .select('starts_at, status, treatments(name), price_cents')
       .eq('client_id', client.id)
       .eq('beautician_id', beautician.id)
+      .eq('status', 'completed')
+      .lte('starts_at', now.toISOString())
       .order('starts_at', { ascending: false })
       .limit(5) : { data: [] },
 
@@ -1249,6 +1268,27 @@ function renderTreatmentMenu(treatments, { withDuration = false } = {}) {
   return `${list || 'none listed'}.${rule}`;
 }
 
+async function prepareClientAnswer({ message, scenario, context, beautician }) {
+  try {
+    return await answerClientQuestion({
+      message, scenario, context, beautician,
+      voiceInstructions: buildVoiceInstructions(beautician, message),
+      askModel: request => anthropic.messages.create(request),
+    });
+  } catch (err) {
+    logger.warn({ err, beauticianId: beautician.id }, 'Client question could not be verified');
+    return { reply: questionMissingReply(scenario?.kind), canAnswer: false, reason: 'training:answer_unavailable', sources: [] };
+  }
+}
+
+/** Owner-only rehearsal: reads salon facts; never starts a booking or sends. */
+export async function previewClientQuestion({ beautician, question }) {
+  const message = String(question || '').trim();
+  if (!beautician?.id || !message || message.length > 1000) throw new Error('A salon and a question of up to 1000 characters are required');
+  const context = await gatherContext(beautician, null, message);
+  return prepareClientAnswer({ message, scenario: clientQuestionScenario(message), context, beautician });
+}
+
 // STEP 2: CLASSIFY INTENT
 
 async function classifyIntent(message, context) {
@@ -1274,6 +1314,8 @@ Intents:
 - review_thanks: thanking or praising after an appointment
 - complaint: unhappy about something
 - unknown: can't determine intent
+
+Questions come before booking. "Is it too early for lami again in 2 weeks?" and "is 8 October too soon after my last appointment?" are general_question, even though they mention booking or a date. "Have November dates been released?" is a diary-policy question, not a request for slots. A follow-up date or last-treatment detail continues that question. Only switch to booking_request when they actually choose to make a booking.
 
 Respond with: {"intent": "...", "confidence": 0.XX, "extracted": {"treatment": "...", "date": "...", "time": "..."}}
 Only include extracted fields if they're mentioned in the message. Confidence is 0.0 to 1.0.`,
@@ -1716,7 +1758,7 @@ YOU HAVE JUST RESENT THIS CLIENT'S BOOKING CONFIRMATION. It really did go out${c
   if (doorstepBlock) actionPrompt = `${actionPrompt}\n${doorstepBlock}`;
 
   const voiceSection = buildVoiceInstructions(beautician, message);
-  const style = beautician.voice_profile?.style || null;
+  const style = ownerReplyStyle(beautician);
 
   // The system prompt is a function of one extra instruction so the length
   // retry below can re-run the SAME prompt with a hard word cap bolted on,
@@ -1744,6 +1786,7 @@ ${context.loyalty ? `LOYALTY: ${context.loyalty.summary} If it fits this message
 ${renderPatchTestBlock(context.patchTest)}
 ${context.offers?.length ? `OFFERS: ${context.offers.join('; ')}. Only mention an offer if the client asks about price or offers, or is hesitating on cost. Never volunteer it otherwise, and never invent a code.` : `OFFERS: none running right now. If the client asks about offers or discounts, tell them there is nothing on at the moment. Never invent an offer, discount, or code.`}
 ${renderKnowledgeBlock(context.knowledge)}
+${renderClientHistory(context)}
 ${renderCoursesBlock(context.courses, context.beautician.bookingSlug)}
 ${buildTranscript(context, message) ? `\nConversation so far (oldest first). Continue it naturally, do not repeat yourself or reintroduce yourself:\n${buildTranscript(context, message)}` : ''}
 ${extra}
@@ -1909,7 +1952,7 @@ async function generateSuggestedResponse(message, classification, context, beaut
   const writtenNotes = String(opts.writtenNotes || arrivalNote);
   const holdingFallback = opts.holdingFallback !== false;
   const voiceSection = buildVoiceInstructions(beautician, message);
-  const style = beautician.voice_profile?.style || null;
+  const style = ownerReplyStyle(beautician);
   const doorstepBlock = doorstepInstruction(message, arrivalNote);
 
   const systemPrompt = (extra = '') => `You are ${context.beautician.name}, a beautician, replying to your client${context.client?.name ? ' ' + context.client.name : ''} on WhatsApp. Write the message you would send them, ready to send word for word.
@@ -1933,6 +1976,7 @@ ${context.loyalty ? `Loyalty: ${context.loyalty.summary} If it fits, you may men
 ${renderPatchTestBlock(context.patchTest)}
 ${context.offers?.length ? `Offers: ${context.offers.join('; ')}. Mention only if they ask about price or offers, or hesitate on cost. Never volunteer, never invent a code.` : `Offers: none running right now. If they ask about offers, say there is nothing on at the moment. Never invent an offer, discount, or code.`}
 ${renderKnowledgeBlock(context.knowledge)}
+${renderClientHistory(context)}
 ${renderCoursesBlock(context.courses, context.beautician.bookingSlug)}
 ${buildTranscript(context, message) ? `\nConversation so far (oldest first), so your draft fits the thread:\n${buildTranscript(context, message)}` : ''}
 ${extra}
@@ -2029,30 +2073,10 @@ move it themselves and see the real availability.`;
  * difference, and the difference is the generic message her clients spotted.
  */
 export function buildVoiceInstructions(beautician, incomingMessage) {
-  const measured = renderVoiceSection(beautician?.voice_profile, incomingMessage);
-  const base = measured || buildToneGuide(beautician?.tone_model) || NEUTRAL_VOICE_SECTION;
-  return [base, correctionVoiceHints(beautician?.tone_model)].filter(Boolean).join('\n\n');
-}
-
-function buildToneGuide(toneModel) {
-  // No corrections on file: say nothing here and let the caller fall through to
-  // the neutral block. A confident description of a voice nobody has measured
-  // is worse than admitting we do not know it yet.
-  if (!toneModel || Object.keys(toneModel).length === 0) return '';
-
-  // Use learned tone patterns
-  const guide = ['TONE (learned from corrections):'];
-
-  if (toneModel.greetingStyle) guide.push(`Greeting: ${toneModel.greetingStyle}`);
-  if (toneModel.signoffStyle) guide.push(`Sign-off: ${toneModel.signoffStyle}`);
-  if (toneModel.emojiUsage) guide.push(`Emojis: ${toneModel.emojiUsage}`);
-  if (toneModel.formality) guide.push(`Formality: ${toneModel.formality}`);
-  if (toneModel.exampleMessages?.length) {
-    guide.push('Example messages from the beautician:');
-    toneModel.exampleMessages.slice(0, 3).forEach(m => guide.push(`  "${m}"`));
-  }
-
-  return guide.join('\n');
+  const preferences = renderOwnerVoicePreferences(beautician?.tone_model);
+  const measured = renderVoiceSection({ ...beautician?.voice_profile, style: ownerReplyStyle(beautician) }, incomingMessage);
+  const base = measured || (preferences ? 'Write briefly and naturally, using the owner’s saved preferences below.' : NEUTRAL_VOICE_SECTION);
+  return [base, correctionVoiceHints(beautician?.tone_model), preferences].filter(Boolean).join('\n\n');
 }
 
 /**
@@ -2256,8 +2280,14 @@ export async function generateReplySuggestions(beautician, client, lastInboundMe
   if (!lastInboundMessage || !process.env.ANTHROPIC_API_KEY) return [];
 
   const context = await gatherContext(beautician, client, lastInboundMessage);
+  const scenario = clientQuestionScenario(lastInboundMessage, context.conversation);
+  if (scenario) {
+    if (scenario.question !== lastInboundMessage) context.knowledge = await retrieveKnowledge(beautician.id, scenario.question);
+    const answer = await prepareClientAnswer({ message: lastInboundMessage, scenario, context, beautician });
+    return [{ id: 'question_answer', label: answer.canAnswer ? 'Answer question' : 'Needs your guidance', text: answer.reply }];
+  }
   const voiceSection = buildVoiceInstructions(beautician, lastInboundMessage);
-  const style = beautician.voice_profile?.style || null;
+  const style = ownerReplyStyle(beautician);
   const firstName = context.client?.name || 'the client';
 
   const response = await anthropic.messages.create({
@@ -2276,6 +2306,9 @@ Rules:
 
 Treatments: ${renderTreatmentMenu(context.treatments)}
 ${renderFreeSlots(context.freeSlots)}
+${renderKnowledgeBlock(context.knowledge)}
+${renderClientHistory(context)}
+${buildTranscript(context, lastInboundMessage) ? `Conversation so far:\n${buildTranscript(context, lastInboundMessage)}` : ''}
 ${context.loyalty ? `Loyalty: ${context.loyalty.summary} One of the 3 options may nod to this if it fits, warmly and never pushy.` : ''}
 ${renderPatchTestBlock(context.patchTest)}
 ${context.offers?.length ? `Offers: ${context.offers.join('; ')}. Mention only if they ask about price or offers, or hesitate on cost. Never volunteer, never invent a code.` : `Offers: none running right now. If they ask about offers, say there is nothing on at the moment. Never invent an offer, discount, or code.`}

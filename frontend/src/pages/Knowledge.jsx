@@ -1,417 +1,200 @@
-/**
- * Knowledge - the salon's own notes, the only things Florrie may quote.
- *
- * Anything saved here (aftercare, policies, treatment explainers, prep) is
- * retrieved at reply time and pinned into the AI front desk prompt with a
- * hard "answer ONLY from this" instruction. No entry, no answer: Florrie
- * says she will check and come back rather than guess.
- *
- * Talks to backend/src/routes/knowledge.js. Before migration 019 is run the
- * API answers { needs_migration: true } and this page shows a quiet
- * "not switched on yet" note instead of an error.
- */
-import { useState, useEffect, useCallback } from 'react';
+/** Owner-approved guidance and a private preview of Florrie's reply. */
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useBeautician, supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
-import Icon, { iconName } from '../components/ui/Icon';
+import Icon from '../components/ui/Icon';
 import PageHeader from '../components/ui/PageHeader.jsx';
 
 const CATEGORIES = [
-  // Arriving is first because it is the highest value note a salon can write.
-  // On 27 August a client sent "Im 60 seconds away!" and Florrie invented an
-  // answer, because nobody had ever written down what happens when somebody
-  // turns up. One entry here and every client at the door gets the owner's own
-  // words back in one second. 'place' rather than 'door_front': the icon set
-  // has no door, and iconName falls back to a flower for a name it does not
-  // know, which would read as a mistake. See components/ui/Icon.
-  { key: 'arrival',   label: 'Arriving',  matIcon: 'place' },
-  { key: 'aftercare', label: 'Aftercare', matIcon: 'self_care' },
-  { key: 'policy',    label: 'Policies',  matIcon: 'gavel' },
-  { key: 'treatment', label: 'Treatments', matIcon: 'spa' },
-  { key: 'prep',      label: 'Prep',      matIcon: 'checklist' },
-  { key: 'faq',       label: 'FAQs',      matIcon: 'help' },
-  { key: 'general',   label: 'General',   matIcon: 'notes' },
+  { key: 'faq', label: 'Common questions' }, { key: 'policy', label: 'Policies' },
+  { key: 'treatment', label: 'Treatments' }, { key: 'aftercare', label: 'Aftercare' },
+  { key: 'arrival', label: 'Arriving' }, { key: 'prep', label: 'Preparation' },
+  { key: 'general', label: 'General' },
 ];
-
-const CATEGORY_LABELS = Object.fromEntries(CATEGORIES.map(c => [c.key, c.label]));
-
-// Empty-state starters: one tap prefills the form so the first save is easy.
+const LABELS = Object.fromEntries(CATEGORIES.map(c => [c.key, c.label]));
 const STARTERS = [
-  { category: 'arrival',   title: 'When you arrive', hint: 'What to do when a client gets here: knock, come through, where to park' },
-  { category: 'aftercare', title: 'Lash lift aftercare', hint: 'What to avoid and for how long' },
-  { category: 'policy',    title: 'Cancellation policy', hint: 'Notice needed, what happens to deposits' },
-  { category: 'prep',      title: 'Patch test explainer', hint: 'Why it matters and when to come in' },
+  { category: 'policy', title: 'When do you release new booking dates?' },
+  { category: 'treatment', title: 'How long should I leave between brow laminations?' },
+  { category: 'arrival', title: 'What should I do when I arrive?' },
 ];
-
 
 export default function Knowledge() {
   const { beautician, loading: bLoading } = useBeautician();
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [notice, setNotice] = useState('');
   const [needsMigration, setNeedsMigration] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [deletingId, setDeletingId] = useState(null);
-
-  // Add / edit form. editingId null = closed, 'new' = adding, else entry id.
+  const [changingId, setChangingId] = useState(null);
   const [editingId, setEditingId] = useState(null);
-  const [formCategory, setFormCategory] = useState('aftercare');
-  const [formTitle, setFormTitle] = useState('');
-  const [formContent, setFormContent] = useState('');
+  const [category, setCategory] = useState('faq');
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+  const [question, setQuestion] = useState('');
+  const [testing, setTesting] = useState(false);
+  const [preview, setPreview] = useState(null);
+  const [previewError, setPreviewError] = useState('');
+  const [showPaused, setShowPaused] = useState(false);
+  const previewRequest = useRef(null);
+  const formRef = useRef(null);
 
   const authedFetch = useCallback(async (path, options = {}) => {
-    const session = await supabase.auth.getSession();
-    const token = session.data.session?.access_token;
-    return fetch(`${API_BASE}${path}`, {
+    const { data } = await supabase.auth.getSession();
+    if (!data.session?.access_token) throw new Error('Please sign in again to continue.');
+    const response = await fetch(`${API_BASE}${path}`, {
       ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-        ...(options.headers || {}),
-      },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.session.access_token}`, ...options.headers },
     });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body?.error || 'Could not complete that. Try again.');
+    return body;
   }, []);
 
   const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+    setLoading(true); setError(null);
     try {
-      const res = await authedFetch('/api/knowledge');
-      const body = await res.json();
-      if (!res.ok) throw new Error(body?.error || 'Failed to load');
+      const body = await authedFetch('/api/knowledge');
       setNeedsMigration(Boolean(body.needs_migration));
-      setEntries((body.entries || []).filter(e => e.is_active));
+      setEntries(body.entries || []);
     } catch (err) {
       logger.error({ err }, 'Load knowledge error');
-      setError('Could not load your notes. Pull to refresh or try again shortly.');
-    } finally {
-      setLoading(false);
-    }
+      setError('Could not load your answers. Try again.');
+    } finally { setLoading(false); }
   }, [authedFetch]);
 
-  useEffect(() => {
-    if (beautician && !bLoading) load();
-  }, [beautician, bLoading, load]);
+  useEffect(() => { if (beautician && !bLoading) load(); }, [beautician, bLoading, load]);
+  useEffect(() => () => previewRequest.current?.abort(), []);
+  useEffect(() => { if (editingId) formRef.current?.scrollIntoView?.({ block: 'nearest' }); }, [editingId]);
 
+  function clearPreview() {
+    previewRequest.current?.abort(); previewRequest.current = null;
+    setTesting(false); setPreview(null); setPreviewError('');
+  }
   function openAdd(starter) {
-    setEditingId('new');
-    setFormCategory(starter?.category || 'aftercare');
-    setFormTitle(starter?.title || '');
-    setFormContent('');
+    setEditingId('new'); setCategory(starter?.category || 'faq');
+    setTitle(starter?.title || ''); setContent(''); setError(null); setNotice('');
   }
-
   function openEdit(entry) {
-    setEditingId(entry.id);
-    setFormCategory(entry.category);
-    setFormTitle(entry.title);
-    setFormContent(entry.content);
+    setEditingId(entry.id); setCategory(entry.category); setTitle(entry.title); setContent(entry.content);
+    setError(null); setNotice('');
   }
-
-  function closeForm() {
-    setEditingId(null);
-    setFormTitle('');
-    setFormContent('');
-  }
-
-  async function handleSave() {
-    if (!formTitle.trim() || !formContent.trim() || saving) return;
-    setSaving(true);
-    setError(null);
+  async function saveAnswer(event) {
+    event.preventDefault();
+    if (!title.trim() || !content.trim() || saving) return;
+    setSaving(true); setError(null); setNotice('');
     try {
       const isNew = editingId === 'new';
-      const res = await authedFetch(isNew ? '/api/knowledge' : `/api/knowledge/${editingId}`, {
-        method: isNew ? 'POST' : 'PATCH',
-        body: JSON.stringify({ category: formCategory, title: formTitle.trim(), content: formContent.trim() }),
+      const body = await authedFetch(isNew ? '/api/knowledge' : `/api/knowledge/${editingId}`, {
+        method: isNew ? 'POST' : 'PATCH', body: JSON.stringify({ category, title: title.trim(), content: content.trim() }),
       });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body?.error || 'Save failed');
-      if (isNew) setEntries(prev => [body.entry, ...prev]);
-      else setEntries(prev => prev.map(e => (e.id === editingId ? body.entry : e)));
-      closeForm();
-    } catch (err) {
-      logger.error({ err }, 'Save knowledge error');
-      setError(String(err.message || 'Could not save that. Try again.'));
-    } finally {
-      setSaving(false);
-    }
+      setEntries(prev => isNew ? [body.entry, ...prev] : prev.map(e => e.id === body.entry.id ? body.entry : e));
+      setEditingId(null); clearPreview();
+      setNotice(body.entry.is_active ? 'Approved answer saved. Try a client question to check the reply.' : 'Changes saved. This answer is still paused.');
+    } catch (err) { setError(err.message); }
+    finally { setSaving(false); }
   }
-
-  async function handleDelete(id) {
-    setDeletingId(id);
+  async function toggleAnswer(entry) {
+    if (changingId) return;
+    setChangingId(entry.id); setError(null); setNotice('');
     try {
-      const res = await authedFetch(`/api/knowledge/${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Delete failed');
-      setEntries(prev => prev.filter(e => e.id !== id));
-      if (editingId === id) closeForm();
+      const body = await authedFetch(`/api/knowledge/${entry.id}`, {
+        method: 'PATCH', body: JSON.stringify({ is_active: !entry.is_active }),
+      });
+      setEntries(prev => prev.map(e => e.id === entry.id ? body.entry : e));
+      clearPreview();
+      setNotice(body.entry.is_active ? 'Answer enabled for future replies.' : 'Answer paused. Florrie will no longer use it for future replies.');
+    } catch (err) { setError(err.message); }
+    finally { setChangingId(null); }
+  }
+  async function testQuestion(event) {
+    event.preventDefault();
+    if (!question.trim() || testing) return;
+    clearPreview(); setTesting(true);
+    const controller = new AbortController(); previewRequest.current = controller;
+    const timeout = setTimeout(() => controller.abort(), 35000);
+    try {
+      const result = await authedFetch('/api/knowledge/preview', {
+        method: 'POST', body: JSON.stringify({ question: question.trim() }), signal: controller.signal,
+      });
+      if (previewRequest.current === controller && !controller.signal.aborted) setPreview(result);
     } catch (err) {
-      logger.error({ err }, 'Delete knowledge error');
-      setError('Could not remove that. Try again.');
+      if (previewRequest.current === controller) setPreviewError(controller.signal.aborted
+        ? 'The preview took too long. Your answers are saved; try again.' : err.message);
     } finally {
-      setDeletingId(null);
+      clearTimeout(timeout);
+      if (previewRequest.current === controller) { previewRequest.current = null; setTesting(false); }
     }
   }
 
   if (bLoading || loading) return <PageLoader />;
-
-  const grouped = CATEGORIES
-    .map(cat => ({ ...cat, items: entries.filter(e => e.category === cat.key) }))
-    .filter(cat => cat.items.length > 0);
+  const active = entries.filter(e => e.is_active);
+  const paused = entries.filter(e => !e.is_active);
+  const visible = showPaused ? paused : active;
 
   return (
-    <div style={S.page}>
-      <PageHeader
-        title="Florrie's knowledge"
-        subtitle="Anything you save here, Florrie can use to answer clients. Aftercare, policies, prep, the lot. If it is not written down here, she says she will check with you rather than guess."
-      />
+    <div className="fl-knowledge">
+      <PageHeader title="Florrie’s knowledge" subtitle="Your answers. Your way of working." />
+      <div className="fl-knowledge-intro">
+        <Icon name="flower" size={23} />
+        <p>Teach Florrie the guidance you want clients to hear. Save an approved answer, then try a question to see how she uses it.</p>
+      </div>
+      {needsMigration && <p className="fl-knowledge-notice">Saved answers are not switched on for your account yet.</p>}
+      {error && <div className="fl-knowledge-error" role="alert">{error} <button type="button" onClick={load}>Reload answers</button></div>}
+      {notice && <p className="fl-knowledge-notice" role="status">{notice}</p>}
 
-      {needsMigration && (
-        <div style={S.quietNote}>
-          <Icon name={iconName('hourglass_empty')} size={18} inline color="#92405e" />
-          <span>Not switched on yet for your account. It will appear here as soon as it is.</span>
-        </div>
-      )}
-
-      {error && <div style={S.errorNote}>{error}</div>}
-
-      {!needsMigration && editingId === null && (
-        <button style={S.addButton} onClick={() => openAdd()}>
-          <Icon name={iconName('add')} size={20} inline color="#fff" />
-          <span>Add a note</span>
-        </button>
-      )}
-
-      {editingId !== null && (
-        <div style={S.formCard}>
-          <div style={S.formTitleRow}>
-            <span style={S.formHeading}>{editingId === 'new' ? 'New note' : 'Edit note'}</span>
-            <button style={S.iconButton} onClick={closeForm} aria-label="Close">
-              <Icon name={iconName('close')} size={18} inline color="#867277" />
+      {!needsMigration && <>
+        <section className="fl-knowledge-test" aria-labelledby="knowledge-test-heading">
+          <span className="fl-knowledge-eyebrow">A PRIVATE PRACTICE RUN</span>
+          <h2 id="knowledge-test-heading">Ask as a client</h2>
+          <p>Uses Florrie’s reply process and your saved guidance. Nothing is sent and no booking is made. Personal questions may still need a client’s history or your decision.</p>
+          <form onSubmit={testQuestion}>
+            <label htmlFor="knowledge-question">Client’s question</label>
+            <textarea id="knowledge-question" value={question} maxLength={1000} rows={3}
+              onChange={e => { clearPreview(); setQuestion(e.target.value); }}
+              placeholder="Have you released next month’s dates yet?" />
+            <button className="fl-knowledge-primary" type="submit" disabled={!question.trim() || testing || saving || !!changingId}>
+              <Icon name="message" size={17} /> {testing ? 'Writing a preview…' : 'Preview Florrie’s reply'}
             </button>
-          </div>
+          </form>
+          {previewError && <p className="fl-knowledge-error" role="alert">{previewError}</p>}
+          {preview && <div className="fl-knowledge-result" aria-live="polite">
+            <p className="fl-knowledge-result-title"><Icon name={preview.canAnswer ? 'check' : 'info'} size={18} />{preview.canAnswer ? 'An answer from your guidance' : 'Needs more guidance or a check'}</p>
+            {preview.reply && <blockquote>{preview.reply}</blockquote>}
+            <p className="fl-knowledge-source-label">{preview.sources?.length ? 'Saved guidance used' : 'No matching saved answer used.'}</p>
+            <div className="fl-knowledge-sources">{(preview.sources || []).map(source => {
+              const entry = entries.find(e => e.id === source.id);
+              return entry ? <button key={source.id} type="button" onClick={() => openEdit(entry)}><Icon name="edit" size={14} />{source.title}</button>
+                : <span key={source.id || source.title}>{source.title}</span>;
+            })}</div>
+            {!preview.canAnswer && <p className="fl-knowledge-help">Add the guidance you want Florrie to use, or leave a personal treatment decision with you. A general answer does not confirm whether treatment is suitable for a particular client.</p>}
+            <button type="button" className="fl-knowledge-text-button" onClick={() => openAdd({ title: question.slice(0, 120), category: 'faq' })}>Write an approved answer <Icon name="arrow-right" size={15} /></button>
+          </div>}
+        </section>
 
-          <label style={S.label}>Category</label>
-          <select value={formCategory} onChange={e => setFormCategory(e.target.value)} style={S.select}>
-            {CATEGORIES.map(c => (
-              <option key={c.key} value={c.key}>{c.label}</option>
-            ))}
-          </select>
-
-          <label style={S.label}>Title</label>
-          <input
-            type="text"
-            value={formTitle}
-            maxLength={120}
-            onChange={e => setFormTitle(e.target.value)}
-            placeholder="Lash lift aftercare"
-            style={S.input}
-          />
-
-          <label style={S.label}>What Florrie should know</label>
-          <textarea
-            value={formContent}
-            maxLength={5000}
-            onChange={e => setFormContent(e.target.value)}
-            placeholder="Keep lashes dry for 24 hours, no mascara or steam. After that, brush through daily."
-            rows={6}
-            style={S.textarea}
-          />
-
-          <button
-            style={{ ...S.saveButton, opacity: (!formTitle.trim() || !formContent.trim() || saving) ? 0.5 : 1 }}
-            disabled={!formTitle.trim() || !formContent.trim() || saving}
-            onClick={handleSave}
-          >
-            {saving ? 'Saving' : 'Save note'}
-          </button>
-        </div>
-      )}
-
-      {!needsMigration && entries.length === 0 && editingId === null && (
-        <div style={S.emptyCard}>
-          <Icon name={iconName('menu_book')} size={36} inline color="#d8c1c6" style={{ display: 'block', margin: '0 auto 10px' }} />
-          <p style={S.emptyText}>
-            Nothing saved yet. Start with the three questions clients ask most:
-          </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {STARTERS.map(st => (
-              <button key={st.title} style={S.starterButton} onClick={() => openAdd(st)}>
-                <div style={{ textAlign: 'left' }}>
-                  <div style={S.starterTitle}>{st.title}</div>
-                  <div style={S.starterHint}>{st.hint}</div>
-                </div>
-                <Icon name={iconName('add_circle')} size={20} inline color="#92405e" />
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {grouped.map(cat => (
-        <div key={cat.key} style={{ marginBottom: 18 }}>
-          <div style={S.sectionLabel}>
-            <Icon name={iconName(cat.matIcon)} size={16} inline color="rgba(146,64,94,0.65)" />
-            <span>{cat.label}</span>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {cat.items.map(entry => (
-              <div key={entry.id} style={S.entryCard}>
-                <div style={S.entryTop}>
-                  <span style={S.entryTitle}>{entry.title}</span>
-                  <div style={{ display: 'flex', gap: 4 }}>
-                    <button style={S.iconButton} onClick={() => openEdit(entry)} aria-label={`Edit ${entry.title}`}>
-                      <Icon name={iconName('edit')} size={18} inline color="#92405e" />
-                    </button>
-                    <button
-                      style={{ ...S.iconButton, opacity: deletingId === entry.id ? 0.4 : 1 }}
-                      disabled={deletingId === entry.id}
-                      onClick={() => handleDelete(entry.id)}
-                      aria-label={`Remove ${entry.title}`}
-                    >
-                      <Icon name={iconName('delete')} size={18} inline color="#867277" />
-                    </button>
-                  </div>
-                </div>
-                <p style={S.entryContent}>{entry.content}</p>
-                <span style={S.entryBadge}>{CATEGORY_LABELS[entry.category] || entry.category}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
+        <section className="fl-knowledge-library" aria-labelledby="knowledge-library-heading">
+          <div className="fl-knowledge-section-head"><div><span className="fl-knowledge-eyebrow">WHAT YOU’VE TAUGHT FLORRIE</span><h2 id="knowledge-library-heading">Approved answers</h2></div><button type="button" className="fl-knowledge-add" onClick={() => openAdd()} aria-label="Add an approved answer"><Icon name="plus" size={20} /></button></div>
+          <p className="fl-knowledge-help">Existing notes live here too. Only enabled answers can inform future replies.</p>
+          {editingId && <form ref={formRef} onSubmit={saveAnswer} className="fl-knowledge-form" aria-label="Approved answer editor">
+            <div className="fl-knowledge-section-head"><h3>{editingId === 'new' ? 'Teach a new answer' : 'Edit your answer'}</h3><button type="button" className="fl-knowledge-text-button" disabled={saving} onClick={() => setEditingId(null)}>Cancel</button></div>
+            <label htmlFor="knowledge-category">Category</label><select id="knowledge-category" value={category} onChange={e => setCategory(e.target.value)}>{CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}</select>
+            <label htmlFor="knowledge-title">Question or topic</label><input id="knowledge-title" value={title} onChange={e => setTitle(e.target.value)} maxLength={120} required placeholder="When do you release new booking dates?" />
+            <label htmlFor="knowledge-answer">Your approved answer or guidance</label><textarea id="knowledge-answer" value={content} onChange={e => setContent(e.target.value)} maxLength={5000} required rows={6} placeholder="Write the answer you want Florrie to use." />
+            <p className="fl-knowledge-help">Use guidance you’ve approved for clients. Leave out individual names, private details and one-off exceptions. Saving does not change your diary, booking settings or treatment requirements.</p>
+            <button type="submit" className="fl-knowledge-primary" disabled={saving || !title.trim() || !content.trim()}>{saving ? 'Saving…' : 'Save approved answer'}</button>
+          </form>}
+          {entries.length > 0 && <div className="fl-knowledge-tabs" aria-label="Answer status"><button type="button" aria-pressed={!showPaused} onClick={() => setShowPaused(false)}>Enabled <span>{active.length}</span></button><button type="button" aria-pressed={showPaused} onClick={() => setShowPaused(true)}>Paused <span>{paused.length}</span></button></div>}
+          {!entries.length && !editingId && <div className="fl-knowledge-empty"><p>Start with something clients often ask.</p>{STARTERS.map(st => <button type="button" key={st.title} onClick={() => openAdd(st)}>{st.title}<Icon name="plus" size={16} /></button>)}</div>}
+          {entries.length > 0 && !visible.length && <p className="fl-knowledge-help">{showPaused ? 'No paused answers.' : 'No enabled answers. Add one, or enable a paused answer.'}</p>}
+          {visible.map(entry => <article key={entry.id} className="fl-knowledge-answer">
+            <div className="fl-knowledge-entry-meta"><span>{LABELS[entry.category] || entry.category}</span>{!entry.is_active && <span>Paused</span>}</div>
+            <h3>{entry.title}</h3><p>{entry.content}</p>
+            <div className="fl-knowledge-entry-actions"><button type="button" onClick={() => openEdit(entry)}><Icon name="edit" size={15} />Edit answer</button><button type="button" disabled={!!changingId} onClick={() => toggleAnswer(entry)}>{changingId === entry.id ? 'Saving…' : entry.is_active ? 'Pause answer' : 'Enable answer'}</button></div>
+          </article>)}
+        </section>
+      </>}
     </div>
   );
 }
-
-const S = {
-  page: {
-    minHeight: 'var(--shell-viewport)',
-    background: 'var(--bg, #FBF6F1)',
-    fontFamily: "'Plus Jakarta Sans', sans-serif",
-    padding: '16px 16px var(--scroll-pad-bottom)',
-    maxWidth: 480,
-    margin: '0 auto',
-    color: '#1d1b19',
-  },
-  quietNote: {
-    display: 'flex', alignItems: 'center', gap: 8,
-    background: 'var(--tone-2, #f6e7dd)',
-    borderRadius: 16, padding: '12px 14px',
-    fontSize: 13, color: 'var(--text-secondary, #574A42)',
-    marginBottom: 16,
-  },
-  errorNote: {
-    background: 'var(--danger-bg, #F7E4E4)',
-    color: '#a53e37', borderRadius: 16,
-    padding: '12px 14px', fontSize: 13, marginBottom: 16,
-  },
-  addButton: {
-    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-    width: '100%', minHeight: 44, borderRadius: 16, border: 'none',
-    background: 'var(--accent, #92405e)', color: '#fff',
-    fontSize: 14, fontWeight: 700, fontFamily: 'inherit',
-    cursor: 'pointer', marginBottom: 16,
-    WebkitTapHighlightColor: 'transparent',
-  },
-  formCard: {
-    background: 'var(--tone-1, #fbf1ea)',
-    borderRadius: 22, padding: 16, marginBottom: 16,
-  },
-  formTitleRow: {
-    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    marginBottom: 10,
-  },
-  formHeading: { fontSize: 14, fontWeight: 700, color: 'var(--text-primary, #241B17)' },
-  label: {
-    display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)',
-    textTransform: 'uppercase', letterSpacing: '0.08em',
-    margin: '10px 0 6px',
-  },
-  select: {
-    width: '100%', minHeight: 44, padding: '10px 12px',
-    borderRadius: 16, border: 'none',
-    background: 'var(--bg, #FBF6F1)', fontSize: 14,
-    fontFamily: 'inherit', color: 'var(--text-primary, #241B17)',
-    outline: 'none', boxSizing: 'border-box',
-  },
-  input: {
-    width: '100%', minHeight: 44, padding: '10px 12px',
-    borderRadius: 16, border: 'none',
-    background: 'var(--bg, #FBF6F1)', fontSize: 14,
-    fontFamily: 'inherit', color: 'var(--text-primary, #241B17)',
-    outline: 'none', boxSizing: 'border-box',
-  },
-  textarea: {
-    width: '100%', padding: '10px 12px',
-    borderRadius: 16, border: 'none',
-    background: 'var(--bg, #FBF6F1)', fontSize: 14,
-    fontFamily: 'inherit', color: 'var(--text-primary, #241B17)',
-    outline: 'none', boxSizing: 'border-box', resize: 'vertical',
-    lineHeight: 1.5,
-  },
-  saveButton: {
-    width: '100%', minHeight: 44, marginTop: 14,
-    borderRadius: 16, border: 'none',
-    background: 'var(--accent, #92405e)', color: '#fff',
-    fontSize: 14, fontWeight: 700, fontFamily: 'inherit',
-    cursor: 'pointer',
-    WebkitTapHighlightColor: 'transparent',
-  },
-  emptyCard: {
-    background: 'var(--tone-1, #fbf1ea)',
-    borderRadius: 22, padding: '20px 16px',
-    textAlign: 'center', marginBottom: 16,
-  },
-  emptyText: {
-    fontSize: 13.5, color: 'var(--text-secondary, #574A42)',
-    lineHeight: 1.5, margin: '0 0 14px',
-  },
-  starterButton: {
-    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    gap: 10, width: '100%', minHeight: 44,
-    padding: '12px 14px', borderRadius: 16, border: 'none',
-    background: 'var(--bg, #FBF6F1)', cursor: 'pointer',
-    fontFamily: 'inherit',
-    WebkitTapHighlightColor: 'transparent',
-  },
-  starterTitle: { fontSize: 13, fontWeight: 700, color: 'var(--text-primary, #241B17)' },
-  starterHint: { fontSize: 11.5, color: 'var(--text-muted, #6B5D54)', marginTop: 2 },
-  sectionLabel: {
-    display: 'flex', alignItems: 'center', gap: 6,
-    fontSize: 10, fontWeight: 700, color: 'var(--text-muted)',
-    textTransform: 'uppercase', letterSpacing: '0.08em',
-    marginBottom: 8,
-  },
-  entryCard: {
-    background: 'var(--tone-1, #fbf1ea)',
-    borderRadius: 16, padding: '14px 14px 12px',
-    position: 'relative',
-  },
-  entryTop: {
-    display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-    gap: 8, marginBottom: 6,
-  },
-  entryTitle: {
-    fontSize: 14, fontWeight: 700, color: 'var(--text-primary, #241B17)',
-    lineHeight: 1.35, paddingTop: 4,
-  },
-  entryContent: {
-    fontSize: 13, color: 'var(--text-secondary, #574A42)',
-    lineHeight: 1.5, margin: '0 0 8px', whiteSpace: 'pre-wrap',
-    overflowWrap: 'break-word',
-  },
-  entryBadge: {
-    display: 'inline-block',
-    fontSize: 10, fontWeight: 700, color: '#92405e',
-    background: 'var(--accent-wash, #FBF2F5)',
-    padding: '3px 8px', borderRadius: 999,
-    letterSpacing: '0.04em',
-  },
-  iconButton: {
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    minWidth: 44, minHeight: 44, borderRadius: 10,
-    border: 'none', background: 'transparent', cursor: 'pointer',
-    WebkitTapHighlightColor: 'transparent',
-  },
-};

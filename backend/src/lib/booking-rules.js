@@ -469,6 +469,31 @@ const DAY_WORDS = {
  * A named weekday means the NEXT one, today included, because "any chance of
  * lashes friday?" sent on a Friday morning means this Friday.
  */
+const MONTH_NUMBERS = Object.fromEntries(MONTHS.flatMap((month, index) => [
+  [month.toLowerCase(), index], [month.slice(0, 3).toLowerCase(), index],
+  ...(index === 8 ? [['sept', index]] : []),
+]));
+const MONTH_PATTERN = Object.keys(MONTH_NUMBERS).sort((a, b) => b.length - a.length).join('|');
+
+// Clients often type "Wednesday23rdSeptember" or "Novemberat5pm".
+// Keep the calendar numbers out of both clock and positional-choice parsing.
+function calendarMentions(text) {
+  const body = String(text || '').toLowerCase().replace(/([a-z])(?=\d)/g, '$1 ');
+  const end = '(?=\\b|at(?=\\s*\\d))';
+  const dayMonth = new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s*(${MONTH_PATTERN})(?:\\s+(\\d{4}))?${end}`, 'g');
+  const monthDay = new RegExp(`\\b(${MONTH_PATTERN})\\s*(\\d{1,2})(?:st|nd|rd|th)?(?:\\s+(\\d{4}))?${end}`, 'g');
+  const mentions = [];
+  let remainder = body.replace(dayMonth, (raw, day, month, year) => {
+    mentions.push({ day: Number(day), month: MONTH_NUMBERS[month], year: year ? Number(year) : null });
+    return ' ';
+  });
+  remainder = remainder.replace(monthDay, (raw, month, day, year) => {
+    mentions.push({ day: Number(day), month: MONTH_NUMBERS[month], year: year ? Number(year) : null });
+    return ' ';
+  });
+  return { mentions, remainder };
+}
+
 export function dayPreferenceFrom(text, fromWall, horizonDays = 14) {
   const body = String(text || '').toLowerCase();
   if (!fromWall) return null;
@@ -476,6 +501,30 @@ export function dayPreferenceFrom(text, fromWall, horizonDays = 14) {
   const dates = new Set();
 
   const push = (d) => dates.add(d.toISOString().slice(0, 10));
+
+  const { mentions } = calendarMentions(body);
+  if (mentions.length) {
+    for (const { day, month, year } of mentions) {
+      let chosenYear = year ?? today.getUTCFullYear();
+      let date = new Date(Date.UTC(chosenYear, month, day));
+      if (!year && date < today) date = new Date(Date.UTC(++chosenYear, month, day));
+      if (date.getUTCDate() !== day || date.getUTCMonth() !== month) return [];
+      push(date);
+    }
+    return Array.from(dates).sort();
+  }
+
+  // A numbered calendar date is more specific than an accompanying weekday.
+  // "Wednesday the 23rd" must not also include this Wednesday the 16th.
+  for (const m of body.matchAll(/\b(\d{1,2})(?:st|nd|rd|th)\b/g)) {
+    const dom = Number(m[1]);
+    if (dom < 1 || dom > 31) continue;
+    for (let i = 0; i <= horizonDays; i++) {
+      const d = new Date(today); d.setUTCDate(d.getUTCDate() + i);
+      if (d.getUTCDate() === dom) { push(d); break; }
+    }
+  }
+  if (dates.size) return Array.from(dates).sort();
 
   if (/\btoday\b|\btonight\b/.test(body)) push(today);
   if (/\btomorrow\b|\btomoz\b|\btmrw\b/.test(body)) {
@@ -492,16 +541,6 @@ export function dayPreferenceFrom(text, fromWall, horizonDays = 14) {
     if (nextWeek) delta += 7;
     d.setUTCDate(d.getUTCDate() + delta);
     push(d);
-  }
-
-  // "the 13th", "friday 13th": a day of month inside the horizon.
-  for (const m of body.matchAll(/\b(\d{1,2})(?:st|nd|rd|th)\b/g)) {
-    const dom = Number(m[1]);
-    if (dom < 1 || dom > 31) continue;
-    for (let i = 0; i <= horizonDays; i++) {
-      const d = new Date(today); d.setUTCDate(d.getUTCDate() + i);
-      if (d.getUTCDate() === dom) { push(d); break; }
-    }
   }
 
   return dates.size ? Array.from(dates).sort() : null;
@@ -598,7 +637,7 @@ const hhmm = (h, m) => `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0
  * next one runs: "half 3" is consumed as 15:30 and never re-read as a bare 3.
  */
 export function timeCandidates(text) {
-  let body = ` ${String(text || '').toLowerCase()} `;
+  let body = ` ${calendarMentions(text).remainder} `;
   const found = new Set();
   const eat = (re, fn) => {
     body = body.replace(re, (...args) => {
@@ -696,15 +735,19 @@ export function matchSlotChoice(text, offered, { fromWall = null } = {}) {
   const body = String(text || '').toLowerCase();
 
   if (looksLikeRejection(body)) return { rejected: true };
+  // Reject only a negated clock choice, not "I don't need a patch test".
+  if (/\b(?:not|can(?:not|['’]t)|don['’]t)\s+(?:(?:do|make|want|at)\s+)?\d{1,2}\b/.test(calendarMentions(body).remainder.replace(/(\d)(am|pm)\b/g, '$1 $2'))) {
+    return { rejected: true };
+  }
   if (list.length === 1 && BARE_YES.test(body)) return { slot: list[0] };
 
   // "the last one" / "the second one". Position, not clock time, so it is read
   // before any number is treated as an hour.
-  if (/\b(?:the\s+)?(?:last|final|latest)\s*(?:one|slot|time)?\b/.test(body)) {
+  if (/^\s*(?:the\s+)?(?:last|final|latest)(?:\s+(?:one|slot|time))?(?:\s+please)?[\s!.x]*$/.test(body)) {
     return { slot: list[list.length - 1] };
   }
   for (const [word, position] of Object.entries(ORDINALS)) {
-    if (!new RegExp(`\\b${word}\\b`).test(body)) continue;
+    if (!new RegExp(`^\\s*(?:the\\s+)?${word}(?:\\s+(?:one|slot|time))?(?:\\s+please)?[\\s!.x]*$`).test(body)) continue;
     if (position <= list.length) return { slot: list[position - 1] };
     return { ambiguous: true, candidates: list };
   }
@@ -712,6 +755,7 @@ export function matchSlotChoice(text, offered, { fromWall = null } = {}) {
   let pool = list;
 
   const days = dayPreferenceFrom(body, fromWall);
+  if (days && !days.length) return { unclear: true, invalidDate: true };
   if (days?.length) {
     const byDay = pool.filter(s => days.includes(s.date));
     // A day she never offered is not a pick, it is a new request.
@@ -732,7 +776,8 @@ export function matchSlotChoice(text, offered, { fromWall = null } = {}) {
     // 3.30pm and this stays ambiguous, because at that point "the 3 one"
     // genuinely is, and booking the wrong half hour and taking a deposit for it
     // is the same class of harm as naming a time that was never free.
-    if (!byTime.length) {
+    const bareHourReference = /^\s*(?:the\s+)?\d{1,2}\s+one(?:\s+please)?[\s!.x]*$/.test(body);
+    if (!byTime.length && bareHourReference) {
       const hours = new Set(times.map(t => t.slice(0, 2)));
       const withinHour = pool.filter(s => hours.has(s.time.slice(0, 2)));
       if (withinHour.length === 1) byTime = withinHour;
@@ -824,7 +869,11 @@ const ABOUT_AN_EXISTING_BOOKING = new RegExp([
 export function looksLikeABookingOpening(text, treatments = []) {
   const body = String(text || '').trim();
   if (body.length < 3) return false;
-  if (ABOUT_AN_EXISTING_BOOKING.test(body)) return false;
+  const withoutPatchClaim = body.replace(/(?:i\s+(?:do\s+not|don['’]t)\s+need|i(?:['’]ve| have)\s+(?:already\s+)?had)\s+(?:a\s+)?patch test[^.!?]*/ig, '');
+  if (ABOUT_AN_EXISTING_BOOKING.test(withoutPatchClaim)) return false;
+  // A secondary claim about a patch test does not erase an explicit treatment
+  // booking request. It never supplies evidence that the patch requirement is met.
+  if (withoutPatchClaim !== body) return ASKS_TO_BOOK.test(withoutPatchClaim) && Boolean(matchTreatment(withoutPatchClaim, treatments)?.treatment);
   if (ASKS_TO_BOOK.test(body)) return true;
 
   // No booking words, but she named something on the menu: "oh and waxing".

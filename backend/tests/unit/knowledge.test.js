@@ -26,8 +26,7 @@ const { retrieveKnowledge, renderKnowledgeBlock, tokenize } = await import('../.
 
 const entry = (id, category, title, content) => ({ id, category, title, content });
 
-// Ten entries so the small-base "return everything" rule does NOT kick in
-// and the scorer actually has to rank.
+// A varied base so retrieval must choose relevant owner guidance.
 function bigBase() {
   return [
     entry('1', 'aftercare', 'Lash lift aftercare', 'Keep lashes dry for 24 hours, no mascara, no steam or saunas.'),
@@ -65,11 +64,36 @@ describe('retrieveKnowledge', () => {
     expect(out[0].id).toBe('t');
   });
 
-  it('returns the whole base when it is small, regardless of score', async () => {
+  it('does not treat unrelated notes as evidence, even for a small base', async () => {
     state.rows = bigBase().slice(0, 3);
     const out = await retrieveKnowledge('b1', 'completely unrelated question about the weather');
-    // 3 entries total: the whole base fits in the prompt, ranking it is theatre.
-    expect(out.map(e => e.id).sort()).toEqual(['1', '2', '3']);
+    expect(out).toEqual([]);
+  });
+
+  it('matches lami to owner-approved lamination guidance without adding a policy', async () => {
+    state.rows = bigBase();
+    const out = await retrieveKnowledge('b1', 'too early for lami again?');
+    expect(out.map(e => e.id)).toEqual(['3']);
+    expect(out[0].content).toBe(state.rows[2].content);
+  });
+
+  it('recognises diary release wording without treating any opening-hours note as a rule', async () => {
+    state.rows = [...bigBase(), entry('release', 'policy', 'How far ahead can I book?', 'The diary opens two months in advance.')];
+    const out = await retrieveKnowledge('b1', 'Have you released November dates yet?');
+    expect(out.map(e => e.id)).toEqual(['release']);
+    expect(await retrieveKnowledge('b1', 'Are you away?')).toEqual([]);
+  });
+
+  it('does not match generic booking words or a shared number alone', async () => {
+    state.rows = [entry('card', 'faq', 'Card payments', 'We take deposits when booking an appointment.'), entry('care', 'aftercare', 'Tint care', 'Wait 48 hours.')];
+    expect(await retrieveKnowledge('b1', 'Can I book an appointment?')).toEqual([]);
+    expect(await retrieveKnowledge('b1', '48')).toEqual([]);
+  });
+
+  it('keeps explicitly required arrival guidance even without overlapping words', async () => {
+    state.rows = [entry('arrival', 'arrival', 'Getting here', 'Come through, no need to knock.'), ...bigBase()];
+    const out = await retrieveKnowledge('b1', 'Im 60 seconds away!', { alwaysInclude: ['arrival'] });
+    expect(out[0].id).toBe('arrival');
   });
 
   it('respects the character cap, truncating rather than flooding the prompt', async () => {
@@ -83,6 +107,13 @@ describe('retrieveKnowledge', () => {
     const total = out.reduce((n, e) => n + e.title.length + e.content.length, 0);
     expect(total).toBeLessThanOrEqual(3000);
     expect(out.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('never cuts away an exception at the end of an approved answer', async () => {
+    const content = 'Lamination guidance. '.repeat(20) + ' Do not repeat treatment if there is irritation.';
+    state.rows = [entry('rule', 'treatment', 'Lamination', content)];
+    expect(await retrieveKnowledge('b1', 'lamination', { maxChars: 200 })).toEqual([]);
+    expect((await retrieveKnowledge('b1', 'lamination'))[0].content).toBe(content);
   });
 
   it('fails soft to [] when supabase reports an error (including missing table)', async () => {

@@ -200,16 +200,18 @@ vi.mock('../../src/services/push-notifications.js', () => ({
 }));
 vi.mock('../../src/services/live-activity.js', () => ({ refreshLiveActivity: async () => true }));
 vi.mock('../../src/services/automations.js', () => ({ createBookingSuggestion: async () => ({ id: 's1' }) }));
-vi.mock('../../src/services/conversational-booking.js', () => ({ advanceBookingConversation: async () => null }));
+const bookingCalls = [];
+vi.mock('../../src/services/conversational-booking.js', () => ({ advanceBookingConversation: async args => { bookingCalls.push(args); return null; } }));
 vi.mock('../../src/services/loyalty.js', () => ({
   getLoyaltyConfig: async () => null, getClientPoints: async () => 0, loyaltyProximity: () => null,
 }));
 vi.mock('../../src/lib/promos.js', () => ({ getActivePromos: async () => [], describePromo: () => null }));
+let knowledgeRows = null;
 vi.mock('../../src/lib/knowledge.js', () => ({
   // One hit, so `general_question` is grounded and Florrie is allowed to speak.
   // Without this she is held for Ellie and the resend never gets its chance,
   // which is a real behaviour but not the one under test here.
-  retrieveKnowledge: async () => [{ title: 'Confirmations', body: 'Confirmations arrive by email.' }],
+  retrieveKnowledge: async () => knowledgeRows ?? [{ title: 'Confirmations', body: 'Confirmations arrive by email.' }],
   renderKnowledgeBlock: () => 'Knowledge: confirmations arrive by email.',
   // Added 27 Aug with the arrival note. Nothing here is about a doorstep, so
   // both return nothing: no arrival instruction on file, and no written notes
@@ -230,7 +232,7 @@ vi.mock('../../src/lib/marketing-guard.js', () => ({ inMarketingQuietHours: () =
 
 process.env.ANTHROPIC_API_KEY = 'sk-test';
 
-const { processInboundMessage, wantsConfirmationResent, pickConfirmationAppointment } =
+const { processInboundMessage, previewClientQuestion, wantsConfirmationResent, pickConfirmationAppointment } =
   await import('../../src/services/ai-front-desk.js');
 const { classifyTier } = await import('../../src/lib/outbound-guard.js');
 
@@ -253,6 +255,8 @@ beforeEach(() => {
   confirmations.length = 0;
   delivered.length = 0;
   promptsSeen.length = 0;
+  bookingCalls.length = 0;
+  knowledgeRows = null;
   confirmResult = { sent: true, channels: ['email'] };
   script.classification = { intent: 'general_question', confidence: 0.95, extracted: {} };
   script.reply = "Hey, i'll send you a new one now. should come through in a min xx";
@@ -594,5 +598,63 @@ describe('appointment requests from an existing client', () => {
     expect(result).toMatchObject({ escalated: true });
     expect(result.error).toBeUndefined();
     expect(promptsSeen.some(prompt => prompt.includes('Thursday 17 September at 2pm'))).toBe(true);
+  });
+});
+
+// Replay the September feedback through the real front-desk gates.
+describe('client questions use approved answers before the booking engine', () => {
+  const question = 'Is it too early to book for a lami again in 2 weeks? Xx';
+  const note = { id: 'rule', category: 'treatment', title: 'Lamination interval', content: 'Allow at least eight weeks between full brow laminations.' };
+  function setupQuestion() {
+    db.treatments.push({ id: 't1', beautician_id: 'b1', name: 'Brow lamination', is_active: true, booking_enabled: true });
+    knowledgeRows = [];
+    script.classification = { intent: 'booking_request', confidence: 0.99, extracted: {} };
+    db.messages[0].content = question;
+  }
+  it('does not pitch slots or create a booking when the client asks about suitability', async () => {
+    setupQuestion();
+    const result = await processInboundMessage(MSG_ID, beautician, client, question);
+    expect(result.escalated).toBe(true);
+    expect(bookingCalls).toHaveLength(0);
+    expect(delivered).toHaveLength(0);
+    expect(db.messages[0].ai_intent).toBe('general_question');
+    expect(db.messages[0].escalated_reason).toBe('training:no_approved_answer');
+    expect(draftOnMessage()).toContain('treatment guidance');
+  });
+  it('answers from the approved rule and records the basis for the decision', async () => {
+    setupQuestion(); knowledgeRows = [note];
+    script.reply = JSON.stringify({ covered: true, reply: note.content, evidence: [{ id: note.id, quote: note.content }] });
+    const result = await processInboundMessage(MSG_ID, beautician, client, question);
+    expect(result.handled).toBe(true);
+    expect(bookingCalls).toHaveLength(0);
+    expect(textsToClient()[0]).toContain(note.content);
+    expect(db.messages[0].ai_intent).toBe('general_question');
+    expect(db.appointments).toHaveLength(0);
+  });
+  it.each(['just_me', 'drafts'])('preserves the thread setting %s even for a supported answer', async mode => {
+    setupQuestion(); knowledgeRows = [note]; client.messaging_autonomy = mode;
+    script.reply = JSON.stringify({ covered: true, reply: note.content, evidence: [{ id: note.id, quote: note.content }] });
+    await processInboundMessage(MSG_ID, beautician, client, question);
+    expect(delivered).toHaveLength(0); expect(bookingCalls).toHaveLength(0);
+    expect(draftOnMessage()).toBe(note.content);
+  });
+  it('explains the real diary window without a knowledge entry or model answer', async () => {
+    setupQuestion(); beautician.booking_policy = { max_advance_days: 60 };
+    const result = await processInboundMessage(MSG_ID, beautician, client, 'Have the dates just not been released yet?');
+    expect(result.handled).toBe(true); expect(textsToClient()[0]).toContain('60 days');
+    expect(textsToClient()[0]).not.toContain('which treatment');
+    expect(bookingCalls).toHaveLength(0); expect(promptsSeen).toHaveLength(0);
+  });
+  it('keeps previews read-only and uses the same approved answer as the live pipeline', async () => {
+    setupQuestion(); knowledgeRows = [note];
+    script.reply = JSON.stringify({ covered: true, reply: note.content, evidence: [{ id: note.id, quote: note.content }] });
+    const before = JSON.stringify(db);
+    const result = await previewClientQuestion({ beautician, question });
+    expect(result).toMatchObject({ canAnswer: true, reply: note.content, sources: [{ id: note.id }] });
+    expect(JSON.stringify(db)).toBe(before); expect(bookingCalls).toHaveLength(0); expect(delivered).toHaveLength(0);
+  });
+  it('keeps an explicit client handover available with a kiss sign-off', async () => {
+    setupQuestion(); await processInboundMessage(MSG_ID, beautician, client, 'ELLIE x');
+    expect(client.messaging_autonomy).toBe('just_me'); expect(delivered).toHaveLength(0); expect(bookingCalls).toHaveLength(0);
   });
 });

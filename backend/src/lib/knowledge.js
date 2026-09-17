@@ -72,6 +72,24 @@ export function tokenize(text) {
     .filter(w => w.length > 1 && !STOP_WORDS.has(w));
 }
 
+// Keep these aliases local to knowledge retrieval: tokenize also serves the
+// writing-style engine, where changing the owner's words would change its data.
+const KNOWLEDGE_ALIASES = new Map([
+  ['lami', 'lamination'], ['laminations', 'lamination'],
+  ['brows', 'brow'], ['lashes', 'lash'], ['cancellations', 'cancellation'],
+  ['cancel', 'cancellation'], ['cancelled', 'cancellation'],
+  ['rescheduling', 'reschedule'], ['rebooking', 'rebook'],
+]);
+const QUESTION_NOISE = new Set(['book', 'booking', 'appointment', 'appointments', 'again', 'really', 'still', 'any', 'question', 'want', 'need']);
+function knowledgeTokens(text) {
+  const tokens = tokenize(text).filter(t => !QUESTION_NOISE.has(t) && !/^\d+$/.test(t))
+    .map(t => KNOWLEDGE_ALIASES.get(t) || t);
+  // This phrase family means when dates become bookable, not whether the salon
+  // is open on a weekday. Do not make a bare date or "away" imply this policy.
+  if (/\b(?:releas(?:e|ed|ing)\b.{0,35}\b(?:dates?|diary|appointments?|bookings?|months?)|(?:dates?|diary|appointments?|bookings?)\b.{0,35}\breleas(?:e|ed|ing)|(?:diary|bookings?)\s+opens?|booking window|(?:far|months?|weeks?)\s+(?:in\s+)?(?:ahead|advance))\b/i.test(text)) tokens.push('diary_window');
+  return [...new Set(tokens)];
+}
+
 /**
  * Score one entry against the query tokens.
  * - Each query word found in the TITLE counts 3 (titles are dense signal:
@@ -82,14 +100,14 @@ export function tokenize(text) {
  *   a phrase, which is how clients name treatments ("lash lift").
  */
 function scoreEntry(entry, queryTokens, queryText) {
-  const titleSet = new Set(tokenize(entry.title));
-  const contentSet = new Set(tokenize(entry.content));
+  const titleSet = new Set(knowledgeTokens(entry.title));
+  const contentSet = new Set(knowledgeTokens(entry.content));
   let score = 0;
   for (const tok of queryTokens) {
     if (titleSet.has(tok)) score += 3;
     else if (contentSet.has(tok)) score += 1;
   }
-  const titlePhrase = tokenize(entry.title).join(' ');
+  const titlePhrase = knowledgeTokens(entry.title).join(' ');
   if (queryTokens.includes(entry.category) || (titlePhrase && queryText.includes(titlePhrase))) {
     score += 2;
   }
@@ -101,9 +119,8 @@ function scoreEntry(entry, queryTokens, queryText) {
  * inbound message. Fails soft to [] on any error: a knowledge hiccup makes
  * Florrie cautious ("I'll check and come back to you"), never wrong.
  *
- * If the WHOLE base is 8 entries or fewer, all of it is returned regardless
- * of score: the entire thing fits in the prompt, and pretending to rank a
- * base that small is retrieval theatre that only risks dropping the answer.
+ * A small base still needs a match. Unrelated notes cannot provide evidence
+ * for a client question just because they fit in the prompt.
  *
  * `alwaysInclude` is a list of categories the CALLER knows are relevant, for
  * the case where the scorer cannot possibly know it. Scoring here is keyword
@@ -115,7 +132,7 @@ function scoreEntry(entry, queryTokens, queryText) {
  * is also what keeps the char budget below from being the thing that drops
  * them: that loop stops at the first entry it cannot fit.
  */
-export async function retrieveKnowledge(beauticianId, query, { maxEntries = 5, maxChars = 3000, alwaysInclude = [] } = {}) {
+export async function retrieveKnowledge(beauticianId, query, { maxEntries = 5, maxChars = 6000, alwaysInclude = [] } = {}) {
   if (!beauticianId) return [];
   // Supabase's builder resolves with { data, error } rather than throwing.
   const { data, error } = await supabase
@@ -142,25 +159,17 @@ export async function retrieveKnowledge(beauticianId, query, { maxEntries = 5, m
   const forcedIds = new Set(forced.map(e => e.id));
   const rest = forced.length ? entries.filter(e => !forcedIds.has(e.id)) : entries;
 
-  let picked;
-  if (entries.length <= 8) {
-    picked = [...forced, ...rest];
-  } else {
-    const queryTokens = tokenize(query);
-    const queryText = queryTokens.join(' ');
-    const ranked = rest
-      .map(e => ({ entry: e, score: scoreEntry(e, queryTokens, queryText) }))
-      .filter(x => x.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .map(x => x.entry);
-    // maxEntries is still the ceiling, but a forced entry is never the one
-    // given up to stay under it: it is the reason the caller asked at all.
-    picked = [...forced, ...ranked.slice(0, Math.max(0, maxEntries - forced.length))];
-  }
+  const queryTokens = knowledgeTokens(query);
+  const queryText = queryTokens.join(' ');
+  const ranked = rest
+    .map(e => ({ entry: e, score: scoreEntry(e, queryTokens, queryText) }))
+    .filter(x => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map(x => x.entry);
+  const picked = [...forced, ...ranked.slice(0, Math.max(0, maxEntries - forced.length))];
 
-  // Char budget so a handful of long aftercare sheets cannot flood the
-  // prompt. The entry that tips over the budget is truncated, not dropped:
-  // half an aftercare sheet still beats none.
+  // Keep complete rules. Cutting a note in half can remove a qualification
+  // or exception and turn approved guidance into a different answer.
   const result = [];
   let used = 0;
   for (const e of picked) {
@@ -168,12 +177,6 @@ export async function retrieveKnowledge(beauticianId, query, { maxEntries = 5, m
     if (used + len <= maxChars) {
       result.push(e);
       used += len;
-    } else {
-      const room = maxChars - used - (e.title || '').length;
-      if (room > 80) {
-        result.push({ ...e, content: String(e.content || '').slice(0, room) });
-      }
-      break;
     }
   }
   return result;
