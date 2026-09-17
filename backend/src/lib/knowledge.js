@@ -132,7 +132,7 @@ function scoreEntry(entry, queryTokens, queryText) {
  * is also what keeps the char budget below from being the thing that drops
  * them: that loop stops at the first entry it cannot fit.
  */
-export async function retrieveKnowledge(beauticianId, query, { maxEntries = 5, maxChars = 6000, alwaysInclude = [] } = {}) {
+export async function retrieveKnowledge(beauticianId, query, { maxEntries = 5, maxChars = 6000, alwaysInclude = [], includeUnmatched = false } = {}) {
   if (!beauticianId) return [];
   // Supabase's builder resolves with { data, error } rather than throwing.
   const { data, error } = await supabase
@@ -163,7 +163,7 @@ export async function retrieveKnowledge(beauticianId, query, { maxEntries = 5, m
   const queryText = queryTokens.join(' ');
   const ranked = rest
     .map(e => ({ entry: e, score: scoreEntry(e, queryTokens, queryText) }))
-    .filter(x => x.score > 0)
+    .filter(x => x.score > 0 || includeUnmatched)
     .sort((a, b) => b.score - a.score)
     .map(x => x.entry);
   const picked = [...forced, ...ranked.slice(0, Math.max(0, maxEntries - forced.length))];

@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useBeautician, supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
+import ReplyLearning from '../components/ReplyLearning.jsx';
 import PageLoader from '../components/PageLoader.jsx';
 import Icon from '../components/ui/Icon';
 import PageHeader from '../components/ui/PageHeader.jsx';
@@ -44,10 +45,14 @@ export default function Knowledge() {
   const authedFetch = useCallback(async (path, options = {}) => {
     const { data } = await supabase.auth.getSession();
     if (!data.session?.access_token) throw new Error('Please sign in again to continue.');
-    const response = await fetch(`${API_BASE}${path}`, {
+    const controller = options.signal ? null : new AbortController();
+    const timeout = controller && setTimeout(() => controller.abort(), 35000);
+    let response;
+    try { response = await fetch(`${API_BASE}${path}`, {
       ...options,
+      signal: options.signal || controller.signal,
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.session.access_token}`, ...options.headers },
-    });
+    }); } finally { if (timeout) clearTimeout(timeout); }
     const body = await response.json();
     if (!response.ok) throw new Error(body?.error || 'Could not complete that. Try again.');
     return body;
@@ -146,6 +151,10 @@ export default function Knowledge() {
       {notice && <p className="fl-knowledge-notice" role="status">{notice}</p>}
 
       {!needsMigration && <>
+        <ReplyLearning request={authedFetch} entries={entries} onSaved={(entry, topic) => {
+          setEntries(rows => [entry, ...rows.filter(row => row.id !== entry.id)]);
+          clearPreview(); setQuestion(topic);
+        }} />
         <section className="fl-knowledge-test" aria-labelledby="knowledge-test-heading">
           <span className="fl-knowledge-eyebrow">A PRIVATE PRACTICE RUN</span>
           <h2 id="knowledge-test-heading">Ask as a client</h2>

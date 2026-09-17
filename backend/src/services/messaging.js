@@ -11,6 +11,7 @@
  * insert-into-messages logic. This module is additive.
  */
 import { supabase } from '../config.js';
+import { queueReplyLearning } from './reply-learning.js';
 import logger from '../lib/logger.js';
 import { AUTHOR } from '../lib/idiolect.js';
 import { sendSMS, sendEmail } from './notifications.js';
@@ -270,7 +271,8 @@ export async function sendOnChannel({ beautician, clientId, channel, body, autho
     };
   }
 
-  return { ok: true, message: shapeMessage(row) };
+  if ([AUTHOR.HUMAN, AUTHOR.AI_EDITED].includes(authoredBy)) queueReplyLearning(beautician.id, row.id);
+  return { ok: true, message: { ...shapeMessage(row), can_teach: ['human', 'ai_edited'].includes(authoredBy) } };
 }
 
 /**

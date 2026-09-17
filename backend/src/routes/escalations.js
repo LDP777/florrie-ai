@@ -3,6 +3,7 @@ import { safeReply } from '../lib/reply-claims-guard.js';
 import { getFreeSlots } from '../lib/free-slots.js';
 import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
+import { queueReplyLearning } from '../services/reply-learning.js';
 import { learnFromCorrection } from '../services/ai-front-desk.js';
 import { sendSMS, sendInstagramDM, sendWhatsAppText } from '../services/notifications.js';
 import logger from '../lib/logger.js';
@@ -202,7 +203,7 @@ router.post('/:messageId/resolve', requireAuth, async (req, res) => {
     ai_response: finalResponse
   }).eq('id', message.id);
 
-  await supabase.from('messages').insert({
+  const { data: sentReply } = await supabase.from('messages').insert({
     beautician_id: req.beautician.id,
     client_id: message.client_id,
     channel: sentChannel,
@@ -215,10 +216,11 @@ router.post('/:messageId/resolve', requireAuth, async (req, res) => {
     // own value so learnFromCorrection can go on using it.
     ...authorship(action === 'send_as_is' ? 'ai' : 'ai_edited'),
     digital_employee: 'front_desk',
-  });
+  }).select('id').maybeSingle();
 
   logger.info({ clientId: client?.id, channel: sentChannel }, 'Escalation response sent');
   res.json({ success: true, sent: finalResponse });
+  if (action === 'send_edited' && sentReply?.id) queueReplyLearning(req.beautician.id, sentReply.id);
   if (action === 'send_edited' && message.ai_response && finalResponse !== message.ai_response) {
     learnFromCorrection(req.beautician.id, message.ai_response, finalResponse)
       .catch(err => logger.warn({ err, beauticianId: req.beautician.id }, 'Reply delivered; voice correction could not be saved'));

@@ -1,6 +1,7 @@
 import { beforeEach, afterEach, it, expect, vi } from 'vitest';
 
-const state = vi.hoisted(() => ({ connection: null, connectionError: null, inserts: [], filters: [] }));
+const state = vi.hoisted(() => ({ connection: null, connectionError: null, inserts: [], filters: [], learning: vi.fn() }));
+vi.mock('../../src/services/reply-learning.js', () => ({ queueReplyLearning: state.learning }));
 vi.mock('../../src/config.js', () => ({ supabase: { from(table) {
   const query = {
     select() { return query; },
@@ -21,7 +22,7 @@ import { encrypt } from '../../src/lib/crypto.js';
 import { sendOnChannel } from '../../src/services/messaging.js';
 
 const salon = { id: 'salon-1', whatsapp_phone_id: 'phone-1' };
-const send = () => sendOnChannel({ beautician: salon, clientId: 'client-1', channel: 'whatsapp', body: 'Your appointment is confirmed.' });
+const send = () => sendOnChannel({ beautician: salon, clientId: 'client-1', channel: 'whatsapp', body: 'Your appointment is confirmed.', authoredBy: 'human' });
 function embedded(overrides = {}) {
   return { mode: 'embedded', phone_id: 'phone-1', waba_id: 'waba-1', credentials: encrypt({ token: 'customer-token', beauticianId: salon.id, phoneId: 'phone-1', wabaId: 'waba-1', ...overrides }, process.env.WHATSAPP_CREDENTIALS_KEY) };
 }
@@ -29,7 +30,7 @@ beforeEach(() => {
   vi.stubEnv('WHATSAPP_TENANT_CREDENTIALS_ENABLED', 'true');
   vi.stubEnv('WHATSAPP_CREDENTIALS_KEY', 'cd'.repeat(32));
   vi.stubEnv('WHATSAPP_TOKEN', 'legacy-token');
-  state.connection = embedded(); state.connectionError = null; state.inserts = []; state.filters = [];
+  state.connection = embedded(); state.connectionError = null; state.inserts = []; state.filters = []; state.learning.mockReset();
   vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ messages: [{ id: 'provider-message' }] }) })));
 });
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
@@ -37,6 +38,7 @@ afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 it('sends a manual Inbox reply using only this salon’s decrypted token and records the provider id', async () => {
   const result = await send();
   expect(result.ok).toBe(true);
+  expect(state.learning).toHaveBeenCalledWith(salon.id, 'message-1');
   expect(fetch).toHaveBeenCalledOnce();
   const [url, options] = fetch.mock.calls[0];
   expect(url).toContain('/phone-1/messages');
@@ -56,7 +58,7 @@ it.each(['missing', 'wrong-salon', 'wrong-phone', 'expired', 'database-error'])(
   if (reason === 'expired') state.connection = embedded({ expiresAt: '2020-01-01T00:00:00Z' });
   if (reason === 'database-error') state.connectionError = { code: 'connection_failure' };
   const result = await send();
-  expect(result.ok).toBe(false); expect(fetch).not.toHaveBeenCalled();
+  expect(result.ok).toBe(false); expect(state.learning).not.toHaveBeenCalled(); expect(fetch).not.toHaveBeenCalled();
   expect(result.message.status).toBe('failed');
   expect(result.message.body).toBe('Your appointment is confirmed.');
 });
@@ -65,4 +67,12 @@ it('retains the message and reports the closed service window when Meta rejects 
   const result = await send();
   expect(result).toMatchObject({ ok: false, status: 409, outside_window: true });
   expect(result.message.status).toBe('failed');
+});
+
+it('does not learn an untouched AI draft or system template after delivery', async () => {
+ for (const authoredBy of ['ai','template','system']) {
+  state.learning.mockClear();
+  expect((await sendOnChannel({ beautician: salon, clientId: 'client-1', channel: 'whatsapp', body: 'Here is your receipt.', authoredBy })).ok).toBe(true);
+  expect(state.learning).not.toHaveBeenCalled();
+ }
 });

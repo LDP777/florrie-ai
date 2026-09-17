@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import replyLearningRouter from './reply-learning.js';
 import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
@@ -6,6 +7,7 @@ import { KNOWLEDGE_CATEGORIES } from '../lib/knowledge.js';
 import { previewClientQuestion } from '../services/ai-front-desk.js';
 
 const router = Router();
+router.use('/learning', replyLearningRouter);
 
 /**
  * The knowledge base: Ellie's own notes (aftercare, policies, treatment

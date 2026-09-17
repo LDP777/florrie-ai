@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { authorshipAvailable } from '../lib/authorship.js';
 import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
@@ -544,7 +545,7 @@ router.get('/thread/:client_id', requireAuth, async (req, res) => {
           ai_handled, media_url, media_type,
           external_message_id, whatsapp_message_id,
           escalated, escalated_reason, resolved, digital_employee, ai_intent,
-          delivered_at, read_at, send_status
+          delivered_at, read_at, send_status${authorshipAvailable() ? ', authored_by' : ''}
         `)
         .eq('beautician_id', req.beautician.id)
         .eq('client_id', clientId)
@@ -634,6 +635,7 @@ router.get('/thread/:client_id', requireAuth, async (req, res) => {
       .reverse()
       .map((row) => ({
         ...shapeMessage(row),
+        can_teach: row.direction === 'outbound' && row.send_status !== 'failed' && ['human', 'ai_edited'].includes(row.authored_by),
         message_type: messageType(row),
         digital_employee: row.digital_employee || null,
         escalated_reason: row.escalated && !row.resolved ? (row.escalated_reason || null) : null,

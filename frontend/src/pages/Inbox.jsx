@@ -1807,6 +1807,9 @@ function Bubble({ msg, threadChannel, onRetry }) {
             {msg.status === 'sending' && <span>{'·'} sending</span>}
           </div>
         </div>
+        {msg.can_teach && !failed && msg.status !== 'sending' && /^[0-9a-f-]{36}$/i.test(msg.id || '') && (
+          <Link to={`/knowledge?reply=${msg.id}`} style={{ color: 'var(--accent)', fontSize: 12, padding: '10px 4px', minHeight: 44, display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon name="flower" size={14} />Teach Florrie</Link>
+        )}
         {failed && (
           <button type="button" onClick={() => onRetry?.(msg.body)} style={S.failedNote}>
             <Icon name="alert-triangle" size={13} /> Not delivered {'·'} Retry

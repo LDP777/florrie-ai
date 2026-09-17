@@ -150,3 +150,9 @@ describe('tokenize', () => {
     expect(tokenize("What's your CANCELLATION policy?!")).toEqual(['cancellation', 'policy']);
   });
 });
+
+it('can supply unmatched approved candidates only when the evidence-checked pipeline requests them', async () => {
+  state.rows = [entry('v', 'policy', 'Gift vouchers', 'Valid for twelve months, with no cash exchange.')];
+  expect(await retrieveKnowledge('owner', 'Would a present expire?')).toEqual([]);
+  expect(await retrieveKnowledge('owner', 'Would a present expire?', { includeUnmatched: true })).toEqual(state.rows);
+});

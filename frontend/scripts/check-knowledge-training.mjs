@@ -12,12 +12,25 @@ const out = await build({stdin:{contents:entry,resolveDir:root,loader:'jsx'},bun
  b.onResolve({filter:/\/lib\/config\.js$/},()=>({path:'config',namespace:'fixture'}));
  b.onLoad({filter:/.*/,namespace:'fixture'},a=>({contents:a.path==='store'?store:'export const API_BASE="";',loader:'js'}));
 }}],define:{'import.meta.env':JSON.stringify({DEV:false})}});
-const state={rows:[],writes:[],previews:[],failSave:false,failPreview:false,holdPreview:false};
+const state={suggestions:[],failApproval:false,learningUnavailable:false,rows:[],writes:[],previews:[],failSave:false,failPreview:false,holdPreview:false};
 const server=http.createServer(async(req,res)=>{
  let body='';for await(const chunk of req)body+=chunk;
  const json=data=>{res.setHeader('content-type','application/json');res.end(JSON.stringify(data));};
  if(req.url.startsWith('/api/knowledge')){
   const input=body?JSON.parse(body):{};
+  if(req.url==='/api/knowledge/learning') {
+   if(state.learningUnavailable){res.statusCode=503;return json({error:'Learning is unavailable. Your approved answers still work.'});}
+   return json({suggestions:state.suggestions});
+  }
+  if(req.url==='/api/knowledge/learning/discover') {
+   state.suggestions=[{id:'lesson',status:'pending',category:'policy',title:'Gift voucher validity',content:'Gift vouchers last twelve months and cannot be exchanged for cash.',evidence:'Gift vouchers last twelve months and cannot be exchanged for cash.'}];
+   return json({reviewing:1});
+  }
+  if(req.url==='/api/knowledge/learning/lesson/approve') {
+   if(state.failApproval){res.statusCode=503;return json({error:'Could not approve that yet.'});}
+   state.writes.push({method:'APPROVE',input}); const entry={id:'learned',is_active:true,...input};state.rows.push(entry);state.suggestions=[];return json({entry});
+  }
+  if(req.url==='/api/knowledge/learning/lesson/dismiss'){state.suggestions=[];return json({ok:true});}
   if(req.url==='/api/knowledge/preview'){
    state.previews.push(input);
    if(state.holdPreview)await new Promise(r=>setTimeout(r,200));
@@ -96,6 +109,30 @@ try {
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`overflow at ${width}`);
  }
  await page.screenshot({path:'/tmp/florrie-knowledge-check/desktop.png',fullPage:true});
+ state.rows=[];await page.reload();
+ await page.getByRole('button',{name:'Check my recent replies',exact:true}).click();
+ const lesson=page.getByRole('form',{name:'Review a learned answer'});await lesson.waitFor();
+ assert.equal(state.rows.length,0);
+ await page.getByLabel('Client’s question').fill('Can a present be exchanged for money?');
+ await page.getByRole('button',{name:'Preview Florrie’s reply',exact:true}).click();
+ await page.getByText('Needs more guidance or a check',{exact:true}).waitFor();
+ await lesson.getByLabel('Answer for future clients').fill('Vouchers last twelve months. They cannot be exchanged for cash.');
+ state.failApproval=true;await lesson.getByRole('button',{name:'Approve for future replies',exact:true}).click();
+ await page.getByText('Could not approve that yet.',{exact:true}).waitFor();
+ assert.equal(await lesson.getByLabel('Answer for future clients').inputValue(),'Vouchers last twelve months. They cannot be exchanged for cash.');
+ assert.equal(state.rows.length,0);
+ state.failApproval=false;await lesson.getByRole('button',{name:'Approve for future replies',exact:true}).click();
+ await page.getByText('Answer learned. Try the question below to check what the next client will hear.',{exact:true}).waitFor();
+ assert.equal(state.rows.length,1);assert.equal(await page.getByLabel('Client’s question').inputValue(),'Gift voucher validity');
+ await page.getByRole('button',{name:'Preview Florrie’s reply',exact:true}).click();
+ await page.getByText('An answer from your guidance',{exact:true}).waitFor();
+ assert.equal(await page.locator('.fl-knowledge-result blockquote').innerText(),state.rows[0].content);
+ await page.getByRole('button',{name:'Check my recent replies',exact:true}).click();await lesson.waitFor();
+ for(const width of [320,390,820,1280]) { await page.setViewportSize({width,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`learning overflow at ${width}`); }
+ await page.setViewportSize({width:390,height:844});await page.screenshot({path:'/tmp/florrie-knowledge-check/learning-phone.png',fullPage:true});
+ await lesson.getByRole('button',{name:'Keep this just in the conversation',exact:true}).click();await lesson.waitFor({state:'detached'});assert.equal(state.rows.length,1);
+ state.learningUnavailable=true;await page.reload();await page.getByText('Learning is unavailable. Your approved answers still work.',{exact:false}).waitFor();
+ await page.getByLabel('Client’s question').fill('How long do vouchers last?');await page.getByRole('button',{name:'Preview Florrie’s reply',exact:true}).click();await page.getByText('An answer from your guidance',{exact:true}).waitFor();
  assert.deepEqual(errors,[]);
- console.log('PASS: blank starters, private preview, failed save retained, explicit approval, source edit, pause/reload/resume, failed/stale preview, 320–1280px layout. Synthetic fixtures only; no AI delivery proof.');
+ console.log('PASS: blank starters, private preview, failed save retained, explicit approval, source edit, pause/reload/resume, failed/stale preview, 320–1280px layout. Learning: unapproved drafts excluded, failed approval preserved, approval used in preview, dismiss and storage outage, responsive layout. Synthetic fixtures only; no AI delivery proof.');
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
