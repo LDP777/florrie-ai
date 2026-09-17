@@ -621,6 +621,29 @@ describe('client questions use approved answers before the booking engine', () =
     expect(db.messages[0].escalated_reason).toBe('training:no_approved_answer');
     expect(draftOnMessage()).toContain('treatment guidance');
   });
+  it('does not start another booking or resend a confirmation for an undelivered verification code', async () => {
+    setupQuestion();
+    const message='I am trying to book hybrid dye at 2pm but the verification email won’t come through. Could I manually book?';
+    db.messages[0].content=message;
+    const result=await processInboundMessage(MSG_ID,beautician,client,message);
+    expect(result.escalated).toBe(true);
+    expect(bookingCalls).toHaveLength(0);
+    expect(confirmations).toHaveLength(0);
+    expect(delivered).toHaveLength(0);
+    expect(db.messages[0].ai_intent).toBe('general_question');
+    expect(db.messages[0].escalated_reason).toBe('booking_support:booking_problem');
+  });
+  it('keeps a course choice for the owner instead of offering treatment appointments', async () => {
+    setupQuestion();
+    const message='I’ll go ahead with lamination, hybrid dye and tinting';
+    db.messages[0].content=message;
+    db.messages.push({id:'previous-training',beautician_id:'b1',client_id:'c1',direction:'inbound',content:'Any 1-1 training days after October?',created_at:new Date(Date.now()-60000).toISOString()});
+    const result=await processInboundMessage(MSG_ID,beautician,client,message);
+    expect(result.escalated).toBe(true);
+    expect(bookingCalls).toHaveLength(0);
+    expect(delivered).toHaveLength(0);
+    expect(db.messages.find(m=>m.id===MSG_ID).escalated_reason).toBe('training_enquiry');
+  });
   it('answers from the approved rule and records the basis for the decision', async () => {
     setupQuestion(); knowledgeRows = [note];
     script.reply = JSON.stringify({ covered: true, reply: note.content, evidence: [{ id: note.id, quote: note.content }] });

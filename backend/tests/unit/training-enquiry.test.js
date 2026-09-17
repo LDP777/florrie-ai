@@ -70,3 +70,20 @@ describe('renderCoursesBlock', () => {
     expect(block).not.toMatch(/[\u2014\u2013]/);
   });
 });
+
+describe('a student’s follow-up stays in the training conversation', () => {
+  const now = Date.parse('2026-09-17T12:00:00Z');
+  const context = [{direction:'inbound',content:'Do you have 1-1 training days after 8 October?',created_at:'2026-09-17T11:55:00Z'}];
+  it('keeps the course choice even when it only names treatments', () => {
+    expect(isTrainingEnquiry('I’ll go ahead with lamination, hybrid dye and tinting',context,now)).toMatchObject({yes:true,sourceQuestion:context[0].content});
+  });
+  it('recognises an explicit switch to a personal treatment', () => {
+    expect(isTrainingEnquiry('Different question, can I get my brows done on Friday?',context,now).yes).toBe(false);
+    expect(isTrainingEnquiry('4pm please',[...context,{direction:'inbound',content:'Can I get my own brows done?',created_at:'2026-09-17T11:58:00Z'}],now).yes).toBe(false);
+  });
+  it('does not revive old or unverified context or an owner’s unrelated course mention', () => {
+    expect(isTrainingEnquiry('Hybrid dye please',[{...context[0],created_at:'2026-08-17T12:00:00Z'}],now).yes).toBe(false);
+    expect(isTrainingEnquiry('Hybrid dye please',[{...context[0],created_at:'invalid'}],now).yes).toBe(false);
+    expect(isTrainingEnquiry('Hybrid dye please',[{...context[0],direction:'outbound'}],now).yes).toBe(false);
+  });
+});

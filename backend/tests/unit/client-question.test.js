@@ -14,6 +14,7 @@ describe('questions before bookings', () => {
     'Is it too early to book for a lami again in 2 weeks? Xx',
     'I just wanted to know if its too early to get a brow lamination and hybrid stain on 8th October xx',
     'How long between full brow laminations?',
+    'I would like to get my brows done before going abroad, it would have been 4 weeks so that would be a maintenance I need right?',
   ])('keeps the treatment question out of the booking flow: %s', text => {
     expect(clientQuestionScenario(text)?.kind).toBe('treatment_guidance');
   });
@@ -42,9 +43,29 @@ describe('questions before bookings', () => {
     expect(asksForHuman('Mara xxx!', 'Mara')).toBe(true);
     expect(asksForHuman('Hi Mara, how much are brows?', 'Mara')).toBe(false);
   });
+  it.each([
+    'I am trying to book hybrid dye at 2pm but the verification email won’t come through. Could I manually book?',
+    'It will not send me the verification code for my email',
+    'I am trying to book but it is not letting me',
+  ])('keeps booking failures out of the slot picker: %s', message => {
+    expect(clientQuestionScenario(message)?.kind).toBe('booking_problem');
+  });
+  it('retains the course context for a treatment-named follow-up', () => {
+    const prior='Are there any 1-1 training days after 8 October?';
+    const result=clientQuestionScenario('I’ll go ahead with lamination, hybrid dye and tinting',[{direction:'inbound',content:prior}]);
+    expect(result.kind).toBe('training_enquiry');
+    expect(result.question).toContain(prior);
+  });
 });
 
 describe('answers from saved facts', () => {
+  it('flags booking support without guessing a fix or sending another email', async () => {
+    const askModel=model();
+    const result=await answer({scenario:{kind:'booking_problem'},askModel});
+    expect(result).toMatchObject({canAnswer:false,reason:'booking_support:booking_problem'});
+    expect(result.reply).toContain('verification codes or payment details hidden');
+    expect(askModel).not.toHaveBeenCalled();
+  });
   it('answers the rolling-window question without a model or invented holiday', async () => {
     const askModel = model();
     const result = await answer({ message: 'Have the diary dates been released yet?', scenario: { kind: 'diary_release' }, context: { knowledge: [] }, askModel });
@@ -67,6 +88,17 @@ describe('answers from saved facts', () => {
     const result = await answer();
     expect(result).toMatchObject({ canAnswer: true, reason: 'approved_salon_answer', sources: [{ id: 'guidance' }] });
     expect(result.reply).not.toMatch(/which one|deposit|patch test|slot/i);
+  });
+  it('selects the full approved treatment note without asking the model to rewrite its rule', async () => {
+    const askModel=vi.fn(async()=>({content:[{type:'tool_use',name:'select_treatment_guidance',input:{covered:true,guidance_ids:[note.id]}}]}));
+    const result=await answer({askModel});
+    expect(result.reply).toBe(note.content);
+    expect(result.canAnswer).toBe(true);
+    expect(askModel.mock.calls[0][0].tool_choice.name).toBe('select_treatment_guidance');
+  });
+  it.each([{covered:true,guidance_ids:['other-salon']},{covered:true,guidance_ids:[]},{covered:false,guidance_ids:[]},{covered:'yes',guidance_ids:[note.id]}])('refuses invalid or empty treatment selections: %j',async input=>{
+    const result=await answer({askModel:async()=>({content:[{type:'tool_use',name:'select_treatment_guidance',input}]})});
+    expect(result.canAnswer).toBe(false);
   });
   it('needs a saved rule instead of inventing a treatment interval', async () => {
     const askModel = model();

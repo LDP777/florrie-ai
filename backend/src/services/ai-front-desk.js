@@ -294,8 +294,8 @@ export async function processInboundMessage(messageId, beautician, client, messa
     const writtenNotes = writtenNotesFrom(context.knowledge);
 
     // 2. Classify intent
-    const changeIntent = appointmentChangeIntent(messageContent);
     const questionScenario = clientQuestionScenario(messageContent, context.conversation);
+    const changeIntent = questionScenario?.kind === 'training_enquiry' ? null : appointmentChangeIntent(messageContent);
     const classification = changeIntent
       ? { intent: changeIntent, confidence: 1, extracted: {} }
       : questionScenario
@@ -347,7 +347,7 @@ export async function processInboundMessage(messageId, beautician, client, messa
     const personNeeded = needsAPerson(messageContent);
     // Same reasoning: "training_enquiry" on the escalation tells her this is a
     // student, not a client, before she opens it.
-    const trainingEnquiry = isTrainingEnquiry(messageContent);
+    const trainingEnquiry = isTrainingEnquiry(messageContent, context.conversation);
 
     // No treatments and no notes means nothing true to answer from. A menu
     // that could not be READ is not the same thing and is handled by the
@@ -379,6 +379,7 @@ export async function processInboundMessage(messageId, beautician, client, messa
       florriePaused,
       salonHasAMenu,
       subscriptionLapsed,
+      trainingEnquiry,
     });
 
     if (florriePaused) {
@@ -1540,7 +1541,7 @@ NEVER say when an appointment is unless it is in that list, and say the day that
  * @param {string} a.arrivalNote what she has written down about arriving
  * @param {{present: boolean, reason: string}} [a.ownerPresent] is Ellie already in this thread
  */
-export function mayFlorrieSend({ classification, groundedDecision, autonomyOverride, threshold, message, appointmentPlan = null, arrivalNote = '', ownerPresent = null, florriePaused = false, salonHasAMenu = true, subscriptionLapsed = false }) {
+export function mayFlorrieSend({ classification, groundedDecision, autonomyOverride, threshold, message, appointmentPlan = null, arrivalNote = '', ownerPresent = null, florriePaused = false, salonHasAMenu = true, subscriptionLapsed = false, trainingEnquiry = null }) {
   // NOBODY IS PAYING FOR THIS REPLY.
   //
   // The webhooks are un-paywalled on purpose (a client's message must land
@@ -1583,7 +1584,7 @@ export function mayFlorrieSend({ classification, groundedDecision, autonomyOverr
   // front of her (lib/training-enquiry.js), and Ellie presses send. Once she
   // has replied the thread is hers for a week by the owner-in-thread rule, so
   // this only has to catch the first message.
-  if (isTrainingEnquiry(message).yes) return false;
+  if (trainingEnquiry?.yes || isTrainingEnquiry(message).yes) return false;
 
   // THE SWITCH ELLIE WAS LOOKING FOR AND DID NOT HAVE.
   //

@@ -77,4 +77,48 @@ try {
     }
     await ctx.close();
   }
+  for (const initial of ['available','unavailable','unknown','connected']) {
+    const ctx=await browser.newContext({viewport:{width:390,height:844}});
+    await ctx.route('**/*',route=>new URL(route.request().url()).origin===origin?route.continue():route.abort());
+    await ctx.addInitScript(fetchStubSource());
+    await ctx.addInitScript(sessionSeedSource(bundleSupabaseUrl(dist)));
+    await ctx.addInitScript(initial=>{
+      const base=window.fetch;
+      window.__waChecks=0;window.__finishWrites=[];
+      const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json'}});
+      const profile={id:'b1',auth_id:'b1',first_name:'Demo',business_name:'Demo salon',booking_slug:'demo-salon',onboarding_completed_at:null,trial_ends_at:'2099-01-01',timezone:'Europe/London'};
+      window.fetch=async(input,opts={})=>{
+        const url=String(input);
+        if(url.includes('/rest/v1/beauticians')){
+          if(opts.method==='PATCH'){const patch=JSON.parse(opts.body||'{}');window.__finishWrites.push(patch);Object.assign(profile,patch);}
+          return json(profile);
+        }
+        if(url.includes('/api/whatsapp/embedded/availability')){
+          window.__waChecks++;
+          if(initial==='unknown'&&window.__waChecks===1)return json({},503);
+          return json({available:initial==='available'||initial==='unknown',connection_mode:initial==='connected'?'legacy':null});
+        }
+        return base(input,opts);
+      };
+    },initial);
+    const page=await ctx.newPage();await page.goto(`${origin}/today`);
+    await page.getByRole('button',{name:'Skip for now',exact:true}).click();
+    await page.getByRole('button',{name:'Continue to Florrie',exact:true}).waitFor();
+    if(initial==='unavailable'){
+      await page.getByText('WhatsApp connection is not available for this account yet.',{exact:false}).waitFor();
+      assert.equal(await page.getByRole('button',{name:'Connect WhatsApp →',exact:true}).count(),0);
+    }else if(initial==='connected'){
+      await page.getByRole('button',{name:'Review WhatsApp →',exact:true}).waitFor();
+      assert.equal(await page.getByRole('button',{name:'Connect WhatsApp →',exact:true}).count(),0);
+    }else if(initial==='unknown'){
+      await page.getByRole('button',{name:'Retry WhatsApp check',exact:true}).click();
+      await page.getByRole('button',{name:'Connect WhatsApp →',exact:true}).waitFor();
+    }else await page.getByRole('button',{name:'Connect WhatsApp →',exact:true}).waitFor();
+    assert.equal(await page.evaluate(()=>window.__finishWrites.length),0,'checking channel availability must not finish onboarding');
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+    await page.getByRole('button',{name:'Continue to Florrie',exact:true}).click();
+    await page.waitForFunction(()=>window.__finishWrites.some(row=>row.onboarding_completed_at));
+    console.log(`PASS onboarding WhatsApp ${initial}: accurate state, optional connection, completion available`);
+    await ctx.close();
+  }
 } finally { await browser.close(); server.close(); }

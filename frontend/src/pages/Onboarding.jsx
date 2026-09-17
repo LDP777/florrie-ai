@@ -11,6 +11,7 @@ import Button from '../components/ui/Button';
 import { cleanSlug, slugProblem, suggestSlug, withSuffix, isUniqueViolation } from '../lib/booking-slug.js';
 import { parseCsv, clientsFromCsv } from '../lib/csv.js';
 import { startInstagramConnection } from '../lib/instagram-connect.js';
+import { readAuthenticatedJson } from '../lib/authenticated-json.js';
 
 /** The zone the browser is running in, or null if it cannot say. */
 function detectBrowserTimezone() {
@@ -117,6 +118,18 @@ export default function Onboarding({ onComplete }) {
   const [pushLoading, setPushLoading] = useState(false);
   // Step 6: SMS fork (for users who don't have WhatsApp)
   const [smsForkOpen, setSmsForkOpen] = useState(false);
+  const [whatsappSetup, setWhatsappSetup] = useState(null);
+  const [whatsappSetupError, setWhatsappSetupError] = useState(false);
+  const [whatsappSetupRetry, setWhatsappSetupRetry] = useState(0);
+  useEffect(() => {
+    if (step !== 6 || !beautician?.id) return;
+    let active = true;
+    setWhatsappSetupError(false);
+    readAuthenticatedJson({ auth: supabase.auth, url: `${API}/api/whatsapp/embedded/availability` })
+      .then(data => { if (active) setWhatsappSetup(data); })
+      .catch(() => { if (active) setWhatsappSetupError(true); });
+    return () => { active = false; };
+  }, [step, beautician?.id, whatsappSetupRetry]);
   // Empty on purpose. This used to be pre-filled with the SHARED platform long
   // code and hinted "leave it as-is", so every salon that took the SMS fork
   // claimed the same inbound number. The second one to do it made the inbound
@@ -1020,18 +1033,19 @@ export default function Onboarding({ onComplete }) {
               <div style={styles.channelCopy}>
                 <div style={styles.waTitleRow}>
                   <span style={styles.channelTitle}>WhatsApp: your AI receptionist</span>
-                  <span style={styles.waRecommend}>Recommended</span>
+                  {whatsappSetup?.available === true && <span style={styles.waRecommend}>Optional</span>}
                 </div>
-                <div style={styles.channelDesc}>Bring client messages into Florrie. Choose drafts first or automatic replies.</div>
-                <div style={styles.waMeta}>Connect securely with Meta. A separate business number is needed.</div>
+                <div style={styles.channelDesc}>{whatsappSetup?.connection_mode ? 'Your existing WhatsApp connection is saved. Review it and your reply settings when you are ready.' : whatsappSetup?.available === true ? 'Bring client messages into Florrie. Choose drafts first or automatic replies.' : whatsappSetupError ? 'Could not check WhatsApp setup. You can retry or finish setting up your salon.' : whatsappSetup ? 'WhatsApp connection is not available for this account yet. You can finish setup and use your booking page now.' : 'Checking whether WhatsApp connection is available for your account…'}</div>
+                {whatsappSetup?.available === true && !whatsappSetup?.connection_mode && <div style={styles.waMeta}>Sign in with Meta on this device. Use a separate business number; keep your current WhatsApp account and chats.</div>}
               </div>
             </div>
             <div style={styles.waButtonRow}>
-              <button onClick={() => finishOnboarding('/whatsapp')} style={styles.waPrimaryBtn}>
-                Connect WhatsApp →
-              </button>
+              {(whatsappSetup?.available === true || whatsappSetup?.connection_mode) && <button onClick={() => finishOnboarding('/whatsapp')} style={styles.waPrimaryBtn}>
+                {whatsappSetup?.connection_mode ? 'Review WhatsApp →' : 'Connect WhatsApp →'}
+              </button>}
+              {whatsappSetupError && <Button variant="secondary" size="sm" onClick={() => setWhatsappSetupRetry(n => n + 1)}>Retry WhatsApp check</Button>}
               <button onClick={() => finishOnboarding('/')} style={styles.waSkipBtn}>
-                Skip for now
+                Continue to Florrie
               </button>
             </div>
             <div style={styles.channelDivider} />

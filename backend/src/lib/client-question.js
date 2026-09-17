@@ -1,4 +1,5 @@
 import { dayPreferenceFrom } from './booking-rules.js';
+import { isTrainingEnquiry } from './training-enquiry.js';
 
 const normalise = value => String(value || '').replace(/[’‘]/g, "'").toLowerCase().trim();
 const TREATMENT = /\b(?:brows?|lami(?:nation)?|lamination|hybrid|stain|tint|lash(?:es)?|lift|wax|treatment)\b/i;
@@ -7,13 +8,21 @@ const DIARY = /\b(?:dates?|diary|calendar|appointments?|bookings?)\b.{0,65}\b(?:
 
 function directScenario(message) {
   const text = normalise(message);
-  if (SPACING.test(text) && TREATMENT.test(text)) return 'treatment_guidance';
+  const verificationIssue = /\b(?:verification (?:email|code)|email (?:verification|code))\b/.test(text)
+    && /\b(?:won'?t|can'?t|not|isn'?t|hasn'?t|failed|error|never|no)\b/.test(text);
+  const bookingIssue = /\b(?:book(?:ing)?|booking system)\b/.test(text)
+    && /\b(?:error|failed|not (?:letting|working)|won'?t (?:let|work)|can'?t (?:complete|finish))\b/.test(text);
+  if (verificationIssue || bookingIssue) return 'booking_problem';
+  const maintenanceChoice = /\b(?:maintenance.{0,45}\b(?:right|need)|(?:should|do) i.{0,45}\bmaintenance)\b/.test(text);
+  if ((SPACING.test(text) || maintenanceChoice) && TREATMENT.test(text)) return 'treatment_guidance';
   if (DIARY.test(text)) return 'diary_release';
   return null;
 }
 
 /** Keep a clarification attached to its question, rather than restarting booking. */
 export function clientQuestionScenario(message, conversation = []) {
+  const training = isTrainingEnquiry(message, conversation);
+  if (training.yes) return { kind: 'training_enquiry', question: training.sourceQuestion ? `${training.sourceQuestion}\nStudent follow-up: ${message}` : String(message) };
   const direct = directScenario(message);
   if (direct) return { kind: direct, question: String(message) };
   const text = normalise(message);
@@ -67,6 +76,8 @@ export function renderClientHistory(context) {
 }
 
 export function questionMissingReply(kind) {
+  if (kind === 'booking_problem') return 'Please check the email address entered on the booking page and your junk or spam folder. If booking still fails, send a screenshot of the error with any verification codes or payment details hidden.';
+  if (kind === 'training_enquiry') return 'I don’t have confirmed training dates and course details to answer that yet.';
   if (kind === 'treatment_guidance') return "I need the salon's treatment guidance to answer whether that gap is suitable. I don't want to give you the wrong advice or book the wrong treatment.";
   if (kind === 'diary_release') return "I don't have the salon's diary-release rule recorded yet, so I can't tell you why those dates aren't showing.";
   return "I don't have an approved answer to that question yet.";

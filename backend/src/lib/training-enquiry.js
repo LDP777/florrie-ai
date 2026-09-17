@@ -55,7 +55,7 @@ const COURSE_IDIOMS = /\b(?:of|in due|on|par for the|stay the|run its|change of|
  * @param {string} message the client's own words
  * @returns {{yes: boolean, reason: string|null}}
  */
-export function isTrainingEnquiry(message) {
+export function isTrainingEnquiry(message, conversation = [], now = Date.now()) {
   const body = String(message || '');
   if (!body.trim()) return { yes: false, reason: null };
 
@@ -63,6 +63,19 @@ export function isTrainingEnquiry(message) {
 
   const stripped = body.replace(COURSE_IDIOMS, ' ');
   if (BARE_COURSE.test(stripped)) return { yes: true, reason: 'training_enquiry' };
+
+  // A student choosing "lamination, hybrid dye and tinting" is still choosing
+  // a course. Retain that context briefly, while allowing an explicit switch
+  // to the client's own appointment and ignoring an old training conversation.
+  if (/\b(?:different question|not (?:the )?training|my own (?:brows|lashes|appointment)|(?:get|have) my (?:brows|eyebrows|lashes) done)\b/i.test(body)) {
+    return { yes: false, reason: null };
+  }
+  for (const row of [...conversation].reverse().filter(r => r.direction === 'inbound').slice(0, 8)) {
+    if (String(row.content || '').trim() === body.trim()) continue;
+    if (row.created_at && (!Number.isFinite(Date.parse(row.created_at)) || now - Date.parse(row.created_at) > 48 * 60 * 60 * 1000)) break;
+    if (/\b(?:different question|not (?:the )?training|my own (?:brows|lashes|appointment)|(?:get|have) my (?:brows|eyebrows|lashes) done)\b/i.test(row.content || '')) break;
+    if (isTrainingEnquiry(row.content).yes) return { yes: true, reason: 'training_enquiry', sourceQuestion: row.content };
+  }
 
   return { yes: false, reason: null };
 }
