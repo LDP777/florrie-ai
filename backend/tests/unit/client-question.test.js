@@ -84,10 +84,25 @@ describe('answers from saved facts', () => {
     { reply: 'I have booked you for 4pm.' },
     { reply: "I'll get Mara to call you." },
   ])('holds unsupported or action-claim answers: %j', async over => {
-    expect((await answer({ askModel: model(over) })).canAnswer).toBe(false);
+    expect((await answer({ scenario: { kind: 'general_question' }, askModel: model(over) })).canAnswer).toBe(false);
   });
   it('holds malformed model output', async () => {
     expect((await answer({ askModel: async () => ({ content: [{ text: 'sounds fine, book online' }] }) })).canAnswer).toBe(false);
+  });
+  it.each([
+    'Your last lamination was 2 September, so you can come back on 27 October.',
+    'Your last treatment was a full lamination. Leave eight weeks.',
+    'That would be 36 days, so it is too soon.',
+    'You are safe for another lamination after eight weeks.',
+  ])('does not turn a saved interval into an invented personal conclusion: %s', async reply => {
+    const result = await answer({askModel:model({reply})});
+    expect(result.canAnswer).toBe(true);
+    expect(result.reply).toBe(note.content);
+    expect(result.reply).not.toBe(reply);
+  });
+  it('shares the approved rule without fabricating missing last-treatment details', async () => {
+    const reply='You may have maintenance sooner, but leave at least 8 weeks between full laminations. Was your last appointment a full lamination?';
+    expect((await answer({askModel:model({reply})})).canAnswer).toBe(true);
   });
   it('supplies completed treatment dates without promoting client claims to records', async () => {
     const askModel = model();
@@ -95,7 +110,7 @@ describe('answers from saved facts', () => {
       { status: 'completed', starts_at: '2026-09-02T12:00:00Z', treatments: { name: 'Full brow lamination' } },
       { status: 'pending', starts_at: '2026-09-09T12:00:00Z', treatments: { name: 'Cancelled example' } },
     ] };
-    await answer({ context, askModel });
+    await answer({ context, askModel, scenario: { kind: 'general_question' } });
     expect(askModel.mock.calls[0][0].system).toContain('2026-09-02: Full brow lamination');
     expect(askModel.mock.calls[0][0].system).not.toContain('Cancelled example');
     expect(renderClientHistory({ clientHistory: [] })).toContain('none available');
