@@ -50,8 +50,8 @@ export const MORE_CATEGORIES = [
   { id: 'team', label: 'Team', desc: 'People, rotas and locations', matIcon: 'group', items: [
     { path: '/team',              label: 'Team members',            matIcon: 'group',              desc: 'Manage staff profiles',    gate: 'team_management' , keywords: 'people staff' },
     { path: '/rota',              label: 'Staff rota',      matIcon: 'calendar_view_week', desc: 'Plan your weekly staff schedule',   gate: 'staff_rota' , keywords: 'team availability' },
-    { path: '/staff-performance', label: 'Team performance',     matIcon: 'trending_up',        desc: 'Report availability and team tools',    gate: 'staff_performance' , keywords: 'staff analytics' },
-    { path: '/locations',         label: 'Locations',  matIcon: 'location_city',      desc: 'Manage your branches', gate: 'multi_location' , keywords: 'multi-location branch' },
+    { path: '/staff-performance', label: 'Team performance',     matIcon: 'trending_up',        desc: 'Individual reports are not available yet',    keywords: 'staff analytics' },
+    { path: '/locations',         label: 'Locations',  matIcon: 'location_city',      desc: 'Saved location names and addresses', gate: 'multi_location' , keywords: 'multi-location branch' },
   ] },
   { id: 'setup', label: 'Business setup', desc: 'Booking, automation and preferences', matIcon: 'settings', items: [
     { path: '/setup',              label: 'Setup guide',       matIcon: 'checklist',       desc: 'Everything in one place'        },

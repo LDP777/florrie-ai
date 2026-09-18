@@ -5,8 +5,10 @@ import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
+import MoreLoadError from '../components/MoreLoadError.jsx';
 import Icon from '../components/ui/Icon';
 import PageHeader from '../components/ui/PageHeader.jsx';
+import Button from '../components/ui/Button.jsx';
 
 const tabs = ['Overview', 'Locations'];
 
@@ -15,6 +17,7 @@ export default function MultiLocation() {
   const [locs, setLocs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [loadError, setLoadError] = useState(null);
   const [tab, setTab] = useState(0);
   const [expanded, setExpanded] = useState(null);
   const [adding, setAdding] = useState(false);
@@ -25,7 +28,7 @@ export default function MultiLocation() {
 
   async function loadLocations() {
     setLoading(true);
-    setError(null);
+    setLoadError(null);
     try {
       const { data, error: err } = await supabase
         .from('locations')
@@ -36,8 +39,7 @@ export default function MultiLocation() {
       setLocs(data || []);
     } catch (err) {
       logger.error('Load locations error:', err);
-      setError('Failed to load locations');
-      setLocs([]);
+      setLoadError('Could not load your location records. Try again.');
     } finally {
       setLoading(false);
     }
@@ -46,6 +48,7 @@ export default function MultiLocation() {
   async function handleAddLocation() {
     if (!form.name.trim()) return;
     setSaving(true);
+    setError(null);
     try {
       const { data, error: err } = await supabase
         .from('locations')
@@ -58,13 +61,13 @@ export default function MultiLocation() {
         })
         .select()
         .single();
-      if (err) throw err;
+      if (err || !data) throw err || new Error('No saved location returned');
       setLocs(prev => [...prev, data]);
       setForm({ name: '', address: '' });
       setAdding(false);
     } catch (err) {
       logger.error('Add location error:', err);
-      setError('Failed to add location');
+      setError('Could not save this location. Your details are still here.');
     } finally {
       setSaving(false);
     }
@@ -74,24 +77,23 @@ export default function MultiLocation() {
     return <PageLoader />;
   }
 
-  if (error) {
-    return <ErrorCard message={error} onDismiss={() => setError(null)} />;
-  }
+  if (loadError) return <MoreLoadError title="Locations" message={loadError} onRetry={loadLocations} />;
 
   const activeLocations = locs.filter(l => l.status === 'active');
   const settingUp = locs.filter(l => l.status === 'setup');
 
   return (
     <div style={ds.page}>
-      <PageHeader title="Multi-Location" subtitle="Manage your branches" />
+      <PageHeader title="Locations" subtitle="Your location records" />
+      <p style={{ ...type.bodySmall, margin: '0 0 16px', lineHeight: 1.6 }}>Keep names and addresses here. Separate branch diaries, staff access and booking pages are not available yet.</p>
 
       {/* Hero */}
       <div style={{ ...ds.heroCard, marginBottom: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
-            <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 4 }}>YOUR NETWORK</div>
+            <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 4 }}>SAVED LOCATIONS</div>
             <div style={{ fontSize: 36, fontWeight: 700 }}>{locs.length} {locs.length === 1 ? 'location' : 'locations'}</div>
-            <div style={{ fontSize: 13, opacity: 0.9, marginTop: 4 }}>{activeLocations.length} active · {settingUp.length} setting up</div>
+            <div style={{ fontSize: 13, opacity: 0.9, marginTop: 4 }}>{activeLocations.length} marked active · {settingUp.length} in setup</div>
           </div>
           <div style={{ fontSize: 40 }}><Icon name="map-pin" size={40} /></div>
         </div>
@@ -107,8 +109,10 @@ export default function MultiLocation() {
       {adding && (
         <div style={{ ...ds.card, marginBottom: 16 }}>
           <div style={{ ...type.heading, fontSize: 14, marginBottom: 10 }}>New location</div>
+          {error && <ErrorCard message={error} onDismiss={() => setError(null)} />}
           <input
             type="text"
+            aria-label="Location name"
             placeholder="Location name"
             value={form.name}
             onChange={e => setForm({ ...form, name: e.target.value })}
@@ -116,6 +120,7 @@ export default function MultiLocation() {
           />
           <input
             type="text"
+            aria-label="Location address"
             placeholder="Address (optional)"
             value={form.address}
             onChange={e => setForm({ ...form, address: e.target.value })}
@@ -135,7 +140,7 @@ export default function MultiLocation() {
             <EmptyState
               icon="map-pin"
               title="No locations yet"
-              subtitle="Add a branch to manage more than one place from one account."
+              subtitle="Save a name and address for each place you work."
               actionLabel="+ Add location"
               onAction={() => setAdding(true)}
             />
@@ -173,14 +178,14 @@ export default function MultiLocation() {
             />
           )}
           {locs.map((loc, i) => (
-            <div key={loc.id} style={{ ...ds.card, marginBottom: 12, cursor: 'pointer' }} onClick={() => setExpanded(expanded === i ? null : i)}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div key={loc.id} style={{ ...ds.card, marginBottom: 12 }}>
+              <Button variant="quiet" aria-expanded={expanded === i} onClick={() => setExpanded(expanded === i ? null : i)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'none', border: 0, color: 'inherit', fontFamily: 'inherit', width: '100%', textAlign: 'left' }}>
                 <div>
                   <span style={type.heading}>{loc.name}</span>
                   {loc.is_primary && <span style={{ ...ds.badge, ...ds.badgeGold, marginLeft: 8 }}>Primary</span>}
                 </div>
                 <span style={{ fontSize: 14, color: 'var(--text-muted)', transform: expanded === i ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▼</span>
-              </div>
+              </Button>
 
               {expanded === i && (
                 <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border-light)' }}>

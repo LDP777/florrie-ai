@@ -18,8 +18,8 @@ import PageHeader from '../components/ui/PageHeader.jsx';
  */
 
 const PERIOD_OPTIONS = [
-  { key: 'week', label: 'This week' },
-  { key: 'month', label: 'This month' },
+  { key: 'week', label: 'Last 7 days' },
+  { key: 'month', label: 'Last month' },
   { key: '3months', label: 'Last 3 months' },
 ];
 
@@ -30,7 +30,7 @@ const TABS = [
 ];
 
 const SORT_OPTIONS = [
-  { key: 'revenue', label: 'Revenue' },
+  { key: 'revenue', label: 'Appointment value' },
   { key: 'bookings', label: 'Bookings' },
   { key: 'hourlyRate', label: '£/Hour' },
   { key: 'returnRate', label: 'Return Rate' },
@@ -90,7 +90,7 @@ export default function Analytics() {
       const noShows = inRange.filter(a => a.status === 'no_show');
       const totalRevenue = completed.reduce((s, a) => s + (a.price_cents || 0), 0);
       const totalExpenses = expenses
-        .filter(e => new Date(e.date) >= startDate)
+        .filter(e => new Date(e.date) >= startDate && new Date(e.date) <= now)
         .reduce((s, e) => s + (e.amount_cents || 0), 0);
 
       const clientSpend = {};
@@ -132,7 +132,7 @@ export default function Analytics() {
         avgPerAppointment: completed.length > 0 ? Math.round(totalRevenue / completed.length) : 0,
         topClients,
         busiestDay: busiestDay ? { day: busiestDay[0], count: busiestDay[1] } : null,
-        newClients: clients.filter(c => new Date(c.created_at) >= startDate).length,
+        newClients: clients.filter(c => new Date(c.created_at) >= startDate && new Date(c.created_at) <= now).length,
         totalClients: clients.length,
         utilizationRate,
         dayBreakdown: dayCount,
@@ -163,7 +163,7 @@ export default function Analytics() {
       setAllAppointments(appointments);
       setAllClients(clients);
 
-      const recentAppts = appointments.filter(a => new Date(a.starts_at) >= cutoff && a.status === 'completed');
+      const recentAppts = appointments.filter(a => new Date(a.starts_at) >= cutoff && new Date(a.starts_at) <= new Date() && a.status === 'completed');
 
       const tMap = {};
       treatments.forEach(t => {
@@ -251,7 +251,7 @@ export default function Analytics() {
 
   function exportAppointments() {
     downloadCSV('florrie-appointments.csv',
-      ['Date', 'Client', 'Treatment', 'Status', 'Revenue (£)'],
+      ['Date', 'Client', 'Treatment', 'Status', 'Appointment value (£)'],
       allAppointments.map(a => [
         a.starts_at ? new Date(a.starts_at).toLocaleDateString('en-GB') : '',
         a.client_name || '',
@@ -276,7 +276,7 @@ export default function Analytics() {
 
   function exportTreatments() {
     downloadCSV('florrie-treatments.csv',
-      ['Treatment', 'Category', 'Bookings', 'Revenue (£)', 'Avg Duration (min)'],
+      ['Treatment', 'Category', 'Bookings', 'Appointment value (£)', 'Avg Duration (min)'],
       treatmentStats.map(t => [
         t.name,
         t.category || '',
@@ -292,7 +292,8 @@ export default function Analytics() {
 
   return (
     <div style={styles.page}>
-      <PageHeader title="Analytics" />
+      <PageHeader title="Analytics" subtitle="Appointment patterns and value" />
+      <p style={{ ...styles.exportDesc, marginBottom: 16 }}>Values use the prices on completed appointments. They do not show money collected, refunds or payment fees.</p>
 
       {/* Tab nav */}
       <div style={styles.tabNav}>
@@ -338,7 +339,7 @@ export default function Analytics() {
         ) : stats ? (
           <>
             <div style={styles.heroCard}>
-              <span style={styles.heroLabel}>Revenue</span>
+              <span style={styles.heroLabel}>Completed appointment value</span>
               <span style={styles.heroAmount}><Money pence={stats.totalRevenue} /></span>
               <div style={styles.heroRow}>
                 <div style={styles.heroStat}>
@@ -361,7 +362,7 @@ export default function Analytics() {
                   <span style={{ ...styles.heroStatValue, color: '#fff' }}>
                     <Money pence={stats.profit} round />
                   </span>
-                  <span style={styles.heroStatLabel}>profit</span>
+                  <span style={styles.heroStatLabel}>less expenses</span>
                 </div>
               </div>
             </div>
@@ -391,7 +392,7 @@ export default function Analytics() {
 
             {stats.topClients.length > 0 && (
               <div style={styles.card}>
-                <h3 style={styles.cardTitle}>Top clients</h3>
+                <h3 style={styles.cardTitle}>Clients by appointment value</h3>
                 {stats.topClients.map((client, i) => (
                   <div key={client.id} style={styles.clientRow}>
                     <div style={styles.clientRank}>{i + 1}</div>
@@ -411,7 +412,7 @@ export default function Analytics() {
             </div>
 
             <div style={styles.card}>
-              <h3 style={styles.cardTitle}>AI insights</h3>
+              <h3 style={styles.cardTitle}>Patterns to explore</h3>
               <div style={styles.insightsList}>
                 {getInsights(stats).map((insight, i) => (
                   <div key={i} style={styles.aiInsight}>
@@ -435,6 +436,7 @@ export default function Analytics() {
           </div>
         ) : (
           <>
+            <p style={styles.exportDesc}>Completed appointments in the last 90 days. Hourly rates use your current treatment price and duration.</p>
             {/* Sort options */}
             <div style={styles.filterRow}>
               {SORT_OPTIONS.map(s => (
@@ -490,7 +492,7 @@ export default function Analytics() {
                   <div style={styles.treatmentStats}>
                     <div style={styles.treatmentStat}>
                       <span style={styles.treatmentStatValue}><Money pence={t.revenue} round /></span>
-                      <span style={styles.treatmentStatLabel}>revenue</span>
+                      <span style={styles.treatmentStatLabel}>value</span>
                     </div>
                     <div style={styles.treatmentStat}>
                       <span style={styles.treatmentStatValue}>{t.bookings}</span>
@@ -522,7 +524,7 @@ export default function Analytics() {
           <ExportCard
             icon="calendar"
             title="Appointments"
-            desc={`${allAppointments.length} records - date, client, treatment, status, revenue`}
+            desc={`${allAppointments.length} records - date, client, treatment, status, appointment value`}
             onExport={exportAppointments}
             loading={exportLoading}
           />
@@ -536,7 +538,7 @@ export default function Analytics() {
           <ExportCard
             icon="sparkles"
             title="Treatments"
-            desc={`${treatmentStats.length} treatments - bookings, revenue, duration (last 90 days)`}
+            desc={`${treatmentStats.length} treatments - bookings, appointment value, duration (last 90 days)`}
             onExport={exportTreatments}
             loading={exportLoading || treatmentLoading}
           />

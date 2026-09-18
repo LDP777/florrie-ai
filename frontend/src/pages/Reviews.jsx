@@ -1,5 +1,6 @@
 import MoreLoadError from '../components/MoreLoadError.jsx';
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useBeautician, supabase, fetchRowsStrict, updateRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
@@ -150,7 +151,7 @@ export default function Reviews() {
               <span style={{ fontSize: 36, display: 'block', marginBottom: 12 }}><Icon name="star" size={36} /></span>
               <p style={styles.emptyTitle}>No reviews yet</p>
               <p style={styles.emptyDesc}>
-                Connect your Google Business profile to pull in reviews, or start requesting them from clients.
+                Client feedback saved in Florrie will appear here. Review-platform imports are not available yet.
               </p>
             </div>
           ) : (
@@ -241,10 +242,11 @@ export default function Reviews() {
         <div style={styles.body}>
           <div style={styles.requestCard}>
             <span style={{ fontSize: 28, display: 'block', marginBottom: 8 }}><Icon name="phone" size={28} /></span>
-            <h3 style={styles.requestTitle}>Review requests are automatic</h3>
+            <h3 style={styles.requestTitle}>After an appointment</h3>
             <p style={styles.requestDesc}>
-              Florrie schedules a review request after a completed appointment, with a two-hour delay. Sending depends on the client’s preferences, approval settings and contact details.
+              Florrie schedules review requests two hours after completion. Sending depends on consent, your approval settings, contact details and message allowance. A recent request can also prevent another being sent.
             </p>
+            <Link to="/settings?section=ai" style={styles.replyBtn}>Review sending preferences</Link>
 
             <div style={styles.requestPreview}>
               <span style={styles.requestPreviewLabel}>Example message</span>
@@ -268,7 +270,7 @@ export default function Reviews() {
                 <span style={styles.settingLabel}>Auto-ask after appointments</span>
                 <span style={styles.settingHint}>Requests become eligible two hours after completion</span>
               </div>
-              <span style={styles.settingValue}>On</span>
+              <span style={styles.settingValue}>Checks apply</span>
             </div>
 
             <div style={styles.settingRow}>
@@ -290,7 +292,8 @@ export default function Reviews() {
 
           <div style={styles.settingsCard}>
             <h4 style={styles.sectionLabel}>Connect review platforms</h4>
-            <p style={styles.settingHint}>Pulling reviews in from Google, Facebook and Treatwell is coming soon. For now, requests link clients to your Google review page.</p>
+            <p style={styles.settingHint}>Review imports are not available yet. Requests include your Google review link when one is recorded; otherwise they ask for feedback without a link.</p>
+            <Link to="/settings?section=ai" style={styles.replyBtn}>Review sending preferences</Link>
           </div>
         </div>
       )}

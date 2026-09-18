@@ -24,6 +24,7 @@ try {
     ['/cancellations', 'appointments', 'Could not load cancellations.'],
     ['/campaigns', 'campaigns', 'Could not load campaigns.'],
     ['/reviews', 'reviews', 'Could not load feedback.'],
+    ['/locations', 'locations', 'Could not load your location records.'],
     ['/addons', 'add_ons', 'Could not load add-ons and treatments.'],
     ['/treatments', 'treatments', 'Could not load treatments.'],
     ['/treatments', '/api/consultation-forms', 'Could not load consultation forms.'],
@@ -45,13 +46,14 @@ try {
       const base = window.fetch;
       window.__failMoreRead = true;
       window.fetch = (url, opts) => {
+        if (table === 'locations' && String(url).includes('/rest/v1/beauticians')) return base(url, opts).then(async response => new Response(JSON.stringify({ ...await response.json(), subscription_plan: 'florrie_team' }), { headers: { 'Content-Type': 'application/json' } }));
         if (window.__failMoreRead && String(url).includes(table.startsWith('/api/') ? table : `/rest/v1/${table}?`)) {
           return Promise.resolve(new Response(JSON.stringify({ message: 'Synthetic read failure', code: 'XX000' }), { status: 500, headers: { 'Content-Type': 'application/json' } }));
         }
         return base(url, opts);
       };
     }, table);
-    const page = await ctx.newPage();
+    const page = await ctx.newPage(); page.setDefaultTimeout(15000);
     await page.goto(`http://127.0.0.1:${server.address().port}${route}`);
     await page.getByText(message, { exact: false }).waitFor();
     assert.equal(await page.getByRole('button', { name: 'Close day', exact: true }).count(), 0);
@@ -73,7 +75,7 @@ try {
       return base(url, opts);
     };
   });
-  const page = await ctx.newPage();
+  const page = await ctx.newPage(); page.setDefaultTimeout(15000);
   await page.goto(`http://127.0.0.1:${server.address().port}/vouchers`);
   await page.getByRole('button', { name: '+ Create Voucher', exact: true }).click();
   await page.getByPlaceholder("Who's buying?").fill('Test buyer');
@@ -84,4 +86,51 @@ try {
   assert.equal(await page.getByRole('button', { name: 'Create voucher', exact: true }).isEnabled(), true);
   await ctx.close();
   console.log('✓ /vouchers: failed insert preserves form and does not show an active voucher');
+
+  const locationContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await locationContext.addInitScript(fetchStubSource());
+  await locationContext.addInitScript(sessionSeedSource(bundleSupabaseUrl(dist)));
+  await locationContext.addInitScript(() => {
+    const base = window.fetch;
+    window.__locationWrites = [];
+    window.__rejectLocation = true;
+    window.fetch = (url, options) => {
+      if (String(url).includes('/rest/v1/beauticians')) return base(url, options).then(async response => new Response(JSON.stringify({ ...await response.json(), subscription_plan: 'florrie_team' }), { headers: { 'Content-Type': 'application/json' } }));
+      if (String(url).includes('/rest/v1/locations') && options?.method === 'POST') {
+        const body = JSON.parse(options.body);
+        window.__locationWrites.push(body);
+        return Promise.resolve(new Response(JSON.stringify(window.__rejectLocation
+          ? { message: 'Synthetic write failure' }
+          : { ...body, id: 'fictional-new-location' }), {
+          status: window.__rejectLocation ? 500 : 201, headers: { 'Content-Type': 'application/json' },
+        }));
+      }
+      return base(url, options);
+    };
+  });
+  const locationPage = await locationContext.newPage(); locationPage.setDefaultTimeout(15000);
+  await locationPage.goto(`http://127.0.0.1:${server.address().port}/locations`);
+  await locationPage.getByRole('button', { name: '+ Add location', exact: true }).click();
+  await locationPage.getByLabel('Location name', { exact: true }).fill('Fictional studio');
+  await locationPage.getByLabel('Location address', { exact: true }).fill('Demo address');
+  await locationPage.getByRole('button', { name: 'Add location', exact: true }).click();
+  await locationPage.getByText('Could not save this location. Your details are still here.', { exact: true }).waitFor();
+  assert.equal(await locationPage.getByLabel('Location name', { exact: true }).inputValue(), 'Fictional studio');
+  assert.equal(await locationPage.getByLabel('Location address', { exact: true }).inputValue(), 'Demo address');
+  await locationPage.evaluate(() => { window.__rejectLocation = false; });
+  await locationPage.getByRole('button', { name: 'Add location', exact: true }).click();
+  await locationPage.getByText('Fictional studio', { exact: true }).waitFor();
+  assert.equal(await locationPage.getByLabel('Location name', { exact: true }).count(), 0);
+  await locationPage.getByRole('button', { name: 'Locations', exact: true }).click();
+  const locationDetails = locationPage.getByRole('button', { name: /Fictional studio/ });
+  await locationDetails.focus();
+  await locationPage.keyboard.press('Enter');
+  assert.equal(await locationDetails.getAttribute('aria-expanded'), 'true');
+  await locationPage.getByText('Demo address', { exact: true }).waitFor();
+  const locationWrites = await locationPage.evaluate(() => window.__locationWrites);
+  assert.equal(locationWrites.length, 2);
+  assert.equal(locationWrites[1].status, 'setup');
+  assert.ok(locationWrites[1].beautician_id);
+  await locationContext.close();
+  console.log('✓ /locations: failed save retains input, retry creates a setup record, details open from the keyboard');
 } finally { await browser.close(); server.close(); }

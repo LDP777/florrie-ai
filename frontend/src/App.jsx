@@ -625,7 +625,7 @@ export default function App() {
             <Route path="/inventory" element={<ProductInventory />} />
             <Route path="/price-list" element={<PriceList />} />
             <Route path="/treatment-stats" element={<Navigate to="/analytics" replace />} />
-            <Route path="/staff-performance" element={<PlanGate feature="staff_performance"><StaffPerformance /></PlanGate>} />
+            <Route path="/staff-performance" element={<StaffPerformance />} />
 
             <Route path="/memberships" element={<ClientMemberships />} />
             <Route path="/comms" element={<Navigate to="/inbox" replace />} />
