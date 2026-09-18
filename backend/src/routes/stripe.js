@@ -1083,39 +1083,64 @@ router.post('/save-card-link', requireAuth, requireStripe, async (req, res) => {
 
 /**
  * GET /api/stripe/card-saved/:sessionId?apt=...
- * Where the client lands after saving a card. Pins the payment method to the
- * appointment (and their client record) so a later charge is direct.
- * Public: the session id is the proof, exactly like the booking confirm redirect.
+ * Where the client lands after saving a card. Pins the verified payment method
+ * to the booking already named by this salon's completed setup session.
+ * Public: the session id is a capability for that booking, not an arbitrary id.
  */
 router.get('/card-saved/:sessionId', async (req, res) => {
-  const done = `${FRONTEND_URL}/card/saved`;
+  res.set('Cache-Control', 'no-store');
+  const invalidLink = () => res.status(400).type('text/plain')
+    .send('We could not verify this card link. Please ask your salon for a new one.');
+  const stripeId = value => typeof value === 'string' ? value : value?.id;
   try {
-    if (stripe && req.params.sessionId) {
-      const session = await stripe.checkout.sessions.retrieve(req.params.sessionId);
-      const appointmentId = req.query.apt || session?.metadata?.appointment_id;
-      const setupIntentId = session?.setup_intent;
-      if (setupIntentId) {
-        const si = await stripe.setupIntents.retrieve(
-          typeof setupIntentId === 'string' ? setupIntentId : setupIntentId.id
-        );
-        const pmId = typeof si.payment_method === 'string' ? si.payment_method : si.payment_method?.id;
-        if (pmId && appointmentId) {
-          await supabase.from('appointments')
-            .update({ stripe_payment_method_id: pmId })
-            .eq('id', appointmentId);
-          logger.info({ appointmentId, pmId }, 'Card saved on file via setup link');
-        }
-        if (session.customer && session.metadata?.client_id) {
-          await supabase.from('clients')
-            .update({ stripe_customer_id: session.customer })
-            .eq('id', session.metadata.client_id);
-        }
-      }
+    if (!stripe) throw new Error('Card setup provider unavailable');
+    const session = await stripe.checkout.sessions.retrieve(req.params.sessionId);
+    const { appointment_id: appointmentId, beautician_id: beauticianId, client_id: clientId } = session?.metadata || {};
+    const customerId = stripeId(session?.customer);
+    // Only metadata written when the salon created this setup link can choose
+    // the booking. The legacy apt query parameter must agree, never override it.
+    if (session?.mode !== 'setup' || session.metadata?.type !== 'save_card'
+      || !appointmentId || !beauticianId || !clientId || !customerId
+      || (req.query.apt !== undefined && req.query.apt !== appointmentId)) return invalidLink();
+    if (['open', 'expired'].includes(session.status)) {
+      return res.redirect(302, `${FRONTEND_URL}/card/cancelled`);
     }
+    if (session.status !== 'complete' || !stripeId(session.setup_intent)) return invalidLink();
+
+    const setup = await stripe.setupIntents.retrieve(stripeId(session.setup_intent));
+    if (stripeId(setup?.customer) !== customerId) return invalidLink();
+    if (setup.status === 'canceled') return res.redirect(302, `${FRONTEND_URL}/card/cancelled`);
+    if (setup.status !== 'succeeded') {
+      return res.status(409).type('text/plain')
+        .send('Your card setup is not complete yet. Finish the original Stripe link, then try again.');
+    }
+    const pmId = stripeId(setup.payment_method);
+    if (!pmId) return invalidLink();
+    const method = await stripe.paymentMethods.retrieve(pmId);
+    if (stripeId(method?.customer) !== customerId) return invalidLink();
+
+    const appointment = await supabase.from('appointments').select('id')
+      .eq('id', appointmentId).eq('beautician_id', beauticianId).eq('client_id', clientId).maybeSingle();
+    if (appointment.error) throw new Error('Could not verify card setup booking');
+    if (!appointment.data) return invalidLink();
+    const client = await supabase.from('clients').select('id, stripe_customer_id')
+      .eq('id', clientId).eq('beautician_id', beauticianId).maybeSingle();
+    if (client.error) throw new Error('Could not verify card setup customer');
+    if (!client.data || client.data.stripe_customer_id !== customerId) return invalidLink();
+
+    // The customer was persisted before Checkout was created. A public return
+    // must never rebind that client to a different customer or salon.
+    const saved = await supabase.from('appointments')
+      .update({ stripe_payment_method_id: pmId })
+      .eq('id', appointmentId).eq('beautician_id', beauticianId).eq('client_id', clientId).select('id');
+    if (saved.error || !saved.data?.length) throw new Error('Could not save card setup on booking');
+    logger.info({ appointmentId }, 'Card saved on file via verified setup link');
+    return res.redirect(302, `${FRONTEND_URL}/card/saved`);
   } catch (err) {
     logger.error({ err, sessionId: req.params.sessionId }, 'card-saved redirect failed');
+    return res.status(503).type('text/plain')
+      .send('We could not confirm your saved card with the salon. Please reload this page to try again. No payment was taken by this page.');
   }
-  return res.redirect(302, done);
 });
 
 /**
