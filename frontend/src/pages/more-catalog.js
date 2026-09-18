@@ -55,7 +55,7 @@ export const MORE_CATEGORIES = [
   ] },
   { id: 'setup', label: 'Business setup', desc: 'Booking, automation and preferences', matIcon: 'settings', items: [
     { path: '/setup',              label: 'Setup guide',       matIcon: 'checklist',       desc: 'Everything in one place'        },
-    { path: '/settings',           label: 'Settings',          matIcon: 'settings',        desc: 'Hours, payments, preferences'   },
+    { path: '/settings',           label: 'Settings',          matIcon: 'settings',        desc: 'Connected apps, booking rules and preferences', keywords: 'instagram connections channels notifications ai tone voice account' },
     { path: '/portal',             label: 'Booking page',      matIcon: 'open_in_browser', desc: 'Manage your public booking link'       , keywords: 'portal online bookings' },
     { path: '/automations',        label: 'Automations',       matIcon: 'bolt',            desc: 'Appointment follow-up sequences'        },
     { path: '/knowledge',          label: 'Florrie’s knowledge', matIcon: 'menu_book',     desc: 'Teach answers and practise client questions' , keywords: 'knowledge train teach answers questions business information ai' },

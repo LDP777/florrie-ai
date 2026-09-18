@@ -447,12 +447,12 @@ export default function Settings({ onLogout }) {
             value={beautician.booking_slug || ''}
             onSave={v => {
               const problem = slugProblem(v);
-              if (problem) { setSaveError(problem); setTimeout(() => setSaveError(null), 5000); return; }
+              if (problem) { setSaveError(problem); return false; }
               const next = cleanSlug(v);
-              if (next === beautician.booking_slug) return;
+              if (next === beautician.booking_slug) return true;
               // Old links stop working the moment this saves; say so first.
-              if (beautician.booking_slug && !window.confirm(`Change your booking link to florrie.ai/book/${next}? Any link you have already shared (bio, stories, messages) will stop working.`)) return;
-              saveProfile({ booking_slug: next });
+              if (beautician.booking_slug && !window.confirm(`Change your booking link to florrie.ai/book/${next}? Any link you have already shared (bio, stories, messages) will stop working.`)) return false;
+              return saveProfile({ booking_slug: next });
             }}
           />
 

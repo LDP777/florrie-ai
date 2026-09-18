@@ -198,5 +198,28 @@ try {
  await page.getByText(/Connected, @fictional_demo/).waitFor();
  assert.equal(await page.evaluate(()=>window.fixture.writes.length),0);
  console.log('PASS: connection returns open the right settings and clear callback details; failed Instagram checks retry without false Connected');
+ await page.evaluate(()=>sessionStorage.setItem('setup-profile',JSON.stringify({id:'salon-fixture',first_name:'Alex',booking_slug:'fictional-salon'})));
+ await page.goto(`${origin}/settings?section=profile`);
+ await page.getByRole('button',{name:'Edit Booking slug',exact:true}).click();
+ await page.getByRole('textbox',{name:'Booking slug',exact:true}).fill('a');
+ await page.getByRole('button',{name:'Save',exact:true}).click();
+ await page.getByRole('alert').filter({hasText:'at least 3 characters'}).waitFor();
+ assert.equal(await page.getByRole('textbox',{name:'Booking slug',exact:true}).inputValue(),'a');
+ await page.getByRole('textbox',{name:'Booking slug',exact:true}).fill('fictional-salon-new');
+ page.once('dialog',dialog=>dialog.dismiss());
+ await page.getByRole('button',{name:'Save',exact:true}).click();
+ assert.equal(await page.getByRole('textbox',{name:'Booking slug',exact:true}).inputValue(),'fictional-salon-new');
+ assert.equal(await page.evaluate(()=>window.fixture.writes.length),0);
+ await page.evaluate(()=>{window.fixture.failProfile=true;});
+ page.once('dialog',dialog=>dialog.accept());
+ await page.getByRole('button',{name:'Save',exact:true}).click();
+ await page.getByRole('alert').filter({hasText:'Could not save that'}).waitFor();
+ assert.equal(await page.getByRole('textbox',{name:'Booking slug',exact:true}).inputValue(),'fictional-salon-new');
+ await page.evaluate(()=>{window.fixture.failProfile=false;});
+ page.once('dialog',dialog=>dialog.accept());
+ await page.getByRole('button',{name:'Save',exact:true}).click();
+ await page.getByRole('button',{name:'Edit Booking slug',exact:true}).waitFor();
+ assert.deepEqual(await page.evaluate(()=>window.fixture.writes),[{table:'beauticians',changes:{booking_slug:'fictional-salon-new'}}]);
+ console.log('PASS: invalid, cancelled and failed booking-link edits keep the draft; confirmed retry writes once');
  await ctx.close();
 } finally {await browser.close();server.close();}
