@@ -540,7 +540,7 @@ export default function Onboarding({ onComplete }) {
           if (!await markOnboardingComplete()) throw new Error('Could not save your setup. Try again.');
         },
       });
-      if (native && onComplete) onComplete('/settings?section=ai');
+      if (native && onComplete) onComplete('/settings?section=connections');
     } catch (err) {
       setIgNote(err.message || 'Could not start the connection. Try again from Settings.');
     } finally {

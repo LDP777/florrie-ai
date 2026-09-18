@@ -31,7 +31,7 @@ const MESSAGE_TEMPLATES = [
   {
     id: 'gentle',
     name: 'Gentle nudge',
-    body: "Hey {name}, hope you're well! It's been a little while since your last {treatment} - fancy getting booked in? I've got some lovely slots this week xx",
+    body: "Hey {name}, hope you're well! It's been a little while since your last {treatment} - fancy getting booked in? You can check the booking page for a time that suits you xx",
   },
   {
     id: 'comeback',
@@ -41,7 +41,7 @@ const MESSAGE_TEMPLATES = [
   {
     id: 'direct',
     name: 'Direct rebook',
-    body: "Hey {name}! Your {treatment} is due for a top-up. Want me to pop you in? I've got a few slots free this week xx",
+    body: "Hey {name}! Thinking about your next {treatment}? You can check the booking page for available appointments xx",
   },
 ];
 

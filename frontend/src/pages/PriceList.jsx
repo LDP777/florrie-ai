@@ -252,6 +252,7 @@ export default function PriceList() {
           {/* Customise tab */}
           {tab === 'customise' && (
             <div style={S.section}>
+              <p style={S.hint}>These changes apply to this printable preview. Your live booking page keeps the treatments and prices saved in Treatments.</p>
               <h3 style={S.sectionTitle}>Theme</h3>
               <div style={S.themeRow}>
                 {THEMES.map(t => (
@@ -276,7 +277,7 @@ export default function PriceList() {
               <h3 style={S.sectionTitle}>
                 Treatments ({visibleItems.length} of {items.length} showing)
               </h3>
-              <p style={S.hint}>Tap a treatment to hide or show it on your price list.</p>
+              <p style={S.hint}>Tap a treatment to hide or show it in this preview.</p>
               {items.map(item => {
                 const isHidden = hiddenIds.has(item.id);
                 return (

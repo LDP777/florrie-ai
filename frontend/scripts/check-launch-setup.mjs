@@ -144,5 +144,59 @@ try {
  await page.getByText('Subscription changes are not available in the iPhone app.',{exact:true}).waitFor();
  assert.equal(await page.getByRole('button',{name:/Subscribe|subscription|billing|checkout/i}).count(),0);
  console.log('PASS: four iPhone account states preserve account details without billing dead ends; web actions still open pricing');
+ // Browsing settings must not write any salon preferences.
+ await page.goto(`${origin}/settings`);
+ await page.getByRole('searchbox',{name:'Search settings'}).fill('Instagram');
+ await page.getByRole('link',{name:/Connected apps/}).click();
+ await page.getByRole('heading',{name:'Connected apps',exact:true}).waitFor();
+ await page.getByText('Instagram',{exact:true}).waitFor();
+ await page.getByText('WhatsApp Business',{exact:true}).waitFor();
+ assert.equal(await page.evaluate(()=>window.fixture.writes.length),0);
+ await page.reload();
+ await page.getByRole('heading',{name:'Connected apps',exact:true}).waitFor();
+ await page.getByRole('combobox',{name:'Settings section'}).selectOption('ai');
+ await page.getByRole('heading',{name:"Florrie's autopilot",exact:true}).waitFor();
+ assert.equal(await page.getByRole('heading',{name:'Messaging channels',exact:true}).count(),0);
+ await page.goBack();
+ await page.getByRole('heading',{name:'Connected apps',exact:true}).waitFor();
+ await page.getByRole('button',{name:'All settings',exact:true}).click();
+ await page.getByRole('link',{name:/Business details/}).click();
+ await page.getByRole('button',{name:'Edit First name',exact:true}).click();
+ await page.getByRole('textbox',{name:'First name',exact:true}).fill('Alex revised');
+ await page.evaluate(()=>{window.fixture.failProfile=true;});
+ await page.getByRole('button',{name:'Save',exact:true}).click();
+ await page.getByRole('alert').filter({hasText:'Could not save that'}).waitFor();
+ assert.equal(await page.getByRole('textbox',{name:'First name',exact:true}).inputValue(),'Alex revised');
+ assert.equal(await page.evaluate(()=>window.fixture.writes.length),0);
+ await page.evaluate(()=>{window.fixture.failProfile=false;});
+ await page.getByRole('button',{name:'Save',exact:true}).click();
+ await page.getByRole('button',{name:'Edit First name',exact:true}).waitFor();
+ assert.equal(await page.getByRole('button',{name:'Edit First name',exact:true}).innerText(),'Alex revised');
+ assert.deepEqual(await page.evaluate(()=>window.fixture.writes),[{table:'beauticians',changes:{first_name:'Alex revised'}}]);
+ await page.goto(`${origin}/settings?section=notifications`);
+ await page.getByRole('heading',{name:'Your notifications',exact:true}).waitFor();
+ assert.equal(await page.getByRole('heading',{name:"Florrie's autopilot",exact:true}).count(),0);
+ console.log('PASS: settings search, same-page navigation, reload and Back preserve sections; failed edits keep input and retry once');
+ for (const [callback,section,title] of [
+  ['ig=success&ig_detail=fixture-detail','connections','Connected apps'],
+  ['gcal=error','calendar','Calendar sync'],
+  ['stripe=refresh','payments','Payments'],
+ ]) {
+  await page.goto(`${origin}/settings?${callback}`);
+  await page.getByRole('heading',{name:title,exact:true}).waitFor();
+  assert.equal(new URL(page.url()).search,`?section=${section}`);
+ }
+ await page.evaluate(()=>sessionStorage.setItem('setup-profile',JSON.stringify({id:'salon-fixture',first_name:'Alex',instagram_page_id:'fictional-instagram'})));
+ let failInstagram=true;
+ await page.route('**/api/instagram/status',route=>route.fulfill({status:failInstagram?503:200,contentType:'application/json',body:JSON.stringify(failInstagram?{error:'Unavailable'}:{token_valid:true,page_name:'fictional_demo'})}));
+ await page.goto(`${origin}/settings?section=connections`);
+ await page.getByRole('button',{name:'Retry Instagram check',exact:true}).waitFor();
+ await page.getByText('Could not check just now',{exact:true}).waitFor();
+ assert.equal(await page.getByText(/Connected, @fictional_demo/).count(),0);
+ failInstagram=false;
+ await page.getByRole('button',{name:'Retry Instagram check',exact:true}).click();
+ await page.getByText(/Connected, @fictional_demo/).waitFor();
+ assert.equal(await page.evaluate(()=>window.fixture.writes.length),0);
+ console.log('PASS: connection returns open the right settings and clear callback details; failed Instagram checks retry without false Connected');
  await ctx.close();
 } finally {await browser.close();server.close();}

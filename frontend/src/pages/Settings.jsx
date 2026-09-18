@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useBeautician, updateRow, supabase } from '../lib/supabase.js';
 import { useTheme } from '../lib/theme.jsx';
 import { API_BASE } from '../lib/config.js';
@@ -17,6 +17,8 @@ import { PLAN } from '../lib/subscription.js';
 import { cleanSlug, slugProblem, isUniqueViolation } from '../lib/booking-slug.js';
 import { celebrationsEnabled, setCelebrationsEnabled, bloom } from '../lib/bloom.js';
 import PageHeader from '../components/ui/PageHeader.jsx';
+import SettingsDirectory, { SETTINGS_SECTIONS, settingsSection } from '../components/SettingsDirectory.jsx';
+import { readAuthenticatedJson } from '../lib/authenticated-json.js';
 
 /**
  * Settings, beautician profile and app configuration.
@@ -92,7 +94,11 @@ export default function Settings({ onLogout }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState(null);
-  const [section, setSection] = useState('profile');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const section = settingsSection(searchParams.get('section'));
+  function setSection(key, replace = false) {
+    setSearchParams(key ? { section: key } : {}, { replace });
+  }
   const [pendingCreditRules, setPendingCreditRules] = useState(null);
   const [pendingAutonomy, setPendingAutonomy] = useState(null);
   const [connectingStripe, setConnectingStripe] = useState(false);
@@ -124,8 +130,7 @@ export default function Settings({ onLogout }) {
     const gcalStatus = params.get('gcal');
     if (gcalStatus === 'success' || gcalStatus === 'error') {
       setGcalBanner(gcalStatus);
-      setSection('calendar');
-      window.history.replaceState({}, '', window.location.pathname);
+      setSection('calendar', true);
       if (gcalStatus === 'success') refresh();
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -134,16 +139,10 @@ export default function Settings({ onLogout }) {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const igStatus = params.get('ig');
-    // Honour ?section=<tab> so links (and the retired /policies redirect) open
-    // the right tab, not just 'ai'.
-    const sectionParam = params.get('section');
-    const validSections = ['profile', 'hours', 'policy', 'payments', 'calendar', 'notifications', 'ai', 'account'];
-    if (sectionParam && validSections.includes(sectionParam)) setSection(sectionParam);
     if (igStatus) {
       setIgBanner(igStatus);
       setIgDetail(params.get('ig_detail') || null);
-      setSection('ai');
-      window.history.replaceState({}, '', window.location.pathname);
+      setSection('connections', true);
       if (igStatus === 'success') refresh();
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -154,16 +153,12 @@ export default function Settings({ onLogout }) {
   // Re-runs after the OAuth callback (igBanner) so a fresh reconnect turns
   // the card green without a manual reload.
   useEffect(() => {
+    setIgStatus(null);
     if (!beautician?.instagram_page_id) return;
     let cancelled = false;
     (async () => {
       try {
-        const token = (await supabase.auth.getSession()).data.session?.access_token;
-        const res = await fetch(`${API_BASE}/api/instagram/status`, {
-          headers: { 'Authorization': `Bearer ${token}` },
-        });
-        if (!res.ok) throw new Error(`status ${res.status}`);
-        const data = await res.json();
+        const data = await readAuthenticatedJson({ auth: supabase.auth, url: `${API_BASE}/api/instagram/status` });
         if (!cancelled) setIgStatus(data);
       } catch (err) {
         logger.debug('Instagram status check failed:', err);
@@ -195,8 +190,7 @@ export default function Settings({ onLogout }) {
     const params = new URLSearchParams(window.location.search);
     const stripeParam = params.get('stripe');
     if (stripeParam === 'success' || stripeParam === 'refresh') {
-      setSection('payments');
-      window.history.replaceState({}, '', window.location.pathname);
+      setSection('payments', true);
       if (stripeParam === 'success') {
         // Call status endpoint to sync charges_enabled / payouts_enabled into DB
         (async () => {
@@ -235,6 +229,7 @@ export default function Settings({ onLogout }) {
       await refresh();
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
+      return true;
     } catch (err) {
       logger.error('Save error:', err);
       // The raw Postgres message ("duplicate key value violates unique
@@ -242,7 +237,7 @@ export default function Settings({ onLogout }) {
       setSaveError(isUniqueViolation(err)
         ? 'That booking link is already taken. Try adding your town or a number.'
         : 'Could not save that. Check your connection and try again.');
-      setTimeout(() => setSaveError(null), 5000);
+      return false;
     } finally {
       setSaving(false);
     }
@@ -380,7 +375,7 @@ export default function Settings({ onLogout }) {
   }
 
   if (loading) return <PageLoader />;
-  if (!beautician) return <ErrorCard message="Could not load profile." onDismiss={() => {}} />;
+  if (!beautician) return <div><ErrorCard message="Could not load your settings." /><Button onClick={refresh}>Retry</Button></div>;
 
   const hours = beautician.working_hours || {};
   // The saved value stays selectable even when it is not on the curated list
@@ -414,54 +409,20 @@ export default function Settings({ onLogout }) {
     <div style={{ ...styles.page, animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)' }}>
       <PageHeader
         title="Settings"
+        subtitle="Your salon, your preferences."
         action={(
           <>
-            {saved && <span style={styles.savedBadge}>Saved</span>}
-            {saveError && <span style={{ ...styles.savedBadge, background: 'var(--danger, #9E2B32)', color: '#fff' }}>{saveError}</span>}
+            {saved && <span role="status" style={styles.savedBadge}>Saved</span>}
           </>
         )}
       />
 
-      {/* Setup guide banner */}
-      <button
-        type="button"
-        onClick={() => navigate('/setup')}
-        style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-          background: 'rgba(146,64,94,0.06)',
-          border: '1px solid rgba(146,64,94,0.12)',
-          borderRadius: 10, padding: '11px 14px', marginBottom: 14, minHeight: 44, boxSizing: 'border-box',
-          cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
-          fontSize: 13, fontWeight: 600, color: 'var(--accent, #92405e)',
-          WebkitTapHighlightColor: 'transparent',
-        }}
-      >
-        New: the Setup guide shows everything in one place ›
-      </button>
-
-      {/* Section nav */}
-      <div style={styles.sectionNav}>
-        {[
-          { key: 'profile', label: 'Profile' },
-          { key: 'hours', label: 'Hours' },
-          { key: 'policy', label: 'Policy' },
-          { key: 'payments', label: 'Payments' },
-          { key: 'calendar', label: 'Calendar' },
-          { key: 'notifications', label: 'Alerts' },
-          { key: 'ai', label: 'AI' },
-          { key: 'account', label: 'Account' }
-        ].map(s => (
-          <Button
-            key={s.key}
-            variant="chip"
-            size="sm"
-            aria-pressed={section === s.key}
-            onClick={() => setSection(s.key)}
-            style={styles.sectionTab}
-          >
-            {s.label}
-          </Button>
-        ))}
-      </div>
+      {saveError && <p role="alert" style={{ color: 'var(--danger)', margin: '0 0 16px' }}>{saveError}</p>}
+      <SettingsDirectory section={section} onSelect={setSection} />
+      {section && <div className="settings-section-intro">
+        <h2>{SETTINGS_SECTIONS.find(item => item.key === section)?.title}</h2>
+        <p>{SETTINGS_SECTIONS.find(item => item.key === section)?.description}</p>
+      </div>}
 
       {/* === PROFILE === */}
       {section === 'profile' && (
@@ -1445,7 +1406,7 @@ export default function Settings({ onLogout }) {
                       saveProfile({ client_reminder_prefs: rp });
                     }}
                     style={{ ...styles.channelChip,
-                      background: (beautician.client_reminder_prefs?.channel || 'whatsapp') === ch ? 'var(--accent-rose)' : '#F5F2EF',
+                      background: (beautician.client_reminder_prefs?.channel || 'whatsapp') === ch ? 'var(--accent)' : 'var(--bg-hover)',
                       color: (beautician.client_reminder_prefs?.channel || 'whatsapp') === ch ? '#fff' : '#6b6662'
                     }}
                   >
@@ -1454,6 +1415,153 @@ export default function Settings({ onLogout }) {
                 ))}
               </div>
             </div>
+          </div>
+
+        </div>
+      )}
+
+      {section === 'connections' && <div>
+          {/* ── Instagram Connect ── */}
+          <div style={styles.card}>
+            <div style={styles.calendarProviderRow}>
+              <span style={{ fontSize: 22 }}><Icon name="camera" size={15} /></span>
+              <div style={{ flex: 1 }}>
+                <span style={styles.calProviderLabel}>Instagram</span>
+                <span style={{ ...styles.calProviderStatus,
+                  color: !beautician.instagram_page_id ? 'var(--text-muted)'
+                    : igNeedsReconnect ? 'var(--danger)'
+                    : igTokenValid ? 'var(--success)'
+                    : 'var(--text-muted)',
+                }}>
+                  {/* Only say Connected once /api/instagram/status confirms the
+                      token works. A failed or pending check reads as unknown,
+                      never as a false Connected. */}
+                  {!beautician.instagram_page_id ? 'Not connected'
+                    : igChecking ? 'Checking…'
+                    : igNeedsReconnect ? '● Needs reconnecting'
+                    : igTokenValid ? `● Connected${igHandle ? `, @${igHandle.replace(/^@+/, '')}` : ''}`
+                    : 'Could not check just now'}
+                </span>
+              </div>
+              {beautician.instagram_page_id ? (
+                <button
+                  onClick={handleDisconnectInstagram}
+                  disabled={igDisconnecting}
+                  style={{ ...styles.connectBtn, background: 'var(--bg-hover)', color: 'var(--text-secondary)', border: '1.5px solid var(--border)' }}
+                >
+                  {igDisconnecting ? 'Disconnecting…' : 'Disconnect'}
+                </button>
+              ) : (
+                <Button
+                  size="sm"
+                  onClick={handleConnectInstagram}
+                  disabled={igConnecting}
+                >
+                  {igConnecting ? 'Connecting…' : 'Connect'}
+                </Button>
+              )}
+            </div>
+            {igStatus?.check_failed && <Button variant="secondary" size="sm" onClick={() => setIgRecheck(n => n + 1)}>Retry Instagram check</Button>}
+            {disconnectError && <p role="alert" style={{ color: 'var(--danger, #9E2B32)', fontSize: 13 }}>{disconnectError}</p>}
+            {/* Expired token. The row above says so; this card explains what
+                stopped and gives her the one button that fixes it. Same OAuth
+                flow as first-time connect, so nothing new to learn.
+                No date in the copy: it used to name 21 June, which is the day
+                the PILOT account's token died, shown to every salon whose token
+                expires whenever. Nothing we hold records when an individual
+                token stopped working (/api/instagram/status only answers "is it
+                valid right now"), so the honest version says what is broken and
+                leaves the date out. If a stopped_at is ever recorded per
+                account, this is the sentence to put it in. */}
+            {igNeedsReconnect && (
+              <div style={{ marginTop: 12,
+                padding: '12px 14px',
+                borderRadius: 10,
+                background: 'var(--danger-bg, #F7E4E4)',
+              }}>
+                <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--danger)', margin: '0 0 4px' }}>
+                  Instagram needs reconnecting
+                </p>
+                <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 10px', lineHeight: 1.5 }}>
+                  Replies and publishing may stop while your connection needs attention. Reconnect, then check the status again.
+                </p>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  fullWidth
+                  onClick={handleConnectInstagram}
+                  disabled={igConnecting}
+                  // sm is the size that matches this card (13px, 10px radius);
+                  // the explicit 44 stays because this is the button that
+                  // matters most and it gets a full thumb target, not the
+                  // 38px sm floor plus an invisible ::after.
+                  style={{ minHeight: 44 }}
+                >
+                  {igConnecting ? 'Reconnecting…' : 'Reconnect Instagram'}
+                </Button>
+              </div>
+            )}
+            {/* Connected, token alive, and Instagram still will not deliver a
+                single DM. Subscribing the account to the messages webhook is a
+                separate call at connect time and it is deliberately non-fatal,
+                so this is the state that looks perfect and is not. Only shown
+                when Instagram positively said no, never on a failed check. */}
+            {igTokenValid && igStatus?.webhook_subscribed === false && (
+              <div style={{ marginTop: 12, padding: '12px 14px', borderRadius: 10,
+                background: 'var(--warning-bg, #FAF0DC)',
+              }}>
+                <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', margin: '0 0 10px', lineHeight: 1.5 }}>
+                  Your account is connected, but Instagram is not sending your DMs here yet. Tap Reconnect to finish it off.
+                </p>
+                <Button size="sm" fullWidth onClick={handleConnectInstagram} disabled={igConnecting} style={{ minHeight: 44 }}>
+                  {igConnecting ? 'Reconnecting…' : 'Reconnect Instagram'}
+                </Button>
+              </div>
+            )}
+            {/* Hidden while broken: "reads and replies to your DMs" would
+                contradict the reconnect card directly above it. */}
+            {!igNeedsReconnect && (
+              <p style={{ ...styles.cardHint, marginTop: 8, marginBottom: 0 }}>
+                {beautician.instagram_page_id
+                  ? 'Florrie reads and replies to your Instagram DMs in your voice, and Content Studio can post to your account.'
+                  : 'Connect your Instagram so Florrie can read and reply to your DMs (and post for you). You just need a professional Instagram account, no Facebook Page required.'}
+              </p>
+            )}
+            {/* Native only. Safari is in front of her now, so this card is what
+                she comes back to. It exists because a screen that still says
+                "Reconnect" after she has just reconnected reads as a failure. */}
+            {igAwaitingReturn && (
+              <div style={{ marginTop: 12, padding: '12px 14px', borderRadius: 10,
+                background: 'var(--tone-1, #fbf1ea)', border: '1px solid var(--border)',
+              }}>
+                <p style={{ fontSize: 13, fontWeight: 700, margin: '0 0 4px' }}>
+                  Finish in Safari
+                </p>
+                <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 10px', lineHeight: 1.5 }}>
+                  Instagram will not let you log in inside an app, so it opened in your browser. Sign in, tap Allow, then come back here. This card updates on its own.
+                </p>
+                <button
+                  onClick={() => { setIgAwaitingReturn(false); setIgRecheck(n => n + 1); refresh(); }}
+                  style={{ ...styles.connectBtn, width: '100%', minHeight: 44, background: 'var(--bg-hover)', color: 'var(--text-primary)', border: '1.5px solid var(--border)' }}
+                >
+                  I have done it, check again
+                </button>
+              </div>
+            )}
+            {igBanner === 'success' && (
+              <p style={{ fontSize: 12, color: 'var(--success)', marginTop: 8, marginBottom: 0 }}><Icon name="check" size={14} inline /> Instagram connected, Content Studio can now post directly</p>
+            )}
+            {igBanner === 'error' && (
+              <p style={{ fontSize: 12, color: 'var(--danger, #9E2B32)', marginTop: 8, marginBottom: 0 }}>
+                {igDetail ? `Instagram did not connect: ${igDetail}` : 'Instagram did not connect. Try again, and tell Levi if it keeps happening.'}
+              </p>
+            )}
+            {igBanner === 'no_page' && (
+              <p style={{ fontSize: 12, color: 'var(--warning, #79581C)', marginTop: 8, marginBottom: 0 }}>This older Facebook connection did not find a Page. Try Connect again to use your Instagram professional account directly.</p>
+            )}
+            {igBanner === 'no_ig_account' && (
+              <p style={{ fontSize: 12, color: 'var(--warning, #79581C)', marginTop: 8, marginBottom: 0 }}>A professional Instagram account was not found. Check that your account is Business or Creator, then try Connect again.</p>
+            )}
           </div>
 
           {/* Messaging channels: connect and manage WhatsApp + SMS */}
@@ -1485,7 +1593,7 @@ export default function Settings({ onLogout }) {
                   border: beautician.whatsapp_connected ? '1.5px solid var(--border)' : 'none',
                 }}
               >
-                {beautician.whatsapp_connected ? 'Manage' : 'Connect'}
+                {beautician.whatsapp_connected ? 'Manage' : 'Check availability'}
               </button>
             </div>
 
@@ -1513,13 +1621,26 @@ export default function Settings({ onLogout }) {
                   border: beautician.sms_enabled ? '1.5px solid var(--border)' : 'none',
                 }}
               >
-                {beautician.sms_enabled ? 'Manage' : 'Turn on'}
+                {beautician.sms_enabled ? 'Manage' : 'SMS setup'}
               </button>
             </div>
           </div>
 
           {/* SMS Usage */}
           <SMSUsageWidget />
+
+        <div style={styles.card}>
+          <h3 style={styles.cardTitle}>Other connections</h3>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <Button variant="secondary" onClick={() => setSection('calendar')}>Google Calendar</Button>
+            <Button variant="secondary" onClick={() => setSection('payments')}>Stripe payments</Button>
+          </div>
+        </div>
+      </div>}
+
+      {/* === AI SETTINGS === */}
+      {section === 'ai' && (
+        <div>
 
           {/* Florrie's autopilot: one control for what proactive messages Florrie
               sends and how. Each is Auto (sends for you), Ask first (waits in the
@@ -1534,8 +1655,7 @@ export default function Settings({ onLogout }) {
               'Appointment reminders',
               'Payment & deposit requests',
               'Patch test & form requests',
-              'Replies to clients who message you',
-            ];
+                          ];
 
             // Proactive types Ellie controls. Keys match the message types the
             // engines pass to the outbound guard.
@@ -1553,7 +1673,7 @@ export default function Settings({ onLogout }) {
 
             const MODES = [
               { value: 'auto', label: 'Auto',      color: 'var(--success)' },
-              { value: 'ask',  label: 'Ask first', color: '#f59e0b' },
+              { value: 'ask',  label: 'Ask first', color: 'var(--warning)' },
               { value: 'off',  label: 'Off',       color: 'var(--danger)' },
             ];
 
@@ -1579,10 +1699,10 @@ export default function Settings({ onLogout }) {
                 <div style={{ marginBottom: 18 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
                     <div style={{ width: 8, height: 8, borderRadius: 'var(--radius-xs)', background: 'var(--success)', flexShrink: 0 }} />
-                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Always sent</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Booking-related messages</span>
                   </div>
                   <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 8px 14px', lineHeight: 1.4 }}>
-                    Time-sensitive or tied to a booking, so these always go.
+                    These use your booking and reminder preferences. The proactive controls below do not change them.
                   </p>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, paddingLeft: 14 }}>
                     {ALWAYS.map(l => (
@@ -1691,156 +1811,6 @@ export default function Settings({ onLogout }) {
               </div>
             );
           })()}
-        </div>
-      )}
-
-      {/* === AI SETTINGS === */}
-      {section === 'ai' && (
-        <div>
-
-          {/* ── Instagram Connect ── */}
-          <div style={styles.card}>
-            <div style={styles.calendarProviderRow}>
-              <span style={{ fontSize: 22 }}><Icon name="camera" size={15} /></span>
-              <div style={{ flex: 1 }}>
-                <span style={styles.calProviderLabel}>Instagram</span>
-                <span style={{ ...styles.calProviderStatus,
-                  color: !beautician.instagram_page_id ? 'var(--text-muted)'
-                    : igNeedsReconnect ? 'var(--danger)'
-                    : igTokenValid ? 'var(--success)'
-                    : 'var(--text-muted)',
-                }}>
-                  {/* Only say Connected once /api/instagram/status confirms the
-                      token works. A failed or pending check reads as unknown,
-                      never as a false Connected. */}
-                  {!beautician.instagram_page_id ? 'Not connected'
-                    : igChecking ? 'Checking…'
-                    : igNeedsReconnect ? '● Needs reconnecting'
-                    : igTokenValid ? `● Connected${igHandle ? `, @${igHandle.replace(/^@+/, '')}` : ''}`
-                    : 'Could not check just now'}
-                </span>
-              </div>
-              {beautician.instagram_page_id ? (
-                <button
-                  onClick={handleDisconnectInstagram}
-                  disabled={igDisconnecting}
-                  style={{ ...styles.connectBtn, background: 'var(--bg-hover)', color: 'var(--text-secondary)', border: '1.5px solid var(--border)' }}
-                >
-                  {igDisconnecting ? 'Disconnecting…' : 'Disconnect'}
-                </button>
-              ) : (
-                <Button
-                  size="sm"
-                  onClick={handleConnectInstagram}
-                  disabled={igConnecting}
-                >
-                  {igConnecting ? 'Connecting…' : 'Connect'}
-                </Button>
-              )}
-            </div>
-            {disconnectError && <p role="alert" style={{ color: 'var(--danger, #9E2B32)', fontSize: 13 }}>{disconnectError}</p>}
-            {/* Expired token. The row above says so; this card explains what
-                stopped and gives her the one button that fixes it. Same OAuth
-                flow as first-time connect, so nothing new to learn.
-                No date in the copy: it used to name 21 June, which is the day
-                the PILOT account's token died, shown to every salon whose token
-                expires whenever. Nothing we hold records when an individual
-                token stopped working (/api/instagram/status only answers "is it
-                valid right now"), so the honest version says what is broken and
-                leaves the date out. If a stopped_at is ever recorded per
-                account, this is the sentence to put it in. */}
-            {igNeedsReconnect && (
-              <div style={{ marginTop: 12,
-                padding: '12px 14px',
-                borderRadius: 10,
-                background: 'var(--danger-bg, #F7E4E4)',
-              }}>
-                <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--danger)', margin: '0 0 4px' }}>
-                  Instagram needs reconnecting
-                </p>
-                <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 10px', lineHeight: 1.5 }}>
-                  Instagram DMs still reach your inbox, but replies, posting and
-                  client names are not going out until you reconnect. Takes one tap.
-                </p>
-                <Button
-                  variant="danger"
-                  size="sm"
-                  fullWidth
-                  onClick={handleConnectInstagram}
-                  disabled={igConnecting}
-                  // sm is the size that matches this card (13px, 10px radius);
-                  // the explicit 44 stays because this is the button that
-                  // matters most and it gets a full thumb target, not the
-                  // 38px sm floor plus an invisible ::after.
-                  style={{ minHeight: 44 }}
-                >
-                  {igConnecting ? 'Reconnecting…' : 'Reconnect Instagram'}
-                </Button>
-              </div>
-            )}
-            {/* Connected, token alive, and Instagram still will not deliver a
-                single DM. Subscribing the account to the messages webhook is a
-                separate call at connect time and it is deliberately non-fatal,
-                so this is the state that looks perfect and is not. Only shown
-                when Instagram positively said no, never on a failed check. */}
-            {igTokenValid && igStatus?.webhook_subscribed === false && (
-              <div style={{ marginTop: 12, padding: '12px 14px', borderRadius: 10,
-                background: 'var(--warning-bg, #FAF0DC)',
-              }}>
-                <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', margin: '0 0 10px', lineHeight: 1.5 }}>
-                  Your account is connected, but Instagram is not sending your DMs here yet. Tap Reconnect to finish it off.
-                </p>
-                <Button size="sm" fullWidth onClick={handleConnectInstagram} disabled={igConnecting} style={{ minHeight: 44 }}>
-                  {igConnecting ? 'Reconnecting…' : 'Reconnect Instagram'}
-                </Button>
-              </div>
-            )}
-            {/* Hidden while broken: "reads and replies to your DMs" would
-                contradict the reconnect card directly above it. */}
-            {!igNeedsReconnect && (
-              <p style={{ ...styles.cardHint, marginTop: 8, marginBottom: 0 }}>
-                {beautician.instagram_page_id
-                  ? 'Florrie reads and replies to your Instagram DMs in your voice, and Content Studio can post to your account.'
-                  : 'Connect your Instagram so Florrie can read and reply to your DMs (and post for you). You just need a professional Instagram account, no Facebook Page required.'}
-              </p>
-            )}
-            {/* Native only. Safari is in front of her now, so this card is what
-                she comes back to. It exists because a screen that still says
-                "Reconnect" after she has just reconnected reads as a failure. */}
-            {igAwaitingReturn && (
-              <div style={{ marginTop: 12, padding: '12px 14px', borderRadius: 10,
-                background: 'var(--tone-1, #fbf1ea)', border: '1px solid var(--border)',
-              }}>
-                <p style={{ fontSize: 13, fontWeight: 700, margin: '0 0 4px' }}>
-                  Finish in Safari
-                </p>
-                <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 10px', lineHeight: 1.5 }}>
-                  Instagram will not let you log in inside an app, so it opened in your browser. Sign in, tap Allow, then come back here. This card updates on its own.
-                </p>
-                <button
-                  onClick={() => { setIgAwaitingReturn(false); setIgRecheck(n => n + 1); refresh(); }}
-                  style={{ ...styles.connectBtn, width: '100%', minHeight: 44, background: 'var(--bg-hover)', color: 'var(--text-primary)', border: '1.5px solid var(--border)' }}
-                >
-                  I have done it, check again
-                </button>
-              </div>
-            )}
-            {igBanner === 'success' && (
-              <p style={{ fontSize: 12, color: 'var(--success)', marginTop: 8, marginBottom: 0 }}><Icon name="check" size={14} inline /> Instagram connected, Content Studio can now post directly</p>
-            )}
-            {igBanner === 'error' && (
-              <p style={{ fontSize: 12, color: 'var(--danger, #9E2B32)', marginTop: 8, marginBottom: 0 }}>
-                {igDetail ? `Instagram did not connect: ${igDetail}` : 'Instagram did not connect. Try again, and tell Levi if it keeps happening.'}
-              </p>
-            )}
-            {igBanner === 'no_page' && (
-              <p style={{ fontSize: 12, color: 'var(--warning, #79581C)', marginTop: 8, marginBottom: 0 }}>No Facebook Page found. You need a Facebook Page with an Instagram Business account connected.</p>
-            )}
-            {igBanner === 'no_ig_account' && (
-              <p style={{ fontSize: 12, color: 'var(--warning, #79581C)', marginTop: 8, marginBottom: 0 }}>Instagram Business account not found. Make sure your Instagram account is set to Business and linked to your Facebook Page.</p>
-            )}
-          </div>
-
           <div style={styles.card}>
             <h3 style={styles.cardTitle}>New enquiries</h3>
             <p style={styles.cardDesc}>
@@ -2260,25 +2230,32 @@ function ToneRow({ label, value }) {
 
 function FieldEditor({ label, value, onSave, placeholder }) {
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value);
-
-  function handleSave() {
-    setEditing(false);
-    if (draft !== value) onSave(draft);
+  const [draft, setDraft] = useState(value ?? '');
+  const [pending, setPending] = useState(false);
+  const savingRef = useRef(false);
+  async function handleSave() {
+    if (savingRef.current) return;
+    if (draft === (value ?? '')) { setEditing(false); return; }
+    savingRef.current = true;
+    setPending(true);
+    try {
+      if (await onSave(draft) !== false) setEditing(false);
+    } finally { savingRef.current = false; setPending(false); }
   }
-
-  return (
-    <div style={styles.fieldRow}>
-      <span style={styles.fieldLabel}>{label}</span>
-      {editing ? (
-        <input type="text" value={draft} onChange={e => setDraft(e.target.value)} onBlur={handleSave} onKeyDown={e => e.key === 'Enter' && handleSave()} placeholder={placeholder} style={styles.fieldInput} autoFocus />
-      ) : (
-        <button onClick={() => { setDraft(value); setEditing(true); }} style={styles.fieldValue}>
-          {value || <span style={{ color: '#756A5F' }}>{placeholder || 'Tap to set'}</span>}
-        </button>
-      )}
-    </div>
-  );
+  return <div style={styles.fieldRow}>
+    <span style={styles.fieldLabel}>{label}</span>
+    {editing ? <div className="settings-field-editor">
+      <input aria-label={label} type="text" value={draft} onChange={e => setDraft(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleSave(); } }}
+        placeholder={placeholder} style={styles.fieldInput} disabled={pending} autoFocus />
+      <div className="settings-field-actions">
+        <Button size="sm" disabled={pending} onClick={handleSave}>{pending ? 'Saving…' : 'Save'}</Button>
+        <Button size="sm" variant="quiet" disabled={pending} onClick={() => setEditing(false)}>Cancel</Button>
+      </div>
+    </div> : <button aria-label={`Edit ${label}`} onClick={() => { setDraft(value ?? ''); setEditing(true); }} style={styles.fieldValue}>
+      {value || <span style={{ color: 'var(--text-muted)' }}>{placeholder || 'Tap to set'}</span>}
+    </button>}
+  </div>;
 }
 
 function NotificationToggle({ label, desc, prefs, onChange }) {

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { useBeautician, supabase, insertRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import { todayLocal } from '../lib/dates.js';
@@ -279,7 +280,7 @@ export default function HoursExceptions() {
     <div style={S.page}>
       <PageHeader
         title="Availability"
-        subtitle="Tap any future day to block it"
+        subtitle="Block time off or change the hours for one day."
         action={upcoming.length > 0 ? (
           <div style={S.upcomingBubble}>
             <span style={S.upcomingNum}>{upcoming.length}</span>
@@ -287,6 +288,8 @@ export default function HoursExceptions() {
           </div>
         ) : null}
       />
+
+      <Button as={Link} to="/settings?section=hours" variant="secondary" size="sm" style={{ marginBottom: 18 }}>Regular opening hours</Button>
 
       {/* ── Next off card ── */}
       {upcoming.find(e => e.type === 'closed') && (() => {

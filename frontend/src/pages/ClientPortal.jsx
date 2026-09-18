@@ -51,7 +51,7 @@ export default function ClientPortal() {
         ['/settings?section=hours', 'clock', 'Regular opening hours', 'Set your usual weekly availability.'],
         ['/hours', 'calendar', 'Holidays & closures', 'Add dates when your usual hours change.'],
         ['/settings?section=policy', 'shield', 'Booking policies', 'Set notice periods, deposits and cancellation rules.'],
-        ['/settings', 'settings', 'Business details', 'Update your business name and contact details.'],
+        ['/settings?section=profile', 'settings', 'Business details', 'Update your business name and contact details.'],
       ].map(([path, icon, title, description]) => <Link key={path} to={path} className="booking-tool" style={s.row}><span style={s.icon}><Icon name={icon} size={21} /></span><span style={{ flex: 1, minWidth: 0 }}><span style={s.rowTitle}>{title}</span><span style={s.rowDescription}>{description}</span></span><Icon name="chevron-right" size={19} /></Link>)}</div>
     </>}
   </div>;

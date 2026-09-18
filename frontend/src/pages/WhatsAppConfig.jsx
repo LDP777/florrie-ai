@@ -1367,11 +1367,11 @@ export default function WhatsAppConfig() {
           {activeTab === 'settings' && (
             <div>
               <Link to="/settings?section=notifications" style={styles.manageTemplatesLink}>
-                Messaging preferences &rarr;
+                Notifications & reminders &rarr;
               </Link>
               <div style={styles.manageTemplatesHint}>
-                Business-hours sending, reminder timings and which messages go out are all
-                set in Settings, so they stay the same across WhatsApp and SMS.
+                Choose reminder timings and your notification preferences in Settings.
+                Florrie’s proactive sending controls are under Florrie & replies.
               </div>
 
               <div style={styles.dangerZone}>

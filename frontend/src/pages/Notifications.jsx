@@ -183,6 +183,7 @@ export default function Notifications() {
         ) : null}
       />
 
+      <Button variant="quiet" size="sm" onClick={() => navigate('/settings?section=notifications')} style={{ marginBottom: 14 }}>Notification preferences</Button>
       {saveError && <div role="alert"><ErrorCard message={saveError} /></div>}
       {approvalError && <div role="alert"><ErrorCard message={approvalError} /><Button variant="secondary" onClick={loadApprovals}>Retry approval check</Button></div>}
       {/* Waiting on your OK , the one yes/no flag, links straight to the outbox */}
