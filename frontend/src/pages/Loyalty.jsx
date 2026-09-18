@@ -97,7 +97,7 @@ export default function Loyalty() {
       setRewardThreshold(cfg?.reward_threshold ?? DEFAULT_THRESHOLD);
     } catch (err) {
       logger.error('Load loyalty error:', err);
-      setError('Could not load your loyalty programme. Pull to refresh or try again in a minute.');
+      setError('Could not load your loyalty programme. Try again to see points and settings.');
     } finally {
       setLoading(false);
     }
@@ -202,7 +202,7 @@ export default function Loyalty() {
     return (
       <div style={styles.page}>
         <PageHeader title="Loyalty" />
-        <ErrorCard message={error} onDismiss={() => setError(null)} />
+        <ErrorCard message={error} />
         <button type="button" onClick={load} style={styles.retryBtn}>Try again</button>
       </div>
     );

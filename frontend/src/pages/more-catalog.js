@@ -27,7 +27,7 @@ export const MORE_CATEGORIES = [
   { id: 'services', label: 'Services & sales', desc: 'Treatments, extras and client offers', matIcon: 'spa', items: [
     { path: '/treatments',     label: 'Treatments',      matIcon: 'spa',                  desc: 'Services and prices'           },
     { path: '/addons',         label: 'Add-ons',         matIcon: 'add_circle',           desc: 'Bolt-on extras'                },
-    { path: '/price-list',     label: 'Price List',      matIcon: 'format_list_bulleted', desc: 'Public pricing page'           },
+    { path: '/price-list',     label: 'Price List',      matIcon: 'format_list_bulleted', desc: 'Printable prices and booking link'     },
     { path: '/packages',      label: 'Training courses',         matIcon: 'school',       desc: 'Sell courses and masterclasses' , keywords: 'training packages education' },
     { path: '/memberships',    label: 'Memberships',     matIcon: 'card_membership', desc: 'Plans and member records'       },
     { path: '/vouchers',      label: 'Vouchers',         matIcon: 'card_giftcard', desc: 'Gift vouchers'           },

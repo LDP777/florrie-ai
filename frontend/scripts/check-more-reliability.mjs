@@ -25,6 +25,8 @@ try {
     ['/campaigns', 'campaigns', 'Could not load campaigns.'],
     ['/reviews', 'reviews', 'Could not load feedback.'],
     ['/locations', 'locations', 'Could not load your location records.'],
+    ['/loyalty', 'loyalty_config', 'Could not load your loyalty programme.'],
+    ['/loyalty', 'loyalty_points', 'Could not load your loyalty programme.'],
     ['/addons', 'add_ons', 'Could not load add-ons and treatments.'],
     ['/treatments', 'treatments', 'Could not load treatments.'],
     ['/treatments', '/api/consultation-forms', 'Could not load consultation forms.'],
@@ -57,6 +59,11 @@ try {
     await page.goto(`http://127.0.0.1:${server.address().port}${route}`);
     await page.getByText(message, { exact: false }).waitFor();
     assert.equal(await page.getByRole('button', { name: 'Close day', exact: true }).count(), 0);
+    if (route === '/loyalty') {
+      assert.equal(await page.getByRole('button', { name: 'Dismiss error', exact: true }).count(), 0);
+      assert.equal(await page.getByRole('switch').count(), 0);
+      assert.equal(await page.getByRole('button', { name: /mark.*used/i }).count(), 0);
+    }
     await page.evaluate(() => { window.__failMoreRead = false; });
     await page.getByRole('button', { name: 'Try again', exact: true }).click();
     await page.getByText(message, { exact: false }).waitFor({ state: 'hidden' });
