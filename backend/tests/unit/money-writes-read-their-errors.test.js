@@ -155,7 +155,7 @@ beforeEach(() => {
   db.beauticians = [{ id: 'biz-1', stripe_customer_id: null, stripe_account_id: 'acct_1', stripe_onboarding_complete: true, business_name: 'Ellie Lashes' }];
   db.plans = [{ id: 'florrie_team', stripe_price_id: 'price_team_monthly' }, { id: 'florrie', stripe_price_id: 'price_florrie_monthly' }];
   db.team_members = [];
-  db.appointments = [{ id: 'appt-1' }];
+  db.appointments = [{ id: 'appt-1', beautician_id: 'biz-1' }];
 });
 
 /* ============================================ stripe_customer_id writes === */

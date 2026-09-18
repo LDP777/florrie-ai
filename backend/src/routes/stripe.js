@@ -213,6 +213,13 @@ router.post('/checkout', requireAuth, requireStripe, async (req, res) => {
     return res.status(400).json({ error: 'appointment_id, beautician_id, and amount_cents required' });
   }
 
+  // This route uses the service-role client. Check both submitted references
+  // before creating a payment or changing the booking; RLS cannot do it here.
+  if (beautician_id !== req.beautician.id) {
+    return res.status(404).json({ error: 'Not found' });
+  }
+  if (!await requireOwned(req, res, [{ table: 'appointments', id: appointment_id }])) return;
+
   // Get the beautician's Stripe account. The error is read on purpose: this
   // used to be `const { data: beautician }` alone, and a missing column in the
   // select (PostgREST rejects the whole list) made every deposit answer 400
@@ -222,7 +229,7 @@ router.post('/checkout', requireAuth, requireStripe, async (req, res) => {
   const { data: beautician, error: beauticianErr } = await supabase
     .from('beauticians')
     .select('stripe_account_id, stripe_onboarding_complete, business_name')
-    .eq('id', beautician_id)
+    .eq('id', req.beautician.id)
     .single();
 
   if (beauticianErr) {
@@ -259,7 +266,7 @@ router.post('/checkout', requireAuth, requireStripe, async (req, res) => {
         },
         metadata: {
           appointment_id,
-          beautician_id,
+          beautician_id: req.beautician.id,
           platform_fee_cents: platformFee,
         },
       },
@@ -267,7 +274,7 @@ router.post('/checkout', requireAuth, requireStripe, async (req, res) => {
       cancel_url: `${FRONTEND_URL}/book/cancelled`,
       metadata: {
         appointment_id,
-        beautician_id,
+        beautician_id: req.beautician.id,
       },
     });
 
@@ -279,7 +286,8 @@ router.post('/checkout', requireAuth, requireStripe, async (req, res) => {
         deposit_amount_cents: amount_cents,
         deposit_status: 'pending',
       })
-      .eq('id', appointment_id);
+      .eq('id', appointment_id)
+      .eq('beautician_id', req.beautician.id);
 
     res.json({ url: session.url, session_id: session.id });
   } catch (err) {
