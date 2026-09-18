@@ -50,7 +50,7 @@ export default function PlanGate({ feature, children }) {
     receipt_scanning: 'Receipt Scanning',
     loyalty: 'Loyalty Programme',
     aftercare: 'Aftercare Follow-ups',
-    multi_location: 'Multi-location',
+    multi_location: 'Location records',
     staff_rota: 'Staff Rota',
     staff_performance: 'Staff Performance',
     team_management: 'Team Management',

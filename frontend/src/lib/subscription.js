@@ -126,9 +126,9 @@ export const TEAM_ADDON = {
   seatAnnualLabel: '+£150/yr per seat',
   maxSeats: 10,
   extras: [
-    'Multi-location support',
+    'Location names and addresses',
     'Staff rota & scheduling',
-    'Team performance tracking',
+    'Staff profiles',
     'Up to 10 team members',
     'Priority support',
   ],
