@@ -16,6 +16,8 @@ import { isVoiceEnabled } from './lib/voicePref.js';
 import { CoachProvider } from './contexts/CoachContext.jsx';
 import { isIOSNative } from './lib/platform.js';
 import { hapticTap } from './lib/native.js';
+import { startAuthStartup } from './lib/auth-startup.js';
+import Button from './components/ui/Button.jsx';
 import Icon, { iconName } from './components/ui/Icon';
 
 // Lazy-loaded pages (code splitting , each becomes its own chunk)
@@ -259,32 +261,37 @@ function TrialExpiredScreen({ onSignOut, variant = 'trial' }) {
 export default function App() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState(null);
+  const authStartup = useRef(null);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { beautician } = useBeautician();
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
-      setSession(s);
-      setLoading(false);
+    const startup = startAuthStartup({
+      auth: supabase?.auth,
+      onChange: ({ status, session: currentSession, error }) => {
+        setSession(currentSession);
+        setLoading(status === 'loading');
+        setAuthError(error);
+      },
     });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
-      setSession(s);
-    });
-
-    return () => subscription.unsubscribe();
+    authStartup.current = startup;
+    return () => {
+      startup.dispose();
+      if (authStartup.current === startup) authStartup.current = null;
+    };
   }, []);
 
   // Monzo-style launch feel: a single gentle haptic the moment the app
   // finishes loading and the home is about to show (native only; no-ops on web).
   const launchBuzzed = useRef(false);
   useEffect(() => {
-    if (loading || launchBuzzed.current) return;
+    if (loading || authError || launchBuzzed.current) return;
     launchBuzzed.current = true;
     hapticTap();
-  }, [loading]);
+  }, [loading, authError]);
 
   // Check onboarding status when session is established and beautician data is available
   useEffect(() => {
@@ -359,12 +366,24 @@ export default function App() {
   const isAuthRoute = location.pathname === '/login' || location.pathname === '/update-password';
   const isLandingRoute = location.pathname === '/';
 
-  if (loading) {
+  if (loading && !isPublicRoute) {
     return (
       <div style={styles.loadingScreen}>
         <img src="/florrie-petal.svg" alt="" style={{ width: 48, height: 48, animation: 'spin 2.5s ease-in-out infinite' }} />
         <span style={styles.loadingLogo}>florrie<span style={{ color: 'var(--gold, #79581C)', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 500 }}>.ai</span></span>
         <span style={{ fontSize: 11, color: 'var(--text-muted, #6B5D54)', fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: '0.08em', textTransform: 'uppercase' }}>your AI team</span>
+      </div>
+    );
+  }
+
+  if (authError && !isPublicRoute) {
+    return (
+      <div style={styles.loadingScreen}>
+        <img src="/florrie-petal.svg" alt="" width="48" height="48" />
+        <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 26, color: 'var(--text-primary)' }}>Couldn’t open Florrie yet</h1>
+        <p role="alert" style={{ maxWidth: 340, textAlign: 'center', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{authError}</p>
+        <Button pill onClick={() => authStartup.current?.retry()}>Try again</Button>
+        <Button variant="quiet" onClick={() => window.location.reload()}>Reload app</Button>
       </div>
     );
   }
