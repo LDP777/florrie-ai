@@ -16,6 +16,7 @@ import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import Icon from '../components/ui/Icon';
 import PageHeader from '../components/ui/PageHeader.jsx';
+import Button from '../components/ui/Button.jsx';
 
 const CATEGORIES = [
   { value: 'products', label: 'Products', icon: 'flower', color: 'var(--accent, #92405e)' },
@@ -45,6 +46,9 @@ export default function Expenses() {
   const [showAdd, setShowAdd] = useState(false);
   const [expenses, setExpenses] = useState([]);
   const [budgets, setBudgets] = useState([]);
+  const [budgetLoading, setBudgetLoading] = useState(true);
+  const [budgetError, setBudgetError] = useState(null);
+  const [budgetRetry, setBudgetRetry] = useState(0);
   const [editBudget, setEditBudget] = useState(null);
   const [editingExpense, setEditingExpense] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -102,7 +106,7 @@ export default function Expenses() {
   }
 
   async function handleSaveBudget() {
-    if (!editBudget?.category || !editBudget?.amount) return;
+    if (budgetLoading || budgetError || !editBudget?.category || !editBudget?.amount) return;
     const limitCents = Math.round(parseFloat(editBudget.amount) * 100);
     try {
       const existing = budgets.find(b => b.category === editBudget.category);
@@ -126,14 +130,26 @@ export default function Expenses() {
 
   useEffect(() => {
     if (bLoading || !beautician) return;
+    let current = true;
     setLoading(true); setLoadError(null);
-    Promise.all([
-      fetchRowsStrict('expenses', beautician.id, { order: 'date', ascending: false }),
-      fetchRowsStrict('expense_budgets', beautician.id),
-    ]).then(([expenses, budgets]) => { setExpenses(expenses); setBudgets(budgets); })
-      .catch(() => setLoadError('Could not load expenses and budgets. Try again.'))
-      .finally(() => setLoading(false));
+    fetchRowsStrict('expenses', beautician.id, { order: 'date', ascending: false })
+      .then(rows => { if (current) setExpenses(rows); })
+      .catch(() => { if (current) setLoadError('Could not load expenses. Try again.'); })
+      .finally(() => { if (current) setLoading(false); });
+    return () => { current = false; };
   }, [beautician, bLoading, retry]);
+
+  // Optional budget storage must not block the real expense ledger or its edits.
+  useEffect(() => {
+    if (bLoading || !beautician) return;
+    let current = true;
+    setBudgetLoading(true); setBudgetError(null);
+    fetchRowsStrict('expense_budgets', beautician.id)
+      .then(rows => { if (current) setBudgets(rows); })
+      .catch(() => { if (current) setBudgetError('Budget tracking is unavailable. You can still view and manage your expenses.'); })
+      .finally(() => { if (current) setBudgetLoading(false); });
+    return () => { current = false; };
+  }, [beautician, bLoading, budgetRetry]);
 
   // Filter by month
   const monthExpenses = expenses.filter(e => e.date && e.date.startsWith(month));
@@ -315,7 +331,16 @@ export default function Expenses() {
       )}
 
       {/* Budgets */}
-      {tab === 'budgets' && (
+      {tab === 'budgets' && (budgetLoading || budgetError) && (
+        <section style={S.card} aria-label="Budget tracking" aria-live="polite">
+          <h3 style={S.cardTitle}>Budgets</h3>
+          {budgetLoading ? <p style={S.empty}>Loading your budgets…</p> : <>
+            <ErrorCard message={budgetError} />
+            <Button variant="secondary" onClick={() => setBudgetRetry(n => n + 1)}>Retry budgets</Button>
+          </>}
+        </section>
+      )}
+      {tab === 'budgets' && !budgetLoading && !budgetError && (
         <>
           <div style={S.budgetList}>
             {budgetStatus.map(b => {
@@ -360,7 +385,7 @@ export default function Expenses() {
 
       {/* Add/Edit expense modal */}
       {(showAdd || editingExpense) && (
-        <div style={S.overlay} onClick={() => { setShowAdd(false); setEditingExpense(null); }}>
+        <div style={S.overlay} onClick={() => { if (!saving) { setShowAdd(false); setEditingExpense(null); } }}>
           <div style={S.modal} onClick={e => e.stopPropagation()}>
             <h2 style={S.modalTitle}>{editingExpense ? 'Edit Expense' : 'Add Expense'}</h2>
 
@@ -448,6 +473,7 @@ export default function Expenses() {
             }}>
               {saving ? 'Saving…' : editingExpense ? 'Update Expense' : 'Save Expense'}
             </button>
+            <Button variant="secondary" fullWidth disabled={saving} style={{ marginTop: 12 }} onClick={() => { setShowAdd(false); setEditingExpense(null); }}>Cancel</Button>
           </div>
         </div>
       )}

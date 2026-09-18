@@ -20,7 +20,7 @@ try {
     ['/end-of-day', 'transactions', 'Could not load today’s cash-up.'],
     ['/rebook', 'clients', 'Could not load rebooking history.'],
     ['/analytics', 'appointments', 'Could not load your analytics.'],
-    ['/expenses', 'expenses', 'Could not load expenses and budgets.'],
+    ['/expenses', 'expenses', 'Could not load expenses.'],
     ['/cancellations', 'appointments', 'Could not load cancellations.'],
     ['/campaigns', 'campaigns', 'Could not load campaigns.'],
     ['/reviews', 'reviews', 'Could not load feedback.'],
@@ -69,6 +69,54 @@ try {
     await page.getByText(message, { exact: false }).waitFor({ state: 'hidden' });
     await ctx.close();
     console.log(`✓ ${route}: read failure stays visible, retry recovers`);
+  }
+  for (const budgetMode of ['missing', 'stalled']) {
+    const budgetContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    await budgetContext.addInitScript(fetchStubSource());
+    await budgetContext.addInitScript(sessionSeedSource(bundleSupabaseUrl(dist)));
+    await budgetContext.addInitScript(mode => {
+      const base = window.fetch;
+      window.__budgetFailure = true;
+      window.__expenseReads = 0;
+      const json = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
+      window.fetch = (url, opts) => {
+        if (String(url).includes('/rest/v1/expense_budgets')) {
+          if (!window.__budgetFailure) return Promise.resolve(json([{ id: 'demo-budget', category: 'products', monthly_limit_cents: 10000 }]));
+          const unavailable = () => json({ code: 'PGRST205', message: 'Synthetic missing budget storage' }, 404);
+          if (mode === 'stalled') return new Promise(resolve => { window.__releaseBudget = () => resolve(unavailable()); });
+          return Promise.resolve(unavailable());
+        }
+        if (String(url).includes('/rest/v1/expenses')) {
+          window.__expenseReads++;
+          return Promise.resolve(json([{ id: 'demo-expense', vendor: 'Fictional Supplies', amount_cents: 1899,
+            category: 'products', date: new Date().toLocaleDateString('en-CA'), tax_deductible: true }]));
+        }
+        return base(url, opts);
+      };
+    }, budgetMode);
+    const budgetPage = await budgetContext.newPage(); budgetPage.setDefaultTimeout(15000);
+    await budgetPage.goto(`http://127.0.0.1:${server.address().port}/expenses`);
+    await budgetPage.getByRole('button', { name: '+ Add', exact: true }).waitFor();
+    await budgetPage.getByText('£18.99', { exact: true }).first().waitFor();
+    await budgetPage.getByRole('button', { name: 'List', exact: true }).click();
+    await budgetPage.getByText('Fictional Supplies', { exact: true }).waitFor();
+    await budgetPage.getByRole('button', { name: 'Edit', exact: true }).click();
+    assert.equal(await budgetPage.getByPlaceholder('e.g. Sally Beauty').inputValue(), 'Fictional Supplies');
+    await budgetPage.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await budgetPage.getByRole('button', { name: 'Budgets', exact: true }).click();
+    if (budgetMode === 'stalled') {
+      await budgetPage.getByText('Loading your budgets…', { exact: true }).waitFor();
+      await budgetPage.evaluate(() => window.__releaseBudget());
+    }
+    await budgetPage.getByText('Budget tracking is unavailable.', { exact: false }).waitFor();
+    assert.equal(await budgetPage.getByText('Set Budget', { exact: true }).count(), 0);
+    await budgetPage.evaluate(() => { window.__budgetFailure = false; });
+    await budgetPage.getByRole('button', { name: 'Retry budgets', exact: true }).click();
+    await budgetPage.getByText('Set Budget', { exact: true }).waitFor();
+    assert.equal(await budgetPage.evaluate(() => window.__expenseReads), 1);
+    await budgetPage.getByText('of £100.00', { exact: true }).waitFor();
+    await budgetContext.close();
+    console.log(`✓ /expenses: ${budgetMode} budgets do not block expense reads/edits; budget-only retry recovers`);
   }
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
   await ctx.addInitScript(fetchStubSource());
