@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { useBeautician, fetchRowsStrict, insertRow } from '../lib/supabase.js';
+import { Link } from 'react-router-dom';
+import { useBeautician, supabase } from '../lib/supabase.js';
+import { careCardView, careCardDraft, newCareCardDraft, loadCareCards, saveCareCard, setCareCardArchived, isCareStorageUnavailable } from '../lib/aftercare-cards.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import Icon, { iconName } from '../components/ui/Icon';
@@ -19,31 +21,47 @@ export default function Aftercare() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [loadError, setLoadError] = useState(null);
+  const [notice, setNotice] = useState(null);
   const busy = useRef(false);
+  const loadVersion = useRef(0);
+  const editorRef = useRef(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [editingCard, setEditingCard] = useState(null);
 
-  // New card form state
-  const [newCard, setNewCard] = useState({
-    treatment_name: '', icon: 'sparkles', instructions: [{ title: '', text: '' }],
-    products: [''], personal_note: '', send_after_hours: 1, auto_send: false,
-    rebook_nudge_days: 28,
-  });
+  const [newCard, setNewCard] = useState(newCareCardDraft);
 
   useEffect(() => {
     if (beautician) loadData();
-  }, [beautician]);
+    return () => { loadVersion.current += 1; };
+  }, [beautician?.id]);
+
+  useEffect(() => {
+    if (showCreateForm) editorRef.current?.focus();
+  }, [showCreateForm, editingCard?.id]);
 
   async function loadData() {
+    const version = ++loadVersion.current;
     setLoading(true); setLoadError(null);
     try {
-      const rows = await fetchRowsStrict('aftercare_cards', beautician?.id, { order: 'created_at', ascending: false });
-      setCards(rows.map(card => ({ ...card, instructions: Array.isArray(card.instructions) ? card.instructions.filter(i => i && typeof i === 'object').map(i => ({ title: String(i.title || ''), text: String(i.text || '') })) : [], products: Array.isArray(card.products) ? card.products.filter(p => typeof p === 'string') : [] })));
+      const rows = await loadCareCards(supabase, beautician?.id);
+      if (version === loadVersion.current) setCards(rows);
     } catch (err) {
       logger.error('Aftercare load error:', err);
-      setLoadError('Could not load your care cards. Try again.');
+      if (version === loadVersion.current) setLoadError(isCareStorageUnavailable(err)
+        ? 'Care-card storage is not ready yet. You can still open your approved answers in Florrie’s knowledge.'
+        : 'Could not load your care cards. Try again.');
     } finally {
-      setLoading(false);
+      if (version === loadVersion.current) setLoading(false);
     }
+  }
+
+  function openEditor(card = null) {
+    setEditingCard(card); setNewCard(card ? careCardDraft(card) : newCareCardDraft());
+    setShowCreateForm(true); setShowPreview(false); setError(null); setNotice(null);
+  }
+
+  function closeEditor() {
+    setShowCreateForm(false); setEditingCard(null); setNewCard(newCareCardDraft()); setError(null);
   }
 
   function handleAddInstruction() {
@@ -80,24 +98,30 @@ export default function Aftercare() {
 
   async function handleSaveCard() {
     if (!beautician || busy.current) return;
-    if (!newCard.treatment_name.trim() || !newCard.instructions.length || newCard.instructions.some(i => !i.title.trim() || !i.text.trim())) {
-      setError('Add a treatment name and a title and instruction for each step.'); return;
-    }
     busy.current = true; setSaving(true); setError(null);
     try {
-      const saved = await insertRow('aftercare_cards', {
-        ...newCard, beautician_id: beautician.id,
-        treatment_name: newCard.treatment_name.trim(),
-        products: newCard.products.map(p => p.trim()).filter(Boolean), auto_send: false,
-      });
-      if (!saved?.id) throw new Error('Save was not confirmed');
-      setCards(prev => [saved, ...prev]);
-      setNewCard({ treatment_name: '', icon: 'sparkles', instructions: [{ title: '', text: '' }],
-        products: [''], personal_note: '', send_after_hours: 1, auto_send: false, rebook_nudge_days: 28 });
-      setShowCreateForm(false);
+      const saved = await saveCareCard(supabase, beautician.id, newCard, editingCard);
+      setCards(prev => editingCard ? prev.map(card => card.id === saved.id ? saved : card) : [saved, ...prev]);
+      closeEditor();
+      setNotice('Care card saved.');
     } catch (err) {
       logger.error('Save aftercare card error:', err);
-      setError('Could not save this care card. Your instructions are still here. Try again.');
+      setError(err.code === 'CARE_CARD_VALIDATION' ? err.message
+        : err.code === 'CARE_CARD_CONFLICT' ? 'This care card changed elsewhere. Your edits are still here; copy them before closing the editor and reloading.'
+        : 'Could not save this care card. Your instructions are still here. Try again.');
+    } finally { busy.current = false; setSaving(false); }
+  }
+
+  async function handleArchive(card, archived) {
+    if (!beautician || busy.current) return;
+    busy.current = true; setSaving(true); setError(null); setNotice(null);
+    try {
+      const saved = await setCareCardArchived(supabase, beautician.id, card, archived);
+      setCards(prev => prev.map(row => row.id === saved.id ? saved : row));
+      setNotice(archived ? 'Care card archived. You can restore it from Archived.' : 'Care card restored to Saved cards.');
+    } catch (err) {
+      logger.error('Archive aftercare card error:', err);
+      setError(err.code === 'CARE_CARD_CONFLICT' ? err.message : 'Could not change this care card. It is still where it was. Try again.');
     } finally { busy.current = false; setSaving(false); }
   }
 
@@ -107,34 +131,39 @@ export default function Aftercare() {
   }
 
   const ICON_OPTIONS = ['sparkles', 'eye', 'edit', 'sparkle', 'hand', 'flower', 'spray', 'heart', 'star', 'palette'];
+  const visibleCards = cards.filter(card => tab === 'archived' ? !!card.archived_at : !card.archived_at)
+    .map(careCardView);
 
   if (bLoading) return <PageLoader />;
-  if (loadError) return <MoreLoadError title="Aftercare" message={loadError} onRetry={loadData} />;
+  if (loadError) return <><MoreLoadError title="Aftercare" message={loadError} onRetry={loadData} /><div style={styles.page}><Link to="/knowledge" style={styles.knowledgeLink}>Open Florrie’s knowledge</Link></div></>;
+  if (!beautician) return <MoreLoadError title="Aftercare" message="Sign in to open your care cards." onRetry={loadData} />;
 
   return (
     <div style={styles.page}>
       {error && <p role="alert" style={{ color: 'var(--danger, #9f3434)' }}>{error}</p>}
       <PageHeader title="Aftercare" subtitle="Post-treatment care cards" />
+      {notice && <p role="status" style={styles.notice}>{notice}</p>}
 
+      <div style={styles.tabs} aria-label="Care card lists">
+        {[['cards', 'Saved cards'], ['archived', 'Archived']].map(([value, label]) => <button key={value} disabled={saving || showCreateForm} aria-pressed={tab === value} onClick={() => { setTab(value); setError(null); setNotice(null); }} style={{ ...styles.tab, color: tab === value ? 'var(--accent, #92405e)' : 'var(--text-muted, #6B5D54)', borderBottomColor: tab === value ? 'var(--accent, #92405e)' : 'transparent' }}>{label}</button>)}
+      </div>
 
-      {/* === CARDS TAB === */}
-      {tab === 'cards' && (
         <div>
           <div style={styles.statusBar}>
-            <span style={styles.statusText}>Automatic sending is not connected to these care cards. Save and preview your guidance here.</span>
-            <span style={styles.statusCount}>{cards.length} saved</span>
+            <span style={styles.statusText}>Automatic sending is not connected to these care cards. Save, edit and preview your guidance here.</span>
+            <span style={styles.statusCount}>{visibleCards.length} {tab === 'archived' ? 'archived' : 'saved'}</span>
           </div>
+          <p style={styles.knowledgeNote}>Care cards do not change Florrie’s replies. Add and approve guidance in <Link to="/knowledge" style={styles.knowledgeLink}>Florrie’s knowledge</Link> for her to use it when answering clients.</p>
 
-          <Button disabled={saving || loading} onClick={() => setShowCreateForm(!showCreateForm)} style={styles.createBtn}>+ New Care Card</Button>
+          {tab === 'cards' && <Button disabled={saving || loading || showCreateForm} onClick={() => openEditor()} style={styles.createBtn}>+ New Care Card</Button>}
 
-          {/* Create form */}
           {showCreateForm && (
-            <div style={styles.formCard}>
-              <h3 style={styles.formTitle}>New Care Card</h3>
+            <div style={styles.formCard} role="form" aria-label={editingCard ? 'Edit care card' : 'New care card'}>
+              <h3 style={styles.formTitle}>{editingCard ? 'Edit Care Card' : 'New Care Card'}</h3>
 
               <div style={styles.formGroup}>
-                <label style={styles.formLabel}>Treatment name</label>
-                <input disabled={saving}
+                <label htmlFor="care-treatment-name" style={styles.formLabel}>Treatment name</label>
+                <input ref={editorRef} id="care-treatment-name" disabled={saving}
                   type="text" placeholder="e.g. Lash Lift & Tint"
                   value={newCard.treatment_name}
                   onChange={e => setNewCard(p => ({ ...p, treatment_name: e.target.value }))}
@@ -148,6 +177,7 @@ export default function Aftercare() {
                   {ICON_OPTIONS.map(icon => (
                     <button disabled={saving}
                       key={icon}
+                      aria-label={`Use ${icon} icon`} aria-pressed={newCard.icon === icon}
                       onClick={() => setNewCard(p => ({ ...p, icon }))}
                       style={{ ...styles.iconBtn,
                         background: newCard.icon === icon ? 'var(--accent-light, #F6E7EC)' : 'var(--bg-card, #FFFCF9)',
@@ -166,12 +196,14 @@ export default function Aftercare() {
                   <div key={idx} style={styles.instructionRow}>
                     <div style={{ flex: 1 }}>
                       <input disabled={saving}
+                        aria-label={`Step ${idx + 1} title`}
                         type="text" placeholder="e.g. First 24 hours"
                         value={inst.title}
                         onChange={e => handleInstructionChange(idx, 'title', e.target.value)}
                         style={{ ...styles.formInput, marginBottom: 6 }}
                       />
                       <textarea disabled={saving}
+                        aria-label={`Step ${idx + 1} instruction`}
                         placeholder="What the client should do..."
                         value={inst.text}
                         onChange={e => handleInstructionChange(idx, 'text', e.target.value)}
@@ -180,7 +212,7 @@ export default function Aftercare() {
                       />
                     </div>
                     {newCard.instructions.length > 1 && (
-                      <button disabled={saving} onClick={() => handleRemoveInstruction(idx)} style={styles.removeBtn}>×</button>
+                      <button disabled={saving} aria-label={`Remove step ${idx + 1}`} onClick={() => handleRemoveInstruction(idx)} style={styles.removeBtn}>×</button>
                     )}
                   </div>
                 ))}
@@ -192,6 +224,7 @@ export default function Aftercare() {
                 {newCard.products.map((product, idx) => (
                   <input disabled={saving}
                     key={idx}
+                    aria-label={`Recommended product ${idx + 1}`}
                     type="text" placeholder="e.g. Brow oil"
                     value={product}
                     onChange={e => handleProductChange(idx, e.target.value)}
@@ -202,8 +235,8 @@ export default function Aftercare() {
               </div>
 
               <div style={styles.formGroup}>
-                <label style={styles.formLabel}>Personal note</label>
-                <textarea disabled={saving}
+                <label htmlFor="care-personal-note" style={styles.formLabel}>Personal note</label>
+                <textarea id="care-personal-note" disabled={saving}
                   placeholder="A warm message in your voice..."
                   value={newCard.personal_note}
                   onChange={e => setNewCard(p => ({ ...p, personal_note: e.target.value }))}
@@ -213,8 +246,8 @@ export default function Aftercare() {
               </div>
 
               <div style={styles.formActions}>
-                <Button disabled={saving} onClick={handleSaveCard} style={styles.saveBtn}>{saving ? 'Saving…' : 'Save Card'}</Button>
-                <Button variant="quiet" disabled={saving} onClick={() => setShowCreateForm(false)} style={styles.cancelBtn}>Cancel</Button>
+                <Button disabled={saving} onClick={handleSaveCard} style={styles.saveBtn}>{saving ? 'Saving…' : editingCard ? 'Save changes' : 'Save Card'}</Button>
+                <Button variant="quiet" disabled={saving} onClick={closeEditor} style={styles.cancelBtn}>Cancel</Button>
               </div>
             </div>
           )}
@@ -222,16 +255,16 @@ export default function Aftercare() {
           {/* Card list */}
           {loading ? (
             <p style={styles.loadingText}>Loading care cards...</p>
-          ) : cards.length === 0 ? (
+          ) : visibleCards.length === 0 ? (
             <div style={styles.emptyState}>
               <span style={{ fontSize: 32, display: 'block', marginBottom: 8 }}><Icon name="flower" size={32} /></span>
-              <p style={styles.emptyTitle}>No care cards yet</p>
-              <p style={styles.emptyDesc}>Create an aftercare card for each treatment to keep your guidance ready to review.</p>
+              <p style={styles.emptyTitle}>{tab === 'archived' ? 'No archived care cards' : 'No care cards yet'}</p>
+              <p style={styles.emptyDesc}>{tab === 'archived' ? 'Archived cards stay here so you can review or restore them.' : 'Create an aftercare card for each treatment to keep your guidance ready to review.'}</p>
             </div>
           ) : (
             <div style={styles.cardList}>
-              {cards.map(card => (
-                <div key={card.id} style={styles.aftercareCard}>
+              {visibleCards.map(card => (
+                <article key={card.id} aria-label={card.treatment_name} style={styles.aftercareCard}>
                   <div style={styles.cardHeader}>
                     <span style={styles.cardIcon}><Icon name={iconName(card.icon)} inline /></span>
                     <div style={styles.cardHeaderText}>
@@ -240,7 +273,7 @@ export default function Aftercare() {
                         {card.instructions.length} steps · Saved guidance
                       </span>
                     </div>
-                    <span style={{ ...styles.autoSendBadge, background: 'var(--bg-hover, #f3ede9)', color: 'var(--text-secondary, #574A42)' }}>Saved</span>
+                    <span style={{ ...styles.autoSendBadge, background: 'var(--bg-hover, #f3ede9)', color: 'var(--text-secondary, #574A42)' }}>{card.archived_at ? 'Archived' : 'Saved'}</span>
                   </div>
 
                   {/* Instruction preview */}
@@ -265,23 +298,23 @@ export default function Aftercare() {
                   )}
 
                   <div style={styles.cardActions}>
-                    <button onClick={() => openPreview(card)} style={styles.previewBtn}>Preview</button>
-                    <span style={styles.cardMeta}>Sending unavailable</span>
+                    <Button variant="secondary" disabled={saving || showCreateForm} onClick={() => openPreview(card)} style={styles.previewBtn}>Preview</Button>
+                    {!card.archived_at && <Button variant="secondary" disabled={saving || showCreateForm} onClick={() => openEditor(cards.find(row => row.id === card.id))} style={styles.previewBtn}>Edit</Button>}
+                    <Button variant="quiet" disabled={saving || showCreateForm} onClick={() => handleArchive(card, !card.archived_at)}>{card.archived_at ? 'Restore' : 'Archive'}</Button>
                   </div>
-                </div>
+                </article>
               ))}
             </div>
           )}
         </div>
-      )}
 
       {/* === PREVIEW MODAL === */}
       {showPreview && selectedCard && (
         <div style={styles.previewOverlay} onClick={() => setShowPreview(false)}>
-          <div style={styles.previewModal} onClick={e => e.stopPropagation()}>
+          <div role="dialog" aria-modal="true" aria-label="Guidance preview" style={styles.previewModal} onClick={e => e.stopPropagation()}>
             <div style={styles.previewHeader}>
               <span style={{ fontSize: 14, fontWeight: 600 }}>Guidance preview</span>
-              <button onClick={() => setShowPreview(false)} style={styles.closeBtn}>×</button>
+              <button aria-label="Close preview" onClick={() => setShowPreview(false)} style={styles.closeBtn}>×</button>
             </div>
 
             {/* Phone mockup */}
@@ -292,11 +325,11 @@ export default function Aftercare() {
                 <div style={styles.phoneMessage}>
                   <div style={styles.phoneSender}>
                     <span style={{ fontWeight: 600, fontSize: 13 }}>florrie.ai for {beautician?.business_name || beautician?.first_name || 'your salon'}</span>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted, #6B5D54)' }}>Just now</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted, #6B5D54)' }}>Preview only</span>
                   </div>
 
                   <p style={styles.phoneText}>
-                    Hey lovely! Here's your aftercare guide for today's {selectedCard.treatment_name} <Icon name={iconName(selectedCard.icon)} inline />
+                    Saved guidance for {selectedCard.treatment_name} <Icon name={iconName(selectedCard.icon)} inline />
                   </p>
 
                   <div style={styles.phoneCard}>
@@ -358,6 +391,9 @@ const styles = {
   statusDot: { width: 8, height: 8, borderRadius: 'var(--radius-xs)', flexShrink: 0 },
   statusText: { fontSize: 12, color: 'var(--text-secondary, #574A42)', flex: 1 },
   statusCount: { fontSize: 11, color: 'var(--accent, #92405e)', fontWeight: 600 },
+  knowledgeNote: { fontSize: 12, lineHeight: 1.6, color: 'var(--text-secondary, #574A42)', margin: '0 0 16px' },
+  knowledgeLink: { color: 'var(--accent, #92405e)', textDecoration: 'underline', textUnderlineOffset: 3 },
+  notice: { fontSize: 13, lineHeight: 1.5, color: 'var(--text-secondary, #574A42)' },
 
   createBtn: {
     width: '100%', padding: '12px 0', borderRadius: 10, border: 'none',
@@ -400,7 +436,7 @@ const styles = {
     fontSize: 11, color: 'var(--text-secondary, #574A42)',
   },
 
-  cardActions: { display: 'flex', gap: 8 },
+  cardActions: { display: 'flex', flexWrap: 'wrap', gap: 8 },
   previewBtn: {
     flex: 1, padding: '8px 0', borderRadius: 10, border: '1.5px solid var(--border, #E8DDD4)',
     background: 'var(--bg-card, #FFFCF9)', color: 'var(--text-secondary, #574A42)', fontSize: 12, fontWeight: 600,
@@ -449,13 +485,13 @@ const styles = {
   },
   iconGrid: { display: 'flex', flexWrap: 'wrap', gap: 8 },
   iconBtn: {
-    width: 40, height: 40, borderRadius: 10, border: '1.5px solid var(--border, #E8DDD4)',
+    width: 44, height: 44, borderRadius: 10, border: '1.5px solid var(--border, #E8DDD4)',
     fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center',
     justifyContent: 'center',
   },
   instructionRow: { display: 'flex', gap: 8, marginBottom: 10 },
   removeBtn: {
-    width: 28, height: 28, borderRadius: 16, border: 'none',
+    width: 44, height: 44, borderRadius: 16, border: 'none',
     background: 'var(--danger-bg, #F7E4E4)', color: 'var(--danger, #9E2B32)', fontSize: 16,
     cursor: 'pointer', display: 'flex', alignItems: 'center',
     justifyContent: 'center', flexShrink: 0, marginTop: 4,
@@ -507,7 +543,7 @@ const styles = {
     padding: '14px 16px', borderBottom: '1px solid var(--border, #E8DDD4)',
   },
   closeBtn: {
-    width: 28, height: 28, borderRadius: 16, border: 'none',
+    width: 44, height: 44, borderRadius: 16, border: 'none',
     background: 'var(--bg-hover, #f3ede9)', fontSize: 16, cursor: 'pointer',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
