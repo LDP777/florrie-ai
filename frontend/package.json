@@ -45,9 +45,10 @@
     "check:swatches": "node scripts/check-swatches.mjs",
     "check:live": "node scripts/check-live.mjs",
     "check:care": "node scripts/check-care-hub.mjs && node scripts/check-care-workflows.mjs && node scripts/check-booking-preparation.mjs",
-    "check:more": "node --test src/pages/more-*.test.mjs && node scripts/check-more-reliability.mjs && node scripts/check-membership-clarity.mjs && node scripts/audit-owner-pages-20260906.mjs && node scripts/check-content-waitlist.mjs && node scripts/check-workspace-visuals.mjs && node scripts/check-content-completion.mjs && npm run check:intelligence",
+    "check:more": "node --test src/pages/more-*.test.mjs && node scripts/check-more-reliability.mjs && node scripts/check-membership-clarity.mjs && node scripts/audit-owner-pages-20260906.mjs && node scripts/check-content-waitlist.mjs && node scripts/check-workspace-visuals.mjs && node scripts/check-content-completion.mjs && npm run check:intelligence && npm run check:sms",
     "check:intelligence": "node scripts/check-intelligence-brief.mjs && node scripts/check-agent-network-loading.mjs && node scripts/check-effects.mjs",
-    "check:voice:browser": "node scripts/check-voice-petal.mjs"
+    "check:voice:browser": "node scripts/check-voice-petal.mjs",
+    "check:sms": "node --test src/lib/sms-settings.test.mjs && node scripts/check-sms-setup.mjs"
   },
   "dependencies": {
     "@capacitor-community/apple-sign-in": "^6.0.0",

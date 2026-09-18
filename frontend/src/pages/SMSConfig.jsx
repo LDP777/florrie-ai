@@ -1,485 +1,233 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { ds, type } from '../lib/designSystem.js';
 import { supabase } from '../lib/supabase.js';
-import Icon from '../components/ui/Icon';
+import { API_BASE } from '../lib/config.js';
+import { readAuthenticatedJson } from '../lib/authenticated-json.js';
+import { monthlyMessageUsage, smsSettingsChanges, writeSmsSettings } from '../lib/sms-settings.js';
 import PageHeader from '../components/ui/PageHeader.jsx';
 
-const API = import.meta.env.VITE_API_URL;
-
-async function getToken() {
-  const key = Object.keys(localStorage).find(k => /^sb-.+-auth-token$/.test(k));
-  if (!key) return null;
-  const raw = localStorage.getItem(key);
-  if (!raw) return null;
-  try { const p = JSON.parse(raw); return p?.access_token || p?.session?.access_token || raw; }
-  catch { return raw; }
-}
-
+const tabs = ['Overview', 'Message examples', 'Settings'];
+const initialRead = { loading: true, error: null, data: null };
+const inputStyle = { ...ds.input, width: '100%', minHeight: 44, boxSizing: 'border-box' };
+const linkStyle = { ...ds.btnSecondary, display: 'inline-flex', alignItems: 'center', minHeight: 44, boxSizing: 'border-box', textDecoration: 'none' };
 const templates = [
-  { id: 'booking_confirmation', name: 'Booking Confirmation', trigger: 'On booking', message: 'Hi {name}, your {treatment} is confirmed for {date} at {time}. {business}' },
-  { id: 'reminder_24h', name: '24h Reminder', trigger: '24h before', message: 'Reminder: {name}, your {treatment} is tomorrow at {time}. See you then! {business}' },
-  { id: 'reminder_1h', name: '1h Reminder', trigger: '1h before', message: '{name}, your appointment is in 1 hour at {time}. {business}' },
-  { id: 'rebook_nudge', name: 'Rebook Nudge', trigger: 'Auto (21 days)', message: "Hey {name}! It's been a few weeks. Ready to book in again? {booking_link}, {business}" },
-  { id: 'review_request', name: 'Review Request', trigger: 'Post-appointment', message: '{name}, thanks for visiting! We\'d love your feedback: {review_link}, {business}' },
-  { id: 'no_show_followup', name: 'No-Show Follow Up', trigger: 'On no-show', message: 'Hey {name}, we missed you today! Want to rebook? {booking_link}, {business}' },
+  { id: 'booking_confirmation', name: 'Booking confirmation', required: true, trigger: 'After booking', message: 'Hi {name}, your {treatment} is confirmed for {date} at {time}. {business}' },
+  { id: 'reminder_24h', name: '24-hour reminder', required: true, trigger: 'Before the appointment', message: 'Reminder: {name}, your {treatment} is tomorrow at {time}. See you then! {business}' },
+  { id: 'reminder_1h', name: '1-hour reminder', trigger: 'Before the appointment', message: '{name}, your appointment is in 1 hour at {time}. {business}' },
+  { id: 'rebook_nudge', name: 'Rebooking reminder', trigger: 'When a client is due to rebook', message: 'Hey {name}! Ready to book in again? {booking_link}, {business}' },
 ];
 
-const tabs = ['Overview', 'Templates', 'Settings'];
-
-// Whether clients can reply is NOT something to infer from the shape of the
-// sender string. It used to be: a value that looked like a phone number was
-// shown as "2-way", which was true of the SHARED platform long code as well,
-// so a salon sending from a number nobody could route replies on was told her
-// replies were live. The backend now answers it directly, in `two_way`.
-//
-// This is only kept for the input hint while she is typing.
-function looksLikeNumber(value) {
-  if (!value) return false;
-  const trimmed = value.toString().trim();
-  if (trimmed.startsWith('+')) return /^\+[0-9]{7,15}$/.test(trimmed);
-  return /^[0-9]{7,15}$/.test(trimmed);
+function ReadIssue({ state, label, retry }) {
+  if (state.loading) return <p role="status" style={type.bodySmall}>Loading {label}…</p>;
+  if (!state.error) return null;
+  return <div role="alert" style={{ marginBottom: 12 }}>
+    <p style={type.bodySmall}>Couldn’t load {label}. {state.error}</p>
+    <button style={ds.btnSecondary} onClick={retry}>Retry {label}</button>
+  </div>;
 }
 
 export default function SMSConfig() {
   const [tab, setTab] = useState(0);
-  const [config, setConfig] = useState(null);
-  const [usage, setUsage] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  // Settings form state. Three separate things, because they ARE three separate
-  // things: the number clients text her on, the Bird channel her texts leave
-  // from, and the brand name that appears in message copy.
-  const [inboundInput, setInboundInput] = useState('');
-  const [channelInput, setChannelInput] = useState('');
-  const [nameInput, setNameInput] = useState('');
-  const [smsEnabled, setSmsEnabled] = useState(false);
+  const [config, setConfig] = useState(initialRead);
+  const [usage, setUsage] = useState(initialRead);
+  const [prefs, setPrefs] = useState(initialRead);
+  const [form, setForm] = useState({ name: '', inbound: '', channel: '' });
   const [saving, setSaving] = useState(false);
-  const [saveMsg, setSaveMsg] = useState('');
-
-  // Test SMS state
+  const [saveMsg, setSaveMsg] = useState(null);
   const [testPhone, setTestPhone] = useState('');
   const [testing, setTesting] = useState(false);
-  // Shape, not a sentinel. This used to be a bare string whose first character
-  // decided the colour: `testMsg.startsWith('✓') ? success : danger`. That made
-  // a tick in a template literal load-bearing, so the emoji sweep would have
-  // turned every successful test SMS red without touching the colour logic.
-  const [testMsg, setTestMsg] = useState(null); // { ok: boolean, text: string }
+  const [testMsg, setTestMsg] = useState(null);
+  const mounted = useRef(false);
+  const reads = useRef({ config: 0, usage: 0, prefs: 0 });
+  const savePending = useRef(false);
+  const testPending = useRef(false);
 
-  // Reminder prefs from beauticians table
-  const [prefs, setPrefs] = useState({});
-
-  useEffect(() => {
-    load();
-  }, []);
-
-  async function load() {
-    setLoading(true);
-    setError(null);
+  async function load(kind) {
+    const revision = ++reads.current[kind];
+    const setter = { config: setConfig, usage: setUsage, prefs: setPrefs }[kind];
+    const current = () => mounted.current && revision === reads.current[kind];
+    setter(previous => ({ ...previous, loading: true, error: null }));
     try {
-      const token = await getToken();
-      const headers = { Authorization: `Bearer ${token}` };
-
-      const [cfgRes, usageRes] = await Promise.all([
-        fetch(`${API}/api/notifications/sms/config`, { headers }),
-        fetch(`${API}/api/notifications/sms/usage`, { headers }),
-      ]);
-
-      if (!cfgRes.ok) throw new Error('Failed to load SMS config');
-
-      const cfg = await cfgRes.json();
-      const usageData = usageRes.ok ? await usageRes.json() : null;
-
-      setConfig(cfg);
-      setInboundInput(cfg.sms_inbound_number || '');
-      setChannelInput(cfg.sms_channel_id || '');
-      setNameInput(cfg.sms_originator || 'Florrie');
-      setSmsEnabled(cfg.sms_enabled || false);
-      setUsage(usageData);
-
-      // Load reminder prefs
-      const { data: b } = await supabase.auth.getUser();
-      if (b?.user) {
-        const { data: bData } = await supabase
-          .from('beauticians')
-          .select('client_reminder_prefs')
-          .eq('auth_id', b.user.id)
-          .maybeSingle();
-        if (bData?.client_reminder_prefs) setPrefs(bData.client_reminder_prefs);
+      const path = { config: '/api/notifications/sms/config', usage: '/api/whatsapp/status', prefs: '/api/notifications/preferences' }[kind];
+      const response = await readAuthenticatedJson({ auth: supabase.auth, url: `${API_BASE}${path}` });
+      let data = response;
+      if (kind === 'usage') data = monthlyMessageUsage(response);
+      if (kind === 'prefs') {
+        data = response?.client_reminder_prefs;
+        if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Please try again.');
       }
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
+      if (kind === 'config' && (!data || typeof data.bird_configured !== 'boolean' || typeof data.sms_originator !== 'string')) {
+        throw new Error('Please try again.');
+      }
+      if (!current()) return;
+      setter({ data, error: null, loading: false });
+      if (kind === 'config') setForm({ name: data.sms_originator || 'Florrie', inbound: data.sms_inbound_number || '', channel: data.sms_channel_id || '' });
+    } catch (error) {
+      if (current()) setter(previous => ({ ...previous, loading: false, error: error.message }));
     }
   }
 
+  useEffect(() => {
+    mounted.current = true;
+    load('config'); load('usage'); load('prefs');
+    return () => { mounted.current = false; for (const key of Object.keys(reads.current)) reads.current[key]++; };
+  }, []);
+
+  const cfg = config.data;
+  const changes = cfg ? smsSettingsChanges(cfg, form) : {};
+  const dirty = Object.keys(changes).length > 0;
+  const edit = (key, value) => { setForm(previous => ({ ...previous, [key]: value })); setSaveMsg(null); };
+
   async function saveConfig() {
-    setSaving(true);
-    setSaveMsg('');
+    if (!cfg || cfg.schema_split !== true || !dirty || savePending.current) return;
+    savePending.current = true;
+    setSaving(true); setSaveMsg(null);
     try {
-      const token = await getToken();
-      const res = await fetch(`${API}/api/notifications/sms/config`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          // Empty means "I have not got my own number", which is a real and
-          // common answer, so it clears the field rather than being rejected.
-          sms_inbound_number: inboundInput.trim() || null,
-          sms_channel_id: channelInput.trim() || null,
-          sms_originator: nameInput.trim() || 'Florrie',
-          sms_enabled: smsEnabled,
-          channel: smsEnabled ? 'sms' : (config?.channel || 'whatsapp'),
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Save failed');
-      setSaveMsg(data.warnings?.length ? data.warnings[0] : 'Saved');
-      setConfig(prev => ({ ...prev, ...data }));
-    } catch (err) {
-      setSaveMsg(`Error: ${err.message}`);
-    } finally {
-      setSaving(false);
-      setTimeout(() => setSaveMsg(''), 6000);
-    }
+      if (changes.sms_originator && !/[a-zA-Z]/.test(changes.sms_originator)) {
+        throw new Error('Include a letter in the business name so it cannot be mistaken for a sending number.');
+      }
+      const data = await writeSmsSettings({ auth: supabase.auth, url: `${API_BASE}/api/notifications/sms/config`, method: 'PUT', body: changes });
+      if (!mounted.current) return;
+      // The API confirms the write before its routing readback. Preserve fields
+      // this form did not change, including the owner's reminder channel.
+      const saved = { ...cfg, ...changes };
+      saved.two_way = !!saved.sms_inbound_number;
+      setConfig(previous => ({ ...previous, data: saved }));
+      setForm({ name: saved.sms_originator, inbound: saved.sms_inbound_number || '', channel: saved.sms_channel_id || '' });
+      setSaveMsg({ ok: true, text: data.warnings?.[0] ? `Saved. ${data.warnings[0]}` : 'SMS settings saved.' });
+    } catch (error) {
+      if (mounted.current) setSaveMsg({ ok: false, text: error.message });
+    } finally { savePending.current = false; if (mounted.current) setSaving(false); }
   }
 
   async function sendTest() {
-    if (!testPhone) return;
-    setTesting(true);
-    setTestMsg('');
+    if (!testPhone.trim() || testPending.current || dirty) return;
+    testPending.current = true;
+    setTesting(true); setTestMsg(null);
+    const phone = testPhone.trim();
     try {
-      const token = await getToken();
-      const res = await fetch(`${API}/api/notifications/sms/test`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: testPhone }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Send failed');
-      setTestMsg({ ok: true, text: `Test SMS sent, check ${testPhone}` });
-    } catch (err) {
-      setTestMsg({ ok: false, text: err.message });
-    } finally {
-      setTesting(false);
-    }
+      await writeSmsSettings({ auth: supabase.auth, url: `${API_BASE}/api/notifications/sms/test`, method: 'POST', body: { phone } });
+      if (mounted.current) {
+        setTestMsg({ ok: true, text: `Test accepted for sending to ${phone}. Check the phone to confirm it arrived.` });
+        load('usage');
+      }
+    } catch (error) {
+      if (mounted.current) setTestMsg({ ok: false, text: error.message });
+    } finally { testPending.current = false; if (mounted.current) setTesting(false); }
   }
 
-  if (loading) return (
-    <div style={ds.page}>
-      <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted)' }}>Loading SMS config…</div>
+  const replyReady = !!cfg?.two_way && !!cfg?.sms_channel_id;
+  const selectedChannel = prefs.data?.channel || (prefs.data ? 'whatsapp' : null);
+  const channelName = { sms: 'SMS', whatsapp: 'WhatsApp', email: 'Email' }[selectedChannel];
+  const preferenceLink = <Link to="/settings?section=notifications" style={linkStyle}>Reminder preferences</Link>;
+
+  return <div style={ds.page}>
+    <PageHeader title="SMS" subtitle="Text messages, reminders and replies" />
+    <div style={{ ...ds.card, marginBottom: 16 }}>
+      <ReadIssue state={config} label="SMS setup" retry={() => load('config')} />
+      {cfg && <>
+        <h2 style={type.heading}>{cfg.bird_configured ? 'Check SMS sending with a test' : 'SMS setup needs attention'}</h2>
+        <p style={type.bodySmall}>{cfg.bird_configured
+          ? 'Send a test from Settings to check that messages reach your phone.'
+          : 'Contact Florrie support to finish setting up SMS.'}</p>
+        <p style={type.bodySmall}>{cfg.schema_split !== true ? 'Your reply setup needs checking before sending details can be changed.' : replyReady
+          ? `Your reply number is ${cfg.sms_inbound_number}.`
+          : 'Replies to the shared Florrie number do not reach your inbox.'}</p>
+        {cfg.two_way && !cfg.sms_channel_id && <p style={{ ...type.bodySmall, color: 'var(--warning)' }}>
+          Your reply number is saved, but outgoing texts still use the shared number. Finish the dedicated number setup before inviting clients to reply.
+        </p>}
+      </>}
     </div>
-  );
 
-  if (error) return (
-    <div style={ds.page}>
-      <div style={{ ...ds.card, borderLeft: '3px solid var(--danger)', marginTop: 20 }}>
-        <div style={{ color: 'var(--danger)', fontSize: 13 }}>Failed to load: {error}</div>
-        <button style={{ ...ds.btnSecondary, marginTop: 12 }} onClick={load}>Retry</button>
-      </div>
+    <section aria-label="Plan message usage" style={{ ...ds.card, marginBottom: 16 }}>
+      <h2 style={type.heading}>This month’s messages</h2>
+      <ReadIssue state={usage} label="message usage" retry={() => load('usage')} />
+      {usage.data && !usage.error && <>
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', margin: '12px 0' }}>
+          {[
+            ['Counted this month', `${usage.data.total_sent} / ${usage.data.free_limit}`],
+            ['Included remaining', usage.data.remaining],
+            ['Extra message charges', `£${(usage.data.overage_total_pence / 100).toFixed(2)}`],
+          ].map(([label, value]) => <div key={label} style={{ flex: '1 1 90px' }}>
+            <div style={{ ...type.heading, fontSize: 20 }}>{value}</div><div style={type.bodySmall}>{label}</div>
+          </div>)}
+        </div>
+        <p style={type.bodySmall}>{usage.data.sms_sent} SMS · {usage.data.whatsapp_sent} WhatsApp · {new Date(usage.data.month).toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' })}</p>
+      </>}
+      <p style={type.bodySmall}>SMS and chargeable WhatsApp messages share your monthly allowance. Beyond it, SMS costs 6p and WhatsApp costs 5p per message.</p>
+      <Link to="/settings?section=payments" style={{ ...linkStyle, marginTop: 8 }}>Plan and billing</Link>
+    </section>
+
+    <div style={ds.tabBar} role="tablist" aria-label="SMS sections">
+      {tabs.map((name, index) => <button key={name} role="tab" aria-selected={tab === index} onClick={() => setTab(index)} style={{ ...ds.tab, minHeight: 44, ...(tab === index ? ds.tabActive : {}) }}>{name}</button>)}
     </div>
-  );
 
-  const birdConfigured = config?.bird_configured;
-  const senderValue = config?.sms_originator || nameInput || 'Florrie';
-  // Straight from the backend. Not guessed from a string.
-  const twoWay = !!config?.two_way;
-  const sendingFrom = config?.sms_channel_id
-    ? 'your own Bird number'
-    : `the shared Florrie number${config?.shared_sms_number ? ` (${config.shared_sms_number})` : ''}`;
+    {tab === 0 && <div style={ds.card}>
+      <h2 style={type.heading}>Choose how clients hear from you</h2>
+      <ReadIssue state={prefs} label="reminder preferences" retry={() => load('prefs')} />
+      {!prefs.error && channelName && <p style={type.body}>Your preferred reminder channel is {channelName}.</p>}
+      <p style={type.bodySmall}>Manage your reminder channel and optional follow-ups in one place. Saving SMS setup here does not change those choices.</p>
+      {preferenceLink}
+      <h3 style={{ ...type.heading, marginTop: 24 }}>Receiving replies</h3>
+      <p style={type.bodySmall}>{replyReady
+        ? 'A dedicated sending channel and reply number are saved. Incoming texts use your usual Florrie reply controls.'
+        : 'The shared sending number is one-way. If you already have a dedicated Bird number, its setup is under Settings. Ask Florrie support before changing it.'}</p>
+    </div>}
 
-  return (
-    <div style={ds.page}>
-      <PageHeader
-        title="SMS"
-        subtitle="Bird-powered SMS, no regulatory bundle required"
-      />
-
-      {/* Status card */}
-      <div style={{ ...ds.heroCard, marginBottom: 20 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <div>
-            <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 4 }}>SMS GATEWAY</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-              <div style={{ width: 10, height: 10, borderRadius: 'var(--radius-xs)',
-                background: birdConfigured ? '#4ADE80' : '#F87171',
-              }} />
-              <span style={{ fontSize: 16, fontWeight: 600 }}>
-                {birdConfigured ? 'Connected via Bird' : 'Bird not configured'}
-              </span>
-            </div>
-            <div style={{ fontSize: 13, opacity: 0.9, marginTop: 6 }}>
-              Sending from {sendingFrom}
-              {smsEnabled ? ' · SMS enabled' : ' · SMS disabled (WhatsApp primary)'}
-            </div>
-            <div style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 999, background: twoWay ? 'rgba(74,222,128,0.2)' : 'rgba(250,204,21,0.18)', fontSize: 11, fontWeight: 600 }}>
-              <span style={{ width: 6, height: 6, borderRadius: 'var(--radius-xs)', background: twoWay ? '#4ADE80' : '#FACC15' }} />
-              {twoWay
-                ? `2-way, clients can reply on ${config.sms_inbound_number}`
-                : 'One-way. Replies are not delivered'}
-            </div>
-            {twoWay && !config?.sms_channel_id && (
-              <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 10, background: 'rgba(250,204,21,0.18)', fontSize: 11, lineHeight: 1.5 }}>
-                Half set up. Clients can text {config.sms_inbound_number}, but your outbound texts still leave from the shared Florrie number, so a reply to one of those is not delivered. Add your Bird channel id below.
-              </div>
-            )}
-          </div>
-          <div style={{ fontSize: 40 }}><Icon name="phone" size={40} /></div>
-        </div>
-
-        {usage && (
-          <div style={{ display: 'flex', gap: 16, marginTop: 16 }}>
-            {[
-              { label: 'Sent this week', val: usage.messagesSent || 0 },
-              { label: 'Free remaining', val: usage.freeRemaining ?? '-' },
-              { label: 'Surplus cost', val: usage.surplusTotalFormatted || '£0.00' },
-            ].map(s => (
-              <div key={s.label} style={{ flex: 1 }}>
-                <div style={{ fontSize: 18, fontWeight: 700 }}>{s.val}</div>
-                <div style={{ fontSize: 10, opacity: 0.75, marginTop: 2 }}>{s.label}</div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {!birdConfigured && (
-          <div style={{ marginTop: 12, padding: '10px 12px', background: 'rgba(248,113,113,0.15)', borderRadius: 10, fontSize: 12 }}>
-            Bird API key not set. Contact your Florrie admin to complete setup.
-          </div>
-        )}
+    {tab === 1 && <div>
+      <div style={{ ...ds.card, marginBottom: 12 }}>
+        <p style={type.bodySmall}>These are message examples, not a record of sent texts. Wording varies with the booking. Your preferences decide which channel is used.</p>
+        <ReadIssue state={prefs} label="reminder preferences" retry={() => load('prefs')} />
+        {preferenceLink}
       </div>
-
-      <div style={ds.tabBar}>
-        {tabs.map((t, i) => (
-          <button key={t} onClick={() => setTab(i)} style={{ ...ds.tab, ...(tab === i ? ds.tabActive : {}) }}>{t}</button>
-        ))}
-      </div>
-
-      {/* Overview */}
-      {tab === 0 && (
-        <div>
-          <div style={{ ...ds.insightCard, marginBottom: 16 }}>
-            <span style={{ fontSize: 20 }}>{twoWay ? '💬' : '💡'}</span>
-            <div style={{ ...type.bodySmall, lineHeight: 1.5 }}>
-              {twoWay
-                ? "2-way SMS is on, clients can text your own number and Florrie's AI replies the same way it does on WhatsApp. Booking confirmations, reminders, and rebook nudges all fire automatically."
-                : "SMS fires automatically when a client doesn't have WhatsApp, booking confirmations, 24h reminders, and rebook nudges all fall back to SMS seamlessly. Replies do not come back: outbound goes out on the shared Florrie number, which every salon uses, so a text to it cannot say whose client sent it. Buy your own Bird number and add it in Settings to turn on replies."}
-            </div>
+      {templates.map(template => {
+        const status = !prefs.data || prefs.error ? 'Status unavailable' : template.required ? 'Core reminder'
+          : (template.id === 'reminder_1h' ? prefs.data.reminder_1h === true : prefs.data.rebook_nudge !== false) ? 'On' : 'Off';
+        return <section key={template.id} aria-label={template.name} style={{ ...ds.card, marginBottom: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: 12 }}>
+            <h2 style={type.heading}>{template.name}</h2><span style={ds.badge}>{status}</span>
           </div>
+          <p style={type.bodySmall}>{template.trigger}</p>
+          <p style={{ ...type.body, background: 'var(--bg-subtle)', borderRadius: 10, padding: 12 }}>{template.message.replace('{business}', cfg?.sms_originator || '{business}')}</p>
+        </section>;
+      })}
+    </div>}
 
-          <div style={ds.card}>
-            <div style={{ ...type.heading, marginBottom: 12 }}>How SMS fits in</div>
-            {[
-              { step: '1', label: 'Client books', desc: 'System picks WhatsApp if available, SMS if not' },
-              { step: '2', label: 'Confirmation fires', desc: `Sent from ${sendingFrom}, signed "${senderValue}"` },
-              { step: '3', label: '24h before appointment', desc: 'Reminder sent automatically' },
-              {
-                step: '4',
-                label: twoWay ? 'Client replies' : 'Post-appointment',
-                desc: twoWay
-                  ? "Reply lands in Florrie, AI books, reschedules, or escalates to you"
-                  : 'Rebook nudge after 21 days if no new booking'
-              },
-            ].map(s => (
-              <div key={s.step} style={{ display: 'flex', gap: 12, marginBottom: 14, alignItems: 'flex-start' }}>
-                <div style={{ width: 24, height: 24, borderRadius: 10, background: 'var(--accent)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0,
-                }}>{s.step}</div>
-                <div>
-                  <div style={{ ...type.body, fontSize: 13, fontWeight: 600 }}>{s.label}</div>
-                  <div style={{ ...type.bodySmall, fontSize: 11 }}>{s.desc}</div>
-                </div>
-              </div>
-            ))}
-          </div>
+    {tab === 2 && <div>
+      {!cfg ? <div style={ds.card}><ReadIssue state={config} label="SMS setup" retry={() => load('config')} /></div> : <>
+        <div style={{ ...ds.card, marginBottom: 12 }}>
+          <h2 style={type.heading}>Sending details</h2>
+          <p style={type.bodySmall}>To change the channel used for reminders, open your reminder preferences.</p>
+          {preferenceLink}
+          {cfg.schema_split !== true && <p role="status" style={type.bodySmall}>Sending details are read-only until Florrie support checks this older SMS setup. Your saved setup has not changed.</p>}
+          <fieldset disabled={saving || testing || cfg.schema_split !== true} style={{ border: 0, padding: 0, margin: '20px 0 12px', minWidth: 0 }}>
+            <label htmlFor="sms-name" style={ds.inputLabel}>Business name in messages</label>
+            <p style={type.bodySmall}>Up to 11 letters and numbers. This signs off your messages; it does not change your sending number.</p>
+            <input id="sms-name" style={inputStyle} value={form.name} onChange={event => edit('name', event.target.value.replace(/[^a-zA-Z0-9 ]/g, '').slice(0, 11))} />
+            <details style={{ marginTop: 20 }}>
+              <summary style={{ cursor: 'pointer', minHeight: 44, ...type.body }}>Advanced: dedicated number setup</summary>
+              <p style={type.bodySmall}>Only change these if you already have a dedicated Bird number. Leave both empty to keep the shared sending number. Changing routing can affect client replies.</p>
+              <label htmlFor="sms-inbound" style={ds.inputLabel}>Dedicated reply number</label>
+              <input id="sms-inbound" style={inputStyle} inputMode="tel" placeholder="+447700900123" value={form.inbound} onChange={event => edit('inbound', event.target.value.replace(/[^0-9+ ]/g, '').slice(0, 20))} />
+              <label htmlFor="sms-channel" style={{ ...ds.inputLabel, marginTop: 16 }}>Bird channel ID</label>
+              <input id="sms-channel" style={inputStyle} value={form.channel} onChange={event => edit('channel', event.target.value.trim().slice(0, 36))} />
+            </details>
+          </fieldset>
+          <button onClick={saveConfig} disabled={saving || testing || !dirty || cfg.schema_split !== true} style={ds.btnPrimary}>{saving ? 'Saving…' : 'Save SMS settings'}</button>
+          {dirty && <p style={type.bodySmall}>You have unsaved changes.</p>}
+          {saveMsg && <p role={saveMsg.ok ? 'status' : 'alert'} style={{ ...type.bodySmall, color: saveMsg.ok ? 'var(--success)' : 'var(--danger)' }}>{saveMsg.text}</p>}
         </div>
-      )}
-
-      {/* Templates */}
-      {tab === 1 && (
-        <div>
-          {templates.map(t => {
-            const isEnabled = prefs[t.id] !== false;
-            return (
-              <div key={t.id} style={{ ...ds.card, marginBottom: 10 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <div>
-                    <div style={type.heading}>{t.name}</div>
-                    <div style={{ ...type.bodySmall, fontSize: 11 }}>Trigger: {t.trigger}</div>
-                  </div>
-                  <div style={{ ...ds.badge,
-                    ...(isEnabled ? ds.badgeSuccess : { background: 'var(--bg-subtle)', color: 'var(--text-muted)' }),
-                  }}>{isEnabled ? 'Active' : 'Off'}</div>
-                </div>
-                <div style={{ background: 'var(--bg-subtle)', borderRadius: 10, padding: 12,
-                  borderLeft: '3px solid var(--accent)',
-                }}>
-                  <div style={{ ...type.mono, fontSize: 12, lineHeight: 1.5, color: 'var(--text-secondary)' }}>
-                    {t.message.replace('{business}', config?.sms_originator || 'Florrie')}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-          <div style={{ ...ds.insightCard, marginTop: 8 }}>
-            <span>ℹ️</span>
-            <div style={{ ...type.bodySmall, fontSize: 12 }}>
-              Template on/off is controlled per-channel in your notification preferences. SMS uses the same template content as WhatsApp.
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Settings */}
-      {tab === 2 && (
-        <div>
-          <div style={{ ...ds.card, marginBottom: 12 }}>
-            <div style={{ ...type.heading, marginBottom: 16 }}>SMS Configuration</div>
-
-            {/* Enable SMS */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingBottom: 16, borderBottom: '1px solid var(--border-light)' }}>
-              <div>
-                <div style={{ ...type.body, fontSize: 13, fontWeight: 600 }}>Enable SMS as primary channel</div>
-                <div style={{ ...type.bodySmall, fontSize: 11 }}>When off, SMS is only used as WhatsApp fallback</div>
-              </div>
-              <button onClick={() => setSmsEnabled(v => !v)} style={{ ...ds.toggle,
-                background: smsEnabled ? 'var(--accent)' : 'var(--border)',
-              }}>
-                <div style={{ ...ds.toggleDot, transform: smsEnabled ? 'translateX(20px)' : 'translateX(0)' }} />
-              </button>
-            </div>
-
-            {/* Inbound number. The only thing that makes replies work. */}
-            <div style={{ marginBottom: 16 }}>
-              <div style={ds.inputLabel}>Your own number, for replies</div>
-              <div style={{ ...type.bodySmall, fontSize: 11, marginBottom: 8 }}>
-                A Bird virtual mobile you have bought yourself, e.g. +447700900123. Clients text this number and Florrie knows the text is for you. Leave it empty if you have not got one: your texts still go out, they just cannot be replied to. The shared Florrie number is not valid here, because every salon uses it and a reply to it would not say who it was for.
-              </div>
-              <input
-                value={inboundInput}
-                onChange={e => setInboundInput(e.target.value.replace(/[^0-9+ ]/g, '').substring(0, 20))}
-                style={{ minHeight: 44, width: '100%', padding: '8px 12px', borderRadius: 10,
-                  border: '1px solid var(--border)', background: 'var(--bg-card)',
-                  color: 'var(--text-primary)', fontSize: 14, boxSizing: 'border-box',
-                }}
-                placeholder="+447700900123"
-                inputMode="tel"
-              />
-              {inboundInput && !looksLikeNumber(inboundInput.replace(/\s/g, '')) && (
-                <div style={{ ...type.bodySmall, fontSize: 11, marginTop: 6, color: 'var(--warning)' }}>
-                  That does not look like a mobile number yet.
-                </div>
-              )}
-            </div>
-
-            {/* Outbound channel. */}
-            <div style={{ marginBottom: 16 }}>
-              <div style={ds.inputLabel}>Bird channel id (optional)</div>
-              <div style={{ ...type.bodySmall, fontSize: 11, marginBottom: 8 }}>
-                The channel id Bird gives you for the number above. Without it your texts go out from the shared Florrie number, so a client replying to the text she received would not reach you. Leave empty to use the shared number.
-              </div>
-              <input
-                value={channelInput}
-                onChange={e => setChannelInput(e.target.value.trim().substring(0, 36))}
-                style={{ minHeight: 44, width: '100%', padding: '8px 12px', borderRadius: 10,
-                  border: '1px solid var(--border)', background: 'var(--bg-card)',
-                  color: 'var(--text-primary)', fontSize: 13, boxSizing: 'border-box',
-                  fontFamily: 'monospace',
-                }}
-                placeholder="7e8e2014-98b9-508d-be22-6dde76d0dd0e"
-              />
-            </div>
-
-            {/* Display name. */}
-            <div style={{ marginBottom: 16 }}>
-              <div style={ds.inputLabel}>Business name in messages</div>
-              <div style={{ ...type.bodySmall, fontSize: 11, marginBottom: 8 }}>
-                Up to 11 letters and numbers, e.g. your salon name. This is how your messages sign off. It is not the sender number and it does not affect replies.
-              </div>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <input
-                  value={nameInput}
-                  onChange={e => setNameInput(e.target.value.replace(/[^a-zA-Z0-9 ]/g, '').substring(0, 11))}
-                  style={{ minHeight: 44, flex: 1, padding: '8px 12px', borderRadius: 10,
-                    border: '1px solid var(--border)', background: 'var(--bg-card)',
-                    color: 'var(--text-primary)', fontSize: 14,
-                  }}
-                  placeholder="YourSalon"
-                />
-                <span style={{ ...type.mono, fontSize: 11, color: 'var(--text-muted)' }}>
-                  {nameInput.length}/11
-                </span>
-              </div>
-            </div>
-
-            <button
-              onClick={saveConfig}
-              disabled={saving}
-              style={{ ...ds.btnPrimary, opacity: saving ? 0.6 : 1 }}
-            >
-              {saving ? 'Saving…' : 'Save Settings'}
-            </button>
-            {saveMsg && (
-              <div style={{ marginTop: 10, fontSize: 13,
-                color: saveMsg.startsWith('Error') ? 'var(--danger)' : 'var(--success)',
-              }}>{saveMsg}</div>
-            )}
-          </div>
-
-          {/* Test SMS */}
-          {birdConfigured && (
-            <div style={ds.card}>
-              <div style={{ ...type.heading, marginBottom: 4 }}>Send a Test SMS</div>
-              <div style={{ ...type.bodySmall, fontSize: 12, marginBottom: 12 }}>
-                Sends a test message to verify Bird is working. Enter your own number.
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input
-                  value={testPhone}
-                  onChange={e => setTestPhone(e.target.value)}
-                  placeholder="+447700900000"
-                  style={{ minHeight: 44, flex: 1, padding: '8px 12px', borderRadius: 10,
-                    border: '1px solid var(--border)', background: 'var(--bg-card)',
-                    color: 'var(--text-primary)', fontSize: 14,
-                  }}
-                />
-                <button
-                  onClick={sendTest}
-                  disabled={testing || !testPhone}
-                  style={{ ...ds.btnPrimary, opacity: (testing || !testPhone) ? 0.6 : 1 }}
-                >
-                  {testing ? 'Sending…' : 'Send Test'}
-                </button>
-              </div>
-              {testMsg && (
-                <div style={{ marginTop: 10, fontSize: 13,
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  color: testMsg.ok ? 'var(--success)' : 'var(--danger)',
-                }}>
-                  <Icon name={testMsg.ok ? 'check' : 'x'} size={14} inline />
-                  {testMsg.text}
-                </div>
-              )}
-            </div>
-          )}
-
-          <div style={{ ...ds.insightCard, marginTop: 12 }}>
-            <span>ℹ️</span>
-            <div style={{ ...type.bodySmall, fontSize: 12, lineHeight: 1.5 }}>
-              {twoWay ? (
-                <>
-                  <strong>2-way SMS is live.</strong> Clients text your own number and Florrie's AI picks up the thread the same way it does on WhatsApp. Messages cost ~0.5p each via Bird. Your plan includes 120 messages a month across SMS and WhatsApp combined.
-                </>
-              ) : (
-                <>
-                  <strong>One-way.</strong> Your texts go out on the shared Florrie number. Replies to it are dropped on purpose: every salon sends from it, so an incoming text cannot say whose client it is, and delivering it to a guess would put one salon's client in another salon's inbox. Buy your own Bird number and paste it above to switch replies on. Outbound messages cost ~0.5p each via Bird. Your plan includes 120 messages a month across SMS and WhatsApp combined.
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+        {cfg.bird_configured && <div style={ds.card}>
+          <h2 style={type.heading}>Check a test message</h2>
+          <p style={type.bodySmall}>Send one text to your own phone using the saved setup. It counts towards your message usage.</p>
+          {dirty && <p style={type.bodySmall}>Save your changes before sending a test.</p>}
+          <label htmlFor="sms-test" style={ds.inputLabel}>Your phone number</label>
+          <input id="sms-test" inputMode="tel" style={inputStyle} placeholder="+447700900000" value={testPhone} disabled={testing} onChange={event => setTestPhone(event.target.value)} />
+          <button onClick={sendTest} disabled={testing || saving || dirty || !testPhone.trim()} style={{ ...ds.btnPrimary, marginTop: 12 }}>{testing ? 'Sending…' : 'Send test SMS'}</button>
+          {testMsg && <p role={testMsg.ok ? 'status' : 'alert'} style={{ ...type.bodySmall, color: testMsg.ok ? 'var(--success)' : 'var(--danger)' }}>{testMsg.text}</p>}
+        </div>}
+      </>}
+    </div>}
+  </div>;
 }

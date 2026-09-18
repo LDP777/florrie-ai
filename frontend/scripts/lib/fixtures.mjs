@@ -157,6 +157,19 @@ const ROUTES = [
     payment: { depositPaidCents: 1000, remainingCents: 2000, bankDetails: null },
   })],
   [/\/api\/products\/public/, () => ({ products: [] })],
+  // SMS uses the current shared monthly meter, not the old weekly SMS ledger.
+  [/\/api\/notifications\/sms\/config$/, () => ({
+    bird_configured: true, sms_originator: 'Demo Salon', sms_originator_source: 'beautician',
+    sms_inbound_number: null, sms_channel_id: null, shared_sms_number: '+447700900000',
+    two_way: false, schema_split: true, sms_enabled: false, channel: 'whatsapp',
+  })],
+  [/\/api\/notifications\/preferences$/, () => ({
+    notification_prefs: {}, client_reminder_prefs: { channel: 'whatsapp', reminder_1h: false, rebook_nudge: true },
+  })],
+  [/\/api\/whatsapp\/status$/, () => ({
+    connected: false, phone: null, pending_activation: false, retry: null,
+    usage: { sms_sent: 63, whatsapp_sent: 65, total_sent: 128, free_limit: 120, remaining: 0, overage_total_pence: 48, month: '2026-09-01' },
+  })],
   [/\/api\/appointments/, () => ({ data: APPOINTMENTS, count: APPOINTMENTS.length })],
   [/\/api\/agents\/counts/, () => ({ approvals: 2, inbox: 1, handledToday: 4 })],
   [/\/api\/activity\/feed/, () => ({ rows: ROWS })],

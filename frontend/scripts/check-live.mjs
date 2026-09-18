@@ -218,6 +218,13 @@ const crashed = [];
 for (const route of ROUTES) {
   await page.goto(`http://127.0.0.1:${port}${route}`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(Number(process.env.LIVE_SETTLE || 700));
+  if (route === '/sms') {
+    // Prove this audit reached populated setup, usage and preferences, rather
+    // than grading a loading/error card after an API fixture falls behind.
+    await page.getByText('Check SMS sending with a test', { exact: true }).waitFor();
+    await page.getByText('128 / 120', { exact: true }).waitFor();
+    await page.getByText('Your preferred reminder channel is WhatsApp.', { exact: true }).waitFor();
+  }
 
   // A signed-in route that quietly renders the LOGIN page is the worst possible
   // outcome here: every assertion below passes, on a screen nobody asked about,
