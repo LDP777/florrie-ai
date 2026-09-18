@@ -246,7 +246,7 @@ export default function Reviews() {
             <p style={styles.requestDesc}>
               Florrie schedules review requests two hours after completion. Sending depends on consent, your approval settings, contact details and message allowance. A recent request can also prevent another being sent.
             </p>
-            <Link to="/settings?section=ai" style={styles.replyBtn}>Review sending preferences</Link>
+            <Link to="/settings?section=ai" style={styles.preferencesLink}>Review sending preferences</Link>
 
             <div style={styles.requestPreview}>
               <span style={styles.requestPreviewLabel}>Example message</span>
@@ -293,7 +293,7 @@ export default function Reviews() {
           <div style={styles.settingsCard}>
             <h4 style={styles.sectionLabel}>Connect review platforms</h4>
             <p style={styles.settingHint}>Review imports are not available yet. Requests include your Google review link when one is recorded; otherwise they ask for feedback without a link.</p>
-            <Link to="/settings?section=ai" style={styles.replyBtn}>Review sending preferences</Link>
+            <Link to="/settings?section=ai" style={styles.preferencesLink}>Review sending preferences</Link>
           </div>
         </div>
       )}
@@ -343,6 +343,7 @@ const styles = {
   replyLabel: { display: 'block', fontSize: 10, fontWeight: 600, color: 'var(--text-muted, #6B5D54)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 },
   replyText: { fontSize: 12, color: 'var(--text-secondary, #574A42)', margin: 0, lineHeight: 1.5 },
   replyBtn: { padding: '6px 14px', borderRadius: 10, border: '1.5px solid var(--border, #E8DDD4)', background: 'transparent', color: 'var(--accent, #92405e)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 4 },
+  preferencesLink: { display: 'inline-flex', alignItems: 'center', minHeight: 44, boxSizing: 'border-box', margin: '8px 0 12px', padding: '10px 14px', borderRadius: 10, border: '1.5px solid var(--border, #E8DDD4)', color: 'var(--accent, #92405e)', fontSize: 13, fontWeight: 600, lineHeight: 1.5, textDecoration: 'none' },
 
   // Reply form
   replyForm: { background: 'var(--bg, #FBF6F1)', borderRadius: 10, padding: 12, marginTop: 8 },
