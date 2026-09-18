@@ -1054,7 +1054,15 @@ router.post('/save-card-link', requireAuth, requireStripe, async (req, res) => {
         metadata: { client_id: client.id, beautician_id: req.beautician.id },
       });
       customerId = customer.id;
-      await supabase.from('clients').update({ stripe_customer_id: customerId }).eq('id', client.id);
+      const savedCustomer = await supabase.from('clients')
+        .update({ stripe_customer_id: customerId })
+        .eq('id', client.id).eq('beautician_id', req.beautician.id)
+        .is('stripe_customer_id', null).select('id');
+      // Do not issue a link whose customer binding was lost, or overwrite a
+      // customer another setup request just attached. A retry can reuse it.
+      if (savedCustomer.error || !savedCustomer.data?.length) {
+        throw new Error('Could not save the card setup customer');
+      }
     }
 
     const apiBase = `${req.headers['x-forwarded-proto'] || 'https'}://${req.get('host')}`;

@@ -33,7 +33,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const src = (rel) => readFileSync(join(here, '../../src', rel), 'utf8');
 
 /* ------------------------------------------------------------- the stripe -- */
-const stripeState = { checkoutSessions: [], accounts: new Map(), accountCreates: [], accountLinks: [], staleAccount: false };
+const stripeState = { checkoutSessions: [], accounts: new Map(), accountCreates: [], accountLinks: [], staleAccount: false, customerCreates: [], afterCustomerCreate: null };
 const fakeStripe = {
   accounts: {
     retrieve: async () => {
@@ -48,7 +48,11 @@ const fakeStripe = {
     },
   },
   accountLinks: { create: async params => { stripeState.accountLinks.push(params); return { url: 'https://connect.stripe.test/onboard' }; } },
-  customers: { create: async () => ({ id: 'cus_new' }) },
+  customers: { create: async params => {
+    stripeState.customerCreates.push(params);
+    stripeState.afterCustomerCreate?.();
+    return { id: 'cus_new' };
+  } },
   checkout: {
     sessions: {
       create: async (params) => {
@@ -64,8 +68,8 @@ vi.mock('stripe', () => ({
 }));
 
 /* ----------------------------------------------------------------- the db -- */
-const db = { beauticians: [], plans: [], team_members: [], appointments: [] };
-const dbState = { failCustomerIdWrite: false, failBeauticianRead: false, failConnectWrite: false };
+const db = { beauticians: [], plans: [], team_members: [], appointments: [], clients: [] };
+const dbState = { failCustomerIdWrite: false, failClientCustomerIdWrite: false, failBeauticianRead: false, failConnectWrite: false };
 
 function makeBuilder(table) {
   const preds = [];
@@ -78,6 +82,9 @@ function makeBuilder(table) {
     }
     if (table === 'beauticians' && pending && 'stripe_customer_id' in pending && dbState.failCustomerIdWrite) {
       return { data: null, error: { code: '42703', message: 'column beauticians.stripe_customer_id does not exist' } };
+    }
+    if (table === 'clients' && pending && 'stripe_customer_id' in pending && dbState.failClientCustomerIdWrite) {
+      return { data: null, error: { code: '08006', message: 'Synthetic customer persistence failure' } };
     }
     if (table === 'beauticians' && !pending && dbState.failBeauticianRead) {
       return { data: null, error: { code: '42703', message: 'column beauticians.stripe_onboarding_complete does not exist' } };
@@ -142,8 +149,11 @@ beforeEach(() => {
   stripeState.accountCreates = [];
   stripeState.accountLinks = [];
   stripeState.staleAccount = false;
+  stripeState.customerCreates = [];
+  stripeState.afterCustomerCreate = null;
   loggedErrors.length = 0;
   dbState.failCustomerIdWrite = false;
+  dbState.failClientCustomerIdWrite = false;
   dbState.failConnectWrite = false;
   dbState.failBeauticianRead = false;
   delete process.env.STRIPE_TEAM_PRICE_PER_SEAT;
@@ -156,6 +166,7 @@ beforeEach(() => {
   db.plans = [{ id: 'florrie_team', stripe_price_id: 'price_team_monthly' }, { id: 'florrie', stripe_price_id: 'price_florrie_monthly' }];
   db.team_members = [];
   db.appointments = [{ id: 'appt-1', beautician_id: 'biz-1' }];
+  db.clients = [];
 });
 
 /* ============================================ stripe_customer_id writes === */
@@ -206,6 +217,61 @@ describe('the Stripe Connect gate on /api/stripe/checkout', () => {
     const r = await post('/api/stripe/checkout', { appointment_id: 'appt-1', beautician_id: 'biz-1', amount_cents: 1000 });
     expect(r.status).toBe(400);
     expect(r.body.error).toMatch(/has not completed Stripe setup/);
+  });
+});
+
+describe('a save-card link requires its customer binding to be saved first', () => {
+  beforeEach(() => {
+    Object.assign(currentBeautician, { stripe_account_id: 'acct_1', stripe_onboarding_complete: true });
+    db.clients = [{ id: 'client-1', beautician_id: 'biz-1', first_name: 'Fictional', stripe_customer_id: null }];
+    db.appointments[0].client_id = 'client-1';
+    db.appointments[0].clients = db.clients[0];
+  });
+
+  it('saves the customer and then creates the normal setup link', async () => {
+    expect((await post('/api/stripe/save-card-link', { appointment_id: 'appt-1' })).status).toBe(200);
+    expect(db.clients[0].stripe_customer_id).toBe('cus_new');
+    expect(stripeState.checkoutSessions).toHaveLength(1);
+    expect(stripeState.checkoutSessions[0]).toMatchObject({
+      mode: 'setup', customer: 'cus_new',
+      metadata: { appointment_id: 'appt-1', beautician_id: 'biz-1', client_id: 'client-1', type: 'save_card' },
+    });
+  });
+
+  it('does not issue a setup link when the customer write fails, and permits retry', async () => {
+    dbState.failClientCustomerIdWrite = true;
+    expect((await post('/api/stripe/save-card-link', { appointment_id: 'appt-1' })).status).toBe(500);
+    expect(stripeState.checkoutSessions).toEqual([]);
+    expect(db.clients[0].stripe_customer_id).toBe(null);
+    dbState.failClientCustomerIdWrite = false;
+    expect((await post('/api/stripe/save-card-link', { appointment_id: 'appt-1' })).status).toBe(200);
+    expect(stripeState.checkoutSessions).toHaveLength(1);
+  });
+
+  it('does not replace a customer attached by a competing setup request', async () => {
+    stripeState.afterCustomerCreate = () => { db.clients[0].stripe_customer_id = 'cus_concurrent'; };
+    expect((await post('/api/stripe/save-card-link', { appointment_id: 'appt-1' })).status).toBe(500);
+    expect(db.clients[0].stripe_customer_id).toBe('cus_concurrent');
+    expect(stripeState.checkoutSessions).toEqual([]);
+    // The next ordinary attempt can reuse the winning customer.
+    stripeState.afterCustomerCreate = null;
+    expect((await post('/api/stripe/save-card-link', { appointment_id: 'appt-1' })).status).toBe(200);
+    expect(stripeState.checkoutSessions[0].customer).toBe('cus_concurrent');
+    expect(stripeState.customerCreates).toHaveLength(1);
+  });
+
+  it('reuses an existing customer without replacing it', async () => {
+    db.clients[0].stripe_customer_id = 'cus_existing';
+    expect((await post('/api/stripe/save-card-link', { appointment_id: 'appt-1' })).status).toBe(200);
+    expect(stripeState.checkoutSessions[0].customer).toBe('cus_existing');
+    expect(stripeState.customerCreates).toEqual([]);
+  });
+
+  it('does not issue a link if the client row belongs to a different salon', async () => {
+    db.clients[0].beautician_id = 'biz-other';
+    expect((await post('/api/stripe/save-card-link', { appointment_id: 'appt-1' })).status).toBe(500);
+    expect(stripeState.checkoutSessions).toEqual([]);
+    expect(db.clients[0].stripe_customer_id).toBe(null);
   });
 });
 
