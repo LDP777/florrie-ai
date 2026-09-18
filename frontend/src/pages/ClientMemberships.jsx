@@ -5,12 +5,14 @@ import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import Icon from '../components/ui/Icon';
 import PageHeader from '../components/ui/PageHeader.jsx';
+import { readableOn } from '../lib/brand-colour.js';
 
 const STATUS_COLORS = {
   active: { bg: 'var(--success-bg, #E9F0EB)', color: 'var(--success, #386F52)' },
   paused: { bg: 'var(--warning-bg, #F7EEDD)', color: 'var(--warning-text, #79581C)' },
   cancelled: { bg: 'var(--danger-bg, #F7E4E4)', color: 'var(--danger, #9E2B32)' },
   expired: { bg: 'var(--danger-bg, #F7E4E4)', color: 'var(--danger, #9E2B32)' },
+  unknown: { bg: 'var(--bg, #FBF6F1)', color: 'var(--text-muted, #6B5D54)' },
 };
 
 const PLAN_COLORS = ['#C76B8A', '#E8A838', '#7C4DFF', '#26A69A', '#5BA97B'];
@@ -23,10 +25,10 @@ function normalisePlan(p, i) {
   return {
     id: p.id,
     name: p.name,
-    price: (p.price_cents || 0) / 100,
-    interval: 'month', // client_memberships are billed monthly
+    price: p.price_cents != null && Number.isFinite(Number(p.price_cents)) ? Number(p.price_cents) / 100 : null,
     perks: benefits.filter(Boolean),
     color: p.color || PLAN_COLORS[i % PLAN_COLORS.length],
+    textColor: readableOn(p.color || PLAN_COLORS[i % PLAN_COLORS.length], '#FFFCF9'),
     active: p.is_active !== false,
   };
 }
@@ -38,8 +40,8 @@ function normaliseMember(m) {
     name: m.client_name || [m.clients?.first_name, m.clients?.last_name].filter(Boolean).join(' ') || 'Member',
     plan: m.membership_id,
     started: m.started_at ? new Date(m.started_at).toLocaleDateString() : 'Not set',
-    nextBill: m.next_billing_at ? new Date(m.next_billing_at).toLocaleDateString() : null,
-    status: m.status || 'active',
+    nextPayment: m.next_billing_at ? new Date(m.next_billing_at).toLocaleDateString() : null,
+    status: m.status || 'unknown',
   };
 }
 
@@ -56,7 +58,7 @@ export default function ClientMemberships() {
   const [loadFailed, setLoadFailed] = useState(false);
   const [retry, setRetry] = useState(0);
   const [updatingMember, setUpdatingMember] = useState(null);
-  const [form, setForm] = useState({ name: '', price: '', interval: 'month', perks: '' });
+  const [form, setForm] = useState({ name: '', price: '', perks: '' });
 
   useEffect(() => {
     if (bLoading) return;
@@ -82,11 +84,11 @@ export default function ClientMemberships() {
 
   if (loadFailed) return <div style={s.page}><PageHeader title="Memberships" /><ErrorCard message={error} /><button className="fl-tap" onClick={() => setRetry(n => n + 1)}>Try again</button></div>;
 
-  const activeMembers = members.filter(m => m.status === 'active').length;
-  const monthlyRecurring = members.filter(m => m.status === 'active').reduce((s, m) => {
-    const plan = plans.find(p => p.id === m.plan);
-    return s + (plan?.price || 0);
-  }, 0);
+  const activeRecords = members.filter(m => m.status === 'active');
+  const activeMembers = activeRecords.length;
+  const activePrices = activeRecords.map(m => plans.find(p => p.id === m.plan)?.price);
+  const hasMissingPrice = activePrices.some(price => price == null);
+  const activePlanValue = activePrices.reduce((total, price) => total + (price ?? 0), 0);
 
   async function handleCreatePlan() {
     if (saving || !form.name.trim() || !form.price) return;
@@ -104,7 +106,7 @@ export default function ClientMemberships() {
     try {
       const saved = await insertRow('client_memberships', row);
       setPlans(prev => [...prev, normalisePlan(saved, prev.length)]);
-      setForm({ name: '', price: '', interval: 'month', perks: '' });
+      setForm({ name: '', price: '', perks: '' });
       setShowCreate(false);
     } catch (e) { setError('Could not create this plan. Your details are still here.'); }
     finally { setSaving(false); }
@@ -124,28 +126,35 @@ export default function ClientMemberships() {
 
   return (
     <div style={s.page}>
-      <PageHeader title="Memberships" subtitle="Plans, members and monthly value" />
+      <PageHeader title="Memberships" subtitle="Plans and membership records" />
       {error && <ErrorCard message={error} onDismiss={() => setError(null)} />}
 
-      {/* Revenue hero */}
+      <div style={s.notice}>
+        <strong style={{ color: 'var(--text, #241B17)' }}>Arrange recurring payments separately</strong>
+        <p style={s.noticeText}>Florrie stores your plans and member statuses here. It does not collect recurring membership payments.</p>
+      </div>
+
       <div style={s.heroCard}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12 }}>
           <div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', marginBottom: 4 }}>Monthly Recurring</div>
-            <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--bg-card, #FFFCF9)' }}>£{monthlyRecurring.toFixed(2)}<span style={{ fontSize: 14, fontWeight: 400, opacity: 0.7 }}>/mo</span></div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)', marginBottom: 4 }}>Active plan value</div>
+            <div style={{ fontSize: hasMissingPrice ? 20 : 28, fontWeight: 700, color: 'var(--bg-card, #FFFCF9)' }}>{hasMissingPrice ? 'Not available' : `£${activePlanValue.toFixed(2)}`}</div>
           </div>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--bg-card, #FFFCF9)' }}>{activeMembers}</div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>active members</div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)' }}>active records</div>
           </div>
         </div>
+        <p style={{ margin: '12px 0 0', fontSize: 12, lineHeight: 1.5, color: 'rgba(255,255,255,0.85)' }}>
+          {hasMissingPrice ? 'A plan or price is missing from an active record.' : 'The sum of plan prices for active records. This does not show payments collected.'}
+        </p>
       </div>
 
       {/* Tabs */}
       <div style={s.tabRow}>
-        {['plans', 'members', 'settings'].map(t => (
-          <button key={t} onClick={() => setTab(t)} style={{ ...s.tab, ...(tab === t ? s.tabActive : {}) }}>
-            {t === 'plans' ? 'Plans' : t === 'members' ? 'Members' : 'Settings'}
+        {['plans', 'members', 'about'].map(t => (
+          <button key={t} aria-pressed={tab === t} onClick={() => setTab(t)} style={{ ...s.tab, ...(tab === t ? s.tabActive : {}) }}>
+            {t === 'plans' ? 'Plans' : t === 'members' ? 'Members' : 'How it works'}
           </button>
         ))}
       </div>
@@ -157,7 +166,7 @@ export default function ClientMemberships() {
             <EmptyState
               icon="card"
               title="No membership plans yet"
-              subtitle="Create a plan to offer clients recurring monthly perks and steady income."
+              subtitle="Save a plan's price and perks. Arrange membership payments outside Florrie."
               actionLabel="+ Create a plan"
               onAction={() => setShowCreate(true)}
             />
@@ -170,15 +179,15 @@ export default function ClientMemberships() {
                   <div style={{ fontSize: 12, color: 'var(--text-muted, #6B5D54)' }}>{members.filter(m => m.plan === plan.id && m.status === 'active').length} members</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <span style={{ fontSize: 24, fontWeight: 700, color: plan.color }}>£{plan.price.toFixed(2)}</span>
-                  <span style={{ fontSize: 12, color: 'var(--text-muted, #6B5D54)' }}>/{plan.interval}</span>
+                  <div style={{ fontSize: plan.price == null ? 14 : 24, fontWeight: 700, color: plan.textColor }}>{plan.price == null ? 'Price not set' : `£${plan.price.toFixed(2)}`}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted, #6B5D54)' }}>Plan price</div>
                 </div>
               </div>
               {plan.perks.length > 0 && (
                 <div style={s.perkList}>
                   {plan.perks.map((perk, i) => (
                     <div key={i} style={s.perkItem}>
-                      <span style={{ color: plan.color }}><Icon name="check" size={15} /></span>
+                      <span style={{ color: plan.textColor }}><Icon name="check" size={15} /></span>
                       <span style={{ fontSize: 13, color: 'var(--text, #241B17)' }}>{perk}</span>
                     </div>
                   ))}
@@ -194,14 +203,10 @@ export default function ClientMemberships() {
           {showCreate && (
             <div style={s.formCard}>
               <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>New Membership Plan</div>
-              <input type="text" placeholder="Plan name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} style={s.input} />
-              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                <input type="number" min="0.01" step="0.01" placeholder="Price (£)" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} style={{ ...s.input, flex: 1 }} />
-                <select value={form.interval} onChange={e => setForm({ ...form, interval: e.target.value })} style={{ ...s.input, width: 120 }}>
-                  <option value="month">Monthly</option>
-                </select>
-              </div>
-              <textarea placeholder="Perks (one per line)" rows={3} value={form.perks} onChange={e => setForm({ ...form, perks: e.target.value })} style={{ ...s.input, marginTop: 8, resize: 'vertical' }} />
+              <input type="text" aria-label="Plan name" placeholder="Plan name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} style={s.input} />
+              <input type="number" min="0.01" step="0.01" aria-label="Plan price in pounds" placeholder="Plan price (£)" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} style={{ ...s.input, marginTop: 8 }} />
+              <textarea aria-label="Perks, one per line" placeholder="Perks (one per line)" rows={3} value={form.perks} onChange={e => setForm({ ...form, perks: e.target.value })} style={{ ...s.input, marginTop: 8, resize: 'vertical' }} />
+              <p style={s.noticeText}>Saving a plan does not enrol clients or set up payments.</p>
               <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
                 <button onClick={handleCreatePlan} disabled={saving || !form.name.trim() || !form.price} style={{ ...s.primaryBtn, opacity: saving || !form.name.trim() || !form.price ? 0.5 : 1 }}>{saving ? 'Saving...' : 'Create Plan'}</button>
                 <button onClick={() => setShowCreate(false)} style={s.ghostBtn}>Cancel</button>
@@ -218,50 +223,50 @@ export default function ClientMemberships() {
             <EmptyState
               icon="users"
               title="No members yet"
-              subtitle="When clients subscribe to one of your plans, they'll appear here."
+              subtitle="Existing membership records will appear here. This page does not enrol clients or take membership payments."
             />
           )}
           {members.map(member => {
             const plan = plans.find(p => p.id === member.plan);
-            const sc = STATUS_COLORS[member.status] || STATUS_COLORS.active;
+            const sc = STATUS_COLORS[member.status] || STATUS_COLORS.unknown;
             const expanded = expandedMember === member.id;
             return (
-              <button key={member.id} onClick={() => setExpandedMember(expanded ? null : member.id)} style={s.memberCard}>
-                <div style={s.memberTop}>
+              <article key={member.id} style={s.memberCard}>
+                <button aria-expanded={expanded} aria-controls={`membership-${member.id}`} onClick={() => setExpandedMember(expanded ? null : member.id)} style={s.memberTop}>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text, #241B17)' }}>{member.name}</div>
-                    <div style={{ fontSize: 12, color: plan?.color || 'var(--text-muted, #6B5D54)', fontWeight: 600 }}>{plan?.name || 'Unknown plan'}</div>
+                    <div style={{ fontSize: 12, color: plan?.textColor || 'var(--text-muted, #6B5D54)', fontWeight: 600 }}>{plan?.name || 'Unknown plan'}</div>
                   </div>
                   <span style={{ padding: '3px 10px', borderRadius: 10, fontSize: 11, fontWeight: 600, background: sc.bg, color: sc.color }}>
                     {member.status}
                   </span>
-                </div>
+                </button>
                 {expanded && (
-                  <div style={{ marginTop: 10, borderTop: '1px solid var(--card-border, #E8DDD4)', paddingTop: 10, fontSize: 13 }}>
+                  <div id={`membership-${member.id}`} style={{ marginTop: 10, borderTop: '1px solid var(--card-border, #E8DDD4)', paddingTop: 10, fontSize: 13 }}>
                     <div style={s.detailRow}><span style={s.detailLabel}>Started</span><span>{member.started}</span></div>
-                    <div style={s.detailRow}><span style={s.detailLabel}>Next bill</span><span>{member.nextBill || 'Not set'}</span></div>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                      {member.status === 'active' && <button disabled={!!updatingMember} onClick={e => { e.stopPropagation(); updateMemberStatus(member.id, 'paused'); }} style={s.smallBtn}>Pause</button>}
-                      {member.status === 'paused' && <button disabled={!!updatingMember} onClick={e => { e.stopPropagation(); updateMemberStatus(member.id, 'active'); }} style={{ ...s.smallBtn, color: 'var(--success, #386F52)' }}>Resume</button>}
-                      {member.status !== 'cancelled' && <button disabled={!!updatingMember} onClick={e => { e.stopPropagation(); updateMemberStatus(member.id, 'cancelled'); }} style={{ ...s.smallBtn, color: 'var(--danger, #9E2B32)' }}>Cancel</button>}
+                    <div style={s.detailRow}><span style={s.detailLabel}>Recorded next payment</span><span>{member.nextPayment || 'Not set'}</span></div>
+                    <p style={s.noticeText}>These actions change the membership status in Florrie. Manage any payment arrangement with your payment provider separately.</p>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+                      {member.status === 'active' && <button disabled={!!updatingMember} onClick={() => updateMemberStatus(member.id, 'paused')} style={s.smallBtn}>Mark paused</button>}
+                      {member.status === 'paused' && <button disabled={!!updatingMember} onClick={() => updateMemberStatus(member.id, 'active')} style={{ ...s.smallBtn, color: 'var(--success, #386F52)' }}>Mark active</button>}
+                      {member.status !== 'cancelled' && <button disabled={!!updatingMember} onClick={() => updateMemberStatus(member.id, 'cancelled')} style={{ ...s.smallBtn, color: 'var(--danger, #9E2B32)' }}>Mark cancelled</button>}
                     </div>
                   </div>
                 )}
-              </button>
+              </article>
             );
           })}
         </div>
       )}
 
-      {/* Settings tab */}
-      {tab === 'settings' && (
-        <div style={s.settingsList}>
-          <EmptyState
-            icon="settings"
-            title="Membership settings coming soon"
-            subtitle="Auto-renewal, payment reminders and retry rules will live here. For now, plans bill monthly by default."
-          />
-        </div>
+      {tab === 'about' && (
+        <section style={s.planCard}>
+          <h2 style={{ fontSize: 17, margin: '0 0 12px' }}>Your membership records</h2>
+          <p style={s.noticeText}>Create plan records with a price and perks, then review the member records already saved in Florrie.</p>
+          <p style={s.noticeText}>Active records can identify a client as a member on your booking page. Marking a record paused or cancelled changes that membership status.</p>
+          <p style={s.noticeText}>Florrie does not set up recurring charges, collect membership payments, or pause or cancel a payment arrangement. Arrange and manage those payments separately.</p>
+          <p style={s.noticeText}>The total shows the saved plan prices for active records. A recorded payment date is a reference, not a scheduled charge.</p>
+        </section>
       )}
     </div>
   );
@@ -270,6 +275,8 @@ export default function ClientMemberships() {
 const s = {
   page: { padding: '20px 16px 40px', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 480, margin: '0 auto' },
   heroCard: { padding: 20, borderRadius: 16, background: 'linear-gradient(135deg, var(--accent, #92405e), var(--accent-hover, #782b49))', marginBottom: 16 },
+  notice: { padding: '14px 16px', borderRadius: 14, background: 'var(--bg, #FBF6F1)', border: '1px solid var(--card-border, #E8DDD4)', fontSize: 13, marginBottom: 16 },
+  noticeText: { color: 'var(--text-muted, #6B5D54)', fontSize: 13, lineHeight: 1.6, margin: '8px 0 0' },
   tabRow: { display: 'flex', gap: 0, marginBottom: 16, borderRadius: 10, overflow: 'hidden', border: '1px solid var(--card-border, #E8DDD4)' },
   tab: { flex: 1, padding: '10px 0', border: 'none', background: 'none', fontSize: 13, fontWeight: 500, cursor: 'pointer', color: 'var(--text-muted, #6B5D54)', fontFamily: 'inherit' },
   tabActive: { background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)' },
@@ -284,10 +291,9 @@ const s = {
   primaryBtn: { padding: '10px 20px', borderRadius: 10, border: 'none', background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   ghostBtn: { padding: '10px 20px', borderRadius: 10, border: '1px solid var(--card-border, #E8DDD4)', background: 'none', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-muted, #6B5D54)' },
   memberList: { display: 'flex', flexDirection: 'column', gap: 10 },
-  memberCard: { padding: '14px 12px', borderRadius: 10, background: 'var(--card-bg, #FFFCF9)', border: '1px solid var(--card-border, #E8DDD4)', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%' },
-  memberTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  detailRow: { display: 'flex', justifyContent: 'space-between', padding: '4px 0', color: 'var(--text, #241B17)' },
+  memberCard: { padding: '8px 12px', borderRadius: 10, background: 'var(--card-bg, #FFFCF9)', border: '1px solid var(--card-border, #E8DDD4)', textAlign: 'left', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' },
+  memberTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, width: '100%', minHeight: 48, padding: '6px 0', border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' },
+  detailRow: { display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'space-between', padding: '4px 0', color: 'var(--text, #241B17)' },
   detailLabel: { color: 'var(--text-muted, #6B5D54)' },
-  smallBtn: { background: 'none', border: '1px solid var(--card-border, #E8DDD4)', borderRadius: 'var(--radius-xs)', padding: '6px 12px', fontSize: 12, fontWeight: 500, cursor: 'pointer', color: 'var(--accent, #92405e)', fontFamily: 'inherit' },
-  settingsList: { display: 'flex', flexDirection: 'column', gap: 10 },
+  smallBtn: { background: 'none', border: '1px solid var(--card-border, #E8DDD4)', borderRadius: 'var(--radius-xs)', padding: '8px 12px', minHeight: 44, fontSize: 12, fontWeight: 500, cursor: 'pointer', color: 'var(--accent, #92405e)', fontFamily: 'inherit' },
 };

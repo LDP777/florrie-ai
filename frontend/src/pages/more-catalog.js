@@ -29,7 +29,7 @@ export const MORE_CATEGORIES = [
     { path: '/addons',         label: 'Add-ons',         matIcon: 'add_circle',           desc: 'Bolt-on extras'                },
     { path: '/price-list',     label: 'Price List',      matIcon: 'format_list_bulleted', desc: 'Public pricing page'           },
     { path: '/packages',      label: 'Training courses',         matIcon: 'school',       desc: 'Sell courses and masterclasses' , keywords: 'training packages education' },
-    { path: '/memberships',    label: 'Memberships',     matIcon: 'card_membership', desc: 'Recurring packages'            },
+    { path: '/memberships',    label: 'Memberships',     matIcon: 'card_membership', desc: 'Plans and member records'       },
     { path: '/vouchers',      label: 'Vouchers',         matIcon: 'card_giftcard', desc: 'Gift vouchers'           },
     { path: '/promos',        label: 'Promo Codes',      matIcon: 'local_offer', desc: 'Discount codes'            },
     { path: '/loyalty',        label: 'Loyalty',         matIcon: 'loyalty',         desc: 'Points and rewards',            gate: 'loyalty' },
