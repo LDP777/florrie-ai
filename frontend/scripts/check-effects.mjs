@@ -47,8 +47,8 @@ try {
   await page.locator('.today-team-teaser').waitFor();
   assert.ok(await page.locator('.today-team-teaser').evaluate(el => el.getBoundingClientRect().top >= document.querySelector('.today-layout').getBoundingClientRect().bottom), 'the collapsed widget follows the whole working day');
   assert.equal(await page.evaluate(() => __effects.statusReads), 0, 'the bottom widget does not fetch during the first view of the diary');
-  assert.equal(await page.getByRole('tab', { name: 'Day', exact: true }).evaluate(el => getComputedStyle(el).backgroundColor), 'rgb(146, 64, 94)', 'Today keeps its original plum selection');
-  assert.equal(await page.getByRole('tab', { name: 'Day', exact: true }).evaluate(el => getComputedStyle(el).color), 'rgb(255, 255, 255)', 'Today keeps white selected text');
+  assert.equal(await page.getByRole('tab', { name: 'Today', exact: true }).evaluate(el => getComputedStyle(el).backgroundColor), 'rgb(146, 64, 94)', 'Today keeps its original plum selection');
+  assert.equal(await page.getByRole('tab', { name: 'Today', exact: true }).evaluate(el => getComputedStyle(el).color), 'rgb(255, 255, 255)', 'Today keeps white selected text');
   if (shots) await page.screenshot({ path: join(shots, 'today.png') });
   await page.locator('.today-team-teaser').scrollIntoViewIfNeeded();
   await page.locator('.today-team-teaser canvas').waitFor();
