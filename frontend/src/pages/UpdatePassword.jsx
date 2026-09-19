@@ -3,6 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { startAuthStartup } from '../lib/auth-startup.js';
 import Button from '../components/ui/Button';
 
+function bounded(promise, timeoutMs) {
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Auth response timed out')), timeoutMs); }),
+  ]).finally(() => clearTimeout(timer));
+}
+
 /**
  * UpdatePassword - handles the Supabase password reset callback.
  *
@@ -14,7 +22,7 @@ import Button from '../components/ui/Button';
  * Security:
  *   - Generic error messages only
  *   - Minimum 8 character password enforced client-side + Supabase-side
- *   - Attempts sign-out and returns to login after a successful update
+ *   - Returns to login only after a confirmed sign-out
  */
 
 export default function UpdatePassword({ supabase }) {
@@ -23,10 +31,16 @@ export default function UpdatePassword({ supabase }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [uncertain, setUncertain] = useState(false);
+  const [signOutState, setSignOutState] = useState('working');
+  const mounted = useRef(false);
+  const mutationStarted = useRef(false);
   const [sessionState, setSessionState] = useState({ status: 'loading', session: null, error: null });
   const sessionCheck = useRef(null);
   const sessionReady = sessionState.status === 'ready' && !!sessionState.session;
   const navigate = useNavigate();
+
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   // The same bounded reader used at app startup also handles a recovery event
   // arriving after this page mounts. A failed read is unknown, not an expired link.
@@ -36,17 +50,10 @@ export default function UpdatePassword({ supabase }) {
     return () => { check.dispose(); sessionCheck.current = null; };
   }, [supabase]);
 
-  useEffect(() => {
-    if (!success) return;
-    // A slow sign-out must not strand someone after the password already changed.
-    const timer = setTimeout(() => navigate('/login'), 2500);
-    return () => clearTimeout(timer);
-  }, [success, navigate]);
-
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
-    if (!sessionReady || loading) return;
+    if (!sessionReady || mutationStarted.current || uncertain) return;
 
     if (password.length < 8) {
       setError('Password must be at least 8 characters.');
@@ -59,26 +66,39 @@ export default function UpdatePassword({ supabase }) {
     }
 
     setLoading(true);
+    mutationStarted.current = true;
     try {
-      const { error: updateError } = await supabase.auth.updateUser({ password });
+      const { error: updateError } = await bounded(supabase.auth.updateUser({ password }), 15000);
+      if (!mounted.current) return;
 
       if (updateError) {
+        mutationStarted.current = false;
         setError('Something went wrong. Please request a new reset link.');
         return;
       }
 
       setSuccess(true);
-      // Keep the existing sign-out scope. Its network result cannot undo the
-      // successful update and must not invite a duplicate password change.
-      void Promise.resolve().then(() => supabase.auth.signOut()).catch(() => {});
+      // Keep the existing scope and storage. A failed sign-out must not falsely
+      // promise the login screen: App redirects an authenticated /login to Today.
+      try {
+        const result = await bounded(supabase.auth.signOut(), 8000);
+        if (!result || !Object.hasOwn(result, 'error') || result.error) throw new Error('Sign-out not confirmed');
+        // SIGNED_OUT can remount this route before signOut resolves. Finish the
+        // return only if the user is still on the recovery URL.
+        if (window.location.pathname === '/update-password') navigate('/login', { replace: true });
+      } catch {
+        if (mounted.current) setSignOutState('unavailable');
+      }
     } catch {
-      setError('Something went wrong. Please try again.');
+      // The provider may have accepted the password before its response was
+      // lost. Do not permit another mutation or claim it failed.
+      if (mounted.current) setUncertain(true);
     } finally {
-      setLoading(false);
+      if (mounted.current) setLoading(false);
     }
   }
 
-  if (success) {
+  if (success || uncertain) {
     return (
       <div style={styles.page}>
         <div style={styles.logoSection}>
@@ -86,8 +106,15 @@ export default function UpdatePassword({ supabase }) {
           <div style={styles.goldBar} />
         </div>
         <div style={styles.form}>
-          <h2 style={styles.formTitle}>Password updated</h2>
-          <p style={styles.hint}>Your password has been changed. Redirecting you to sign in...</p>
+          <h2 style={styles.formTitle}>{uncertain ? 'Change not confirmed' : 'Password updated'}</h2>
+          <p style={styles.hint}>
+            {uncertain
+              ? 'We could not confirm whether your password changed. It may have succeeded. Try the new password next time you sign in, or request a fresh reset link before changing it again.'
+              : signOutState === 'unavailable'
+                ? 'Your password has changed. We could not finish signing out. You can return to Florrie and use your new password next time you sign in.'
+                : 'Your password has changed. Finishing sign-out...'}
+          </p>
+          {(uncertain || signOutState === 'unavailable') && <Button variant="secondary" onClick={() => navigate('/')}>Return to Florrie</Button>}
         </div>
       </div>
     );
