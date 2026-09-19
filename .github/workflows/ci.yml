@@ -88,6 +88,8 @@ jobs:
       - run: npm run check:voice:browser --workspace frontend
       - run: npm run check:channels --workspace frontend
       - run: npm run check:recovery:browser --workspace frontend
+      - run: node scripts/check-password-recovery.mjs
+        working-directory: frontend
       - run: npm run check:today:browser --workspace frontend
       - run: node scripts/check-calendar-navigation.mjs
         working-directory: frontend

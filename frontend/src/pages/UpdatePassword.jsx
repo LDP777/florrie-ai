@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { startAuthStartup } from '../lib/auth-startup.js';
+import Button from '../components/ui/Button';
 
 /**
  * UpdatePassword - handles the Supabase password reset callback.
@@ -12,7 +14,7 @@ import { useNavigate } from 'react-router-dom';
  * Security:
  *   - Generic error messages only
  *   - Minimum 8 character password enforced client-side + Supabase-side
- *   - Auto-redirects to login after success (clears recovery session)
+ *   - Attempts sign-out and returns to login after a successful update
  */
 
 export default function UpdatePassword({ supabase }) {
@@ -21,31 +23,30 @@ export default function UpdatePassword({ supabase }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [sessionReady, setSessionReady] = useState(false);
+  const [sessionState, setSessionState] = useState({ status: 'loading', session: null, error: null });
+  const sessionCheck = useRef(null);
+  const sessionReady = sessionState.status === 'ready' && !!sessionState.session;
   const navigate = useNavigate();
 
-  // Listen for the PASSWORD_RECOVERY event - Supabase fires this when the
-  // recovery token in the URL hash is consumed and a temporary session is set.
+  // The same bounded reader used at app startup also handles a recovery event
+  // arriving after this page mounts. A failed read is unknown, not an expired link.
   useEffect(() => {
-    if (!supabase) return;
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') {
-        setSessionReady(true);
-      }
-    });
-
-    // Also check if there's already a session (user refreshed the page)
-    supabase.auth.getSession().then(({ data }) => {
-      if (data?.session) setSessionReady(true);
-    });
-
-    return () => subscription?.unsubscribe();
+    const check = startAuthStartup({ auth: supabase?.auth, onChange: setSessionState });
+    sessionCheck.current = check;
+    return () => { check.dispose(); sessionCheck.current = null; };
   }, [supabase]);
+
+  useEffect(() => {
+    if (!success) return;
+    // A slow sign-out must not strand someone after the password already changed.
+    const timer = setTimeout(() => navigate('/login'), 2500);
+    return () => clearTimeout(timer);
+  }, [success, navigate]);
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
+    if (!sessionReady || loading) return;
 
     if (password.length < 8) {
       setError('Password must be at least 8 characters.');
@@ -67,9 +68,9 @@ export default function UpdatePassword({ supabase }) {
       }
 
       setSuccess(true);
-      // Sign out the recovery session so they log in fresh
-      await supabase.auth.signOut();
-      setTimeout(() => navigate('/login'), 2500);
+      // Keep the existing sign-out scope. Its network result cannot undo the
+      // successful update and must not invite a duplicate password change.
+      void Promise.resolve().then(() => supabase.auth.signOut()).catch(() => {});
     } catch {
       setError('Something went wrong. Please try again.');
     } finally {
@@ -102,7 +103,11 @@ export default function UpdatePassword({ supabase }) {
         <div style={styles.form}>
           <h2 style={styles.formTitle}>Reset your password</h2>
           <p style={styles.hint}>
-            Loading your reset session... If nothing happens, your link may have expired.{' '}
+            {sessionState.status === 'loading'
+              ? 'Checking your reset link...'
+              : sessionState.status === 'error'
+                ? 'Could not check your reset link. Check your connection and try again.'
+                : 'This reset link is unavailable or has expired.'}{' '}
             <button
               type="button"
               onClick={() => navigate('/login')}
@@ -111,6 +116,7 @@ export default function UpdatePassword({ supabase }) {
               Request a new one
             </button>
           </p>
+          {sessionState.status === 'error' && <Button variant="secondary" onClick={() => sessionCheck.current?.retry()}>Try again</Button>}
         </div>
       </div>
     );
@@ -127,33 +133,37 @@ export default function UpdatePassword({ supabase }) {
         <h2 style={styles.formTitle}>Choose a new password</h2>
 
         <div style={styles.formGroup}>
-          <label style={styles.label}>New password</label>
+          <label htmlFor="recovery-password" style={styles.label}>New password</label>
           <input
+            id="recovery-password"
             type="password"
             value={password}
             onChange={e => setPassword(e.target.value)}
             placeholder="At least 8 characters"
             required
             minLength={8}
+            autoComplete="new-password"
             autoFocus
             style={styles.input}
           />
         </div>
 
         <div style={styles.formGroup}>
-          <label style={styles.label}>Confirm password</label>
+          <label htmlFor="recovery-confirm" style={styles.label}>Confirm password</label>
           <input
+            id="recovery-confirm"
             type="password"
             value={confirm}
             onChange={e => setConfirm(e.target.value)}
             placeholder="Type it again"
             required
             minLength={8}
+            autoComplete="new-password"
             style={styles.input}
           />
         </div>
 
-        {error && <p style={styles.error}>{error}</p>}
+        {error && <p style={styles.error} role="alert">{error}</p>}
 
         <button type="submit" disabled={loading} style={styles.submitBtn}>
           {loading ? 'Updating...' : 'Update password'}
