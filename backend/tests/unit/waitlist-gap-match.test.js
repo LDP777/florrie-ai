@@ -33,15 +33,17 @@ function builder(table) {
   const filters = [];
   let bad = null;
   let head = false;
+  let exactCount = false;
   const rows = () => (db[table] || []).filter(r => filters.every(f => f(r)));
   const settle = () => {
     if (bad) return { data: null, error: { code: '42703', message: `column ${table}.${bad} does not exist` }, count: null };
     if (head) return { data: null, error: null, count: rows().length };
-    return { data: rows(), error: null };
+    return { data: rows(), error: null, count: exactCount ? rows().length : null };
   };
   const b = {
     select(cols, opts) {
       if (opts?.head) head = true;
+      if (opts?.count === 'exact') exactCount = true;
       bad = leafColumns(cols).find(c => (PHANTOM[table] || []).includes(c)) || null;
       if (bad) rejected.push({ table, column: bad });
       return b;

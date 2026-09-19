@@ -9,6 +9,7 @@ import { guardedSend } from '../lib/outbound-guard.js';
 import { sendSMS, sendOnPreferredChannel, notifyBookingConfirmed } from '../services/notifications.js';
 import { getGapFillSuggestions, gapFillDiagnostic } from '../services/gap-fill-engine.js';
 import { quietWeekStatus } from '../services/florrie-heartbeat.js';
+import { gapRequest, assertGapAvailable } from '../lib/gap-availability.js';
 
 const router = Router();
 
@@ -286,7 +287,8 @@ router.post('/send-offer', requireAuth, async (req, res) => {
  * to gaps with fitsGap/matchesPreferences, and already skips anyone contacted in
  * the last 7 days). We never rebuild that matching here.
  *
- * Default target is the soonest gap (or tomorrow if a date is passed). For each
+ * Default target is the soonest gap. A supplied date stays on that day; supplied
+ * start/end times stay on exactly that free range. For each
  * matched client we send a warm, personalised offer naming the open day/time and
  * their usual treatment, with the real booking link, THROUGH guardedSend on the
  * client's own channel. guardedSend respects consent, caps and the known-client
@@ -298,25 +300,31 @@ router.post('/send-offer', requireAuth, async (req, res) => {
 router.post('/fill-gap', requireAuth, async (req, res) => {
   const beautician = req.beautician;
   const beauticianId = beautician.id;
-  const wantDate = req.body?.date ? String(req.body.date).slice(0, 10) : null;
+  let requested;
+  try { requested = gapRequest(req.body); }
+  catch (err) { return res.status(400).json({ code: 'invalid_gap', error: err.message }); }
 
   // Reuse the engine's read-only matcher: gaps + matched clients, already deduped
   // against recent contacts and waitlist/preference rules.
   let groups = [];
   try {
-    groups = await getGapFillSuggestions(beauticianId);
+    groups = await getGapFillSuggestions(beauticianId, { target: requested, strict: true });
   } catch (err) {
     logger.error({ err }, 'fill-gap: gap-fill matcher failed');
-    return res.status(500).json({ error: 'Could not work out who to offer the slot to.' });
+    return res.status(err.code === 'gap_unavailable' ? 409 : 503).json({
+      code: err.code === 'gap_unavailable' ? 'gap_unavailable' : 'availability_unavailable',
+      error: err.code === 'gap_unavailable' ? err.message : 'Could not check the diary. Please try again.',
+    });
   }
 
   if (!groups.length) {
     return res.json({ sent: 0, held: 0, blocked: 0, candidates: 0, gap: null, reason: 'No matching clients for a near-term gap right now.' });
   }
 
-  // Pick the target gap: the one matching the passed date, else the soonest.
-  const sorted = [...groups].sort((a, b) => String(a.gap.date).localeCompare(String(b.gap.date)));
-  const target = (wantDate && sorted.find(g => g.gap.date === wantDate)) || sorted[0];
+  // The matcher filters before assigning candidates; never substitute another
+  // date or time when the requested range has changed.
+  const sorted = [...groups].sort((a, b) => `${a.gap.date} ${a.gap.start}`.localeCompare(`${b.gap.date} ${b.gap.start}`));
+  const target = sorted[0];
   const gap = target.gap;
   const matches = target.matches || [];
 
@@ -326,11 +334,12 @@ router.post('/fill-gap', requireAuth, async (req, res) => {
 
   // Pull full client records for the matched ids so we can route channel-faithful.
   const clientIds = matches.map(m => m.client?.id).filter(Boolean);
-  const { data: clientRows } = await supabase
+  const { data: clientRows, error: clientError } = await supabase
     .from('clients')
     .select('id, first_name, phone, whatsapp_id, instagram_id, preferred_channel, marketing_consent, marketing_opted_out_at, status')
     .eq('beautician_id', beauticianId)
     .in('id', clientIds);
+  if (clientError) return res.status(503).json({ code: 'availability_unavailable', error: 'Could not load matching clients. Please try again.' });
   const clientById = new Map((clientRows || []).map(c => [c.id, c]));
 
   const dayLabel = gap.dayLabel || gap.date;
@@ -344,10 +353,11 @@ router.post('/fill-gap', requireAuth, async (req, res) => {
     if (!reachable(client, beautician)) { blocked++; continue; }
 
     try {
+      await assertGapAvailable(beauticianId, gap);
       const treatmentName = match.treatment?.name || 'your usual';
       const message = buildGapMessage(client.first_name, dayLabel, timeLabel, treatmentName, beautician);
       const channel = client.preferred_channel || 'sms';
-
+      let availabilityFailure;
       const verdict = await guardedSend({
         beauticianId,
         clientId: client.id,
@@ -356,15 +366,23 @@ router.post('/fill-gap', requireAuth, async (req, res) => {
         client,
         body: message,
         send: async () => {
+          try { await assertGapAvailable(beauticianId, gap); }
+          catch (err) { availabilityFailure = err; throw err; }
           const r = await sendOnPreferredChannel({ client, body: message, beautician, messageType: 'gap_fill_offer' });
           return r.ok;
         },
       });
+      if (availabilityFailure) throw availabilityFailure;
 
       if (verdict.delivered) sent++;
       else if (verdict.decision === 'approve') held++;
       else blocked++;
     } catch (err) {
+      if (['gap_unavailable', 'availability_unavailable'].includes(err.code)) {
+        return res.status(err.code === 'gap_unavailable' ? 409 : 503).json({
+          code: err.code, error: err.message, sent, held, blocked, candidates: matches.length,
+        });
+      }
       // One bad candidate must not abort the batch.
       logger.warn({ err, clientId: client.id }, 'fill-gap: one offer failed');
       blocked++;
@@ -395,7 +413,7 @@ router.post('/fill-week', requireAuth, async (req, res) => {
 
   let groups = [];
   try {
-    groups = await getGapFillSuggestions(beauticianId);
+    groups = await getGapFillSuggestions(beauticianId, { strict: true });
   } catch (err) {
     logger.error({ err }, 'fill-week: gap-fill matcher failed');
     return res.status(500).json({ error: 'Could not work out who to offer the slots to.' });
@@ -434,6 +452,7 @@ router.post('/fill-week', requireAuth, async (req, res) => {
       candidates++;
       offeredTo.add(id);
       try {
+        await assertGapAvailable(beauticianId, gap);
         const treatmentName = match.treatment?.name || 'your usual';
         const message = buildGapMessage(client.first_name, dayLabel, timeLabel, treatmentName, beautician);
         const channel = client.preferred_channel || 'sms';
@@ -445,6 +464,7 @@ router.post('/fill-week', requireAuth, async (req, res) => {
           client,
           body: message,
           send: async () => {
+            await assertGapAvailable(beauticianId, gap);
             const r = await sendOnPreferredChannel({ client, body: message, beautician, messageType: 'gap_fill_offer' });
             return r.ok;
           },
@@ -887,12 +907,12 @@ async function fromGapFill(beauticianId) {
     // A near-term fillable gap is real money soon. Sit it just under live bookings
     // and unpriced money, above plain rebook nudges.
     priority: 60 + Math.min(10, Math.round(fillImpact / 3000)),
-    payload: { date: gap.date },
+    payload: { date: gap.date, start_time: gap.start, end_time: gap.end },
     action: {
       kind: 'fill_gap',
       endpoint: '/api/suggestions/fill-gap',
       method: 'POST',
-      body: { date: gap.date },
+      body: { date: gap.date, start_time: gap.start, end_time: gap.end },
       // Names the day, the window and how many clients, plainly.
       confirm: `Offer ${dayLabel}, ${window}, to ${clients}?`,
     },

@@ -23,6 +23,7 @@ import { getLoyaltyConfig, getClientPoints, loyaltyProximity } from './loyalty.j
 import { getActivePromos, describePromo } from '../lib/promos.js';
 import { refreshLiveActivity } from './live-activity.js';
 import logger from '../lib/logger.js';
+import { currentGapCalendar, selectCurrentGaps, assertGapAvailable } from '../lib/gap-availability.js';
 
 const MAX_OFFERS_PER_CYCLE = 5;    // Don't spam, cap per beautician per run
 const MAX_OFFERS_PER_GAP = 3;      // One slot goes to at most 3 people TOTAL
@@ -30,7 +31,6 @@ const MAX_OFFERS_PER_GAP = 3;      // One slot goes to at most 3 people TOTAL
                                    // tick walks 5 more clients into the same
                                    // gap and one Monday 13:30 collects the
                                    // entire rebook pool
-const GAP_MIN_MINUTES = 30;        // Ignore gaps shorter than this
 const DORMANT_THRESHOLD_DAYS = 60; // 60+ days = dormant client
 const REBOOK_GRACE_DAYS = 3;       // (legacy) Only nudge if overdue by 3+ days
 const REBOOK_DUE_DAYS = 30;        // Lapsed 30+ days (but < dormant) = due a rebook
@@ -44,30 +44,9 @@ export async function checkGapFillOpportunities(beauticianId, threshold) {
   const result = { matched: 0, sent: 0, queued: 0 };
 
   try {
-    // 1. Get beautician working hours + prefs
-    const { data: beautician } = await supabase
-      .from('beauticians')
-      .select('working_hours, whatsapp_phone_id, client_reminder_prefs, timezone, booking_slug, autonomy')
-      .eq('id', beauticianId)
-      .single();
-
-    if (!beautician?.working_hours) return result;
-
-    // 2. Get appointments for the next 7 days
-    const now = new Date();
-    const weekEnd = new Date(now);
-    weekEnd.setDate(now.getDate() + 7);
-
-    const { data: appointments } = await supabase
-      .from('appointments')
-      .select('starts_at, duration_minutes, status, treatment_id')
-      .eq('beautician_id', beauticianId)
-      .gte('starts_at', now.toISOString())
-      .lte('starts_at', weekEnd.toISOString())
-      .neq('status', 'cancelled');
-
-    // 3. Compute gaps across the week
-    const gaps = computeWeekGaps(now, appointments || [], beautician.working_hours, beautician.timezone);
+    const calendar = await currentGapCalendar(beauticianId);
+    const { beautician } = calendar;
+    const gaps = selectCurrentGaps(calendar.gaps);
     if (gaps.length === 0) return result;
 
     // 4. Fetch candidate pools in parallel
@@ -165,6 +144,7 @@ export async function checkGapFillOpportunities(beauticianId, threshold) {
       for (const client of dormantPool) {
         if (offersSent >= MAX_OFFERS_PER_CYCLE || gapOffers >= MAX_OFFERS_PER_GAP) break;
         if (recentlyContacted.has(client.id)) continue;
+        if (!fitsGap(client.treatment_duration, gap.duration_minutes)) continue;
 
         const sent = await processMatch({
           beauticianId,
@@ -208,31 +188,14 @@ function identityKey(c) {
   return 'n:' + `${c.first_name || ''}|${c.last_name || ''}`.trim().toLowerCase();
 }
 
-export async function getGapFillSuggestions(beauticianId) {
+export async function getGapFillSuggestions(beauticianId, { target = {}, strict = false } = {}) {
   const suggestions = [];
 
   try {
-    const { data: beautician } = await supabase
-      .from('beauticians')
-      .select('working_hours, timezone')
-      .eq('id', beauticianId)
-      .single();
-
-    if (!beautician?.working_hours) return suggestions;
-
-    const now = new Date();
-    const weekEnd = new Date(now);
-    weekEnd.setDate(now.getDate() + 7);
-
-    const { data: appointments } = await supabase
-      .from('appointments')
-      .select('starts_at, duration_minutes, status, treatment_id')
-      .eq('beautician_id', beauticianId)
-      .gte('starts_at', now.toISOString())
-      .lte('starts_at', weekEnd.toISOString())
-      .neq('status', 'cancelled');
-
-    const gaps = computeWeekGaps(now, appointments || [], beautician.working_hours, beautician.timezone);
+    // Restrict before assigning clients to gaps, so an earlier gap cannot
+    // consume all the candidates for the exact later time selected in Schedule.
+    const calendar = await currentGapCalendar(beauticianId);
+    const gaps = selectCurrentGaps(calendar.gaps, target);
     if (gaps.length === 0) return suggestions;
 
     const [waitlistPool, rebookPool, dormantPool] = await Promise.all([
@@ -282,6 +245,7 @@ export async function getGapFillSuggestions(beauticianId) {
       for (const client of dormantPool) {
         const idk = identityKey(client); if (seen.has(client.id) || seen.has(idk)) continue;
         if (recentlyContacted.has(client.id)) continue;
+        if (!fitsGap(client.treatment_duration, gap.duration_minutes)) continue;
 
         gapSuggestions.push({
           type: 'dormant_rescue',
@@ -308,6 +272,7 @@ export async function getGapFillSuggestions(beauticianId) {
     }
   } catch (err) {
     logger.error({ err, beauticianId }, 'Gap-fill suggestions query failed');
+    if (strict) throw err;
   }
 
   return suggestions;
@@ -321,22 +286,11 @@ export async function gapFillDiagnostic(beauticianId) {
   const out = { working_hours_days: 0, appts_next_7d: 0, gaps_found: 0, first_gap: null,
                 waitlist: 0, rebook: 0, dormant: 0, recently_contacted: 0, error: null };
   try {
-    const { data: beautician } = await supabase
-      .from('beauticians').select('working_hours, timezone').eq('id', beauticianId).single();
+    const { beautician, appointments, gaps: available } = await currentGapCalendar(beauticianId);
     out.working_hours_days = beautician?.working_hours ? Object.keys(beautician.working_hours).length : 0;
 
-    const now = new Date();
-    const weekEnd = new Date(now); weekEnd.setDate(now.getDate() + 7);
-    const { data: appointments } = await supabase
-      .from('appointments')
-      .select('starts_at, duration_minutes, status, treatment_id')
-      .eq('beautician_id', beauticianId)
-      .gte('starts_at', now.toISOString())
-      .lte('starts_at', weekEnd.toISOString())
-      .neq('status', 'cancelled');
     out.appts_next_7d = (appointments || []).length;
-
-    const gaps = computeWeekGaps(now, appointments || [], beautician?.working_hours || {}, beautician?.timezone);
+    const gaps = selectCurrentGaps(available);
     out.gaps_found = gaps.length;
     if (gaps[0]) out.first_gap = { date: gaps[0].date, start: gaps[0].start, end: gaps[0].end, mins: gaps[0].duration_minutes };
 
@@ -352,104 +306,6 @@ export async function gapFillDiagnostic(beauticianId) {
 }
 
 /**
- * Compute all gaps ≥30 min for the next 7 days.
- */
-const DEFAULT_TZ = 'Europe/London'; // fallback when beauticians.timezone is null
-
-// Salon-local parts of a TRUE instant (like `now`): calendar date,
-// minute-of-day, weekday. The server runs in UTC, so the day frame and the
-// "no gaps in the past" cursor must be converted to the salon's timezone.
-function localParts(instant, tz = DEFAULT_TZ) {
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', hour12: false, weekday: 'short',
-  }).formatToParts(instant);
-  const g = (t) => parts.find((x) => x.type === t)?.value;
-  let hh = parseInt(g('hour'), 10); if (hh === 24) hh = 0;
-  const dow = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }[g('weekday')];
-  return { date: `${g('year')}-${g('month')}-${g('day')}`, minutes: hh * 60 + parseInt(g('minute'), 10), dow };
-}
-
-// Appointment starts_at is stored as SALON WALL TIME in the timestamp string
-// (11:00 salon time is saved as 11:00Z; the calendar UI reads slice(11,16)
-// for exactly this reason). So wall parts come straight off the string. An
-// Intl conversion here double-shifts during BST: an 11:00 booking read as
-// 12:00 made the engine offer the genuinely-booked 11:00 slot as a gap.
-function wallParts(isoish) {
-  const str = String(isoish || '');
-  const h = parseInt(str.slice(11, 13), 10);
-  const m = parseInt(str.slice(14, 16), 10);
-  if (Number.isNaN(h) || Number.isNaN(m)) return null;
-  return { date: str.slice(0, 10), minutes: h * 60 + m };
-}
-
-function computeWeekGaps(now, appointments, workingHours, tz = DEFAULT_TZ) {
-  const gaps = [];
-  const dayKeyMap = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-
-  const apptsLocal = (appointments || [])
-    .filter((a) => a.starts_at)
-    .map((a) => {
-      const wp = wallParts(a.starts_at);
-      if (!wp) return null;
-      return { date: wp.date, start: wp.minutes, duration: a.duration_minutes || 60 };
-    })
-    .filter(Boolean);
-
-  const nowLocal = localParts(now, tz);
-
-  for (let i = 0; i < 7; i++) {
-    const dayParts = localParts(new Date(now.getTime() + i * 86400000), tz);
-    const dayKey = dayKeyMap[dayParts.dow];
-    const dayHours = workingHours[dayKey];
-    if (!dayHours?.start) continue;
-
-    const dateStr = dayParts.date;
-    const dayLabel = new Intl.DateTimeFormat('en-GB', {
-      timeZone: tz || DEFAULT_TZ, weekday: 'short', day: 'numeric', month: 'short',
-    }).format(new Date(`${dateStr}T12:00:00Z`));
-
-    const [startH, startM] = dayHours.start.split(':').map(Number);
-    const [endH, endM] = dayHours.end.split(':').map(Number);
-    const dayStartMins = startH * 60 + startM;
-    const dayEndMins = endH * 60 + endM;
-
-    const dayAppts = apptsLocal
-      .filter((a) => a.date === dateStr)
-      .sort((a, b) => a.start - b.start);
-
-    let cursor = dayStartMins;
-    if (i === 0) cursor = Math.max(cursor, nowLocal.minutes);
-
-    for (const appt of dayAppts) {
-      if (appt.start > cursor) {
-        const gapMins = appt.start - cursor;
-        if (gapMins >= GAP_MIN_MINUTES) {
-          gaps.push({ date: dateStr, dayLabel, start: minsToTime(cursor), end: minsToTime(appt.start), duration_minutes: gapMins, dayOfWeek: dayParts.dow });
-        }
-      }
-      cursor = Math.max(cursor, appt.start + appt.duration);
-    }
-
-    if (cursor < dayEndMins) {
-      const gapMins = dayEndMins - cursor;
-      if (gapMins >= GAP_MIN_MINUTES) {
-        gaps.push({ date: dateStr, dayLabel, start: minsToTime(cursor), end: minsToTime(dayEndMins), duration_minutes: gapMins, dayOfWeek: dayParts.dow });
-      }
-    }
-  }
-
-  return gaps.sort((a, b) => {
-    if (a.date !== b.date) return a.date.localeCompare(b.date);
-    return b.duration_minutes - a.duration_minutes;
-  });
-}
-
-function minsToTime(mins) {
-  return `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
-}
-
-/**
  * Fetch active waitlist entries with treatment + client details.
  */
 async function fetchWaitlistPool(beauticianId) {
@@ -462,7 +318,7 @@ async function fetchWaitlistPool(beauticianId) {
   // waitlisted client was ever matched to it.
   const { data, error } = await supabase
     .from('waitlist')
-    .select('id, client_id, preferred_days, preferred_time, treatments(name, duration_minutes), clients(id, first_name, last_name, phone, email, marketing_consent, marketing_opted_out_at, messaging_autonomy)')
+    .select('id, client_id, preferred_days, preferred_time, treatments(name, duration_minutes, buffer_minutes), clients(id, first_name, last_name, phone, email, marketing_consent, marketing_opted_out_at, messaging_autonomy)')
     .eq('beautician_id', beauticianId)
     .in('status', ['active', 'waiting'])
     .is('notified_at', null) // Haven't been notified yet
@@ -491,8 +347,9 @@ async function fetchWaitlistPool(beauticianId) {
     treatment: {
       name: w.treatments?.name || 'Treatment',
       duration_minutes: w.treatments?.duration_minutes || 60,
+      buffer_minutes: Math.max(0, Number(w.treatments?.buffer_minutes) || 0),
     },
-    treatment_duration: w.treatments?.duration_minutes || 60,
+    treatment_duration: (Number(w.treatments?.duration_minutes) || 60) + Math.max(0, Number(w.treatments?.buffer_minutes) || 0),
     preferred_days: w.preferred_days || [],
     // One scalar in the column, an array in the matcher. WaitlistPro writes
     // exactly one of 'morning' | 'afternoon' | 'evening' | 'any', and 'any'
@@ -590,10 +447,10 @@ async function fetchRecentlyContacted(beauticianId) {
 }
 
 /**
- * Check if a treatment fits inside a gap (with 5-min buffer).
+ * Check if the treatment actually fits inside the available gap.
  */
 function fitsGap(treatmentDuration, gapDuration) {
-  return (treatmentDuration || 60) <= gapDuration + 5; // 5-min grace
+  return (Number(treatmentDuration) > 0 ? Number(treatmentDuration) : 60) <= gapDuration;
 }
 
 /**
@@ -680,6 +537,14 @@ async function processMatch({ beauticianId, client, treatment, gap, matchType, c
   const summary = `Offered ${clientLabel} the ${slotBit} slot${treatName ? ` for a ${treatName}` : ''}`;
   const draftSummary = `Drafted an offer for ${clientLabel}: the ${slotBit} slot (waiting for your OK)`;
 
+  // Matching is a snapshot. A closure or booking may have changed while pools
+  // and preferences were loading; recheck before either a draft or a send.
+  try { await assertGapAvailable(beauticianId, gap); }
+  catch (err) {
+    logger.warn({ beauticianId, code: err.code }, 'Gap changed before offer');
+    return 'blocked';
+  }
+
   if (confidence >= threshold && (client.phone || client.email)) {
     // Check SMS metering
     const { shouldSend, reason } = await shouldAutoSend(beauticianId, 'gap_fill');
@@ -698,6 +563,7 @@ async function processMatch({ beauticianId, client, treatment, gap, matchType, c
         client,
         body: message,
         send: async () => {
+          await assertGapAvailable(beauticianId, gap);
           sent = await sendNudge({
             client,
             body: message,

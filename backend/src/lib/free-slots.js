@@ -52,7 +52,7 @@ export function nowInSalonWall(timezone = 'Europe/London') {
  * respected them but the patch-test slot generator did not, so a client could
  * book a patch test straight over a block. Load them once, in the wall frame.
  */
-export async function loadBlocks(beauticianId, fromWall, toWall) {
+export async function loadBlocks(beauticianId, fromWall, toWall, { requireComplete = false } = {}) {
   const from = fromWall.toISOString().slice(0, 10);
   const to = toWall.toISOString().slice(0, 10);
 
@@ -66,9 +66,9 @@ export async function loadBlocks(beauticianId, fromWall, toWall) {
   // below. A plain range predicate would need `coalesce(end_date, date)`, which
   // PostgREST cannot express without an `or(...)` string, and a malformed one of
   // those fails the whole availability lookup.
-  const { data: rows, error } = await supabase
+  const { data: rows, error, count } = await supabase
     .from('hours_exceptions')
-    .select('date, end_date, type, start_time, end_time')
+    .select('date, end_date, type, start_time, end_time', requireComplete ? { count: 'exact' } : undefined)
     .eq('beautician_id', beauticianId)
     .gte('date', blockLookbackFrom(from))
     .lte('date', to);
@@ -77,6 +77,11 @@ export async function loadBlocks(beauticianId, fromWall, toWall) {
   // "she has no days off" and offers her holiday to a client. Throw instead:
   // every caller already treats a thrown lookup as "I could not check".
   if (error) throw new Error(`hours_exceptions lookup failed: ${error.message}`);
+  // Opt-in for callers that must distinguish a complete diary read from the
+  // server's capped first page. Existing booking callers retain their contract.
+  if (requireComplete && (!Array.isArray(rows) || !Number.isSafeInteger(count) || count !== rows.length)) {
+    throw new Error('hours_exceptions lookup incomplete');
+  }
 
   const closedDays = new Set();
   const intervals = [];

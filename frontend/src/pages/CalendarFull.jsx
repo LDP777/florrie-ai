@@ -1,11 +1,13 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useBeautician, supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
+import { readAuthenticatedJson } from '../lib/authenticated-json.js';
 import logger from '../lib/logger.js';
 import { treatmentColor, tint } from '../lib/treatmentColors.js';
 import { localDateStr, todayLocal, parseDateOnly } from '../lib/dates.js';
 import Icon, { iconName } from '../components/ui/Icon';
+import Button from '../components/ui/Button';
 
 /**
  * CalendarFull , a dedicated full-width calendar page (/calendar/full).
@@ -106,12 +108,20 @@ function layoutDay(appts) {
 
 export default function CalendarFull() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { beautician, loading: bLoading } = useBeautician();
   const [view, setView] = useState('week'); // 'week' | 'month'
-  const [anchor, setAnchor] = useState(() => { const d = new Date(); d.setHours(12, 0, 0, 0); return d; });
+  const [anchor, setAnchor] = useState(() => {
+    const requested = parseDateOnly(new URLSearchParams(location.search).get('date'));
+    const d = requested && !isNaN(requested) ? requested : new Date();
+    d.setHours(12, 0, 0, 0); return d;
+  });
   const [appts, setAppts] = useState([]);
   const [blocks, setBlocks] = useState([]); // hours_exceptions: closed days + blocked hours
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  const [blockError, setBlockError] = useState(null);
+  const loadSequence = useRef(0);
   const [syncOpen, setSyncOpen] = useState(false);
 
   // Range to fetch: the visible month padded out to whole weeks (covers the
@@ -125,37 +135,49 @@ export default function CalendarFull() {
   }, [anchor]);
 
   const loadAppointments = useCallback(async () => {
-    if (!beautician?.id) return;
+    if (!beautician?.id) {
+      if (!bLoading) { setLoading(false); setLoadError('Could not load your account.'); }
+      return;
+    }
+    const sequence = ++loadSequence.current;
     setLoading(true);
+    setLoadError(null);
+    setBlockError(null);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
     try {
       const fromStr = localDateStr(range.from);
       const toStr = localDateStr(range.to);
-      const { data, error } = await supabase
+      const [diary, exceptions] = await Promise.allSettled([supabase
         .from('appointments')
         .select('*, clients(first_name, last_name), treatments(name, price_cents, color, sort_order)')
         .eq('beautician_id', beautician.id)
         .gte('starts_at', `${fromStr}T00:00:00`)
         .lte('starts_at', `${toStr}T23:59:59`)
-        .order('starts_at');
-      if (error) logger.error('CalendarFull load:', error);
+        .order('starts_at').abortSignal(controller.signal),
+        readAuthenticatedJson({ auth: supabase.auth, url: `${API_BASE}/api/hours-exceptions` }),
+      ]);
+      if (sequence !== loadSequence.current) return;
+      if (diary.status === 'rejected') throw diary.reason;
+      const { data, error } = diary.value;
+      if (error) throw error;
       setAppts(data || []);
-
-      // Blocked time: without this the full calendar looked OPEN on days
-      // Ellie had blocked off. Same source as the day view.
-      try {
-        const token = (await supabase.auth.getSession()).data.session?.access_token;
-        const bres = await fetch(`${API_BASE}/api/hours-exceptions`, { headers: { Authorization: `Bearer ${token}` } });
-        if (bres.ok) {
-          const bdata = await bres.json();
-          setBlocks((bdata.exceptions || []).filter(b => b.date >= fromStr && b.date <= toStr));
-        }
-      } catch { /* blocks are supplementary; appointments still render */ }
+      if (exceptions.status === 'fulfilled' && Array.isArray(exceptions.value.exceptions)) {
+        setBlocks(exceptions.value.exceptions.filter(b => b.date <= toStr && (b.end_date && b.end_date >= b.date ? b.end_date : b.date) >= fromStr));
+      } else {
+        setBlocks([]);
+        setBlockError('Blocked time could not be loaded. Check before offering an opening.');
+      }
     } catch (err) {
+      if (sequence !== loadSequence.current) return;
       logger.error('CalendarFull load error:', err);
+      setAppts([]);
+      setLoadError('Could not load your diary.');
     } finally {
-      setLoading(false);
+      clearTimeout(timer);
+      if (sequence === loadSequence.current) setLoading(false);
     }
-  }, [beautician?.id, range.from, range.to]);
+  }, [beautician?.id, bLoading, range.from, range.to]);
 
   useEffect(() => { loadAppointments(); }, [loadAppointments]);
 
@@ -166,7 +188,7 @@ export default function CalendarFull() {
   }
 
   function blocksOn(dateStr) {
-    return blocks.filter(b => b.date === dateStr);
+    return blocks.filter(b => b.date <= dateStr && (b.end_date && b.end_date >= b.date ? b.end_date : b.date) >= dateStr);
   }
 
   // ---- navigation ----
@@ -190,7 +212,7 @@ export default function CalendarFull() {
       {/* ===== Header ===== */}
       <header style={S.header} className="cf-noprint">
         <div style={S.headerLeft}>
-          <button onClick={() => navigate('/calendar')} title="Back" aria-label="Back" style={S.iconBtn}>
+          <button onClick={() => navigate(`/calendar/week?date=${localDateStr(anchor)}&view=week`)} title="Back to diary" aria-label="Back to diary" style={S.iconBtn}>
             <Icon name={iconName('arrow_back')} size={20} inline />
           </button>
           <h1 style={S.title}>Calendar</h1>
@@ -200,7 +222,7 @@ export default function CalendarFull() {
             <Icon name={iconName('sync')} size={17} inline />
             <span style={S.btnLabel}>Sync to my calendar</span>
           </button>
-          <button onClick={handlePrint} style={S.ghostBtn}>
+          <button onClick={handlePrint} disabled={loading || !!loadError || !!blockError} style={S.ghostBtn}>
             <Icon name={iconName('print')} size={17} inline />
             <span style={S.btnLabel}>Print or save PDF</span>
           </button>
@@ -228,10 +250,14 @@ export default function CalendarFull() {
       </div>
 
       {loading && <div style={S.loading} className="cf-noprint">Loading your diary…</div>}
+      {!loading && (loadError || blockError) && <div role="alert" style={S.loading}>
+        <p>{loadError || blockError}</p>
+        <Button onClick={loadAppointments} style={S.todayBtn}>Retry calendar</Button>
+      </div>}
 
-      {view === 'week'
-        ? <WeekGrid days={days} apptsOn={apptsOn} blocksOn={blocksOn} onPickDay={(d) => { setAnchor(d); }} onOpenAppt={(a) => navigate(`/calendar/week?date=${localDateStr(new Date(String(a.starts_at).slice(0, 10) + 'T12:00:00'))}&appt=${a.id}`)} />
-        : <MonthGrid anchor={anchor} apptsOn={apptsOn} blocksOn={blocksOn} onPickDay={(d) => navigate(`/calendar/week?date=${localDateStr(d)}&view=day`)} />}
+      {!loading && !loadError && (view === 'week'
+        ? <WeekGrid days={days} apptsOn={apptsOn} blocksOn={blocksOn} onPickDay={(d) => navigate(`/calendar/week?date=${localDateStr(d)}&view=day`)} onOpenAppt={(a) => navigate(`/calendar/week?date=${localDateStr(new Date(String(a.starts_at).slice(0, 10) + 'T12:00:00'))}&appt=${a.id}`)} />
+        : <MonthGrid anchor={anchor} apptsOn={apptsOn} blocksOn={blocksOn} onPickDay={(d) => navigate(`/calendar/week?date=${localDateStr(d)}&view=day`)} />)}
 
       {syncOpen && <SyncPanel onClose={() => setSyncOpen(false)} />}
     </div>

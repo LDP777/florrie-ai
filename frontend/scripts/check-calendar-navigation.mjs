@@ -27,6 +27,7 @@ try {
     (() => {
       const base = window.fetch;
       window.calendarFixture = { hold: location.search.includes('hold=1'), fail: location.search.includes('fail=1'), reads: 0, release: [], writes: [] };
+      Object.assign(window.calendarFixture, { blocks: [], failBlocks: location.search.includes('fail-blocks=1'), failSave: true, failDelete: true });
       window.fetch = async (input, options = {}) => {
         const url = new URL(typeof input === 'string' ? input : input.url, location.href);
         const state = window.calendarFixture;
@@ -37,7 +38,17 @@ try {
           if (state.hold) await new Promise(resolve => state.release.push(resolve));
           if (state.fail) return new Response(JSON.stringify({ message: 'Synthetic diary outage' }), { status: 503 });
         }
-        if (url.pathname === '/api/hours-exceptions') return new Response(JSON.stringify({ exceptions: [] }));
+        const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+        if (url.pathname === '/api/hours-exceptions' && method === 'POST') {
+          if (state.failSave) return json({ error: 'Synthetic block save failure' }, 500);
+          state.blocks.push({ id: 'fictional-block', ...JSON.parse(options.body) });
+          return json({ exception: state.blocks.at(-1) });
+        }
+        if (url.pathname === '/api/hours-exceptions/fictional-block' && method === 'DELETE') {
+          if (state.failDelete) return json({ error: 'Synthetic block removal failure' }, 500);
+          state.blocks = []; return json({ success: true });
+        }
+        if (url.pathname === '/api/hours-exceptions') return state.failBlocks ? json({}, 503) : json({ exceptions: state.blocks });
         const response = await base(input, options);
         if (url.pathname === '/rest/v1/appointments' && location.search.includes('new-booking=1') && !state.bookingCreated) {
           return new Response(JSON.stringify((await response.json()).filter(row => row.id !== 'a2')), { headers: { 'content-type': 'application/json' } });
@@ -130,8 +141,9 @@ try {
   console.log('✓ Removed or moved notification target explains what happened and leaves the diary usable');
 
   await open('date=2026-08-08&view=day&appt=a2&hold=1');
-  await view('Week').click();
+  await view('Week').waitFor();
   await page.evaluate(() => {
+    [...document.querySelectorAll('[aria-label="Calendar view"] button')].find(button => button.textContent === 'Week').click();
     calendarFixture.hold = false;
     calendarFixture.release.forEach(resolve => resolve());
   });
@@ -163,6 +175,53 @@ try {
     await view('Week').click();
     await waitForView('Week');
   }
+  await page.setViewportSize({ width: 393, height: 852 });
+  await open('date=2026-08-08&view=day');
+  await waitForView('Day');
+  await page.getByLabel('Calendar tools', { exact: true }).click();
+  await page.getByRole('button', { name: 'Open full calendar', exact: true }).click();
+  assert.equal(new URL(page.url()).searchParams.get('date'), '2026-08-08');
+  await page.getByRole('button', { name: 'Back to diary', exact: true }).click();
+  await waitForView('Week');
+  assert.equal(new URL(page.url()).searchParams.get('date'), '2026-08-08');
+  await page.goto(`${origin}/calendar/full?date=2026-08-08&fail=1`);
+  await page.getByRole('alert').filter({ hasText: 'Could not load your diary.' }).waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Print or save PDF', exact: true }).isDisabled(), true);
+  await page.evaluate(() => { calendarFixture.fail = false; });
+  await page.getByRole('button', { name: 'Retry calendar', exact: true }).click();
+  await page.getByRole('alert').waitFor({ state: 'hidden' });
+  await page.goto(`${origin}/calendar/full?date=2026-08-08&fail-blocks=1`);
+  await page.getByRole('alert').filter({ hasText: 'Blocked time could not be loaded.' }).waitFor();
+  await page.evaluate(() => { calendarFixture.failBlocks = false; });
+  await page.getByRole('button', { name: 'Retry calendar', exact: true }).click();
+  await page.getByRole('alert').waitFor({ state: 'hidden' });
+  console.log('✓ Full calendar preserves the selected date; diary and blocked-time failures explain and retry');
+
+  await open('date=2026-08-08&view=day&fail-blocks=1');
+  await page.getByRole('alert').filter({ hasText: 'Blocked time could not be checked.' }).waitFor();
+  await page.evaluate(() => { calendarFixture.failBlocks = false; });
+  await page.getByRole('button', { name: 'Retry blocked time', exact: true }).click();
+  await page.getByRole('alert').waitFor({ state: 'hidden' });
+  await page.getByLabel('Calendar tools', { exact: true }).click();
+  await page.getByRole('button', { name: 'Block time', exact: true }).click();
+  await page.getByRole('button', { name: 'Lunch (1hr)', exact: true }).click();
+  const note = page.getByPlaceholder('e.g. School pickup, dentist...');
+  await note.fill('Fictional test break');
+  await page.getByRole('button', { name: 'Block this time', exact: true }).click();
+  await page.getByRole('alert').filter({ hasText: 'Synthetic block save failure' }).waitFor();
+  assert.equal(await note.inputValue(), 'Fictional test break');
+  await page.evaluate(() => { calendarFixture.failSave = false; });
+  await page.getByRole('button', { name: 'Block this time', exact: true }).click();
+  await page.getByRole('button', { name: /LUNCH/, exact: false }).click();
+  await page.getByRole('button', { name: 'Remove this block', exact: true }).click();
+  await page.getByRole('button', { name: 'Remove', exact: true }).click();
+  await page.getByRole('alert').filter({ hasText: 'Synthetic block removal failure' }).waitFor();
+  assert.equal(await page.evaluate(() => calendarFixture.blocks.length), 1);
+  await page.evaluate(() => { calendarFixture.failDelete = false; });
+  await page.getByRole('button', { name: 'Remove', exact: true }).click();
+  await page.getByRole('heading', { name: 'Time block', exact: true }).waitFor({ state: 'hidden' });
+  assert.equal(await page.evaluate(() => calendarFixture.blocks.length), 0);
+  console.log('✓ Block save failure keeps inputs; failed removal keeps the block; both recover on retry');
   assert.deepEqual(errors, []);
   console.log('✓ 320–1280px layouts fit; no uncaught page errors');
   await context.close();

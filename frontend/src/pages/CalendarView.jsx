@@ -6,6 +6,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useBeautician, supabase, updateRow, insertRow } from '../lib/supabase.js'
 import { API_BASE } from '../lib/config.js';
 import { apiFetch, apiErrorMessage } from '../lib/api-fetch.js';
+import { readAuthenticatedJson } from '../lib/authenticated-json.js';
 import logger from '../lib/logger.js';
 import { hapticTap, hapticSuccess } from '../lib/native.js';
 import { treatmentColor, tint } from '../lib/treatmentColors.js';
@@ -320,6 +321,7 @@ export default function CalendarView({ initialView } = {}) {
   const [loadError, setLoadError] = useState(null);
   const loadSeq = useRef(0);
   const loadedRange = useRef(null);
+  const dismissedLink = useRef(null);
   const [linkNotice, setLinkNotice] = useState(null);
 
   // Keep the address in step with the visible diary. A notification is a
@@ -328,6 +330,9 @@ export default function CalendarView({ initialView } = {}) {
     setCurrentDate(prev => isSameDay(prev, date) ? prev : date);
     setView(nextView);
     if (!keepDetail) {
+      // React Router may commit navigation after an in-flight read resolves.
+      // Record the user's choice synchronously so that old link cannot win.
+      dismissedLink.current = `${location.key}:${location.search}`;
       setSelectedAppointment(null);
       requestAnimationFrame(() => document.getElementById('app-scroll')?.scrollTo({ top: 0 }));
     }
@@ -397,7 +402,7 @@ export default function CalendarView({ initialView } = {}) {
   // reopened the booking and forced Day after every Week fetch or edit.
   useEffect(() => {
     const apptId = new URLSearchParams(location.search).get('appt');
-    if (!apptId || loading || loadError) return;
+    if (!apptId || loading || loadError || dismissedLink.current === `${location.key}:${location.search}`) return;
     const targetDate = new URLSearchParams(location.search).get('date')?.slice(0, 10) || formatDate(currentDate);
     const range = loadedRange.current;
     if (!range || range.owner !== beautician?.id || range.linkKey !== `${location.key}:${location.search}` || targetDate < range.from || targetDate > range.to) return;
@@ -468,6 +473,7 @@ export default function CalendarView({ initialView } = {}) {
   const [markingAllDone, setMarkingAllDone] = useState(false);
   // Time blocking state
   const [timeBlocks, setTimeBlocks] = useState([]);
+  const [timeBlockError, setTimeBlockError] = useState(null);
   const [showBlockModal, setShowBlockModal] = useState(false);
   const [selectedBlock, setSelectedBlock] = useState(null); // existing block tapped
   const [savingBlock, setSavingBlock] = useState(false);
@@ -730,14 +736,13 @@ export default function CalendarView({ initialView } = {}) {
   // Time block functions
   async function loadTimeBlocks() {
     try {
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const res = await apiFetch(`${API_BASE}/api/hours-exceptions`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      const data = await res.json();
-      setTimeBlocks(data.exceptions || []);
+      const data = await readAuthenticatedJson({ auth: supabase.auth, url: `${API_BASE}/api/hours-exceptions` });
+      if (!Array.isArray(data.exceptions)) throw new Error('Invalid blocked time response');
+      setTimeBlocks(data.exceptions);
+      setTimeBlockError(null);
     } catch (err) {
       logger.error('Load time blocks error:', err);
+      setTimeBlockError('Blocked time could not be checked. Retry before offering an opening.');
     }
   }
   async function createTimeBlock({ date, type, reason, note, start_time, end_time }) {
@@ -749,12 +754,12 @@ export default function CalendarView({ initialView } = {}) {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ date, type, reason, note, start_time, end_time, notify_clients: false }),
       });
-      if (res.ok) {
-        await loadTimeBlocks();
-        setShowBlockModal(false);
-      }
+      if (!res.ok) throw new Error(apiErrorMessage(res, await res.json().catch(() => ({})), 'Could not block this time. Please try again.'));
+      await loadTimeBlocks();
+      setShowBlockModal(false);
     } catch (err) {
       logger.error('Create time block error:', err);
+      throw err;
     } finally {
       setSavingBlock(false);
     }
@@ -762,14 +767,16 @@ export default function CalendarView({ initialView } = {}) {
   async function deleteTimeBlock(blockId) {
     try {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
-      await apiFetch(`${API_BASE}/api/hours-exceptions/${blockId}`, {
+      const res = await apiFetch(`${API_BASE}/api/hours-exceptions/${blockId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` },
       });
+      if (!res.ok) throw new Error(apiErrorMessage(res, await res.json().catch(() => ({})), 'Could not remove this block. Please try again.'));
       setTimeBlocks(prev => prev.filter(b => b.id !== blockId));
       setSelectedBlock(null);
     } catch (err) {
       logger.error('Delete time block error:', err);
+      throw err;
     }
   }
   /** Move the whole strip a week. The arrows meant "one day" in day view and
@@ -953,13 +960,14 @@ export default function CalendarView({ initialView } = {}) {
         <details className="calendar-tools">
           <summary aria-label="Calendar tools">More <Icon name="chevron-down" size={14} /></summary>
           <div className="calendar-tools-panel">
-            <Button variant="quiet" onClick={e => { e.currentTarget.closest('details').open = false; navigate('/calendar/full'); }}><Icon name="calendar" size={17} />Open full calendar</Button>
+            <Button variant="quiet" onClick={e => { e.currentTarget.closest('details').open = false; navigate(`/calendar/full?date=${formatDate(currentDate)}`); }}><Icon name="calendar" size={17} />Open full calendar</Button>
             <Button variant="quiet" onClick={e => { e.currentTarget.closest('details').open = false; setShowBlockModal(true); }}><Icon name={iconName('event_busy')} size={17} />Block time</Button>
             {view === 'day' && <Button variant="quiet" disabled={markingAllDone || loading || !!loadError} onClick={e => { e.currentTarget.closest('details').open = false; handleMarkAllDone(); }}><Icon name="check" size={17} />{markingAllDone ? 'Completing...' : 'Mark day complete'}</Button>}
           </div>
         </details>
       </div>
       {linkNotice && <div className="calendar-link-notice" role="status">{linkNotice}</div>}
+      {timeBlockError && <div className="calendar-link-notice" role="alert">{timeBlockError} <Button variant="quiet" onClick={loadTimeBlocks}>Retry blocked time</Button></div>}
       <div className="calendar-day-summary" aria-live="polite">
         {loading ? 'Loading your diary...' : loadError ? 'Diary unavailable' : <>
           <span>{visibleLive.length} {visibleLive.length === 1 ? 'booking' : 'bookings'}{view === 'week' ? ' this week' : ''}</span>
@@ -1108,7 +1116,7 @@ export default function CalendarView({ initialView } = {}) {
             )}
             {/* Time block overlays */}
             {timeBlocks
-              .filter(b => b.date === formatDate(currentDate))
+              .filter(b => b.date <= formatDate(currentDate) && (b.end_date && b.end_date >= b.date ? b.end_date : b.date) >= formatDate(currentDate))
               .map(block => {
                 let top = 0, height = (END_HOUR - START_HOUR) * HOUR_HEIGHT;
                 const isClosed = block.type ? block.type === 'closed' : !!block.is_closed;
@@ -1382,7 +1390,7 @@ export default function CalendarView({ initialView } = {}) {
         <BlockTimeModal
           defaultDate={formatDate(currentDate)}
           onSave={createTimeBlock}
-          onClose={() => setShowBlockModal(false)}
+          onClose={() => { if (!savingBlock) setShowBlockModal(false); }}
           saving={savingBlock}
         />
       )}
@@ -3200,15 +3208,16 @@ const BLOCK_REASONS = [
 ];
 function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
   const now = new Date();
-  const pad = n => String(n).padStart(2, '0');
-  const nowTime = `${pad(now.getHours())}:${pad(Math.ceil(now.getMinutes() / 15) * 15 === 60 ? 0 : Math.ceil(now.getMinutes() / 15) * 15)}`;
-  const plusOneHour = `${pad(now.getHours() + 1)}:${pad(Math.ceil(now.getMinutes() / 15) * 15 === 60 ? 0 : Math.ceil(now.getMinutes() / 15) * 15)}`;
+  const roundedMinute = Math.min(23 * 60 + 45, Math.ceil((now.getHours() * 60 + now.getMinutes()) / 15) * 15);
+  const nowTime = minToHHMM(roundedMinute);
+  const plusOneHour = minToHHMM(Math.min(23 * 60 + 59, roundedMinute + 60));
   const [date, setDate] = useState(defaultDate);
   const [type, setType] = useState('amended'); // 'closed' = all day, 'amended' = time range
   const [startTime, setStartTime] = useState(nowTime);
   const [endTime, setEndTime] = useState(plusOneHour);
   const [reason, setReason] = useState('personal');
   const [note, setNote] = useState('');
+  const [error, setError] = useState(null);
   const PRESETS = [
     {
       label: 'Lunch (1hr)',
@@ -3245,15 +3254,21 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
       },
     },
   ];
-  function handleSave() {
-    onSave({
+  async function handleSave() {
+    if (saving) return;
+    if (!date || (type !== 'closed' && (!startTime || !endTime || endTime <= startTime))) {
+      setError('Choose a date and an end time after the start time.');
+      return;
+    }
+    setError(null);
+    try { await onSave({
       date,
       type,
       reason,
       note: note.trim() || undefined,
       start_time: type === 'closed' ? undefined : startTime,
       end_time: type === 'closed' ? undefined : endTime,
-    });
+    }); } catch (err) { setError(err.message || 'Could not block this time. Please try again.'); }
   }
   const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', alignItems: 'flex-end' };
   const sheet = { background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', padding: '20px 20px 40px', width: '100%', maxWidth: 480, margin: '0 auto', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxHeight: '90vh', overflowY: 'auto' };
@@ -3262,7 +3277,7 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
       <div style={sheet}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: COLORS.onSurface }}>Block time</h3>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: COLORS.stone400 }}>×</button>
+          <button onClick={onClose} disabled={saving} aria-label="Close block time" style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: COLORS.stone400 }}>×</button>
         </div>
         {/* Quick presets */}
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
@@ -3350,6 +3365,7 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
         >
           {saving ? 'Saving…' : 'Block this time'}
         </button>
+        {error && <p role="alert">{error}</p>}
       </div>
     </div>
   , document.body);
@@ -3357,6 +3373,15 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
 // BlockDetailSheet - shows an existing block + remove option
 function BlockDetailSheet({ block, onDelete, onClose }) {
   const [confirming, setConfirming] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const [error, setError] = useState(null);
+  async function removeBlock() {
+    if (removing) return;
+    setRemoving(true); setError(null);
+    try { await onDelete(); }
+    catch (err) { setError(err.message || 'Could not remove this block. Please try again.'); }
+    finally { setRemoving(false); }
+  }
   const isClosed = block.type ? block.type === 'closed' : !!block.is_closed;
   const timeRange = isClosed
     ? 'All day'
@@ -3364,16 +3389,16 @@ function BlockDetailSheet({ block, onDelete, onClose }) {
   const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', alignItems: 'flex-end' };
   const sheet = { background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', padding: '20px 20px 40px', width: '100%', maxWidth: 480, margin: '0 auto', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif" };
   return createPortal(
-    <div style={overlay} onClick={e => e.target === e.currentTarget && onClose()}>
+    <div style={overlay} onClick={e => e.target === e.currentTarget && !removing && onClose()}>
       <div style={sheet}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: COLORS.onSurface }}>Time block</h3>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: COLORS.stone400 }}>×</button>
+          <button onClick={onClose} disabled={removing} aria-label="Close time block" style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: COLORS.stone400 }}>×</button>
         </div>
         <div style={{ background: `${COLORS.outlineVariant}22`, borderRadius: 10, padding: 14, marginBottom: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
             <span style={{ fontSize: 12, color: COLORS.stone400 }}>Date</span>
-            <span style={{ fontSize: 13, fontWeight: 600 }}>{block.date}</span>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>{block.date}{block.end_date && block.end_date > block.date ? ` to ${block.end_date}` : ''}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
             <span style={{ fontSize: 12, color: COLORS.stone400 }}>Time</span>
@@ -3390,15 +3415,16 @@ function BlockDetailSheet({ block, onDelete, onClose }) {
             </div>
           )}
         </div>
+        {error && <p role="alert">{error}</p>}
         {confirming ? (
           <div>
             <p style={{ fontSize: 14, color: COLORS.onSurface, marginBottom: 12, textAlign: 'center' }}>Remove this block?</p>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button className="fl-tap" onClick={() => setConfirming(false)} style={{ flex: 1, padding: '12px 0', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, background: 'var(--bg-card)', color: COLORS.onSurface, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+              <button className="fl-tap" disabled={removing} onClick={() => setConfirming(false)} style={{ flex: 1, padding: '12px 0', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, background: 'var(--bg-card)', color: COLORS.onSurface, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                 Cancel
               </button>
-              <button className="fl-tap" onClick={onDelete} style={{ flex: 1, padding: '12px 0', borderRadius: 10, border: 'none', background: '#d52828', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                Remove
+              <button className="fl-tap" disabled={removing} onClick={removeBlock} style={{ flex: 1, padding: '12px 0', borderRadius: 10, border: 'none', background: '#d52828', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                {removing ? 'Removing…' : 'Remove'}
               </button>
             </div>
           </div>
