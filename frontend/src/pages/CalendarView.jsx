@@ -400,7 +400,7 @@ export default function CalendarView({ initialView } = {}) {
     if (!apptId || loading || loadError) return;
     const targetDate = new URLSearchParams(location.search).get('date')?.slice(0, 10) || formatDate(currentDate);
     const range = loadedRange.current;
-    if (!range || range.owner !== beautician?.id || targetDate < range.from || targetDate > range.to) return;
+    if (!range || range.owner !== beautician?.id || range.linkKey !== `${location.key}:${location.search}` || targetDate < range.from || targetDate > range.to) return;
     const match = appointments.find(a => a.id === apptId);
     if (match) {
       const date = parseDateOnly(match.starts_at) || currentDate;
@@ -627,7 +627,7 @@ export default function CalendarView({ initialView } = {}) {
       setLoading(false);
       setLoadError('Could not load your account.');
     }
-  }, [beautician, bLoading, currentDate, view]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [beautician, bLoading, currentDate, view, location.key, location.search]); // eslint-disable-line react-hooks/exhaustive-deps
   // Time blocks are NOT date-scoped (the endpoint returns them all), so
   // refetching on every week swipe was pure waste against the rate limiter.
   useEffect(() => {
@@ -685,7 +685,7 @@ export default function CalendarView({ initialView } = {}) {
         .abortSignal(ac.signal);
       if (seq !== loadSeq.current) return;   // a newer range is already loading
       if (error) throw error;
-      loadedRange.current = { from, to, owner: beautician.id };
+      loadedRange.current = { from, to, owner: beautician.id, linkKey: `${location.key}:${location.search}` };
       setAppointments(data || []);
     } catch (err) {
       if (seq !== loadSeq.current) return;
@@ -1403,10 +1403,19 @@ export default function CalendarView({ initialView } = {}) {
  */
 function BookingDetailSheet({ children, view, onClose, onWeek }) {
   const ref = useRef(null);
+  const opener = useRef(document.activeElement);
   useEffect(() => {
     const dialog = ref.current;
     dialog.showModal();
-    return () => dialog.close();
+    return () => {
+      dialog.close();
+      requestAnimationFrame(() => {
+        const target = opener.current?.isConnected && opener.current !== document.body
+          ? opener.current
+          : document.querySelector('[aria-label="Calendar view"] [aria-pressed="true"]');
+        target?.focus({ preventScroll: true });
+      });
+    };
   }, []);
   // The native dialog keeps keyboard focus inside the booking and makes the
   // diary inert. Its top layer also clears the floating More and petal buttons.

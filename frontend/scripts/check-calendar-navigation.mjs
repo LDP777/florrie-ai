@@ -38,7 +38,11 @@ try {
           if (state.fail) return new Response(JSON.stringify({ message: 'Synthetic diary outage' }), { status: 503 });
         }
         if (url.pathname === '/api/hours-exceptions') return new Response(JSON.stringify({ exceptions: [] }));
-        return base(input, options);
+        const response = await base(input, options);
+        if (url.pathname === '/rest/v1/appointments' && location.search.includes('new-booking=1') && !state.bookingCreated) {
+          return new Response(JSON.stringify((await response.json()).filter(row => row.id !== 'a2')), { headers: { 'content-type': 'application/json' } });
+        }
+        return response;
       };
     })();
   `);
@@ -78,6 +82,7 @@ try {
   await page.keyboard.press('Escape');
   await sheet.waitFor({ state: 'hidden' });
   await waitForView('Week');
+  await page.waitForFunction(() => document.activeElement?.classList.contains('calendar-week-row'));
   if (screenshots) await page.screenshot({ path: join(screenshots, 'calendar-week-393.png') });
   console.log('✓ Booking notification opens once; Week survives fetch; booking sheet closes to the same week');
 
@@ -100,6 +105,21 @@ try {
   await waitForView('Day');
   assert.equal(new URL(page.url()).searchParams.get('date'), '2026-08-15');
   console.log('✓ Date and view survive reload, Today and Schedule; no return to the notification date');
+
+  await open('date=2026-08-08&view=week&new-booking=1');
+  await page.locator('.calendar-week-row').first().waitFor();
+  const readsBefore = await page.evaluate(() => calendarFixture.reads);
+  await page.evaluate(() => {
+    calendarFixture.bookingCreated = true;
+    history.pushState({ key: 'new-booking-notification' }, '', '/calendar/week?date=2026-08-08&appt=a2&new-booking=1');
+    dispatchEvent(new PopStateEvent('popstate'));
+  });
+  await sheet.waitFor();
+  await sheet.getByText('Priya K', { exact: true }).waitFor();
+  assert.ok(await page.evaluate(() => calendarFixture.reads) > readsBefore, 'new notification rereads its already visible date');
+  await sheet.getByRole('button', { name: 'Week view', exact: true }).click();
+  await waitForView('Week');
+  console.log('✓ New booking link on an already-open week refreshes before resolving its appointment');
 
   await open('date=2026-08-08&appt=missing-booking');
   await page.getByRole('status').filter({ hasText: 'This booking is no longer on this date.' }).waitFor();
@@ -138,7 +158,7 @@ try {
     assert.equal(overflow, false, `calendar controls fit at ${width}px`);
     await view('Day').click();
     await waitForView('Day');
-    if (screenshots) await page.screenshot({ path: join(screenshots, `calendar-day-${width}.png`) });
+    if (screenshots) { await page.waitForTimeout(250); await page.screenshot({ path: join(screenshots, `calendar-day-${width}.png`) }); }
     await view('Week').click();
     await waitForView('Week');
   }
