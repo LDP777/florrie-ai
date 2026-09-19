@@ -21,7 +21,7 @@ const SmartSchedule = lazy(() => import('./SmartSchedule.jsx'));
  */
 
 const SUB_TABS = [
-  { id: 'day',   label: 'Day',            path: '/today' },
+  { id: 'day',   label: 'Today',          path: '/today' },
   { id: 'week',  label: 'Calendar',       path: '/calendar/week' },
   { id: 'smart', label: 'Schedule', path: '/smart-schedule' },
 ];
@@ -99,6 +99,9 @@ export default function Hub() {
   const navigate = useNavigate();
   const location = useLocation();
   const activeTab = subTabFromPath(location.pathname);
+  const calendarReturnTo = activeTab === 'week'
+    ? `${location.pathname}${location.search}`
+    : location.state?.calendarReturnTo;
 
   const now      = new Date();
   const greeting = greetingFor(now);
@@ -108,14 +111,14 @@ export default function Hub() {
   const name = beautician?.first_name?.trim() || beautician?.display_name?.split(' ')?.[0] || 'there';
 
   return (
-    <div className={activeTab === 'day' ? 'today-page' : activeTab === 'week' ? 'calendar-hub' : undefined} style={S.page}>
+    <div className={activeTab === 'day' ? 'today-page' : activeTab === 'week' ? 'calendar-hub' : 'schedule-hub'} style={S.page}>
       {/* Morning catch-up bottom sheet, only fires before 10am and once per day */}
       <MorningCatchup beautician={beautician} />
 
       {/* 1. Greeting + date pill */}
-      <header style={S.header}>
-        <h1 style={S.greeting}>{activeTab === 'week' ? 'Your calendar' : `${greeting}, ${name}`}</h1>
-        {activeTab !== 'week' && <span style={S.datePill}>{dayPill}</span>}
+      <header className="diary-hub-header" style={S.header}>
+        <h1 style={S.greeting}>{activeTab === 'week' ? 'Your calendar' : activeTab === 'smart' ? 'Your schedule' : `${greeting}, ${name}`}</h1>
+        {activeTab === 'day' && <span style={S.datePill}>{dayPill}</span>}
       </header>
 
       {/* 2. Sub-tab strip , Day / Week / Smart Schedule */}
@@ -127,7 +130,10 @@ export default function Hub() {
               key={tab.id}
               role="tab"
               aria-selected={active}
-              onClick={() => navigate(tab.path)}
+              onClick={() => {
+                if (tab.id === activeTab) return;
+                navigate(tab.id === 'week' && calendarReturnTo ? calendarReturnTo : tab.path, { state: { calendarReturnTo } });
+              }}
               style={{ ...S.subTab, ...(active ? S.subTabActive : {}) }}
             >
               {tab.label}

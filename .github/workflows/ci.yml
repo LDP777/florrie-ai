@@ -89,6 +89,8 @@ jobs:
       - run: npm run check:channels --workspace frontend
       - run: npm run check:recovery:browser --workspace frontend
       - run: npm run check:today:browser --workspace frontend
+      - run: node scripts/check-calendar-navigation.mjs
+        working-directory: frontend
       - run: node scripts/check-knowledge-training.mjs
         working-directory: frontend
 

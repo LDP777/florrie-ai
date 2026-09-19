@@ -278,15 +278,16 @@ export default function CalendarView({ initialView } = {}) {
     // A ?view=day deep-link (month-day tap in the full calendar) opens the day
     // view straight away so Ellie can book into it.
     const v = new URLSearchParams(location.search).get('view');
-    if (v === 'day') return 'day';
+    if (v === 'day' || v === 'week') return v;
     return initialView === 'week' ? 'week' : 'day';
   });
   // Deep-link to a specific day from either navigation state (in-app pushes) or a
   // ?date=YYYY-MM-DD query param (the activity feed / "What Florrie did" links).
   const [currentDate, setCurrentDate] = useState(() => {
-    if (location.state?.date) return new Date(location.state.date);
+    if (location.state?.date && !isNaN(new Date(location.state.date))) return new Date(location.state.date);
     const q = new URLSearchParams(location.search).get('date');
-    if (q && /^\d{4}-\d{2}-\d{2}/.test(q)) return new Date(`${q.slice(0, 10)}T12:00:00`);
+    const date = parseDateOnly(q);
+    if (date && !isNaN(date)) return date;
     return new Date();
   });
   // Navigating from the Hub to /calendar reuses this component instance (both
@@ -295,8 +296,10 @@ export default function CalendarView({ initialView } = {}) {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const q = params.get('date');
-    if (q && /^\d{4}-\d{2}-\d{2}/.test(q)) setCurrentDate(new Date(`${q.slice(0, 10)}T12:00:00`));
-    if (params.get('view') === 'day') setView('day');
+    const date = parseDateOnly(q);
+    if (date && !isNaN(date)) setCurrentDate(prev => isSameDay(prev, date) ? prev : date);
+    const nextView = params.get('view');
+    if (nextView === 'day' || nextView === 'week') setView(nextView);
   }, [location.search]);
   const [appointments, setAppointments] = useState([]);
   // Bookings per day for the visible week, keyed 'YYYY-MM-DD', for the strip's
@@ -316,7 +319,25 @@ export default function CalendarView({ initialView } = {}) {
   // after 5 mins": it had already given up, silently.
   const [loadError, setLoadError] = useState(null);
   const loadSeq = useRef(0);
-  const detailRef = useRef(null);
+  const loadedRange = useRef(null);
+  const [linkNotice, setLinkNotice] = useState(null);
+
+  // Keep the address in step with the visible diary. A notification is a
+  // one-time instruction, not a view preference that can undo Ellie's taps.
+  function changeCalendar(date = currentDate, nextView = view, { keepDetail = false } = {}) {
+    setCurrentDate(prev => isSameDay(prev, date) ? prev : date);
+    setView(nextView);
+    if (!keepDetail) {
+      setSelectedAppointment(null);
+      requestAnimationFrame(() => document.getElementById('app-scroll')?.scrollTo({ top: 0 }));
+    }
+    setLinkNotice(null);
+    const params = new URLSearchParams(location.search);
+    params.delete('appt');
+    params.set('date', formatDate(date));
+    params.set('view', nextView);
+    navigate({ pathname: location.pathname, search: `?${params}` }, { replace: true, state: location.state });
+  }
 
   // Fail-soft: without the names the labels just read as the base treatment,
   // which is exactly how the diary looked before extras existed.
@@ -372,18 +393,26 @@ export default function CalendarView({ initialView } = {}) {
     return () => { cancelled = true; };
   }, [beautician?.id, weekStartKey, weekEndKey]);
 
-  // Deep-link to a specific appointment (?appt=<id>): once that day's
-  // appointments have loaded, open its detail. The selection effect further
-  // down scrolls it into view. Used by the "someone booked" push + home feed.
+  // Consume a booking link once it has loaded. Leaving ?appt in the address
+  // reopened the booking and forced Day after every Week fetch or edit.
   useEffect(() => {
     const apptId = new URLSearchParams(location.search).get('appt');
-    if (!apptId || !appointments.length) return;
+    if (!apptId || loading || loadError) return;
+    const targetDate = new URLSearchParams(location.search).get('date')?.slice(0, 10) || formatDate(currentDate);
+    const range = loadedRange.current;
+    if (!range || range.owner !== beautician?.id || targetDate < range.from || targetDate > range.to) return;
     const match = appointments.find(a => a.id === apptId);
     if (match) {
-      setView('day');
+      const date = parseDateOnly(match.starts_at) || currentDate;
+      changeCalendar(date, 'day', { keepDetail: true });
       setSelectedAppointment(match);
+    } else {
+      // The appointment may have moved or been removed since the notification.
+      // Keep the diary usable instead of silently reopening an unrelated row.
+      changeCalendar(currentDate, view);
+      setLinkNotice('This booking is no longer on this date. You can check the week or find the client in Clients.');
     }
-  }, [appointments, location.search]);
+  }, [appointments, location.search, loading, loadError]); // eslint-disable-line react-hooks/exhaustive-deps
   // Press-and-hold a row in the agenda to delete it (iOS style). The backend
   // blocks deletion when money is attached (409) and steers Ellie to cancel.
   const longPressTimer = useRef(null);
@@ -604,18 +633,11 @@ export default function CalendarView({ initialView } = {}) {
   useEffect(() => {
     if (beautician) loadTimeBlocks();
   }, [beautician]); // eslint-disable-line react-hooks/exhaustive-deps
-  // Auto-scroll to appointment detail when selected
-  useEffect(() => {
-    if (selectedAppointment && detailRef.current) {
-      setTimeout(() => {
-        detailRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 50);
-    }
-  }, [selectedAppointment]);
   // Auto-scroll the day grid so the first appointment (or 08:00 if none)
   // sits near the top. Once per viewed day, not on every refresh.
   useEffect(() => {
-    if (view !== 'day' || loading || !gridScrollRef.current) return;
+    if (view !== 'day') { lastScrollKey.current = null; return; }
+    if (loading || !gridScrollRef.current) return;
     const key = formatDate(currentDate);
     if (lastScrollKey.current === key) return;
     lastScrollKey.current = key;
@@ -663,6 +685,7 @@ export default function CalendarView({ initialView } = {}) {
         .abortSignal(ac.signal);
       if (seq !== loadSeq.current) return;   // a newer range is already loading
       if (error) throw error;
+      loadedRange.current = { from, to, owner: beautician.id };
       setAppointments(data || []);
     } catch (err) {
       if (seq !== loadSeq.current) return;
@@ -670,7 +693,7 @@ export default function CalendarView({ initialView } = {}) {
       // Never keep the previous range's rows: they are invisible to the date
       // filter, so the week silently reads as empty instead of as failed.
       setAppointments([]);
-      setLoadError('Could not load this week.');
+      setLoadError(`Could not load this ${view === 'day' ? 'day' : 'week'}.`);
     } finally {
       clearTimeout(killer);
       if (seq === loadSeq.current) setLoading(false);
@@ -756,13 +779,13 @@ export default function CalendarView({ initialView } = {}) {
   function navigateWeek(direction) {
     const newDate = new Date(currentDate);
     newDate.setDate(newDate.getDate() + direction * 7);
-    setCurrentDate(newDate);
+    changeCalendar(newDate);
   }
   /** Move a day. Used by the swipe across the day grid. */
   function navigateDay(direction) {
     const newDate = new Date(currentDate);
     newDate.setDate(newDate.getDate() + direction);
-    setCurrentDate(newDate);
+    changeCalendar(newDate);
   }
   function getAppointmentsForDate(date) {
     const dateStr = formatDate(date);
@@ -815,27 +838,9 @@ export default function CalendarView({ initialView } = {}) {
     const start = getWeekStart(currentDate);
     return Array.from({ length: 7 }, (_, i) => { const d = new Date(start); d.setDate(d.getDate() + i); return d; });
   }
-  function countGapsToday() {
-    const dayAppts = getAppointmentsForDate(currentDate).sort((a, b) => new Date(a.ends_at) - new Date(b.ends_at));
-    let gaps = 0;
-    for (let i = 0; i < dayAppts.length - 1; i++) {
-      const endTime = new Date(dayAppts[i].ends_at);
-      const nextStart = new Date(dayAppts[i + 1].starts_at);
-      const diffMinutes = (nextStart - endTime) / (1000 * 60);
-      if (diffMinutes > 15) gaps++;
-    }
-    return gaps;
-  }
-  function countWaitlistMatches() {
-    // Placeholder: would come from waitlist data
-    return 0;
-  }
   const weekDays = getWeekDays();
-  const gapsToday = countGapsToday();
-  const waitlistMatches = countWaitlistMatches();
   const visibleLive = (view === 'day' ? getAppointmentsForDate(currentDate) : appointments).filter(a => !DEAD_STATUSES.includes(a.status));
   const visibleValue = visibleLive.reduce((sum, a) => sum + (a.price_cents ?? a.treatments?.price_cents ?? 0), 0);
-  const showInsightsPill = view === 'day' && (gapsToday > 0 || waitlistMatches > 0);
   return (
     <div className="calendar-page" style={styles.page}>
       <div style={styles.header}>
@@ -850,7 +855,7 @@ export default function CalendarView({ initialView } = {}) {
           </div>
           <div className="calendar-date-actions">
             <Button variant="quiet" onClick={() => navigateWeek(-1)} aria-label="Previous week"><Icon name="chevron-left" size={18} /></Button>
-            <Button variant="secondary" onClick={() => setCurrentDate(new Date())}>Today</Button>
+            <Button variant="secondary" onClick={() => changeCalendar(new Date())}>Today</Button>
             <Button variant="quiet" onClick={() => navigateWeek(1)} aria-label="Next week"><Icon name="chevron-right" size={18} /></Button>
           </div>
         </div>
@@ -905,7 +910,7 @@ export default function CalendarView({ initialView } = {}) {
             return (
               <button
                 key={day.toISOString()}
-                onClick={() => { setCurrentDate(day); setView('day'); }}
+                onClick={() => changeCalendar(day, 'day')}
                 aria-current={selected ? 'date' : undefined}
                 aria-label={`${dayLabel}, ${countLabel}`}
                 style={{ ...styles.weeklyStripDay,
@@ -941,8 +946,8 @@ export default function CalendarView({ initialView } = {}) {
 
       <div className="calendar-toolbar">
         <div style={styles.viewToggle} role="group" aria-label="Calendar view">
-          <button onClick={() => setView('day')} aria-pressed={view === 'day'} style={{ ...styles.toggleBtn, background: view === 'day' ? COLORS.primary : 'transparent', color: view === 'day' ? '#fff' : COLORS.stone400 }}>Day</button>
-          <button onClick={() => setView('week')} aria-pressed={view === 'week'} style={{ ...styles.toggleBtn, background: view === 'week' ? COLORS.primary : 'transparent', color: view === 'week' ? '#fff' : COLORS.stone400 }}>Week</button>
+          <button onClick={() => changeCalendar(currentDate, 'day')} aria-pressed={view === 'day'} style={{ ...styles.toggleBtn, background: view === 'day' ? COLORS.primary : 'transparent', color: view === 'day' ? '#fff' : COLORS.stone400 }}>Day</button>
+          <button onClick={() => changeCalendar(currentDate, 'week')} aria-pressed={view === 'week'} style={{ ...styles.toggleBtn, background: view === 'week' ? COLORS.primary : 'transparent', color: view === 'week' ? '#fff' : COLORS.stone400 }}>Week</button>
         </div>
         <Button variant="primary" className="calendar-add" onClick={() => setShowNewAppt(true)}><Icon name="plus" size={16} />Add booking</Button>
         <details className="calendar-tools">
@@ -954,6 +959,7 @@ export default function CalendarView({ initialView } = {}) {
           </div>
         </details>
       </div>
+      {linkNotice && <div className="calendar-link-notice" role="status">{linkNotice}</div>}
       <div className="calendar-day-summary" aria-live="polite">
         {loading ? 'Loading your diary...' : loadError ? 'Diary unavailable' : <>
           <span>{visibleLive.length} {visibleLive.length === 1 ? 'booking' : 'bookings'}{view === 'week' ? ' this week' : ''}</span>
@@ -1154,51 +1160,6 @@ export default function CalendarView({ initialView } = {}) {
                 );
               })
             }
-            {/* Open slot placeholders */}
-            {(() => {
-              const appts = getAppointmentsForDate(currentDate).sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at));
-              const slots = [];
-              // Check for gap at start of day
-              if (appts.length > 0) {
-                const firstStartMinutes = wallMinutes(appts[0].starts_at);
-                if (firstStartMinutes > START_HOUR * 60 + 30) {
-                  const top = 0;
-                  const height = ((firstStartMinutes - START_HOUR * 60) / 60) * HOUR_HEIGHT;
-                  slots.push({ id: 'start', top, height });
-                }
-              }
-              // Check for gaps between appointments
-              for (let i = 0; i < appts.length - 1; i++) {
-                const endMinutes = wallMinutes(appts[i].ends_at);
-                const nextStartMinutes = wallMinutes(appts[i + 1].starts_at);
-                const diffMinutes = (nextStartMinutes - endMinutes);
-                if (diffMinutes > 30) {
-                  const top = ((endMinutes - START_HOUR * 60) / 60) * HOUR_HEIGHT;
-                  const height = (diffMinutes / 60) * HOUR_HEIGHT;
-                  slots.push({ id: `gap-${i}`, top, height });
-                }
-              }
-              // Check for gap at end of day
-              if (appts.length > 0) {
-                const lastEndMinutes = wallMinutes(appts[appts.length - 1].ends_at);
-                if (lastEndMinutes < END_HOUR * 60 - 30) {
-                  const top = ((lastEndMinutes - START_HOUR * 60) / 60) * HOUR_HEIGHT;
-                  const height = ((END_HOUR * 60 - lastEndMinutes) / 60) * HOUR_HEIGHT;
-                  slots.push({ id: 'end', top, height });
-                }
-              }
-              return slots.map(slot => (
-                <div
-                  key={slot.id}
-                  style={{ ...styles.openSlotCard,
-                    top: slot.top,
-                    height: slot.height,
-                  }}
-                >
-                  <span style={styles.openSlotText}>OPEN SLOT</span>
-                </div>
-              ));
-            })()}
             {loading && (
               <div style={{ position: 'absolute', top: (8 - START_HOUR) * HOUR_HEIGHT + 60, left: 0, right: 0, textAlign: 'center' }}>
                 <div style={{ width: 26, height: 26, margin: '0 auto 10px', border: `3px solid ${COLORS.outlineVariant}`, borderTopColor: COLORS.primary, borderRadius: '50%', animation: 'floSpin 0.8s linear infinite' }} />
@@ -1262,7 +1223,7 @@ export default function CalendarView({ initialView } = {}) {
             return (
               <div className="calendar-week-day" key={day.toISOString()} style={{ ...styles.weekDaySection, ...(today ? styles.weekDaySectionToday : {}) }}>
                 <button
-                  onClick={() => { setCurrentDate(day); setView('day'); }}
+                  onClick={() => changeCalendar(day, 'day')}
                   className="calendar-week-heading"
                   style={styles.weekDayHead}
                 >
@@ -1280,10 +1241,10 @@ export default function CalendarView({ initialView } = {}) {
                       <span style={styles.weekDayHours}>{hours % 1 === 0 ? hours : hours.toFixed(1)}h booked</span>
                     </span>
                   ) : (
-                    <span style={styles.weekDayQuiet}>{dayOff ? 'Day off' : 'No bookings'}</span>
+                    <span style={styles.weekDayQuiet}>{dayAppts.length ? 'No active bookings' : dayOff ? 'Day off' : 'No bookings'}</span>
                   )}
                 </button>
-                {live.length > 0 && (
+                {dayAppts.length > 0 && (
                   <div style={styles.weekDayRows}>
                     {dayAppts.map(appt => {
                       const dotColor = treatmentColor(appt.treatments);
@@ -1328,18 +1289,17 @@ export default function CalendarView({ initialView } = {}) {
         </div>
       )}
 
-      {/* Floating Insights Pill (day view only) */}
-      {showInsightsPill && (
-        <div style={styles.insightsPill}>
+      {view === 'day' && !loading && !loadError && (
+        <button onClick={() => navigate('/smart-schedule', { state: { calendarReturnTo: `${location.pathname}${location.search}` } })}
+          style={{ ...styles.insightsPill, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
           <span style={styles.insightsPillIcon}><Icon name="sparkles" size={15} /></span>
-          <span style={styles.insightsPillText}>
-            {gapsToday} gap{gapsToday !== 1 ? 's' : ''} today {waitlistMatches > 0 ? `· ${waitlistMatches} waitlist match${waitlistMatches !== 1 ? 'es' : ''}` : ''}
-          </span>
-        </div>
+          <span style={styles.insightsPillText}>Find available time</span>
+          <Icon name="chevron-right" size={16} />
+        </button>
       )}
       {/* Selected appointment detail + completion flow */}
       {selectedAppointment && (
-        <div ref={detailRef}>
+        <BookingDetailSheet view={view} onClose={() => setSelectedAppointment(null)} onWeek={() => changeCalendar(currentDate, 'week')}>
           <AppointmentDetail
             key={selectedAppointment.id}
             appointment={selectedAppointment}
@@ -1357,7 +1317,7 @@ export default function CalendarView({ initialView } = {}) {
               // re-runs from the effect on currentDate, so no double fetch.
               if (patched && patched._movedToDay) {
                 const d = parseDateOnly(patched._movedToDay);
-                if (d) setCurrentDate(d);
+                if (d) changeCalendar(d, view, { keepDetail: true });
                 else loadAppointments({ keepScroll: true });
               } else {
                 loadAppointments({ keepScroll: true });
@@ -1367,7 +1327,7 @@ export default function CalendarView({ initialView } = {}) {
             getStatusColor={getStatusColor}
             onViewClient={(clientId) => navigate('/clients', { state: { clientId } })}
           />
-        </div>
+        </BookingDetailSheet>
       )}
       {/* New appointment modal (plus button) */}
       {saveNotice && (
@@ -1441,6 +1401,30 @@ export default function CalendarView({ initialView } = {}) {
  * AppointmentDetail - detail panel with completion flow.
  * Mark done → log payment → add notes → rebook prompt → before/after photo.
  */
+function BookingDetailSheet({ children, view, onClose, onWeek }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const dialog = ref.current;
+    dialog.showModal();
+    return () => dialog.close();
+  }, []);
+  // The native dialog keeps keyboard focus inside the booking and makes the
+  // diary inert. Its top layer also clears the floating More and petal buttons.
+  return createPortal(
+    <dialog ref={ref} className="calendar-booking-sheet" aria-label="Booking details"
+      style={{ fontFamily: styles.page.fontFamily }}
+      onCancel={event => { event.preventDefault(); onClose(); }}>
+      <header className="calendar-booking-sheet-nav">
+        <button autoFocus onClick={onClose} style={{ ...styles.toggleBtn, flex: 'initial', background: 'transparent', color: COLORS.primary }}>
+          <Icon name="chevron-left" size={16} /> Back to {view === 'week' ? 'week' : 'day'}
+        </button>
+        {view !== 'week' && <button onClick={onWeek} style={{ ...styles.toggleBtn, flex: 'initial', background: 'transparent', color: COLORS.primary }}>Week view</button>}
+      </header>
+      {children}
+    </dialog>, document.body,
+  );
+}
+
 function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefresh, onCompleted, getStatusColor, onViewClient }) {
   const [mode, setMode] = useState('detail'); // detail | completing | done
   const [notes, setNotes] = useState(appointment.beautician_notes || '');
@@ -2262,7 +2246,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
     ? (cardInfo.uncollected_cents ?? localOutstandingCents)
     : (cardInfo?.outstanding_cents ?? localOutstandingCents);
   return (
-    <div style={styles.detailPanel}>
+    <div className="calendar-booking-detail" style={styles.detailPanel}>
       <div style={styles.detailHeader}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <h3 style={styles.detailTitle}>{appointment.clients?.first_name} {appointment.clients?.last_name || ''}</h3>
@@ -2275,7 +2259,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
             </button>
           )}
         </div>
-        <button onClick={onClose} style={styles.detailClose}>×</button>
+        <button onClick={onClose} aria-label="Close booking details" style={styles.detailClose}>×</button>
       </div>
       {mode === 'detail' && (
         <>
@@ -3095,7 +3079,7 @@ function getWeekStart(d) { const s = new Date(d); const day = s.getDay(); s.setD
 function getWeekEnd(d) { const e = getWeekStart(d); e.setDate(e.getDate() + 6); return e; }
 function getNowPosition() { const now = new Date(); return ((now.getHours() * 60 + now.getMinutes() - START_HOUR * 60) / 60) * HOUR_HEIGHT; }
 const styles = {
-  page: { minHeight: 'var(--shell-viewport)', background: 'var(--bg)', fontFamily: "var(--font-body, 'Plus Jakarta Sans', -apple-system, sans-serif)", padding: '0 var(--calendar-inset, 16px) 120px', maxWidth: 'var(--calendar-width, 480px)', margin: '0 auto', color: 'var(--text-primary)', animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)' },
+  page: { minHeight: 'var(--shell-viewport)', background: 'var(--bg)', fontFamily: "var(--font-body, 'Plus Jakarta Sans', -apple-system, sans-serif)", padding: '0 var(--calendar-inset, 16px) 24px', maxWidth: 'var(--calendar-width, 480px)', margin: '0 auto', color: 'var(--text-primary)', animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)' },
   header: { paddingTop: 8 },
   headerTop: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
   headerCenter: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4, minWidth: 0 },
@@ -3118,7 +3102,7 @@ const styles = {
   weeklyStripDot: { width: 4, height: 4, borderRadius: '50%' },
   // Day View Timeline. The grid scrolls inside its own container so the
   // full 06:00-23:00 day fits and we can auto-scroll to the first booking.
-  dayGrid: { display: 'flex', gap: 0, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 22, overflowY: 'auto', overflowX: 'hidden', maxHeight: 'calc(var(--shell-viewport) - 280px)', minHeight: 420, WebkitOverflowScrolling: 'touch' },
+  dayGrid: { display: 'flex', gap: 0, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 22, overflowY: 'auto', overflowX: 'hidden', height: 'clamp(320px, calc(var(--shell-viewport) - 300px), 650px)', WebkitOverflowScrolling: 'touch' },
   timeColumn: { width: 46, position: 'relative', borderRight: `1px solid ${COLORS.outlineVariant}33`, flexShrink: 0 },
   timeLabel: { position: 'absolute', right: 8, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: COLORS.stone400, transform: 'translateY(-6px)' },
   appointmentColumn: { flex: 1, position: 'relative' },

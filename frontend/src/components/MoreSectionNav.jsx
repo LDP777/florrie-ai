@@ -10,6 +10,9 @@ export default function MoreSectionNav() {
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
   useEffect(() => setOpen(false), [pathname]);
+  // The diary has its own Today / Calendar / Schedule navigation. Duplicating
+  // the More breadcrumb here pushed the calendar controls below the fold.
+  if (['/today', '/calendar', '/calendar/week', '/smart-schedule'].includes(pathname)) return null;
   const category = getVisibleCategories(isIOSNative()).find(group => group.items.some(item => pathname === item.path || pathname.startsWith(`${item.path}/`)));
   if (!category) return null;
   return <nav aria-label="More section" style={S.wrap}>
