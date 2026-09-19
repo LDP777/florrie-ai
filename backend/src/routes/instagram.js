@@ -610,6 +610,27 @@ router.get('/callback', async (req, res) => {
   }
 });
 
+// Status must describe Florrie's subscription, not any other app a salon uses.
+// Both configured IDs belong to this integration: Instagram Login's client ID
+// and its parent Meta app. Missing identities/fields or an incomplete list do
+// not prove that Florrie is unsubscribed.
+export function instagramSubscriptionStatus(body, applicationIds = [IG_APP_ID, process.env.META_APP_ID]) {
+  const unknown = { messages: null, echoes: null };
+  const knownIds = new Set(applicationIds.map(id => String(id || '').trim()).filter(Boolean));
+  if (!knownIds.size || !Array.isArray(body?.data)) return unknown;
+  const apps = body.data;
+  const matching = apps.filter(app => app?.id != null && knownIds.has(String(app.id)));
+  if (!matching.length) {
+    if (body.paging?.next || apps.some(app => app?.id == null || !String(app.id).trim())) return unknown;
+    return { messages: false, echoes: false };
+  }
+  if (matching.some(app => !Array.isArray(app.subscribed_fields))) return unknown;
+  const fields = matching.flatMap(app => app.subscribed_fields);
+  if (fields.some(field => typeof field !== 'string' && typeof field?.name !== 'string')) return unknown;
+  const names = new Set(fields.map(field => typeof field === 'string' ? field : field.name));
+  return { messages: names.has('messages'), echoes: names.has('message_echoes') };
+}
+
 // GET /api/instagram/status
 // Returns connection status for the current beautician.
 router.get('/status', requireAuth, async (req, res) => {
@@ -693,14 +714,10 @@ router.get('/status', requireAuth, async (req, res) => {
         });
         const sBody = await s.json().catch(() => ({}));
         if (s.ok) {
-          const apps = Array.isArray(sBody?.data) ? sBody.data : [];
-          const fields = new Set(apps.flatMap(a =>
-            (a?.subscribed_fields || []).map(f => String(f?.name || f))));
-          webhookSubscribed = fields.has('messages');
-          // Reported separately: an account connected before 1 September has
-          // `messages` and not `message_echoes`, which looks completely healthy
-          // and still leaves Florrie blind to everything Ellie writes herself.
-          echoesSubscribed = fields.has('message_echoes');
+          const subscription = instagramSubscriptionStatus(sBody);
+          webhookSubscribed = subscription.messages;
+          // Owner echoes are a separate capability of Florrie's app.
+          echoesSubscribed = subscription.echoes;
         }
       } catch (err) {
         // Leave it null. "We could not check" is not "it is broken".

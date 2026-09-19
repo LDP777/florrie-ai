@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBeautician, supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import { ds, type } from '../lib/designSystem.js';
 
 import { isNativeApp } from '../lib/platform.js';
+import { startInstagramConnection } from '../lib/instagram-connect.js';
+import { readAuthenticatedJson } from '../lib/authenticated-json.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import logger from '../lib/logger.js';
@@ -40,7 +42,7 @@ const CATALOG = [
     category: 'Social',
     description: 'Auto-post content and monitor DM booking requests',
     features: ['Auto-post content', 'DM monitoring', 'Booking link in bio', 'AI draft replies'],
-    settingsPath: '/integrations',
+    settingsPath: '/settings?section=connections',
     connectPath: '/integrations',
   },
   {
@@ -122,7 +124,8 @@ function getIntegrationStatus(id, beautician, smsConfig, igStatus, igChecking) {
       // connected once. Only a live check proves it still works.
       if (igChecking || !igStatus) return 'checking';
       if (igStatus.needs_reconnect) return 'needs_reconnect';
-      if (igStatus.token_valid) return 'connected';
+      if (igStatus.token_valid && (igStatus.webhook_subscribed === false || igStatus.echoes_subscribed === false)) return 'needs_attention';
+      if (igStatus.token_valid && igStatus.webhook_subscribed === true && igStatus.echoes_subscribed === true) return 'connected';
       return 'unknown';
     default:
       return 'coming_soon';
@@ -157,7 +160,7 @@ function getConnectedStats(id, beautician, smsConfig) {
 }
 
 export default function Integrations() {
-  const { beautician, loading: bLoading } = useBeautician();
+  const { beautician, loading: bLoading, refresh } = useBeautician();
   const navigate = useNavigate();
   const [filter, setFilter] = useState('All');
   const [expanded, setExpanded] = useState(null);
@@ -169,24 +172,39 @@ export default function Integrations() {
   // the card has to be able to tell them apart. Before 31 August 2026 both
   // left igStatus null and both rendered as Connected.
   const [igChecking, setIgChecking] = useState(true);
+  const igStatusRequest = useRef(0);
 
   useEffect(() => {
     if (beautician) { fetchSmsConfig(); fetchIgStatus(); }
+    return () => { igStatusRequest.current++; };
   }, [beautician]);
 
+  // Closing the native browser does not navigate this screen. Re-read the
+  // saved account and connection when the owner returns, including cancellation.
+  useEffect(() => {
+    if (!isNativeApp()) return;
+    let cancelled = false, listener;
+    const checkReturn = () => { if (!cancelled) { void refresh(); void fetchIgStatus(); } };
+    const visible = () => { if (document.visibilityState === 'visible') checkReturn(); };
+    document.addEventListener('visibilitychange', visible);
+    import('@capacitor/browser').then(async ({ Browser }) => {
+      listener = await Browser.addListener('browserFinished', checkReturn);
+      if (cancelled) await listener.remove();
+    }).catch(() => {});
+    return () => { cancelled = true; document.removeEventListener('visibilitychange', visible); void listener?.remove(); };
+  }, [refresh]); // eslint-disable-line react-hooks/exhaustive-deps
+
   async function fetchIgStatus() {
+    const request = ++igStatusRequest.current;
     setIgChecking(true);
     try {
-      const token = (await supabase.auth.getSession())?.data?.session?.access_token;
-      const res = await fetch(`${API_BASE}/api/instagram/status`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      setIgStatus(res.ok ? await res.json() : { check_failed: true });
+      const status = await readAuthenticatedJson({ auth: supabase.auth, url: `${API_BASE}/api/instagram/status` });
+      if (request === igStatusRequest.current) setIgStatus(status || { check_failed: true });
     } catch (err) {
       logger.debug('IG status fetch failed:', err);
-      setIgStatus({ check_failed: true });
+      if (request === igStatusRequest.current) setIgStatus({ check_failed: true });
     } finally {
-      setIgChecking(false);
+      if (request === igStatusRequest.current) setIgChecking(false);
     }
   }
 
@@ -214,42 +232,17 @@ export default function Integrations() {
 
   async function handleConnect(integId) {
     if (integId === 'instagram') {
-      // Instagram refuses to render its login inside an embedded WKWebView:
-      // the page half draws and hangs for ever. Settings.jsx already learned
-      // this (see handleConnectInstagram there); this copy had not. On native
-      // the url has to go to the system browser, and the backend has to know
-      // to end the callback with its own "go back to the app" page instead of
-      // a redirect into a browser tab that has no Florrie session.
-      const native = isNativeApp();
+      if (connecting === 'instagram') return;
       setConnecting('instagram');
       setIgError(null);
       try {
-        // getSession() rather than reading the stored token straight out of
-        // localStorage: it refreshes an expired access token, and a stale one
-        // here means a 401 and no url, which looked exactly like "nothing
-        // happened". The rest of this file already uses getSession.
-        const token = (await supabase.auth.getSession())?.data?.session?.access_token;
-        const res = await fetch(`${API_BASE}/api/instagram/connect${native ? '?platform=native' : ''}`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        await startInstagramConnection({
+          api: API_BASE, native: isNativeApp(),
+          getToken: async () => (await supabase.auth.getSession()).data.session?.access_token,
         });
-        const data = await res.json().catch(() => ({}));
-        if (res.ok && data.url) {
-          if (native) {
-            // Opened before anything else awaits, so iOS still counts this as
-            // a user gesture and does not swallow it as a popup.
-            window.open(data.url, '_blank');
-            setConnecting(null);
-          } else {
-            window.location.href = data.url; // Redirect to Instagram OAuth
-          }
-        } else {
-          logger.error('Instagram connect: no URL returned', data);
-          setIgError(data.error || 'Instagram could not be reached just now. Try again in a minute.');
-          setConnecting(null);
-        }
       } catch (err) {
-        logger.error('Instagram connect failed:', err);
-        setIgError('Could not reach Florrie just now. Check your connection and try again.');
+        setIgError(err.message || 'Could not start the connection. Try again.');
+      } finally {
         setConnecting(null);
       }
       return;
@@ -275,6 +268,7 @@ export default function Integrations() {
     connected: { bg: 'var(--success-bg)', color: 'var(--success)', label: 'Connected' },
     available: { bg: 'var(--accent-light)', color: 'var(--accent)', label: 'Available' },
     coming_soon: { bg: 'var(--bg-subtle)', color: 'var(--text-muted)', label: 'Coming Soon' },
+    needs_attention: { bg: 'var(--warning-bg)', color: 'var(--warning-text)', label: 'Setup incomplete' },
     needs_reconnect: { bg: 'var(--danger-bg, #F7E4E4)', color: 'var(--danger)', label: 'Reconnect needed' },
     // Neither of these is a failure. They are the two ways of saying "we do
     // not know yet", which is a thing this screen has to be able to say.
@@ -415,6 +409,19 @@ export default function Integrations() {
                     >{connecting === integ.id ? 'Connecting…' : `Connect ${integ.name} →`}</button>
                   )}
 
+                  {integ.status === 'needs_attention' && (
+                    <>
+                      <p role="status" style={{ ...type.bodySmall, fontSize: 12, lineHeight: 1.5, margin: '0 0 10px' }}>
+                        {igStatus.webhook_subscribed === false
+                          ? 'Your Instagram account is saved, but messages are not reaching Florrie yet.'
+                          : 'Your Instagram account is saved, but Florrie cannot see replies you send in Instagram yet.'}
+                        {' '}Review the connection in Settings, then check again.
+                      </p>
+                      <Button variant="secondary" fullWidth onClick={e => { e.stopPropagation(); fetchIgStatus(); }}>Retry connection check</Button>
+                      <Button variant="secondary" fullWidth onClick={e => { e.stopPropagation(); navigate('/settings?section=connections'); }}>Review Instagram connection</Button>
+                    </>
+                  )}
+
                   {/* Expired token. Say plainly what has stopped working and
                       give her the one button that fixes it. */}
                   {integ.status === 'needs_reconnect' && (
@@ -439,9 +446,13 @@ export default function Integrations() {
                     <>
                       <p style={{ ...type.bodySmall, fontSize: 12, lineHeight: 1.5, margin: '0 0 10px' }}>
                         We could not check {integ.name} just now, so we cannot tell you whether
-                        it is still working. Pull down to try again in a moment. If your DMs have
-                        stopped going out, reconnecting is the fix.
+                        it is still working. Retry the check, or reconnect if Instagram has signed you out.
                       </p>
+                      <Button
+                        variant="secondary"
+                        fullWidth
+                        onClick={e => { e.stopPropagation(); fetchIgStatus(); }}
+                      >Retry connection check</Button>
                       <Button
                         variant="secondary"
                         fullWidth
@@ -459,7 +470,7 @@ export default function Integrations() {
 
                   {/* Say it out loud when the connect could not even start. */}
                   {integ.id === 'instagram' && igError && (
-                    <p style={{ ...type.bodySmall, fontSize: 12, lineHeight: 1.5, color: 'var(--danger)', margin: '10px 0 0' }}>
+                    <p role="alert" style={{ ...type.bodySmall, fontSize: 12, lineHeight: 1.5, color: 'var(--danger)', margin: '10px 0 0' }}>
                       {igError}
                     </p>
                   )}

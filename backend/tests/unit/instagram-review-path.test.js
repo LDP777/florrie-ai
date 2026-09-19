@@ -580,7 +580,7 @@ describe('status: the card tells the truth about the token and the handle', () =
     // is non-fatal when it fails. This is the only thing that catches it
     // before a recording session sends a test DM and waits for nothing.
     seedConnected();
-    graph['me/subscribed_apps'] = () => ok({ data: [{ subscribed_fields: [{ name: 'messages' }] }] });
+    graph['me/subscribed_apps'] = () => ok({ data: [{ id: process.env.INSTAGRAM_APP_ID, subscribed_fields: [{ name: 'messages' }] }] });
     graph['graph.instagram.com/v21.0/me?fields=user_id,username'] = () => ok({ user_id: IG_USER_ID, username: 'ellindigo' });
     let res = await get('/api/instagram/status');
     expect(res.body.webhook_subscribed).toBe(true);
@@ -590,6 +590,48 @@ describe('status: the card tells the truth about the token and the handle', () =
     expect(res.body.webhook_subscribed).toBe(false);
     // Still connected: an unsubscribed account is not a dead token.
     expect(res.body.needs_reconnect).toBe(false);
+  });
+
+  it('does not mistake another app subscription for Florrie receiving messages or owner echoes', async () => {
+    seedConnected();
+    graph['graph.instagram.com/v21.0/me?fields=user_id,username'] = () => ok({ user_id: IG_USER_ID, username: 'ellindigo' });
+    graph['me/subscribed_apps'] = () => ok({ data: [{ id: 'other-app', subscribed_fields: ['messages', 'message_echoes'] }] });
+    let res = await get('/api/instagram/status');
+    expect(res.body).toMatchObject({ token_valid: true, needs_reconnect: false, webhook_subscribed: false, echoes_subscribed: false });
+    graph['me/subscribed_apps'] = () => ok({ data: [
+      { id: 'other-app', subscribed_fields: ['messages', 'message_echoes'] },
+      { id: process.env.INSTAGRAM_APP_ID, subscribed_fields: ['messages'] },
+    ] });
+    res = await get('/api/instagram/status');
+    expect(res.body).toMatchObject({ webhook_subscribed: true, echoes_subscribed: false });
+  });
+
+  it('recognises the configured parent Meta app without including a foreign app fields', async () => {
+    seedConnected();
+    const old = process.env.META_APP_ID;
+    process.env.META_APP_ID = 'known-parent-app';
+    try {
+      graph['graph.instagram.com/v21.0/me?fields=user_id,username'] = () => ok({ user_id: IG_USER_ID, username: 'ellindigo' });
+      graph['me/subscribed_apps'] = () => ok({ data: [{ id: 'known-parent-app', subscribed_fields: [{ name: 'messages' }, 'message_echoes'] }] });
+      const res = await get('/api/instagram/status');
+      expect(res.body).toMatchObject({ webhook_subscribed: true, echoes_subscribed: true });
+    } finally { if (old === undefined) delete process.env.META_APP_ID; else process.env.META_APP_ID = old; }
+  });
+
+  it('keeps absent identity, malformed fields and incomplete subscription lists unknown', async () => {
+    seedConnected();
+    graph['graph.instagram.com/v21.0/me?fields=user_id,username'] = () => ok({ user_id: IG_USER_ID, username: 'ellindigo' });
+    for (const payload of [
+      {},
+      { data: [{ subscribed_fields: ['messages', 'message_echoes'] }] },
+      { data: [{ id: process.env.INSTAGRAM_APP_ID }] },
+      { data: [{ id: process.env.INSTAGRAM_APP_ID, subscribed_fields: [null] }] },
+      { data: [{ id: 'other-app', subscribed_fields: ['messages'] }], paging: { next: 'https://graph.instagram.test/next' } },
+    ]) {
+      graph['me/subscribed_apps'] = () => ok(payload);
+      const res = await get('/api/instagram/status');
+      expect(res.body).toMatchObject({ token_valid: true, needs_reconnect: false, webhook_subscribed: null, echoes_subscribed: null });
+    }
   });
 
   it('never invents a name when the handle is genuinely unknown', async () => {
