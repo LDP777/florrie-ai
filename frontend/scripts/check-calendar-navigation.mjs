@@ -22,7 +22,7 @@ if (screenshots) mkdirSync(screenshots, { recursive: true });
 const origin = `http://127.0.0.1:${server.address().port}`;
 const errors = [];
 try {
-  const context = await browser.newContext({ viewport: { width: 393, height: 852 } });
+  const context = await browser.newContext({ viewport: { width: 393, height: 852 }, timezoneId: 'UTC' });
   await context.addInitScript(calendarFixtureSource(bundleSupabaseUrl(dist), 'overlap') + `
     (() => {
       const base = window.fetch;
@@ -101,6 +101,7 @@ try {
   await waitForView('Day');
   assert.equal(new URL(page.url()).searchParams.get('date'), '2026-08-15');
   await page.getByRole('tab', { name: 'Today', exact: true }).click();
+  await page.getByRole('dialog', { name: 'Morning catch-up' }).getByRole('button', { name: 'Got it' }).click();
   await page.getByRole('tab', { name: 'Calendar', exact: true }).click();
   await waitForView('Day');
   assert.equal(new URL(page.url()).searchParams.get('date'), '2026-08-15');

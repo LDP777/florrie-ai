@@ -113,7 +113,7 @@ export default function Hub() {
   return (
     <div className={activeTab === 'day' ? 'today-page' : activeTab === 'week' ? 'calendar-hub' : 'schedule-hub'} style={S.page}>
       {/* Morning catch-up bottom sheet, only fires before 10am and once per day */}
-      <MorningCatchup beautician={beautician} />
+      {activeTab === 'day' && <MorningCatchup beautician={beautician} />}
 
       {/* 1. Greeting + date pill */}
       <header className="diary-hub-header" style={S.header}>
