@@ -12,7 +12,8 @@ export async function requireBookingIdentity(req, res, next) {
   try {
     const { data, error } = await supabaseAnon.auth.getUser(token);
     const user = data?.user;
-    if (error || !user?.email || !user.email_confirmed_at) {
+    const emailConfirmedAt = user?.email_confirmed_at || user?.confirmed_at;
+    if (error || !user?.email || !emailConfirmedAt) {
       return res.status(401).json({ code: 'booking_verification_required', error: 'Verify your email before continuing.' });
     }
     const email = user.email.trim().toLowerCase();

@@ -23,7 +23,7 @@
  * absence of the data that would make it a lookup.
  */
 import { describe, it, expect } from 'vitest';
-import { isGroundedReply, asksForHuman, signAsFlorrie, florrieSignature } from '../../src/lib/grounded-reply.js';
+import { isGroundedReply, asksForHuman, signAsFlorrie, florrieSignature, greetingReplyCheck } from '../../src/lib/grounded-reply.js';
 
 const CONTEXT = {
   treatments: [{ name: 'Lash lift & tint', price_cents: 4500 }],
@@ -87,6 +87,31 @@ describe('the 28 July incident stays impossible', () => {
     // say the honest thing.
     const v = ask({ reply: "You're booked in Tuesday at 6pm. Ellie is not free before that I'm afraid." });
     expect(v.grounded).toBe(true);
+  });
+});
+
+describe('a bare greeting never inherits the diary', () => {
+  it('rejects an appointment or presence claim added to hey', () => {
+    expect(greetingReplyCheck('hey', "Hey lovely, you're coming in tomorrow xx")).toEqual({
+      ok: false,
+      reason: 'greeting_reply_contains_booking_or_presence_claim',
+    });
+    expect(isGroundedReply({
+      intent: 'greeting',
+      message: 'hey',
+      context: CONTEXT,
+      reply: "You're booked in, see you soon",
+    })).toMatchObject({ grounded: false, reason: 'greeting_reply_contains_booking_or_presence_claim' });
+  });
+
+  it('keeps an ordinary help question grounded', () => {
+    expect(greetingReplyCheck('hey', 'Hey lovely, how can I help today?')).toEqual({ ok: true });
+    expect(isGroundedReply({
+      intent: 'greeting',
+      message: 'hey',
+      context: CONTEXT,
+      reply: 'Hey lovely, how can I help today?',
+    })).toMatchObject({ grounded: true, reason: 'grounded:greeting' });
   });
 });
 

@@ -342,6 +342,29 @@ function promisesAHumanAction(text, beauticianFirstName) {
   return own.test(body) || other.test(body);
 }
 
+// A one-word hello carries no booking evidence.  Keep this check deliberately
+// narrow: "how can I help today?" is a perfectly good greeting, while
+// "you're coming in" or "see you tomorrow" quietly turns a hello into an
+// appointment claim.  The model has the diary in its context for useful
+// questions, but that context must not leak into a bare greeting.
+const BARE_GREETING = /^\s*(?:hi|hey|hello|hiya|heya|morning|afternoon|evening)(?:\s+(?:there|lovely|hun|honey|darling|love|babe))?\s*[!,.?]*\s*$/i;
+const GREETING_PRESENCE_OR_BOOKING = /\b(?:you(?:'re| are)\s+(?:coming|on (?:your|the) way|here|ready)|i(?:'m| am)\s+(?:coming|on my way|here|ready)(?!\s+to\s+help)|(?:coming|on my way)\s+(?:in|over|round|up)?|see you\b|(?:booked|booking|appointment|slot)\b|all set\b|you(?:'re| are)\s+in\b|(?:tomorrow|tonight|next week)\b)/i;
+
+/**
+ * Prevent a model from turning a bare greeting into a diary or presence claim.
+ * This is separate from the general claims guard because the incoming message
+ * itself is harmless; the unsafe fact is introduced only by the generated
+ * reply.
+ */
+export function greetingReplyCheck(message, reply) {
+  if (!BARE_GREETING.test(String(message || ''))) return { ok: true };
+  const text = String(reply || '');
+  if (GREETING_PRESENCE_OR_BOOKING.test(text)) {
+    return { ok: false, reason: 'greeting_reply_contains_booking_or_presence_claim' };
+  }
+  return { ok: true };
+}
+
 /**
  * May Florrie send this reply herself?
  *
@@ -350,6 +373,9 @@ function promisesAHumanAction(text, beauticianFirstName) {
  */
 export function isGroundedReply({ intent, message, context, reply, beauticianFirstName, arrivalNote = '' }) {
   if (asksForHuman(message, beauticianFirstName)) return { grounded: false, reason: 'asked_for_a_human' };
+
+  const greeting = greetingReplyCheck(message, reply);
+  if (!greeting.ok) return { grounded: false, reason: greeting.reason };
 
   // This answer was checked against cited owner notes or the saved booking
   // policy. A policy's opening date is not a claim about a booked appointment.
@@ -429,7 +455,13 @@ export function isGroundedReply({ intent, message, context, reply, beauticianFir
   // And the one that got Leanne: a reply that names a DAY has to name the
   // right one. See dateClaimCheck below for what went wrong and why neither
   // guard above caught it.
-  const dates = dateClaimCheck(t, context?.clientUpcoming);
+  // "How can I help today?" is conversational, not an appointment date. The
+  // date guard still applies to every other relative-day phrase, including a
+  // greeting that drifted into "see you tomorrow" (caught above as well).
+  const genericGreetingQuestion = key === 'greeting'
+    && /\bhow can i help(?: you)?\s+today\b/i.test(t)
+    && !GREETING_PRESENCE_OR_BOOKING.test(t);
+  const dates = genericGreetingQuestion ? { ok: true } : dateClaimCheck(t, context?.clientUpcoming);
   if (!dates.ok) return { grounded: false, reason: dates.reason };
 
   return { grounded: true, reason: doorstep ? 'grounded:arrival_note' : `grounded:${key}` };

@@ -69,6 +69,12 @@ describe('public booking proof boundary', () => {
     expect(state.queries.find(q => q.table === 'client_packages').filters).toContainEqual(['client_id', 'owner-client']);
     expect(state.writes).toBe(0);
   });
+  it('accepts the confirmed_at spelling returned by older auth responses', async () => {
+    state.user = { id: 'public-auth', email: 'owner@example.com', confirmed_at: new Date().toISOString() };
+    const proof = await request('/proof', { client_email: 'owner@example.com' }, 'confirmed-at');
+    expect(proof.status).toBe(200);
+    expect(proof.body.email).toBe('owner@example.com');
+  });
   it('lookup returns only the verified client despite another client’s phone', async () => {
     state.user = { id: 'public-auth', email: 'owner@example.com', email_confirmed_at: new Date().toISOString() };
     const response = await request('/api/booking/test/lookup-client', { email: 'victim@example.com', phone: '07700000002' }, 'verified');

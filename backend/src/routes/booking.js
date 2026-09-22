@@ -4325,11 +4325,12 @@ router.post('/:slug/book', requireBookingIdentity, validate(bookingSchema), veri
   // stays but inverts: it picks the wording rather than deciding whether to
   // speak at all.
   if (appointment.status === 'confirmed') {
-    await announceBookingConfirmed(appointment.id, { source: 'public_booking', claim: false });
+    await announceBookingConfirmed(appointment.id, { source: 'public_booking', claim: false, newClient: isNewClient });
   } else pushNewBooking(beautician.id, firstName, treatmentNames, `${dateStr} at ${timeStr}`, {
     appointmentId: appointment.id,
     apptDate: appointment.starts_at,
     pending: appointment.status === 'pending',
+    newClient: isNewClient,
   }).catch(() => {});
   refreshLiveActivity(beautician.id).catch(() => {});
 

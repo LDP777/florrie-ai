@@ -41,14 +41,14 @@ export async function announceBookingConfirmed(appointmentId, opts = {}) {
     return skipped('threw');
   }
 }
-async function announce(appointmentId, { source = 'unknown', claim = true } = {}) {
+async function announce(appointmentId, { source = 'unknown', claim = true, newClient } = {}) {
   if (!appointmentId) return skipped('no_appointment');
   if (claim) {
     const transition = await claimConfirmed(appointmentId);
     if (transition.reason === 'claim_unreadable') return skipped(transition.reason);
   }
   const { data: appt, error } = await supabase.from('appointments')
-    .select(`${PREPARATION_APPOINTMENT_SELECT}, deposit_paid, clients(first_name), treatments(name)`)
+    .select(`${PREPARATION_APPOINTMENT_SELECT}, created_at, deposit_paid, clients(first_name,created_at), treatments(name)`)
     .eq('id', appointmentId).maybeSingle();
   if (error || !appt) return skipped('appointment_unreadable');
   if (appt.status !== 'confirmed') return skipped('not_confirmed');
@@ -77,6 +77,16 @@ async function announce(appointmentId, { source = 'unknown', claim = true } = {}
   const treatmentName = appt.treatments?.name || 'their treatment';
   const dateLabel = labelFor(appt.starts_at);
   const summary = `${clientName} is booked in for ${treatmentName}, ${dateLabel}`;
+  // Public booking creates the client immediately before the appointment. If
+  // this alert is being retried later (for example after the deposit webhook),
+  // retain the same distinction without requiring a second provider call. A
+  // very small window avoids labelling an established client as new merely
+  // because they booked shortly after opening the page.
+  const clientCreatedAt = Date.parse(appt.clients?.created_at || '');
+  const appointmentCreatedAt = Date.parse(appt.created_at || '');
+  const inferredNewClient = Number.isFinite(clientCreatedAt) && Number.isFinite(appointmentCreatedAt)
+    && clientCreatedAt <= appointmentCreatedAt
+    && appointmentCreatedAt - clientCreatedAt <= 60_000;
   let reservation;
   if (old) {
     reservation = await supabase.from('ai_actions').update({ outcome: 'pending', details })
@@ -93,6 +103,7 @@ async function announce(appointmentId, { source = 'unknown', claim = true } = {}
   try {
     result = await pushBookingConfirmed(appt.beautician_id, clientName, treatmentName, dateLabel, {
       appointmentId, apptDate: appt.starts_at, depositPaid: appt.deposit_paid === true,
+      newClient: newClient ?? inferredNewClient,
       channels: { web: !details.web_delivered, apns: !details.apns_delivered },
     });
   } catch (err) { logger.warn({ err, appointmentId }, 'Booking-confirmed provider failed'); }

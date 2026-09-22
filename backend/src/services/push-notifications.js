@@ -295,7 +295,7 @@ const ACTION_TITLES = {
   weekly_review: '🌸 Your week with Florrie',
 };
 
-export async function pushTeamUpdate(beauticianId, actionType, summary, { url, clientName, channels } = {}) {
+export async function pushTeamUpdate(beauticianId, actionType, summary, { url, clientName, channels, newClient = false } = {}) {
   const agentId = ACTION_TO_AGENT[actionType] || 'front_desk';
   const agent = AGENT_PUSH[agentId] || AGENT_PUSH.front_desk;
 
@@ -306,17 +306,21 @@ export async function pushTeamUpdate(beauticianId, actionType, summary, { url, c
   }
 
   return sendPush(beauticianId, {
-    title: ACTION_TITLES[actionType] || `${agent.emoji} ${agent.name}`,
+    title: newClient && actionType === 'booking_confirmed'
+      ? '🌸 New client booking'
+      : newClient && actionType === 'booking_pending'
+        ? '⌛ New client, deposit pending'
+        : ACTION_TITLES[actionType] || `${agent.emoji} ${agent.name}`,
     body: summary,
     url: url || '/',
     tag: `team-${agentId}-${Date.now()}`,
-    data: { agentId, actionType, clientName },
+    data: { agentId, actionType, clientName, ...(newClient ? { newClient: true } : {}) },
     sound: soundFor(actionType),
     channels,
   });
 }
 
-export async function pushNewBooking(beauticianId, clientName, treatmentName, dateStr, { appointmentId = null, apptDate = null, pending = false } = {}) {
+export async function pushNewBooking(beauticianId, clientName, treatmentName, dateStr, { appointmentId = null, apptDate = null, pending = false, newClient = false } = {}) {
   // Tap the notification -> open the calendar on the appointment's day, with
   // that appointment selected. Falls back gracefully if the id/date is missing.
   //
@@ -331,17 +335,17 @@ export async function pushNewBooking(beauticianId, clientName, treatmentName, da
   if (pending) {
     // NOT a booking yet, and must never read like one.
     return pushTeamUpdate(beauticianId, 'booking_pending',
-      `${clientName} is trying to book ${treatmentName} for ${dateStr}. Not confirmed until the deposit is paid.`,
-      { url, clientName }
+      `${newClient ? 'New client ' : ''}${clientName} is trying to book ${treatmentName} for ${dateStr}. Not confirmed until the deposit is paid.`,
+      { url, clientName, newClient }
     );
   }
   return pushTeamUpdate(beauticianId, 'booking_confirmed',
-    `${clientName} booked in: ${treatmentName}, ${dateStr}`,
-    { url, clientName }
+    `${newClient ? 'New client ' : ''}${clientName} booked in: ${treatmentName}, ${dateStr}`,
+    { url, clientName, newClient }
   );
 }
 
-export async function pushBookingConfirmed(beauticianId, clientName, treatmentName, dateStr, { appointmentId = null, apptDate = null, depositPaid = true, channels } = {}) {
+export async function pushBookingConfirmed(beauticianId, clientName, treatmentName, dateStr, { appointmentId = null, apptDate = null, depositPaid = true, channels, newClient = false } = {}) {
   // Deposit landed: the pending booking is now real. Fired from the Stripe
   // webhook so Ellie gets a clear second beat that the money is in.
   const day = apptDate ? String(apptDate).slice(0, 10) : null;
@@ -349,8 +353,8 @@ export async function pushBookingConfirmed(beauticianId, clientName, treatmentNa
     : appointmentId ? `/calendar/week?appt=${appointmentId}`
     : '/calendar/week';
   return pushTeamUpdate(beauticianId, 'booking_confirmed',
-    `${clientName} booked in: ${treatmentName}, ${dateStr}.${depositPaid ? " Deposit paid." : ""}`,
-    { url, clientName, channels }
+    `${newClient ? 'New client ' : ''}${clientName} booked in: ${treatmentName}, ${dateStr}.${depositPaid ? " Deposit paid." : ""}`,
+    { url, clientName, channels, newClient }
   );
 }
 

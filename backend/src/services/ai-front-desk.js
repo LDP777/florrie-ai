@@ -29,7 +29,7 @@ import { getLoyaltyConfig, getClientPoints, loyaltyProximity } from './loyalty.j
 import { getActivePromos, describePromo } from '../lib/promos.js';
 import { advanceBookingConversation } from './conversational-booking.js';
 import { authorship } from '../lib/authorship.js';
-import { isGroundedReply, asksForHuman, signAsFlorrie, atTheDoorPhrase } from '../lib/grounded-reply.js';
+import { isGroundedReply, asksForHuman, signAsFlorrie, atTheDoorPhrase, greetingReplyCheck } from '../lib/grounded-reply.js';
 import { normaliseOutcome } from '../lib/ai-actions.js';
 import { patchTestEvidence, patchTestStance } from '../lib/patch-test-status.js';
 import { inboundBudget } from '../lib/inbound-budget.js';
@@ -1735,7 +1735,7 @@ async function generateResponseAndAct(message, classification, context, beautici
       break;
 
     case INTENTS.GREETING:
-      actionPrompt = 'Respond warmly and briefly. Ask how you can help today.';
+      actionPrompt = 'Respond warmly and briefly. Ask how you can help today. If the client message is only a greeting, keep the reply to a greeting and a help question. Do not mention the diary, appointments, bookings, dates, coming or going, arrival, being booked, or seeing them.';
       break;
 
     case INTENTS.REVIEW_THANKS:
@@ -1819,6 +1819,15 @@ Respond with the WhatsApp message only. No quotes, no JSON, no explanation.`;
   }
   if (!fit.ok) {
     logger.info({ beauticianId: beautician?.id, problems: fit.problems }, 'reply still off her voice after repair');
+  }
+
+  // A plain "hey" has no evidence behind any appointment or presence claim.
+  // Keep the diary in the prompt for real questions, but replace any model
+  // drift here before it can become either a draft or an auto-send.
+  const greeting = greetingReplyCheck(message, fit.text);
+  if (!greeting.ok) {
+    logger.warn({ beauticianId: beautician?.id, reason: greeting.reason }, 'AI Front Desk kept booking context out of a bare greeting');
+    fit = styleFit('Hey, how can I help?', style);
   }
 
   const allowedTimes = (context.freeSlots || []).map(s => s.time);
