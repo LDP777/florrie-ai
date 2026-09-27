@@ -42,10 +42,10 @@ export const MORE_CATEGORIES = [
     { path: '/deposits',      label: 'Deposits',         matIcon: 'savings',     desc: 'Held payments'             },
   ] },
   { id: 'marketing', label: 'Marketing', desc: 'Content, campaigns and returning clients', matIcon: 'campaign', items: [
-    { path: '/content',     label: 'Content Autopilot', matIcon: 'auto_fix_high', desc: 'Draft captions in your voice',    gate: 'content_autopilot' , keywords: 'social media instagram posts' },
+    { path: '/content',     label: 'Content studio', matIcon: 'auto_fix_high', desc: 'Plan posts around your salon’s goals',    gate: 'content_autopilot' , keywords: 'social media instagram posts' },
     { path: '/campaigns',   label: 'Campaigns',         matIcon: 'mail',          desc: 'Email and SMS blasts',      gate: 'campaigns' },
     { path: '/rebook',      label: 'Rebook',            matIcon: 'replay',        desc: 'Bring clients back'         },
-    { path: '/reviews',        label: 'Reviews & feedback',        matIcon: 'reviews',         desc: 'Read client reviews and responses'         , keywords: 'feedback reputation' },
+    { path: '/reviews',        label: 'Reviews & feedback',        matIcon: 'reviews',         desc: 'Google review link and client feedback'         , keywords: 'google feedback reputation testimonials' },
   ] },
   { id: 'team', label: 'Team', desc: 'People, rotas and locations', matIcon: 'group', items: [
     { path: '/team',              label: 'Team members',            matIcon: 'group',              desc: 'Manage staff profiles',    gate: 'team_management' , keywords: 'people staff' },

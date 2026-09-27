@@ -1663,7 +1663,7 @@ export default function Settings({ onLogout }) {
               { key: 'rebook_nudge',       label: 'Rebook nudges',          hint: 'Reminds clients to book their next appointment.' },
               { key: 'predictive_nudge',   label: 'Smart rebook reminders', hint: 'Nudges based on a client\'s usual rebooking pattern.' },
               { key: 'comeback',           label: 'Win-back messages',      hint: 'Reaches out to clients who have gone quiet.' },
-              { key: 'review_request',     label: 'Review requests',        hint: 'Asks happy clients to leave a review.' },
+              { key: 'review_request',     label: 'Review requests',        hint: 'Asks clients for feedback after their visit.' },
               { key: 'aftercare_followup', label: 'Aftercare follow-ups',   hint: 'Checks in after a treatment with aftercare tips.' },
               { key: 'ai_checkin',         label: 'Proactive check-ins',    hint: 'Friendly check-ins Florrie thinks are worth sending.' },
               { key: 'gap_fill',           label: 'Gap-fill offers',        hint: 'Offers a freed-up slot to fill a last-minute gap.' },

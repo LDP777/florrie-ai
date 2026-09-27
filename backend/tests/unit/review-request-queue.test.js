@@ -29,6 +29,7 @@ const ALLOWED_OUTCOMES = ['success', 'pending', 'failed', 'escalated'];
 
 const db = { ai_actions: [], appointments: [] };
 const inserted = [];
+const deliveredBodies = [];
 const updated = [];
 let guardVerdict = { decision: 'send', delivered: true, tier: 'proactive', reason: 'trusted_auto' };
 
@@ -84,7 +85,7 @@ vi.mock('../../src/lib/outbound-guard.js', () => ({
   },
 }));
 vi.mock('../../src/services/notifications.js', () => ({
-  sendMessage: async () => ({ channel: 'sms' }),
+  sendMessage: async (...args) => { deliveredBodies.push(args); return { channel: 'sms' }; },
   sendEmail: async () => true,
 }));
 
@@ -95,6 +96,7 @@ beforeEach(() => {
   db.ai_actions = [];
   db.appointments = [];
   inserted.length = 0;
+  deliveredBodies.length = 0;
   updated.length = 0;
   guardVerdict = { decision: 'send', delivered: true, tier: 'proactive', reason: 'trusted_auto' };
 });
@@ -174,5 +176,18 @@ describe('every outcome written is one the constraint allows', () => {
     // Not still 'scheduled'. If the update had been rejected by the CHECK this
     // row would be picked up again on the next pass, and the one after that.
     expect(db.ai_actions[0].status).toBe('executed');
+  });
+});
+
+
+describe('the saved Google review link reaches the existing guarded request', () => {
+  it('uses the salon link and requests feedback without selecting happy clients', async () => {
+    db.appointments.push({id:'appt1',beautician_id:'b1',clients:{id:'c1',first_name:'Demo',phone:'+447700900000'},treatments:{name:'brows'},beauticians:{google_review_link:'https://g.page/r/demo-salon/review'}});
+    await scheduleReviewRequest('b1','appt1','c1');
+    db.ai_actions[0].details.send_at = new Date(Date.now()-60000).toISOString();
+    await processReviewRequests();
+    expect(JSON.stringify(deliveredBodies)).toContain('https://g.page/r/demo-salon/review');
+    expect(JSON.stringify(deliveredBodies)).toContain('please share your experience');
+    expect(JSON.stringify(deliveredBodies)).not.toContain('If you had a great');
   });
 });

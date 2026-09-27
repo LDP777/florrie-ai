@@ -1,3 +1,4 @@
+import { contentPlanOptions } from '../lib/content-plan.js';
 import { Router } from 'express';
 import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -61,6 +62,8 @@ router.get('/', requireAuth, async (req, res) => {
  * until each one is approved.
  */
 router.post('/plan-week', requireAuth, async (req, res) => {
+  let options;
+  try { options = contentPlanOptions(req.body); } catch (err) { return res.status(400).json({ error: err.message }); }
   try {
     // Don't pile plans on plans: if she still has 10+ untouched drafts,
     // nudge her to clear those first.
@@ -74,7 +77,7 @@ router.post('/plan-week', requireAuth, async (req, res) => {
     if ((count || 0) >= 10) {
       return res.status(409).json({ error: 'You already have a stack of drafts. Approve or bin some first, then plan again.' });
     }
-    const posts = await planWeek(req.beautician.id);
+    const posts = await planWeek(req.beautician.id, options);
     res.status(201).json({ posts });
   } catch (err) {
     logger.error({ err }, 'plan-week failed');

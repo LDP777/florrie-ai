@@ -11,6 +11,7 @@ import './pages/Knowledge.css';
 import './pages/insights.css';
 import './styles/agent-network.css';
 import './styles/workspace-polish.css';
+import './styles/salon-workspaces.css';
 import './styles/interaction-system.css';
 
 // Analytics + Sentry must never be able to blank the app on a bad init.

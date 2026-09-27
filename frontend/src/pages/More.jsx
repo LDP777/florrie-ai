@@ -13,14 +13,14 @@ export default function More() {
   const categories = useMemo(() => getVisibleCategories(isIOSNative()), []);
   const [params] = useSearchParams();
   const [query, setQuery] = useState('');
-  const [expanded, setExpanded] = useState(() => new Set([categories.some(group => group.id === params.get('group')) ? params.get('group') : 'appointments']));
+  const [expanded, setExpanded] = useState(() => new Set([categories.some(group => group.id === params.get('group')) ? params.get('group') : null].filter(Boolean)));
   const [recents, setRecents] = useState(() => readRecentPages(categories));
   const searchInput = useRef(null);
   const searching = Boolean(query.trim());
   const filtered = useMemo(() => searchCategories(categories, query), [categories, query]);
   const resultCount = filtered.reduce((count, category) => count + category.items.length, 0);
   const items = categories.flatMap(category => category.items);
-  const featured = ['/compliance', '/consultation-forms'].map(path => items.find(item => item.path === path));
+  const featured = ['/clients', '/compliance', '/consultation-forms', '/reviews', '/knowledge', '/portal'].map(path => items.find(item => item.path === path)).filter(Boolean);
   const allExpanded = categories.every(category => expanded.has(category.id));
 
   function recordVisit(item) {
@@ -34,23 +34,23 @@ export default function More() {
   }
   return <div className="more-page">
     <style>{styles}</style>
-    <PageHeader title="More" eyebrow="Your business" subtitle="Find the tools for the rest of your day." action={<Link className="more-settings" to="/settings" aria-label="Settings" onClick={() => recordVisit(items.find(item => item.path === '/settings'))}><Icon name={iconName('settings')} size={21} /></Link>} />
+    <PageHeader title="More" eyebrow="Your business" subtitle="A place for everything behind your salon." action={<Link className="more-settings" to="/settings" aria-label="Settings" onClick={() => recordVisit(items.find(item => item.path === '/settings'))}><Icon name={iconName('settings')} size={21} /></Link>} />
     <div className="more-search" role="search">
       <Icon name={iconName('search')} size={21} />
       <input ref={searchInput} type="search" aria-label="Search More tools" placeholder="Search forms, payments, settings…" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') clearSearch(); }} />
       {query && <button type="button" className="more-clear" aria-label="Clear search" onClick={clearSearch}><Icon name={iconName('close')} size={18} /></button>}
     </div>
     {!searching && <>
-      <section className="more-care" aria-labelledby="more-care-title">
-        <div className="more-care-intro"><span className="more-care-mark" aria-hidden="true"><Icon name={iconName('verified_user')} size={26} /></span><div><span className="more-eyebrow">Before the appointment</span><h2 id="more-care-title">A little care, ahead of time.</h2><p>Review client checks and prepare consultation forms.</p></div></div>
-        <div className="more-featured">{featured.map(item => <Link key={item.path} to={item.path} onClick={() => recordVisit(item)} className="more-featured-link"><div><span className="more-featured-title">{item.label}</span><span className="more-featured-desc">{item.path === '/compliance' ? 'Patch tests, forms & consent' : 'Build, send & review forms'}</span></div><Icon name={iconName('arrow_forward')} size={19} /></Link>)}</div>
+      <section className="more-shortcuts" aria-labelledby="more-shortcuts-title">
+        <div className="more-shortcuts-heading"><h2 id="more-shortcuts-title">Close to hand</h2><span>Your everyday essentials</span></div>
+        <div className="more-shortcut-grid">{featured.map(item => <Link key={item.path} to={item.path} onClick={() => recordVisit(item)} className="more-shortcut"><span className="more-shortcut-icon"><Icon name={iconName(item.matIcon)} size={22} /></span><span><strong>{item.label}</strong><small>{item.path === '/reviews' ? 'Google & client feedback' : item.path === '/knowledge' ? 'Teach answers that sound like you' : item.path === '/portal' ? 'Your link, ready to share' : item.desc}</small></span><Icon name={iconName('arrow_forward')} size={17} /></Link>)}</div>
       </section>
       {recents.length > 0 && <section className="more-recents" aria-labelledby="more-recents-title"><h2 id="more-recents-title" className="more-eyebrow">Recently opened</h2><div className="more-recent-list">{recents.map(item => <Link key={item.path} to={item.path} onClick={() => recordVisit(item)} className="more-recent-link"><Icon name={iconName(item.matIcon)} size={16} /><span>{item.label}</span></Link>)}</div></section>}
     </>}
-    <div className="more-browse-heading"><div><h2>{searching ? 'Search results' : 'Browse your tools'}</h2><p role="status" aria-live="polite">{searching ? `${resultCount} ${resultCount === 1 ? 'tool' : 'tools'} found` : `${items.length} tools, organised around your business`}</p></div>{!searching && <button type="button" className="more-text-button" onClick={() => setExpanded(allExpanded ? new Set() : new Set(categories.map(category => category.id)))}>{allExpanded ? 'Collapse all' : 'Expand all'}</button>}</div>
+    <div className="more-browse-heading"><div><h2>{searching ? 'Search results' : 'Everything else'}</h2><p role="status" aria-live="polite">{searching ? `${resultCount} ${resultCount === 1 ? 'tool' : 'tools'} found` : 'Open a section to find what you need'}</p></div>{!searching && <button type="button" className="more-text-button" onClick={() => setExpanded(allExpanded ? new Set() : new Set(categories.map(category => category.id)))}>{allExpanded ? 'Collapse all' : 'Expand all'}</button>}</div>
     {searching && resultCount === 0 ? <div className="more-empty"><Icon name={iconName('search_off')} size={30} /><h3>No tools found</h3><p>Try “consent”, “messages” or “income”.</p><button type="button" className="more-text-button" onClick={clearSearch}>Clear search</button></div> : <div className="more-category-grid">{filtered.map(category => {
       const open = searching || expanded.has(category.id);
-      return <section key={category.id} className={`more-category${open ? ' is-open' : ''}`} aria-labelledby={`more-heading-${category.id}`}><h3 id={`more-heading-${category.id}`} className="more-category-heading">{searching ? <div className="more-category-summary"><CategorySummary category={category} /></div> : <button type="button" className="more-category-toggle" aria-expanded={open} aria-controls={`more-items-${category.id}`} onClick={() => toggleCategory(category.id)}><CategorySummary category={category} /><Icon name={iconName(open ? 'expand_less' : 'expand_more')} size={21} /></button>}</h3><div id={`more-items-${category.id}`} hidden={!open} className="more-items">{category.items.map(item => <ToolLink key={item.path} item={item} plan={plan} onVisit={recordVisit} />)}</div></section>;
+      return <section key={category.id} className={`more-category${open ? ' is-open' : ''}`} aria-labelledby={`more-heading-${category.id}`}><h3 id={`more-heading-${category.id}`} className="more-category-heading">{searching ? <div className="more-category-summary"><CategorySummary category={category} /></div> : <button type="button" className="more-category-toggle" aria-expanded={open} aria-controls={`more-items-${category.id}`} onClick={() => toggleCategory(category.id)}><CategorySummary category={category} /><span className="more-category-count" aria-label={`${category.items.length} tools`}>{category.items.length}</span><Icon name={iconName(open ? 'expand_less' : 'expand_more')} size={21} /></button>}</h3><div id={`more-items-${category.id}`} hidden={!open} className="more-items">{category.items.map(item => <ToolLink key={item.path} item={item} plan={plan} onVisit={recordVisit} />)}</div></section>;
     })}</div>}
   </div>;
 }

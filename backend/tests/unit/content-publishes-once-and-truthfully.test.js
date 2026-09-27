@@ -64,6 +64,7 @@ const BASE_COLUMNS = {
     'id', 'beautician_id', 'code', 'discount_type', 'discount_value',
     'max_uses', 'current_uses', 'valid_from', 'valid_until', 'is_active', 'created_at',
   ],
+  treatments: ['id', 'beautician_id', 'name', 'description', 'is_active'],
   appointments: ['id', 'beautician_id', 'treatment_id', 'status', 'starts_at'],
   ai_actions: [
     'id', 'beautician_id', 'action_type', 'digital_employee', 'summary',
@@ -78,7 +79,7 @@ const resetSchema = () => {
 };
 resetSchema();
 
-const db = { beauticians: [], content_posts: [], reviews: [], promo_codes: [], appointments: [], ai_actions: [] };
+const db = { treatments: [], beauticians: [], content_posts: [], reviews: [], promo_codes: [], appointments: [], ai_actions: [] };
 let idCounter = 0;
 const nextId = (p) => `${p}_${++idCounter}`;
 
@@ -369,6 +370,33 @@ describe('plan-my-week only ever quotes things that are real and public', () => 
         comment: 'I only came because my wedding is off and I needed cheering up, thank you so much.' },
     ];
   }
+
+  it('prepares three drafts for the selected goal and the owner’s actual treatment', async () => {
+    seedSalon();
+    db.treatments = [{id:'t1',beautician_id:'b-ellie',name:'Signature brows',description:'A shaped and tinted brow treatment.',is_active:true}, {id:'t2',beautician_id:'other',name:'Private service',is_active:true}];
+    claudeReply = JSON.stringify(['mon','wed','fri'].map(day => ({day,post_type:'general',caption:'Ask about Signature brows.',hashtags:[]})));
+    const posts = await planWeek('b-ellie', {goal:'explain',treatment_id:'t1',post_count:3});
+    expect(posts).toHaveLength(3);
+    expect(posts.every(p => p.status === 'draft' && !p.approved_at && !p.image_url)).toBe(true);
+    const prompt = JSON.stringify(claudeCalls[0]);
+    expect(prompt).toContain('Signature brows');
+    expect(prompt).toContain('answer a question');
+    expect(prompt).toContain('No photos supplied');
+    expect(prompt).toContain('No live availability');
+    expect(prompt).not.toContain('Private service');
+    expect(graphCalls).toHaveLength(0);
+    await expect(planWeek('b-ellie', {goal:'explain',treatment_id:'t2',post_count:3})).rejects.toThrow(/no longer available/);
+    expect(claudeCalls).toHaveLength(1);
+  });
+
+  it('rejects an invalid or incomplete three-post plan before saving any drafts', async () => {
+    seedSalon();
+    claudeReply = PLAN;
+    await expect(planWeek('b-ellie', {goal:'trust',post_count:3})).rejects.toThrow(/Could not draft/);
+    expect(db.content_posts).toHaveLength(0);
+    await expect(planWeek('b-ellie', {goal:'invent',post_count:3})).rejects.toThrow(/valid content goal/);
+    expect(claudeCalls).toHaveLength(1);
+  });
 
   it('never shows the model a review the client kept private', async () => {
     seedSalon();

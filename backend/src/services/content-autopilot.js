@@ -1,3 +1,4 @@
+import { CONTENT_GOALS, contentPlanOptions } from '../lib/content-plan.js';
 import Anthropic from '@anthropic-ai/sdk';
 import { cleanReply } from '../lib/text.js';
 import { buildVoiceGuide } from './voice-profile.js';
@@ -708,7 +709,8 @@ export async function markPostFailed(postId, reason) {
  * suggested day/time in scheduled_for but stays status 'draft' until she
  * approves it (POST /api/content/:id/schedule flips it live).
  */
-export async function planWeek(beauticianId) {
+export async function planWeek(beauticianId, input = {}) {
+  const options = contentPlanOptions(input);
   const { data: beautician, error: beauticianErr } = await supabase
     .from('beauticians')
     .select('first_name, business_name, tone_model, voice_profile, booking_slug, timezone')
@@ -720,6 +722,15 @@ export async function planWeek(beauticianId) {
   }
   if (!beautician) throw new Error('Beautician not found');
 
+  let focusTreatment = null;
+  if (options.treatment_id) {
+    const result = await supabase.from('treatments').select('id, name, description')
+      .eq('beautician_id', beauticianId).eq('id', options.treatment_id).eq('is_active', true).maybeSingle();
+    if (result.error) throw new Error('Could not check your treatment. Your plan has not been created.');
+    if (!result.data) throw new Error('This treatment is no longer available. Choose another treatment.');
+    focusTreatment = result.data;
+  }
+
   // Real material only.
   const twoWeeksAgo = new Date(Date.now() - 14 * 86400000).toISOString();
   const [apptsRes, reviewsRes, promosRes, topRes] = await Promise.all([
@@ -728,6 +739,7 @@ export async function planWeek(beauticianId) {
       .eq('beautician_id', beauticianId)
       .eq('status', 'completed')
       .gte('starts_at', twoWeeksAgo.slice(0, 10))
+      .lte('starts_at', nowInSalonWall(beautician.timezone || 'Europe/London').toISOString())
       .limit(100),
     supabase.from('reviews')
       .select('comment, rating')
@@ -755,12 +767,14 @@ export async function planWeek(beauticianId) {
     // else already.
     getActivePromos(beauticianId, 3),
     supabase.from('content_posts')
-      .select('caption, likes')
+      .select('caption, posted_at')
       .eq('beautician_id', beauticianId)
       .eq('status', 'posted')
-      .order('likes', { ascending: false })
+      .order('posted_at', { ascending: false })
       .limit(3),
   ]);
+
+  if (apptsRes.error || reviewsRes.error || topRes.error) throw new Error('Could not read the salon information for this plan. Try again.');
 
   const treatmentCounts = {};
   for (const a of apptsRes.data || []) {
@@ -777,21 +791,28 @@ export async function planWeek(beauticianId) {
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
     max_tokens: 1600,
-    system: `You plan a week of Instagram posts for ${businessName}, an independent beauty professional. Respond with JSON only: an array of exactly 7 objects, each {"day": "mon|tue|wed|thu|fri|sat|sun", "post_type": "before_after|testimonial|last_minute_availability|promotion|general", "caption": "...", "hashtags": ["...", 3-6 tags]}.
+    system: `You plan a week of Instagram posts for ${businessName}, an independent beauty professional. Respond with JSON only: an array of exactly ${options.post_count} objects, each {"day": "mon|tue|wed|thu|fri|sat|sun", "post_type": "before_after|testimonial|last_minute_availability|promotion|general", "caption": "...", "hashtags": ["...", 3-6 tags]}.
+
+PLAN DIRECTION:
+${options.goal ? CONTENT_GOALS[options.goal] : 'A balanced week introducing the salon and its work.'}
+${focusTreatment ? `Focus on this active treatment: ${focusTreatment.name}. Description: ${focusTreatment.description || 'No description supplied'}.` : 'Use the recent treatments supplied below.'}
+${options.post_count === 3 ? 'Return exactly three posts, in the direction order above, for mon, wed and fri. The mix below is optional; do not add more posts.' : ''}
 
 MIX RULES:
 - 2 or 3 before_after posts about her real recent work (treatments below).
 - 1 testimonial ONLY if a real review is provided below; quote it lightly, never invent one.
-- 1 last_minute_availability post pointing at her booking page florrie.ai/book/${beautician.booking_slug || 'book'}.
+- 1 general booking invitation${beautician.booking_slug ? ` pointing to https://florrie.ai/book/${beautician.booking_slug}` : ', asking clients to contact the salon'}. No live availability has been supplied. Do not claim an opening, cancellation, or exact time.
 - 1 promotion ONLY if a real promo is listed below (never invent an offer or code); otherwise another before_after or general.
 - 1 or 2 general posts: a tip, a myth-bust, or a behind-the-scenes line. Human, specific, zero filler.
 
 CAPTION RULES:
 - 1-3 short sentences, hook first, soft CTA last. British English.
+- No photos supplied: never describe visible results or claim to have seen a photo.
+- Never invent reviews, statistics, treatment facts, qualifications, prices, offers or medical advice. Missing facts must be omitted.
 - No "transformation Tuesday", no "obsessed", no "slay", no "treat yourself", no corporate voice.
 - Never use em dashes or en dashes.
 ${buildVoiceGuide(beautician.voice_profile)}
-${topCaptions.length ? `\nHer top-performing captions for rhythm reference:\n${topCaptions.map(c => `- "${c}"`).join('\n')}` : ''}`,
+${topCaptions.length ? `\nRecent published captions for writing style only (performance is not measured):\n${topCaptions.map(c => `- "${c}"`).join('\n')}` : ''}`,
     messages: [{
       role: 'user',
       content: `Plan this week.\nRecent work: ${topTreatments.join(', ') || 'general beauty treatments'}.\nReal reviews available: ${reviews.length ? reviews.map(r => `"${r}"`).join(' | ') : 'none'}.\nReal promos running: ${promos.length ? promos.map(describePromo).join(', ') : 'none'}.`
@@ -802,7 +823,7 @@ ${topCaptions.length ? `\nHer top-performing captions for rhythm reference:\n${t
   try {
     const text = response.content[0].text.trim().replace(/^```json?\s*|\s*```$/g, '');
     plan = JSON.parse(text);
-    if (!Array.isArray(plan)) throw new Error('not an array');
+    if (!Array.isArray(plan) || (plan.length < 1 || plan.length > options.post_count || (options.post_count === 3 && plan.length !== 3)) || plan.some(item => !item || !['mon','tue','wed','thu','fri','sat','sun'].includes(item.day) || typeof item.caption !== 'string' || !item.caption.trim() || item.caption.length > 2200)) throw new Error('invalid plan');
   } catch (err) {
     logger.error({ err }, 'planWeek: unparseable plan');
     throw new Error('Could not draft the week, try again');
@@ -826,7 +847,7 @@ ${topCaptions.length ? `\nHer top-performing captions for rhythm reference:\n${t
   const salonTz = beautician.timezone || 'Europe/London';
   const created = [];
   const insertErrors = [];
-  for (const item of plan.slice(0, 7)) {
+  for (const item of plan) {
     const target = dayIdx[item.day] ?? 1;
     const wall = nowInSalonWall(salonTz);
     let add = (target - wall.getUTCDay() + 7) % 7;
@@ -874,7 +895,7 @@ ${topCaptions.length ? `\nHer top-performing captions for rhythm reference:\n${t
     summary: created.length
       ? `Drafted ${created.length} posts for the week ahead`
       : 'Could not draft any posts for the week ahead',
-    details: { post_ids: created.map(c => c.id), errors: insertErrors.slice(0, 7) },
+    details: { post_ids: created.map(c => c.id), errors: insertErrors.slice(0, 7), goal: options.goal, treatment_id: options.treatment_id, requested_posts: options.post_count },
     confidence: 1.0,
     autonomous: false,
     // ai_actions.outcome allows success | pending | failed | escalated. It said

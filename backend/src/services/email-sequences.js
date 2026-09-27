@@ -1,3 +1,4 @@
+import { googleReviewLink, normaliseGoogleReviewLink } from '../lib/google-review-link.mjs';
 import { supabase } from '../config.js';
 import { sendEmail } from './notifications.js';
 import logger from '../lib/logger.js';
@@ -498,21 +499,21 @@ function reviewRequest(b, ctx) {
   const clientName = ctx.client_name || 'there';
   const treatmentName = ctx.treatment_name || 'your treatment';
   const bizName = b.business_name || b.first_name;
-  const googleUrl = ctx.google_review_url || `https://search.google.com/local/writereview?placeid=`;
+  const googleUrl = normaliseGoogleReviewLink(ctx.google_review_url) || googleReviewLink(b);
 
   const html = brandedWrapper(b, `
     <h1 style="margin:0 0 12px;color:#2d2a26;font-size:22px;font-weight:700">How was your ${treatmentName}?</h1>
     <p style="margin:0 0 16px;color:#6b6560;font-size:15px;line-height:1.6">
       Hey ${clientName}, thanks for visiting ${bizName} today.
-      If you loved your results, a quick review would mean the world:
+      We would appreciate your honest feedback about your visit.
     </p>
-    ${ctaButton('Leave a review ⭐', googleUrl, b.brand_color || '#92405E')}
+    ${googleUrl ? ctaButton('Leave a Google review', googleUrl, b.brand_color || '#92405E') : ''}
     <p style="margin:16px 0 0;color:#a09a93;font-size:13px">
-      Not happy? Reply to this email and we'll make it right.
+      You can also reply to this email to speak with us directly.
     </p>
   `);
 
-  const text = `Hey ${clientName}, how was your ${treatmentName} at ${bizName}? If you loved it, a quick review would mean the world: ${googleUrl}`;
+  const text = `Hey ${clientName}, how was your ${treatmentName} at ${bizName}? We would appreciate your honest feedback.${googleUrl ? ` Leave a Google review: ${googleUrl}` : ' Reply to this email to let us know how your visit was.'}`;
 
   return { html, text };
 }

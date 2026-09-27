@@ -35,6 +35,7 @@ const SAFE_BEAUTICIAN_FIELDS = [
   'address',
   'social_links',
   'google_place_id',
+  'google_review_link',
   'notification_prefs',
   'client_reminder_prefs',
   'onboarding_completed_at',

@@ -1,6 +1,8 @@
+import GoogleReviewSetup from '../components/GoogleReviewSetup.jsx';
+import { googleReviewLink } from '../../../backend/src/lib/google-review-link.mjs';
 import MoreLoadError from '../components/MoreLoadError.jsx';
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useBeautician, supabase, fetchRowsStrict, updateRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
@@ -21,7 +23,10 @@ import Icon from '../components/ui/Icon';
 
 export default function Reviews() {
   const [loadError, setLoadError] = useState(null);
-  const { beautician, loading: bLoading } = useBeautician();
+  const { beautician, loading: bLoading, refresh } = useBeautician();
+  const navigate = useNavigate();
+  const [shareReview, setShareReview] = useState(null);
+  const [shareAllowed, setShareAllowed] = useState(false);
   const [tab, setTab] = useState('reviews');
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -85,7 +90,8 @@ export default function Reviews() {
 
   return (
     <div style={styles.page}>
-      <PageHeader title="Reviews" subtitle="Your Reputation" />
+      <PageHeader title="Reviews" eyebrow="Your reputation" subtitle="Ask for feedback. Make the most of kind words." />
+      <GoogleReviewSetup key={beautician.id} beautician={beautician} onSaved={refresh} />
 
       {/* Rating hero */}
       <div style={styles.heroCard}>
@@ -96,7 +102,7 @@ export default function Reviews() {
               <span key={i} style={{ fontSize: 16, color: i <= Math.round(parseFloat(avgRating)) ? 'var(--warning, #79581C)' : 'var(--text-muted, #6B5D54)' }}><Icon name="star" size={15} /></span>
             ))}
           </div>
-          <span style={styles.heroCount}>{reviews.length} review{reviews.length !== 1 ? 's' : ''}</span>
+          <span style={styles.heroCount}>{reviews.length} saved review{reviews.length !== 1 ? 's' : ''}</span>
         </div>
         <div style={styles.heroRight}>
           <div style={styles.ratingBar}>
@@ -183,6 +189,13 @@ export default function Reviews() {
                   <span style={styles.reviewTreatment}>{<Icon name="sparkles" inline />} {review.treatment}</span>
                 )}
 
+                {review.is_public === true && review.text && <div className="fl-review-share">
+                  {shareReview === review.id ? <>
+                    <label><input type="checkbox" checked={shareAllowed} onChange={e => setShareAllowed(e.target.checked)} /> I have permission to use this review in my marketing.</label>
+                    <button disabled={!shareAllowed} onClick={() => navigate('/content', { state: { compose: 'review', type: 'testimonial', caption: `“${review.text}”\n\nThank you for sharing your experience.` } })}>Prepare a review post</button>
+                    <button onClick={() => setShareReview(null)}>Cancel</button>
+                  </> : <button onClick={() => { setShareReview(review.id); setShareAllowed(false); }}><Icon name="camera" size={16} /> Turn into a post</button>}
+                </div>}
                 {/* Reply section */}
                 {review.reply ? (
                   <div style={styles.replyCard}>
@@ -251,7 +264,7 @@ export default function Reviews() {
             <div style={styles.requestPreview}>
               <span style={styles.requestPreviewLabel}>Example message</span>
               <p style={styles.requestPreviewText}>
-                "Hey lovely, thanks so much for coming in today! If you've got a sec, I'd really appreciate a quick Google review - it helps more than you'd think 💕 [link] xx"
+                “Thanks for coming in today. If you have a moment, please share your experience on Google: [your review link]”
               </p>
             </div>
           </div>
@@ -286,7 +299,7 @@ export default function Reviews() {
                 <span style={styles.settingLabel}>Review platform</span>
                 <span style={styles.settingHint}>Where clients are sent to leave a review</span>
               </div>
-              <span style={styles.settingValue}>{beautician?.google_place_id ? 'Google' : 'No Google link set'}</span>
+              <span style={styles.settingValue}>{googleReviewLink(beautician) ? 'Google link saved' : 'No Google link set'}</span>
             </div>
           </div>
 

@@ -1,3 +1,4 @@
+import ContentDirection from '../components/ContentDirection.jsx';
 import { contentRequest, parseHashtags, localScheduleValue, scheduleInstant } from '../lib/content-workflow.js';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
@@ -249,14 +250,14 @@ export default function ContentAutopilot() {
   const planBusy = useRef(false);
   const [planNote, setPlanNote] = useState(null);
   const [planBlocked, setPlanBlocked] = useState(false);
-  async function handlePlanWeek() {
+  async function handlePlanWeek(options = {}) {
     if (planBusy.current) return;
     planBusy.current = true;
     setPlanning(true);
     setPlanNote(null);
     setPlanBlocked(false);
     try {
-      const d = await contentRequest(`${API_BASE}/api/content/plan-week`, {token:getToken(),method:'POST',timeoutMs:90000});
+      const d = await contentRequest(`${API_BASE}/api/content/plan-week`, {token:getToken(),method:'POST',body:options,timeoutMs:90000});
       if (!d.posts?.length) throw new Error('No drafts were created. Try again or start with a template.');
       setPlanNote(`${(d.posts || []).length} posts drafted, each with a suggested day. Approve, edit or bin them below.`);
       setTab('drafts');
@@ -789,42 +790,30 @@ export default function ContentAutopilot() {
     <div className="fl-content-studio" style={styles.page}>
       {error && <ErrorCard message={error} onDismiss={() => setError(null)} />}
       <header className="fl-content-heading">
-        <div><span className="fl-workspace-eyebrow">Made from your everyday</span><h1>Content <em>studio.</em></h1><p>A little inspiration. A plan that feels like you.</p></div>
+        <div><span className="fl-workspace-eyebrow">Your salon, seen and remembered</span><h1>Content <em>studio.</em></h1><p>Turn your work and client feedback into a reason to book.</p></div>
         <Button onClick={() => startCompose('before_after', '')}><Icon name="plus" size={17} /> New Post</Button>
       </header>
-      {/* Plan my week — the lead action (Levi, 9 Jul: planner-first) */}
-      {!composing && (
-        <div className="fl-week-planner" style={{ background: 'var(--tone-1, #fbf1ea)', borderRadius: 22, padding: '24px',
-          marginBottom: 14,
-        }}>
-          <span className="fl-workspace-eyebrow"><Icon name="sparkles" size={14} /> Your week, taking shape</span>
-          <h2 style={{ fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
-            fontSize: 30, fontWeight: 600, color: 'var(--text-primary, #241B17)', margin: '0 0 4px',
-          }}>
-            Plan my week
-          </h2>
-          <p style={{ fontSize: 13, color: 'var(--text-secondary, #574A42)', margin: '0 0 12px', lineHeight: 1.45 }}>
-            Turn your work, reviews and openings into a week of drafts.
-            Make them yours before anything is published.
-          </p>
-          <Button onClick={handlePlanWeek} disabled={planning}>
-            {planning ? 'Drafting your week...' : 'Draft my week'}
-          </Button>
-          {planNote && (
-            <p style={{ fontSize: 12.5, color: 'var(--text-secondary, #574A42)', margin: '10px 0 0' }}>{planNote}</p>
-          )}
-          {planBlocked && (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => { setTab('drafts'); setPlanNote(null); setPlanBlocked(false); }}
-              style={{ marginTop: 8 }}
-            >
-              Review my drafts
-            </Button>
-          )}
-        </div>
-      )}
+      {/* Tabs */}
+      <div className="fl-studio-tabs" style={styles.tabs} aria-label="Content views">
+        {['ideas', 'drafts', 'posted', 'calendar', 'gallery'].map(t => (
+          <button className="fl-tap"
+            key={t}
+            aria-pressed={tab === t || (tab === 'compose' && t === 'drafts')}
+            onClick={() => { setTab(t); setComposing(false); }}
+            style={{ ...styles.tab,
+              background: (tab === t || (tab === 'compose' && t === 'drafts')) ? 'var(--accent, #92405E)' : 'transparent',
+              color: (tab === t || (tab === 'compose' && t === 'drafts')) ? 'var(--on-accent, #fff)' : 'var(--text-secondary, #574A42)',
+            }}
+          >
+            {t === 'ideas' ? 'Plan' : t === 'drafts' ? `Drafts${drafts.length ? ` (${drafts.length})` : ''}` : t === 'posted' ? 'Posted' : t === 'calendar' ? 'Calendar' : 'Gallery'}
+          </button>
+        ))}
+      </div>
+      {tab === 'ideas' && !composing && <ContentDirection treatments={treatments} planning={planning} onPlan={handlePlanWeek}
+        onCompose={({ type, treatment, brief }) => { startCompose(type, ''); setComposeTreatment(treatment); setComposeBrief(brief); }}
+        onGallery={() => setTab('gallery')} drafts={error ? null : drafts.length} scheduled={error ? null : scheduled.length}
+        onDrafts={() => setTab('drafts')} onCalendar={() => setTab('calendar')} note={planNote} blocked={planBlocked} />}
+      {tab !== 'ideas' && planNote && <p role="status" className="fl-studio-note">{planNote}</p>}
 
       {/* Instagram is not connected, or its token is dead. Said once, at the
           top, because every publish and schedule button below it is about to
@@ -882,6 +871,8 @@ export default function ContentAutopilot() {
         </details>
       )}
 
+      <details className="fl-studio-collections" open={showStreamForm || !!selectedStreamId || undefined}>
+        <summary>Collections & campaigns <span>{selectedStreamId ? streams.find(s => s.id === selectedStreamId)?.name : 'Optional organisation'}</span></summary>
       {/* Stream selector pills */}
       <div style={styles.streamSelector}>
         <Button
@@ -973,6 +964,7 @@ export default function ContentAutopilot() {
           </div>
         </div>
       )}
+      </details>
       {/* Cancelled appointment prompt */}
       {cancelledPrompt && (
         <div style={styles.cancelledPromptBanner}>
@@ -988,22 +980,6 @@ export default function ContentAutopilot() {
           </button>
         </div>
       )}
-      {/* Tabs */}
-      <div className="fl-studio-tabs" style={styles.tabs} aria-label="Content views">
-        {['ideas', 'drafts', 'posted', 'calendar', 'gallery'].map(t => (
-          <button className="fl-tap"
-            key={t}
-            aria-pressed={tab === t || (tab === 'compose' && t === 'drafts')}
-            onClick={() => { setTab(t); setComposing(false); }}
-            style={{ ...styles.tab,
-              background: (tab === t || (tab === 'compose' && t === 'drafts')) ? 'var(--accent, #92405E)' : 'transparent',
-              color: (tab === t || (tab === 'compose' && t === 'drafts')) ? 'var(--on-accent, #fff)' : 'var(--text-secondary, #574A42)',
-            }}
-          >
-            {t === 'ideas' ? 'Ideas' : t === 'drafts' ? `Drafts${drafts.length ? ` (${drafts.length})` : ''}` : t === 'posted' ? 'Posted' : t === 'calendar' ? 'Calendar' : 'Gallery'}
-          </button>
-        ))}
-      </div>
       {generatingAI && <EffectFrame active><div className="fl-studio-ai-state" role="status"><FlorrieOrb state="composing" size={48} /><p><strong>Finding your words</strong>Using your treatment, brief and writing style.</p></div></EffectFrame>}
       {/* ═══ IDEAS TAB ═══ */}
       {tab === 'ideas' && (
@@ -1031,9 +1007,7 @@ export default function ContentAutopilot() {
               ))}
             </div>
           )}
-          <p style={styles.ideaIntro}>
-            Start with a spark. Choose a template and add your own words.
-          </p>
+          <p style={styles.ideaIntro}>Prefer a single post? Start with one of these templates.</p>
           {Object.entries(POST_TYPE_LABELS).map(([type, label]) => (
             <div key={type} style={styles.ideaGroup}>
               <div style={styles.ideaGroupHeader}>

@@ -39,6 +39,7 @@ try {
  const page=await ctx.newPage();await page.goto(`http://127.0.0.1:${server.address().port}/content`);
  await page.getByRole('button',{name:'Find ideas from recent work',exact:true}).waitFor();
  assert.equal(await page.evaluate(()=>window.__c.ideas),0);
+ await page.locator('.fl-studio-collections summary').click();
  await page.getByRole('button',{name:'Campaign A',exact:true}).click();await page.getByRole('button',{name:/^Drafts/}).click();
  await page.getByText('Campaign draft',{exact:true}).last().waitFor();assert.equal(await page.getByText('My original draft',{exact:true}).count(),0);
  await page.getByRole('button',{name:'All',exact:true}).click();await page.getByText('My original draft',{exact:true}).last().waitFor();

@@ -1,3 +1,4 @@
+import { googleReviewLink } from '../lib/google-review-link.mjs';
 import { supabase } from '../config.js';
 import { sendMessage } from './notifications.js';
 import { sendEmail } from './notifications.js';
@@ -95,7 +96,7 @@ export async function processReviewRequests() {
       // Fetch appointment + client + treatment + beautician
       const { data: appt } = await supabase
         .from('appointments')
-        .select('*, clients(id, first_name, phone, email, whatsapp_id, instagram_id, preferred_channel, marketing_consent, marketing_opted_out_at, messaging_autonomy), treatments(name), beauticians(first_name, business_name, brand_color, google_place_id)')
+        .select('*, clients(id, first_name, phone, email, whatsapp_id, instagram_id, preferred_channel, marketing_consent, marketing_opted_out_at, messaging_autonomy), treatments(name), beauticians(first_name, business_name, brand_color, google_place_id, google_review_link)')
         .eq('id', appointmentId)
         .single();
 
@@ -118,14 +119,12 @@ export async function processReviewRequests() {
       const bizName = biz?.business_name || biz?.first_name || 'us';
 
       // Build review URL — Google if available, otherwise generic
-      const googleUrl = biz?.google_place_id
-        ? `https://search.google.com/local/writereview?placeid=${biz.google_place_id}`
-        : null;
+      const googleUrl = googleReviewLink(biz);
 
       // SMS/WhatsApp message
       const smsBody = googleUrl
-        ? `Hey ${client.first_name}! Hope you're loving your ${treatmentName}. If you've got a sec, a quick Google review would mean everything to me: ${googleUrl} xx`
-        : `Hey ${client.first_name}! Hope you're loving your ${treatmentName}. If you had a great experience, it'd mean the world if you could leave a review. Thank you lovely xx`;
+        ? `Hey ${client.first_name}! Thanks for coming in for ${treatmentName}. If you have a moment, please share your experience on Google: ${googleUrl} xx`
+        : `Hey ${client.first_name}! Thanks for coming in for ${treatmentName}. I'd love to hear how your visit was. Reply here with any feedback xx`;
 
       // Send via best channel — gated so review requests can't bypass
       // consent / frequency caps / allowance.

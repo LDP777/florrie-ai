@@ -799,19 +799,84 @@ export default function VoiceCommander() {
     // dropped the user (and the chat) instead of opening the calendar.
     if (path) navigate(path);
   }
+  const hasConversation = messages.some(m => m.role === 'user');
+  const composer = (
+      <div className="fl-voice-composer" style={styles.inputArea}>
+        {/* Insight chips: safe read-only questions, answered instantly */}
+        {messages.some(m => m.role === 'user') && !isProcessing && !isRecording && (
+          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 8, scrollbarWidth: 'none' }}>
+            {['How was my week?', "Who's gone quiet lately?", 'What does tomorrow look like?', 'Who are my top clients?', 'Which days are busiest?'].map(q => (
+              <button className="fl-tap"
+                key={q}
+                onClick={() => processMessage(q, false)}
+                style={{ flex: 'none', padding: '8px 14px', minHeight: 36, borderRadius: 999, border: 'none', background: 'var(--tone-2, #f6e7dd)', color: 'var(--accent, #92405e)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', WebkitTapHighlightColor: 'transparent' }}
+              >
+                {q}
+              </button>
+            ))}
+          </div>
+        )}
+        {/* Live transcript preview */}
+        {interimTranscript && (
+          <div style={styles.interimBar}>
+            <span style={styles.interimText}>{interimTranscript}</span>
+          </div>
+        )}
+        {/* Text input row */}
+        <EffectFrame focus active={isProcessing || isRecording}><form onSubmit={handleTextSubmit} style={styles.inputForm}>
+          <input
+            ref={inputRef}
+            type="text"
+            aria-label="Message Florrie"
+            value={textInput}
+            onChange={e => setTextInput(e.target.value)}
+            placeholder={isRecording ? 'Listening…' : 'What can I help you with?'}
+            style={styles.textInput}
+            disabled={isProcessing || isRecording}
+          />
+          {textInput.trim() && (
+            <button type="submit" aria-label="Send message" style={styles.sendBtn} disabled={isProcessing}>
+              ↑
+            </button>
+          )}
+        </form></EffectFrame>
+        {/* Hold-to-talk hint. The mic now lives on the centre nav petal:
+            press and hold it to talk. This line teaches the gesture and
+            points down toward the nav. */}
+        {speechSupported && !isRecording && (
+          <div style={styles.holdHint}>
+            <span style={styles.holdHintText}>
+              {isProcessing ? 'Thinking…' : voiceEnabled ? 'Hold the petal below to talk to me' : 'Voice is off on this device'}
+            </span>
+            {!isProcessing && <Button variant="ghost" onClick={() => { if (!voiceEnabled) setVoiceEnabled(true); handleRecord(); }}>
+              {voiceEnabled ? 'Tap to speak' : 'Turn on voice'}
+            </Button>}
+          </div>
+        )}
+        {/* Live listening indicator while recording */}
+        {isRecording && (
+          <div style={styles.holdHint}>
+            <span style={styles.holdHintText}>Listening, I'm all ears…</span>
+            <Button variant="ghost" onClick={stopRecording}>Stop listening</Button>
+          </div>
+        )}
+      </div>
+  );
   return (
-    <div className="fl-voice-workspace" style={styles.page}>
-      <header className={`fl-voice-hero ${messages.some(m => m.role === 'user') ? 'is-conversation' : ''}`}>
+    <div className={`fl-voice-workspace ${hasConversation ? 'has-conversation' : 'is-welcome'}`} style={styles.page}>
+      <header className={`fl-voice-hero ${hasConversation ? 'is-conversation' : ''}`}>
         <div className="fl-voice-emblem" aria-hidden="true"><FloriePetal size={56} /><span /><span /></div>
-        <span className="fl-workspace-eyebrow">A little space to think</span>
+        <span className="fl-workspace-eyebrow">A second pair of hands</span>
         <h1>Ask <em>Florrie.</em></h1>
-        <p>Your diary, your clients, your next idea.<br />What can I help with?</p>
+        <p>Talk through your day.<br />Leave with something done.</p>
       </header>
-      {messages.length <= 2 && <div className="fl-voice-starts">
+      {!hasConversation && composer}
+      {!hasConversation && <div className="fl-voice-starts">
         {[
-          ['My day', 'Make room for what matters', 'calendar', 'What does today look like?'],
-          ['Client care', 'Keep the little things covered', 'heart', 'Who needs a consultation form?'],
-          ['Content', 'Find your next idea', 'camera', 'Help me draft a post about my work'],
+          ['My day', 'See appointments and gaps', 'calendar', 'What does today look like?'],
+          ['Client care', 'Check what needs attention', 'heart', 'Who needs a consultation form?'],
+          ['Content', 'Start your next post', 'camera', 'Help me draft a post about my work'],
+          ['My business', 'Make sense of the week', 'chart', 'How was my week?'],
         ].map(([label, detail, icon, prompt]) => <Button variant="secondary" key={label} disabled={isProcessing} onClick={() => { setTextInput(prompt); inputRef.current?.focus(); }} className="fl-voice-start">
           <Icon name={icon} size={21} /><strong>{label}</strong><span>{detail}</span><span className="fl-start-arrow" aria-hidden="true">↗</span>
         </Button>)}
@@ -885,9 +950,9 @@ export default function VoiceCommander() {
         <div ref={messagesEndRef} />
       </div>
       {/* Example prompts */}
-      {messages.length <= 2 && !isProcessing && (
+      {!hasConversation && !isProcessing && (
         <div className="fl-voice-examples" style={styles.promptsSection}>
-          <span style={styles.promptsLabel}>Or try asking</span>
+          <span style={styles.promptsLabel}>From your salon</span>
           <div style={styles.promptsGrid}>
             {suggestions.slice(0, 2).map((prompt, i) => (
               <button
@@ -901,67 +966,7 @@ export default function VoiceCommander() {
           </div>
         </div>
       )}
-      {/* Input area */}
-      <div className="fl-voice-composer" style={styles.inputArea}>
-        {/* Insight chips: safe read-only questions, answered instantly */}
-        {messages.some(m => m.role === 'user') && !isProcessing && !isRecording && (
-          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 8, scrollbarWidth: 'none' }}>
-            {['How was my week?', "Who's gone quiet lately?", 'What does tomorrow look like?', 'Who are my top clients?', 'Which days are busiest?'].map(q => (
-              <button className="fl-tap"
-                key={q}
-                onClick={() => processMessage(q, false)}
-                style={{ flex: 'none', padding: '8px 14px', minHeight: 36, borderRadius: 999, border: 'none', background: 'var(--tone-2, #f6e7dd)', color: 'var(--accent, #92405e)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', WebkitTapHighlightColor: 'transparent' }}
-              >
-                {q}
-              </button>
-            ))}
-          </div>
-        )}
-        {/* Live transcript preview */}
-        {interimTranscript && (
-          <div style={styles.interimBar}>
-            <span style={styles.interimText}>{interimTranscript}</span>
-          </div>
-        )}
-        {/* Text input row */}
-        <EffectFrame focus active={isProcessing || isRecording}><form onSubmit={handleTextSubmit} style={styles.inputForm}>
-          <input
-            ref={inputRef}
-            type="text"
-            aria-label="Message Florrie"
-            value={textInput}
-            onChange={e => setTextInput(e.target.value)}
-            placeholder={isRecording ? 'Listening…' : 'Ask me anything about your business…'}
-            style={styles.textInput}
-            disabled={isProcessing || isRecording}
-          />
-          {textInput.trim() && (
-            <button type="submit" aria-label="Send message" style={styles.sendBtn} disabled={isProcessing}>
-              ↑
-            </button>
-          )}
-        </form></EffectFrame>
-        {/* Hold-to-talk hint. The mic now lives on the centre nav petal:
-            press and hold it to talk. This line teaches the gesture and
-            points down toward the nav. */}
-        {speechSupported && !isRecording && (
-          <div style={styles.holdHint}>
-            <span style={styles.holdHintText}>
-              {isProcessing ? 'Thinking…' : voiceEnabled ? 'Hold the petal below to talk to me' : 'Voice is off on this device'}
-            </span>
-            {!isProcessing && <Button variant="ghost" onClick={() => { if (!voiceEnabled) setVoiceEnabled(true); handleRecord(); }}>
-              {voiceEnabled ? 'Tap to speak' : 'Turn on voice'}
-            </Button>}
-          </div>
-        )}
-        {/* Live listening indicator while recording */}
-        {isRecording && (
-          <div style={styles.holdHint}>
-            <span style={styles.holdHintText}>Listening, I'm all ears…</span>
-            <Button variant="ghost" onClick={stopRecording}>Stop listening</Button>
-          </div>
-        )}
-      </div>
+      {hasConversation && composer}
     </div>
   );
 }
