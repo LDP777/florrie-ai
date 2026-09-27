@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { cleanReply } from '../lib/text.js';
 import { checkReplyClaims, timesMentionedIn } from '../lib/reply-claims-guard.js';
 import { diaryReleaseAnswer, questionMissingReply, renderClientHistory } from '../lib/client-question.js';
+import { answerTreatmentMenuQuestion } from './treatment-menu-answer.js';
 
 const schema = z.object({
   covered: z.boolean(),
@@ -16,6 +17,7 @@ export async function answerClientQuestion({ message, scenario, context, beautic
   // A product failure needs support, even when the message names a treatment
   // and time. Do not turn it into a fresh booking or claim an email was sent.
   if (kind === 'booking_problem') return { reply: questionMissingReply(kind), canAnswer: false, reason: 'booking_support:booking_problem', sources: [] };
+  if (kind === 'treatment_menu') return answerTreatmentMenuQuestion({ message: scenario?.question || message, context, askModel });
   if (kind === 'diary_release') {
     const policyAnswer = diaryReleaseAnswer({ message, beautician, now });
     if (policyAnswer) return policyAnswer;

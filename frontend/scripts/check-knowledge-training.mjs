@@ -77,7 +77,7 @@ try {
  assert.equal(await page.locator('.fl-knowledge-result').count(),0);
  assert.equal(state.writes.length,1);
  await page.getByRole('button',{name:'Preview Florrie’s reply',exact:true}).click();
- await page.getByText('An answer from your guidance',{exact:true}).waitFor();
+ await page.getByText('An answer from your salon information',{exact:true}).waitFor();
  assert.equal(await page.locator('.fl-knowledge-result blockquote').innerText(),'Our diary opens two months ahead.');
  await page.locator('.fl-knowledge-sources button').click();
  assert.equal(await page.getByLabel('Your approved answer or guidance').inputValue(),'Our diary opens two months ahead.');
@@ -87,7 +87,7 @@ try {
  await page.getByRole('button',{name:'Pause answer',exact:true}).click();
  await page.getByText('Answer paused. Florrie will no longer use it for future replies.',{exact:true}).waitFor();
  await page.getByRole('button',{name:'Preview Florrie’s reply',exact:true}).click();
- await page.getByText('No matching saved answer used.',{exact:true}).waitFor();
+ await page.getByText('No matching salon information used.',{exact:true}).waitFor();
  await page.reload();await page.getByRole('button',{name:'Paused 1',exact:true}).click();
  await page.getByText('New dates open on a rolling two-month basis.',{exact:true}).waitFor();
  await page.getByRole('button',{name:'Enable answer',exact:true}).click();
@@ -101,7 +101,7 @@ try {
  await page.getByLabel('Client’s question').fill('A different question');
  await page.waitForTimeout(250);assert.equal(await page.locator('.fl-knowledge-result').count(),0);state.holdPreview=false;
  await page.getByLabel('Client’s question').fill('When do new dates open?');await page.getByRole('button',{name:'Preview Florrie’s reply',exact:true}).click();
- await page.getByText('An answer from your guidance',{exact:true}).waitFor();
+ await page.getByText('An answer from your salon information',{exact:true}).waitFor();
  mkdirSync('/tmp/florrie-knowledge-check',{recursive:true});
  await page.screenshot({path:'/tmp/florrie-knowledge-check/phone.png',fullPage:true});
  for(const width of [320,390,820,1280]){
@@ -125,14 +125,14 @@ try {
  await page.getByText('Answer learned. Try the question below to check what the next client will hear.',{exact:true}).waitFor();
  assert.equal(state.rows.length,1);assert.equal(await page.getByLabel('Client’s question').inputValue(),'Gift voucher validity');
  await page.getByRole('button',{name:'Preview Florrie’s reply',exact:true}).click();
- await page.getByText('An answer from your guidance',{exact:true}).waitFor();
+ await page.getByText('An answer from your salon information',{exact:true}).waitFor();
  assert.equal(await page.locator('.fl-knowledge-result blockquote').innerText(),state.rows[0].content);
  await page.getByRole('button',{name:'Check my recent replies',exact:true}).click();await lesson.waitFor();
  for(const width of [320,390,820,1280]) { await page.setViewportSize({width,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`learning overflow at ${width}`); }
  await page.setViewportSize({width:390,height:844});await page.screenshot({path:'/tmp/florrie-knowledge-check/learning-phone.png',fullPage:true});
  await lesson.getByRole('button',{name:'Keep this just in the conversation',exact:true}).click();await lesson.waitFor({state:'detached'});assert.equal(state.rows.length,1);
  state.learningUnavailable=true;await page.reload();await page.getByText('Learning is unavailable. Your approved answers still work.',{exact:false}).waitFor();
- await page.getByLabel('Client’s question').fill('How long do vouchers last?');await page.getByRole('button',{name:'Preview Florrie’s reply',exact:true}).click();await page.getByText('An answer from your guidance',{exact:true}).waitFor();
+ await page.getByLabel('Client’s question').fill('How long do vouchers last?');await page.getByRole('button',{name:'Preview Florrie’s reply',exact:true}).click();await page.getByText('An answer from your salon information',{exact:true}).waitFor();
  assert.deepEqual(errors,[]);
  console.log('PASS: blank starters, private preview, failed save retained, explicit approval, source edit, pause/reload/resume, failed/stale preview, 320–1280px layout. Learning: unapproved drafts excluded, failed approval preserved, approval used in preview, dismiss and storage outage, responsive layout. Synthetic fixtures only; no AI delivery proof.');
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

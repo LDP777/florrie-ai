@@ -1273,7 +1273,7 @@ async function prepareClientAnswer({ message, scenario, context, beautician }) {
   try {
     // Only the evidence-checked answer pipeline may consider unmatched notes.
     // A different wording can mean the same thing; a keyword score is not proof.
-    if (scenario?.kind !== 'diary_release') {
+    if (!['diary_release', 'treatment_menu'].includes(scenario?.kind)) {
       const candidates = await retrieveKnowledge(beautician.id, scenario?.question || message, { maxEntries: 12, maxChars: 12000, includeUnmatched: true });
       context = { ...context, knowledge: candidates };
     }

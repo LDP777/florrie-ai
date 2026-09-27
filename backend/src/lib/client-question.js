@@ -3,8 +3,25 @@ import { isTrainingEnquiry } from './training-enquiry.js';
 
 const normalise = value => String(value || '').replace(/[’‘]/g, "'").toLowerCase().trim();
 const TREATMENT = /\b(?:brows?|lami(?:nation)?|lamination|hybrid|stain|tint|lash(?:es)?|lift|wax|treatment)\b/i;
-const SPACING = /\b(?:too (?:early|soon)|how (?:long|often)|how many (?:days|weeks)|(?:long|gap|wait|waiting|time) between|safe (?:to|for)|(?:can|could|should) i (?:have|get|do).{0,55}\bagain|how soon)\b/i;
+const SPACING = /\b(?:too (?:early|soon)|how often|how long.{0,35}\b(?:between|before|after|until|wait)|how many (?:days|weeks)|(?:long|gap|wait|waiting|time) between|safe (?:to|for)|(?:can|could|should) i (?:have|get|do).{0,55}\bagain|how soon)\b/i;
 const DIARY = /\b(?:dates?|diary|calendar|appointments?|bookings?)\b.{0,65}\b(?:releas(?:e|ed|ing)|open(?:s|ed|ing)?|ahead|not (?:out|available)|greyed|grayed)\b|\b(?:how far (?:in advance|ahead)|dates just not)\b/i;
+
+// Appointment duration and treatment longevity are different facts. Only the
+// former exists in the menu; aftercare, suitability and repeat intervals need
+// approved guidance even when the same message also asks about the price.
+export function treatmentMenuFields(message) {
+  const text = normalise(message);
+  if (!TREATMENT.test(text) && !/\b(?:services?|treatments?)\b/.test(text)) return [];
+  // Leave requests for a visit in the appointment workflow. A menu answer is
+  // not a complete response to a question that also asks for a time or booking.
+  if (/\b(?:book|booking|cancel|reschedul\w*|slots?|spaces?|today|tomorrow|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday|next (?:week|month)|this (?:week|month))\b|\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b/.test(text)) return [];
+  if (SPACING.test(text) || /\b(?:aftercare|mascara|pregnan\w*|allerg\w*|reaction|irritat\w*|lasts?|maintenance|safe|suitable|recommend|heal\w*)\b/.test(text)) return [];
+  const fields = [];
+  if (/\b(?:how much|price|cost|prices)\b/.test(text)) fields.push('price');
+  if (/\b(?:duration|how long.{0,65}\b(?:take|appointment)|how much time)\b/.test(text)) fields.push('duration');
+  if (/\b(?:do you (?:do|offer|provide)|what (?:services?|treatments?).{0,30}\b(?:offer|do you do|available)|which (?:services?|treatments?).{0,30}\b(?:offer|available))\b/.test(text)) fields.push('offering');
+  return fields;
+}
 
 function directScenario(message) {
   const text = normalise(message);
@@ -16,6 +33,7 @@ function directScenario(message) {
   const maintenanceChoice = /\b(?:maintenance.{0,45}\b(?:right|need)|(?:should|do) i.{0,45}\bmaintenance)\b/.test(text);
   if ((SPACING.test(text) || maintenanceChoice) && TREATMENT.test(text)) return 'treatment_guidance';
   if (DIARY.test(text)) return 'diary_release';
+  if (treatmentMenuFields(text).length) return 'treatment_menu';
   return null;
 }
 

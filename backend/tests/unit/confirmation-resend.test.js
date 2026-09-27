@@ -158,6 +158,7 @@ vi.mock('../../src/config.js', () => ({ supabase: { from: builder } }));
  * is the sentence Sophie was actually sent.
  */
 const script = {
+  menu: null,
   classification: { intent: 'general_question', confidence: 0.95, extracted: {} },
   reply: "Hey, i'll send you a new one now. should come through in a min xx",
 };
@@ -166,11 +167,12 @@ vi.mock('@anthropic-ai/sdk', () => ({
   default: class {
     constructor() {
       this.messages = {
-        create: async ({ system }) => {
+        create: async ({ system, tool_choice }) => {
           if (/intent classifier/i.test(system)) {
             return { content: [{ text: JSON.stringify(script.classification) }] };
           }
           promptsSeen.push(system);
+          if (tool_choice?.name === 'select_menu_treatments' && script.menu) return { content: [{ type: 'tool_use', name: 'select_menu_treatments', input: script.menu }] };
           return { content: [{ text: script.reply }] };
         },
       };
@@ -252,6 +254,7 @@ beforeEach(() => {
   __resetInboundBudget();
   for (const t of Object.keys(db)) db[t] = [];
   freeSlots = [];
+  script.menu = null;
   confirmations.length = 0;
   delivered.length = 0;
   promptsSeen.length = 0;
@@ -594,7 +597,7 @@ describe('appointment requests from an existing client', () => {
     freeSlots = [{ date: '2026-09-17', time: '14:00', iso: '2026-09-17T14:00:00Z' }];
     script.classification = { intent: 'price_enquiry', confidence: 0.95, extracted: {} };
     script.reply = 'A lash lift costs £50.';
-    const result = await run('How much is a lash lift?');
+    const result = await run('How much is a lash lift and have you got any slots Thursday?');
     expect(result).toMatchObject({ escalated: true });
     expect(result.error).toBeUndefined();
     expect(promptsSeen.some(prompt => prompt.includes('Thursday 17 September at 2pm'))).toBe(true);
@@ -667,6 +670,25 @@ describe('client questions use approved answers before the booking engine', () =
     expect(result.handled).toBe(true); expect(textsToClient()[0]).toContain('60 days');
     expect(textsToClient()[0]).not.toContain('which treatment');
     expect(bookingCalls).toHaveLength(0); expect(promptsSeen).toHaveLength(0);
+  });
+  it.each(['florrie', 'drafts', 'just_me'])('uses the current menu without training notes and respects %s', async mode => {
+    setupQuestion(); client.messaging_autonomy = mode;
+    Object.assign(db.treatments[0], { duration_minutes: 55, price_cents: 4250 });
+    db.treatments.push({ id: 'other-salon-service', beautician_id: 'other', name: 'Other salon treatment', is_active: true, booking_enabled: true });
+    script.menu = { covered: true, treatment_ids: ['t1'] };
+    const message = 'How much is brow lamination and how long does it take?';
+    db.messages[0].content = message;
+    await processInboundMessage(MSG_ID, beautician, client, message);
+    const expected = 'Brow lamination: £42.50, 55 minutes for the appointment.';
+    if (mode === 'florrie') {
+      expect(textsToClient()).toHaveLength(1);
+      expect(textsToClient()[0].split('\n\n')[0]).toBe(expected);
+      expect(textsToClient()[0]).toContain("Florrie, Ellie's assistant.");
+    }
+    else { expect(delivered).toHaveLength(0); expect(draftOnMessage()).toBe(expected); }
+    expect(bookingCalls).toHaveLength(0);
+    expect(promptsSeen.some(prompt => prompt.includes('Other salon treatment'))).toBe(false);
+    expect(db.appointments).toHaveLength(0);
   });
   it('keeps previews read-only and uses the same approved answer as the live pipeline', async () => {
     setupQuestion(); knowledgeRows = [note];

@@ -39,6 +39,7 @@ import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import express from 'express';
 import { createServer } from 'http';
 import crypto from 'crypto';
+import { probeAuthorshipColumn } from '../../src/lib/authorship.js';
 
 // The night in question. Everything under test that reads a clock reads this
 // one, so nothing here can start failing in November.
@@ -99,6 +100,8 @@ resetSchema();
 
 const db = { beauticians: [], clients: [], messages: [], ai_actions: [], outbound_sends: [], appointments: [] };
 let idCounter = 0;
+let messageReadFailure = '';
+let messageInsertFailure = false;
 const nextId = (p) => `${p}_${++idCounter}`;
 
 const undefinedColumn = (table, col) => ({ code: '42703', message: `column ${table}.${col} does not exist` });
@@ -146,10 +149,12 @@ function makeBuilder(table) {
   let pending = null;
   let selectError = null;
   let writeError = null;
+  let selectedColumns = '';
 
   const matching = () => (db[table] || []).filter(r => filters.every(f => f(r)));
 
   const settle = () => {
+    if (table === 'messages' && ((!pending && selectedColumns === messageReadFailure) || (pending?.op === 'insert' && messageInsertFailure))) return { data: null, error: { message: 'synthetic database outage' } };
     if (writeError) return { data: null, error: writeError, count: null };
     if (selectError) return { data: null, error: selectError, count: null };
     if (pending?.op === 'insert') {
@@ -168,7 +173,7 @@ function makeBuilder(table) {
   };
 
   const b = {
-    select(spec = '*') { selectError = parseSelect(table, spec); return b; },
+    select(spec = '*') { selectedColumns = spec; selectError = parseSelect(table, spec); return b; },
     insert(p) { pending = { op: 'insert', payload: p }; writeError = parseWrite(table, p); return b; },
     update(p) { pending = { op: 'update', payload: p }; writeError = parseWrite(table, p); return b; },
     eq(c, v) { filters.push(r => r[c] === v); return b; },
@@ -211,6 +216,8 @@ vi.mock('../../src/lib/logger.js', () => {
  * whole point of the first test.
  */
 const sends = [];
+const learning = vi.hoisted(() => vi.fn());
+vi.mock('../../src/services/reply-learning.js', () => ({ queueReplyLearning: learning }));
 vi.mock('../../src/services/notifications.js', () => ({
   sendInstagramDM: async (args) => { sends.push({ via: 'instagram', ...args }); return { message_id: 'ig-out-1' }; },
   sendWhatsAppText: async (args) => { sends.push({ via: 'whatsapp', ...args }); return { messages: [{ id: 'wa-out-1' }] }; },
@@ -326,18 +333,67 @@ function seedWhatsAppClient(over = {}) {
   return db.clients[0];
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   resetSchema();
   for (const k of Object.keys(db)) db[k] = [];
   logs.warn.length = 0; logs.error.length = 0; logs.info.length = 0;
   sends.length = 0;
   graphCalls.length = 0;
   idCounter = 0;
+  messageReadFailure = ''; messageInsertFailure = false; learning.mockClear();
+  await probeAuthorshipColumn();
   graph = {
     'me/messages': () => ok({ message_id: 'mid.out' }),
     [`graph.instagram.com/v21.0/${SENDER}`]: () => ok({ name: 'Sophie', username: 'sophie.b' }),
   };
   vi.setSystemTime(NOW);
+});
+
+describe('learning from the owner’s Instagram replies', () => {
+  const text = 'Our gift vouchers are valid for twelve months and cannot be exchanged for cash.';
+  const echo = (message = {}) => ({ object: 'instagram', entry: [{ id: IG_ACCOUNT, messaging: [{ sender: { id: IG_ACCOUNT }, recipient: { id: SENDER }, message: { is_echo: true, mid: 'owner-echo-1', text, ...message } }] }] });
+  const seed = () => { seedSalon(); seedWhatsAppClient(); };
+  it('records and queues an owner reply once, without changing an approved answer or sending', async () => {
+    seed();
+    await postWebhook(echo());
+    expect(db.messages).toHaveLength(1);
+    expect(db.messages[0]).toMatchObject({ authored_by: 'human', client_id: 'c-sophie', content: text });
+    expect(learning).toHaveBeenCalledWith('b-ellie', db.messages[0].id);
+    await postWebhook(echo());
+    expect(db.messages).toHaveLength(1); expect(learning).toHaveBeenCalledTimes(1);
+    expect(sends).toHaveLength(0);
+  });
+  it.each(['message-id', 'same-thread-text'])('does not learn Florrie’s own %s echo', async matching => {
+    seed();
+    db.messages.push({ id: 'sent', beautician_id: 'b-ellie', client_id: 'c-sophie', channel: 'instagram', direction: 'outbound', content: text, authored_by: 'ai', created_at: NOW.toISOString(), external_message_id: matching === 'message-id' ? 'owner-echo-1' : null });
+    await postWebhook(echo());
+    expect(db.messages).toHaveLength(1); expect(learning).not.toHaveBeenCalled();
+  });
+  it('does not mistake the same words sent to another client for this owner reply', async () => {
+    seed();
+    db.messages.push({ id: 'other-thread', beautician_id: 'b-ellie', client_id: 'other-client', channel: 'instagram', direction: 'outbound', content: text, authored_by: 'ai', created_at: NOW.toISOString() });
+    await postWebhook(echo());
+    expect(db.messages).toHaveLength(2); expect(learning).toHaveBeenCalledTimes(1);
+  });
+  it.each([{ mid: null }, { text: 'Thanks x' }, { attachments: [{ type: 'image', payload: { url: 'https://cdn.test/picture.jpg' } }] }])('records but does not learn uncertain or media-dependent replies: %j', async message => {
+    seed(); await postWebhook(echo(message));
+    expect(db.messages).toHaveLength(1); expect(learning).not.toHaveBeenCalled();
+  });
+  it('preserves owner presence but does not learn when provenance cannot be checked', async () => {
+    seed(); messageReadFailure = 'id, authored_by';
+    await postWebhook(echo());
+    expect(db.messages).toHaveLength(1); expect(learning).not.toHaveBeenCalled();
+  });
+  it('does not learn a failed write or failed identity check', async () => {
+    seed(); messageInsertFailure = true; await postWebhook(echo());
+    expect(db.messages).toHaveLength(0); expect(learning).not.toHaveBeenCalled();
+    messageInsertFailure = false; messageReadFailure = 'id'; await postWebhook(echo());
+    expect(db.messages).toHaveLength(0); expect(learning).not.toHaveBeenCalled();
+  });
+  it('never attaches the reply to a different salon’s client', async () => {
+    seed(); db.clients[0].beautician_id = 'other-salon'; await postWebhook(echo());
+    expect(db.messages).toHaveLength(0); expect(learning).not.toHaveBeenCalled();
+  });
 });
 
 /* =========================================================================== */

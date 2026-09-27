@@ -592,12 +592,12 @@ describe('status: the card tells the truth about the token and the handle', () =
     expect(res.body.needs_reconnect).toBe(false);
   });
 
-  it('does not mistake another app subscription for Florrie receiving messages or owner echoes', async () => {
+  it('does not claim either disconnection or readiness from an unidentified subscription', async () => {
     seedConnected();
     graph['graph.instagram.com/v21.0/me?fields=user_id,username'] = () => ok({ user_id: IG_USER_ID, username: 'ellindigo' });
     graph['me/subscribed_apps'] = () => ok({ data: [{ id: 'other-app', subscribed_fields: ['messages', 'message_echoes'] }] });
     let res = await get('/api/instagram/status');
-    expect(res.body).toMatchObject({ token_valid: true, needs_reconnect: false, webhook_subscribed: false, echoes_subscribed: false });
+    expect(res.body).toMatchObject({ token_valid: true, needs_reconnect: false, webhook_subscribed: null, echoes_subscribed: null });
     graph['me/subscribed_apps'] = () => ok({ data: [
       { id: 'other-app', subscribed_fields: ['messages', 'message_echoes'] },
       { id: process.env.INSTAGRAM_APP_ID, subscribed_fields: ['messages'] },
@@ -623,6 +623,8 @@ describe('status: the card tells the truth about the token and the handle', () =
     graph['graph.instagram.com/v21.0/me?fields=user_id,username'] = () => ok({ user_id: IG_USER_ID, username: 'ellindigo' });
     for (const payload of [
       {},
+      // Live Instagram Login response shape: id is not the configured app ID.
+      { data: [{ id: 'opaque-subscription-record', subscribed_fields: ['messages'] }] },
       { data: [{ subscribed_fields: ['messages', 'message_echoes'] }] },
       { data: [{ id: process.env.INSTAGRAM_APP_ID }] },
       { data: [{ id: process.env.INSTAGRAM_APP_ID, subscribed_fields: [null] }] },

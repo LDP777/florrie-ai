@@ -158,7 +158,7 @@ export default function Knowledge() {
         <section className="fl-knowledge-test" aria-labelledby="knowledge-test-heading">
           <span className="fl-knowledge-eyebrow">A PRIVATE PRACTICE RUN</span>
           <h2 id="knowledge-test-heading">Ask as a client</h2>
-          <p>Uses Florrie’s reply process and your saved guidance. Nothing is sent and no booking is made. Personal questions may still need a client’s history or your decision.</p>
+          <p>Uses your treatment menu, booking rules and approved answers. Nothing is sent and no booking is made. Personal questions may still need a client’s history or your decision.</p>
           <form onSubmit={testQuestion}>
             <label htmlFor="knowledge-question">Client’s question</label>
             <textarea id="knowledge-question" value={question} maxLength={1000} rows={3}
@@ -170,9 +170,9 @@ export default function Knowledge() {
           </form>
           {previewError && <p className="fl-knowledge-error" role="alert">{previewError}</p>}
           {preview && <div className="fl-knowledge-result" aria-live="polite">
-            <p className="fl-knowledge-result-title"><Icon name={preview.canAnswer ? 'check' : 'info'} size={18} />{preview.canAnswer ? 'An answer from your guidance' : 'Needs more guidance or a check'}</p>
+            <p className="fl-knowledge-result-title"><Icon name={preview.canAnswer ? 'check' : 'info'} size={18} />{preview.canAnswer ? 'An answer from your salon information' : 'Needs more guidance or a check'}</p>
             {preview.reply && <blockquote>{preview.reply}</blockquote>}
-            <p className="fl-knowledge-source-label">{preview.sources?.length ? 'Saved guidance used' : 'No matching saved answer used.'}</p>
+            <p className="fl-knowledge-source-label">{preview.sources?.length ? 'Information used' : 'No matching salon information used.'}</p>
             <div className="fl-knowledge-sources">{(preview.sources || []).map(source => {
               const entry = entries.find(e => e.id === source.id);
               return entry ? <button key={source.id} type="button" onClick={() => openEdit(entry)}><Icon name="edit" size={14} />{source.title}</button>

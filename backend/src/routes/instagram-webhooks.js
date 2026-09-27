@@ -29,6 +29,7 @@ import { authorship } from '../lib/authorship.js';
 import { deDash } from '../lib/text.js';
 import { guardedSend } from '../lib/outbound-guard.js';
 import { isOptOutMessage, applyOptOut, OPT_OUT_CONFIRMATION } from '../lib/opt-out.js';
+import { queueReplyLearning } from '../services/reply-learning.js';
 
 const router = Router();
 
@@ -335,7 +336,18 @@ async function handleInstagramEcho(event, entryId) {
     if (existing?.length) return;
   }
 
-  // Belt and braces for a send whose id we never captured. Same salon, same
+  const { data: client } = await supabase
+    .from('clients')
+    .select('id')
+    .eq('beautician_id', beautician.id)
+    .eq('instagram_id', clientIgId)
+    .maybeSingle();
+
+  // No recorded thread means there is no client conversation to learn from.
+  if (!client?.id) return;
+  let learningProvenanceChecked = !!mid;
+
+  // Belt and braces for a send whose id we never captured. Same thread, same
   // words, sent by us in the last quarter of an hour: that is our own message
   // coming back, not the owner writing the identical sentence by hand. Without
   // this, one send path that forgets to store its id would quietly mute Florrie
@@ -347,11 +359,14 @@ async function handleInstagramEcho(event, entryId) {
       .from('messages')
       .select('id, authored_by')
       .eq('beautician_id', beautician.id)
+      .eq('client_id', client.id)
+      .eq('channel', 'instagram')
       .eq('direction', 'outbound')
       .eq('content', text)
       .gte('created_at', since)
       .limit(5);
     if (mineErr) {
+      learningProvenanceChecked = false;
       logger.error({ err: mineErr, beauticianId: beautician.id },
         'Instagram echo: recent-send lookup failed; recording this as the owner rather than guessing it is ours');
     } else if ((mine || []).some(m => m.authored_by !== 'human')) {
@@ -359,18 +374,7 @@ async function handleInstagramEcho(event, entryId) {
     }
   }
 
-  const { data: client } = await supabase
-    .from('clients')
-    .select('id')
-    .eq('beautician_id', beautician.id)
-    .eq('instagram_id', clientIgId)
-    .maybeSingle();
-
-  // No client row means she is talking to somebody who has never messaged us,
-  // so there is no thread for Florrie to interrupt. Nothing to record against.
-  if (!client?.id) return;
-
-  const { error: insErr } = await supabase.from('messages').insert({
+  const { data: saved, error: insErr } = await supabase.from('messages').insert({
     beautician_id: beautician.id,
     client_id: client.id,
     channel: 'instagram',
@@ -382,7 +386,7 @@ async function handleInstagramEcho(event, entryId) {
     ai_handled: false,
     ...authorship('human'),
     escalated: false,
-  });
+  }).select('id').single();
 
   if (insErr) {
     logger.error({ err: insErr, beauticianId: beautician.id, clientId: client.id, mid },
@@ -392,6 +396,13 @@ async function handleInstagramEcho(event, entryId) {
 
   logger.info({ beauticianId: beautician.id, clientId: client.id },
     'Instagram echo: recorded the owner\'s own reply');
+  // An uncertain echo must still pause Florrie in this thread, but must not
+  // teach her. Only checked text replies enter the private approval queue;
+  // media can change the meaning of a caption, and no suggestion is approved
+  // automatically. The detached learner cannot delay delivery or the inbox.
+  if (learningProvenanceChecked && !media && text.trim().length >= 20 && saved?.id) {
+    queueReplyLearning(beautician.id, saved.id);
+  }
 }
 
 /**

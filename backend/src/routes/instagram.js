@@ -621,7 +621,11 @@ export function instagramSubscriptionStatus(body, applicationIds = [IG_APP_ID, p
   const apps = body.data;
   const matching = apps.filter(app => app?.id != null && knownIds.has(String(app.id)));
   if (!matching.length) {
-    if (body.paging?.next || apps.some(app => app?.id == null || !String(app.id).trim())) return unknown;
+    // Instagram Login can return opaque subscription IDs rather than either
+    // configured application ID (observed on both connected accounts). A
+    // nonempty unmatched response cannot prove Florrie is disconnected, and
+    // cannot prove another subscription belongs to us. Keep that unknown.
+    if (body.paging?.next || apps.length) return unknown;
     return { messages: false, echoes: false };
   }
   if (matching.some(app => !Array.isArray(app.subscribed_fields))) return unknown;

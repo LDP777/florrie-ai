@@ -41,6 +41,8 @@ it.each([
  ['Contact me on alex@example.com for a gift voucher.', 'Contact me on alex@example.com for a gift voucher.'],
  ['Your appointment is confirmed for Monday at 14:30.', 'Your appointment is confirmed for Monday at 14:30.'],
  ['Sam can use these vouchers for twelve months.', 'Sam can use these vouchers for twelve months.'],
+ ['This is a really short notice cancellation. As I cannot fill this slot, you will need to make a new booking.', 'you will need to make a new booking.'],
+ ['Your deposit can transfer to a new appointment, but I normally charge again.', 'I normally charge again.'],
 ])('refuses a private, fabricated or stripped rule: %s', async (reply, evidence) => {
   expect(await extractReplyLesson({ reply, clientNames: ['Sam'], askModel: async () => modelAnswer(evidence) })).toBeNull();
 });
