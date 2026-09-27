@@ -176,3 +176,5 @@ jobs:
       # Exercise real record and form actions against synthetic API failures.
       - run: npm run check:care --workspace frontend
       - run: npm run check:more --workspace frontend
+      - run: node scripts/check-salon-workspaces.mjs
+        working-directory: frontend

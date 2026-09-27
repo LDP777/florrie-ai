@@ -176,8 +176,8 @@ export async function processReviewRequests() {
   <tr><td style="padding:28px 32px">
     <h2 style="margin:0 0 12px;color:#2d2a26;font-size:20px;font-weight:700">How was your ${treatmentName}?</h2>
     <p style="margin:0 0 20px;color:#6b6560;font-size:15px;line-height:1.6">
-      Hey ${client.first_name}, thanks for visiting ${bizName}. If you loved your results,
-      a quick review would mean the world:
+      Hey ${client.first_name}, thanks for visiting ${bizName}. If you have a moment,
+      please share your experience:
     </p>
     ${googleUrl ? `<table cellpadding="0" cellspacing="0" style="margin:0 0 20px"><tr><td>
       <a href="${googleUrl}" style="display:inline-block;padding:12px 28px;background:${color};color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px">Leave a review ⭐</a>

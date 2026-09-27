@@ -8,7 +8,7 @@ const store = `
 const initial = {id:'salon-fixture',first_name:'',business_name:'',timezone:'Europe/London'};
 window.fixture={profile:JSON.parse(sessionStorage.getItem('setup-profile')||JSON.stringify(initial)),rows:JSON.parse(sessionStorage.getItem('setup-rows')||'[]'),writes:[],failProfile:false,loseTreatmentResponse:false,authCalls:[]};
 const persist=()=>{sessionStorage.setItem('setup-profile',JSON.stringify(window.fixture.profile));sessionStorage.setItem('setup-rows',JSON.stringify(window.fixture.rows));};
-export const supabase={auth:{getSession:async()=>({data:{session:{access_token:'fixture',user:{id:'salon-fixture'}}}}),onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}}),signUp:async p=>{window.fixture.authCalls.push(['signup',p]);return {data:{user:{id:'new-user'},session:null}};},resetPasswordForEmail:async(...p)=>{window.fixture.authCalls.push(['reset',...p]);return {};},updateUser:async p=>{window.fixture.authCalls.push(['update',p]);return {};},signOut:async()=>{}},from:table=>{const b={select:()=>b,eq:()=>b,then:r=>Promise.resolve({count:window.fixture.rows.length,error:null}).then(r),upsert:async rows=>{window.fixture.writes.push({table,rows});for(const row of rows){const old=window.fixture.rows.find(r=>r.id===row.id);if(old)Object.assign(old,row);else window.fixture.rows.push(row);}persist();if(window.fixture.loseTreatmentResponse){window.fixture.loseTreatmentResponse=false;throw Error('Synthetic lost response');}return {error:null};}};return b;}};
+export const supabase={auth:{getSession:async()=>({data:{session:{access_token:'fixture',user:{id:'salon-fixture'}}}}),onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}}),signUp:async p=>{window.fixture.authCalls.push(['signup',p]);return {data:{user:{id:'new-user'},session:null}};},resetPasswordForEmail:async(...p)=>{window.fixture.authCalls.push(['reset',...p]);return {};},updateUser:async p=>{window.fixture.authCalls.push(['update',p]);return {data:{user:{id:'salon-fixture'}},error:null};},signOut:async()=>{window.fixture.authCalls.push(['signout']);return {error:null};}},from:table=>{const b={select:()=>b,eq:()=>b,then:r=>Promise.resolve({count:window.fixture.rows.length,error:null}).then(r),upsert:async rows=>{window.fixture.writes.push({table,rows});for(const row of rows){const old=window.fixture.rows.find(r=>r.id===row.id);if(old)Object.assign(old,row);else window.fixture.rows.push(row);}persist();if(window.fixture.loseTreatmentResponse){window.fixture.loseTreatmentResponse=false;throw Error('Synthetic lost response');}return {error:null};}};return b;}};
 export const useBeautician=()=>({beautician:window.fixture.profile,loading:false,refresh:async()=>{}});
 export const updateRow=async(table,id,changes)=>{if(window.fixture.failProfile)throw Error('Synthetic failed save');window.fixture.writes.push({table,changes});Object.assign(window.fixture.profile,changes);persist();return window.fixture.profile;};
 `;
@@ -52,8 +52,10 @@ try {
  assert.equal(await page.evaluate(()=>window.fixture.authCalls.length),0);
  await page.getByPlaceholder('Type it again').fill('new-test-password');
  await page.getByRole('button',{name:'Update password',exact:true}).click();
- await page.getByRole('heading',{name:'Password updated'}).waitFor();
- console.log('PASS: reset requests return to reset screen; mismatch does not update the account');
+ await page.getByRole('heading',{name:'Welcome back',exact:true}).waitFor();
+ assert.equal(new URL(page.url()).pathname,'/login');
+ assert.deepEqual(await page.evaluate(()=>window.fixture.authCalls),[['update',{password:'new-test-password'}],['signout']]);
+ console.log('PASS: reset returns to the reset screen; mismatch makes no write; confirmed update signs out once and returns to login');
  await page.goto(`${origin}/onboarding`);
  await page.getByPlaceholder('e.g. Sophie', {exact:true}).fill('Alex');
  await page.getByPlaceholder('e.g. Sophie Lash Studio').fill('Fictional launch salon');
