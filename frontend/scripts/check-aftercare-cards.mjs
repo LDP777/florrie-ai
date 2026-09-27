@@ -29,14 +29,18 @@ const server=http.createServer(async(req,res)=>{
   if(req.method==='GET'){
    if(state.failRead)return json({code:'XX000',message:'Synthetic load failure'},500);
    if(url.searchParams.get('beautician_id')!==`eq.${owner}`)return json({message:'Missing owner filter'},400);
-   return json(state.rows.filter(row=>row.beautician_id===owner));
+   return json(state.rows.filter(row=>row.beautician_id===owner&&(!url.searchParams.has('id')||url.searchParams.get('id')===`eq.${row.id}`)));
   }
   let body='';for await(const part of req)body+=part;const input=JSON.parse(body);
   if(state.failWrite)return json({code:'XX000',message:'Synthetic rejected write'},500);
   if(req.method==='POST'){
    assert.equal(input.beautician_id,owner);assert.equal(input.auto_send,false);
+   if(state.rows.some(row=>row.id===input.id))return json({code:'23505',message:'Duplicate primary key'},409);
    const row={id:'00000000-0000-0000-0000-000000000020',send_after_hours:1,rebook_nudge_days:28,archived_at:null,created_at:stamp(),updated_at:stamp(),...input};
-   state.rows.push(row);state.writes.push({method:'POST',input});return json(row,201);
+   row.instructions=row.instructions.map(step=>Object.fromEntries(Object.entries(step).reverse()));
+   state.rows.push(row);state.writes.push({method:'POST',input});
+   if(state.loseCreateResponse){state.loseCreateResponse=false;return json({code:'NETWORK',message:'Committed save, lost confirmation'},503);}
+   return json(row,201);
   }
   if(req.method==='PATCH'){
    const filters=Object.fromEntries(url.searchParams);
@@ -94,7 +98,7 @@ try {
  console.log('PASS: preview/edit loads saved guidance; failed edits preserve draft and stored content; successful edits persist with tenant/version filters and retain delivery preferences');
 
  state.failWrite=true;await card.getByRole('button',{name:'Archive',exact:true}).click();
- await page.getByRole('alert').filter({hasText:'It is still where it was'}).waitFor();await card.waitFor();
+ await page.getByRole('alert').filter({hasText:'Could not confirm the change'}).waitFor();await card.waitFor();
  state.failWrite=false;await card.getByRole('button',{name:'Archive',exact:true}).click();
  await page.getByRole('status').filter({hasText:'Care card archived'}).waitFor();assert.equal(await card.count(),0);
  assert.deepEqual(Object.keys(state.writes.at(-1).input),['archived_at']);
@@ -128,6 +132,21 @@ try {
  assert.equal(state.rows.at(-1).auto_send,false);assert.equal(state.rows.at(-1).archived_at,null);
  await page.setViewportSize({width:390,height:844});await page.screenshot({path:'/tmp/florrie-aftercare-check/saved-phone.png',fullPage:true});
  console.log('PASS: concurrent edit is rejected without losing draft; new cards save with automatic sending off');
+
+ await page.getByRole('button',{name:'+ New Care Card',exact:true}).click();
+ await create.getByLabel('Treatment name',{exact:true}).fill('Lost-response fictional card');
+ await create.getByLabel('Step 1 title',{exact:true}).fill('Saved step');
+ await create.getByLabel('Step 1 instruction',{exact:true}).fill('Keep these owner-authored words.');
+ state.loseCreateResponse=true;
+ await create.getByRole('button',{name:'Save Card',exact:true}).click();
+ await page.getByRole('alert').filter({hasText:'Your instructions are still here'}).waitFor();
+ const committedCount=state.writes.length;
+ assert.equal(state.rows.filter(r=>r.treatment_name==='Lost-response fictional card').length,1);
+ await create.getByRole('button',{name:'Save Card',exact:true}).click();
+ await page.getByRole('article',{name:'Lost-response fictional card',exact:true}).waitFor();
+ assert.equal(state.writes.length,committedCount);
+ assert.equal(state.rows.filter(r=>r.treatment_name==='Lost-response fictional card').length,1);
+ console.log('PASS: committed create with lost response recovers the same card on retry without a duplicate');
 
  state.failRead=true;await page.reload();await page.getByText('Could not load your care cards. Try again.',{exact:true}).waitFor();assert.equal(await page.getByText('No care cards yet',{exact:true}).count(),0);
  state.failRead=false;await page.getByRole('button',{name:'Try again',exact:true}).click();await card.waitFor();

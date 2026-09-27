@@ -62,4 +62,5 @@ CREATE TRIGGER aftercare_cards_updated_at BEFORE UPDATE ON public.aftercare_card
 COMMENT ON TABLE public.aftercare_cards IS
   'Private saved care guidance; separate from aftercare_messages and approved knowledge_entries. Archiving retains the original guidance. No automated delivery reads this table.';
 
+NOTIFY pgrst, 'reload schema';
 COMMIT;

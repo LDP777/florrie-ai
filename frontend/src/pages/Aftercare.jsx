@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useBeautician, supabase } from '../lib/supabase.js';
-import { careCardView, careCardDraft, newCareCardDraft, loadCareCards, saveCareCard, setCareCardArchived, isCareStorageUnavailable } from '../lib/aftercare-cards.js';
+import { careCardView, careCardDraft, newCareCardDraft, newCareCardSave, loadCareCards, saveCareCard, setCareCardArchived, isCareStorageUnavailable } from '../lib/aftercare-cards.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import Icon, { iconName } from '../components/ui/Icon';
@@ -25,6 +25,7 @@ export default function Aftercare() {
   const busy = useRef(false);
   const loadVersion = useRef(0);
   const editorRef = useRef(null);
+  const creation = useRef(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingCard, setEditingCard] = useState(null);
 
@@ -56,11 +57,13 @@ export default function Aftercare() {
   }
 
   function openEditor(card = null) {
+    creation.current = card ? null : newCareCardSave();
     setEditingCard(card); setNewCard(card ? careCardDraft(card) : newCareCardDraft());
     setShowCreateForm(true); setShowPreview(false); setError(null); setNotice(null);
   }
 
   function closeEditor() {
+    creation.current = null;
     setShowCreateForm(false); setEditingCard(null); setNewCard(newCareCardDraft()); setError(null);
   }
 
@@ -100,15 +103,15 @@ export default function Aftercare() {
     if (!beautician || busy.current) return;
     busy.current = true; setSaving(true); setError(null);
     try {
-      const saved = await saveCareCard(supabase, beautician.id, newCard, editingCard);
-      setCards(prev => editingCard ? prev.map(card => card.id === saved.id ? saved : card) : [saved, ...prev]);
+      const saved = await saveCareCard(supabase, beautician.id, newCard, editingCard, creation.current);
+      setCards(prev => editingCard ? prev.map(card => card.id === saved.id ? saved : card) : [saved, ...prev.filter(card => card.id !== saved.id)]);
       closeEditor();
       setNotice('Care card saved.');
     } catch (err) {
       logger.error('Save aftercare card error:', err);
       setError(err.code === 'CARE_CARD_VALIDATION' ? err.message
         : err.code === 'CARE_CARD_CONFLICT' ? 'This care card changed elsewhere. Your edits are still here; copy them before closing the editor and reloading.'
-        : 'Could not save this care card. Your instructions are still here. Try again.');
+        : 'Could not confirm the save. Your instructions are still here. Try again to check and save this card.');
     } finally { busy.current = false; setSaving(false); }
   }
 
@@ -121,7 +124,7 @@ export default function Aftercare() {
       setNotice(archived ? 'Care card archived. You can restore it from Archived.' : 'Care card restored to Saved cards.');
     } catch (err) {
       logger.error('Archive aftercare card error:', err);
-      setError(err.code === 'CARE_CARD_CONFLICT' ? err.message : 'Could not change this care card. It is still where it was. Try again.');
+      setError(err.code === 'CARE_CARD_CONFLICT' ? err.message : 'Could not confirm the change. Refresh your cards to check whether it was saved.');
     } finally { busy.current = false; setSaving(false); }
   }
 
@@ -143,6 +146,7 @@ export default function Aftercare() {
       {error && <p role="alert" style={{ color: 'var(--danger, #9f3434)' }}>{error}</p>}
       <PageHeader title="Aftercare" subtitle="Post-treatment care cards" />
       {notice && <p role="status" style={styles.notice}>{notice}</p>}
+      {error && !showCreateForm && <Button variant="quiet" disabled={saving || loading} onClick={() => { setError(null); loadData(); }}>Refresh cards</Button>}
 
       <div style={styles.tabs} aria-label="Care card lists">
         {[['cards', 'Saved cards'], ['archived', 'Archived']].map(([value, label]) => <button key={value} disabled={saving || showCreateForm} aria-pressed={tab === value} onClick={() => { setTab(value); setError(null); setNotice(null); }} style={{ ...styles.tab, color: tab === value ? 'var(--accent, #92405e)' : 'var(--text-muted, #6B5D54)', borderBottomColor: tab === value ? 'var(--accent, #92405e)' : 'transparent' }}>{label}</button>)}

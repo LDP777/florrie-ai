@@ -3,6 +3,29 @@ export function newCareCardDraft() {
   return { treatment_name: '', icon: 'sparkles', instructions: [{ title: '', text: '' }], products: [''], personal_note: '' };
 }
 
+export function newCareCardSave() {
+  return { id: globalThis.crypto.randomUUID(), attempted: false };
+}
+
+const comparable = value => JSON.stringify(value, (_, item) =>
+  item && typeof item === 'object' && !Array.isArray(item)
+    ? Object.fromEntries(Object.keys(item).sort().map(key => [key, item[key]])) : item);
+
+async function careQuery(query) {
+  const controller = new AbortController();
+  let timer;
+  try {
+    return await Promise.race([
+      query.abortSignal(controller.signal),
+      new Promise((_, reject) => { timer = setTimeout(() => {
+        controller.abort();
+        const error = new Error('The care-card request could not be confirmed.');
+        error.code = 'CARE_CARD_UNCERTAIN'; reject(error);
+      }, 15000); }),
+    ]);
+  } finally { clearTimeout(timer); }
+}
+
 function normaliseCareCard(card) {
   return {
     ...card,
@@ -56,9 +79,9 @@ export function isCareStorageUnavailable(error) {
 
 export async function loadCareCards(client, beauticianId) {
   if (!beauticianId) throw new Error('Sign in to open your care cards.');
-  const { data, error } = await client.from('aftercare_cards')
+  const { data, error } = await careQuery(client.from('aftercare_cards')
     .select('id,beautician_id,treatment_name,icon,instructions,products,personal_note,auto_send,send_after_hours,rebook_nudge_days,archived_at,created_at,updated_at')
-    .eq('beautician_id', beauticianId).order('created_at', { ascending: false });
+    .eq('beautician_id', beauticianId).order('created_at', { ascending: false }));
   if (error) throw error;
   // The editor needs the migration's version and archive fields. An older,
   // incomplete table must not masquerade as ready storage.
@@ -73,9 +96,9 @@ async function updateOwnedCard(client, beauticianId, card, changes) {
     throw new Error('This care card is not available in your salon.');
   }
   if (!card.updated_at) throw new Error('Reload this care card before making changes.');
-  const { data, error } = await client.from('aftercare_cards').update(changes)
+  const { data, error } = await careQuery(client.from('aftercare_cards').update(changes)
     .eq('id', card.id).eq('beautician_id', beauticianId).eq('updated_at', card.updated_at)
-    .select().single();
+    .select().single());
   if (error?.code === 'PGRST116') {
     const conflict = new Error('This care card changed elsewhere. Reload the page before trying again.');
     conflict.code = 'CARE_CARD_CONFLICT'; throw conflict;
@@ -85,14 +108,41 @@ async function updateOwnedCard(client, beauticianId, card, changes) {
   return data;
 }
 
-export async function saveCareCard(client, beauticianId, draft, existing = null) {
+export async function saveCareCard(client, beauticianId, draft, existing = null, creation = null) {
   if (!beauticianId) throw new Error('Sign in to save your care card.');
   const content = contentForSave(draft);
   if (existing) return updateOwnedCard(client, beauticianId, existing, content);
-  const { data, error } = await client.from('aftercare_cards')
-    .insert({ ...content, beautician_id: beauticianId, auto_send: false }).select().single();
+  if (!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(creation?.id || '')) {
+    throw new Error('Reopen the new care-card editor before saving.');
+  }
+  // A retry keeps the same primary key. Check a possibly committed save before
+  // inserting again, and never replace saved content with an uncertain retry.
+  async function recover() {
+    const { data, error } = await careQuery(client.from('aftercare_cards').select('*')
+      .eq('id', creation.id).eq('beautician_id', beauticianId).maybeSingle());
+    if (error) throw error;
+    if (!data) return null;
+    if (data.id !== creation.id || data.beautician_id !== beauticianId) throw new Error('The save was not confirmed.');
+    if (data.archived_at || Object.keys(content).some(key => comparable(data[key]) !== comparable(content[key]))) {
+      const conflict = new Error('An earlier save succeeded with different content.');
+      conflict.code = 'CARE_CARD_CONFLICT'; throw conflict;
+    }
+    return data;
+  }
+  if (creation.attempted) {
+    const saved = await recover();
+    if (saved) return saved;
+  }
+  creation.attempted = true;
+  const { data, error } = await careQuery(client.from('aftercare_cards')
+    .insert({ ...content, id: creation.id, beautician_id: beauticianId, auto_send: false }).select().single());
+  // The earlier request may have committed between our read and this insert.
+  if (error?.code === '23505') {
+    const saved = await recover();
+    if (saved) return saved;
+  }
   if (error) throw error;
-  if (!data?.id || data.beautician_id !== beauticianId) throw new Error('The save was not confirmed.');
+  if (data?.id !== creation.id || data.beautician_id !== beauticianId) throw new Error('The save was not confirmed.');
   return data;
 }
 
