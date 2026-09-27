@@ -1,3 +1,4 @@
+import { recordContentBooking } from '../services/content-booking-results.js';
 import { salonWallInstant } from '../lib/booking-preparation.js';
 import preparationRouter from './booking-preparation.js';
 import { PATCH_TEST_LEAD_HOURS } from '../lib/patch-test-policy.js';
@@ -4194,6 +4195,8 @@ router.post('/:slug/book', requireBookingIdentity, validate(bookingSchema), veri
   }
 
   // Insert add-ons (if any selected)
+  void recordContentBooking(beautician.id, appointment.id, req.body.content_source);
+
   if (add_ons && add_ons.length > 0) {
     const addOnRows = add_ons.map(ao => ({
       appointment_id: appointment.id,

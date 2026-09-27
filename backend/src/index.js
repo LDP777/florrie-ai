@@ -77,6 +77,8 @@ import inboxRoutes from './routes/inbox.js';
 import webhookRoutes from './routes/webhooks.js';
 import escalationRoutes from './routes/escalations.js';
 import contentRoutes from './routes/content.js';
+import contentResultsRoutes from './routes/content-results.js';
+import googleReviewsRoutes from './routes/google-reviews.js';
 import moneyRoutes from './routes/money.js';
 import recurringExpenseRoutes from './routes/recurring-expenses.js';
 import stripeRoutes from './routes/stripe.js';
@@ -338,7 +340,8 @@ app.use('/api/activity', apiLimiter, activityRoutes);
 app.use('/api/inbox', apiLimiter, paywall, inboxRoutes);
 app.use('/api/webhooks', webhookLimiter, webhookRoutes); // WhatsApp + Twilio + Bird SMS inbound webhooks
 app.use('/api/escalations', apiLimiter, paywall, escalationRoutes);
-app.use('/api/content', apiLimiter, paywall, contentRoutes);
+app.use('/api/content', apiLimiter, paywall, contentResultsRoutes, contentRoutes);
+app.use('/api/google-reviews', apiLimiter, googleReviewsRoutes);
 app.use('/api/money', apiLimiter, paywall, moneyRoutes);
 app.use('/api/recurring-expenses', apiLimiter, paywall, recurringExpenseRoutes); // the rules behind regular costs, materialised daily by the recurring-expenses job
 // Stripe webhook must bypass rate limiter + idempotency guard , Stripe retries

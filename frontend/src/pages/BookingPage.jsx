@@ -990,6 +990,7 @@ export default function BookingPage() {
         method: 'POST',
         headers: await bookingHeaders(),
         body: JSON.stringify({
+          content_source: new URLSearchParams(window.location.search).get('fl_content') || undefined,
           treatment_id: selectedTreatment.id,
           extra_treatment_ids: selectedTreatments.slice(1).map(t => t.id),
           starts_at: selectedSlot.starts_at,

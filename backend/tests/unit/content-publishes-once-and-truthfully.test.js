@@ -59,7 +59,8 @@ const BASE_COLUMNS = {
     'media_kind', 'failure_reason', 'publish_claimed_at',
     'before_url', 'after_url', 'treatment_name',
   ],
-  reviews: ['id', 'beautician_id', 'client_id', 'rating', 'comment', 'is_public', 'created_at'],
+  reviews: ['id', 'beautician_id', 'client_id', 'rating', 'comment', 'is_public', 'created_at', 'platform'],
+  review_post_permissions: ['post_id','review_id','beautician_id'],
   promo_codes: [
     'id', 'beautician_id', 'code', 'discount_type', 'discount_value',
     'max_uses', 'current_uses', 'valid_from', 'valid_until', 'is_active', 'created_at',
@@ -79,7 +80,7 @@ const resetSchema = () => {
 };
 resetSchema();
 
-const db = { treatments: [], beauticians: [], content_posts: [], reviews: [], promo_codes: [], appointments: [], ai_actions: [] };
+const db = { review_post_permissions: [], treatments: [], beauticians: [], content_posts: [], reviews: [], promo_codes: [], appointments: [], ai_actions: [] };
 let idCounter = 0;
 const nextId = (p) => `${p}_${++idCounter}`;
 
@@ -275,6 +276,13 @@ beforeEach(() => {
 
 /* =========================================================================== */
 describe('a post reaches the grid once, or not at all', () => {
+  it.each(['removed','private','google'])('does not publish a saved testimonial whose source is %s', async kind => {
+    seedSalon();seedPost({post_type:'testimonial'});stubHappyPublish();
+    db.review_post_permissions.push({post_id:'post-1',review_id:kind==='removed'?null:'review-1',beautician_id:'b-ellie'});
+    if(kind!=='removed')db.reviews.push({id:'review-1',beautician_id:'b-ellie',is_public:kind!=='private',platform:kind==='google'?'google':'florrie'});
+    const result=await publishPost('b-ellie','post-1');expect(result.published).toBe(false);expect(result.reason).toMatch(/no longer available/);expect(graphCalls).toHaveLength(0);
+  });
+
   it('does not call Meta at all for a post that is already posted', async () => {
     seedSalon();
     seedPost({ status: 'posted', external_post_id: 'ig-post-77', posted_at: '2026-08-30T18:30:00.000Z' });

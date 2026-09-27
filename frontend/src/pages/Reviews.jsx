@@ -1,3 +1,6 @@
+import GoogleReviews from '../components/GoogleReviews.jsx';
+import { API_BASE } from '../lib/config.js';
+import { contentRequest } from '../lib/content-workflow.js';
 import GoogleReviewSetup from '../components/GoogleReviewSetup.jsx';
 import { googleReviewLink } from '../../../backend/src/lib/google-review-link.mjs';
 import MoreLoadError from '../components/MoreLoadError.jsx';
@@ -27,6 +30,8 @@ export default function Reviews() {
   const navigate = useNavigate();
   const [shareReview, setShareReview] = useState(null);
   const [shareAllowed, setShareAllowed] = useState(false);
+  const [shareSaving,setShareSaving]=useState(false);
+  const [shareError,setShareError]=useState('');
   const [tab, setTab] = useState('reviews');
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -91,6 +96,7 @@ export default function Reviews() {
   return (
     <div style={styles.page}>
       <PageHeader title="Reviews" eyebrow="Your reputation" subtitle="Ask for feedback. Make the most of kind words." />
+      <GoogleReviews ownerId={beautician.id} />
       <GoogleReviewSetup key={beautician.id} beautician={beautician} onSaved={refresh} />
 
       {/* Rating hero */}
@@ -157,7 +163,7 @@ export default function Reviews() {
               <span style={{ fontSize: 36, display: 'block', marginBottom: 12 }}><Icon name="star" size={36} /></span>
               <p style={styles.emptyTitle}>No reviews yet</p>
               <p style={styles.emptyDesc}>
-                Client feedback saved in Florrie will appear here. Review-platform imports are not available yet.
+                Client feedback saved in Florrie will appear here. Connected Google reviews appear in the section above.
               </p>
             </div>
           ) : (
@@ -189,10 +195,18 @@ export default function Reviews() {
                   <span style={styles.reviewTreatment}>{<Icon name="sparkles" inline />} {review.treatment}</span>
                 )}
 
-                {review.is_public === true && review.text && <div className="fl-review-share">
+                {review.is_public === true && review.platform !== 'google' && review.text && <div className="fl-review-share">
                   {shareReview === review.id ? <>
                     <label><input type="checkbox" checked={shareAllowed} onChange={e => setShareAllowed(e.target.checked)} /> I have permission to use this review in my marketing.</label>
-                    <button disabled={!shareAllowed} onClick={() => navigate('/content', { state: { compose: 'review', type: 'testimonial', caption: `“${review.text}”\n\nThank you for sharing your experience.` } })}>Prepare a review post</button>
+                    <button disabled={!shareAllowed || shareSaving} onClick={async () => {
+                      setShareSaving(true);setShareError('');
+                      try {
+                        const {data}=await supabase.auth.getSession();
+                        await contentRequest(`${API_BASE}/api/content/review-draft`, {token:data?.session?.access_token,method:'POST',body:{review_id:review.id,expected_text:review.text,marketing_permission:true}});
+                        navigate('/content', {state:{showDrafts:true}});
+                      } catch(error) {setShareError(error.message);} finally {setShareSaving(false);}
+                    }}>{shareSaving ? 'Saving permission & draft…' : 'Prepare a review post'}</button>
+                    {shareError && <p role="alert">{shareError}</p>}
                     <button onClick={() => setShareReview(null)}>Cancel</button>
                   </> : <button onClick={() => { setShareReview(review.id); setShareAllowed(false); }}><Icon name="camera" size={16} /> Turn into a post</button>}
                 </div>}

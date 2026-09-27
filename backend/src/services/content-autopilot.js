@@ -442,6 +442,16 @@ export async function publishPost(beauticianId, postId) {
     };
   }
 
+  // Saved testimonial permissions remain tied to the original public feedback.
+  if (post.post_type === 'testimonial') {
+    const permission = await supabase.from('review_post_permissions').select('review_id').eq('post_id',postId).eq('beautician_id',beauticianId).maybeSingle();
+    if (permission.error) return {published:false,reason:'Could not check permission for this review post. Try again.'};
+    if (permission.data) {
+      const source = permission.data.review_id ? await supabase.from('reviews').select('id,is_public,platform').eq('id',permission.data.review_id).eq('beautician_id',beauticianId).maybeSingle() : {data:null};
+      if (source.error || !source.data || source.data.is_public !== true || source.data.platform === 'google') return {published:false,reason:'The original feedback is no longer available for marketing. Review this draft before publishing.'};
+    }
+  }
+
   const isStory = post.media_kind === 'story';
   const { data: beautician, error: beauticianErr } = await supabase
     .from('beauticians')

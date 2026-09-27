@@ -1,3 +1,4 @@
+import ContentResults from '../components/ContentResults.jsx';
 import ContentDirection from '../components/ContentDirection.jsx';
 import { contentRequest, parseHashtags, localScheduleValue, scheduleInstant } from '../lib/content-workflow.js';
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -230,6 +231,7 @@ export default function ContentAutopilot() {
   const location = useLocation();
   useEffect(() => {
     const st = location.state;
+    if (st?.showDrafts) { setTab('drafts'); window.history.replaceState({}, document.title); }
     if (st && st.compose === 'review' && st.caption) {
       startCompose(st.type || 'testimonial', st.caption);
       window.history.replaceState({}, document.title);
@@ -795,7 +797,7 @@ export default function ContentAutopilot() {
       </header>
       {/* Tabs */}
       <div className="fl-studio-tabs" style={styles.tabs} aria-label="Content views">
-        {['ideas', 'drafts', 'posted', 'calendar', 'gallery'].map(t => (
+        {['ideas', 'drafts', 'posted', 'results', 'calendar', 'gallery'].map(t => (
           <button className="fl-tap"
             key={t}
             aria-pressed={tab === t || (tab === 'compose' && t === 'drafts')}
@@ -805,10 +807,11 @@ export default function ContentAutopilot() {
               color: (tab === t || (tab === 'compose' && t === 'drafts')) ? 'var(--on-accent, #fff)' : 'var(--text-secondary, #574A42)',
             }}
           >
-            {t === 'ideas' ? 'Plan' : t === 'drafts' ? `Drafts${drafts.length ? ` (${drafts.length})` : ''}` : t === 'posted' ? 'Posted' : t === 'calendar' ? 'Calendar' : 'Gallery'}
+            {t === 'ideas' ? 'Plan' : t === 'drafts' ? `Drafts${drafts.length ? ` (${drafts.length})` : ''}` : t === 'posted' ? 'Posted' : t === 'results' ? 'Results' : t === 'calendar' ? 'Calendar' : 'Gallery'}
           </button>
         ))}
       </div>
+      {tab === 'results' && <ContentResults ownerId={beautician.id} posts={[...drafts,...scheduled,...posted]} />}
       {tab === 'ideas' && !composing && <ContentDirection treatments={treatments} planning={planning} onPlan={handlePlanWeek}
         onCompose={({ type, treatment, brief }) => { startCompose(type, ''); setComposeTreatment(treatment); setComposeBrief(brief); }}
         onGallery={() => setTab('gallery')} drafts={error ? null : drafts.length} scheduled={error ? null : scheduled.length}

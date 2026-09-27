@@ -25,9 +25,15 @@ try {
     await ctx.addInitScript(() => {
       const base = window.fetch;
       const json = (value, status = 200) => Promise.resolve(new Response(JSON.stringify(value), { status, headers: { 'content-type': 'application/json' } }));
-      window.__studio = { plans: [], saves: [], failSave: true, posts: [] };
+      window.__studio = { plans: [], saves: [], failSave: true, posts: [], reviewDrafts: [], failReviewSave: true };
       window.fetch = (input, opts = {}) => {
         const url = String(input), method = opts.method || 'GET', fixture = window.__studio;
+        if (url.includes('/api/google-reviews/status')) return json({available:false,connected:false});
+        if (url.includes('/api/content/review-draft')) {
+          const body=JSON.parse(opts.body);fixture.reviewDrafts.push(body);
+          if(fixture.failReviewSave)return json({error:'Could not save the review draft. Check Drafts before trying again.'},503);
+          const post={id:'review-post',caption:`“${body.expected_text}”`,status:'draft',post_type:'testimonial',created_at:new Date().toISOString()};fixture.posts.push(post);return json({post},201);
+        }
         if (url.includes('/api/content/plan-week')) {
           fixture.plans.push(JSON.parse(opts.body));
           fixture.posts = [1, 2, 3].map(i => ({id:`post-${i}`,caption:`Draft ${i} about Signature brows`,status:'draft',post_type:'general',created_at:new Date().toISOString()}));
@@ -104,7 +110,12 @@ try {
         assert.ok(await page.getByRole('button',{name:'Prepare a review post',exact:true}).isDisabled());
         await page.getByRole('checkbox',{name:'I have permission to use this review in my marketing.'}).check();
         await page.getByRole('button',{name:'Prepare a review post',exact:true}).click();
-        assert.match(await page.getByLabel('Post caption',{exact:true}).inputValue(),/A thoughtful visit/);
+        await page.getByRole('alert').filter({hasText:'Could not save the review draft'}).waitFor();
+        assert.ok(await page.getByRole('checkbox',{name:'I have permission to use this review in my marketing.'}).isChecked());
+        await page.evaluate(()=>window.__studio.failReviewSave=false);
+        await page.getByRole('button',{name:'Prepare a review post',exact:true}).click();
+        await page.getByText('“A thoughtful visit and exactly the shape I hoped for.”',{exact:true}).waitFor();
+        assert.equal((await page.evaluate(()=>window.__studio.reviewDrafts))[1].marketing_permission,true);
       }
       console.log(`✓ ${route} ${width}px: layout and workflow`);
     }
