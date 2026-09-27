@@ -68,10 +68,16 @@ export default function UpdatePassword({ supabase }) {
     setLoading(true);
     mutationStarted.current = true;
     try {
-      const { error: updateError } = await bounded(supabase.auth.updateUser({ password }), 15000);
+      const update = await bounded(supabase.auth.updateUser({ password }), 15000);
+      if (!update || !Object.hasOwn(update, 'error')) throw new Error('Password update not confirmed');
+      const updateError = update.error;
       if (!mounted.current) return;
 
       if (updateError) {
+        if (updateError.status === 0 || updateError.status >= 500 || updateError.name === 'AuthRetryableFetchError') {
+          setUncertain(true);
+          return;
+        }
         mutationStarted.current = false;
         setError('Something went wrong. Please request a new reset link.');
         return;

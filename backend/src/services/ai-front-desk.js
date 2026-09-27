@@ -29,7 +29,7 @@ import { getLoyaltyConfig, getClientPoints, loyaltyProximity } from './loyalty.j
 import { getActivePromos, describePromo } from '../lib/promos.js';
 import { advanceBookingConversation } from './conversational-booking.js';
 import { authorship } from '../lib/authorship.js';
-import { isGroundedReply, asksForHuman, signAsFlorrie, atTheDoorPhrase, greetingReplyCheck } from '../lib/grounded-reply.js';
+import { isGroundedReply, asksForHuman, signAsFlorrie, atTheDoorPhrase, greetingReplyCheck, isBareGreeting } from '../lib/grounded-reply.js';
 import { normaliseOutcome } from '../lib/ai-actions.js';
 import { patchTestEvidence, patchTestStance } from '../lib/patch-test-status.js';
 import { inboundBudget } from '../lib/inbound-budget.js';
@@ -1825,8 +1825,8 @@ Respond with the WhatsApp message only. No quotes, no JSON, no explanation.`;
   // Keep the diary in the prompt for real questions, but replace any model
   // drift here before it can become either a draft or an auto-send.
   const greeting = greetingReplyCheck(message, fit.text);
-  if (!greeting.ok) {
-    logger.warn({ beauticianId: beautician?.id, reason: greeting.reason }, 'AI Front Desk kept booking context out of a bare greeting');
+  if (isBareGreeting(message)) {
+    if (!greeting.ok) logger.warn({ beauticianId: beautician?.id, reason: greeting.reason }, 'AI Front Desk kept booking context out of a bare greeting');
     fit = styleFit('Hey, how can I help?', style);
   }
 

@@ -15,7 +15,7 @@ const session={access_token:'fictional-recovery',user:{id:'fictional-owner'}};
 const auth={
  onAuthStateChange(cb){fixture.listeners.add(cb);return {data:{subscription:{unsubscribe(){fixture.listeners.delete(cb)}}}}},
  getSession(){fixture.reads++;if(fixture.mode==='reject')return Promise.reject(new Error('Synthetic reset-session outage'));if(fixture.mode==='hang')return new Promise(resolve=>fixture.late.push(resolve));return Promise.resolve({data:{session:fixture.mode==='empty'?null:session}})},
- updateUser:async value=>{fixture.updates.push(value);if(fixture.updateHang)return new Promise(resolve=>{fixture.finishUpdate=resolve});return {error:fixture.updateError?{message:'Synthetic update failure'}:null}},
+ updateUser:async value=>{fixture.updates.push(value);if(fixture.updateHang)return new Promise(resolve=>{fixture.finishUpdate=resolve});return {error:fixture.returnedError || (fixture.updateError?{status:400,message:'Synthetic update failure'}:null)}},
  signOut:()=>{fixture.signouts++;if(fixture.signOutHang)return new Promise(()=>{});fixture.mode='empty';fixture.listeners.forEach(cb=>cb('SIGNED_OUT',null));return Promise.resolve({error:null})}
 };
 window.fixtureAuth=auth;
@@ -112,6 +112,15 @@ try {
  await page.getByRole('heading',{name:'Change not confirmed',exact:true}).waitFor();
  await page.getByRole('button',{name:'Return to Florrie',exact:true}).click();
  await page.getByRole('heading',{name:'Hub',exact:true}).waitFor();
+ for (const error of [{status:0,message:'Network unavailable'},{status:503,message:'Auth unavailable'},{name:'AuthRetryableFetchError',message:'Try again'}]) {
+  await page.goto(origin+'/update-password?mode=session&real=1');
+  await fill();await page.evaluate(error=>{fixture.returnedError=error},error);
+  await page.getByRole('button',{name:'Update password',exact:true}).click();
+  await page.getByRole('heading',{name:'Change not confirmed',exact:true}).waitFor();
+  assert.equal(await page.evaluate(()=>fixture.updates.length),1);
+  assert.equal(await page.evaluate(()=>fixture.signouts),0);
+  assert.equal(await page.getByRole('button',{name:'Update password',exact:true}).count(),0);
+ }
  assert.deepEqual(errors,[]);
  console.log('PASS: recovery read retry/stale/late events, retained edits, expired link; real App confirmed sign-out to login, stalled sign-out to usable app, uncertain update prevents retry/sign-out and ignores late result');
 } finally {await browser?.close();await new Promise(resolve=>server.close(resolve));}

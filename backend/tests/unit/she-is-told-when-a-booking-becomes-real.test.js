@@ -785,3 +785,31 @@ it('automatic retry is disabled without a valid rollout boundary', async () => {
   expect(await retryBookingConfirmedAlerts()).toEqual({ attempted: 0 });
   expect(apnsSent).toHaveLength(0);
 });
+
+
+describe('new-client alerts use booking evidence', () => {
+  it('keeps the original new-client fact when a deposit is paid later', async () => {
+    const { announceBookingConfirmed } = await import('../../src/services/booking-confirmed-alert.js');
+    db.ai_actions.push({id:'source',beautician_id:SALON,action_type:'booking_created',details:{appointment_id:APPT,new_client:true}});
+    await announceBookingConfirmed(APPT);
+    expect(bookingPushes()[0].payload.title).toContain('New client booking');
+    expect(bookingPushes()[0].payload.data.newClient).toBe(true);
+    expect(confirmedAlerts()[0].details.new_client).toBe(true);
+  });
+  it('does not infer a new client from two nearby creation timestamps', async () => {
+    const { announceBookingConfirmed } = await import('../../src/services/booking-confirmed-alert.js');
+    db.appointments[0].created_at = new Date().toISOString();
+    db.clients[0].created_at = new Date().toISOString();
+    await announceBookingConfirmed(APPT);
+    expect(bookingPushes()[0].payload.title).not.toContain('New client');
+  });
+  it('retains the label when the first delivery fails and is retried', async () => {
+    const { announceBookingConfirmed } = await import('../../src/services/booking-confirmed-alert.js');
+    db.push_subscriptions = []; apnsFails = true; apnsDevices = 1;
+    await announceBookingConfirmed(APPT, {newClient:true});
+    apnsFails = false;
+    await announceBookingConfirmed(APPT);
+    expect(apnsSent.at(-1).title).toContain('New client booking');
+    expect(confirmedAlerts()[0].details.new_client).toBe(true);
+  });
+});

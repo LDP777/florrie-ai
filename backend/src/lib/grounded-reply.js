@@ -347,7 +347,12 @@ function promisesAHumanAction(text, beauticianFirstName) {
 // "you're coming in" or "see you tomorrow" quietly turns a hello into an
 // appointment claim.  The model has the diary in its context for useful
 // questions, but that context must not leak into a bare greeting.
-const BARE_GREETING = /^\s*(?:hi|hey|hello|hiya|heya|morning|afternoon|evening)(?:\s+(?:there|lovely|hun|honey|darling|love|babe))?\s*[!,.?]*\s*$/i;
+const BARE_GREETING = /^(?:hi+|hey+|hello+|hiya|heya|morning|afternoon|evening|good morning|good afternoon|good evening)(?: (?:there|lovely|hun|honey|darling|love|babe|girl|girls))?(?: x+)?$/i;
+export function isBareGreeting(message) {
+  const words = String(message || '').normalize('NFKC').replace(/[\p{P}\p{S}\uFE0F\u200D]/gu, ' ').replace(/\s+/g, ' ').trim();
+  return BARE_GREETING.test(words);
+}
+
 const GREETING_PRESENCE_OR_BOOKING = /\b(?:you(?:'re| are)\s+(?:coming|on (?:your|the) way|here|ready)|i(?:'m| am)\s+(?:coming|on my way|here|ready)(?!\s+to\s+help)|(?:coming|on my way)\s+(?:in|over|round|up)?|see you\b|(?:booked|booking|appointment|slot)\b|all set\b|you(?:'re| are)\s+in\b|(?:tomorrow|tonight|next week)\b)/i;
 
 /**
@@ -357,8 +362,8 @@ const GREETING_PRESENCE_OR_BOOKING = /\b(?:you(?:'re| are)\s+(?:coming|on (?:you
  * reply.
  */
 export function greetingReplyCheck(message, reply) {
-  if (!BARE_GREETING.test(String(message || ''))) return { ok: true };
-  const text = String(reply || '');
+  if (!isBareGreeting(message)) return { ok: true };
+  const text = String(reply || '').replace(/[’‘]/g, "'");
   if (GREETING_PRESENCE_OR_BOOKING.test(text)) {
     return { ok: false, reason: 'greeting_reply_contains_booking_or_presence_claim' };
   }
@@ -458,10 +463,9 @@ export function isGroundedReply({ intent, message, context, reply, beauticianFir
   // "How can I help today?" is conversational, not an appointment date. The
   // date guard still applies to every other relative-day phrase, including a
   // greeting that drifted into "see you tomorrow" (caught above as well).
-  const genericGreetingQuestion = key === 'greeting'
-    && /\bhow can i help(?: you)?\s+today\b/i.test(t)
-    && !GREETING_PRESENCE_OR_BOOKING.test(t);
-  const dates = genericGreetingQuestion ? { ok: true } : dateClaimCheck(t, context?.clientUpcoming);
+  const dateText = key === 'greeting'
+    ? t.replace(/\bhow can i help(?: you)?\s+today\b/ig, 'how can I help') : t;
+  const dates = dateClaimCheck(dateText, context?.clientUpcoming);
   if (!dates.ok) return { grounded: false, reason: dates.reason };
 
   return { grounded: true, reason: doorstep ? 'grounded:arrival_note' : `grounded:${key}` };

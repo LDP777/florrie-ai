@@ -48,7 +48,7 @@ async function announce(appointmentId, { source = 'unknown', claim = true, newCl
     if (transition.reason === 'claim_unreadable') return skipped(transition.reason);
   }
   const { data: appt, error } = await supabase.from('appointments')
-    .select(`${PREPARATION_APPOINTMENT_SELECT}, created_at, deposit_paid, clients(first_name,created_at), treatments(name)`)
+    .select(`${PREPARATION_APPOINTMENT_SELECT}, deposit_paid, clients(first_name), treatments(name)`)
     .eq('id', appointmentId).maybeSingle();
   if (error || !appt) return skipped('appointment_unreadable');
   if (appt.status !== 'confirmed') return skipped('not_confirmed');
@@ -70,23 +70,26 @@ async function announce(appointmentId, { source = 'unknown', claim = true, newCl
   if (previous?.some(row => row.outcome === 'success')) return skipped('already_announced');
   const old = previous?.find(row => row.id === id);
   if (old?.outcome === 'pending' && Date.parse(old.details?.lease_until) > Date.now()) return skipped('delivery_in_progress');
+  let confirmedNewClient = typeof newClient === 'boolean' ? newClient : old?.details?.new_client;
+  if (typeof confirmedNewClient !== 'boolean') {
+    // Deposit confirmation may arrive much later. Use the original booking fact,
+    // never proximity between client and appointment creation timestamps.
+    confirmedNewClient = null;
+    try {
+      const sourceAction = await supabase.from('ai_actions').select('details')
+        .eq('beautician_id', appt.beautician_id).eq('action_type', 'booking_created')
+        .eq('details->>appointment_id', appointmentId).limit(1);
+      const recorded = sourceAction.data?.[0]?.details?.new_client;
+      if (!sourceAction.error && typeof recorded === 'boolean') confirmedNewClient = recorded;
+    } catch (err) { logger.warn({ err, appointmentId }, 'New-client label unavailable; sending the booking alert without it'); }
+  }
   const attemptId = randomUUID();
-  const details = { ...(old?.details || {}), appointment_id: appointmentId, source,
+  const details = { ...(old?.details || {}), appointment_id: appointmentId, source, new_client: confirmedNewClient,
     attempt_id: attemptId, last_attempt_at: new Date().toISOString(), lease_until: new Date(Date.now() + LEASE_MS).toISOString() };
   const clientName = appt.clients?.first_name || 'A client';
   const treatmentName = appt.treatments?.name || 'their treatment';
   const dateLabel = labelFor(appt.starts_at);
   const summary = `${clientName} is booked in for ${treatmentName}, ${dateLabel}`;
-  // Public booking creates the client immediately before the appointment. If
-  // this alert is being retried later (for example after the deposit webhook),
-  // retain the same distinction without requiring a second provider call. A
-  // very small window avoids labelling an established client as new merely
-  // because they booked shortly after opening the page.
-  const clientCreatedAt = Date.parse(appt.clients?.created_at || '');
-  const appointmentCreatedAt = Date.parse(appt.created_at || '');
-  const inferredNewClient = Number.isFinite(clientCreatedAt) && Number.isFinite(appointmentCreatedAt)
-    && clientCreatedAt <= appointmentCreatedAt
-    && appointmentCreatedAt - clientCreatedAt <= 60_000;
   let reservation;
   if (old) {
     reservation = await supabase.from('ai_actions').update({ outcome: 'pending', details })
@@ -103,7 +106,7 @@ async function announce(appointmentId, { source = 'unknown', claim = true, newCl
   try {
     result = await pushBookingConfirmed(appt.beautician_id, clientName, treatmentName, dateLabel, {
       appointmentId, apptDate: appt.starts_at, depositPaid: appt.deposit_paid === true,
-      newClient: newClient ?? inferredNewClient,
+      newClient: confirmedNewClient,
       channels: { web: !details.web_delivered, apns: !details.apns_delivered },
     });
   } catch (err) { logger.warn({ err, appointmentId }, 'Booking-confirmed provider failed'); }

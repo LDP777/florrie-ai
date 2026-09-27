@@ -12,7 +12,11 @@ export async function requireBookingIdentity(req, res, next) {
   try {
     const { data, error } = await supabaseAnon.auth.getUser(token);
     const user = data?.user;
-    const emailConfirmedAt = user?.email_confirmed_at || user?.confirmed_at;
+    if (error && (error.status === 0 || error.status >= 500 || error.name === 'AuthRetryableFetchError')) {
+      return res.status(503).json({ error: 'Email verification could not be checked. Please try again.' });
+    }
+    // Generic confirmation may be phone-only; it cannot prove this email.
+    const emailConfirmedAt = user?.email_confirmed_at;
     if (error || !user?.email || !emailConfirmedAt) {
       return res.status(401).json({ code: 'booking_verification_required', error: 'Verify your email before continuing.' });
     }

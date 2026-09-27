@@ -39,6 +39,7 @@
 process.env.TZ = 'UTC';
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { __resetInboundBudget } from '../../src/lib/inbound-budget.js';
 
 /* ------------------------------------------------------------------ clock --
  * Fixed, because it must be. gatherContext reads "now" to find upcoming
@@ -267,6 +268,7 @@ function writeNote(content, category = 'arrival') {
 
 /** Reset the world without re-running the whole beforeEach. */
 function freshWorld(content = SHE_WROTE) {
+  __resetInboundBudget();
   for (const t of Object.keys(db)) delete db[t];
   delivered.length = 0;
   doorPushes.length = 0;
@@ -681,6 +683,20 @@ describe('the other things people say when they are already there', () => {
       expect(textsToClient(), 'something reached the client').toEqual([]);
       expect(doorPushes, 'the owner was not told').toHaveLength(1);
       expect(messageRow().escalated).toBe(true);
+    });
+  }
+});
+
+describe('a greeting is not an arrival', () => {
+  for (const words of ['Hey girl', 'hey lovely xx', 'Hi! 👋']) {
+    it(`answers ${words} without claiming Ellie is coming`, async () => {
+      freshWorld(words);
+      table('treatments').push({id:'t1',beautician_id:'b1',name:'Signature brows',price_cents:3000,duration_minutes:30,is_active:true,booking_enabled:true});
+      script.reply = 'hey lovely, coming now xx';
+      await processInboundMessage(MSG_ID, beautician, client, words);
+      expect(textsToClient().join(' ')).toMatch(/how can I help/i);
+      expect(textsToClient().join(' ')).not.toMatch(/coming|on my way|see you/i);
+      expect(doorPushes).toHaveLength(0);
     });
   }
 });

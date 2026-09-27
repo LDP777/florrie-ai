@@ -13,11 +13,8 @@ export default function BookingEmailVerification({ onVerified }) {
   const normaliseEmail = value => String(value || '').trim().toLowerCase();
   const verifiedAddress = session => {
     const user = session?.user;
-    // Supabase normally exposes email_confirmed_at. Older auth responses can
-    // carry confirmed_at instead, and the OTP itself is still proof of the
-    // address. Accept either marker here, while the backend performs its own
-    // verified-token check before any client data is returned.
-    const confirmed = user?.email_confirmed_at || user?.confirmed_at;
+    // Phone confirmation is not proof of ownership of the email address.
+    const confirmed = user?.email_confirmed_at;
     return confirmed && user?.email ? normaliseEmail(user.email) : '';
   };
   useEffect(() => {

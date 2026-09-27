@@ -4279,7 +4279,7 @@ router.post('/:slug/book', requireBookingIdentity, validate(bookingSchema), veri
     action_type: 'booking_created',
     digital_employee: 'front_desk',
     summary: `${firstName} booked ${treatmentNames} for ${startsDate.toLocaleDateString('en-GB', { timeZone: 'UTC' })} at ${startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}`,
-    details: { appointment_id: appointment.id, treatment: treatmentNames, treatments: allTreatments.map(t => ({ id: t.id, name: t.name })), client_name },
+    details: { appointment_id: appointment.id, new_client: isNewClient && !resolved.contactReview, treatment: treatmentNames, treatments: allTreatments.map(t => ({ id: t.id, name: t.name })), client_name },
     client_id: client.id,
     appointment_id: appointment.id,
     confidence: 1.0,
@@ -4325,12 +4325,12 @@ router.post('/:slug/book', requireBookingIdentity, validate(bookingSchema), veri
   // stays but inverts: it picks the wording rather than deciding whether to
   // speak at all.
   if (appointment.status === 'confirmed') {
-    await announceBookingConfirmed(appointment.id, { source: 'public_booking', claim: false, newClient: isNewClient });
+    await announceBookingConfirmed(appointment.id, { source: 'public_booking', claim: false, newClient: isNewClient && !resolved.contactReview });
   } else pushNewBooking(beautician.id, firstName, treatmentNames, `${dateStr} at ${timeStr}`, {
     appointmentId: appointment.id,
     apptDate: appointment.starts_at,
     pending: appointment.status === 'pending',
-    newClient: isNewClient,
+    newClient: isNewClient && !resolved.contactReview,
   }).catch(() => {});
   refreshLiveActivity(beautician.id).catch(() => {});
 
