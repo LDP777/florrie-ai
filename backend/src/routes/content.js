@@ -9,16 +9,35 @@ const router = Router();
 
 /**
  * GET /api/content
- * List content posts. ?status=draft for the approval queue. ?stream_id=uuid to filter by stream.
+ * List content posts. Paging leaves older drafts reachable as the salon grows.
+ * ?bucket=pending returns unfinished work first; ?post_id=uuid opens one owned post.
  */
 router.get('/', requireAuth, async (req, res) => {
+  const integer = (value, fallback, min, max) => {
+    if (value === undefined) return fallback;
+    if (typeof value !== 'string' || !/^\d+$/.test(value)) return null;
+    const number = Number(value);
+    return Number.isSafeInteger(number) && number >= min && number <= max ? number : null;
+  };
+  const offset = integer(req.query.offset, 0, 0, 100000);
+  const limit = integer(req.query.limit, 30, 1, 100);
+  if (offset === null || limit === null) return res.status(400).json({ error: 'Choose an offset from 0 to 100000 and a limit from 1 to 100.' });
+  if (req.query.bucket !== undefined && req.query.bucket !== 'pending') return res.status(400).json({ error: 'Unknown content bucket. Use pending for unfinished posts.' });
+  if (req.query.bucket && req.query.status) return res.status(400).json({ error: 'Choose a content bucket or a status, not both.' });
+  if (req.query.post_id !== undefined && (typeof req.query.post_id !== 'string' || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(req.query.post_id))) {
+    return res.status(400).json({ error: 'Choose a saved post.' });
+  }
+  const pending = req.query.bucket === 'pending';
   let query = supabase
     .from('content_posts')
     .select('*')
     .eq('beautician_id', req.beautician.id)
     .or('post_type.neq.gallery,post_type.is.null')
-    .order('created_at', { ascending: false })
-    .limit(30);
+    .order('created_at', { ascending: pending })
+    .order('id', { ascending: pending });
+
+  if (pending) query = query.in('status', ['draft', 'approved', 'failed', 'scheduled']);
+  if (req.query.post_id) query = query.eq('id', req.query.post_id);
 
   if (req.query.status) {
     // THE REAL FIVE, from the CHECK on content_posts.status in migration 001:
@@ -42,12 +61,15 @@ router.get('/', requireAuth, async (req, res) => {
     query = query.eq('stream_id', req.query.stream_id);
   }
 
-  const { data, error } = await query;
+  // One extra row tells the UI when more posts exist without treating a
+  // partial list as the salon's entire queue or fetching an unbounded history.
+  const { data, error } = await query.range(offset, offset + limit);
   if (error) {
     logger.error({ err: error }, 'Failed to fetch content posts');
     return res.status(500).json({ error: 'Something went wrong' });
   }
-  res.json({ posts: data });
+  const hasMore = (data || []).length > limit;
+  res.json({ posts: (data || []).slice(0, limit), has_more: hasMore, next_offset: hasMore ? offset + limit : null });
 });
 
 /**

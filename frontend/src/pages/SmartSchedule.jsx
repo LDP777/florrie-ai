@@ -9,6 +9,7 @@ import Button from '../components/ui/Button';
 import Icon from '../components/ui/Icon';
 import Money from '../components/ui/Money';
 import { computeSchedule, salonClock, scheduleRange, suggestionsForGap } from './smart-schedule-model.js';
+import { scheduleContentHandoff } from '../lib/content-navigation.js';
 
 /** Schedule gaps and client ideas from saved appointments, hours and blocked time. */
 
@@ -146,10 +147,10 @@ export default function SmartSchedule() {
       if (seq === request.current.seq) setCopyError('Could not copy the booking link. Try again, or open your booking page below.');
     }
   }
-  function FillFallback({ compact }) {
+  function FillFallback({ compact, gap }) {
     return <div style={compact ? styles.fillFallbackCompact : styles.fillFallback}>
       <p style={styles.fillFallbackText}>No matching client ideas for this gap. You can share your availability or booking page.</p>
-      <button style={styles.offerBtn} onClick={() => navigate('/content')}>Create an availability post</button>
+      <button style={styles.offerBtn} onClick={() => navigate('/content', { state: scheduleContentHandoff(gap) })}>Create an availability post</button>
       <button style={styles.fillSecondaryBtn} onClick={copyBookingLink}>{copied ? 'Booking link copied' : (slug ? 'Copy booking link' : 'Set up booking link')}</button>
     </div>;
   }
@@ -486,7 +487,7 @@ export default function SmartSchedule() {
                         {/* No matching suggestion */}
                         {!ideasLoading && !ideasError && gapSuggestions.rebook_due.slice(0, gap.fillability === 'high' ? 2 : 1).length === 0 &&
                           !(gapSuggestions.waitlist_match.length > 0 && gap.fillability !== 'low') && (
-                          <FillFallback compact />
+                          <FillFallback compact gap={gap} />
                         )}
                       </div>
                     )}
@@ -511,7 +512,7 @@ export default function SmartSchedule() {
               <p style={styles.fillHeroText}>
                 These ideas use completed visits from the last six months and current waitlist matches. You can also share {gaps.length > 0 ? `your ${gaps.length} open gap${gaps.length > 1 ? 's' : ''}` : 'your availability'}.
               </p>
-              <button style={styles.offerBtn} onClick={() => navigate('/content')}>Post your availability</button>
+              <button style={styles.offerBtn} onClick={() => navigate('/content', { state: scheduleContentHandoff() })}>Post your availability</button>
               <button style={styles.fillSecondaryBtn} onClick={copyBookingLink}>
                 {copied ? 'Booking link copied' : (slug ? 'Copy booking link' : 'Set up booking link')}
               </button>

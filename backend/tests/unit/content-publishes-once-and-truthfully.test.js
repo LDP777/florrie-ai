@@ -81,6 +81,7 @@ const resetSchema = () => {
 resetSchema();
 
 const db = { review_post_permissions: [], treatments: [], beauticians: [], content_posts: [], reviews: [], promo_codes: [], appointments: [], ai_actions: [] };
+const queries = [];
 let idCounter = 0;
 const nextId = (p) => `${p}_${++idCounter}`;
 
@@ -122,6 +123,8 @@ function parseWrite(table, payload) {
 }
 
 function makeBuilder(table) {
+  const queryRecord = { table, select: null, orders: [] };
+  queries.push(queryRecord);
   const filters = [];
   let pending = null, selectError = null, writeError = null;
   const matching = () => (db[table] || []).filter(r => filters.every(f => f(r)));
@@ -143,7 +146,7 @@ function makeBuilder(table) {
     return { data: rows.map(r => ({ ...r })), error: null, count: rows.length };
   };
   const b = {
-    select(spec = '*') { selectError = parseSelect(table, spec); return b; },
+    select(spec = '*') { queryRecord.select = spec; selectError = parseSelect(table, spec); return b; },
     insert(p) { pending = { op: 'insert', payload: p }; writeError = parseWrite(table, p); return b; },
     update(p) { pending = { op: 'update', payload: p }; writeError = parseWrite(table, p); return b; },
     eq(c, v) { filters.push(r => r[c] === v); return b; },
@@ -160,6 +163,7 @@ function makeBuilder(table) {
         if (op === 'is') return (r) => (r[col] ?? null) === (val === 'null' ? null : val);
         if (op === 'lt') return (r) => r[col] != null && String(r[col]) < val;
         if (op === 'gt') return (r) => r[col] != null && String(r[col]) > val;
+        if (op === 'neq') return (r) => r[col] != null && String(r[col]) !== val;
         return () => false;
       });
       filters.push(r => clauses.some(fn => fn(r)));
@@ -167,7 +171,7 @@ function makeBuilder(table) {
     },
     gte(c, v) { filters.push(r => String(r[c]) >= String(v)); return b; },
     lte(c, v) { filters.push(r => String(r[c]) <= String(v)); return b; },
-    order() { return b; },
+    order(key, options) { queryRecord.orders.push({ key, ...options }); return b; },
     limit() { return b; },
     maybeSingle() { const o = settle(); return Promise.resolve(o.error ? o : { data: (o.data || [])[0] || null, error: null }); },
     single() { const o = settle(); return Promise.resolve(o.error ? o : { data: (o.data || [])[0] || null, error: null }); },
@@ -268,6 +272,7 @@ beforeEach(() => {
   logs.warn.length = 0; logs.error.length = 0; logs.info.length = 0;
   claudeCalls.length = 0;
   graphCalls.length = 0;
+  queries.length = 0;
   graph = {};
   claudeReply = '[]';
   idCounter = 0;
@@ -365,9 +370,9 @@ describe('a post reaches the grid once, or not at all', () => {
 });
 
 /* =========================================================================== */
-describe('plan-my-week only ever quotes things that are real and public', () => {
+describe('automatic plans keep review permission separate and use real salon facts', () => {
   const PLAN = JSON.stringify([
-    { day: 'tue', post_type: 'testimonial', caption: 'A kind word from a client.', hashtags: ['#brows'] },
+    { day: 'tue', post_type: 'general', caption: 'A look inside the studio.', hashtags: ['#brows'] },
   ]);
 
   function seedReviews() {
@@ -406,7 +411,7 @@ describe('plan-my-week only ever quotes things that are real and public', () => 
     expect(claudeCalls).toHaveLength(1);
   });
 
-  it('never shows the model a review the client kept private', async () => {
+  it('keeps public and private feedback out of automatic plans without a new marketing approval', async () => {
     seedSalon();
     seedReviews();
     claudeReply = PLAN;
@@ -414,20 +419,51 @@ describe('plan-my-week only ever quotes things that are real and public', () => 
     await planWeek('b-ellie');
 
     const prompt = JSON.stringify(claudeCalls[0]);
-    expect(prompt).toContain('best brow tech in the city');
-    // The one that must never reach a public caption. There is no undo for
-    // quoting this on Instagram.
+    expect(prompt).not.toContain('best brow tech in the city');
     expect(prompt).not.toContain('my wedding is off');
+    expect(prompt).toContain('separate Reviews workflow');
+    expect(queries.some(query => query.table === 'reviews')).toBe(false);
   });
 
-  it('says there are no reviews when the only five star one is private', async () => {
+  it('does not depend on review storage to prepare a plan without quotes', async () => {
     seedSalon();
     db.reviews = [{ id: 'r-private', beautician_id: 'b-ellie', rating: 5, is_public: false, comment: 'A long private note about a difficult week, thank you.' }];
+    COLUMNS.reviews = [];
     claudeReply = PLAN;
 
     await planWeek('b-ellie');
 
-    expect(JSON.stringify(claudeCalls[0])).toContain('Real reviews available: none');
+    expect(JSON.stringify(claudeCalls[0])).toContain('Client feedback is not supplied for automatic plans');
+    expect(queries.some(query => query.table === 'reviews')).toBe(false);
+  });
+
+  it('does not recycle a published testimonial or its per-post permission into a new trust plan', async () => {
+    seedSalon();
+    seedReviews();
+    seedPost({status:'posted',post_type:'testimonial',caption:'Unapproved reuse of an earlier client quote.',posted_at:NOW.toISOString()});
+    db.review_post_permissions.push({post_id:'post-1',review_id:'r-public',beautician_id:'b-ellie'});
+    db.content_posts.push({id:'style-post',beautician_id:'b-ellie',post_type:'general',status:'posted',caption:'A quiet look around the studio.',posted_at:NOW.toISOString()});
+    claudeReply = JSON.stringify(['mon','wed','fri'].map(day => ({day,post_type:'general',caption:'A look inside the studio.',hashtags:[]})));
+    await planWeek('b-ellie', {goal:'trust',post_count:3});
+    const prompt = JSON.stringify(claudeCalls[0]);
+    expect(prompt).not.toContain('Unapproved reuse');
+    expect(prompt).not.toContain('best brow tech in the city');
+    expect(prompt).toContain('A quiet look around the studio');
+    expect(prompt).toContain('Do not quote, paraphrase or invent client feedback');
+    expect(prompt).not.toContain('share an available public review');
+  });
+
+  it('rejects a generated testimonial before saving any part of its plan', async () => {
+    seedSalon();
+    claudeReply = JSON.stringify([
+      {day:'mon',post_type:'general',caption:'A look inside the studio.',hashtags:[]},
+      {day:'wed',post_type:'testimonial',caption:'A client quote without approval.',hashtags:[]},
+      {day:'fri',post_type:'general',caption:'Check the booking page.',hashtags:[]},
+    ]);
+    await expect(planWeek('b-ellie', {goal:'trust',post_count:3})).rejects.toThrow(/Could not draft/);
+    expect(db.content_posts).toHaveLength(0);
+    expect(db.ai_actions).toHaveLength(0);
+    expect(graphCalls).toHaveLength(0);
   });
 
   it('never broadcasts an expired promo, one that has not started, or one that is used up', async () => {
@@ -491,6 +527,21 @@ describe('plan-my-week only ever quotes things that are real and public', () => 
 
 /* =========================================================================== */
 describe('a caption is written by something that has seen the photo', () => {
+  it('uses recent posts for style without inventing performance or recycling testimonials', async () => {
+    seedSalon();
+    seedPost({status:'posted',post_type:'general',caption:'A closer look at today’s studio.',likes:4321,comments:987,posted_at:NOW.toISOString()});
+    db.content_posts.push({id:'review-post',beautician_id:'b-ellie',post_type:'testimonial',status:'posted',caption:'Do not recycle this client quote.',likes:99999,posted_at:NOW.toISOString()});
+    claudeReply = 'A caption about the studio.';
+    await generateCaption('b-ellie', null, 'brows', null);
+    const prompt = JSON.stringify(claudeCalls[0]);
+    expect(prompt).toContain('writing style only (performance is not measured)');
+    expect(prompt).toContain('A closer look at today’s studio');
+    expect(prompt).not.toMatch(/Top-performing|4321|987|99999|Do not recycle this client quote/);
+    const examples = queries.find(query => query.table === 'content_posts');
+    expect(examples.select).not.toMatch(/likes|comments|bookings_attributed/);
+    expect(examples.orders).toEqual([{key:'posted_at',ascending:false}]);
+  });
+
   it('sends the image to the model when the url is one Anthropic can fetch', async () => {
     seedSalon();
     claudeReply = 'Crisp, fluffy and exactly what she asked for.';

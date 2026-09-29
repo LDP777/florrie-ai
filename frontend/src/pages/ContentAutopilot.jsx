@@ -1,8 +1,9 @@
 import ContentResults from '../components/ContentResults.jsx';
-import ContentDirection from '../components/ContentDirection.jsx';
+import ContentStudioHome from '../components/ContentStudioHome.jsx';
+import { readContentHandoff, mergeContentPosts } from '../lib/content-navigation.js';
 import { contentRequest, parseHashtags, localScheduleValue, scheduleInstant } from '../lib/content-workflow.js';
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useBeautician, supabase, fetchRows, insertRow } from '../lib/supabase.js'
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
@@ -113,6 +114,16 @@ export default function ContentAutopilot() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [tab, setTab] = useState('ideas');
+  const navigate = useNavigate();
+  const [hasMore, setHasMore] = useState(false);
+  const [nextOffset, setNextOffset] = useState(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [resultsPostId, setResultsPostId] = useState('');
+  const [composeOrigin, setComposeOrigin] = useState(null);
+  const [focusPostId, setFocusPostId] = useState(null);
+  const handoffHandled = useRef('');
+  const [handoffRetry, setHandoffRetry] = useState(0);
+  const [handoffError, setHandoffError] = useState(null);
   const [publishing, setPublishing] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [editCaption, setEditCaption] = useState('');
@@ -194,14 +205,11 @@ export default function ContentAutopilot() {
 
   // Calendar view
   const [calendarDate, setCalendarDate] = useState(new Date());
-  // Cancelled appointment prompt
-  const [cancelledPrompt, setCancelledPrompt] = useState(null);
   useEffect(() => {
     if (beautician) {
       loadTreatments();
       loadGallery();
       loadStreams();
-      loadCancelledAppointments();
       loadInstagramStatus();
     }
   }, [beautician]);
@@ -225,19 +233,49 @@ export default function ContentAutopilot() {
     }
   }
 
-  // A review-to-post card from the Hub navigates here with a prefilled caption
-  // in router state. Open the composer on it once, then clear the state so a
-  // refresh or back-navigation does not recompose.
   const location = useLocation();
   useEffect(() => {
-    const st = location.state;
-    if (st?.showDrafts) { setTab('drafts'); window.history.replaceState({}, document.title); }
-    if (st && st.compose === 'review' && st.caption) {
-      startCompose(st.type || 'testimonial', st.caption);
-      window.history.replaceState({}, document.title);
+    if (!beautician?.id || loading) return;
+    const key = `${beautician.id}:${location.key}:${handoffRetry}`;
+    if (handoffHandled.current === key) return;
+    const handoff = readContentHandoff(location.state, location.search);
+    if (!handoff.postId && !handoff.view && !handoff.brief && location.state?.compose !== 'review') return;
+    handoffHandled.current = key;
+    setHandoffError(null);
+    let active = true;
+    async function openHandoff() {
+      if (location.state?.compose === 'review') {
+        // Older Hub cards must still pass through the review permission flow.
+        navigate('/reviews', { replace: true }); return;
+      }
+      if (handoff.brief) {
+        startCompose('last_minute_availability', '');
+        setComposeBrief(handoff.brief.brief);
+        setComposeTreatment(handoff.brief.treatment || '');
+        setComposeOrigin(handoff.brief);
+      } else if (handoff.postId) {
+        try {
+          let post = [...drafts, ...scheduled, ...posted].find(item => item.id === handoff.postId);
+          if (!post) {
+            const data = await contentRequest(`${API_BASE}/api/content?post_id=${encodeURIComponent(handoff.postId)}`, { token: getToken(), timeoutMs: 15000 });
+            if (!active) return;
+            post = (data.posts || []).find(item => item.id === handoff.postId && !isGalleryRow(item));
+            if (post) putPosts([post], true);
+          }
+          if (!active) return;
+          if (!post) throw new Error('This post is no longer available in your salon. Your other posts are still here.');
+          if (handoff.view === 'results') openPostResults(post); else openPost(post);
+        } catch (err) { if (active) setHandoffError(err.message || 'Could not open this post.'); return; }
+      } else if (handoff.view) setTab(handoff.view);
+      if (active) navigate('/content', { replace: true, state: null });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.state]);
+    openHandoff();
+    return () => { active = false; };
+  }, [beautician?.id, loading, location.key, handoffRetry]);
+  useEffect(() => {
+    if (!focusPostId) return;
+    document.getElementById(`content-post-${focusPostId}`)?.scrollIntoView({block:'center', behavior:'auto'});
+  }, [focusPostId, tab, editingId]);
   useEffect(() => {
     if (!beautician) return;
     loadAll();
@@ -289,38 +327,34 @@ export default function ContentAutopilot() {
     }
   }
 
-  async function loadAll() {
+  function putPosts(posts, append = false) {
+    const update = (setter, statuses, sort) => setter(previous => mergeContentPosts(previous, posts, statuses, append).sort(sort));
+    update(setDrafts, ['draft','failed','approved'], (a,b) => new Date(b.created_at)-new Date(a.created_at));
+    update(setPosted, ['posted'], (a,b) => new Date(b.posted_at)-new Date(a.posted_at));
+    update(setScheduled, ['scheduled'], (a,b) => new Date(a.scheduled_for || 0)-new Date(b.scheduled_for || 0));
+  }
+  async function loadAll(append = false) {
+    if (append && (loadingMore || !hasMore)) return;
     const generation = ++loadGeneration.current;
-    setLoading(true);
+    if (append) setLoadingMore(true); else setLoading(true);
     setError(null);
     try {
-      // Fetch from API to support stream_id filtering
-      const token = getToken();
-      const streamParam = selectedStreamId ? `?stream_id=${selectedStreamId}` : '';
-      const data = await contentRequest(`${API_BASE}/api/content${streamParam}`, {token,timeoutMs:15000});
+      const params = new URLSearchParams({limit:'100',offset:String(append ? nextOffset || 0 : 0)});
+      if (selectedStreamId) params.set('stream_id', selectedStreamId);
+      const requests = [contentRequest(`${API_BASE}/api/content?${params}`, {token:getToken(),timeoutMs:15000})];
+      // Keep older unfinished work visible even when newer published posts fill the first page.
+      if (!append) { const pending = new URLSearchParams(params); pending.set('bucket','pending'); requests.push(contentRequest(`${API_BASE}/api/content?${pending}`, {token:getToken(),timeoutMs:15000})); }
+      const [data, pending] = await Promise.all(requests);
       if (generation !== loadGeneration.current) return;
-      const allPosts = data.posts || [];
-      // 'failed' and 'approved' sit with the drafts on purpose. There are only
-      // three tabs (drafts, scheduled, posted), so a post in either of those
-      // states used to disappear from every screen in the app: a post
-      // Instagram rejected, and a post that was approved while Instagram was
-      // disconnected, both silently vanished. They keep their Publish button
-      // here, so fixing the photo or reconnecting and tapping again is the
-      // whole recovery.
-      const PENDING = ['draft', 'failed', 'approved'];
-      // Gallery pairs are stored in this table but are not posts. Excluded so
-      // a before/after she saved to her portfolio does not turn up in Drafts
-      // with a Publish button under it.
-      const feed = allPosts.filter(p => !isGalleryRow(p));
-      setDrafts(feed.filter(p => PENDING.includes(p.status)).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
-      setPosted(feed.filter(p => p.status === 'posted').sort((a, b) => new Date(b.posted_at) - new Date(a.posted_at)));
-      setScheduled(feed.filter(p => p.status === 'scheduled').sort((a, b) => new Date(a.scheduled_for || 0) - new Date(b.scheduled_for || 0)));
+      putPosts([...(data.posts || []), ...(pending?.posts || [])], append);
+      setHasMore(data.has_more === true);
+      setNextOffset(Number.isInteger(data.next_offset) ? data.next_offset : null);
     } catch (err) {
       logger.error('Load content error:', err);
       if (generation !== loadGeneration.current) return;
       setError(err.message || 'Failed to load content');
     } finally {
-      if (generation === loadGeneration.current) setLoading(false);
+      if (generation === loadGeneration.current) { setLoading(false); setLoadingMore(false); }
     }
   }
   async function loadTreatments() {
@@ -401,60 +435,6 @@ export default function ContentAutopilot() {
       setError(err.message || 'Could not create this stream. Your details are still here.');
     } finally {
       setSavingStream(false);
-    }
-  }
-  async function loadCancelledAppointments() {
-    try {
-      const token = getToken();
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      const res = await fetch(`${API_BASE}/api/appointments?status=cancelled&since=7days`, {
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data.appointments && data.appointments.length > 0) {
-        setCancelledPrompt(data.appointments[0]);
-      }
-    } catch (err) {
-      logger.warn('Cancelled appointments load failed:', err);
-    }
-  }
-  async function handleGenerateAvailabilityPost() {
-    if (!cancelledPrompt) return;
-    setGeneratingAI(true);
-    try {
-      const token = getToken();
-      const treatmentName = cancelledPrompt.treatments?.name || 'appointment';
-      const appointmentDate = new Date(cancelledPrompt.starts_at).toLocaleDateString('en-GB', {
-        weekday: 'short',
-        day: 'numeric',
-        month: 'short',
-        hour: '2-digit',
-        minute: '2-digit',
-        timeZone: 'UTC' // starts_at is salon wall time in the UTC slot
-      });
-      const res = await fetch(`${API_BASE}/api/content/caption`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          post_type: 'last_minute_availability',
-          treatment_type: treatmentName,
-          context: `Cancelled slot: ${appointmentDate}`,
-        }),
-      });
-      if (!res.ok) throw new Error('Caption generation failed');
-      const data = await res.json();
-      startCompose('last_minute_availability', data.caption);
-      setCancelledPrompt(null);
-    } catch (err) {
-      logger.warn('Availability post generation failed:', err);
-      startCompose('last_minute_availability', getFilledTemplate('last_minute_availability'));
-    } finally {
-      setGeneratingAI(false);
     }
   }
   async function handleAIWrite() {
@@ -615,7 +595,7 @@ export default function ContentAutopilot() {
   }
   function startCompose(type, prefillCaption, imageUrl = null) {
     aiGeneration.current += 1; setGeneratingAI(false); setAiDraft(null); setAiError(null);
-    setComposeBrief(''); setComposeTreatment(''); setComposeMediaKind('feed');
+    setComposeBrief(''); setComposeTreatment(''); setComposeMediaKind('feed'); setComposeOrigin(null);
     setComposeExistingImage(imageUrl);
     setComposeType(type);
     setComposeCaption(prefillCaption || '');
@@ -772,8 +752,16 @@ export default function ContentAutopilot() {
     setEditPhoto(null); setEditPhotoUrl(post.image_url || null); setEditPhotoPreview(post.image_url || null);
   }
   function chooseSchedule(post) {
+    setTab('drafts'); setComposing(false);
     setSchedulePost(post); setScheduleTime(localScheduleValue(post.scheduled_for)); setScheduleError(null);
   }
+  function openPost(post) {
+    setComposing(false); setDraftSearch(''); setAttentionOnly(false); setDeckIndex(null); setFocusPostId(post.id);
+    if (post.status === 'scheduled') { chooseSchedule(post); return; }
+    if (post.status === 'posted') { setTab('posted'); return; }
+    setTab('drafts'); beginEdit(post);
+  }
+  function openPostResults(post) { setResultsPostId(post.id); setTab('results'); setComposing(false); }
   async function saveSchedule() {
     if (scheduleBusy.current) return;
     scheduleBusy.current = true; setScheduling(true); setScheduleError(null);
@@ -791,31 +779,23 @@ export default function ContentAutopilot() {
   return (
     <div className="fl-content-studio" style={styles.page}>
       {error && <ErrorCard message={error} onDismiss={() => setError(null)} />}
+      {handoffError && <div role="alert" className="fl-content-origin"><span>{handoffError}</span><Button variant="quiet" onClick={() => setHandoffRetry(value => value + 1)}>Retry opening post</Button><Button variant="quiet" onClick={() => {setHandoffError(null);navigate('/content',{replace:true,state:null});}}>View other posts</Button></div>}
       <header className="fl-content-heading">
         <div><span className="fl-workspace-eyebrow">Your salon, seen and remembered</span><h1>Content <em>studio.</em></h1><p>Turn your work and client feedback into a reason to book.</p></div>
         <Button onClick={() => startCompose('before_after', '')}><Icon name="plus" size={17} /> New Post</Button>
       </header>
-      {/* Tabs */}
-      <div className="fl-studio-tabs" style={styles.tabs} aria-label="Content views">
-        {['ideas', 'drafts', 'posted', 'results', 'calendar', 'gallery'].map(t => (
-          <button className="fl-tap"
-            key={t}
-            aria-pressed={tab === t || (tab === 'compose' && t === 'drafts')}
-            onClick={() => { setTab(t); setComposing(false); }}
-            style={{ ...styles.tab,
-              background: (tab === t || (tab === 'compose' && t === 'drafts')) ? 'var(--accent, #92405E)' : 'transparent',
-              color: (tab === t || (tab === 'compose' && t === 'drafts')) ? 'var(--on-accent, #fff)' : 'var(--text-secondary, #574A42)',
-            }}
-          >
-            {t === 'ideas' ? 'Plan' : t === 'drafts' ? `Drafts${drafts.length ? ` (${drafts.length})` : ''}` : t === 'posted' ? 'Posted' : t === 'results' ? 'Results' : t === 'calendar' ? 'Calendar' : 'Gallery'}
-          </button>
-        ))}
+      <div className="fl-studio-tabs" aria-label="Content views">
+        {[['ideas','Studio'],['drafts','Posts'],['results','Results'],['gallery','Library']].map(([value,label]) => <button type="button" key={value}
+          aria-pressed={value === 'drafts' ? ['drafts','posted','calendar','compose'].includes(tab) : tab === value}
+          onClick={() => {setTab(value);setComposing(false);}}>{label}</button>)}
       </div>
-      {tab === 'results' && <ContentResults ownerId={beautician.id} posts={[...drafts,...scheduled,...posted]} />}
-      {tab === 'ideas' && !composing && <ContentDirection treatments={treatments} planning={planning} onPlan={handlePlanWeek}
-        onCompose={({ type, treatment, brief }) => { startCompose(type, ''); setComposeTreatment(treatment); setComposeBrief(brief); }}
-        onGallery={() => setTab('gallery')} drafts={error ? null : drafts.length} scheduled={error ? null : scheduled.length}
-        onDrafts={() => setTab('drafts')} onCalendar={() => setTab('calendar')} note={planNote} blocked={planBlocked} />}
+      {['drafts','posted','calendar'].includes(tab) && <div className="fl-content-subtabs" role="group" aria-label="Post views">{[['drafts','Drafts & scheduled'],['calendar','Calendar'],['posted','Published']].map(([value,label]) => <button type="button" key={value} aria-pressed={tab === value} onClick={() => setTab(value)}>{label}</button>)}</div>}
+      {hasMore && ['drafts','posted','calendar','results'].includes(tab) && <div className="fl-content-origin"><span>Showing loaded posts. Earlier drafts and scheduled work may be further back.</span><Button variant="quiet" disabled={loadingMore} onClick={() => loadAll(true)}>{loadingMore ? 'Loading…' : 'Load older posts'}</Button></div>}
+      {tab === 'results' && <ContentResults ownerId={beautician.id} posts={[...drafts,...scheduled,...posted]} initialPostId={resultsPostId} />}
+      {tab === 'ideas' && !composing && <ContentStudioHome treatments={treatments} drafts={drafts} scheduled={scheduled} gallery={gallery} complete={!hasMore} error={error}
+        igStatus={igStatus} igChecking={igChecking} planning={planning} onPlan={handlePlanWeek} onPost={openPost}
+        onCompose={({ type, treatment, brief }) => { startCompose(type, ''); setComposeTreatment(treatment || ''); setComposeBrief(brief || ''); }}
+        onGallery={() => setTab('gallery')} onDrafts={() => setTab('drafts')} onCalendar={() => setTab('calendar')} onResults={() => setTab('results')} onRetry={() => loadAll()} note={planNote} blocked={planBlocked} />}
       {tab !== 'ideas' && planNote && <p role="status" className="fl-studio-note">{planNote}</p>}
 
       {/* Instagram is not connected, or its token is dead. Said once, at the
@@ -837,7 +817,7 @@ export default function ContentAutopilot() {
       )}
 
       {/* Feed grid preview — see your Instagram feed before it goes out (hero) */}
-      {!composing && (scheduled.length + posted.length + drafts.length) > 0 && (
+      {['drafts','calendar','posted'].includes(tab) && !composing && (scheduled.length + posted.length + drafts.length) > 0 && (
         <details className="fl-grid-preview">
           <summary style={{ minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
             <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--accent, #92405E)' }}>Your grid preview</span>
@@ -859,7 +839,7 @@ export default function ContentAutopilot() {
               return (
                 <button className="fl-tap"
                   key={post.id}
-                  onClick={() => { if (['draft', 'failed', 'approved'].includes(post.status)) beginEdit(post); setTab(post.status === 'posted' ? 'posted' : 'drafts'); }}
+                  onClick={() => openPost(post)} aria-label={`Open post: ${post.caption || 'Untitled post'}`}
                   style={{ position: 'relative', aspectRatio: '1', border: 'none', padding: 0, cursor: 'pointer', overflow: 'hidden', background: post.image_url ? 'var(--bg-subtle, #ede7e3)' : 'var(--accent-bg, rgba(146,64,94,0.05))', WebkitTapHighlightColor: 'transparent' }}
                 >
                   {post.image_url
@@ -874,7 +854,7 @@ export default function ContentAutopilot() {
         </details>
       )}
 
-      <details className="fl-studio-collections" open={showStreamForm || !!selectedStreamId || undefined}>
+      {tab !== 'compose' && <details className="fl-studio-collections" open={showStreamForm || !!selectedStreamId || undefined}>
         <summary>Collections & campaigns <span>{selectedStreamId ? streams.find(s => s.id === selectedStreamId)?.name : 'Optional organisation'}</span></summary>
       {/* Stream selector pills */}
       <div style={styles.streamSelector}>
@@ -967,26 +947,11 @@ export default function ContentAutopilot() {
           </div>
         </div>
       )}
-      </details>
-      {/* Cancelled appointment prompt */}
-      {cancelledPrompt && (
-        <div style={styles.cancelledPromptBanner}>
-          <span style={{ fontSize: 16 }}><Icon name="calendar" size={15} /></span>
-          <div style={{ flex: 1 }}>
-            <span style={{ fontSize: 13, fontWeight: 600 }}>A slot opened up</span>
-            <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--text-secondary, #574A42)' }}>
-              {new Date(cancelledPrompt.starts_at).toLocaleDateString('en-GB', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })} was cancelled
-            </p>
-          </div>
-          <button className="fl-tap" onClick={handleGenerateAvailabilityPost} disabled={generatingAI} style={styles.promptActionBtn}>
-            {generatingAI ? 'Generating...' : 'Generate post'}
-          </button>
-        </div>
-      )}
+      </details>}
       {generatingAI && <EffectFrame active><div className="fl-studio-ai-state" role="status"><FlorrieOrb state="composing" size={48} /><p><strong>Finding your words</strong>Using your treatment, brief and writing style.</p></div></EffectFrame>}
       {/* ═══ IDEAS TAB ═══ */}
       {tab === 'ideas' && (
-        <div className="fl-idea-grid" style={styles.postList}>
+        <details className="fl-content-templates"><summary>More ideas & caption starters</summary><div className="fl-idea-grid" style={styles.postList}>
           <div style={{gridColumn:'1 / -1'}}><Button variant="secondary" disabled={loadingSuggestions} onClick={loadSuggestions}><Icon name="sparkles" size={16} /> {loadingSuggestions ? 'Finding ideas…' : 'Find ideas from recent work'}</Button></div>
           {/* AI suggestions, from recent appointments */}
           {(loadingSuggestions || suggestions.length > 0) && (
@@ -1022,11 +987,12 @@ export default function ContentAutopilot() {
               </Button>
             </div>
           ))}
-        </div>
+        </div></details>
       )}
       {/* ═══ COMPOSE VIEW ═══ */}
       {tab === 'compose' && composing && (
-        <div style={styles.composeArea}>
+        <div className="fl-content-compose" style={styles.composeArea}>
+          {composeOrigin && <div className="fl-content-origin"><Icon name="calendar" size={18}/><span>{composeOrigin.source === 'schedule' ? 'From Schedule' : 'Planned content date'}{composeOrigin.date ? ` · ${composeOrigin.date}` : ''}. {composeOrigin.source === 'schedule' ? 'Check current availability before adding a time. This brief stays editable.' : 'Save your draft first, then choose its publishing time.'}</span></div>}
           {/* Live Instagram-style preview — updates as she builds the post */}
           {/* Hardcoded '#fff' here put a white card behind themed text in dark
               mode, so the caption preview read as ink on ink. Every surface in
@@ -1233,7 +1199,7 @@ export default function ContentAutopilot() {
             <EmptyState
               icon="camera"
               title="No drafts waiting"
-              subtitle="Head to Ideas to pick a template, or tap + New Post to start from scratch."
+              subtitle="Start in Studio, choose a photo from Library, or create a new post."
             />
           )}
           {deckIndex !== null && visibleDrafts.length > 0 && (
@@ -1249,7 +1215,7 @@ export default function ContentAutopilot() {
             </div>
           )}
           {(deckIndex === null ? visibleDrafts : visibleDrafts.slice(Math.min(deckIndex, Math.max(0, visibleDrafts.length - 1)), Math.min(deckIndex, Math.max(0, visibleDrafts.length - 1)) + 1)).map(post => (
-            <div key={post.id} style={styles.postCard}>
+            <div key={post.id} id={`content-post-${post.id}`} data-content-post={post.id} style={styles.postCard}>
               {/* Type badge */}
               <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                 {/* Fixed pale fills with themed text on them: in dark mode the
@@ -1329,6 +1295,7 @@ export default function ContentAutopilot() {
                 </div>
               )}
               {editingId !== post.id && <Button variant="secondary" style={{marginBottom:10}} disabled={draftAction !== null || publishing === post.id || !post.image_url || igBlocked} onClick={() => chooseSchedule(post)}><Icon name="calendar" size={15} /> Choose posting time</Button>}
+              <Button variant="quiet" onClick={() => openPostResults(post)}>Get booking link</Button>
               {/* Actions */}
               {editingId !== post.id && (
                 <div style={styles.actions}>
@@ -1385,7 +1352,7 @@ export default function ContentAutopilot() {
             />
           )}
           {posted.map(post => (
-            <div key={post.id} style={styles.postCard}>
+            <div key={post.id} id={`content-post-${post.id}`} data-content-post={post.id} style={styles.postCard}>
               {post.image_url && (
                 <div style={styles.imageContainer}>
                   <img src={post.image_url} alt="" onError={hideBrokenImage} style={styles.postImage} />
@@ -1400,6 +1367,7 @@ export default function ContentAutopilot() {
                   numbers are gone until something real fills them in. Building
                   that collection is a separate piece of work; presenting an
                   unwritten default as a measurement is not. */}
+              <Button variant="quiet" onClick={() => openPostResults(post)}>View booking results</Button>
               <span style={styles.postedDate}>
                 Posted {new Date(post.posted_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
               </span>
@@ -1432,7 +1400,7 @@ export default function ContentAutopilot() {
               return (
                 <div
                   key={idx}
-                  onClick={() => isCurrentMonth && startCompose('before_after', '')}
+                  onClick={() => { if (isCurrentMonth) { startCompose('before_after', ''); setComposeOrigin({date:localDateStr(date),source:'content-calendar'}); setComposeBrief(`Prepare a post for ${localDateStr(date)}. Saving creates a draft; choose its publishing time after reviewing it.`); } }}
                   style={{ ...styles.calendarCell,
                     background: isCurrentMonth ? 'var(--bg-card, #FFFCF9)' : 'var(--bg-subtle, #ede7e3)',
                     opacity: isCurrentMonth ? 1 : 0.5,
@@ -1443,10 +1411,11 @@ export default function ContentAutopilot() {
                   {postsOnDay.length > 0 && (
                     <div style={styles.calendarChips}>
                       {postsOnDay.slice(0, 2).map(post => (
-                        <div
+                        <button type="button"
                           className="fl-tap"
                           key={post.id}
-                          onClick={(e) => { e.stopPropagation(); setEditingId(post.id); setEditCaption(post.caption); }}
+                          aria-label={`Open post: ${post.caption || 'Untitled post'}`}
+                          onClick={(e) => { e.stopPropagation(); openPost(post); }}
                           style={{ ...styles.calendarChip,
                             background: getChipColor(post.status),
                             opacity: post.stream_id === selectedStreamId || selectedStreamId === null ? 1 : 0.5,
@@ -1560,7 +1529,7 @@ export default function ContentAutopilot() {
               <div style={styles.galleryCardFooter}>
                 <span style={styles.galleryTreatmentName}>{item.treatment_name}</span>
                 {item.caption && <span style={styles.galleryCaption}>{item.caption}</span>}
-                <Button variant="secondary" onClick={() => startCompose('before_after', item.caption || '', item.after_url || item.image_url)}>Draft with this after photo</Button>
+                <Button variant="secondary" onClick={() => {startCompose('before_after', item.caption || '', item.after_url || item.image_url);setComposeTreatment(item.treatment_name || '');}}>Draft with this after photo</Button>
                 <span style={styles.galleryDate}>
                   {new Date(item.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
                 </span>

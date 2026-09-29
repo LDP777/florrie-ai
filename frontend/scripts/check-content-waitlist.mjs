@@ -43,7 +43,7 @@ try {
   });
   const page=await ctx.newPage();
   await page.goto(`http://127.0.0.1:${server.address().port}/content`);
-  await page.getByRole('button',{name:/Drafts/}).click();
+  await page.getByRole('button',{name:'Posts',exact:true}).click();
   await page.getByRole('textbox',{name:'Search content drafts'}).fill('no such caption');
   await page.getByRole('status').filter({hasText:'No drafts match'}).waitFor();
   assert.equal(await page.getByRole('button',{name:'Edit',exact:true}).count(),0);

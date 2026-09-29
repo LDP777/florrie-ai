@@ -292,6 +292,17 @@ beforeEach(() => {
 });
 afterEach(() => { vi.useRealTimers(); });
 
+describe('Today review-to-content handoff', () => {
+  it('takes a review suggestion through the permission step instead of copying client words into an unlinked post', async () => {
+    db.reviews.push({ id: 'review-1', beautician_id: B, rating: 5, comment: 'A thoughtful appointment in a welcoming studio.', created_at: new Date().toISOString(), clients: { first_name: 'Fictional client' } });
+    const out = await run(suggestionsRouter, 'get', '/');
+    const suggestion = out.body.suggestions.find(item => item.type === 'review_post');
+    expect(suggestion).toMatchObject({ link_to: '/reviews', action_label: 'Review feedback', payload: { review_id: 'review-1' }, action: { kind: 'navigate' } });
+    expect(suggestion.prefill).toBeUndefined();
+    expect(JSON.stringify(suggestion)).not.toContain('A thoughtful appointment');
+  });
+});
+
 /* ---------------------------------------------------------------- canaries -- */
 describe('the fake refuses what PostgREST refuses', () => {
   it('rejects appointments.treatment_name', async () => {

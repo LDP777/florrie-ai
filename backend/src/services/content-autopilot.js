@@ -15,7 +15,7 @@ import { nowInSalonWall } from '../lib/free-slots.js';
  * 1. Takes a before/after photo and generates an on-brand caption
  * 2. Auto-drafts "last-minute availability" posts when calendar gaps appear
  * 3. Suggests hashtags based on treatment type and location
- * 4. Tracks which content drives bookings and adapts style over time
+ * 4. Uses the salon's saved voice settings and prior captions for writing style
  *
  * Ellie's #1 wish. She takes before/after photos for every good result
  * but they sit in her camera roll. This closes that gap.
@@ -81,17 +81,19 @@ export async function generateCaption(beauticianId, imageUrl, treatmentType, add
 
   if (!beautician) throw new Error('Beautician not found');
 
-  // Get recent high-performing posts to learn from
-  const { data: topPosts } = await supabase
+  // Engagement is not collected here. These are recent writing examples,
+  // not evidence of performance or permission to reuse a client's feedback.
+  const { data: recentPosts } = await supabase
     .from('content_posts')
-    .select('caption, likes, comments, bookings_attributed')
+    .select('caption, posted_at')
     .eq('beautician_id', beauticianId)
     .eq('status', 'posted')
-    .order('likes', { ascending: false })
+    .or('post_type.neq.testimonial,post_type.is.null')
+    .order('posted_at', { ascending: false })
     .limit(5);
 
-  const performanceContext = topPosts?.length > 0
-    ? `\nTop-performing captions for reference:\n${topPosts.map(p => `- "${p.caption}" (${p.likes} likes, ${p.comments} comments)`).join('\n')}`
+  const styleContext = recentPosts?.length > 0
+    ? `\nRecent published captions for writing style only (performance is not measured). Do not reuse their factual claims or client feedback:\n${recentPosts.map(p => `- "${p.caption}"`).join('\n')}`
     : '';
 
   const businessName = beautician.business_name || beautician.first_name;
@@ -120,7 +122,7 @@ STYLE RULES:
 - Never use em dashes (—) or en dashes (–). Use commas, full stops, colons or line breaks instead.
 
 ${buildVoiceGuide(beautician.voice_profile)}
-${performanceContext}
+${styleContext}
 
 Return ONLY the caption text. No quotes, no explanation, no hashtag suggestions (those come separately).`,
     messages: [{
@@ -743,7 +745,7 @@ export async function planWeek(beauticianId, input = {}) {
 
   // Real material only.
   const twoWeeksAgo = new Date(Date.now() - 14 * 86400000).toISOString();
-  const [apptsRes, reviewsRes, promosRes, topRes] = await Promise.all([
+  const [apptsRes, promosRes, topRes] = await Promise.all([
     supabase.from('appointments')
       .select('treatment_id, treatments(name)')
       .eq('beautician_id', beauticianId)
@@ -751,21 +753,9 @@ export async function planWeek(beauticianId, input = {}) {
       .gte('starts_at', twoWeeksAgo.slice(0, 10))
       .lte('starts_at', nowInSalonWall(beautician.timezone || 'Europe/London').toISOString())
       .limit(100),
-    supabase.from('reviews')
-      .select('comment, rating')
-      .eq('beautician_id', beauticianId)
-      .gte('rating', 5)
-      // A PRIVATE REVIEW IS NOT A TESTIMONIAL.
-      //
-      // 31 August 2026. reviews.is_public has existed since migration 007 and
-      // this filter did not, so a five star review a client left privately,
-      // or one Ellie had deliberately unpublished, could be quoted "lightly"
-      // in a public Instagram caption by a machine, without anybody being
-      // asked. There is no undo for that.
-      .eq('is_public', true)
-      .not('comment', 'is', null)
-      .order('created_at', { ascending: false })
-      .limit(3),
+    // A public review does not confer permission for a new marketing use.
+    // Reviews creates the approved draft and its source record atomically;
+    // a plan must not copy that quote into a separate, unlinked draft.
     // PROMOS: use the one function that already knows what "live" means.
     //
     // The query here filtered on is_active alone, so an offer that expired in
@@ -780,11 +770,12 @@ export async function planWeek(beauticianId, input = {}) {
       .select('caption, posted_at')
       .eq('beautician_id', beauticianId)
       .eq('status', 'posted')
+      .or('post_type.neq.testimonial,post_type.is.null')
       .order('posted_at', { ascending: false })
       .limit(3),
   ]);
 
-  if (apptsRes.error || reviewsRes.error || topRes.error) throw new Error('Could not read the salon information for this plan. Try again.');
+  if (apptsRes.error || topRes.error) throw new Error('Could not read the salon information for this plan. Try again.');
 
   const treatmentCounts = {};
   for (const a of apptsRes.data || []) {
@@ -792,25 +783,27 @@ export async function planWeek(beauticianId, input = {}) {
     if (n) treatmentCounts[n] = (treatmentCounts[n] || 0) + 1;
   }
   const topTreatments = Object.entries(treatmentCounts).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([n, c]) => `${n} (${c} recent)`);
-  const reviews = (reviewsRes.data || []).map(r => r.comment).filter(c => c && c.length > 20);
   // Already filtered, already only the live ones. No second, weaker check here.
   const promos = promosRes || [];
   const topCaptions = (topRes.data || []).map(pst => pst.caption).filter(Boolean);
 
   const businessName = beautician.business_name || beautician.first_name;
+  const direction = options.goal === 'trust'
+    ? 'Introduce the salon approach using known facts, explain a detail of client care using supplied facts, then invite a conversation. Do not invent policies or treatment advice.'
+    : options.goal ? CONTENT_GOALS[options.goal] : 'A balanced week introducing the salon and its work.';
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
     max_tokens: 1600,
-    system: `You plan a week of Instagram posts for ${businessName}, an independent beauty professional. Respond with JSON only: an array of exactly ${options.post_count} objects, each {"day": "mon|tue|wed|thu|fri|sat|sun", "post_type": "before_after|testimonial|last_minute_availability|promotion|general", "caption": "...", "hashtags": ["...", 3-6 tags]}.
+    system: `You plan a week of Instagram posts for ${businessName}, an independent beauty professional. Respond with JSON only: an array of exactly ${options.post_count} objects, each {"day": "mon|tue|wed|thu|fri|sat|sun", "post_type": "before_after|last_minute_availability|promotion|general", "caption": "...", "hashtags": ["...", 3-6 tags]}.
 
 PLAN DIRECTION:
-${options.goal ? CONTENT_GOALS[options.goal] : 'A balanced week introducing the salon and its work.'}
+${direction}
 ${focusTreatment ? `Focus on this active treatment: ${focusTreatment.name}. Description: ${focusTreatment.description || 'No description supplied'}.` : 'Use the recent treatments supplied below.'}
 ${options.post_count === 3 ? 'Return exactly three posts, in the direction order above, for mon, wed and fri. The mix below is optional; do not add more posts.' : ''}
 
 MIX RULES:
 - 2 or 3 before_after posts about her real recent work (treatments below).
-- 1 testimonial ONLY if a real review is provided below; quote it lightly, never invent one.
+- Review quotes belong in the separate Reviews workflow, where the owner confirms marketing permission. Do not quote, paraphrase or invent client feedback or testimonials in this plan.
 - 1 general booking invitation${beautician.booking_slug ? ` pointing to https://florrie.ai/book/${beautician.booking_slug}` : ', asking clients to contact the salon'}. No live availability has been supplied. Do not claim an opening, cancellation, or exact time.
 - 1 promotion ONLY if a real promo is listed below (never invent an offer or code); otherwise another before_after or general.
 - 1 or 2 general posts: a tip, a myth-bust, or a behind-the-scenes line. Human, specific, zero filler.
@@ -822,10 +815,10 @@ CAPTION RULES:
 - No "transformation Tuesday", no "obsessed", no "slay", no "treat yourself", no corporate voice.
 - Never use em dashes or en dashes.
 ${buildVoiceGuide(beautician.voice_profile)}
-${topCaptions.length ? `\nRecent published captions for writing style only (performance is not measured):\n${topCaptions.map(c => `- "${c}"`).join('\n')}` : ''}`,
+${topCaptions.length ? `\nRecent published captions for writing style only (performance is not measured). Do not reuse their factual claims or client feedback:\n${topCaptions.map(c => `- "${c}"`).join('\n')}` : ''}`,
     messages: [{
       role: 'user',
-      content: `Plan this week.\nRecent work: ${topTreatments.join(', ') || 'general beauty treatments'}.\nReal reviews available: ${reviews.length ? reviews.map(r => `"${r}"`).join(' | ') : 'none'}.\nReal promos running: ${promos.length ? promos.map(describePromo).join(', ') : 'none'}.`
+      content: `Plan this week.\nRecent work: ${topTreatments.join(', ') || 'general beauty treatments'}.\nClient feedback is not supplied for automatic plans. Use the separate Reviews workflow for a permission-backed review post.\nReal promos running: ${promos.length ? promos.map(describePromo).join(', ') : 'none'}.`
     }]
   });
 
@@ -833,7 +826,7 @@ ${topCaptions.length ? `\nRecent published captions for writing style only (perf
   try {
     const text = response.content[0].text.trim().replace(/^```json?\s*|\s*```$/g, '');
     plan = JSON.parse(text);
-    if (!Array.isArray(plan) || (plan.length < 1 || plan.length > options.post_count || (options.post_count === 3 && plan.length !== 3)) || plan.some(item => !item || !['mon','tue','wed','thu','fri','sat','sun'].includes(item.day) || typeof item.caption !== 'string' || !item.caption.trim() || item.caption.length > 2200)) throw new Error('invalid plan');
+    if (!Array.isArray(plan) || (plan.length < 1 || plan.length > options.post_count || (options.post_count === 3 && plan.length !== 3)) || plan.some(item => !item || item.post_type === 'testimonial' || !['mon','tue','wed','thu','fri','sat','sun'].includes(item.day) || typeof item.caption !== 'string' || !item.caption.trim() || item.caption.length > 2200)) throw new Error('invalid plan');
   } catch (err) {
     logger.error({ err }, 'planWeek: unparseable plan');
     throw new Error('Could not draft the week, try again');
@@ -866,7 +859,7 @@ ${topCaptions.length ? `\nRecent published captions for writing style only (perf
     wall.setUTCHours(18, 30, 0, 0);
     const scheduledFor = salonWallToInstant(wall, salonTz);
 
-    const validTypes = ['before_after', 'last_minute_availability', 'promotion', 'testimonial', 'general'];
+    const validTypes = ['before_after', 'last_minute_availability', 'promotion', 'general'];
     const { data: post, error } = await supabase
       .from('content_posts')
       .insert({

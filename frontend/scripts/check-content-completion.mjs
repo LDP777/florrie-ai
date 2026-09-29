@@ -37,10 +37,11 @@ try {
   };
  });
  const page=await ctx.newPage();await page.goto(`http://127.0.0.1:${server.address().port}/content`);
- await page.getByRole('button',{name:'Find ideas from recent work',exact:true}).waitFor();
+ await page.locator('.fl-content-home').waitFor();
  assert.equal(await page.evaluate(()=>window.__c.ideas),0);
+ await page.getByRole('button',{name:'Posts',exact:true}).click();
  await page.locator('.fl-studio-collections summary').click();
- await page.getByRole('button',{name:'Campaign A',exact:true}).click();await page.getByRole('button',{name:/^Drafts/}).click();
+ await page.getByRole('button',{name:'Campaign A',exact:true}).click();await page.getByRole('button',{name:/^Drafts & scheduled/}).click();
  await page.getByText('Campaign draft',{exact:true}).last().waitFor();assert.equal(await page.getByText('My original draft',{exact:true}).count(),0);
  await page.getByRole('button',{name:'All',exact:true}).click();await page.getByText('My original draft',{exact:true}).last().waitFor();
  await page.getByRole('button',{name:'Add a photo',exact:true}).first().click();
@@ -67,7 +68,7 @@ try {
  if(screenshots)await page.screenshot({path:join(screenshots,'caption.png'),fullPage:true});
  const sent=await page.evaluate(()=>window.__c.captions.at(-1));assert.equal(sent.treatment_type,'Lash lift & tint');assert.match(sent.context,/Explain how to prepare/);assert.match(sent.image_url,/\/storage\/v1\/object\/public\/content-images\//);
  await page.getByRole('button',{name:'Use this caption',exact:true}).click();assert.equal(await page.getByLabel('Post caption',{exact:true}).inputValue(),'A new caption for lash lifts.');
- await page.getByRole('button',{name:'Cancel',exact:true}).click();await page.getByRole('button',{name:'Gallery',exact:true}).click();await page.getByRole('button',{name:'Draft with this after photo',exact:true}).click();await page.getByRole('button',{name:'Save as Draft',exact:true}).click();
+ await page.getByRole('button',{name:'Cancel',exact:true}).click();await page.getByRole('button',{name:'Library',exact:true}).click();await page.getByRole('button',{name:'Draft with this after photo',exact:true}).click();await page.getByRole('button',{name:'Save as Draft',exact:true}).click();
  await page.getByText('My saved gallery caption',{exact:true}).last().waitFor();assert.equal(await page.evaluate(()=>window.__c.inserts.at(-1).image_url),'https://example.com/after.jpg');assert.equal(await page.evaluate(()=>window.__c.inserts.at(-1).post_type),'before_after');
  console.log('✓ Content: AI uses the selected treatment and brief, preserves writing until accepted, and gallery photo becomes a separate draft');
  await ctx.close();

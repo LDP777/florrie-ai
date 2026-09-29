@@ -202,8 +202,8 @@ export default function Reviews() {
                       setShareSaving(true);setShareError('');
                       try {
                         const {data}=await supabase.auth.getSession();
-                        await contentRequest(`${API_BASE}/api/content/review-draft`, {token:data?.session?.access_token,method:'POST',body:{review_id:review.id,expected_text:review.text,marketing_permission:true}});
-                        navigate('/content', {state:{showDrafts:true}});
+                        const saved = await contentRequest(`${API_BASE}/api/content/review-draft`, {token:data?.session?.access_token,method:'POST',body:{review_id:review.id,expected_text:review.text,marketing_permission:true}});
+                        navigate('/content', {state:{showDrafts:true,contentPostId:saved.post?.id}});
                       } catch(error) {setShareError(error.message);} finally {setShareSaving(false);}
                     }}>{shareSaving ? 'Saving permission & draft…' : 'Prepare a review post'}</button>
                     {shareError && <p role="alert">{shareError}</p>}

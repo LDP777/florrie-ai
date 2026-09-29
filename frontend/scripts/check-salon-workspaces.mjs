@@ -32,7 +32,7 @@ try {
         if (url.includes('/api/content/review-draft')) {
           const body=JSON.parse(opts.body);fixture.reviewDrafts.push(body);
           if(fixture.failReviewSave)return json({error:'Could not save the review draft. Check Drafts before trying again.'},503);
-          const post={id:'review-post',caption:`“${body.expected_text}”`,status:'draft',post_type:'testimonial',created_at:new Date().toISOString()};fixture.posts.push(post);return json({post},201);
+          const post={id:'55555555-5555-4555-8555-555555555555',caption:`“${body.expected_text}”`,status:'draft',post_type:'testimonial',created_at:new Date().toISOString()};fixture.posts.push(post);return json({post},201);
         }
         if (url.includes('/api/content/plan-week')) {
           fixture.plans.push(JSON.parse(opts.body));
@@ -59,7 +59,7 @@ try {
     page.on('pageerror', error => errors.push(error.message));
     for (const route of ['more','voice','content','reviews']) {
       await page.goto(`http://127.0.0.1:${server.address().port}/${route}`);
-      await page.locator(({more:'.more-shortcut-grid',voice:'.fl-command-stack',content:'.fl-content-direction',reviews:'.fl-google-review'})[route]).waitFor();
+      await page.locator(({more:'.more-shortcut-grid',voice:'.fl-command-stack',content:'.fl-content-home',reviews:'.fl-google-review'})[route]).waitFor();
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${route} overflows at ${width}`);
       assert.equal(await page.getByText('Something went wrong', {exact:true}).count(), 0);
       if (output) await page.screenshot({path:join(output,`${route}-${width}.png`),fullPage:route !== 'voice'});
@@ -82,12 +82,14 @@ try {
       }
       if (route === 'content') {
         assert.equal((await page.evaluate(() => window.__studio.plans)).length, 0);
+        await page.getByRole('button',{name:'Start a campaign',exact:true}).click();
         await page.getByRole('button',{name:/^Help clients choose/}).click();
         await page.getByLabel('Plan treatment').selectOption('t1');
         await page.getByRole('button',{name:'Start with one post',exact:true}).click();
         assert.equal(await page.getByLabel('Caption treatment').inputValue(),'Signature brows');
         assert.match(await page.getByLabel('Caption brief').inputValue(),/missing treatment facts/);
         await page.getByRole('button',{name:'Cancel',exact:true}).click();
+        await page.getByRole('button',{name:'Start a campaign',exact:true}).click();
         await page.getByRole('button',{name:/^Build trust/}).click();
         await page.getByLabel('Plan treatment').selectOption('t1');
         await page.getByRole('button',{name:'Draft this plan',exact:true}).click();

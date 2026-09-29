@@ -979,8 +979,8 @@ async function fromQuietWeek(beauticianId, query = {}) {
 }
 
 async function fromFiveStarReviews(beauticianId) {
-  // A glowing review is free marketing. Turn a recent 5-star review with a
-  // real comment into a one-tap post, prefilled and ready for Ellie to edit.
+  // Marketing use needs the separate permission check on Reviews. The Hub
+  // takes her there instead of copying client feedback into an unlinked draft.
   const { data, error } = await supabase
     .from('reviews')
     .select('id, rating, comment, created_at, clients(first_name)')
@@ -1008,33 +1008,20 @@ async function fromFiveStarReviews(beauticianId) {
   const fresh = qualifying.filter(r => !answered.has(r.id)).slice(0, 2);
   if (!fresh.length) return [];
 
-  // Booking slug for the caption's book-your-own link.
-  const { data: beaut } = await supabase
-    .from('beauticians')
-    .select('booking_slug')
-    .eq('id', beauticianId)
-    .maybeSingle();
-  const slug = beaut?.booking_slug || 'book';
-
   return fresh.map(r => {
     const first = r.clients?.first_name?.trim() || null;
-    const comment = r.comment.trim();
-    const caption = first
-      ? `${first} said: "${comment}" \u{1F337}\n\nThank you ${first}! Book your own in: florrie.ai/book/${slug}`
-      : `A lovely client said: "${comment}" \u{1F337}\n\nBook your own in: florrie.ai/book/${slug}`;
     const who = first || 'A client';
     return {
       id: `review-${r.id}`,
       type: 'review_post',
       icon: '\u2B50',
       summary: `${who} left you a 5-star review. Turn it into a post?`,
-      action_label: 'Make a post',
+      action_label: 'Review feedback',
       impact_pence: 0,
       priority: 32,
       payload: { review_id: r.id },
       action: { kind: 'navigate', endpoint: null, method: null, body: null, confirm: null },
-      link_to: '/content',
-      prefill: { compose: 'review', type: 'testimonial', caption },
+      link_to: '/reviews',
     };
   });
 }

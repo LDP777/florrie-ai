@@ -249,8 +249,16 @@ function resolveLink(row) {
     // → content / marketing
     case 'content_drafted':
     case 'content_posted':
-    case 'gap_post':
-      return '/content';
+    case 'gap_post': {
+      // Multi-post plans open the queue. A single saved post can be resolved
+      // by Content's owner-scoped read, even when it is beyond the first page.
+      const details = row.details && typeof row.details === 'object' && !Array.isArray(row.details) ? row.details : {};
+      if (Array.isArray(details.post_ids) && details.post_ids.length > 1) return '/content?view=drafts';
+      const view = row.action_type === 'content_posted' ? 'posted' : 'drafts';
+      const postId = details.post_id;
+      const validPost = typeof postId === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(postId);
+      return `/content?view=${view}${validPost ? `&post=${postId}` : ''}`;
+    }
     case 'campaign_drafted':
     case 'campaign_sent':
       return '/campaigns';
