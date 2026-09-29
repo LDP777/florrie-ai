@@ -100,12 +100,13 @@ async function fits(page, label) {
 try {
   for (const width of [320, 390, 1024]) {
     const { context, page, errors } = await openFixture({ width });
+    await page.getByRole('button', { name: 'Your posts', exact: true }).click();
     const draft = page.locator(`#content-post-${DRAFT_ID}`);
     await draft.waitFor();
     assert.equal(await page.getByRole('button', { name: 'Your posts', exact: true }).getAttribute('aria-pressed'), 'true');
     assert.equal(await page.getByRole('button', { name: 'Drafts', exact: true }).getAttribute('aria-pressed'), 'true');
     assert.equal(await page.getByRole('button', { name: 'Create a post', exact: true }).count(), 1, 'There is one clear create action');
-    assert.equal(await page.locator('.fl-content-home').count(), 0, 'Planning and ideas are optional, not the default landing screen');
+    assert.equal(await page.locator('.fl-content-home').count(), 0, 'Planning and ideas stay optional within Your posts');
     assert.equal(await draft.getByRole('button', { name: 'Review post', exact: true }).count(), 1);
     assert.equal(await draft.getByRole('button', { name: 'Edit', exact: true }).count(), 0, 'Draft actions stay collapsed until review');
     assert.equal(await page.getByLabel('Draft caption', { exact: true }).count(), 0);
@@ -160,13 +161,14 @@ try {
     if (output && width === 390) await page.screenshot({ path: join(output, 'content-ideas-390.png'), fullPage: true });
     await noSideEffects(page, 'Navigation');
     assert.deepEqual(errors, []);
-    console.log(`PASS Content posts-first navigation, compact review and status filters at ${width}px`);
+    console.log(`PASS Content saved-post navigation, compact review and status filters at ${width}px`);
     await context.close();
   }
 
   // A failed read is not an empty studio. Retry must restore the saved work.
   {
     const { context, page, errors } = await openFixture({ failPosts: true });
+    await page.getByRole('button', { name: 'Your posts', exact: true }).click();
     await page.getByRole('button', { name: 'Retry posts', exact: true }).waitFor();
     assert.equal(await page.getByRole('button', { name: 'Review post', exact: true }).count(), 0);
     await page.evaluate(() => { window.__studioCheck.failPosts = false; });
@@ -180,6 +182,7 @@ try {
   // A truly empty account can start writing without generating or saving anything.
   {
     const { context, page, errors } = await openFixture({ empty: true });
+    await page.getByRole('button', { name: 'Your posts', exact: true }).click();
     await page.getByRole('button', { name: 'Create a post', exact: true }).waitFor();
     assert.equal(await page.getByRole('button', { name: 'Create a post', exact: true }).count(), 1);
     await page.getByRole('button', { name: 'Create a post', exact: true }).click();

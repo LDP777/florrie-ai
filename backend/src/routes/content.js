@@ -4,8 +4,10 @@ import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import { createPostFromPhoto, publishPost, draftAvailabilityPost, generateCaption, planWeek, imageUrlProblem } from '../services/content-autopilot.js';
 import logger from '../lib/logger.js';
+import assistantRoutes from './content-assistant.js';
 
 const router = Router();
+router.use('/assistant', assistantRoutes);
 
 /**
  * GET /api/content
@@ -432,6 +434,8 @@ function editablePostQuery(beauticianId, postId, updates, statuses) {
 
 router.patch('/:id', requireAuth, async (req, res) => {
   const { caption, hashtags, image_url } = req.body;
+  const artworkOnly = req.body.artwork_only === true;
+  if (artworkOnly && (typeof req.body.expected_caption !== 'string' || typeof image_url !== 'string' || caption !== undefined || hashtags !== undefined)) return res.status(400).json({error:'Refresh this draft before attaching its design.'});
   if (caption !== undefined && (typeof caption !== 'string' || !caption.trim())) return res.status(400).json({error:'Write a caption before saving.'});
   if (hashtags !== undefined && (!Array.isArray(hashtags) || hashtags.some(tag => typeof tag !== 'string'))) return res.status(400).json({error:'Hashtags must be a list of text tags.'});
   if (image_url !== undefined && image_url !== null) {
@@ -444,7 +448,9 @@ router.patch('/:id', requireAuth, async (req, res) => {
   if (hashtags !== undefined) updates.hashtags = hashtags;
   if (image_url !== undefined) updates.image_url = image_url;
   if (!Object.keys(updates).length) return res.status(400).json({error:'No draft changes supplied.'});
-  const { data, error } = await editablePostQuery(req.beautician.id, req.params.id, updates, ['draft','failed','approved']).select().maybeSingle();
+  let query = editablePostQuery(req.beautician.id, req.params.id, updates, artworkOnly ? ['draft'] : ['draft','failed','approved']);
+  if (artworkOnly) query = query.is('image_url', null).eq('caption', req.body.expected_caption);
+  const { data, error } = await query.select().maybeSingle();
   if (error) return res.status(503).json({error:'Could not save this draft. Your edits are still on screen.'});
   if (!data) return res.status(409).json({error:'This post has changed or is being published. Refresh it before editing.'});
   res.json({post:data});

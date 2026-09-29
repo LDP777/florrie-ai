@@ -81,6 +81,7 @@ try {
         assert.ok(await page.locator('.fl-voice-emblem svg').count());
       }
       if (route === 'content') {
+        await page.getByRole('button',{name:'Your posts',exact:true}).click();
         assert.equal((await page.evaluate(() => window.__studio.plans)).length, 0);
         await page.getByRole('button',{name:'Get ideas',exact:true}).click();
         await page.getByRole('button',{name:'Plan 3 posts',exact:true}).click();

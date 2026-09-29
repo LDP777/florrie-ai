@@ -16,7 +16,7 @@ import { processReviewRequests } from './review-requests.js';
  */
 import { supabase } from '../config.js';
 import { normaliseOutcome } from '../lib/ai-actions.js';
-import { draftAvailabilityPost } from './content-autopilot.js';
+import { findGapPostOpportunity, draftVerifiedGapPost } from './gap-content.js';
 import { processInboundMessage } from './ai-front-desk.js';
 import { sendNudge } from './notifications.js';
 import { shouldAutoSend } from './sms-metering.js';
@@ -251,75 +251,57 @@ async function checkRebookDueClients(beauticianId, threshold) {
 /**
  * 2. Check for calendar gaps tomorrow and draft an availability post.
  */
-async function checkCalendarGaps(beauticianId, threshold) {
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowStart = new Date(tomorrow);
-  tomorrowStart.setHours(0, 0, 0, 0);
-  const tomorrowEnd = new Date(tomorrow);
-  tomorrowEnd.setHours(23, 59, 59, 999);
+export async function checkCalendarGaps(beauticianId, threshold) {
+  try {
+    const opportunity = await findGapPostOpportunity(beauticianId);
+    if (!opportunity) return 0;
 
-  // Get tomorrow's appointments
-  const { data: appointments } = await supabase
-    .from('appointments')
-    .select('starts_at, duration_minutes, status')
-    .eq('beautician_id', beauticianId)
-    .gte('starts_at', tomorrowStart.toISOString())
-    .lte('starts_at', tomorrowEnd.toISOString())
-    .neq('status', 'cancelled');
-
-  // Get working hours for tomorrow's day
-  const { data: beautician } = await supabase
-    .from('beauticians')
-    .select('working_hours')
-    .eq('id', beauticianId)
-    .single();
-
-  if (!beautician?.working_hours) return 0;
-
-  const dayKey = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][tomorrow.getDay()];
-  const dayHours = beautician.working_hours[dayKey];
-  if (!dayHours || !dayHours.start) return 0; // Not working tomorrow
-
-  // Calculate total available hours
-  const [startH, startM] = dayHours.start.split(':').map(Number);
-  const [endH, endM] = dayHours.end.split(':').map(Number);
-  const totalMinutes = (endH * 60 + endM) - (startH * 60 + startM);
-  const bookedMinutes = (appointments || []).reduce((sum, a) => sum + (a.duration_minutes || 60), 0);
-  const gapMinutes = totalMinutes - bookedMinutes;
-
-  // If more than 2 hours of gaps, draft availability post
-  if (gapMinutes >= 120) {
-    // Check if we already drafted a post for tomorrow
-    const { count } = await supabase
-      .from('ai_actions')
+    const { count, error: dedupeError } = await supabase.from('ai_actions')
       .select('id', { count: 'exact', head: true })
-      .eq('beautician_id', beauticianId)
-      .eq('action_type', 'gap_post')
+      .eq('beautician_id', beauticianId).eq('action_type', 'gap_post')
       .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+    if (dedupeError || !Number.isSafeInteger(count) || count > 0) return 0;
 
-    if ((count || 0) > 0) return 0; // Already drafted today
-
-    const gapHours = Math.round(gapMinutes / 60);
-    const tomorrowLabel = tomorrow.toLocaleDateString('en-GB', { weekday: 'long' });
-    const summary = `${tomorrowLabel} has ${gapHours}h of gaps. Draft availability post?`;
+    const { gap } = opportunity;
+    const dateLabel = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long',
+    }).format(new Date(`${gap.date}T00:00:00Z`));
+    const summary = `${dateLabel} has an opening at ${gap.start} for ${opportunity.treatment_names.join(' or ')}. Draft an availability post?`;
     const confidence = 0.80;
+    // Keep exact evidence on the approval, rather than inventing it from a summary.
+    // Claim the suggestion before drafting so a failed model call stays reviewable.
+    const { data: action, error: insertError } = await supabase.from('ai_actions').insert({
+      beautician_id: beauticianId, action_type: 'gap_post', digital_employee: 'content',
+      status: 'pending_approval', outcome: 'pending', summary, confidence,
+      autonomous: true, details: opportunity,
+    }).select('id').single();
+    if (insertError || !action?.id) return 0;
 
     if (confidence >= threshold) {
+      const { data: claimed, error: claimError } = await supabase.from('ai_actions')
+        .update({ status: 'executed' }).eq('id', action.id).eq('beautician_id', beauticianId)
+        .eq('status', 'pending_approval').select('id');
+      if (claimError || !claimed?.length) return 1;
+      let details;
       try {
-        await draftAvailabilityPost(beauticianId, tomorrow.toISOString(), dayHours.start, []);
-        await logAction(beauticianId, 'gap_post', 'executed', summary, confidence);
-      } catch (err) {
-        logger.warn({ err }, 'Failed to draft gap post');
+        ({ details } = await draftVerifiedGapPost(beauticianId, opportunity));
+      } catch (error) {
+        await supabase.from('ai_actions').update({ status: 'pending_approval' })
+          .eq('id', action.id).eq('beautician_id', beauticianId).eq('status', 'executed');
+        throw error;
       }
-    } else {
-      await logAction(beauticianId, 'gap_post', 'pending_approval', summary, confidence);
+      const { error: updateError } = await supabase.from('ai_actions')
+        .update({ status: 'executed', outcome: 'success', details,
+          summary: `Drafted an availability post for ${dateLabel} at ${gap.start}` })
+        .eq('id', action.id).eq('beautician_id', beauticianId).eq('status', 'executed');
+      if (updateError) logger.warn({ err: updateError, beauticianId, actionId: action.id }, 'Could not record the availability draft');
+      else pushTeamUpdate(beauticianId, 'gap_post', `Drafted an availability post for ${dateLabel} at ${gap.start}`).catch(() => {});
     }
-
     return 1;
+  } catch (err) {
+    logger.warn({ err, beauticianId }, 'Could not prepare a verified gap post');
+    return 0;
   }
-
-  return 0;
 }
 
 /**

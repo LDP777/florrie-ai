@@ -32,7 +32,7 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
  * staring at an error instead of a caption, so the picture is the part that
  * gets dropped, not the caption.
  */
-async function captionCall(request, { beauticianId, hasImage } = {}) {
+async function captionCall(request, { beauticianId, hasImage, fallbackText } = {}) {
   try {
     return await anthropic.messages.create(request);
   } catch (err) {
@@ -42,7 +42,7 @@ async function captionCall(request, { beauticianId, hasImage } = {}) {
       ...request,
       messages: request.messages.map(m => ({
         ...m,
-        content: Array.isArray(m.content) ? m.content.filter(part => part.type !== 'image') : m.content,
+        content: Array.isArray(m.content) ? [{ type: 'text', text: fallbackText }] : m.content,
       })),
     };
     return anthropic.messages.create(textOnly);
@@ -137,7 +137,7 @@ Return ONLY the caption text. No quotes, no explanation, no hashtag suggestions 
         },
       ],
     }],
-  }, { beauticianId, hasImage: canSeePhoto });
+  }, { beauticianId, hasImage: canSeePhoto, fallbackText: `Write an Instagram caption about ${treatmentType || 'the salon'} using the supplied context. The photo could not be read: do not describe visible results, claim to have seen a photo, name clients, or invent offers or availability.${additionalContext ? ` Context: ${additionalContext}` : ''}` });
 
   const caption = await ensureNoSlop(response.content[0].text, { neverSay: beautician.voice_profile?.never_say });
 
@@ -173,12 +173,14 @@ Return hashtags only, space-separated, no explanation.`,
  * Draft a "last-minute availability" post when a calendar gap is detected.
  * Called by the Calendar agent when it spots cancellations or empty slots.
  */
-export async function draftAvailabilityPost(beauticianId, gapDate, gapTime, treatmentSuggestions) {
-  const { data: beautician } = await supabase
+export async function draftAvailabilityPost(beauticianId, gapDate, gapTime, treatmentSuggestions, { beforeSave, bookingInvitationOnly = false } = {}) {
+  const { data: beautician, error: profileError } = await supabase
     .from('beauticians')
     .select('first_name, business_name, tone_model, booking_slug, voice_profile')
     .eq('id', beauticianId)
     .single();
+
+  if (bookingInvitationOnly && (profileError || !beautician)) throw new Error('Could not check the salon booking page.');
 
   const businessName = beautician?.business_name || beautician?.first_name || 'the salon';
   const bookingLink = beautician?.booking_slug
@@ -186,25 +188,37 @@ export async function draftAvailabilityPost(beauticianId, gapDate, gapTime, trea
     : null;
 
   const dayLabel = new Date(gapDate).toLocaleDateString('en-GB', {
-    weekday: 'long', day: 'numeric', month: 'long'
+    timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long'
   });
 
-  const response = await anthropic.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 200,
-    system: `Write a short, casual Instagram story or post announcing last-minute availability.
+  // A background draft may be reviewed or scheduled much later. Keep its public
+  // wording valid then; the checked date/time belongs in the owner's rationale.
+  let caption;
+  if (bookingInvitationOnly) {
+    const treatments = treatmentSuggestions?.length ? ` for ${treatmentSuggestions.join(' or ')}` : '';
+    caption = bookingLink
+      ? `Thinking of booking${treatments}? Check my booking page for current availability: ${bookingLink}`
+      : `Thinking of booking${treatments}? Message me to check current availability.`;
+  } else {
+    const response = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 200,
+      system: `Write a short, casual Instagram story or post announcing last-minute availability.
 Business: ${businessName}
 Tone: urgent but not desperate. Excited, like you're offering a treat.
 Keep it to 1-2 sentences. British English. One emoji max.
 Never use em dashes (—) or en dashes (–). Use commas, full stops, colons or line breaks instead.
 ${bookingLink ? `Include booking link: ${bookingLink}` : 'Tell them to DM to book.'}`,
-    messages: [{
-      role: 'user',
-      content: `Availability opened up on ${dayLabel} around ${gapTime}.${treatmentSuggestions?.length ? ` Good for: ${treatmentSuggestions.join(', ')}.` : ''}`
-    }]
-  });
+      messages: [{
+        role: 'user',
+        content: `Availability opened up on ${dayLabel} around ${gapTime}.${treatmentSuggestions?.length ? ` Good for: ${treatmentSuggestions.join(', ')}.` : ''}`
+      }]
+    });
 
-  const caption = await ensureNoSlop(response.content[0].text, { neverSay: beautician.voice_profile?.never_say });
+    caption = await ensureNoSlop(response.content[0].text, { neverSay: beautician.voice_profile?.never_say });
+  }
+
+  if (beforeSave) await beforeSave();
 
   // Store as draft
   const { data: post, error: draftErr } = await supabase
@@ -215,7 +229,7 @@ ${bookingLink ? `Include booking link: ${bookingLink}` : 'Tell them to DM to boo
       platform: 'instagram',
       post_type: 'last_minute_availability',
       status: 'draft',
-      hashtags: ['#lastminute', '#availabilitydrop', '#booknow']
+      hashtags: bookingInvitationOnly ? [] : ['#lastminute', '#availabilitydrop', '#booknow']
     })
     .select()
     .single();
@@ -223,10 +237,10 @@ ${bookingLink ? `Include booking link: ${bookingLink}` : 'Tell them to DM to boo
   // 31 August 2026: this error was unread, and the ai_actions row below then
   // told her a post had been drafted for a gap when nothing had been written
   // at all. She would go looking for it in Drafts and find an empty tab.
-  if (draftErr) {
+  if (draftErr || !post?.id) {
     logger.error({ err: draftErr, beauticianId, gapDate, gapTime },
       'Could not save the last-minute availability draft');
-    throw new Error(`Could not draft the availability post: ${draftErr.message}`);
+    throw new Error(`Could not draft the availability post: ${draftErr?.message || 'saved post could not be confirmed'}`);
   }
 
   // Log AI action.
@@ -234,16 +248,22 @@ ${bookingLink ? `Include booking link: ${bookingLink}` : 'Tell them to DM to boo
   // notification_sent is gone rather than false: nothing in this function
   // sends a notification, and it said `true`. Nothing reads the column, so the
   // only thing the claim ever did was make the row untrue.
-  await supabase.from('ai_actions').insert({
-    beautician_id: beauticianId,
-    action_type: 'content_drafted',
-    digital_employee: 'content',
-    summary: `Drafted a last-minute availability post for ${dayLabel}`,
-    details: { post_id: post?.id, gap_date: gapDate, gap_time: gapTime },
-    confidence: 0.95,
-    autonomous: true,
-    outcome: 'success',
-  });
+  try {
+    const { error: actionError } = await supabase.from('ai_actions').insert({
+      beautician_id: beauticianId,
+      action_type: 'content_drafted',
+      digital_employee: 'content',
+      summary: bookingInvitationOnly ? `Drafted a booking invitation after checking ${dayLabel}'s diary` : `Drafted a last-minute availability post for ${dayLabel}`,
+      details: { post_id: post.id, gap_date: gapDate, gap_time: gapTime },
+      confidence: 0.95,
+      autonomous: true,
+      outcome: 'success',
+    });
+    if (actionError) logger.warn({ err: actionError, postId: post.id }, 'Draft saved, but its activity could not be recorded');
+  } catch (error) {
+    // The draft exists. A logging failure must not tell approval to create it again.
+    logger.warn({ err: error, postId: post.id }, 'Draft saved, but its activity could not be recorded');
+  }
 
   return post;
 }

@@ -566,4 +566,20 @@ describe('a caption is written by something that has seen the photo', () => {
     expect(content.some(part => part.type === 'image')).toBe(false);
     expect(out.caption).toBeTruthy();
   });
+
+  it('removes visual claims from the instruction when a readable-looking photo fails at the model', async () => {
+    seedSalon();
+    claudeReply = request => {
+      if (request.messages[0].content?.some?.(part => part.type === 'image')) throw new Error('Photo could not be fetched');
+      return 'A caption from the saved facts.';
+    };
+    const out = await generateCaption('b-ellie', PUBLIC_IMG, 'lash lift', 'The owner offers a consultation.');
+    const fallback = claudeCalls[1].messages[0].content;
+    expect(fallback.some(part => part.type === 'image')).toBe(false);
+    expect(fallback[0].text).toContain('The photo could not be read');
+    expect(fallback[0].text).toContain('do not describe visible results');
+    expect(fallback[0].text).toContain('The owner offers a consultation.');
+    expect(fallback[0].text).not.toContain('Describe what you can actually see');
+    expect(out.caption).toBeTruthy();
+  });
 });

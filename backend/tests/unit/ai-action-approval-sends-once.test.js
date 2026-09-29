@@ -113,6 +113,8 @@ vi.mock('../../src/services/notifications.js', () => ({
 // route asks it at all, and what it tells it.
 const gateCalls = [];
 const recorded = [];
+const draftGap = vi.fn();
+vi.mock('../../src/services/gap-content.js', () => ({ draftVerifiedGapPost: (...args) => draftGap(...args) }));
 let verdict = { decision: 'send', tier: 'proactive', reason: 'trusted_auto' };
 let sendResult = { id: 'bird-1' };
 vi.mock('../../src/lib/outbound-guard.js', () => ({
@@ -133,6 +135,11 @@ beforeEach(async () => {
   texts.length = 0;
   gateCalls.length = 0;
   recorded.length = 0;
+  draftGap.mockReset().mockImplementation(async (_owner, details) => {
+    if (!details?.gap) throw Object.assign(new Error('This suggestion has no verified opening.'), { code: 'gap_unavailable' });
+    await new Promise(resolve => setTimeout(resolve, 5));
+    return { post: { id: 'post-1' }, details: { ...details, post_id: 'post-1' } };
+  });
   verdict = { decision: 'send', tier: 'proactive', reason: 'trusted_auto' };
   sendResult = { id: 'bird-1' };
 
@@ -297,8 +304,24 @@ describe('dismissing an action', () => {
   });
 });
 
-describe('an action of a type this route does not send', () => {
-  it('is marked done without texting anybody', async () => {
+describe('approving a checked gap post', () => {
+  const addGap = (details) => db.ai_actions.push({
+    id: 'act-2', beautician_id: 'b1', client_id: null, action_type: 'gap_post',
+    digital_employee: 'content', summary: 'Draft a gap post?', outcome: 'pending',
+    status: 'pending_approval', created_at: new Date().toISOString(), details,
+  });
+  const details = { gap: { date: '2026-09-30', start: '13:30', end: '16:00' }, treatment_ids: ['t1'] };
+
+  it('creates the checked draft and stores its link without texting anybody', async () => {
+    addGap(details);
+    const res = await fetch(`${base}/act-2/execute`, { method: 'POST' });
+    expect(res.status).toBe(200);
+    expect(draftGap).toHaveBeenCalledWith('b1', details);
+    expect(texts).toHaveLength(0);
+    expect(db.ai_actions.find(a => a.id === 'act-2')).toMatchObject({ status: 'executed', details: { post_id: 'post-1' } });
+  });
+
+  it('does not claim success for a legacy suggestion with no verified opening', async () => {
     db.ai_actions.push({
       id: 'act-2', beautician_id: 'b1', client_id: null, action_type: 'gap_post',
       digital_employee: 'content', summary: 'Drafted a gap post', outcome: 'pending',
@@ -307,8 +330,25 @@ describe('an action of a type this route does not send', () => {
 
     const res = await fetch(`${base}/act-2/execute`, { method: 'POST' });
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toContain('no verified opening');
     expect(texts).toHaveLength(0);
-    expect(db.ai_actions.find(a => a.id === 'act-2').status).toBe('executed');
+    expect(db.ai_actions.find(a => a.id === 'act-2').status).toBe('pending_approval');
+  });
+
+  it('creates only one draft when approval is tapped twice together', async () => {
+    addGap(details);
+    const replies = await Promise.all([1, 2].map(() => fetch(`${base}/act-2/execute`, { method: 'POST' })));
+    expect(replies.filter(reply => reply.status === 200)).toHaveLength(1);
+    expect(draftGap).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the action pending and shows the current availability failure', async () => {
+    addGap(details);
+    draftGap.mockRejectedValue(Object.assign(new Error('That time is no longer free.'), { code: 'gap_unavailable' }));
+    const res = await fetch(`${base}/act-2/execute`, { method: 'POST' });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toContain('no longer free');
+    expect(db.ai_actions.find(a => a.id === 'act-2').status).toBe('pending_approval');
   });
 });

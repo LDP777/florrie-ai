@@ -46,6 +46,7 @@ try {
   });
   const page=await ctx.newPage();
   await page.goto(`http://127.0.0.1:${server.address().port}/content`);
+  await page.getByRole('button',{name:'Your posts',exact:true}).click();
   await page.locator('#content-post-draft1').waitFor();
   assert.equal(await page.getByRole('button',{name:'Your posts',exact:true}).getAttribute('aria-pressed'),'true');
   await page.getByText('Find a draft',{exact:true}).click();

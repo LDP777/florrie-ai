@@ -1,4 +1,5 @@
 import ContentResults from '../components/ContentResults.jsx';
+import ContentAssistant from '../components/ContentAssistant.jsx';
 import ContentStudioHome, { postReadiness, PostPreview } from '../components/ContentStudioHome.jsx';
 import { readContentHandoff, mergeContentPosts } from '../lib/content-navigation.js';
 import { contentRequest, parseHashtags, localScheduleValue, scheduleInstant } from '../lib/content-workflow.js';
@@ -113,7 +114,7 @@ export default function ContentAutopilot() {
   const [posted, setPosted] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [tab, setTab] = useState('drafts');
+  const [tab, setTab] = useState('assistant');
   const [reviewPostId, setReviewPostId] = useState(null);
   const navigate = useNavigate();
   const [hasMore, setHasMore] = useState(false);
@@ -788,20 +789,23 @@ export default function ContentAutopilot() {
       {error && !composing && <Button variant="secondary" onClick={() => loadAll()}>Retry posts</Button>}
       {handoffError && <div role="alert" className="fl-content-origin"><span>{handoffError}</span><Button variant="quiet" onClick={() => setHandoffRetry(value => value + 1)}>Retry opening post</Button><Button variant="quiet" onClick={() => {setHandoffError(null);navigate('/content',{replace:true,state:null});}}>View other posts</Button></div>}
       <header className="fl-content-heading">
-        <div><h1>{composing ? <>Create a <em>post.</em></> : <>Your <em>content.</em></>}</h1><p>{composing ? 'Add a photo and a caption. Save it when you’re ready.' : 'Make a post. Review it. Choose when it goes out.'}</p></div>
-        {!composing && <Button onClick={() => startCompose('before_after', '')}><Icon name="plus" size={17} /> Create a post</Button>}
+        <div><h1>{composing ? <>Create a <em>post.</em></> : <>Your <em>content.</em></>}</h1>{tab !== 'assistant' && <p>{composing ? 'Add a photo and a caption. Save it when you’re ready.' : 'Your saved work, ready when you are.'}</p>}</div>
+        {!composing && tab !== 'assistant' && <Button onClick={() => startCompose('before_after', '')}><Icon name="plus" size={17} /> Create a post</Button>}
       </header>
       {!composing && <div className="fl-studio-tabs" aria-label="Content views">
-        {[['drafts','Your posts'],['gallery','Photos'],['results','Results']].map(([value,label]) => <button type="button" key={value}
+        {[['assistant','For you'],['drafts','Your posts'],['gallery','Photos'],['results','Results']].map(([value,label]) => <button type="button" key={value}
           aria-pressed={value === 'drafts' ? ['drafts','scheduled','posted','calendar'].includes(tab) : tab === value}
-          onClick={() => {setTab(value);setComposing(false);}}>{label}</button>)}
+          onClick={() => {setTab(value);setComposing(false);if(value === 'assistant')setSelectedStreamId(null);}}>{label}</button>)}
       </div>}
       {selectedStreamId && <div className="fl-content-origin"><span>{composing ? 'Saving this post in' : 'Showing collection:'} <strong>{streams.find(item => item.id === selectedStreamId)?.name || 'Selected collection'}</strong></span>{!composing && <Button variant="quiet" onClick={() => setSelectedStreamId(null)}>Show all posts</Button>}</div>}
       {['drafts','scheduled','posted'].includes(tab) && <div className="fl-content-subtabs" role="group" aria-label="Post views">{[['drafts','Drafts',drafts.length],['scheduled','Scheduled',scheduled.length],['posted','Published',posted.length]].map(([value,label,count]) => <button type="button" key={value} aria-pressed={tab === value} onClick={() => setTab(value)}>{label}{!error && <span aria-hidden="true">{count}{hasMore ? '+' : ''}</span>}</button>)}</div>}
-      {!composing && <div className="fl-content-connection"><Icon name="instagram" size={15}/><Link to="/settings">{igChecking ? 'Checking Instagram…' : igStatus?.needs_reconnect ? 'Reconnect Instagram' : igStatus?.connected === false ? 'Connect Instagram' : igStatus?.connected && igStatus?.token_valid === true ? 'Instagram connected' : 'Check Instagram connection'}<Icon name="chevron-right" size={13}/></Link></div>}
+      {!composing && tab !== 'assistant' && <div className="fl-content-connection"><Icon name="instagram" size={15}/><Link to="/settings">{igChecking ? 'Checking Instagram…' : igStatus?.needs_reconnect ? 'Reconnect Instagram' : igStatus?.connected === false ? 'Connect Instagram' : igStatus?.connected && igStatus?.token_valid === true ? 'Instagram connected' : 'Check Instagram connection'}<Icon name="chevron-right" size={13}/></Link></div>}
       {tab === 'ideas' && <Button variant="quiet" onClick={() => setTab('drafts')}><Icon name="arrow-left" size={16}/> Back to your posts</Button>}
       {hasMore && ['drafts','scheduled','posted','calendar','results'].includes(tab) && <div className="fl-content-origin"><span>Older posts are available.</span><Button variant="quiet" disabled={loadingMore} onClick={() => loadAll(true)}>{loadingMore ? 'Loading…' : 'Load older posts'}</Button></div>}
       {tab === 'results' && <ContentResults ownerId={beautician.id} posts={[...drafts,...scheduled,...posted]} initialPostId={resultsPostId} />}
+      {tab === 'assistant' && !composing && <ContentAssistant key={beautician.id} owner={beautician}
+        onPost={post => {putPosts([post], true); openPost(post);}} onPrepared={posts => putPosts(posts, true)}
+        onPosts={() => setTab('drafts')} onPhotos={() => setTab('gallery')} onResults={() => setTab('results')}/>}
       {tab === 'ideas' && !composing && <ContentStudioHome treatments={treatments} drafts={drafts} scheduled={scheduled} gallery={gallery} complete={!hasMore} error={error}
         igStatus={igStatus} igChecking={igChecking} planning={planning} onPlan={handlePlanWeek} onPost={openPost}
         onCompose={({ type, treatment, brief }) => { startCompose(type, ''); setComposeTreatment(treatment || ''); setComposeBrief(brief || ''); }}

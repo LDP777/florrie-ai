@@ -46,6 +46,7 @@ try {
    const kind=route.split('?')[0];
    await page.locator(kind==='voice'?'.fl-command-stack':kind==='content'?'.fl-content-heading':'.fl-chat-settings').waitFor();
    if(kind==='content') {
+    await page.getByRole('button',{name:'Your posts',exact:true}).click();
     const savedPost=page.locator('#content-post-p1');
     await savedPost.waitFor();
     assert.equal(await page.getByRole('button',{name:'Your posts',exact:true}).getAttribute('aria-pressed'),'true');

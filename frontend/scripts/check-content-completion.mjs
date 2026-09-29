@@ -37,6 +37,7 @@ try {
   };
  });
  const page=await ctx.newPage();await page.goto(`http://127.0.0.1:${server.address().port}/content`);
+ await page.getByRole('button',{name:'Your posts',exact:true}).click();
  await page.locator('#content-post-d1').waitFor();
  assert.equal(await page.evaluate(()=>window.__c.ideas),0);
  assert.equal(await page.getByRole('button',{name:'Your posts',exact:true}).getAttribute('aria-pressed'),'true');

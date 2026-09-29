@@ -3,6 +3,7 @@ import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import { evaluateOutbound, recordOutbound } from '../lib/outbound-guard.js';
 import { sendSMS } from '../services/notifications.js';
+import { draftVerifiedGapPost } from '../services/gap-content.js';
 import logger from '../lib/logger.js';
 
 const router = Router();
@@ -239,12 +240,16 @@ router.post('/:id/execute', requireAuth, async (req, res) => {
     if (action.action_type === 'rebook_nudge' && action.client_id) {
       failure = await sendRebookNudge(action, req.beautician.id);
     } else if (action.action_type === 'gap_post') {
-      // Nothing to send. The draft already lives in content_posts; the flip to
-      // executed above is the whole job.
+      const { details } = await draftVerifiedGapPost(req.beautician.id, action.details);
+      const { error: detailError } = await supabase.from('ai_actions')
+        .update({ details }).eq('id', id).eq('beautician_id', req.beautician.id).eq('status', 'executed');
+      // A saved draft must not be generated twice if only its activity link failed.
+      if (detailError) logger.warn({ err: detailError, actionId: id }, 'Draft saved, but its action link could not be recorded');
     }
   } catch (err) {
     logger.error({ err, actionId: id }, 'Failed to execute approved action');
-    failure = 'Execution failed';
+    failure = action.action_type === 'gap_post' && ['gap_unavailable', 'invalid_gap', 'availability_unavailable'].includes(err.code)
+      ? err.message : 'Execution failed';
   }
 
   if (failure) {
