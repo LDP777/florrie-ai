@@ -75,8 +75,9 @@ try {
       }
       if (route === 'voice') {
         await page.getByRole('button',{name:'More ways to ask',exact:true}).click();
-    await page.getByRole('button',{name:/^My day/}).click();
-        assert.equal(await page.getByLabel('Message Florrie').inputValue(),'What does today look like?');
+        await page.getByRole('button',{name:'Clients',exact:true}).click();
+        await page.getByRole('button',{name:/^Find a client/}).click();
+        assert.equal(await page.getByLabel('Message Florrie').inputValue(),'Tell me about ');
         assert.ok(await page.locator('.fl-voice-emblem svg').count());
       }
       if (route === 'content') {

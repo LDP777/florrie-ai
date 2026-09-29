@@ -51,8 +51,9 @@ try {
    if(kind==='voice') {
     assert.ok(await page.locator('.fl-voice-emblem').evaluate(el=>el.getBoundingClientRect().top>=0),'Voice welcome stays in view');
     await page.getByRole('button',{name:'More ways to ask',exact:true}).click();
-    await page.getByRole('button',{name:/^My day/}).click();
-    assert.equal(await page.getByRole('textbox',{name:'Message Florrie'}).inputValue(),'What does today look like?');
+    await page.getByRole('button',{name:'Clients',exact:true}).click();
+    await page.getByRole('button',{name:/^Find a client/}).click();
+    assert.equal(await page.getByRole('textbox',{name:'Message Florrie'}).inputValue(),'Tell me about ');
     assert.equal(await page.evaluate(()=>window.__writes),0);
    }
    if(kind==='inbox') {

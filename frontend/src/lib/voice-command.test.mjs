@@ -24,3 +24,19 @@ test('returns the real response and preserves proposed actions',async()=>{
  const answer={reply:'Please review',proposals:[{id:'p1'}]};
  assert.deepEqual(await sendVoiceCommand({auth,url:'/voice',text:'Hello',request:async()=>({ok:true,json:async()=>answer})}),answer);
 });
+
+
+test('a changed owner or conversation cannot send after waiting for a session', async () => {
+  let resolveSession;
+  let current = true;
+  let requests = 0;
+  const work = sendVoiceCommand({
+    auth: { getSession: () => new Promise(resolve => { resolveSession = resolve; }) },
+    url: '/command', text: 'Check my diary', canSend: () => current,
+    request: async () => { requests++; return new Response('{}'); },
+  });
+  current = false;
+  resolveSession({ data: { session: { access_token: 'demo' } } });
+  await assert.rejects(work, /has changed/);
+  assert.equal(requests, 0);
+});

@@ -26,75 +26,222 @@ try {
     await ctx.addInitScript(sessionSeedSource(bundleSupabaseUrl(dist)));
     await ctx.addInitScript(() => {
       localStorage.setItem('florrie_voice_enabled', '1');
-      window.__voiceDesign = { commands: [], executions: 0, starts: 0 };
+      window.__voiceDesign = JSON.parse(sessionStorage.getItem('voice-design-ledger') || 'null')
+        || { commands: [], executions: 0, starts: 0, diaryReads: [], failDiary: true };
+      const remember = () => sessionStorage.setItem('voice-design-ledger', JSON.stringify({
+        commands: __voiceDesign.commands, executions: __voiceDesign.executions,
+        starts: __voiceDesign.starts, diaryReads: __voiceDesign.diaryReads, failDiary: __voiceDesign.failDiary,
+      }));
       window.SpeechRecognition = class {
-        start() { __voiceDesign.starts++; __voiceDesign.recognition = this; this.onstart?.(); }
-        stop() { this.onend?.(); }
+        start() { __voiceDesign.starts++; __voiceDesign.recognition = this; remember(); this.onstart?.(); }
+        stop() {
+          __voiceDesign.stopCalls = (__voiceDesign.stopCalls || 0) + 1;
+          if (!__voiceDesign.deferStop) this.onend?.();
+        }
         abort() { this.onend?.(); }
       };
       const base = window.fetch;
       const json = value => Promise.resolve(new Response(JSON.stringify(value), { headers: { 'content-type': 'application/json' } }));
       window.fetch = (input, options = {}) => {
-        const url = String(input);
-        if (url.includes('/api/voice/command')) {
-          __voiceDesign.commands.push(JSON.parse(options.body));
-          return json({ reply: 'Review this demo message before sending.', proposals: [{ tool: 'send_message', input: { client_name: 'Demo Client', message: 'Demo only.' } }] });
+        const url = typeof input === 'string' ? input : input?.url || '';
+        const method = options.method || input?.method || 'GET';
+        if (url.includes('/rest/v1/appointments') && method === 'HEAD') {
+          __voiceDesign.diaryReads.push(url); remember();
+          if (__voiceDesign.failDiary) return Promise.resolve(new Response(null, { status: 503 }));
+          return Promise.resolve(new Response(null, { headers: { 'content-range': '0-7/8' } }));
         }
-        if (url.includes('/api/voice/execute')) { __voiceDesign.executions++; return json({ result: 'Demo action confirmed.' }); }
+        if (url.includes('/api/voice/command')) {
+          const command = JSON.parse(options.body);
+          __voiceDesign.commands.push(command); remember();
+          if (/^Prepare (?:another |unconfirmed )?demo message/.test(command.text)) {
+            return json({ reply: 'Review this demo message before sending.', proposals: [{ tool: 'send_message', input: { client_name: 'Demo Client', message: 'Demo only.' } }] });
+          }
+          if (command.text === 'What did I earn this week?') {
+            return json({ reply: 'Your recorded demo income this week is £240.', actions: [{ tool: 'get_revenue_summary', data: { total: 24000 } }] });
+          }
+          return json({ reply: 'You have eight appointments today. Your diary, payments and brief are ready to open.', actions: [
+            { tool: 'check_schedule', data: { date: '2026-09-29', appointments: [] } },
+            { tool: 'get_revenue_summary', data: {} },
+            { tool: 'get_outstanding_payments', data: {} },
+            { tool: 'get_florrie_brief', data: {} },
+          ] });
+        }
+        if (url.includes('/api/voice/execute')) { __voiceDesign.executions++; remember(); return json({ result: 'Demo action confirmed.' }); }
         return base(input, options);
       };
     });
     const page = await ctx.newPage();
+    page.setDefaultTimeout(10000);
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
+    const commandCount = () => page.evaluate(() => __voiceDesign.commands.length);
+    const fresh = async () => {
+      await page.getByRole('button', { name: 'New conversation', exact: true }).click();
+      await page.getByRole('button', { name: 'Start fresh', exact: true }).click();
+      await page.getByRole('navigation', { name: 'Your salon shortcuts' }).waitFor();
+    };
+    const chooseTopic = async name => {
+      await page.getByRole('group', { name: 'Choose a topic', exact: true }).getByRole('button', { name, exact: true }).click();
+    };
+    const submit = async text => {
+      await page.getByLabel('Message Florrie').fill(text);
+      await page.getByLabel('Message Florrie').press('Enter');
+    };
+    const noOverflow = async () => assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `No page overflow at ${width}`);
     await page.goto(`${origin}/voice`);
-    await page.getByRole('navigation', { name: 'Your salon shortcuts' }).waitFor();
+    await page.getByRole('link', { name: 'Today’s diary is unavailable', exact: true }).waitFor();
+    assert.equal(await page.getByRole('link', { name: '0 appointments in your diary today', exact: true }).count(), 0, 'A failed diary read must not claim an empty day');
+    assert.equal(await page.getByRole('button', { name: 'Tap to speak', exact: true }).isEnabled(), true, 'Diary failure does not block the commander');
+    await page.evaluate(() => { __voiceDesign.failDiary = false; });
+    await page.getByRole('button', { name: 'Retry diary summary', exact: true }).click();
+    await page.getByRole('link', { name: '8 appointments in your diary today', exact: true }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Retry diary summary', exact: true }).count(), 0, 'Retry replaces the unavailable state with the recovered count');
     await page.evaluate(() => document.fonts.ready);
-    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `No page overflow at ${width}`);
+    await noOverflow();
+    const diaryRead = await page.evaluate(() => __voiceDesign.diaryReads[0]);
+    const diaryQuery = new URL(diaryRead).searchParams;
+    assert.equal(diaryQuery.get('beautician_id'), 'eq.b1', 'Diary summary is scoped to the signed-in salon');
+    assert.equal(diaryQuery.get('select'), 'id');
+    assert.match(diaryQuery.get('status'), /cancelled.*no_show/);
     assert.equal(await page.locator('.fl-voice-emblem svg').count(), 1, 'Original flower remains visible');
     assert.equal(await page.locator('.fl-command-petal img').count(), 0, 'No native image preview target');
     assert.equal(await page.getByRole('button', { name: 'Tap to speak', exact: true }).evaluate(el => el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }))), false);
     await page.screenshot({ path: join(output, `voice-${width}.png`), fullPage: true, animations: 'disabled' });
-    for (const [label, path] of [['Inbox', '/inbox'], ['Patch tests', '/patch-tests'], ['Schedule', '/smart-schedule'], ['Money', '/money']]) {
-      const link = page.getByRole('navigation', { name: 'Your salon shortcuts' }).getByRole('link', { name: new RegExp(`^${label}`) });
+
+    // The compact navigation uses real routes and carries no command side effects.
+    for (const [label, path] of [['Inbox', '/inbox'], ['Calendar', '/calendar/week'], ['Money', '/money']]) {
+      const link = page.getByRole('navigation', { name: 'Your salon shortcuts' }).getByRole('link', { name: label, exact: true });
       assert.equal(await link.getAttribute('href'), path);
       await link.click();
       await page.waitForURL(`${origin}${path}`);
       await page.goBack();
       await page.getByRole('navigation', { name: 'Your salon shortcuts' }).waitFor();
     }
-    await page.getByRole('button', { name: 'Ask about my day', exact: true }).click();
-    assert.equal(await page.getByLabel('Message Florrie').inputValue(), 'What does today look like?');
-    await page.getByRole('button', { name: 'Ask about my earnings', exact: true }).click();
-    assert.equal(await page.getByLabel('Message Florrie').inputValue(), 'What did I earn this week?');
-    await page.getByRole('button', { name: 'More ways to ask', exact: true }).click();
-    await page.locator('#fl-command-ideas').getByRole('button', { name: /^Content/ }).click();
-    assert.equal(await page.getByLabel('Message Florrie').inputValue(), 'Help me draft a post about my work');
-    assert.equal(await page.getByRole('button', { name: 'More ways to ask', exact: true }).getAttribute('aria-expanded'), 'false');
-    assert.equal(await page.evaluate(() => __voiceDesign.commands.length), 0, 'Questions prepare text without running commands');
+    await chooseTopic('Business');
+    await page.getByRole('button', { name: /^Check outstanding payments/ }).waitFor();
+    await chooseTopic('Clients');
+    await page.getByRole('button', { name: /^Find a client/ }).click();
+    assert.equal(await page.getByLabel('Message Florrie').inputValue(), 'Tell me about ');
+    await page.getByText('Add the client’s name, then send.', { exact: true }).waitFor();
+    assert.equal(await commandCount(), 0, 'A client-name template prepares a draft without executing');
     await page.getByLabel('Message Florrie').fill('');
+    await chooseTopic('Create');
+    for (const [title, path, draft] of [
+      ['Plan content that brings bookings', '/content', false],
+      ['Continue a content draft', '/content', true],
+      ['Work with your reviews', '/reviews', false],
+    ]) {
+      await page.getByRole('button', { name: new RegExp(`^${title}`) }).click();
+      await page.waitForURL(`${origin}${path}`);
+      if (draft) {
+        await page.locator('.fl-studio-tabs').getByRole('button', { name: /^Drafts/ }).waitFor();
+        assert.equal(await page.locator('.fl-studio-tabs').getByRole('button', { name: /^Drafts/ }).getAttribute('aria-pressed'), 'true', 'Continue a draft opens the actual Drafts view');
+      }
+      await page.goBack();
+      await page.getByRole('navigation', { name: 'Your salon shortcuts' }).waitFor();
+      await chooseTopic('Create');
+    }
+    assert.equal(await commandCount(), 0, 'Create tasks open real workspaces instead of unsupported voice commands');
+
+    // One tap runs an expressly selected read task and gives several valid next steps.
+    await chooseTopic('My day');
+    await page.getByRole('button', { name: /^Brief me on today/ }).click();
+    await page.getByText('You have eight appointments today. Your diary, payments and brief are ready to open.', { exact: true }).waitFor();
+    assert.equal(await commandCount(), 1);
+    assert.equal(await page.evaluate(() => __voiceDesign.commands[0].text), 'What is my schedule today, and what needs my attention?');
+    const results = page.locator('.fl-command-result-links').getByRole('button');
+    assert.deepEqual(await results.allTextContents(), ['Open this day', 'Open Money', 'Open Florrie’s brief']);
+    await noOverflow();
+    if (width === 390) await page.screenshot({ path: join(output, 'voice-response.png'), fullPage: true, animations: 'disabled' });
+    await page.getByRole('button', { name: 'Open this day', exact: true }).click();
+    await page.waitForURL(`${origin}/calendar/week?date=2026-09-29&view=day`);
+    await page.goBack();
+    await page.getByRole('button', { name: 'New conversation', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'New conversation', exact: true }).click();
+    await page.getByRole('button', { name: 'Keep chat', exact: true }).click();
+    assert.equal(await page.getByText('You have eight appointments today. Your diary, payments and brief are ready to open.', { exact: true }).count(), 1, 'Opening New conversation does not clear it without confirmation');
+    await fresh();
+    assert.equal(await page.locator('.fl-voice-messages p').count(), 0, 'Start fresh clears the transcript');
+
+    // Actual keyboard behavior preserves Shift+Enter but sends Enter exactly once.
+    const input = page.getByLabel('Message Florrie');
+    await input.fill('Check my diary');
+    await input.press('Shift+Enter');
+    await input.pressSequentially('and care');
+    assert.equal(await input.inputValue(), 'Check my diary\nand care');
+    assert.equal(await commandCount(), 1);
+    await input.press('Enter');
+    await page.getByRole('button', { name: 'Open this day', exact: true }).waitFor();
+    assert.equal(await commandCount(), 2);
+    assert.equal(await page.evaluate(() => __voiceDesign.commands.at(-1).text), 'Check my diary\nand care');
+    await fresh();
+
+    // Interim words are visible; cancelling invalidates even an already-queued callback.
     await page.getByRole('button', { name: 'Tap to speak', exact: true }).click();
     await page.getByRole('button', { name: 'Stop listening', exact: true }).waitFor();
-    assert.equal(await page.evaluate(() => __voiceDesign.starts), 1);
-    assert.ok(await page.getByLabel('Message Florrie').isDisabled());
+    assert.ok(await input.isDisabled());
     assert.equal(await page.locator('.fl-command-wave i').first().evaluate(el => getComputedStyle(el).animationName), 'none', 'Reduced motion is respected');
+    await page.evaluate(() => {
+      const result = [{ transcript: 'What did I earn' }]; result.isFinal = false;
+      __voiceDesign.recognition.onresult({ resultIndex: 0, results: [result] });
+      __voiceDesign.lateResult = __voiceDesign.recognition.onresult;
+    });
+    await page.waitForFunction(() => document.querySelector('[aria-label="Message Florrie"]')?.value === 'What did I earn');
+    assert.equal(await input.inputValue(), 'What did I earn');
+    await noOverflow();
     if (width === 390) await page.screenshot({ path: join(output, 'voice-listening.png'), fullPage: true, animations: 'disabled' });
+    // A real recogniser may deliver its final words well after stop() returns.
+    await page.evaluate(() => { __voiceDesign.deferStop = true; });
     await page.getByRole('button', { name: 'Stop listening', exact: true }).click();
-    await page.getByLabel('Message Florrie').fill('Prepare a demo message');
-    await page.getByRole('button', { name: 'Send message', exact: true }).click();
-    await page.getByText('Review this demo message before sending.', { exact: true }).waitFor();
-    assert.equal(await page.evaluate(() => __voiceDesign.executions), 0, 'Proposals still require confirmation');
-    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-    if (width === 390) await page.screenshot({ path: join(output, 'voice-proposal.png'), fullPage: true, animations: 'disabled' });
+    assert.equal(await page.evaluate(() => __voiceDesign.stopCalls), 1, 'Stop reaches the recogniser');
+    assert.equal(await page.getByRole('button', { name: 'Stop listening', exact: true }).isVisible(), true, 'Stop remains visible while the recogniser finalises');
+    assert.equal(await page.getByRole('button', { name: 'Cancel recording', exact: true }).isEnabled(), true, 'Recording can still be cancelled during finalisation');
+    assert.equal(await input.isDisabled(), true, 'Typing stays disabled until a final/end event or cancellation');
+    assert.equal(await page.getByRole('button', { name: /^Brief me on today/ }).isDisabled(), true, 'Task controls stay disabled during finalisation');
+    assert.equal(await page.getByRole('group', { name: 'Choose a topic', exact: true }).getByRole('button', { name: 'Clients', exact: true }).isDisabled(), true);
+    assert.equal(await commandCount(), 2, 'Calling stop does not submit an interim transcript');
+    await page.getByRole('button', { name: 'Cancel recording', exact: true }).click();
+    await page.evaluate(() => {
+      const result = [{ transcript: 'Cancelled speech must not send' }]; result.isFinal = true;
+      __voiceDesign.lateResult({ resultIndex: 0, results: [result] });
+      __voiceDesign.deferStop = false;
+    });
+    assert.equal(await commandCount(), 2, 'Cancelled recording sends nothing even if a final event arrives late');
+    assert.equal(await input.inputValue(), '');
+    await page.getByRole('button', { name: 'Tap to speak', exact: true }).click();
+    await page.getByRole('button', { name: 'Stop listening', exact: true }).waitFor();
+    await page.evaluate(() => {
+      const result = [{ transcript: 'What did I earn this week?' }]; result.isFinal = true;
+      __voiceDesign.recognition.onresult({ resultIndex: 0, results: [result] });
+    });
+    await page.getByText('Your recorded demo income this week is £240.', { exact: true }).waitFor();
+    assert.equal(await commandCount(), 3);
+    assert.equal(await page.evaluate(() => __voiceDesign.starts), 2);
+    assert.equal(await page.locator('.fl-voice-messages').getByText('Voice', { exact: true }).count(), 1);
+
+    // Preparing, declining and confirming remain distinct from one-tap read commands.
+    await submit('Prepare demo message');
+    await page.getByRole('button', { name: 'Yes, do it', exact: true }).waitFor();
+    assert.equal(await page.evaluate(() => __voiceDesign.executions), 0);
     await page.getByRole('button', { name: 'Leave it', exact: true }).click();
     assert.equal(await page.evaluate(() => __voiceDesign.executions), 0);
-    await page.getByLabel('Message Florrie').fill('Prepare another demo message');
-    await page.getByRole('button', { name: 'Send message', exact: true }).click();
+    await submit('Prepare another demo message');
     await page.getByRole('button', { name: 'Yes, do it', exact: true }).click();
     await page.getByText('Demo action confirmed.', { exact: true }).waitFor();
     assert.equal(await page.evaluate(() => __voiceDesign.executions), 1);
+    await submit('Prepare unconfirmed demo message');
+    await page.getByRole('button', { name: 'Yes, do it', exact: true }).waitFor();
+    if (width === 390) await page.screenshot({ path: join(output, 'voice-proposal.png'), fullPage: true, animations: 'disabled' });
+    await page.reload();
+    await page.getByText('Demo action confirmed.', { exact: true }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Yes, do it', exact: true }).count(), 0, 'Neither completed nor unconfirmed historic proposals can run on reload');
+    assert.equal(await page.getByRole('button', { name: 'Leave it', exact: true }).count(), 0);
+    assert.equal(await page.locator('.fl-command-history-note').filter({ hasText: 'This earlier proposal is no longer active.' }).count(), 3);
+    assert.equal(await page.evaluate(() => __voiceDesign.executions), 1, 'Reload does not repeat an action');
+    await fresh();
+    await noOverflow();
     assert.deepEqual(errors, []);
     await ctx.close();
-    console.log(`✓ Voice ${width}px: shortcuts, draft-only questions, typing, voice, reduced motion and explicit action confirmation`);
+    console.log(`✓ Voice ${width}px: scoped diary, task groups, working destinations, keyboard, voice/cancel, safe history and explicit action confirmation`);
   }
 } finally { await browser.close(); server.close(); }

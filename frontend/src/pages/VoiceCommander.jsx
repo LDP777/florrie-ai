@@ -1,12 +1,14 @@
 import { FlorrieOrb, EffectFrame } from '../components/ui/FlorrieEffects.jsx';
-import Button from '../components/ui/Button';
 import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { useBeautician, supabase, fetchRows } from '../lib/supabase.js'
+import { useBeautician, supabase } from '../lib/supabase.js'
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import { sendVoiceCommand } from '../lib/voice-command.js';
-import { deDash } from '../lib/text.js';
+import { localDateStr } from '../lib/dates.js';
+import { loadVoiceHistory, saveVoiceHistory, clearVoiceHistory } from '../lib/voice-history.js';
+import { executeVoiceProposal } from '../lib/voice-execution.js';
+import { voiceResultLinks } from '../lib/voice-result-links.js';
 import { bloom } from '../lib/bloom.js';
 import { isVoiceEnabled, setVoiceEnabled } from '../lib/voicePref.js';
 import Icon, { iconName } from '../components/ui/Icon';
@@ -58,34 +60,37 @@ function FloriePetal({ size = 28, spinning = false, white = false }) {
  * Visual confirm card: a spoken command with consequences renders THIS instead
  * of executing. Shows exactly what will happen; nothing runs until the tap.
  */
-function ProposalCard({ prop, onDone }) {
+function ProposalCard({ prop, onDone, canExecute, onRunningChange }) {
+  const mounted = useRef(true);
+  const confirming = useRef(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const [state, setState] = useState('idle'); // idle | running | done | failed
   async function confirm() {
-    if (state !== 'idle') return;
+    if (state !== 'idle' || confirming.current || !canExecute()) return;
+    confirming.current = true;
+    onRunningChange(true);
     setState('running');
     try {
-      const token = (await supabase?.auth.getSession())?.data?.session?.access_token;
-      const res = await fetch(`${API_BASE}/api/voice/execute`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ tool: prop.tool, input: prop.input }),
+      const data = await executeVoiceProposal({
+        auth: supabase.auth, url: `${API_BASE}/api/voice/execute`, tool: prop.tool, input: prop.input,
+        canExecute: () => mounted.current && canExecute(),
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'Could not do that.');
+      if (!mounted.current || !canExecute()) return;
       setState('done');
       bloom();
-      onDone && onDone(data.result || 'Done.');
+      onDone && onDone(data.result || 'The request returned no details. Check the relevant page before repeating it.');
     } catch (err) {
+      if (!mounted.current || !canExecute()) return;
       setState('failed');
-      onDone && onDone(err.message || 'Could not do that. Try again.');
-    }
+      onDone && onDone(err.message || 'Could not do that. Check the result before trying again.');
+    } finally { onRunningChange(false); }
   }
   if (state === 'done' || state === 'dismissed') {
     // "Leave it" used to set this to 'done', so declining a send told her it
     // had happened. Two outcomes, two words.
     return (
       <div style={{ marginTop: 8, padding: '10px 14px', borderRadius: 16, background: 'var(--tone-2, #f6e7dd)', fontSize: 13, fontWeight: 600, color: state === 'done' ? 'var(--accent, #92405e)' : 'var(--text-secondary, #574A42)' }}>
-        {state === 'done' ? 'Done ✓' : 'Left it'}
+        {state === 'done' ? 'Result received' : 'Left it'}
       </div>
     );
   }
@@ -96,10 +101,10 @@ function ProposalCard({ prop, onDone }) {
       <div style={{ display: 'flex', gap: 8 }}>
         <button className="fl-tap"
           onClick={confirm}
-          disabled={state === 'running'}
+          disabled={state !== 'idle'}
           style={{ flex: 1, minHeight: 42, borderRadius: 10, border: 'none', background: 'var(--accent, #92405e)', color: 'var(--on-accent, #fff)', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: state === 'running' ? 0.6 : 1 }}
         >
-          {state === 'running' ? 'Doing it…' : 'Yes, do it'}
+          {state === 'running' ? 'Doing it…' : state === 'failed' ? 'Check the result before trying again' : 'Yes, do it'}
         </button>
         {state === 'idle' && (
           <button className="fl-tap"
@@ -328,115 +333,29 @@ const TOOL_TO_AGENT = {
   get_settings: 'general',
   change_setting: 'general',
 };
-// Map tool names → a quick-action button to show after the response
-const TOOL_TO_ACTION = {
-  book_appointment: { label: 'View Calendar', path: '/calendar' },
-  reschedule_appointment: { label: 'View Calendar', path: '/calendar' },
-  check_schedule: { label: 'Open Calendar', path: '/calendar' },
-  get_upcoming_appointments: { label: 'Open Calendar', path: '/calendar' },
-  block_date: { label: 'View Calendar', path: '/calendar' },
-  block_date_range: { label: 'View Calendar', path: '/calendar' },
-  send_message: { label: 'View Inbox', path: '/inbox' },
-  send_bulk_message: { label: 'View Inbox', path: '/inbox' },
-  get_revenue_summary: { label: 'Open Money', path: '/money' },
-  get_outstanding_payments: { label: 'Open Money', path: '/money' },
-  get_client_info: { label: 'View Clients', path: '/clients' },
-  get_lapsed_clients: { label: 'View Clients', path: '/clients' },
-  get_top_clients: { label: 'View Clients', path: '/clients' },
-  add_note: { label: 'View Checklist', path: '/checklist' },
-  check_consultation_form: { label: 'View Clients', path: '/clients' },
-  get_consultations_needed: { label: 'Open Calendar', path: '/calendar' },
-  check_patch_test: { label: 'View Clients', path: '/clients' },
-  get_patch_tests_needed: { label: 'Open Calendar', path: '/calendar' },
-};
-// Fallback prompts shown before real data loads
-const FALLBACK_PROMPTS = [
-  "What's my schedule today?",
-  "What did I earn this week?",
-  "Who's overdue for a rebook?",
-  "Block tomorrow afternoon off",
-  "What's my busiest day this week?",
-  "Show me my top clients",
-  "Does anyone this week still need a consultation form?",
-  "Who needs a patch test this week?",
-  "How are you set up at the moment?",
+// Each suggestion names a complete, supported task. Content opens its own workspace.
+const TASK_GROUPS = [
+  { id: 'day', label: 'My day', icon: 'calendar', title: 'A little head start', tasks: [
+    { title: 'Brief me on today', detail: 'Your diary and anything needing attention', icon: 'sparkles', prompt: 'What is my schedule today, and what needs my attention?' },
+    { title: 'Check client care', detail: 'Patch tests and consultation forms due this week', icon: 'shield', prompt: 'Who needs a patch test or consultation form this week?' },
+    { title: 'Find my busiest day', detail: 'See how the week is shaping up', icon: 'calendar', prompt: "What's my busiest day this week?" },
+  ] },
+  { id: 'clients', label: 'Clients', icon: 'heart', title: 'Keep the little things covered', tasks: [
+    { title: 'Find a client', detail: 'Visit history, bookings and notes', icon: 'search', draft: 'Tell me about ', hint: 'Add the client’s name, then send.' },
+    { title: 'See who is due a rebook', detail: 'Find clients you have not seen recently', icon: 'heart', prompt: "Who haven't I seen in two months?" },
+    { title: 'Prepare a client message', detail: 'Review the recipient and wording before sending', icon: 'message', draft: 'Prepare a message to ', hint: 'Add a client’s name and what you want to say.' },
+  ] },
+  { id: 'business', label: 'Business', icon: 'chart', title: 'Know where you stand', tasks: [
+    { title: 'How was my week?', detail: 'Income, appointments and the bigger picture', icon: 'chart', prompt: 'Summarise my revenue and appointments this week.' },
+    { title: 'Check outstanding payments', detail: 'See which payments still need attention', icon: 'pound', prompt: 'Which payments are still outstanding?' },
+    { title: 'Review how Florrie is set up', detail: 'Check your current messaging settings', icon: 'settings', prompt: 'How are you set up at the moment?' },
+  ] },
+  { id: 'create', label: 'Create', icon: 'camera', title: 'Put your work out there', tasks: [
+    { title: 'Plan content that brings bookings', detail: 'Open Content Studio to plan, create and track posts', icon: 'camera', path: '/content' },
+    { title: 'Continue a content draft', detail: 'Pick up where you left off', icon: 'edit', path: '/content', state: { showDrafts: true } },
+    { title: 'Work with your reviews', detail: 'Review replies and feedback permissions', icon: 'star', path: '/reviews' },
+  ] },
 ];
-
-// Build contextual suggestions from live data
-function buildLiveSuggestions({ todayAppts, upcomingAppts, recentClients, dormantClients }) {
-  const pool = [];
-  const now = new Date();
-  const dayName = now.toLocaleDateString('en-GB', { weekday: 'long' });
-  const tomorrowName = new Date(now.getTime() + 86400000).toLocaleDateString('en-GB', { weekday: 'long' });
-
-  // Schedule-based
-  if (todayAppts.length > 0) {
-    pool.push(`What's my schedule today?`);
-    // starts_at is salon wall time in the UTC slot, so "upcoming" must compare wall-to-wall
-    const nowWallMs = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), now.getMinutes());
-    const nextAppt = todayAppts.find(a => new Date(a.starts_at).getTime() > nowWallMs);
-    if (nextAppt) {
-      const clientName = nextAppt.clients
-        ? `${nextAppt.clients.first_name || ''} ${nextAppt.clients.last_name || ''}`.trim()
-        : null;
-      if (clientName) pool.push(`What time is ${clientName} in today?`);
-    }
-  } else {
-    pool.push(`Any bookings coming up this week?`);
-  }
-
-  if (todayAppts.length > 0) {
-    pool.push(`How many appointments do I have today?`);
-  }
-
-  // Tomorrow context
-  if (upcomingAppts.length > 0) {
-    pool.push(`What does ${tomorrowName} look like?`);
-    pool.push(`Message everyone booked for ${tomorrowName}`);
-  }
-
-  // Client-name suggestions - use real recent clients
-  if (recentClients.length > 0) {
-    const pick = recentClients[Math.floor(Math.random() * recentClients.length)];
-    pool.push(`When is ${pick} next booked in?`);
-  }
-  if (recentClients.length > 1) {
-    const pick = recentClients[Math.floor(Math.random() * recentClients.length)];
-    pool.push(`Add a note on ${pick}'s file`);
-  }
-
-  // Dormant / rebook
-  if (dormantClients.length > 0) {
-    pool.push(`Who haven't I seen in 2 months?`);
-    if (dormantClients.length >= 3) {
-      pool.push(`Send a comeback message to my ${dormantClients.length} dormant clients`);
-    }
-    const pick = dormantClients[Math.floor(Math.random() * dormantClients.length)];
-    pool.push(`Send ${pick} a rebook nudge`);
-  }
-
-  // Revenue - always relevant
-  pool.push(`What did I earn this week?`);
-  pool.push(`How's this month compared to last?`);
-
-  // Power features
-  pool.push(`What's my busiest day this week?`);
-  pool.push(`Block ${tomorrowName} afternoon off`);
-  pool.push(`Show me my top 5 clients by spend`);
-
-  // Setting the app up by talking to it. Here rather than buried, because a
-  // feature nobody is told about does not exist — and the setting this is
-  // mostly for (whether Florrie answers clients herself) is the one Ellie
-  // would otherwise have to go four taps deep into Settings to find, which is
-  // the whole thing she was complaining about.
-  pool.push(`How are you set up at the moment?`);
-  pool.push(`Stop answering my clients yourself`);
-
-  // Deduplicate and pick 6
-  const unique = [...new Set(pool)];
-  const shuffled = unique.sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, 6);
-}
 // Check Web Speech API support
 const SpeechRecognition = typeof window !== 'undefined'
   ? (window.SpeechRecognition || window.webkitSpeechRecognition)
@@ -453,21 +372,30 @@ export default function VoiceCommander() {
   const location = useLocation();
   const autoListenedRef = useRef(null);
   const [messages, setMessages] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [executions, setExecutions] = useState(0);
   const processingRef = useRef(false);
   const [textInput, setTextInput] = useState(() => typeof location.state?.prompt === 'string' ? location.state.prompt.slice(0, 1000) : '');
-  const [pulseAnim, setPulseAnim] = useState(false);
   const [interimTranscript, setInterimTranscript] = useState('');
   const [speechSupported, setSpeechSupported] = useState(!!SpeechRecognition);
   const [voiceEnabled, setVoiceOn] = useState(isVoiceEnabled);
-  const [suggestions, setSuggestions] = useState(FALLBACK_PROMPTS);
+  const [taskGroup, setTaskGroup] = useState('day');
+  const [draftHint, setDraftHint] = useState('');
+  const [daySummary, setDaySummary] = useState({ status: 'loading', count: null });
+  const [dayRefresh, setDayRefresh] = useState(0);
+  const historyStorage = (() => { try { return window.localStorage; } catch { return null; } })();
+  const [historyOwner, setHistoryOwner] = useState(null);
+  const [confirmNew, setConfirmNew] = useState(false);
+  const [micStarting, setMicStarting] = useState(false);
   const [showIdeas, setShowIdeas] = useState(false);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const recognitionRef = useRef(null);
-  const suggestionsDataRef = useRef(null);
+  const generationRef = useRef(0);
+  const loadedOwnerRef = useRef(null);
+  const ownerRef = useRef(beautician?.id);
+  ownerRef.current = beautician?.id;
 
   useEffect(() => {
     const sync = () => setVoiceOn(isVoiceEnabled());
@@ -475,147 +403,62 @@ export default function VoiceCommander() {
     return () => window.removeEventListener('florrie:voice-pref', sync);
   }, []);
 
-  // Fetch live data for suggestions
+  // One small diary read. A failed or partial query must never imply an empty day.
+  const today = localDateStr();
   useEffect(() => {
-    if (!beautician || bLoading) return;
+    if (!beautician?.id || bLoading) return;
+    const controller = new AbortController();
     let cancelled = false;
-
-    async function fetchSuggestionData() {
+    setDaySummary({ status: 'loading', count: null });
+    const timer = setTimeout(() => {
+      controller.abort();
+      if (!cancelled) setDaySummary({ status: 'error', count: null });
+    }, 8000);
+    (async () => {
       try {
-        const now = new Date();
-        const todayStr = now.toISOString().slice(0, 10);
-        const tomorrowStr = new Date(now.getTime() + 86400000).toISOString().slice(0, 10);
-        const sixtyDaysAgo = new Date(now.getTime() - 60 * 86400000).toISOString().slice(0, 10);
+        const { count, error } = await supabase.from('appointments')
+          .select('id', { count: 'exact', head: true })
+          .eq('beautician_id', beautician.id)
+          .gte('starts_at', `${today}T00:00:00Z`)
+          .lte('starts_at', `${today}T23:59:59Z`)
+          .not('status', 'in', '(cancelled,cancelled_by_client,cancelled_by_beautician,no_show)')
+          .abortSignal(controller.signal);
+        if (cancelled || controller.signal.aborted) return;
+        if (error || !Number.isInteger(count) || count < 0) throw new Error('Diary count unavailable');
+        setDaySummary({ status: 'ready', count });
+      } catch {
+        if (!cancelled) setDaySummary({ status: 'error', count: null });
+      } finally { clearTimeout(timer); }
+    })();
+    return () => { cancelled = true; clearTimeout(timer); controller.abort(); };
+  }, [beautician?.id, bLoading, today, dayRefresh]);
 
-        // Fetch today's appointments, tomorrow's, recent clients, and all clients for dormant check
-        const [todayRes, tomorrowRes, clientsRes] = await Promise.all([
-          supabase.from('appointments')
-            .select('starts_at, clients(first_name, last_name)')
-            .eq('beautician_id', beautician.id)
-            .gte('starts_at', `${todayStr}T00:00:00Z`)
-            .lte('starts_at', `${todayStr}T23:59:59Z`)
-            .order('starts_at'),
-          supabase.from('appointments')
-            .select('starts_at, clients(first_name, last_name)')
-            .eq('beautician_id', beautician.id)
-            .gte('starts_at', `${tomorrowStr}T00:00:00Z`)
-            .lte('starts_at', `${tomorrowStr}T23:59:59Z`)
-            .order('starts_at'),
-          supabase.from('clients')
-            .select('first_name, last_name, appointments(created_at)')
-            .eq('beautician_id', beautician.id)
-            .order('created_at', { ascending: false })
-            .limit(50),
-        ]);
-
-        if (cancelled) return;
-
-        const todayAppts = todayRes.data || [];
-        const upcomingAppts = tomorrowRes.data || [];
-
-        // Recent clients = anyone with an appointment in the last 30 days
-        const clients = clientsRes.data || [];
-        const recentClients = [];
-        const dormantClients = [];
-
-        clients.forEach(c => {
-          const name = `${c.first_name || ''} ${c.last_name || ''}`.trim();
-          if (!name) return;
-          const appts = (c.appointments || [])
-            .map(a => new Date(a.created_at))
-            .filter(d => !isNaN(d))
-            .sort((a, b) => b - a);
-          const lastVisit = appts[0];
-          if (!lastVisit) return;
-          const daysSince = Math.floor((now - lastVisit) / 86400000);
-          if (daysSince <= 30) recentClients.push(name);
-          if (daysSince >= 60) dormantClients.push(name);
-        });
-
-        const data = { todayAppts, upcomingAppts, recentClients, dormantClients };
-        suggestionsDataRef.current = data;
-        setSuggestions(buildLiveSuggestions(data));
-      } catch (err) {
-        logger.error('Suggestion data fetch error:', err);
-      }
-    }
-
-    fetchSuggestionData();
-
-    // Reshuffle suggestions every 45 seconds so they feel alive
-    const interval = setInterval(() => {
-      if (suggestionsDataRef.current) {
-        setSuggestions(buildLiveSuggestions(suggestionsDataRef.current));
-      }
-    }, 45000);
-
-    return () => { cancelled = true; clearInterval(interval); };
-  }, [beautician, bLoading]);
-
-  // Init greeting + load history
   useEffect(() => {
-    if (!bLoading) loadHistory();
-  }, [beautician, bLoading]);
-  async function loadHistory() {
-    setLoading(true);
-    try {
-      // Restore the recent conversation so leaving and coming back to Florrie
-      // does not wipe the chat (Ellie: "doesn't remember the chat").
-      const saved = (() => {
-        try { return JSON.parse(localStorage.getItem('florrie_voice_chat') || 'null'); }
-        catch { return null; }
-      })();
-      if (Array.isArray(saved) && saved.length) {
-        setMessages(saved);
-        setLoading(false);
-        return;
-      }
-      const greeting = {
-        id: '0', role: 'assistant',
-        text: speechSupported
-          ? "Hold the petal to talk, or type below. Ask about your diary, find a client or draft some content."
-          : "Type below to ask about your diary, find a client or draft some content. Voice recording is unavailable in this browser.",
-        agent: 'general',
-        timestamp: new Date().toISOString(),
-      };
-      // Open clean: just the greeting. Florrie's activity log lives on the Hub
-      // ("What Florrie did") - replaying it here as chat history cluttered the
-      // page and hid the "Try saying" prompts. The voice screen is for asking,
-      // not for re-reading what she already did.
-      setMessages([greeting]);
-    } catch (err) {
-      logger.error('Load action history error:', err);
-      setMessages([{
-        id: '0', role: 'assistant',
-        text: "Hey lovely! I'm here whenever you need me.",
-        agent: 'general', timestamp: new Date().toISOString(),
-      }]);
-    } finally {
-      setLoading(false);
-    }
-  }
+    if (bLoading) return;
+    generationRef.current++;
+    cancelRecording();
+    if (loadedOwnerRef.current && loadedOwnerRef.current !== beautician?.id) setTextInput('');
+    loadedOwnerRef.current = beautician?.id || null;
+    processingRef.current = false;
+    setIsProcessing(false);
+    setExecutions(0);
+    setDraftHint('');
+    setConfirmNew(false);
+    setHistoryOwner(null);
+    setMessages(beautician?.id ? loadVoiceHistory(historyStorage, beautician.id) : []);
+    setHistoryOwner(beautician?.id || null);
+  }, [beautician?.id, bLoading]);
   // Auto-scroll on new messages
   useEffect(() => {
     if (messages.some(m => m.role === 'user')) messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [messages]);
-  // Persist the conversation (last 40 messages) so it survives navigating away.
-  //
-  // The consultation payload is stripped on the way out. This store is
-  // unencrypted, survives sign out, and is readable by anything on the origin,
-  // so writing a client's allergies into it would be a longer lived disclosure
-  // than the speaker this whole feature was built to keep them off. The card
-  // is worth a scroll back, not a permanent copy of a medical record.
   useEffect(() => {
-    if (!messages.length) return;
-    try {
-      const safe = messages.slice(-40).map(({ consultation, needed, ...rest }) => rest);
-      localStorage.setItem('florrie_voice_chat', JSON.stringify(safe));
-    } catch {}
-  }, [messages]);
+    if (historyOwner && historyOwner === beautician?.id) saveVoiceHistory(historyStorage, historyOwner, messages);
+  }, [messages, historyOwner, beautician?.id]);
   // Consume each deliberate hold once, including another hold on this page.
   // Clearing the route flag also prevents Back/Forward replaying a recording.
   useEffect(() => {
-    if (location.state?.autoListen !== true || autoListenedRef.current === location.key) return;
+    if (location.state?.autoListen !== true || autoListenedRef.current === location.key || bLoading || !beautician?.id || historyOwner !== beautician.id) return;
     // Cancel before starting if this mount is discarded (including StrictMode's
     // development remount), instead of consuming a hold and aborting its mic.
     const timer = setTimeout(() => {
@@ -624,7 +467,7 @@ export default function VoiceCommander() {
       if (isVoiceEnabled() && !isProcessing) startRecording();
     }, 0);
     return () => clearTimeout(timer);
-  }, [location.key, location.state, speechSupported, isProcessing]);
+  }, [location.key, location.state, speechSupported, isProcessing, bLoading, beautician?.id, historyOwner]);
 
   useEffect(() => () => {
     const recognition = recognitionRef.current;
@@ -636,7 +479,7 @@ export default function VoiceCommander() {
   }, []);
 
   function startRecording() {
-    if (recognitionRef.current || processingRef.current || !isVoiceEnabled()) return;
+    if (recognitionRef.current || processingRef.current || executions > 0 || !isVoiceEnabled() || !beautician?.id) return;
     if (!SpeechRecognition || !speechSupported) {
       inputRef.current?.focus();
       return;
@@ -646,12 +489,15 @@ export default function VoiceCommander() {
     recognition.interimResults = true;
     recognition.continuous = false;
     recognition.maxAlternatives = 1;
+    setMicStarting(true);
     recognition.onstart = () => {
+      if (recognitionRef.current !== recognition) return;
+      setMicStarting(false);
       setIsRecording(true);
-      setPulseAnim(true);
       setInterimTranscript('');
     };
     recognition.onresult = (event) => {
+      if (recognitionRef.current !== recognition) return;
       let interim = '';
       let final = '';
       for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -664,28 +510,36 @@ export default function VoiceCommander() {
       }
       if (final) {
         setInterimTranscript('');
+        recognitionRef.current = null;
+        setIsRecording(false);
+        setMicStarting(false);
+        try { recognition.stop(); } catch {}
         processMessage(final, true);
       } else {
         setInterimTranscript(interim);
       }
     };
     recognition.onerror = (event) => {
+      if (recognitionRef.current !== recognition) return;
+      recognitionRef.current = null;
+      setMicStarting(false);
       logger.error('Speech recognition error:', event.error);
       setIsRecording(false);
-      setPulseAnim(false);
       setInterimTranscript('');
       if (event.error === 'not-allowed') {
         addSystemMessage(MIC_DENIED_MSG);
         setSpeechSupported(false);
       } else if (event.error === 'no-speech') {
         addSystemMessage("I didn't catch that. Try again or type your message.");
+      } else if (event.error !== 'aborted') {
+        addSystemMessage("Voice lost its connection. Try again or type your message.");
       }
     };
     recognition.onend = () => {
       if (recognitionRef.current !== recognition) return;
       recognitionRef.current = null;
+      setMicStarting(false);
       setIsRecording(false);
-      setPulseAnim(false);
       setInterimTranscript('');
     };
     recognitionRef.current = recognition;
@@ -693,18 +547,24 @@ export default function VoiceCommander() {
       recognition.start();
     } catch (error) {
       recognitionRef.current = null;
+      setMicStarting(false);
       setIsRecording(false);
-      setPulseAnim(false);
       addSystemMessage(error.name === 'NotAllowedError' ? MIC_DENIED_MSG : "Voice couldn't start. Try again or type your message.");
     }
   }
   function stopRecording() {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-      recognitionRef.current = null;
+    // Keep controls busy until the final transcript or end event arrives.
+    try { recognitionRef.current?.stop(); } catch { cancelRecording(); }
+  }
+  function cancelRecording() {
+    const recognition = recognitionRef.current;
+    recognitionRef.current = null;
+    if (recognition) {
+      recognition.onstart = recognition.onresult = recognition.onerror = recognition.onend = null;
+      try { recognition.abort(); } catch {}
     }
+    setMicStarting(false);
     setIsRecording(false);
-    setPulseAnim(false);
     setInterimTranscript('');
   }
   function handleRecord() {
@@ -724,8 +584,14 @@ export default function VoiceCommander() {
     }]);
   }
   async function processMessage(text, isVoice = false) {
-    if (!text.trim() || processingRef.current) return;
+    if (!text.trim() || processingRef.current || executions > 0 || !beautician?.id || ownerRef.current !== beautician.id || historyOwner !== beautician.id) return;
+    const requestOwner = beautician.id;
+    const requestGeneration = generationRef.current;
+    const isCurrent = () => ownerRef.current === requestOwner && generationRef.current === requestGeneration;
     processingRef.current = true;
+    setDraftHint('');
+    setShowIdeas(false);
+    setConfirmNew(false);
     const userMsg = {
       id: crypto.randomUUID(),
       role: 'user',
@@ -737,13 +603,14 @@ export default function VoiceCommander() {
     setTextInput('');
     setIsProcessing(true);
     try {
-      const data = await sendVoiceCommand({ auth: supabase.auth, url: `${API_BASE}/api/voice/command`, text: text.trim() });
+      const data = await sendVoiceCommand({ auth: supabase.auth, url: `${API_BASE}/api/voice/command`, text: text.trim(), canSend: isCurrent });
+      if (!isCurrent()) return;
       // Determine agent from which tools were called
       const toolsUsed = (data.actions || []).map(a => a.tool);
       const primaryTool = toolsUsed[0];
       const agent = TOOL_TO_AGENT[primaryTool] || 'general';
-      // Quick-action button - use first tool that has one
-      const action = toolsUsed.reduce((found, t) => found || TOOL_TO_ACTION[t] || null, null);
+      // Offer the relevant workspace for each returned result.
+      const actions = voiceResultLinks(data.actions || []);
       // Show tool count badge for multi-step commands
       const multiStep = toolsUsed.length > 1;
       // What voice deliberately did not say. The backend keeps consultation
@@ -767,7 +634,7 @@ export default function VoiceCommander() {
         role: 'assistant',
         text: data.reply || 'Review the proposed action below.',
         agent,
-        action,
+        actions,
         multiStep,
         toolCount: toolsUsed.length,
         // Consequential actions come back as proposals: nothing has happened
@@ -780,6 +647,7 @@ export default function VoiceCommander() {
       };
       setMessages(prev => [...prev, aiMsg]);
     } catch (err) {
+      if (!isCurrent()) return;
       logger.error('Voice command failed:', err);
       // Never show raw error details to users - use the backend's friendly message if available
       const friendly = typeof err.message === 'string' && !err.message.includes('{') && err.message.length < 120
@@ -787,104 +655,145 @@ export default function VoiceCommander() {
         : "Something went wrong. Try again in a moment.";
       addSystemMessage(friendly);
     } finally {
-      processingRef.current = false;
-      setIsProcessing(false);
+      if (isCurrent()) {
+        processingRef.current = false;
+        setIsProcessing(false);
+      }
     }
   }
   function handleTextSubmit(e) {
     e.preventDefault();
     if (textInput.trim()) processMessage(textInput, false);
   }
-  function handleActionClick(path) {
+  function handleActionClick(path, state) {
     // In-app SPA navigation. window.location.href forced a full reload that
     // dropped the user (and the chat) instead of opening the calendar.
-    if (path) navigate(path);
+    if (path) navigate(path, { state });
   }
-  const hasConversation = messages.some(m => m.id !== '0');
-  function choosePrompt(prompt) {
-    setTextInput(prompt);
+  const visibleMessages = historyOwner === beautician?.id ? messages : [];
+  const hasConversation = visibleMessages.some(m => m.id !== '0');
+  const busy = isProcessing || executions > 0 || isRecording || micStarting || bLoading || !beautician?.id || historyOwner !== beautician?.id;
+  const currentGroup = TASK_GROUPS.find(group => group.id === taskGroup) || TASK_GROUPS[0];
+  function chooseTask(task) {
+    if (busy) return;
+    if (task.path) { navigate(task.path, { state: task.state }); return; }
+    if (task.prompt) { processMessage(task.prompt); return; }
+    setTextInput(task.draft);
+    setDraftHint(task.hint || 'Add the details, then send.');
     setShowIdeas(false);
     inputRef.current?.focus();
   }
+  const renderedGeneration = generationRef.current;
+  const renderedOwner = beautician?.id;
+  const isCurrentConversation = () => renderedGeneration === generationRef.current && renderedOwner === ownerRef.current;
+  function newConversation() {
+    if (busy) return;
+    generationRef.current++;
+    clearVoiceHistory(historyStorage, beautician?.id);
+    setMessages([]);
+    setTextInput('');
+    setDraftHint('');
+    setConfirmNew(false);
+    setShowIdeas(false);
+  }
+  const taskPicker = (
+    <section className="fl-command-discover" aria-label="Things Florrie can help with">
+      <div className="fl-command-categories" role="group" aria-label="Choose a topic">
+        {TASK_GROUPS.map(group => <button type="button" key={group.id}
+          aria-pressed={taskGroup === group.id} disabled={busy}
+          onClick={() => setTaskGroup(group.id)}>{group.label}</button>)}
+      </div>
+      <div className="fl-command-discover-heading">
+        <h2>{currentGroup.title}</h2>
+        <span>{taskGroup === 'create' ? 'Open a workspace' : 'Tap to ask'}</span>
+      </div>
+      <div className="fl-command-tasks">
+        {currentGroup.tasks.map(task => <button type="button" key={task.title} disabled={busy} onClick={() => chooseTask(task)}>
+          <span className="fl-command-task-icon"><Icon name={task.icon} size={19} /></span>
+          <span><strong>{task.title}</strong><small>{task.detail}</small></span>
+          <Icon name={task.path ? 'arrow-up-right' : task.draft ? 'edit' : 'arrow-right'} size={17} />
+        </button>)}
+      </div>
+    </section>
+  );
   const composer = (
     <div className="fl-voice-composer">
-      {interimTranscript && <p className="fl-command-transcript" role="status">{interimTranscript}</p>}
       <EffectFrame focus active={isProcessing || isRecording}>
-        <form className="fl-command-input" onSubmit={handleTextSubmit} aria-label="Ask Florrie">
-          <input ref={inputRef} type="text" aria-label="Message Florrie" value={textInput}
-            onChange={e => setTextInput(e.target.value)}
-            placeholder={isRecording ? 'Listening to you…' : 'Show me what you can do'}
-            disabled={isProcessing || isRecording} autoComplete="off" />
+        <form className={`fl-command-input ${busy ? 'is-active' : ''}`} onSubmit={handleTextSubmit} aria-label="Ask Florrie">
+          <label className="fl-command-input-label" htmlFor="fl-command-message">
+            {isRecording ? 'Listening to you' : micStarting ? 'Opening the microphone' : isProcessing ? 'Working on your request' : hasConversation ? 'What else can I help with?' : 'A question, a plan, a little help…'}
+          </label>
+          <textarea id="fl-command-message" ref={inputRef} rows={2} aria-label="Message Florrie" value={isRecording ? interimTranscript : textInput}
+            onChange={e => { setTextInput(e.target.value); setDraftHint(''); }}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); if (!busy) handleTextSubmit(e); } }}
+            placeholder={isRecording ? 'Go on, I’m listening…' : 'What can I help with?'}
+            disabled={busy} autoComplete="off" maxLength={2000} />
           <div className="fl-command-toolbar">
-            <button type="button" className="fl-command-tool" aria-label="More ways to ask"
-              aria-expanded={showIdeas} aria-controls="fl-command-ideas" disabled={isProcessing || isRecording}
-              onClick={() => setShowIdeas(value => !value)}><Icon name={showIdeas ? 'x' : 'plus'} size={19} /></button>
-            <button type="button" className="fl-command-tool" aria-label="Ask about my day" disabled={isProcessing || isRecording}
-              onClick={() => choosePrompt('What does today look like?')}><Icon name="calendar" size={18} /></button>
-            <button type="button" className="fl-command-tool" aria-label="Ask about my earnings" disabled={isProcessing || isRecording}
-              onClick={() => choosePrompt('What did I earn this week?')}><Icon name="card" size={18} /></button>
-            <span className="fl-command-signature"><Icon name="sparkles" size={16} />Florrie</span>
+            <button type="button" className="fl-command-tool fl-command-explore" aria-label="More ways to ask"
+              aria-expanded={showIdeas} aria-controls="fl-command-ideas" disabled={busy}
+              onClick={() => setShowIdeas(value => !value)}><Icon name={showIdeas ? 'x' : 'plus'} size={18} />Ideas</button>
             <div className="fl-command-submit">
-              {textInput.trim() && !isRecording ? (
-                <button className="fl-command-send" type="submit" aria-label="Send message" disabled={isProcessing}>
-                  <span aria-hidden="true">↑</span>
+              {isRecording || micStarting ? <>
+                <button type="button" className="fl-command-cancel" onClick={cancelRecording}>Cancel recording</button>
+                <button className="fl-command-petal is-listening" type="button" aria-label="Stop listening" onClick={stopRecording}>
+                  <span className="fl-command-wave" aria-hidden="true"><i /><i /><i /><i /></span>
+                </button>
+              </> : textInput.trim() ? (
+                <button className="fl-command-send" type="submit" aria-label="Send message" disabled={busy}>
+                  <Icon name="arrow-up" size={22} />
                 </button>
               ) : speechSupported ? (
-                <button className={`fl-command-petal ${isRecording ? 'is-listening' : ''}`} type="button"
-                  aria-label={isRecording ? 'Stop listening' : voiceEnabled ? 'Tap to speak' : 'Turn on voice'}
-                  title={isRecording ? 'Stop listening' : voiceEnabled ? 'Tap to speak' : 'Turn on voice'}
-                  disabled={isProcessing} onContextMenu={event => event.preventDefault()}
+                <button className="fl-command-talk" type="button"
+                  aria-label={voiceEnabled ? 'Tap to speak' : 'Turn on voice'}
+                  disabled={busy} onContextMenu={event => event.preventDefault()}
                   onClick={() => { if (!voiceEnabled) setVoiceEnabled(true); handleRecord(); }}>
-                  {isRecording ? <span className="fl-command-wave" aria-hidden="true"><i /><i /><i /><i /></span> : <FloriePetal size={30} white />}
+                  <span>{voiceEnabled ? 'Talk to Florrie' : 'Turn on voice'}</span><span className="fl-command-petal"><FloriePetal size={29} white /></span>
                 </button>
-              ) : <span className="fl-command-flower" aria-hidden="true"><FloriePetal size={30} /></span>}
+              ) : <span className="fl-command-text-only">Type to ask<Icon name="edit" size={17} /></span>}
             </div>
           </div>
         </form>
       </EffectFrame>
-      <div id="fl-command-ideas" className="fl-command-ideas" hidden={!showIdeas}>
-        <p>Start with a question</p>
-        <div className="fl-voice-starts">
-          {[
-            ['My day', 'calendar', 'What does today look like?'],
-            ['Client care', 'heart', 'Who needs a consultation form?'],
-            ['Content', 'camera', 'Help me draft a post about my work'],
-            ['My business', 'chart', 'How was my week?'],
-          ].map(([label, icon, prompt]) => <button type="button" key={label} disabled={isProcessing || isRecording}
-            onClick={() => choosePrompt(prompt)}><Icon name={icon} size={17} />{label}<span aria-hidden="true">↗</span></button>)}
-        </div>
-        <div className="fl-command-salon-ideas">
-          {suggestions.slice(0, 2).map(prompt => <button type="button" key={prompt}
-            disabled={isProcessing || isRecording} onClick={() => choosePrompt(prompt)}>{prompt}<span aria-hidden="true">↗</span></button>)}
-        </div>
-      </div>
+      {draftHint && <p className="fl-command-draft-hint" role="status">{draftHint}</p>}
+      <div id="fl-command-ideas" className="fl-command-ideas" hidden={!showIdeas}>{taskPicker}</div>
     </div>
   );
   return (
     <div className={`fl-voice-workspace fl-command-workspace ${hasConversation ? 'has-conversation' : 'is-welcome'}`} style={styles.page}>
       <section className={`fl-command-stage ${isRecording ? 'is-listening' : isProcessing ? 'is-thinking' : ''}`} aria-label="Florrie voice commander">
       <header className={`fl-voice-hero ${hasConversation ? 'is-conversation' : ''}`}>
-        <div className="fl-voice-emblem" aria-hidden="true"><FloriePetal size={44} /></div>
-        <span className="fl-workspace-eyebrow">A little space to think</span>
+        <div className="fl-voice-emblem" aria-hidden="true"><FloriePetal size={44} /><span /><span /></div>
+        <span className="fl-workspace-eyebrow">Your salon. A little lighter.</span>
         <h1>Ask <em>Florrie.</em></h1>
-        {!hasConversation && <p>Your day, your clients, your next idea.</p>}
+        {!hasConversation && <p>Let’s take something off your list.</p>}
       </header>
+      {hasConversation && <div className="fl-command-conversation-tools">
+        {confirmNew ? <div role="group" aria-label="Start a new conversation">
+          <span>Clear this chat and its pending proposals?</span>
+          <button type="button" onClick={newConversation}>Start fresh</button>
+          <button type="button" onClick={() => setConfirmNew(false)}>Keep chat</button>
+        </div> : <button type="button" disabled={busy} onClick={() => setConfirmNew(true)}><Icon name="plus" size={16} />New conversation</button>}
+      </div>}
       {!hasConversation && <div className="fl-command-stack">
         {composer}
+        <div className="fl-command-day-line">
+          <Icon name="calendar" size={15} />
+          <Link to={`/calendar/week?view=day&date=${today}`}>{daySummary.status === 'ready'
+            ? `${daySummary.count} ${daySummary.count === 1 ? 'appointment' : 'appointments'} in your diary today`
+            : daySummary.status === 'loading' ? 'Checking today’s diary…' : 'Today’s diary is unavailable'}</Link>
+          {daySummary.status === 'error' && <button type="button" aria-label="Retry diary summary" onClick={() => setDayRefresh(value => value + 1)}>Retry</button>}
+        </div>
+        {!showIdeas && taskPicker}
         <nav className="fl-command-shortcuts" aria-label="Your salon shortcuts">
+          <span>Jump to</span>
           {[
-            ['Inbox', 'Conversations', 'message', '/inbox'],
-            ['Patch tests', 'Client care', 'shield', '/patch-tests'],
-            ['Schedule', 'Appointments & gaps', 'calendar', '/smart-schedule'],
-            ['Money', 'Income & expenses', 'pound', '/money'],
-          ].map(([label, detail, icon, path]) => <Link key={path} to={path}>
-            <Icon name={icon} size={20} /><strong>{label}</strong><span>{detail}</span><Icon name="chevron-right" size={15} />
-          </Link>)}
+            ['Inbox', '/inbox'], ['Calendar', '/calendar/week'], ['Money', '/money'],
+          ].map(([label, path]) => <Link key={path} to={path}>{label}<Icon name="arrow-up-right" size={13} /></Link>)}
         </nav>
       </div>}
       {/* Messages */}
       <div className="fl-voice-messages" style={styles.messagesContainer} aria-live="polite">
-        {messages.filter((msg, i) => !(i === 0 && messages.length === 1 && msg.role === 'assistant')).map(msg => (
+        {visibleMessages.filter(msg => msg.id !== '0').map(msg => (
           <div
             key={msg.id}
             style={{ ...styles.msgRow,
@@ -915,6 +824,7 @@ export default function VoiceCommander() {
                 </span>
               )}
               <p style={styles.msgText}>{msg.text}</p>
+              {msg.historyNote && <p className="fl-command-history-note">{msg.historyNote}</p>}
               {msg.isVoice && msg.role === 'user' && (
                 <span style={styles.voiceBadge}>
                   <Icon name={iconName('mic')} size={11} inline /> Voice
@@ -922,17 +832,13 @@ export default function VoiceCommander() {
               )}
               {msg.multiStep && msg.role === 'assistant' && (
                 <span style={styles.multiStepBadge}>
-                  {msg.toolCount} actions
+                  {msg.toolCount} steps
                 </span>
               )}
-              {msg.action && (
-                <button
-                  style={styles.actionBtn}
-                  onClick={() => handleActionClick(msg.action.path)}
-                >
-                  {msg.action.label} →
-                </button>
-              )}
+              <div className="fl-command-result-links">
+                {(msg.actions || (msg.action ? [msg.action] : [])).map(action => <button type="button" key={`${action.path}:${action.state?.clientId || ''}`}
+                  style={{ ...styles.actionBtn, display: 'inline-flex' }} onClick={() => handleActionClick(action.path, action.state)}>{action.label}<Icon name="arrow-right" size={15} /></button>)}
+              </div>
               {(msg.consultation || []).map((c, ci) => (
                 <ConsultationCard key={ci} consultation={c.consultation} count={c.count} clientName={c.clientName} />
               ))}
@@ -940,7 +846,10 @@ export default function VoiceCommander() {
                 <NeededList needed={msg.needed} label={msg.neededLabel} />
               )}
               {(msg.proposals || []).map((prop, pi) => (
-                <ProposalCard key={pi} prop={prop} onDone={(resultText) => {
+                <ProposalCard key={pi} prop={prop} canExecute={isCurrentConversation} onRunningChange={running => {
+                  if (isCurrentConversation()) setExecutions(count => Math.max(0, count + (running ? 1 : -1)));
+                }} onDone={(resultText) => {
+                  if (!isCurrentConversation()) return;
                   setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'assistant', text: resultText, agent: 'general', timestamp: new Date().toISOString() }]);
                 }} />
               ))}
@@ -953,7 +862,7 @@ export default function VoiceCommander() {
       {hasConversation && composer}
       <p className="fl-command-hint" role="status">
         {isRecording ? 'Listening. Tap the wave to stop.' : isProcessing ? 'Thinking it through…'
-          : speechSupported ? voiceEnabled ? 'Tap the flower to speak, or hold the petal below.' : 'Tap the flower to turn on voice, or type above.'
+          : speechSupported ? voiceEnabled ? 'You can also hold the petal in the bottom bar to talk.' : 'Voice is optional. You can always type to Florrie.'
           : 'Type above to ask Florrie. Voice is unavailable in this browser.'}
       </p>
       </section>

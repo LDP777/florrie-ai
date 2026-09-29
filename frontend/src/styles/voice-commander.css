@@ -1,91 +1,100 @@
-/* The campaign's floating command panel, using Florrie's shared page palette. */
+/* The voice workspace shares Florrie's typography, palette and navigation. */
 .fl-command-workspace .fl-command-stage {
-  position: relative;
   display: flex;
   flex-direction: column;
-  padding: 24px 22px 28px;
+  padding: 20px 22px 28px;
   color: var(--text-primary);
 }
 .fl-command-workspace .fl-command-stage .fl-voice-hero {
-  padding: 34px 0 32px;
+  padding: 24px 0 26px;
   overflow: visible;
 }
 .fl-command-stage .fl-voice-emblem {
-  width: 80px;
-  height: 80px;
+  width: 64px;
+  height: 64px;
   background: var(--accent-light);
   border: 1px solid var(--border-light);
-  box-shadow: 0 0 0 10px var(--tone-1);
+  box-shadow: 0 0 0 9px var(--tone-1);
 }
-.fl-command-stage .fl-voice-hero .fl-workspace-eyebrow {
-  font-size: 10px;
-  letter-spacing: .18em;
-  color: var(--accent);
-  margin-top: 28px;
-}
+.fl-command-stage .fl-voice-emblem > span { inset: -15px; }
+.fl-command-stage .fl-voice-emblem > span:last-child { inset: -23px; opacity: .35; }
+.fl-command-stage .fl-voice-hero .fl-workspace-eyebrow { display: none; }
 .fl-command-workspace .fl-command-stage .fl-voice-hero h1 {
-  font-size: clamp(36px, 6vw, 48px);
-  margin: 10px 0;
+  font-size: clamp(38px, 6vw, 50px);
+  margin: 27px 0 8px;
 }
-.fl-command-workspace .fl-command-stage .fl-voice-hero p { font-size: 14px; }
-.fl-command-stack { width: 100%; max-width: 520px; margin: 0 auto; }
+.fl-command-workspace .fl-command-stage .fl-voice-hero p { font-size: 13px; }
+.fl-command-stack { width: 100%; max-width: 560px; margin: 0 auto; }
 .fl-command-workspace .fl-command-stage .fl-voice-composer {
   padding: 0 !important;
-  background: transparent;
   position: relative;
   z-index: 2;
   width: 100%;
-  max-width: 580px;
+  max-width: 620px;
   margin: 0 auto;
+  background: transparent;
 }
 .fl-command-stage .fl-command-input {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  padding: 17px 13px 10px;
+  padding: 17px 16px 12px;
   border: 1px solid var(--border);
-  border-radius: 23px;
+  border-radius: 25px;
   background: var(--bg-card);
-  box-shadow: 0 10px 30px #92405e0d, 0 2px 6px #241b1705;
+  box-shadow: 0 12px 32px #92405e0b, 0 2px 5px #241b1704;
 }
-.fl-command-stage .fl-command-input input {
+.fl-command-input-label {
+  display: block;
+  padding: 0 2px;
+  margin: 0 0 8px;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .015em;
+}
+.fl-command-stage .fl-command-input textarea {
   width: 100%;
   min-width: 0;
+  resize: none;
   border: 0;
-  border-radius: 5px;
+  border-radius: 4px;
   outline: none;
-  min-height: 48px;
-  padding: 0 5px 10px;
+  min-height: 60px;
+  max-height: 180px;
+  padding: 0 2px;
+  background: transparent;
   color: var(--text-primary);
-  font: 500 clamp(17px, 3.5vw, 22px)/1.5 var(--font-body);
+  font: 500 clamp(18px, 3.5vw, 21px)/1.45 var(--font-body);
   letter-spacing: -.025em;
 }
-.fl-command-stage .fl-command-input input::placeholder { color: var(--text-secondary); opacity: 1; }
-.fl-command-toolbar { display: flex; align-items: center; gap: 1px; }
+.fl-command-stage .fl-command-input textarea::placeholder { color: var(--text-secondary); opacity: 1; }
+.fl-command-toolbar { display: flex; align-items: center; gap: 8px; margin-top: 7px; }
 .fl-command-stage .fl-command-tool {
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  display: grid;
-  place-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
   flex-shrink: 0;
   border: 0;
   border-radius: 12px;
   background: transparent;
   color: var(--text-secondary);
+  font: 500 11px/1.4 var(--font-body);
   cursor: pointer;
 }
-.fl-command-stage .fl-command-tool:hover, .fl-command-stage .fl-command-tool[aria-expanded=true] {
-  background: var(--accent-light);
-  color: var(--accent);
-}
-.fl-command-signature { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--text-secondary); padding: 0 8px; }
-.fl-command-submit { margin-left: auto; padding-left: 6px; }
-.fl-command-stage :is(.fl-command-petal, .fl-command-send, .fl-command-flower) {
+.fl-command-stage .fl-command-tool:hover, .fl-command-stage .fl-command-tool[aria-expanded=true] { background: var(--accent-light); color: var(--accent); }
+.fl-command-submit { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.fl-command-stage :is(.fl-command-petal, .fl-command-send) {
   display: grid;
   place-items: center;
-  width: 46px;
-  height: 46px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  flex-shrink: 0;
   border: 1px solid #c76b8a70;
   border-radius: 50%;
   background: var(--gradient-hero);
@@ -97,85 +106,104 @@
   -webkit-touch-callout: none;
   touch-action: manipulation;
 }
-.fl-command-petal > *, .fl-command-flower > * { pointer-events: none; }
-.fl-command-send { font: 500 24px/1 var(--font-body); }
+.fl-command-petal > * { pointer-events: none; }
+.fl-command-talk {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  padding: 0 0 0 8px;
+  border-radius: 24px;
+  background: transparent;
+  color: var(--accent);
+  font: 600 11px/1.4 var(--font-body);
+  cursor: pointer;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+.fl-command-talk:hover { background: var(--accent-light); }
+.fl-command-cancel { border: 0; background: transparent; color: var(--text-secondary); min-height: 44px; font: 500 10px/1.4 var(--font-body); cursor: pointer; }
+.fl-command-text-only { display: flex; align-items: center; gap: 10px; font-size: 11px; color: var(--text-secondary); min-height: 44px; }
 .fl-command-stage button:disabled { opacity: .5; cursor: default; }
 .fl-command-stage :is(button, a):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .fl-command-stage .fl-command-input:focus-within { outline: 2px solid var(--accent); outline-offset: 3px; }
-.fl-command-shortcuts {
-  position: relative;
-  z-index: 1;
-  margin: -1px 16px 0;
-  padding: 12px 7px 7px;
-  border: 1px solid var(--border);
-  border-top: none;
-  border-radius: 0 0 21px 21px;
-  background: var(--tone-1);
-  box-shadow: 0 12px 24px #92405e08;
-}
-.fl-command-shortcuts a {
-  display: grid;
-  grid-template-columns: 23px auto 1fr 14px;
-  align-items: center;
-  gap: 10px;
-  min-height: 48px;
-  padding: 9px 12px;
-  border: 1px solid transparent;
-  border-radius: 12px;
-  text-decoration: none;
-  color: var(--text-secondary);
-}
-.fl-command-shortcuts a:hover { background: var(--accent-light); border-color: var(--border); color: var(--accent); }
-.fl-command-shortcuts a > svg:first-child { color: var(--accent); }
-.fl-command-shortcuts strong { font-size: 14px; font-weight: 500; color: var(--text-primary); }
-.fl-command-shortcuts a > span { text-align: right; font-size: 11px; }
-.fl-command-shortcuts a > svg:last-child { opacity: .7; }
-.fl-command-stage .fl-command-ideas { margin-top: 12px; padding: 15px; border: 1px solid var(--border-light); border-radius: 18px; background: var(--bg-card); }
-.fl-command-ideas p { margin: 0 0 10px; font-size: 11px; color: var(--text-secondary); }
-.fl-command-workspace .fl-command-stage .fl-voice-starts { display: grid; grid-template-columns: 1fr 1fr; padding: 0; gap: 6px; }
-.fl-command-stage .fl-voice-starts button { display: flex; align-items: center; gap: 7px; min-height: 44px; padding: 10px 8px; border: 1px solid var(--border-light); border-radius: 10px; background: transparent; color: var(--text-primary); font: 500 11px/1.5 var(--font-body); cursor: pointer; }
-.fl-command-stage .fl-voice-starts button > span { margin-left: auto; }
-.fl-command-salon-ideas { display: grid; gap: 4px; margin-top: 10px; border-top: 1px solid var(--border-light); padding-top: 8px; }
-.fl-command-salon-ideas button { display: flex; justify-content: space-between; gap: 10px; min-height: 44px; padding: 8px; border: 0; border-radius: 9px; background: transparent; color: var(--text-secondary); font: 400 11px/1.6 var(--font-body); text-align: left; cursor: pointer; }
-.fl-command-salon-ideas button:hover { background: var(--accent-light); }
-.fl-command-stage .fl-command-hint { margin: 24px auto 0; max-width: 300px; text-align: center; color: var(--text-muted); font-size: 11px; line-height: 1.7; }
-.fl-command-transcript { margin: 0 4px 12px; color: var(--text-primary); font-size: 16px; line-height: 1.5; overflow-wrap: anywhere; }
+.fl-command-stage .fl-command-ideas { margin-top: 16px; }
+.fl-command-ideas[hidden] { display: none; }
+.fl-command-day-line { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 46px; color: var(--text-secondary); font-size: 10px; }
+.fl-command-day-line a { color: inherit; text-decoration: none; padding-block: 10px; }
+.fl-command-day-line button { min-height: 44px; border: none; background: transparent; color: var(--accent); font: 600 11px var(--font-body); cursor: pointer; }
+.fl-command-categories { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px; padding: 4px; border-radius: 15px; background: var(--tone-2); }
+.fl-command-categories button { min-height: 38px; padding: 7px 4px; border: 1px solid transparent; border-radius: 11px; color: var(--text-secondary); background: transparent; font: 500 12px/1.4 var(--font-body); cursor: pointer; }
+.fl-command-categories button[aria-pressed=true] { color: var(--accent); background: var(--bg-card); border-color: var(--border-light); box-shadow: 0 2px 6px #241b1707; }
+.fl-command-discover-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 20px 2px 7px; }
+.fl-command-discover-heading h2 { margin: 0; color: var(--text-primary); font: 500 20px/1.3 var(--font-display); letter-spacing: -.035em; }
+.fl-command-discover-heading > span { flex-shrink: 0; font-size: 9px; color: var(--text-muted); }
+.fl-command-tasks { display: grid; }
+.fl-command-tasks > button { display: grid; grid-template-columns: 36px minmax(0, 1fr) 17px; gap: 12px; align-items: center; text-align: left; min-height: 71px; padding: 12px 2px; border: 0; border-bottom: 1px solid var(--border-light); background: transparent; color: var(--text-secondary); cursor: pointer; font-family: var(--font-body); }
+.fl-command-tasks > button:last-child { border-bottom: 0; }
+.fl-command-tasks > button:hover { background: var(--tone-1); border-radius: 10px; }
+.fl-command-task-icon { display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid var(--border-light); border-radius: 12px; color: var(--accent); background: var(--bg-card); }
+.fl-command-tasks strong { display: block; margin-bottom: 4px; font-size: 13px; font-weight: 600; line-height: 1.5; color: var(--text-primary); }
+.fl-command-tasks small { display: block; font-size: 11px; line-height: 1.65; }
+.fl-command-tasks > button > svg { color: var(--accent); }
+.fl-command-shortcuts { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 4px 15px; margin-top: 17px; border-top: 1px solid var(--border-light); padding-top: 6px; }
+.fl-command-shortcuts > span { font-size: 10px; color: var(--text-muted); }
+.fl-command-shortcuts a { display: flex; gap: 4px; align-items: center; min-height: 44px; color: var(--text-secondary); font-size: 10px; text-decoration: none; }
+.fl-command-shortcuts a:hover { color: var(--accent); }
+.fl-command-draft-hint, .fl-command-history-note { color: var(--text-secondary); font-size: 11px; line-height: 1.6; }
+.fl-command-draft-hint { margin: 10px 4px; }
+.fl-command-history-note { border-top: 1px solid var(--border); padding-top: 8px; }
+.fl-command-stage .fl-command-hint { margin: 16px auto 0; max-width: 300px; text-align: center; color: var(--text-muted); font-size: 10px; line-height: 1.7; }
 .fl-command-wave { display: flex; align-items: center; gap: 3px; height: 20px; }
 .fl-command-wave i { width: 3px; height: 10px; background: currentColor; border-radius: 3px; }
 .fl-command-wave i:nth-child(2n) { height: 19px; }
-.fl-command-stage .fl-voice-hero.is-conversation { display: grid; grid-template-columns: 44px 1fr; gap: 4px 12px; padding: 12px 0 20px; margin: 0 0 20px; }
-.fl-command-stage .fl-voice-hero.is-conversation .fl-voice-emblem { display: grid; grid-row: 1 / 3; width: 42px; height: 42px; align-self: center; }
+.fl-command-stage .fl-voice-hero.is-conversation { display: grid; grid-template-columns: 44px 1fr; gap: 4px 12px; padding: 12px 0 20px; margin: 0; }
+.fl-command-stage .fl-voice-hero.is-conversation .fl-voice-emblem { display: grid; grid-row: 1 / 3; width: 42px; height: 42px; align-self: center; box-shadow: none; }
+.fl-command-stage .fl-voice-hero.is-conversation .fl-voice-emblem span { display: none; }
 .fl-command-stage .fl-voice-hero.is-conversation .fl-voice-emblem svg { width: 30px; }
-.fl-command-stage .fl-voice-hero.is-conversation .fl-workspace-eyebrow { margin: 0; grid-column: 2; font-size: 8px; }
+.fl-command-stage .fl-voice-hero.is-conversation .fl-workspace-eyebrow { display: flex; margin: 0; grid-column: 2; font-size: 8px; color: var(--accent); }
 .fl-command-workspace .fl-command-stage .fl-voice-hero.is-conversation h1 { grid-column: 2; font-size: 28px; margin: 0; }
+.fl-command-conversation-tools { display: flex; justify-content: flex-end; margin-bottom: 14px; }
+.fl-command-conversation-tools button { display: inline-flex; gap: 5px; align-items: center; min-height: 44px; border: 0; background: transparent; color: var(--accent); font: 500 11px var(--font-body); cursor: pointer; }
+.fl-command-conversation-tools > div { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 5px 12px; font-size: 11px; }
 .fl-command-workspace.has-conversation .fl-voice-messages { padding: 0 0 24px !important; min-width: 0; flex: 1; }
 .fl-command-stage .fl-command-agent-tag { color: var(--accent) !important; background: var(--accent-light) !important; }
+.fl-command-result-links { display: flex; flex-wrap: wrap; gap: 6px; }
+.fl-command-result-links button { display: inline-flex; align-items: center; gap: 6px; text-align: left; }
 .fl-command-stage .fl-voice-processing { display: flex; align-items: center; gap: 10px; color: var(--text-secondary); font-size: 13px; }
 @media (min-width: 700px) {
   .fl-command-workspace .fl-command-stage { padding: 32px 48px; }
-  .fl-command-stage .fl-command-input { padding: 22px 18px 13px; }
-  .fl-command-shortcuts { margin-inline: 28px; padding: 16px 9px 9px; }
-  .fl-command-shortcuts a { min-height: 54px; }
-  .fl-command-shortcuts strong { font-size: 16px; }
-  .fl-command-shortcuts a > span { font-size: 12px; }
+  .fl-command-stage .fl-command-input { padding: 22px 22px 15px; }
+  .fl-command-input-label { font-size: 11px; }
+  .fl-command-tasks strong { font-size: 14px; }
+  .fl-command-tasks small { font-size: 12px; }
+  .fl-command-tasks > button { min-height: 80px; }
+  .fl-command-discover-heading h2 { font-size: 24px; }
+  .fl-command-day-line, .fl-command-shortcuts a { font-size: 12px; }
 }
 @media (max-width: 380px) {
   .fl-command-workspace .fl-command-stage { padding-inline: 18px; }
-  .fl-command-shortcuts { margin-inline: 9px; }
-  .fl-command-shortcuts a { gap: 7px; padding-inline: 8px; }
-  .fl-command-shortcuts strong { font-size: 13px; }
-  .fl-command-shortcuts a > span { font-size: 10px; }
-  .fl-command-signature { padding: 0 3px; gap: 4px; font-size: 10px; }
+  .fl-command-stage .fl-command-input { padding-inline: 13px; }
+  .fl-command-talk { gap: 6px; font-size: 10px; }
+  .fl-command-categories button { font-size: 11px; }
+  .fl-command-discover-heading h2 { font-size: 18px; }
+  .fl-command-discover-heading > span { font-size: 8px; }
+  .fl-command-tasks > button { grid-template-columns: 31px minmax(0, 1fr) 14px; gap: 10px; }
+  .fl-command-task-icon { width: 31px; height: 34px; }
+  .fl-command-tasks strong { font-size: 11px; }
+  .fl-command-shortcuts { gap: 10px; }
 }
 @media (prefers-reduced-motion: no-preference) {
-  .fl-command-stack { animation: command-arrive .45s ease-out both; }
+  .fl-command-stack { animation: command-arrive .4s ease-out both; }
   .fl-command-petal.is-listening { animation: command-listening 1.8s ease-in-out infinite; }
   .fl-command-wave i { animation: command-wave .9s ease-in-out infinite alternate; }
   .fl-command-wave i:nth-child(2n) { animation-delay: -.45s; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .fl-command-workspace { animation: none !important; }
+  .fl-command-workspace, .fl-command-workspace * { animation: none !important; scroll-behavior: auto !important; }
 }
-@keyframes command-arrive { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes command-listening { 50% { box-shadow: 0 0 0 6px #c76b8a22, 0 0 28px #92405e66; } }
+@keyframes command-arrive { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes command-listening { 50% { box-shadow: 0 0 0 5px #c76b8a22, 0 0 20px #92405e33; } }
 @keyframes command-wave { to { transform: scaleY(.55); } }

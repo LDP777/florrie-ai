@@ -1,6 +1,6 @@
 // Commands are never retried automatically: the server may have acted even
 // when the connection drops before its response reaches the phone.
-export async function sendVoiceCommand({ auth, url, text, request = fetch, timeoutMs = 45000 }) {
+export async function sendVoiceCommand({ auth, url, text, request = fetch, timeoutMs = 45000, canSend = () => true }) {
   const controller = new AbortController();
   let timer;
   const deadline = new Promise((_, reject) => {
@@ -15,6 +15,7 @@ export async function sendVoiceCommand({ auth, url, text, request = fetch, timeo
       if (controller.signal.aborted) throw new Error('The request timed out before it was sent.');
       const token = session.data?.session?.access_token;
       if (session.error || !token) throw new Error('Sign in again to use Florrie. Your request has not been sent.');
+      if (!canSend()) throw new Error('This conversation has changed. Your request has not been sent.');
       const response = await request(url, {
         method: 'POST', signal: controller.signal,
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
