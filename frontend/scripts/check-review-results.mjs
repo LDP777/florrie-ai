@@ -18,6 +18,11 @@ try {for(const width of [320,390,1024]){
   window.__reviewTest={sends:[],failReply:true,resultsFail:false,links:0};
   window.fetch=(input,options={})=>{
    const url=String(input),t=window.__reviewTest;
+   if(url.includes('/rest/v1/reviews?')){
+    const state=sessionStorage.getItem('test-feedback-read');
+    if(state==='failed')return json({message:'Synthetic saved-feedback failure'},503);
+    if(state==='stalled')return new Promise(resolve=>{t.releaseFeedback=()=>resolve(new Response('[]',{headers:{'content-type':'application/json'}}));});
+   }
    if(url.includes('/api/google-reviews/status')){
     const state=sessionStorage.getItem('test-google-availability');
     if(state==='disabled')return json({available:false,connected:false});
@@ -65,6 +70,18 @@ try {for(const width of [320,390,1024]){
   assert.equal(await page.getByRole('button',{name:'Connect Google Business Profile',exact:true}).count(),0,'a connected salon sees its reviews instead of a first-time connection prompt');
   assert.equal(await page.getByText('Google ratings and replies are managed in Google for now.',{exact:false}).count(),0);
   assert.deepEqual(await page.evaluate(()=>window.__reviewTest.sends),[],'navigation and status recovery never publish a reply');
+  await page.evaluate(()=>sessionStorage.setItem('test-feedback-read','failed'));await page.reload();
+  await page.getByText('Fictional reviewer',{exact:true}).waitFor();
+  await page.getByText('Could not load feedback. Try again.',{exact:true}).waitFor();
+  assert.ok(await page.getByRole('button',{name:'Save review link',exact:true}).isEnabled(),'failed saved-feedback storage does not block Google setup');
+  await page.evaluate(()=>sessionStorage.removeItem('test-feedback-read'));
+  await page.getByRole('button',{name:'Try again',exact:true}).click();await page.getByText('No reviews yet',{exact:true}).waitFor();
+  assert.equal(await page.getByText('Fictional reviewer',{exact:true}).count(),1);
+  await page.evaluate(()=>sessionStorage.setItem('test-feedback-read','stalled'));await page.reload();
+  await page.getByText('Fictional reviewer',{exact:true}).waitFor();await page.getByText('Loading saved feedback…',{exact:true}).waitFor();
+  assert.ok(await page.getByRole('button',{name:'Save review link',exact:true}).isEnabled(),'slow saved-feedback storage does not block Google setup');
+  await page.evaluate(()=>{sessionStorage.removeItem('test-feedback-read');window.__reviewTest.releaseFeedback();});
+  await page.getByText('No reviews yet',{exact:true}).waitFor();
   console.log('PASS Google directory navigation, disabled/available/failed/connected status and independent review-link setup');
  }
  await page.goto(`http://127.0.0.1:${server.address().port}/reviews`);await page.getByText('Fictional reviewer',{exact:true}).waitFor();

@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "vite",
     "check:native-auth": "node --test src/lib/auth-startup.test.mjs src/lib/chunk-recovery.test.mjs src/lib/native-auth.test.mjs src/lib/instagram-connect.test.mjs src/lib/whatsapp-connect.test.mjs",
-    "check:channels": "node scripts/check-integrations-connect.mjs && node scripts/check-channel-onboarding.mjs && node scripts/check-whatsapp-signup.mjs && node scripts/check-launch-setup.mjs",
+    "check:channels": "node scripts/check-integrations-connect.mjs && node scripts/check-channel-onboarding.mjs && node scripts/check-whatsapp-signup.mjs && node scripts/check-launch-setup.mjs && node scripts/check-google-reviews-connect.mjs",
     "check:recovery:browser": "node scripts/check-chunk-recovery.mjs",
     "check:today-load": "node --test src/lib/dedupe-json-fetch.test.mjs src/lib/authenticated-json.test.mjs src/lib/activity-read.test.mjs src/lib/voice-command.test.mjs src/lib/voice-history.test.mjs src/lib/voice-result-links.test.mjs src/lib/voice-execution.test.mjs src/lib/content-workflow.test.mjs src/lib/content-navigation.test.mjs",
     "check:today:browser": "node scripts/check-today-loading.mjs",
