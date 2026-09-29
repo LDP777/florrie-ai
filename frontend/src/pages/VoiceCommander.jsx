@@ -718,19 +718,24 @@ export default function VoiceCommander() {
   const composer = (
     <div className="fl-voice-composer">
       <EffectFrame focus active={isProcessing || isRecording}>
-        <form className={`fl-command-input ${busy ? 'is-active' : ''}`} onSubmit={handleTextSubmit} aria-label="Ask Florrie">
+        <form className={`fl-command-input ${busy ? 'is-active' : ''} ${isRecording || micStarting ? 'is-capturing' : ''}`} onSubmit={handleTextSubmit} aria-label="Ask Florrie">
           <label className={`fl-command-input-label ${busy ? '' : 'is-quiet'}`} htmlFor="fl-command-message">
             {isRecording ? 'Listening to you' : micStarting ? 'Opening the microphone' : isProcessing || executions > 0 ? 'Working on your request' : 'Your question'}
           </label>
           <textarea id="fl-command-message" ref={inputRef} rows={2} aria-label="Message Florrie" value={isRecording ? interimTranscript : textInput}
             onChange={e => { setTextInput(e.target.value); setDraftHint(''); }}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); if (!busy) handleTextSubmit(e); } }}
-            placeholder={isRecording ? 'Go on, I’m listening…' : 'What can I help with?'}
+            placeholder={isRecording ? 'Go on, I’m listening…' : 'Show me what you can do'}
             disabled={busy} autoComplete="off" maxLength={2000} />
           <div className="fl-command-toolbar">
             <button type="button" className="fl-command-tool fl-command-explore" aria-label="More ways to ask"
               aria-expanded={showIdeas} aria-controls="fl-command-ideas" disabled={busy}
-              onClick={() => setShowIdeas(value => !value)}><Icon name={showIdeas ? 'x' : 'plus'} size={18} />Ideas</button>
+              onClick={() => setShowIdeas(value => !value)}><Icon name={showIdeas ? 'x' : 'plus'} size={19} /></button>
+            <button type="button" className="fl-command-tool" aria-label="Ask about my day" disabled={busy}
+              onClick={() => { setTextInput('What does today look like?'); setDraftHint(''); inputRef.current?.focus(); }}><Icon name="calendar" size={18} /></button>
+            <button type="button" className="fl-command-tool" aria-label="Ask about my earnings" disabled={busy}
+              onClick={() => { setTextInput('What did I earn this week?'); setDraftHint(''); inputRef.current?.focus(); }}><Icon name="card" size={18} /></button>
+            <span className="fl-command-signature"><Icon name="sparkles" size={15} />Florrie</span>
             <div className="fl-command-submit">
               {isRecording || micStarting ? <>
                 <button type="button" className="fl-command-cancel" onClick={cancelRecording}>Cancel recording</button>
@@ -746,7 +751,7 @@ export default function VoiceCommander() {
                   aria-label={voiceEnabled ? 'Tap to speak' : 'Turn on voice'}
                   disabled={busy} onContextMenu={event => event.preventDefault()}
                   onClick={() => { if (!voiceEnabled) setVoiceEnabled(true); handleRecord(); }}>
-                  <span>{voiceEnabled ? 'Talk to Florrie' : 'Turn on voice'}</span><span className="fl-command-petal"><FloriePetal size={29} white /></span>
+                  <span className="fl-command-petal"><FloriePetal size={29} white /></span>
                 </button>
               ) : <span className="fl-command-text-only">Type to ask<Icon name="edit" size={17} /></span>}
             </div>
@@ -754,7 +759,6 @@ export default function VoiceCommander() {
         </form>
       </EffectFrame>
       {draftHint && <p className="fl-command-draft-hint" role="status">{draftHint}</p>}
-      <div id="fl-command-ideas" className="fl-command-ideas" hidden={!showIdeas}>{taskPicker}</div>
     </div>
   );
   return (
@@ -773,22 +777,23 @@ export default function VoiceCommander() {
           <button type="button" onClick={() => setConfirmNew(false)}>Keep chat</button>
         </div> : <button type="button" disabled={busy} onClick={() => setConfirmNew(true)}><Icon name="plus" size={16} />New conversation</button>}
       </div>}
-      {!hasConversation && <div className="fl-command-stack">
+      {!hasConversation && <div className={`fl-command-stack ${showIdeas ? 'is-expanded' : ''}`}>
         {composer}
-        <div className="fl-command-day-line">
-          <Icon name="calendar" size={15} />
-          <Link to={`/calendar/week?view=day&date=${today}`}>{daySummary.status === 'ready'
-            ? `${daySummary.count} ${daySummary.count === 1 ? 'appointment' : 'appointments'} in your diary today`
-            : daySummary.status === 'loading' ? 'Checking today’s diary…' : 'Today’s diary is unavailable'}</Link>
-          {daySummary.status === 'error' && <button type="button" aria-label="Retry diary summary" onClick={() => setDayRefresh(value => value + 1)}>Retry</button>}
+        <div id="fl-command-ideas" className={`fl-command-deck ${showIdeas ? 'is-expanded' : ''}`}>
+          {showIdeas ? taskPicker : <>
+            <nav className="fl-command-shortcuts" aria-label="Your salon shortcuts">
+              <Link to="/inbox"><Icon name="message" size={20} /><strong>Inbox</strong><span>Conversations</span><Icon name="chevron-right" size={14} /></Link>
+              <Link to="/patch-tests"><Icon name="shield" size={20} /><strong>Patch tests</strong><span>Client care</span><Icon name="chevron-right" size={14} /></Link>
+              <Link to={`/calendar/week?view=day&date=${today}`} aria-label={`Schedule. ${daySummary.status === 'ready'
+                ? `${daySummary.count} ${daySummary.count === 1 ? 'appointment' : 'appointments'} in your diary today`
+                : daySummary.status === 'loading' ? 'Checking today’s diary' : 'Today’s diary is unavailable'}`}>
+                <Icon name="calendar" size={20} /><strong>Schedule</strong><span>{daySummary.status === 'ready' ? `${daySummary.count} today` : daySummary.status === 'loading' ? 'Checking…' : 'Unavailable'}</span><Icon name="chevron-right" size={14} />
+              </Link>
+              <Link to="/money"><Icon name="pound" size={20} /><strong>Money</strong><span>Income & costs</span><Icon name="chevron-right" size={14} /></Link>
+            </nav>
+            {daySummary.status === 'error' && <button className="fl-command-diary-retry" type="button" aria-label="Retry diary summary" onClick={() => setDayRefresh(value => value + 1)}>Retry diary summary<Icon name="refresh" size={14} /></button>}
+          </>}
         </div>
-        {!showIdeas && taskPicker}
-        <nav className="fl-command-shortcuts" aria-label="Your salon shortcuts">
-          <span>Jump to</span>
-          {[
-            ['Inbox', '/inbox'], ['Calendar', '/calendar/week'], ['Money', '/money'],
-          ].map(([label, path]) => <Link key={path} to={path}>{label}<Icon name="arrow-up-right" size={13} /></Link>)}
-        </nav>
       </div>}
       {/* Messages */}
       <div className="fl-voice-messages" style={styles.messagesContainer} aria-live="polite">
@@ -858,10 +863,12 @@ export default function VoiceCommander() {
         {isProcessing && <div className="fl-voice-processing" role="status"><FlorrieOrb state="working" size={40} /><span>Thinking it through…</span></div>}
         <div ref={messagesEndRef} />
       </div>
-      {hasConversation && composer}
+      {hasConversation && <div className={`fl-command-stack ${showIdeas ? 'is-expanded' : ''}`}>{composer}
+        {showIdeas && <div id="fl-command-ideas" className="fl-command-deck is-expanded">{taskPicker}</div>}
+      </div>}
       <p className="fl-command-hint" role="status">
         {isRecording ? 'Listening. Tap the wave to stop.' : isProcessing ? 'Thinking it through…'
-          : speechSupported ? voiceEnabled ? 'You can also hold the petal in the bottom bar to talk.' : 'Voice is optional. You can always type to Florrie.'
+          : speechSupported ? voiceEnabled ? 'Tap the flower to speak. Tap + to explore.' : 'Voice is optional. You can always type to Florrie.'
           : 'Type above to ask Florrie. Voice is unavailable in this browser.'}
       </p>
       </section>
