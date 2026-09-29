@@ -59,7 +59,7 @@ try {
     page.on('pageerror', error => errors.push(error.message));
     for (const route of ['more','voice','content','reviews']) {
       await page.goto(`http://127.0.0.1:${server.address().port}/${route}`);
-      await page.locator(({more:'.more-shortcut-grid',voice:'.fl-voice-starts',content:'.fl-content-direction',reviews:'.fl-google-review'})[route]).waitFor();
+      await page.locator(({more:'.more-shortcut-grid',voice:'.fl-command-stack',content:'.fl-content-direction',reviews:'.fl-google-review'})[route]).waitFor();
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${route} overflows at ${width}`);
       assert.equal(await page.getByText('Something went wrong', {exact:true}).count(), 0);
       if (output) await page.screenshot({path:join(output,`${route}-${width}.png`),fullPage:route !== 'voice'});
@@ -74,7 +74,8 @@ try {
         await page.getByRole('button',{name:'Collapse all',exact:true}).click();
       }
       if (route === 'voice') {
-        await page.getByRole('button',{name:/^My day/}).click();
+        await page.getByRole('button',{name:'More ways to ask',exact:true}).click();
+    await page.getByRole('button',{name:/^My day/}).click();
         assert.equal(await page.getByLabel('Message Florrie').inputValue(),'What does today look like?');
         assert.ok(await page.locator('.fl-voice-emblem svg').count());
       }

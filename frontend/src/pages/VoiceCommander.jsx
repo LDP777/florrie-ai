@@ -1,7 +1,7 @@
 import { FlorrieOrb, EffectFrame } from '../components/ui/FlorrieEffects.jsx';
 import Button from '../components/ui/Button';
 import { useState, useRef, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useBeautician, supabase, fetchRows } from '../lib/supabase.js'
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
@@ -97,7 +97,7 @@ function ProposalCard({ prop, onDone }) {
         <button className="fl-tap"
           onClick={confirm}
           disabled={state === 'running'}
-          style={{ flex: 1, minHeight: 42, borderRadius: 10, border: 'none', background: 'var(--accent, #92405e)', color: '#fff', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: state === 'running' ? 0.6 : 1 }}
+          style={{ flex: 1, minHeight: 42, borderRadius: 10, border: 'none', background: 'var(--accent, #92405e)', color: 'var(--on-accent, #fff)', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: state === 'running' ? 0.6 : 1 }}
         >
           {state === 'running' ? 'Doing it…' : 'Yes, do it'}
         </button>
@@ -160,7 +160,7 @@ function ConsultationCard({ consultation, count = 1, clientName }) {
           </span>
         </span>
         {flagged.length > 0 && (
-          <span style={{ padding: '2px 8px', borderRadius: 999, background: 'var(--accent, #92405e)', color: '#fff',
+          <span style={{ padding: '2px 8px', borderRadius: 999, background: 'var(--accent, #92405e)', color: 'var(--on-accent, #fff)',
             fontSize: 10.5, fontWeight: 800, letterSpacing: '0.03em', whiteSpace: 'nowrap',
           }}>
             {flagged.length} worth knowing
@@ -463,6 +463,7 @@ export default function VoiceCommander() {
   const [speechSupported, setSpeechSupported] = useState(!!SpeechRecognition);
   const [voiceEnabled, setVoiceOn] = useState(isVoiceEnabled);
   const [suggestions, setSuggestions] = useState(FALLBACK_PROMPTS);
+  const [showIdeas, setShowIdeas] = useState(false);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const recognitionRef = useRef(null);
@@ -799,87 +800,87 @@ export default function VoiceCommander() {
     // dropped the user (and the chat) instead of opening the calendar.
     if (path) navigate(path);
   }
-  const hasConversation = messages.some(m => m.role === 'user');
+  const hasConversation = messages.some(m => m.id !== '0');
+  function choosePrompt(prompt) {
+    setTextInput(prompt);
+    setShowIdeas(false);
+    inputRef.current?.focus();
+  }
   const composer = (
-      <div className="fl-voice-composer" style={styles.inputArea}>
-        {/* Insight chips: safe read-only questions, answered instantly */}
-        {messages.some(m => m.role === 'user') && !isProcessing && !isRecording && (
-          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 8, scrollbarWidth: 'none' }}>
-            {['How was my week?', "Who's gone quiet lately?", 'What does tomorrow look like?', 'Who are my top clients?', 'Which days are busiest?'].map(q => (
-              <button className="fl-tap"
-                key={q}
-                onClick={() => processMessage(q, false)}
-                style={{ flex: 'none', padding: '8px 14px', minHeight: 36, borderRadius: 999, border: 'none', background: 'var(--tone-2, #f6e7dd)', color: 'var(--accent, #92405e)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', WebkitTapHighlightColor: 'transparent' }}
-              >
-                {q}
-              </button>
-            ))}
-          </div>
-        )}
-        {/* Live transcript preview */}
-        {interimTranscript && (
-          <div style={styles.interimBar}>
-            <span style={styles.interimText}>{interimTranscript}</span>
-          </div>
-        )}
-        {/* Text input row */}
-        <EffectFrame focus active={isProcessing || isRecording}><form onSubmit={handleTextSubmit} style={styles.inputForm}>
-          <input
-            ref={inputRef}
-            type="text"
-            aria-label="Message Florrie"
-            value={textInput}
+    <div className="fl-voice-composer">
+      {interimTranscript && <p className="fl-command-transcript" role="status">{interimTranscript}</p>}
+      <EffectFrame focus active={isProcessing || isRecording}>
+        <form className="fl-command-input" onSubmit={handleTextSubmit} aria-label="Ask Florrie">
+          <input ref={inputRef} type="text" aria-label="Message Florrie" value={textInput}
             onChange={e => setTextInput(e.target.value)}
-            placeholder={isRecording ? 'Listening…' : 'What can I help you with?'}
-            style={styles.textInput}
-            disabled={isProcessing || isRecording}
-          />
-          {textInput.trim() && (
-            <button type="submit" aria-label="Send message" style={styles.sendBtn} disabled={isProcessing}>
-              ↑
-            </button>
-          )}
-        </form></EffectFrame>
-        {/* Hold-to-talk hint. The mic now lives on the centre nav petal:
-            press and hold it to talk. This line teaches the gesture and
-            points down toward the nav. */}
-        {speechSupported && !isRecording && (
-          <div style={styles.holdHint}>
-            <span style={styles.holdHintText}>
-              {isProcessing ? 'Thinking…' : voiceEnabled ? 'Hold the petal below to talk to me' : 'Voice is off on this device'}
-            </span>
-            {!isProcessing && <Button variant="ghost" onClick={() => { if (!voiceEnabled) setVoiceEnabled(true); handleRecord(); }}>
-              {voiceEnabled ? 'Tap to speak' : 'Turn on voice'}
-            </Button>}
+            placeholder={isRecording ? 'Listening to you…' : 'Show me what you can do'}
+            disabled={isProcessing || isRecording} autoComplete="off" />
+          <div className="fl-command-toolbar">
+            <button type="button" className="fl-command-tool" aria-label="More ways to ask"
+              aria-expanded={showIdeas} aria-controls="fl-command-ideas" disabled={isProcessing || isRecording}
+              onClick={() => setShowIdeas(value => !value)}><Icon name={showIdeas ? 'x' : 'plus'} size={19} /></button>
+            <button type="button" className="fl-command-tool" aria-label="Ask about my day" disabled={isProcessing || isRecording}
+              onClick={() => choosePrompt('What does today look like?')}><Icon name="calendar" size={18} /></button>
+            <button type="button" className="fl-command-tool" aria-label="Ask about my earnings" disabled={isProcessing || isRecording}
+              onClick={() => choosePrompt('What did I earn this week?')}><Icon name="card" size={18} /></button>
+            <span className="fl-command-signature"><Icon name="sparkles" size={16} />Florrie</span>
+            <div className="fl-command-submit">
+              {textInput.trim() && !isRecording ? (
+                <button className="fl-command-send" type="submit" aria-label="Send message" disabled={isProcessing}>
+                  <span aria-hidden="true">↑</span>
+                </button>
+              ) : speechSupported ? (
+                <button className={`fl-command-petal ${isRecording ? 'is-listening' : ''}`} type="button"
+                  aria-label={isRecording ? 'Stop listening' : voiceEnabled ? 'Tap to speak' : 'Turn on voice'}
+                  title={isRecording ? 'Stop listening' : voiceEnabled ? 'Tap to speak' : 'Turn on voice'}
+                  disabled={isProcessing} onContextMenu={event => event.preventDefault()}
+                  onClick={() => { if (!voiceEnabled) setVoiceEnabled(true); handleRecord(); }}>
+                  {isRecording ? <span className="fl-command-wave" aria-hidden="true"><i /><i /><i /><i /></span> : <FloriePetal size={30} white />}
+                </button>
+              ) : <span className="fl-command-flower" aria-hidden="true"><FloriePetal size={30} /></span>}
+            </div>
           </div>
-        )}
-        {/* Live listening indicator while recording */}
-        {isRecording && (
-          <div style={styles.holdHint}>
-            <span style={styles.holdHintText}>Listening, I'm all ears…</span>
-            <Button variant="ghost" onClick={stopRecording}>Stop listening</Button>
-          </div>
-        )}
+        </form>
+      </EffectFrame>
+      <div id="fl-command-ideas" className="fl-command-ideas" hidden={!showIdeas}>
+        <p>Start with a question</p>
+        <div className="fl-voice-starts">
+          {[
+            ['My day', 'calendar', 'What does today look like?'],
+            ['Client care', 'heart', 'Who needs a consultation form?'],
+            ['Content', 'camera', 'Help me draft a post about my work'],
+            ['My business', 'chart', 'How was my week?'],
+          ].map(([label, icon, prompt]) => <button type="button" key={label} disabled={isProcessing || isRecording}
+            onClick={() => choosePrompt(prompt)}><Icon name={icon} size={17} />{label}<span aria-hidden="true">↗</span></button>)}
+        </div>
+        <div className="fl-command-salon-ideas">
+          {suggestions.slice(0, 2).map(prompt => <button type="button" key={prompt}
+            disabled={isProcessing || isRecording} onClick={() => choosePrompt(prompt)}>{prompt}<span aria-hidden="true">↗</span></button>)}
+        </div>
       </div>
+    </div>
   );
   return (
-    <div className={`fl-voice-workspace ${hasConversation ? 'has-conversation' : 'is-welcome'}`} style={styles.page}>
+    <div className={`fl-voice-workspace fl-command-workspace ${hasConversation ? 'has-conversation' : 'is-welcome'}`} style={styles.page}>
+      <section className={`fl-command-stage ${isRecording ? 'is-listening' : isProcessing ? 'is-thinking' : ''}`} aria-label="Florrie voice commander">
       <header className={`fl-voice-hero ${hasConversation ? 'is-conversation' : ''}`}>
-        <div className="fl-voice-emblem" aria-hidden="true"><FloriePetal size={56} /><span /><span /></div>
-        <span className="fl-workspace-eyebrow">A second pair of hands</span>
+        <div className="fl-voice-emblem" aria-hidden="true"><FloriePetal size={44} /></div>
+        <span className="fl-workspace-eyebrow">A little space to think</span>
         <h1>Ask <em>Florrie.</em></h1>
-        <p>Talk through your day.<br />Leave with something done.</p>
+        {!hasConversation && <p>Your day, your clients, your next idea.</p>}
       </header>
-      {!hasConversation && composer}
-      {!hasConversation && <div className="fl-voice-starts">
-        {[
-          ['My day', 'See appointments and gaps', 'calendar', 'What does today look like?'],
-          ['Client care', 'Check what needs attention', 'heart', 'Who needs a consultation form?'],
-          ['Content', 'Start your next post', 'camera', 'Help me draft a post about my work'],
-          ['My business', 'Make sense of the week', 'chart', 'How was my week?'],
-        ].map(([label, detail, icon, prompt]) => <Button variant="secondary" key={label} disabled={isProcessing} onClick={() => { setTextInput(prompt); inputRef.current?.focus(); }} className="fl-voice-start">
-          <Icon name={icon} size={21} /><strong>{label}</strong><span>{detail}</span><span className="fl-start-arrow" aria-hidden="true">↗</span>
-        </Button>)}
+      {!hasConversation && <div className="fl-command-stack">
+        {composer}
+        <nav className="fl-command-shortcuts" aria-label="Your salon shortcuts">
+          {[
+            ['Inbox', 'Conversations', 'message', '/inbox'],
+            ['Patch tests', 'Client care', 'shield', '/patch-tests'],
+            ['Schedule', 'Appointments & gaps', 'calendar', '/smart-schedule'],
+            ['Money', 'Income & expenses', 'pound', '/money'],
+          ].map(([label, detail, icon, path]) => <Link key={path} to={path}>
+            <Icon name={icon} size={20} /><strong>{label}</strong><span>{detail}</span><Icon name="chevron-right" size={15} />
+          </Link>)}
+        </nav>
       </div>}
       {/* Messages */}
       <div className="fl-voice-messages" style={styles.messagesContainer} aria-live="polite">
@@ -906,7 +907,7 @@ export default function VoiceCommander() {
               ...(msg.role === 'user' ? styles.userBubble : styles.aiBubble),
             }}>
               {msg.role === 'assistant' && msg.agent !== 'general' && (
-                <span style={{ ...styles.agentTag,
+                <span className="fl-command-agent-tag" style={{ ...styles.agentTag,
                   color: AGENT_ROUTES[msg.agent]?.color,
                   background: AGENT_ROUTES[msg.agent]?.color + '15',
                 }}>
@@ -949,24 +950,13 @@ export default function VoiceCommander() {
         {isProcessing && <div className="fl-voice-processing" role="status"><FlorrieOrb state="working" size={40} /><span>Thinking it through…</span></div>}
         <div ref={messagesEndRef} />
       </div>
-      {/* Example prompts */}
-      {!hasConversation && !isProcessing && (
-        <div className="fl-voice-examples" style={styles.promptsSection}>
-          <span style={styles.promptsLabel}>From your salon</span>
-          <div style={styles.promptsGrid}>
-            {suggestions.slice(0, 2).map((prompt, i) => (
-              <button
-                key={prompt}
-                onClick={() => { setTextInput(prompt); inputRef.current?.focus(); }}
-                style={styles.promptChip}
-              >
-                {prompt}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
       {hasConversation && composer}
+      <p className="fl-command-hint" role="status">
+        {isRecording ? 'Listening. Tap the wave to stop.' : isProcessing ? 'Thinking it through…'
+          : speechSupported ? voiceEnabled ? 'Tap the flower to speak, or hold the petal below.' : 'Tap the flower to turn on voice, or type above.'
+          : 'Type above to ask Florrie. Voice is unavailable in this browser.'}
+      </p>
+      </section>
     </div>
   );
 }

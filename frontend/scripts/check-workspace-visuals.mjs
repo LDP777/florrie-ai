@@ -44,12 +44,13 @@ try {
   for(const route of ['voice','content','inbox?client=visual']) {
    await page.goto(`http://127.0.0.1:${server.address().port}/${route}`);
    const kind=route.split('?')[0];
-   await page.locator(kind==='voice'?'.fl-voice-starts':kind==='content'?'.fl-content-heading':'.fl-chat-settings').waitFor();
+   await page.locator(kind==='voice'?'.fl-command-stack':kind==='content'?'.fl-content-heading':'.fl-chat-settings').waitFor();
    await page.evaluate(()=>document.fonts.ready);
    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),`${kind} overflows at ${width}`);
    if(output)await page.screenshot({path:join(output,`${kind}-${width}.png`)});
    if(kind==='voice') {
     assert.ok(await page.locator('.fl-voice-emblem').evaluate(el=>el.getBoundingClientRect().top>=0),'Voice welcome stays in view');
+    await page.getByRole('button',{name:'More ways to ask',exact:true}).click();
     await page.getByRole('button',{name:/^My day/}).click();
     assert.equal(await page.getByRole('textbox',{name:'Message Florrie'}).inputValue(),'What does today look like?');
     assert.equal(await page.evaluate(()=>window.__writes),0);
