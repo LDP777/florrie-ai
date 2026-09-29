@@ -96,11 +96,15 @@ export async function processReviewRequests() {
       // Fetch appointment + client + treatment + beautician
       const { data: appt } = await supabase
         .from('appointments')
-        .select('*, clients(id, first_name, phone, email, whatsapp_id, instagram_id, preferred_channel, marketing_consent, marketing_opted_out_at, messaging_autonomy), treatments(name), beauticians(first_name, business_name, brand_color, google_place_id, google_review_link)')
+        .select('*, clients(id, beautician_id, first_name, phone, email, whatsapp_id, instagram_id, preferred_channel, marketing_consent, marketing_opted_out_at, messaging_autonomy), treatments(name), beauticians(first_name, business_name, brand_color, google_place_id, google_review_link)')
         .eq('id', appointmentId)
+        .eq('beautician_id', action.beautician_id)
         .single();
 
-      if (!appt?.clients) {
+      // Queue metadata is not proof of ownership. ai_actions can be written by
+      // its salon, and the sender trusts the client row supplied to it. Check
+      // both sides before even creating an approval draft for a review request.
+      if (!appt?.clients || appt.clients.beautician_id !== action.beautician_id || appt.clients.id !== action.client_id) {
         // 'skipped' is not an allowed outcome: the CHECK on ai_actions.outcome
         // is (success, pending, failed, escalated) and has never been widened.
         // Writing 'skipped' here raised 23514, the update did nothing, the row

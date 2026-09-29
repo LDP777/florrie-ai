@@ -30,6 +30,8 @@ const ALLOWED_OUTCOMES = ['success', 'pending', 'failed', 'escalated'];
 const db = { ai_actions: [], appointments: [] };
 const inserted = [];
 const deliveredBodies = [];
+const deliveredEmails = [];
+const guardedClients = [];
 const updated = [];
 let guardVerdict = { decision: 'send', delivered: true, tier: 'proactive', reason: 'trusted_auto' };
 
@@ -79,14 +81,15 @@ function builder(table) {
 
 vi.mock('../../src/config.js', () => ({ supabase: { from: builder } }));
 vi.mock('../../src/lib/outbound-guard.js', () => ({
-  guardedSend: async ({ send }) => {
+  guardedSend: async ({ send, client }) => {
+    guardedClients.push(client);
     if (guardVerdict.decision === 'send') await send();
     return guardVerdict;
   },
 }));
 vi.mock('../../src/services/notifications.js', () => ({
   sendMessage: async (...args) => { deliveredBodies.push(args); return { channel: 'sms' }; },
-  sendEmail: async () => true,
+  sendEmail: async (email) => { deliveredEmails.push(email); return true; },
 }));
 
 const { scheduleReviewRequest, processReviewRequests } =
@@ -97,6 +100,8 @@ beforeEach(() => {
   db.appointments = [];
   inserted.length = 0;
   deliveredBodies.length = 0;
+  deliveredEmails.length = 0;
+  guardedClients.length = 0;
   updated.length = 0;
   guardVerdict = { decision: 'send', delivered: true, tier: 'proactive', reason: 'trusted_auto' };
 });
@@ -124,7 +129,7 @@ describe('the round trip: what is written is what is read back', () => {
   it('processReviewRequests finds the row scheduleReviewRequest just wrote', async () => {
     db.appointments.push({
       id: 'appt1', beautician_id: 'b1',
-      clients: { id: 'c1', first_name: 'Shauna', phone: '+447700900000', preferred_channel: 'sms' },
+      clients: { id: 'c1', beautician_id: 'b1', first_name: 'Shauna', phone: '+447700900000', preferred_channel: 'sms' },
       treatments: { name: 'brow lamination' },
       beauticians: { first_name: 'Ellie', business_name: 'Ellindigo' },
     });
@@ -143,7 +148,7 @@ describe('every outcome written is one the constraint allows', () => {
   it('does not write "skipped" when the gate holds the send', async () => {
     db.appointments.push({
       id: 'appt1', beautician_id: 'b1',
-      clients: { id: 'c1', first_name: 'Shauna', phone: '+447700900000' },
+      clients: { id: 'c1', beautician_id: 'b1', first_name: 'Shauna', phone: '+447700900000' },
       treatments: { name: 'brow lamination' },
       beauticians: { first_name: 'Ellie' },
     });
@@ -163,7 +168,7 @@ describe('every outcome written is one the constraint allows', () => {
   it('and having written a real outcome, the row leaves the queue instead of looping', async () => {
     db.appointments.push({
       id: 'appt1', beautician_id: 'b1',
-      clients: { id: 'c1', first_name: 'Shauna', phone: '+447700900000' },
+      clients: { id: 'c1', beautician_id: 'b1', first_name: 'Shauna', phone: '+447700900000' },
       treatments: { name: 'brow lamination' },
       beauticians: { first_name: 'Ellie' },
     });
@@ -182,12 +187,54 @@ describe('every outcome written is one the constraint allows', () => {
 
 describe('the saved Google review link reaches the existing guarded request', () => {
   it('uses the salon link and requests feedback without selecting happy clients', async () => {
-    db.appointments.push({id:'appt1',beautician_id:'b1',clients:{id:'c1',first_name:'Demo',phone:'+447700900000'},treatments:{name:'brows'},beauticians:{google_review_link:'https://g.page/r/demo-salon/review'}});
+    db.appointments.push({id:'appt1',beautician_id:'b1',clients:{id:'c1',beautician_id:'b1',first_name:'Demo',phone:'+447700900000'},treatments:{name:'brows'},beauticians:{google_review_link:'https://g.page/r/demo-salon/review'}});
     await scheduleReviewRequest('b1','appt1','c1');
     db.ai_actions[0].details.send_at = new Date(Date.now()-60000).toISOString();
     await processReviewRequests();
     expect(JSON.stringify(deliveredBodies)).toContain('https://g.page/r/demo-salon/review');
     expect(JSON.stringify(deliveredBodies)).toContain('please share your experience');
     expect(JSON.stringify(deliveredBodies)).not.toContain('If you had a great');
+  });
+});
+
+describe('review requests cannot cross salon or client boundaries', () => {
+  it.each([
+    ['another salon’s appointment', 'b2', {id:'c1',beautician_id:'b2'}],
+    ['another salon’s appointment even with a mismatched local client join', 'b2', {id:'c1',beautician_id:'b1'}],
+    ['a client joined from another salon', 'b1', {id:'c1',beautician_id:'b2'}],
+    ['an appointment reassigned to another client', 'b1', {id:'c2',beautician_id:'b1'}],
+    ['a client whose owner is unavailable', 'b1', {id:'c1'}],
+  ])('does not send or queue approval for %s', async (_scenario, appointmentOwner, client) => {
+    db.appointments.push({
+      id:'appt1',beautician_id:appointmentOwner,
+      clients:{...client,first_name:'Fictional client',phone:'+447700900000',email:'demo@example.test',marketing_consent:true,marketing_opted_out_at:null},
+      treatments:{name:'brows'},beauticians:{business_name:'Fictional salon'},
+    });
+    await scheduleReviewRequest('b1','appt1','c1');
+    db.ai_actions[0].details.send_at=new Date(Date.now()-60000).toISOString();
+    expect(await processReviewRequests()).toMatchObject({sent:0});
+    expect(guardedClients).toEqual([]);
+    expect(deliveredBodies).toEqual([]);
+    expect(deliveredEmails).toEqual([]);
+    expect(db.ai_actions[0]).toMatchObject({status:'executed',outcome:'failed'});
+  });
+
+  it('keeps each salon’s valid review request on its own client and review link', async () => {
+    for(const suffix of ['1','2']) {
+      db.appointments.push({
+        id:`appt${suffix}`,beautician_id:`b${suffix}`,
+        clients:{id:`c${suffix}`,beautician_id:`b${suffix}`,first_name:`Client ${suffix}`,phone:`+44770090000${suffix}`,email:`client${suffix}@example.test`},
+        treatments:{name:'brows'},beauticians:{google_review_link:`https://g.page/r/salon-${suffix}/review`},
+      });
+      await scheduleReviewRequest(`b${suffix}`,`appt${suffix}`,`c${suffix}`);
+    }
+    for(const action of db.ai_actions) action.details.send_at=new Date(Date.now()-60000).toISOString();
+    expect(await processReviewRequests()).toMatchObject({sent:2});
+    for(const [index, suffix] of ['1','2'].entries()) {
+      expect(deliveredBodies[index][0]).toMatchObject({beauticianId:`b${suffix}`,client:{id:`c${suffix}`,beautician_id:`b${suffix}`}});
+      expect(deliveredBodies[index][0].body).toContain(`salon-${suffix}/review`);
+      expect(deliveredEmails[index].to).toBe(`client${suffix}@example.test`);
+      expect(deliveredEmails[index].text).toContain(`salon-${suffix}/review`);
+    }
   });
 });
