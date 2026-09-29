@@ -26,7 +26,7 @@ export default function GoogleReviewSetup({ beautician, onSaved }) {
     finally { setBusy(false); }
   }
   return <section className="fl-google-review" aria-labelledby="google-review-heading">
-    <div className="fl-google-review-heading"><span className="fl-studio-icon"><Icon name="star" size={22} /></span><div><span className="fl-workspace-eyebrow">Word of mouth, made easier</span><h2 id="google-review-heading">Your Google reviews</h2></div></div>
+    <div className="fl-google-review-heading"><span className="fl-studio-icon"><Icon name="star" size={22} /></span><div><span className="fl-workspace-eyebrow">Word of mouth, made easier</span><h2 id="google-review-heading">Ask clients for a review</h2></div></div>
     <p>Give clients a direct link to review your salon after their visit.</p>
     {saved && !editing ? <>
       <div className="fl-review-link-state"><Icon name="check-circle" size={17} /><span>Review link saved</span></div>
