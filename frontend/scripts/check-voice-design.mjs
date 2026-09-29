@@ -152,8 +152,12 @@ try {
       await page.getByRole('button', { name: new RegExp(`^${title}`) }).click();
       await page.waitForURL(`${origin}${path}`);
       if (draft) {
-        await page.locator('.fl-studio-tabs').getByRole('button', { name: /^Drafts/ }).waitFor();
-        assert.equal(await page.locator('.fl-studio-tabs').getByRole('button', { name: /^Drafts/ }).getAttribute('aria-pressed'), 'true', 'Continue a draft opens the actual Drafts view');
+        const postsView = page.locator('.fl-studio-tabs').getByRole('button', { name: 'Posts', exact: true });
+        await postsView.waitFor();
+        assert.equal(await postsView.getAttribute('aria-pressed'), 'true', 'Continue a draft opens Posts');
+        const draftsView = page.getByRole('group', { name: 'Post views', exact: true }).getByRole('button', { name: 'Drafts & scheduled', exact: true });
+        await draftsView.waitFor();
+        assert.equal(await draftsView.getAttribute('aria-pressed'), 'true', 'Continue a draft opens the actual Drafts & scheduled view');
       }
       await page.goBack();
       await page.getByRole('button', { name: 'More ways to ask', exact: true }).waitFor();
