@@ -1,5 +1,5 @@
 import ContentResults from '../components/ContentResults.jsx';
-import ContentStudioHome from '../components/ContentStudioHome.jsx';
+import ContentStudioHome, { postReadiness, PostPreview } from '../components/ContentStudioHome.jsx';
 import { readContentHandoff, mergeContentPosts } from '../lib/content-navigation.js';
 import { contentRequest, parseHashtags, localScheduleValue, scheduleInstant } from '../lib/content-workflow.js';
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -113,7 +113,8 @@ export default function ContentAutopilot() {
   const [posted, setPosted] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [tab, setTab] = useState('ideas');
+  const [tab, setTab] = useState('drafts');
+  const [reviewPostId, setReviewPostId] = useState(null);
   const navigate = useNavigate();
   const [hasMore, setHasMore] = useState(false);
   const [nextOffset, setNextOffset] = useState(null);
@@ -322,6 +323,8 @@ export default function ContentAutopilot() {
       });
       if (!res.ok) throw new Error('Could not unschedule');
       await loadAll();
+      setSchedulePost(null); setTab('drafts'); setDraftSearch(''); setAttentionOnly(false); setDeckIndex(null); setReviewPostId(postId);
+      setPlanNote('Returned to drafts. Review it whenever you’re ready.');
     } catch (err) {
       setError(err.message);
     }
@@ -594,6 +597,7 @@ export default function ContentAutopilot() {
     setSavingGallery(false);
   }
   function startCompose(type, prefillCaption, imageUrl = null) {
+    setPlanNote(null);
     aiGeneration.current += 1; setGeneratingAI(false); setAiDraft(null); setAiError(null);
     setComposeBrief(''); setComposeTreatment(''); setComposeMediaKind('feed'); setComposeOrigin(null);
     setComposeExistingImage(imageUrl);
@@ -650,6 +654,7 @@ export default function ContentAutopilot() {
         status: 'draft',
       });
       setDrafts(prev => [post, ...prev]);
+      setReviewPostId(post.id);
       setComposing(false);
       setTab('drafts');
     } catch (err) {
@@ -748,11 +753,12 @@ export default function ContentAutopilot() {
   }
   const templateIdeas = useMemo(() => Object.fromEntries(Object.keys(POST_TYPE_LABELS).map(type => [type, getFilledTemplate(type)])), [treatments]);
   function beginEdit(post) {
+    setReviewPostId(post.id);
     setEditingId(post.id); setEditCaption(post.caption || ''); setEditHashtags((post.hashtags || []).join(' '));
     setEditPhoto(null); setEditPhotoUrl(post.image_url || null); setEditPhotoPreview(post.image_url || null);
   }
   function chooseSchedule(post) {
-    setTab('drafts'); setComposing(false);
+    setTab(post.status === 'scheduled' ? 'scheduled' : 'drafts'); setComposing(false); setReviewPostId(post.id);
     setSchedulePost(post); setScheduleTime(localScheduleValue(post.scheduled_for)); setScheduleError(null);
   }
   function openPost(post) {
@@ -768,7 +774,7 @@ export default function ContentAutopilot() {
     try {
       const when = scheduleInstant(scheduleTime);
       await contentRequest(`${API_BASE}/api/content/${schedulePost.id}/schedule`, { token: getToken(), method: 'POST', body: {scheduled_for: when} });
-      setSchedulePost(null); await loadAll();
+      setSchedulePost(null); await loadAll(); setTab('scheduled');
       setPlanNote('Scheduled. You can change the time or return it to drafts.');
     } catch (err) { setScheduleError(err.message || 'Could not schedule. Your chosen time is still here.'); }
     finally { scheduleBusy.current = false; setScheduling(false); }
@@ -779,18 +785,22 @@ export default function ContentAutopilot() {
   return (
     <div className="fl-content-studio" style={styles.page}>
       {error && <ErrorCard message={error} onDismiss={() => setError(null)} />}
+      {error && !composing && <Button variant="secondary" onClick={() => loadAll()}>Retry posts</Button>}
       {handoffError && <div role="alert" className="fl-content-origin"><span>{handoffError}</span><Button variant="quiet" onClick={() => setHandoffRetry(value => value + 1)}>Retry opening post</Button><Button variant="quiet" onClick={() => {setHandoffError(null);navigate('/content',{replace:true,state:null});}}>View other posts</Button></div>}
       <header className="fl-content-heading">
-        <div><span className="fl-workspace-eyebrow">Your salon, seen and remembered</span><h1>Content <em>studio.</em></h1><p>Turn your work and client feedback into a reason to book.</p></div>
-        <Button onClick={() => startCompose('before_after', '')}><Icon name="plus" size={17} /> New Post</Button>
+        <div><h1>{composing ? <>Create a <em>post.</em></> : <>Your <em>content.</em></>}</h1><p>{composing ? 'Add a photo and a caption. Save it when you’re ready.' : 'Make a post. Review it. Choose when it goes out.'}</p></div>
+        {!composing && <Button onClick={() => startCompose('before_after', '')}><Icon name="plus" size={17} /> Create a post</Button>}
       </header>
-      <div className="fl-studio-tabs" aria-label="Content views">
-        {[['ideas','Studio'],['drafts','Posts'],['results','Results'],['gallery','Library']].map(([value,label]) => <button type="button" key={value}
-          aria-pressed={value === 'drafts' ? ['drafts','posted','calendar','compose'].includes(tab) : tab === value}
+      {!composing && <div className="fl-studio-tabs" aria-label="Content views">
+        {[['drafts','Your posts'],['gallery','Photos'],['results','Results']].map(([value,label]) => <button type="button" key={value}
+          aria-pressed={value === 'drafts' ? ['drafts','scheduled','posted','calendar'].includes(tab) : tab === value}
           onClick={() => {setTab(value);setComposing(false);}}>{label}</button>)}
-      </div>
-      {['drafts','posted','calendar'].includes(tab) && <div className="fl-content-subtabs" role="group" aria-label="Post views">{[['drafts','Drafts & scheduled'],['calendar','Calendar'],['posted','Published']].map(([value,label]) => <button type="button" key={value} aria-pressed={tab === value} onClick={() => setTab(value)}>{label}</button>)}</div>}
-      {hasMore && ['drafts','posted','calendar','results'].includes(tab) && <div className="fl-content-origin"><span>Showing loaded posts. Earlier drafts and scheduled work may be further back.</span><Button variant="quiet" disabled={loadingMore} onClick={() => loadAll(true)}>{loadingMore ? 'Loading…' : 'Load older posts'}</Button></div>}
+      </div>}
+      {selectedStreamId && <div className="fl-content-origin"><span>{composing ? 'Saving this post in' : 'Showing collection:'} <strong>{streams.find(item => item.id === selectedStreamId)?.name || 'Selected collection'}</strong></span>{!composing && <Button variant="quiet" onClick={() => setSelectedStreamId(null)}>Show all posts</Button>}</div>}
+      {['drafts','scheduled','posted'].includes(tab) && <div className="fl-content-subtabs" role="group" aria-label="Post views">{[['drafts','Drafts',drafts.length],['scheduled','Scheduled',scheduled.length],['posted','Published',posted.length]].map(([value,label,count]) => <button type="button" key={value} aria-pressed={tab === value} onClick={() => setTab(value)}>{label}{!error && <span aria-hidden="true">{count}{hasMore ? '+' : ''}</span>}</button>)}</div>}
+      {!composing && <div className="fl-content-connection"><Icon name="instagram" size={15}/><Link to="/settings">{igChecking ? 'Checking Instagram…' : igStatus?.needs_reconnect ? 'Reconnect Instagram' : igStatus?.connected === false ? 'Connect Instagram' : igStatus?.connected && igStatus?.token_valid === true ? 'Instagram connected' : 'Check Instagram connection'}<Icon name="chevron-right" size={13}/></Link></div>}
+      {tab === 'ideas' && <Button variant="quiet" onClick={() => setTab('drafts')}><Icon name="arrow-left" size={16}/> Back to your posts</Button>}
+      {hasMore && ['drafts','scheduled','posted','calendar','results'].includes(tab) && <div className="fl-content-origin"><span>Older posts are available.</span><Button variant="quiet" disabled={loadingMore} onClick={() => loadAll(true)}>{loadingMore ? 'Loading…' : 'Load older posts'}</Button></div>}
       {tab === 'results' && <ContentResults ownerId={beautician.id} posts={[...drafts,...scheduled,...posted]} initialPostId={resultsPostId} />}
       {tab === 'ideas' && !composing && <ContentStudioHome treatments={treatments} drafts={drafts} scheduled={scheduled} gallery={gallery} complete={!hasMore} error={error}
         igStatus={igStatus} igChecking={igChecking} planning={planning} onPlan={handlePlanWeek} onPost={openPost}
@@ -816,138 +826,6 @@ export default function ContentAutopilot() {
         </div>
       )}
 
-      {/* Feed grid preview — see your Instagram feed before it goes out (hero) */}
-      {['drafts','calendar','posted'].includes(tab) && !composing && (scheduled.length + posted.length + drafts.length) > 0 && (
-        <details className="fl-grid-preview">
-          <summary style={{ minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--accent, #92405E)' }}>Your grid preview</span>
-            <span style={{ fontSize: 12, color: 'var(--text-secondary, #574A42)' }}>{scheduled.length} scheduled · {drafts.length} drafts <span aria-hidden="true">⌄</span></span>
-          </summary>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, borderRadius: 16, overflow: 'hidden' }}>
-            {[...scheduled, ...drafts, ...posted].slice(0, 12).map(post => {
-              // 'failed' and 'approved' were both rendered as an unlabelled
-              // tile, identical to a draft. A post Instagram refused is the
-              // one tile on this grid she most needs to be able to pick out.
-              const badge = post.status === 'scheduled'
-                ? (post.scheduled_for ? new Date(post.scheduled_for).toLocaleDateString('en-GB', { weekday: 'short' }) : 'Soon')
-                : post.status === 'draft' ? 'Draft'
-                : post.status === 'failed' ? 'Failed'
-                : post.status === 'approved' ? 'Not posted' : null;
-              const badgeBg = post.status === 'failed'
-                ? 'var(--danger, #9E2B32)'
-                : post.status === 'approved' ? 'var(--warning-text, #79581C)' : 'rgba(146,64,94,0.92)';
-              return (
-                <button className="fl-tap"
-                  key={post.id}
-                  onClick={() => openPost(post)} aria-label={`Open post: ${post.caption || 'Untitled post'}`}
-                  style={{ position: 'relative', aspectRatio: '1', border: 'none', padding: 0, cursor: 'pointer', overflow: 'hidden', background: post.image_url ? 'var(--bg-subtle, #ede7e3)' : 'var(--accent-bg, rgba(146,64,94,0.05))', WebkitTapHighlightColor: 'transparent' }}
-                >
-                  {post.image_url
-                    ? <img src={post.image_url} alt="" onError={hideBrokenImage} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                    : <span style={{ display: 'flex', width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', fontSize: 10.5, lineHeight: 1.35, color: 'var(--text-secondary, #574A42)', padding: 7, textAlign: 'center', overflow: 'hidden', fontFamily: 'inherit' }}>{(post.caption || 'Untitled').slice(0, 52)}</span>}
-                  {badge && <span style={{ position: 'absolute', left: 5, bottom: 5, fontSize: 9, fontWeight: 700, color: '#FFFFFF', background: badgeBg, padding: '1px 6px', borderRadius: 999, letterSpacing: '0.02em' }}>{badge}</span>}
-                </button>
-              );
-            })}
-          </div>
-          <p style={{ fontSize: 11.5, color: 'var(--text-secondary, #574A42)', margin: '8px 0 0' }}>How your feed will look. Tap a tile to edit or reschedule.</p>
-        </details>
-      )}
-
-      {tab !== 'compose' && <details className="fl-studio-collections" open={showStreamForm || !!selectedStreamId || undefined}>
-        <summary>Collections & campaigns <span>{selectedStreamId ? streams.find(s => s.id === selectedStreamId)?.name : 'Optional organisation'}</span></summary>
-      {/* Stream selector pills */}
-      <div style={styles.streamSelector}>
-        <Button
-          variant="chip"
-          size="md"
-          aria-pressed={selectedStreamId === null}
-          onClick={() => setSelectedStreamId(null)}
-          style={styles.streamPill}
-        >
-          All
-        </Button>
-        {streams.map(s => (
-          <Button
-            key={s.id}
-            variant="chip"
-            size="md"
-            aria-pressed={selectedStreamId === s.id}
-            onClick={() => setSelectedStreamId(s.id)}
-            style={styles.streamPill}
-          >
-            {s.name} {s.monthly_target ? `●${s.monthly_target}/mo` : ''}
-          </Button>
-        ))}
-        <Button
-          variant="secondary"
-          size="md"
-          onClick={() => setShowStreamForm(!showStreamForm)}
-          style={styles.streamPill}
-        >
-          + Add stream
-        </Button>
-      </div>
-      {/* New stream form */}
-      {showStreamForm && (
-        <div style={styles.streamFormCard}>
-          <input
-            type="text"
-            placeholder="Stream name (e.g. BuffBrows)"
-            value={newStreamForm.name}
-            onChange={e => setNewStreamForm(f => ({ ...f, name: e.target.value }))}
-            style={styles.streamFormInput}
-          />
-          <select
-            value={newStreamForm.type}
-            onChange={e => setNewStreamForm(f => ({ ...f, type: e.target.value }))}
-            style={styles.streamFormInput}
-          >
-            <option value="personal">Personal</option>
-            <option value="sponsor">Sponsor</option>
-            <option value="campaign">Campaign</option>
-          </select>
-          <input
-            type="number"
-            placeholder="Monthly target (optional)"
-            value={newStreamForm.monthly_target}
-            onChange={e => setNewStreamForm(f => ({ ...f, monthly_target: e.target.value }))}
-            style={styles.streamFormInput}
-          />
-          <textarea
-            placeholder="Brand notes (optional)"
-            value={newStreamForm.brand_notes}
-            onChange={e => setNewStreamForm(f => ({ ...f, brand_notes: e.target.value }))}
-            style={{ ...styles.streamFormInput, minHeight: 60, resize: 'vertical' }}
-          />
-          <div style={styles.streamFormActions}>
-            <Button size="lg" onClick={handleCreateStream} disabled={savingStream} style={{ flex: 1 }}>
-              {savingStream ? 'Creating...' : 'Create'}
-            </Button>
-            <button onClick={() => setShowStreamForm(false)} style={styles.cancelBtn}>Cancel</button>
-          </div>
-        </div>
-      )}
-      {/* Stream progress bar (for sponsored streams) */}
-      {selectedStreamId && streamProgress && streamProgress.monthly_target && (
-        <div style={styles.progressSection}>
-          <div style={styles.progressLabel}>
-            <span style={{ fontWeight: 600 }}>{streams.find(s => s.id === selectedStreamId)?.name}</span>
-            <span style={{ color: 'var(--text-muted, #6B5D54)', fontSize: 12 }}>
-              {streamProgress.posted_this_month} / {streamProgress.monthly_target} posts · {streamProgress.remaining} remaining
-            </span>
-          </div>
-          <div style={styles.progressBar}>
-            <div
-              style={{ ...styles.progressFill,
-                width: `${Math.min(100, (streamProgress.posted_this_month / streamProgress.monthly_target) * 100)}%`,
-                background: streamProgress.remaining < 3 ? '#DC2626' : streamProgress.remaining <= 3 ? '#F59E0B' : 'var(--accent, #92405e)',
-              }}
-            />
-          </div>
-        </div>
-      )}
-      </details>}
       {generatingAI && <EffectFrame active><div className="fl-studio-ai-state" role="status"><FlorrieOrb state="composing" size={48} /><p><strong>Finding your words</strong>Using your treatment, brief and writing style.</p></div></EffectFrame>}
       {/* ═══ IDEAS TAB ═══ */}
       {tab === 'ideas' && (
@@ -991,166 +869,96 @@ export default function ContentAutopilot() {
       )}
       {/* ═══ COMPOSE VIEW ═══ */}
       {tab === 'compose' && composing && (
-        <div className="fl-content-compose" style={styles.composeArea}>
-          {composeOrigin && <div className="fl-content-origin"><Icon name="calendar" size={18}/><span>{composeOrigin.source === 'schedule' ? 'From Schedule' : 'Planned content date'}{composeOrigin.date ? ` · ${composeOrigin.date}` : ''}. {composeOrigin.source === 'schedule' ? 'Check current availability before adding a time. This brief stays editable.' : 'Save your draft first, then choose its publishing time.'}</span></div>}
-          {/* Live Instagram-style preview — updates as she builds the post */}
-          {/* Hardcoded '#fff' here put a white card behind themed text in dark
-              mode, so the caption preview read as ink on ink. Every surface in
-              this preview is a token now. */}
-          <div style={{ background: 'var(--bg-card, #FFFCF9)', border: '1px solid var(--border-light, #ede7e3)', borderRadius: 16, overflow: 'hidden', marginBottom: 14, boxShadow: 'var(--elev-1)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px' }}>
-              <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--accent, #92405E)', color: 'var(--on-accent, #fff)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, overflow: 'hidden', flexShrink: 0 }}>
-                {beautician?.logo_url ? <img src={beautician.logo_url} alt="" onError={hideBrokenImage} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (beautician?.first_name?.[0] || beautician?.business_name?.[0] || 'F').toUpperCase()}
-              </div>
-              <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary, #241B17)' }}>{beautician?.booking_slug || beautician?.business_name || 'your_salon'}</span>
-              <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-secondary, #574A42)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>live preview</span>
-            </div>
-            <div style={{ ...(composeImagePreview ? { aspectRatio: composeMediaKind === 'story' ? '9 / 16' : '1', maxHeight: composeMediaKind === 'story' ? 380 : 460 } : { height: 190 }), background: composeImagePreview ? 'var(--bg-subtle, #ede7e3)' : 'var(--accent-bg, rgba(146,64,94,0.04))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="fl-content-compose fl-compose-editor" style={styles.composeArea}>
+          {composeOrigin && <div className="fl-content-origin"><Icon name="calendar" size={18}/><span>{composeOrigin.source === 'schedule' ? 'From Schedule' : 'Planned content date'}{composeOrigin.date ? ' · ' + composeOrigin.date : ''}. {composeOrigin.source === 'schedule' ? 'Check current availability before adding a time. This brief stays editable.' : 'Save your draft first, then choose its publishing time.'}</span></div>}
+          <section className="fl-compose-step" aria-labelledby="compose-photo-title">
+            <div className="fl-compose-step-heading"><span aria-hidden="true">1</span><div><h2 id="compose-photo-title">Photo</h2><p>Choose the work you want to share.</p></div></div>
+            <button className="fl-tap fl-compose-photo" type="button" disabled={generatingAI || saving} onClick={() => fileRef.current?.click()}>
               {composeImagePreview
-                ? <img src={composeImagePreview} alt="" onError={hideBrokenImage} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                : <span style={{ fontSize: 12, color: 'var(--text-secondary, #574A42)' }}>Add a photo to see it here</span>}
-            </div>
-            <div style={{ padding: '8px 12px 12px' }}>
-              <div style={{ display: 'flex', gap: 14, color: 'var(--text-primary, #241B17)', marginBottom: 6 }}>
-                <Icon name={iconName('favorite')} size={21} inline />
-                <Icon name={iconName('mode_comment')} size={21} inline />
-                <Icon name={iconName('send')} size={21} inline />
+                ? <img src={composeImagePreview} alt="Selected post photo" onError={hideBrokenImage} />
+                : <span className="fl-compose-photo-icon"><Icon name="camera" size={25}/></span>}
+              <span><strong>{composeImagePreview ? 'Photo added, tap to change' : 'Add a photo'}</strong><small>{composeImagePreview ? 'You can check the full image in Preview post.' : 'You can save a draft and add this later.'}</small></span>
+              <Icon name={composeImagePreview ? 'edit' : 'plus'} size={18}/>
+            </button>
+            <input ref={fileRef} disabled={generatingAI || saving} type="file" accept="image/*" onChange={handleImageSelect} style={{display:'none'}} />
+          </section>
+
+          <section className="fl-compose-step" aria-labelledby="compose-caption-title">
+            <div className="fl-compose-step-heading"><span aria-hidden="true">2</span><div><h2 id="compose-caption-title">Caption</h2><p>Write your words, or ask Florrie for a starting point.</p></div></div>
+            <textarea aria-label="Post caption" value={composeCaption} onChange={e => setComposeCaption(e.target.value)} placeholder="What would you like to say?" className="fl-compose-caption-input" rows={5} disabled={saving} />
+            <details className="fl-compose-disclosure fl-compose-writing-help">
+              <summary><Icon name="sparkles" size={17}/><span>Help me write</span></summary>
+              <div className="fl-compose-disclosure-body">
+                <label className="fl-compose-field">Treatment
+                  <select aria-label="Caption treatment" value={composeTreatment} onChange={e => setComposeTreatment(e.target.value)} style={styles.streamFormInput} disabled={generatingAI || saving}>
+                    <option value="">General business post</option>{treatments.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                  </select>
+                </label>
+                <label className="fl-compose-field">Tell Florrie about this post
+                  <textarea aria-label="Caption brief" placeholder="Add the real treatment details, offer or occasion." value={composeBrief} onChange={e => setComposeBrief(e.target.value)} className="fl-compose-brief-input" rows={3} disabled={generatingAI || saving} />
+                </label>
+                <p className="fl-compose-note">Florrie uses these details and your photo. Your caption stays as it is until you accept a suggestion.</p>
+                <div className="fl-compose-help-actions">
+                  <Button onClick={handleAIWrite} disabled={generatingAI || saving}><Icon name="sparkles" size={16}/>{generatingAI ? 'Writing...' : 'Write with AI'}</Button>
+                  <Button variant="quiet" disabled={generatingAI || saving} onClick={() => {setAiError(null);setAiDraft({caption:getFilledTemplate(composeType),source:'template'});}}>Try a caption starter</Button>
+                </div>
               </div>
-              <div style={{ fontSize: 12.5, color: 'var(--text-primary, #241B17)', lineHeight: 1.45 }}>
-                <span style={{ fontWeight: 600 }}>{beautician?.booking_slug || 'your_salon'}</span>{' '}
-                <span style={{ color: composeCaption ? 'inherit' : 'var(--text-muted, #6B5D54)' }}>{composeCaption || 'Your caption will appear here as you write.'}</span>
-                {composeHashtags && <span style={{ color: '#3d6ea3' }}> {composeHashtags}</span>}
+            </details>
+            {aiError && <p role="alert" style={styles.failureReason}>{aiError}</p>}
+            {aiDraft && <section aria-label="Suggested caption" className="fl-compose-suggestion">
+              <strong>{aiDraft.source === 'template' ? 'Caption starter' : 'Florrie’s suggestion'}</strong>
+              <p>{aiDraft.caption}</p>
+              <div className="fl-compose-help-actions">
+                <Button disabled={saving || generatingAI} onClick={() => {setComposeCaption(aiDraft.caption);if(aiDraft.hashtags?.length)setComposeHashtags(aiDraft.hashtags.join(' '));setAiDraft(null);}}>Use this caption</Button>
+                <Button variant="quiet" disabled={saving || generatingAI} onClick={() => setAiDraft(null)}>Keep mine</Button>
               </div>
+            </section>}
+          </section>
+
+          <details className="fl-compose-disclosure">
+            <summary><Icon name="settings" size={17}/><span>Post options</span><small>{composeMediaKind === 'story' ? 'Story' : 'Feed post'}</small></summary>
+            <div className="fl-compose-disclosure-body">
+              <fieldset className="fl-compose-choice-group"><legend>Format</legend><div>
+                {[['feed','Feed post'],['story','Story (24h)']].map(([kind,label]) => <Button key={kind} variant={composeMediaKind === kind ? 'tonal' : 'chip'} size="sm" aria-pressed={composeMediaKind === kind} disabled={generatingAI || saving} onClick={() => setComposeMediaKind(kind)}>{label}</Button>)}
+              </div></fieldset>
+              <fieldset className="fl-compose-choice-group"><legend>Post type</legend><div>
+                {Object.entries(POST_TYPE_LABELS).map(([type,label]) => <Button key={type} variant={composeType === type ? 'tonal' : 'chip'} size="sm" aria-pressed={composeType === type} disabled={generatingAI || saving} onClick={() => setComposeType(type)}>{label}</Button>)}
+              </div></fieldset>
+              <label className="fl-compose-field">Hashtags
+                <input aria-label="Post hashtags" value={composeHashtags} onChange={e => setComposeHashtags(e.target.value)} placeholder="#brows #beauty #browlamination" style={styles.hashtagInput} disabled={saving} />
+              </label>
             </div>
-          </div>
-          <div style={styles.composeTypeRow}>
-            {Object.entries(POST_TYPE_LABELS).map(([type, label]) => (
-              <Button
-                key={type}
-                variant={composeType === type ? 'tonal' : 'chip'}
-                size="sm"
-                onClick={() => setComposeType(type)}
-              >
-                {label}
-              </Button>
-            ))}
-          </div>
-          {/* Photo control (the live preview above shows the image) */}
-          <button className="fl-tap"
-            type="button"
-            disabled={generatingAI || saving}
-            onClick={() => fileRef.current?.click()}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: '11px 14px', marginBottom: 10, borderRadius: 10, border: `1.5px dashed ${composeImagePreview ? 'var(--accent, #92405E)' : 'var(--border-light, #ede7e3)'}`, background: composeImagePreview ? 'rgba(146,64,94,0.05)' : 'transparent', color: composeImagePreview ? 'var(--accent, #92405E)' : 'var(--text-secondary, #574A42)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
-          >
-            <Icon name={iconName(composeImagePreview ? 'check_circle' : 'add_a_photo')} size={19} inline />
-            {composeImagePreview ? 'Photo added, tap to change' : 'Add a photo'}
-          </button>
-          <input
-            ref={fileRef}
-            disabled={generatingAI || saving}
-            type="file"
-            accept="image/*"
-            onChange={handleImageSelect}
-            style={{ display: 'none' }}
-          />
-          {/* Feed vs Story */}
-          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-            {[['feed', 'Feed post'], ['story', 'Story (24h)']].map(([k, label]) => (
-              <button className="fl-tap"
-                key={k}
-                type="button"
-                onClick={() => setComposeMediaKind(k)}
-                style={{ padding: '7px 14px', borderRadius: 10, fontSize: 12.5, fontWeight: 700,
-                  border: `1.5px solid ${composeMediaKind === k ? 'var(--accent, #92405E)' : 'var(--border-light, #ede7e3)'}`,
-                  background: composeMediaKind === k ? 'rgba(146,64,94,0.07)' : 'transparent',
-                  color: composeMediaKind === k ? 'var(--accent, #92405E)' : 'var(--text-secondary, #574A42)',
-                  cursor: 'pointer', fontFamily: 'inherit',
-                }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <label style={styles.fieldLabel}>Treatment
-            <select aria-label="Caption treatment" value={composeTreatment} onChange={e=>setComposeTreatment(e.target.value)} style={styles.streamFormInput} disabled={generatingAI || saving}>
-              <option value="">General business post</option>{treatments.map(t=><option key={t.id} value={t.name}>{t.name}</option>)}
-            </select>
-          </label>
-          <p style={{fontSize:12,color:'var(--text-secondary)'}}>Florrie uses your treatment, brief and any attached photo. Review the suggestion before using it.</p>
-          <label style={styles.fieldLabel}>Give Florrie a brief
-            <textarea aria-label="Caption brief" placeholder="What should this post say? Add the real offer, occasion or details." value={composeBrief} onChange={e=>setComposeBrief(e.target.value)} style={styles.composeTextarea} rows={2} disabled={generatingAI || saving} />
-          </label>
-          {aiError && <p role="alert" style={styles.failureReason}>{aiError}</p>}
-          {aiDraft && <section aria-label="Suggested caption" style={{padding:16,border:'1px solid var(--border)',borderRadius:16,background:'var(--tone-1)'}}><strong>Florrie’s suggestion</strong><p style={styles.caption}>{aiDraft.caption}</p><div style={{display:'flex',gap:8,flexWrap:'wrap'}}><Button onClick={()=>{setComposeCaption(aiDraft.caption);if(aiDraft.hashtags?.length)setComposeHashtags(aiDraft.hashtags.join(' '));setAiDraft(null);}}>Use this caption</Button><Button variant="quiet" onClick={()=>setAiDraft(null)}>Keep mine</Button></div></section>}
-          {/* Caption */}
-          <textarea
-            aria-label="Post caption"
-            value={composeCaption}
-            onChange={e => setComposeCaption(e.target.value)}
-            placeholder="Write your caption..."
-            style={styles.composeTextarea}
-            rows={4}
-          />
-          {/* Caption tools row */}
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button
-              onClick={() => setComposeCaption(getFilledTemplate(composeType))}
-              style={{ ...styles.shuffleBtn, flex: 1 }}
-            >
-              Shuffle
-            </button>
-            <button
-              onClick={handleAIWrite}
-              disabled={generatingAI}
-              style={{ ...styles.shuffleBtn,
-                flex: 2,
-                // Was a fixed pale rose-to-lilac gradient with themed accent
-                // text on it. In dark mode --accent is #ffb1c8 and that
-                // gradient stays pale, so the label vanished into it.
-                // --accent-light follows the theme (rose wash light, deep
-                // maroon dark) and the accent reads on both.
-                background: 'var(--accent-light, #F6E7EC)',
-                color: 'var(--accent, #92405e)',
-                fontWeight: 600,
-                opacity: generatingAI ? 0.7 : 1,
-              }}
-            >
-              {generatingAI ? 'Writing...' : 'Write with AI'}
-            </button>
-          </div>
-          {/* Hashtags */}
-          <input
-            aria-label="Post hashtags"
-            value={composeHashtags}
-            onChange={e => setComposeHashtags(e.target.value)}
-            placeholder="#brows #beauty #browlamination"
-            style={styles.hashtagInput}
-          />
-          {/* Actions */}
-          <div style={styles.composeActions}>
-            <Button
-              size="lg"
-              onClick={handleSaveDraft}
-              disabled={!composeCaption.trim() || saving || generatingAI}
-              style={{ flex: 1 }}
-            >
-              {saving ? 'Saving...' : 'Save as Draft'}
-            </Button>
-            <button disabled={saving} onClick={() => { aiGeneration.current += 1; setGeneratingAI(false); setComposing(false); setTab('ideas'); }} style={styles.cancelBtn}>
-              Cancel
-            </button>
-          </div>
+          </details>
+
+          <details className="fl-compose-disclosure fl-compose-preview">
+            <summary><Icon name="image" size={17}/><span>Preview post</span></summary>
+            <div className="fl-compose-preview-card">
+              <div className="fl-compose-preview-account"><span>{beautician?.booking_slug || beautician?.business_name || 'your_salon'}</span><small>{composeMediaKind === 'story' ? 'Story' : 'Feed post'}</small></div>
+              <div className="fl-compose-preview-image" data-format={composeMediaKind}>
+                {composeImagePreview ? <img src={composeImagePreview} alt="Post preview" onError={hideBrokenImage}/> : <span>Add a photo to see it here</span>}
+              </div>
+              <p className="fl-compose-preview-caption">{composeCaption || 'Your caption will appear here as you write.'}{composeHashtags && <span> {composeHashtags}</span>}</p>
+            </div>
+          </details>
+
+          <section className="fl-compose-save" aria-labelledby="compose-save-title">
+            <div className="fl-compose-step-heading"><span aria-hidden="true">3</span><div><h2 id="compose-save-title">Save for review</h2><p>Next, review your draft and choose when to post. Nothing publishes yet.</p></div></div>
+            <div className="fl-compose-save-actions">
+              <Button size="lg" onClick={handleSaveDraft} disabled={!composeCaption.trim() || saving || generatingAI}>{saving ? 'Saving...' : 'Save as Draft'}</Button>
+              <Button variant="quiet" disabled={saving} onClick={() => {aiGeneration.current += 1;setGeneratingAI(false);setComposing(false);setTab('drafts');}}>Cancel</Button>
+            </div>
+          </section>
         </div>
       )}
       {/* ═══ DRAFTS TAB ═══ */}
-      {tab === 'drafts' && !composing && (
+      {['drafts','scheduled'].includes(tab) && !composing && (
         <div style={styles.postList}>
-          <div style={{ padding: 18, background: 'var(--tone-1)', border: '1px solid var(--border)', borderRadius: 20 }}>
-            <h2 style={{ fontFamily: 'var(--font-display)', margin: '0 0 6px', fontSize: 24 }}>Your next posts</h2>
-            <p style={{ margin: '0 0 14px', color: 'var(--text-secondary)', fontSize: 13 }}>Find a caption, add its photo and review it before publishing.</p>
+          {tab === 'drafts' && <p className="fl-content-list-note">Your drafts stay private until you approve them.</p>}
+          {tab === 'drafts' && (drafts.length > 3 || draftSearch || attentionOnly) && <details className="fl-content-search">
+            <summary>Find a draft{draftSearch || attentionOnly ? ' · filter active' : ''}</summary>
             <input aria-label="Search content drafts" value={draftSearch} onChange={e => { setDraftSearch(e.target.value); setDeckIndex(null); }} placeholder="Search captions or post types" style={{ ...styles.streamFormInput, minHeight: 44, width: '100%', boxSizing: 'border-box' }} />
             <Button variant={attentionOnly ? 'primary' : 'secondary'} aria-pressed={attentionOnly} style={{ marginTop: 10 }} onClick={() => { setAttentionOnly(v => !v); setDeckIndex(null); }}>Needs attention</Button>
-          </div>
+          </details>}
           {schedulePost && <section ref={scheduleRef} aria-label="Schedule post" style={{padding:18,background:'var(--bg-card)',border:'1px solid var(--border)',borderRadius:18}}>
             <h3 style={{margin:'0 0 8px'}}>Choose a posting time</h3><p style={{fontSize:13,color:'var(--text-secondary)'}}>{schedulePost.caption?.slice(0,160)}</p>
             <label style={styles.fieldLabel}>Date and time<input aria-label="Posting date and time" type="datetime-local" value={scheduleTime} min={localScheduleValue(new Date().toISOString())} onChange={e=>setScheduleTime(e.target.value)} disabled={scheduling} style={styles.streamFormInput} /></label>
@@ -1158,8 +966,9 @@ export default function ContentAutopilot() {
             {scheduleError && <p role="alert" style={styles.failureReason}>{scheduleError}</p>}
             <div style={{display:'flex',gap:8}}><Button disabled={scheduling} onClick={saveSchedule}>{scheduling?'Scheduling…':'Schedule post'}</Button><Button variant="quiet" disabled={scheduling} onClick={()=>setSchedulePost(null)}>Cancel</Button></div>
           </section>}
-          {!!drafts.length && !visibleDrafts.length && <p role="status">No drafts match. Change your search or turn off Needs attention.</p>}
-          {scheduled.length > 0 && (
+          {tab === 'drafts' && !!drafts.length && !visibleDrafts.length && <p role="status">No drafts match. Change your search or turn off Needs attention.</p>}
+          {tab === 'scheduled' && scheduled.length === 0 && <EmptyState icon="calendar" title="No posts scheduled" subtitle="Review a draft, then choose a time for it to go out." />}
+          {tab === 'scheduled' && scheduled.length > 0 && (
             <div style={{ background: 'var(--tone-2, #f6e7dd)', borderRadius: 16, padding: '12px 14px', marginBottom: 4 }}>
               <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--text-secondary, #574A42)', margin: '0 0 8px', textTransform: 'uppercase' }}>
                 Scheduled posts
@@ -1170,7 +979,7 @@ export default function ContentAutopilot() {
                       mode as well as dark. The accent is the branded colour
                       for "this is scheduled" and reads on tone-2 either way. */}
                   <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent, #92405e)', whiteSpace: 'nowrap' }}>
-                    {sp.scheduled_for ? `${new Date(sp.scheduled_for).toLocaleDateString('en-GB', { weekday: 'short' })} ${new Date(sp.scheduled_for).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}` : 'Soon'}
+                    {sp.scheduled_for ? new Date(sp.scheduled_for).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Time not set'}
                   </span>
                   <span style={{ fontSize: 12.5, color: 'var(--text-primary, #241B17)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
                     {sp.caption}
@@ -1190,19 +999,14 @@ export default function ContentAutopilot() {
               ))}
             </div>
           )}
-          {drafts.length > 1 && deckIndex === null && (
-            <Button variant="secondary" onClick={() => setDeckIndex(0)}>
-              Review one by one ({drafts.length})
-            </Button>
-          )}
-          {drafts.length === 0 && !loading && (
+          {tab === 'drafts' && drafts.length === 0 && !loading && !error && (
             <EmptyState
               icon="camera"
               title="No drafts waiting"
-              subtitle="Start in Studio, choose a photo from Library, or create a new post."
+              subtitle="Use Create a post to add your photo and a few words. Florrie can help with the writing."
             />
           )}
-          {deckIndex !== null && visibleDrafts.length > 0 && (
+          {tab === 'drafts' && deckIndex !== null && visibleDrafts.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 2px 0' }}>
               <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary, #574A42)' }}>
                 {Math.min(deckIndex + 1, visibleDrafts.length)} of {visibleDrafts.length}
@@ -1214,8 +1018,10 @@ export default function ContentAutopilot() {
               </div>
             </div>
           )}
-          {(deckIndex === null ? visibleDrafts : visibleDrafts.slice(Math.min(deckIndex, Math.max(0, visibleDrafts.length - 1)), Math.min(deckIndex, Math.max(0, visibleDrafts.length - 1)) + 1)).map(post => (
-            <div key={post.id} id={`content-post-${post.id}`} data-content-post={post.id} style={styles.postCard}>
+          {tab === 'drafts' && (deckIndex === null ? visibleDrafts : visibleDrafts.slice(Math.min(deckIndex, Math.max(0, visibleDrafts.length - 1)), Math.min(deckIndex, Math.max(0, visibleDrafts.length - 1)) + 1)).map(post => (
+            <article key={post.id} id={`content-post-${post.id}`} data-content-post={post.id} className="fl-content-draft-card">
+              <div className="fl-content-draft-summary"><PostPreview post={post} small/><div><span className="fl-content-draft-status"><Icon name={postReadiness(post).icon} size={14}/>{postReadiness(post).label}</span><p>{post.caption || 'Untitled post'}</p><Button variant="quiet" size="sm" disabled={editingId === post.id || draftAction !== null || publishing === post.id} aria-expanded={reviewPostId === post.id || editingId === post.id || deckIndex !== null} onClick={() => {setReviewPostId(reviewPostId === post.id ? null : post.id);if (editingId === post.id) setEditingId(null);}}>{editingId === post.id ? 'Editing post' : reviewPostId === post.id ? 'Close review' : 'Review post'}<Icon name="chevron-right" size={14}/></Button></div></div>
+              {(reviewPostId === post.id || editingId === post.id || deckIndex !== null) && <div className="fl-content-draft-detail">
               {/* Type badge */}
               <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                 {/* Fixed pale fills with themed text on them: in dark mode the
@@ -1337,7 +1143,8 @@ export default function ContentAutopilot() {
                   </button>
                 </div>
               )}
-            </div>
+              </div>}
+            </article>
           ))}
         </div>
       )}
@@ -1538,6 +1345,144 @@ export default function ContentAutopilot() {
           ))}
         </div>
       )}
+      {['drafts','scheduled','posted','calendar'].includes(tab) && <div className="fl-content-helpers">
+        <div className="fl-content-ideas-entry"><div><strong>Not sure what to post?</strong><p>Use your photos, client reviews or diary to get started.</p></div><Button variant="secondary" onClick={() => setTab('ideas')}>Get ideas<Icon name="sparkles" size={16}/></Button></div>
+        <details className="fl-content-tools" open={showStreamForm || !!selectedStreamId || undefined}><summary>More tools</summary>
+          <Button variant="quiet" onClick={() => setTab(tab === 'calendar' ? 'scheduled' : 'calendar')}><Icon name="calendar" size={16}/>{tab === 'calendar' ? 'Scheduled list' : 'Content calendar'}</Button>
+      {/* Feed grid preview — see your Instagram feed before it goes out (hero) */}
+      {['drafts','scheduled','calendar','posted'].includes(tab) && !composing && (scheduled.length + posted.length + drafts.length) > 0 && (
+        <details className="fl-grid-preview">
+          <summary style={{ minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--accent, #92405E)' }}>Your grid preview</span>
+            <span style={{ fontSize: 12, color: 'var(--text-secondary, #574A42)' }}>{scheduled.length} scheduled · {drafts.length} drafts <span aria-hidden="true">⌄</span></span>
+          </summary>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, borderRadius: 16, overflow: 'hidden' }}>
+            {[...scheduled, ...drafts, ...posted].slice(0, 12).map(post => {
+              // 'failed' and 'approved' were both rendered as an unlabelled
+              // tile, identical to a draft. A post Instagram refused is the
+              // one tile on this grid she most needs to be able to pick out.
+              const badge = post.status === 'scheduled'
+                ? (post.scheduled_for ? new Date(post.scheduled_for).toLocaleDateString('en-GB', { weekday: 'short' }) : 'Soon')
+                : post.status === 'draft' ? 'Draft'
+                : post.status === 'failed' ? 'Failed'
+                : post.status === 'approved' ? 'Not posted' : null;
+              const badgeBg = post.status === 'failed'
+                ? 'var(--danger, #9E2B32)'
+                : post.status === 'approved' ? 'var(--warning-text, #79581C)' : 'rgba(146,64,94,0.92)';
+              return (
+                <button className="fl-tap"
+                  key={post.id}
+                  onClick={() => openPost(post)} aria-label={`Open post: ${post.caption || 'Untitled post'}`}
+                  style={{ position: 'relative', aspectRatio: '1', border: 'none', padding: 0, cursor: 'pointer', overflow: 'hidden', background: post.image_url ? 'var(--bg-subtle, #ede7e3)' : 'var(--accent-bg, rgba(146,64,94,0.05))', WebkitTapHighlightColor: 'transparent' }}
+                >
+                  {post.image_url
+                    ? <img src={post.image_url} alt="" onError={hideBrokenImage} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                    : <span style={{ display: 'flex', width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', fontSize: 10.5, lineHeight: 1.35, color: 'var(--text-secondary, #574A42)', padding: 7, textAlign: 'center', overflow: 'hidden', fontFamily: 'inherit' }}>{(post.caption || 'Untitled').slice(0, 52)}</span>}
+                  {badge && <span style={{ position: 'absolute', left: 5, bottom: 5, fontSize: 9, fontWeight: 700, color: '#FFFFFF', background: badgeBg, padding: '1px 6px', borderRadius: 999, letterSpacing: '0.02em' }}>{badge}</span>}
+                </button>
+              );
+            })}
+          </div>
+          <p style={{ fontSize: 11.5, color: 'var(--text-secondary, #574A42)', margin: '8px 0 0' }}>How your feed will look. Tap a tile to edit or reschedule.</p>
+        </details>
+      )}
+
+      {['drafts','scheduled','calendar','posted'].includes(tab) && <details className="fl-studio-collections" open={showStreamForm || !!selectedStreamId || undefined}>
+        <summary>Collections <span>{selectedStreamId ? streams.find(s => s.id === selectedStreamId)?.name : 'Group related posts'}</span></summary>
+      {/* Stream selector pills */}
+      <div style={styles.streamSelector}>
+        <Button
+          variant="chip"
+          size="md"
+          aria-pressed={selectedStreamId === null}
+          onClick={() => setSelectedStreamId(null)}
+          style={styles.streamPill}
+        >
+          All
+        </Button>
+        {streams.map(s => (
+          <Button
+            key={s.id}
+            variant="chip"
+            size="md"
+            aria-pressed={selectedStreamId === s.id}
+            onClick={() => setSelectedStreamId(s.id)}
+            style={styles.streamPill}
+          >
+            {s.name} {s.monthly_target ? `●${s.monthly_target}/mo` : ''}
+          </Button>
+        ))}
+        <Button
+          variant="secondary"
+          size="md"
+          onClick={() => setShowStreamForm(!showStreamForm)}
+          style={styles.streamPill}
+        >
+          + Add collection
+        </Button>
+      </div>
+      {/* New stream form */}
+      {showStreamForm && (
+        <div style={styles.streamFormCard}>
+          <input
+            type="text"
+            placeholder="Collection name (e.g. Autumn brows)"
+            value={newStreamForm.name}
+            onChange={e => setNewStreamForm(f => ({ ...f, name: e.target.value }))}
+            style={styles.streamFormInput}
+          />
+          <select
+            value={newStreamForm.type}
+            onChange={e => setNewStreamForm(f => ({ ...f, type: e.target.value }))}
+            style={styles.streamFormInput}
+          >
+            <option value="personal">Personal</option>
+            <option value="sponsor">Sponsor</option>
+            <option value="campaign">Campaign</option>
+          </select>
+          <input
+            type="number"
+            placeholder="Monthly target (optional)"
+            value={newStreamForm.monthly_target}
+            onChange={e => setNewStreamForm(f => ({ ...f, monthly_target: e.target.value }))}
+            style={styles.streamFormInput}
+          />
+          <textarea
+            placeholder="Brand notes (optional)"
+            value={newStreamForm.brand_notes}
+            onChange={e => setNewStreamForm(f => ({ ...f, brand_notes: e.target.value }))}
+            style={{ ...styles.streamFormInput, minHeight: 60, resize: 'vertical' }}
+          />
+          <div style={styles.streamFormActions}>
+            <Button size="lg" onClick={handleCreateStream} disabled={savingStream} style={{ flex: 1 }}>
+              {savingStream ? 'Creating...' : 'Create'}
+            </Button>
+            <button onClick={() => setShowStreamForm(false)} style={styles.cancelBtn}>Cancel</button>
+          </div>
+        </div>
+      )}
+      {/* Stream progress bar (for sponsored streams) */}
+      {selectedStreamId && streamProgress && streamProgress.monthly_target && (
+        <div style={styles.progressSection}>
+          <div style={styles.progressLabel}>
+            <span style={{ fontWeight: 600 }}>{streams.find(s => s.id === selectedStreamId)?.name}</span>
+            <span style={{ color: 'var(--text-muted, #6B5D54)', fontSize: 12 }}>
+              {streamProgress.posted_this_month} / {streamProgress.monthly_target} posts · {streamProgress.remaining} remaining
+            </span>
+          </div>
+          <div style={styles.progressBar}>
+            <div
+              style={{ ...styles.progressFill,
+                width: `${Math.min(100, (streamProgress.posted_this_month / streamProgress.monthly_target) * 100)}%`,
+                background: streamProgress.remaining < 3 ? '#DC2626' : streamProgress.remaining <= 3 ? '#F59E0B' : 'var(--accent, #92405e)',
+              }}
+            />
+          </div>
+        </div>
+      )}
+      </details>}
+        </details>
+      </div>}
     </div>
   );
 }

@@ -45,6 +45,15 @@ try {
    await page.goto(`http://127.0.0.1:${server.address().port}/${route}`);
    const kind=route.split('?')[0];
    await page.locator(kind==='voice'?'.fl-command-stack':kind==='content'?'.fl-content-heading':'.fl-chat-settings').waitFor();
+   if(kind==='content') {
+    const savedPost=page.locator('#content-post-p1');
+    await savedPost.waitFor();
+    assert.equal(await page.getByRole('button',{name:'Your posts',exact:true}).getAttribute('aria-pressed'),'true');
+    assert.equal(await page.getByRole('button',{name:'Create a post',exact:true}).count(),1,'Content has one clear creation action');
+    assert.equal(await savedPost.getByRole('button',{name:'Review post',exact:true}).count(),1);
+    assert.equal(await savedPost.getByRole('button',{name:'Edit',exact:true}).count(),0,'Draft actions stay collapsed until review');
+    assert.equal(await page.locator('.fl-content-home').count(),0,'Optional ideas do not displace the saved posts');
+   }
    await page.evaluate(()=>document.fonts.ready);
    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),`${kind} overflows at ${width}`);
    if(output)await page.screenshot({path:join(output,`${kind}-${width}.png`)});

@@ -25,7 +25,10 @@ try {
       const url=String(input), method=opts.method||'GET';
       const json=(data,status=200)=>Promise.resolve(new Response(JSON.stringify(data),{status,headers:{'content-type':'application/json'}}));
       if (url.includes('/api/voice/command')) { window.__voiceCalls++; return json({reply:'Synthetic diary answer',tools_used:[]}); }
-      if (/\/api\/content(?:\?|$)/.test(url)) return json({posts:[{id:'draft1',status:'draft',post_type:'general',caption:window.__draftTest.caption,created_at:'2026-09-07'}]});
+      if (/\/api\/content(?:\?|$)/.test(url)) return json({posts:[
+        {id:'draft1',status:'draft',post_type:'general',caption:window.__draftTest.caption,created_at:'2026-09-07'},
+        ...[2,3,4].map(index=>({id:`draft${index}`,status:'draft',post_type:'general',caption:`Another saved post ${index}`,created_at:'2026-09-06'})),
+      ]});
       if((url.includes('/rest/v1/content_posts?') || url.includes('/api/content/draft1')) && ['PATCH','DELETE'].includes(method)) {
         window.__draftTest.writes.push(method);
         if(window.__draftTest.fail) return json({message:'Synthetic write refused'},500);
@@ -43,15 +46,18 @@ try {
   });
   const page=await ctx.newPage();
   await page.goto(`http://127.0.0.1:${server.address().port}/content`);
-  await page.getByRole('button',{name:'Posts',exact:true}).click();
+  await page.locator('#content-post-draft1').waitFor();
+  assert.equal(await page.getByRole('button',{name:'Your posts',exact:true}).getAttribute('aria-pressed'),'true');
+  await page.getByText('Find a draft',{exact:true}).click();
   await page.getByRole('textbox',{name:'Search content drafts'}).fill('no such caption');
   await page.getByRole('status').filter({hasText:'No drafts match'}).waitFor();
-  assert.equal(await page.getByRole('button',{name:'Edit',exact:true}).count(),0);
+  assert.equal(await page.getByRole('button',{name:'Review post',exact:true}).count(),0);
   await page.getByRole('textbox',{name:'Search content drafts'}).fill('original');
   await page.getByRole('button',{name:'Needs attention',exact:true}).click();
-  await page.getByRole('button',{name:'Edit',exact:true}).waitFor();
+  await page.getByRole('button',{name:'Review post',exact:true}).waitFor();
   await page.getByRole('button',{name:'Needs attention',exact:true}).click();
   await page.getByRole('textbox',{name:'Search content drafts'}).fill('');
+  await page.locator('#content-post-draft1').getByRole('button',{name:'Review post',exact:true}).click();
   await page.getByRole('button',{name:'Edit',exact:true}).click();
   await page.getByRole('textbox',{name:'Draft caption'}).fill('Keep my revised caption');
   await page.getByRole('button',{name:'Save',exact:true}).click();
@@ -59,7 +65,7 @@ try {
   assert.equal(await page.getByRole('textbox',{name:'Draft caption'}).inputValue(),'Keep my revised caption');
   await page.evaluate(()=>{window.__draftTest.fail=false;});
   await page.getByRole('button',{name:'Save',exact:true}).click();
-  await page.getByText('Keep my revised caption',{exact:true}).waitFor();
+  await page.getByText('Keep my revised caption',{exact:true}).first().waitFor();
   await page.evaluate(()=>{window.__draftTest.fail=true;});
   await page.getByRole('button',{name:'Discard',exact:true}).click();
   await page.getByRole('alert').filter({hasText:'Could not discard this draft.'}).waitFor();

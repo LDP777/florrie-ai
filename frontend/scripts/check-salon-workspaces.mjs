@@ -59,7 +59,7 @@ try {
     page.on('pageerror', error => errors.push(error.message));
     for (const route of ['more','voice','content','reviews']) {
       await page.goto(`http://127.0.0.1:${server.address().port}/${route}`);
-      await page.locator(({more:'.more-shortcut-grid',voice:'.fl-command-stack',content:'.fl-content-home',reviews:'.fl-google-review'})[route]).waitFor();
+      await page.locator(({more:'.more-shortcut-grid',voice:'.fl-command-stack',content:'.fl-content-studio',reviews:'.fl-google-review'})[route]).waitFor();
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${route} overflows at ${width}`);
       assert.equal(await page.getByText('Something went wrong', {exact:true}).count(), 0);
       if (output) await page.screenshot({path:join(output,`${route}-${width}.png`),fullPage:route !== 'voice'});
@@ -82,18 +82,21 @@ try {
       }
       if (route === 'content') {
         assert.equal((await page.evaluate(() => window.__studio.plans)).length, 0);
-        await page.getByRole('button',{name:'Start a campaign',exact:true}).click();
+        await page.getByRole('button',{name:'Get ideas',exact:true}).click();
+        await page.getByRole('button',{name:'Plan 3 posts',exact:true}).click();
         await page.getByRole('button',{name:/^Help clients choose/}).click();
         await page.getByLabel('Plan treatment').selectOption('t1');
         await page.getByRole('button',{name:'Start with one post',exact:true}).click();
+        await page.locator('summary').filter({hasText:'Help me write'}).click();
         assert.equal(await page.getByLabel('Caption treatment').inputValue(),'Signature brows');
         assert.match(await page.getByLabel('Caption brief').inputValue(),/missing treatment facts/);
         await page.getByRole('button',{name:'Cancel',exact:true}).click();
-        await page.getByRole('button',{name:'Start a campaign',exact:true}).click();
+        await page.getByRole('button',{name:'Get ideas',exact:true}).click();
+        await page.getByRole('button',{name:'Plan 3 posts',exact:true}).click();
         await page.getByRole('button',{name:/^Build trust/}).click();
         await page.getByLabel('Plan treatment').selectOption('t1');
         await page.getByRole('button',{name:'Draft this plan',exact:true}).click();
-        await page.getByText('Draft 1 about Signature brows',{exact:true}).last().waitFor();
+        await page.locator('[data-content-post="post-1"] .fl-content-draft-summary').getByText('Draft 1 about Signature brows',{exact:true}).waitFor();
         assert.deepEqual(await page.evaluate(() => window.__studio.plans),[{goal:'trust',treatment_id:'t1',post_count:3}]);
       }
       if (route === 'reviews') {
@@ -118,7 +121,8 @@ try {
         assert.ok(await page.getByRole('checkbox',{name:'I have permission to use this review in my marketing.'}).isChecked());
         await page.evaluate(()=>window.__studio.failReviewSave=false);
         await page.getByRole('button',{name:'Prepare a review post',exact:true}).click();
-        await page.getByText('“A thoughtful visit and exactly the shape I hoped for.”',{exact:true}).waitFor();
+        await page.getByLabel('Draft caption',{exact:true}).waitFor();
+        assert.equal(await page.getByLabel('Draft caption',{exact:true}).inputValue(),'“A thoughtful visit and exactly the shape I hoped for.”','the permitted review opens in the editable draft');
         assert.equal((await page.evaluate(()=>window.__studio.reviewDrafts))[1].marketing_permission,true);
       }
       console.log(`✓ ${route} ${width}px: layout and workflow`);

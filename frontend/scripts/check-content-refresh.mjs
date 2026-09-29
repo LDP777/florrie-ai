@@ -64,14 +64,15 @@ try {
     const page = await context.newPage(), errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.goto(`http://127.0.0.1:${server.address().port}/content`);
-    await page.getByRole('button',{name:'Retry preview',exact:true}).waitFor();
+    const savedPost = page.locator('#content-post-11111111-1111-4111-8111-111111111111');
+    await savedPost.getByRole('button',{name:'Retry preview',exact:true}).waitFor();
     assert.equal(await page.getByText('Your photo belongs here',{exact:true}).count(),0);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),`Failed photo overflows at ${width}px`);
     if(output) await page.screenshot({path:join(output,`content-photo-retry-${width}.png`),fullPage:true});
     const reads = photoReads;
     photoAvailable = true;
-    await page.getByRole('button',{name:'Retry preview',exact:true}).click();
-    await page.waitForFunction(() => {const image=document.querySelector('.fl-studio-feature img');return image?.complete && image.naturalWidth>0;});
+    await savedPost.getByRole('button',{name:'Retry preview',exact:true}).click();
+    await page.waitForFunction(() => {const image=document.querySelector('#content-post-11111111-1111-4111-8111-111111111111 img[alt="Saved post preview"]');return image?.complete && image.naturalWidth>0;});
     assert.ok(photoReads > reads,'Retry must request the saved image again');
     assert.equal(await page.getByRole('button',{name:'Retry preview',exact:true}).count(),0);
 
