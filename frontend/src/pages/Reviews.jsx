@@ -3,30 +3,27 @@ import { API_BASE } from '../lib/config.js';
 import { contentRequest } from '../lib/content-workflow.js';
 import GoogleReviewSetup from '../components/GoogleReviewSetup.jsx';
 import { googleReviewLink } from '../../../backend/src/lib/google-review-link.mjs';
-import MoreLoadError from '../components/MoreLoadError.jsx';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useBeautician, supabase, fetchRowsStrict, updateRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
-import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import Icon from '../components/ui/Icon';
-
-/**
- * Reviews & Reputation - track, respond to, and request client reviews.
- *
- * Features:
- *   - Google review aggregation with average rating
- *   - Review timeline with AI-drafted responses
- *   - Request review flow (auto-sends after completed appointment)
- *   - Reputation score tracking over time
- */
+import Button from '../components/ui/Button.jsx';
 
 export default function Reviews() {
-  const [loadError, setLoadError] = useState(null);
   const { beautician, loading: bLoading, refresh } = useBeautician();
+  if (bLoading || !beautician) return <PageLoader />;
+  // Changing salons clears drafts and loaded feedback before another render.
+  return <ReviewsWorkspace key={beautician.id} beautician={beautician} refresh={refresh} />;
+}
+
+function ReviewsWorkspace({ beautician, refresh }) {
+  const [loadError, setLoadError] = useState(null);
+  const active = useRef(false);
+  const loadRun = useRef(0);
   const navigate = useNavigate();
   const [shareReview, setShareReview] = useState(null);
   const [shareAllowed, setShareAllowed] = useState(false);
@@ -39,16 +36,20 @@ export default function Reviews() {
   const [replyText, setReplyText] = useState('');
 
   useEffect(() => {
-    if (beautician && !bLoading) loadReviews();
-  }, [beautician, bLoading]);
+    active.current = true;
+    loadReviews();
+    return () => { active.current = false; loadRun.current++; };
+  }, [beautician.id]);
 
   async function loadReviews() {
+    const run = ++loadRun.current;
     setLoading(true);
     setLoadError(null);
     try {
         // Fetch reviews from DB. The table stores `comment` + `response`; the UI
         // reads `text`/`reply`/`author`, so normalise here.
         const data = await fetchRowsStrict('reviews', beautician.id, { order: 'created_at', ascending: false });
+        if (!active.current || run !== loadRun.current) return;
         setReviews((data || []).map(r => ({
           ...r,
           author: r.author || r.client_name || 'Client',
@@ -58,16 +59,17 @@ export default function Reviews() {
           rating: r.rating !== null && r.rating !== '' && Number.isInteger(Number(r.rating)) && Number(r.rating) >= 1 && Number(r.rating) <= 5 ? Number(r.rating) : null,
         })));
     } catch (err) {
+      if (!active.current || run !== loadRun.current) return;
       logger.error('Load reviews error:', err);
       setLoadError('Could not load feedback. Try again.');
       setReviews([]);
     } finally {
-      setLoading(false);
+      if (active.current && run === loadRun.current) setLoading(false);
     }
   }
 
   function startReply(review) {
-    // AI-draft a response in Ellie's tone
+    // Editable starting words for feedback saved inside Florrie.
     const drafts = {
       5: `Thank you so much ${review.author.split(' ')[0]}! So glad you love them 💕 Can't wait to see you again xx`,
       4: `Thanks lovely! Really appreciate you taking the time to leave a review 💕 See you next time xx`,
@@ -87,20 +89,14 @@ export default function Reviews() {
     ? Math.round((ratedReviews.filter(r => r.rating === 5).length / ratedReviews.length) * 100)
     : 0;
 
-  if (bLoading || loading) {
-    return <PageLoader />;
-  }
-
-  if (loadError) return <MoreLoadError title="Feedback" message={loadError} onRetry={loadReviews} />;
-
   return (
     <div style={styles.page}>
       <PageHeader title="Reviews" eyebrow="Your reputation" subtitle="Ask for feedback. Make the most of kind words." />
-      <GoogleReviews ownerId={beautician.id} />
+      <GoogleReviews ownerId={beautician.id} salonName={beautician.business_name} />
       <GoogleReviewSetup key={beautician.id} beautician={beautician} onSaved={refresh} />
 
       {/* Rating hero */}
-      <div style={styles.heroCard}>
+      {!loading && !loadError && <div style={styles.heroCard}>
         <div style={styles.heroLeft}>
           <span style={{ ...styles.heroRating, ...(ratedReviews.length ? {} : { fontSize: 24 }) }}>{avgRating}</span>
           <div style={styles.heroStars}>
@@ -133,7 +129,7 @@ export default function Reviews() {
             );
           })}
         </div>
-      </div>
+      </div>}
 
       {/* Tabs */}
       <div style={styles.tabs}>
@@ -158,7 +154,10 @@ export default function Reviews() {
       {/* Reviews list */}
       {tab === 'reviews' && (
         <div style={styles.body}>
-          {reviews.length === 0 ? (
+          {loading ? <p role="status">Loading saved feedback…</p> : loadError ? <div>
+            <ErrorCard message={loadError} />
+            <Button variant="secondary" onClick={loadReviews}>Try again</Button>
+          </div> : reviews.length === 0 ? (
             <div style={styles.emptyState}>
               <span style={{ fontSize: 36, display: 'block', marginBottom: 12 }}><Icon name="star" size={36} /></span>
               <p style={styles.emptyTitle}>No reviews yet</p>
@@ -202,9 +201,11 @@ export default function Reviews() {
                       setShareSaving(true);setShareError('');
                       try {
                         const {data}=await supabase.auth.getSession();
+                        if (!active.current) return;
                         const saved = await contentRequest(`${API_BASE}/api/content/review-draft`, {token:data?.session?.access_token,method:'POST',body:{review_id:review.id,expected_text:review.text,marketing_permission:true}});
+                        if (!active.current) return;
                         navigate('/content', {state:{showDrafts:true,contentPostId:saved.post?.id}});
-                      } catch(error) {setShareError(error.message);} finally {setShareSaving(false);}
+                      } catch(error) {if (active.current) setShareError(error.message);} finally {if (active.current) setShareSaving(false);}
                     }}>{shareSaving ? 'Saving permission & draft…' : 'Prepare a review post'}</button>
                     {shareError && <p role="alert">{shareError}</p>}
                     <button onClick={() => setShareReview(null)}>Cancel</button>
@@ -235,11 +236,13 @@ export default function Reviews() {
                               response: text,
                               responded_at: new Date().toISOString(),
                             });
+                            if (!active.current) return;
                             setReviews(prev => prev.map(r =>
                               r.id === review.id ? { ...r, reply: text, response: text } : r
                             ));
                             setReplyingTo(null);
                           } catch (err) {
+                            if (!active.current) return;
                             logger.error('Post reply error:', err);
                             alert('Could not save your reply. Please try again.');
                           }
