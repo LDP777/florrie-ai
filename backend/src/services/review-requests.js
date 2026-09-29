@@ -164,8 +164,9 @@ export async function processReviewRequests() {
         continue;
       }
 
-      // Also send email if client has one (gate already cleared above)
-      if (client.email) {
+      // Keep the existing email accompaniment for message channels, but do not
+      // email again when sendMessage already delivered through its fallback.
+      if (client.email && result?.channel !== 'email') {
         const color = biz?.brand_color || '#92405E';
         await sendEmail({
           to: client.email,

@@ -34,6 +34,7 @@ const deliveredEmails = [];
 const guardedClients = [];
 const updated = [];
 let guardVerdict = { decision: 'send', delivered: true, tier: 'proactive', reason: 'trusted_auto' };
+let deliveryChannel = 'sms';
 
 function builder(table) {
   const filters = [];
@@ -88,7 +89,11 @@ vi.mock('../../src/lib/outbound-guard.js', () => ({
   },
 }));
 vi.mock('../../src/services/notifications.js', () => ({
-  sendMessage: async (...args) => { deliveredBodies.push(args); return { channel: 'sms' }; },
+  sendMessage: async (...args) => {
+    deliveredBodies.push(args);
+    if (deliveryChannel === 'email') deliveredEmails.push({to:args[0].client.email,text:args[0].body,source:'message-fallback'});
+    return { channel: deliveryChannel };
+  },
   sendEmail: async (email) => { deliveredEmails.push(email); return true; },
 }));
 
@@ -104,6 +109,7 @@ beforeEach(() => {
   guardedClients.length = 0;
   updated.length = 0;
   guardVerdict = { decision: 'send', delivered: true, tier: 'proactive', reason: 'trusted_auto' };
+  deliveryChannel = 'sms';
 });
 
 describe('scheduling a review request', () => {
@@ -236,5 +242,42 @@ describe('review requests cannot cross salon or client boundaries', () => {
       expect(deliveredEmails[index].to).toBe(`client${suffix}@example.test`);
       expect(deliveredEmails[index].text).toContain(`salon-${suffix}/review`);
     }
+  });
+});
+
+describe('a review request does not duplicate its email fallback', () => {
+  async function dueRequest() {
+    db.appointments.push({
+      id:'appt1',beautician_id:'b1',clients:{id:'c1',beautician_id:'b1',first_name:'Demo',email:'client@example.test'},
+      treatments:{name:'brows'},beauticians:{google_review_link:'https://g.page/r/demo-salon/review'},
+    });
+    await scheduleReviewRequest('b1','appt1','c1');
+    db.ai_actions[0].details.send_at=new Date(Date.now()-60000).toISOString();
+  }
+
+  it('sends just one email when the best available channel delivered by email', async () => {
+    deliveryChannel='email';await dueRequest();
+    expect(await processReviewRequests()).toMatchObject({sent:1});
+    expect(deliveredBodies).toHaveLength(1);
+    expect(deliveredEmails).toHaveLength(1);
+    expect(deliveredEmails[0]).toMatchObject({to:'client@example.test',source:'message-fallback'});
+    expect(deliveredEmails[0].text).toContain('https://g.page/r/demo-salon/review');
+    expect(db.ai_actions[0]).toMatchObject({status:'executed',outcome:'success'});
+  });
+
+  it('keeps the existing single email accompaniment after a successful SMS', async () => {
+    await dueRequest();
+    expect(await processReviewRequests()).toMatchObject({sent:1});
+    expect(deliveredBodies).toHaveLength(1);
+    expect(deliveredEmails).toHaveLength(1);
+    expect(deliveredEmails[0]).toMatchObject({to:'client@example.test',subject:'How was your brows?'});
+    expect(deliveredEmails[0].text).toContain('https://g.page/r/demo-salon/review');
+  });
+
+  it('does not attempt either email path while the request awaits approval', async () => {
+    deliveryChannel='email';guardVerdict={decision:'approve',delivered:false,reason:'awaiting_approval'};await dueRequest();
+    expect(await processReviewRequests()).toMatchObject({sent:0});
+    expect(deliveredBodies).toEqual([]);expect(deliveredEmails).toEqual([]);
+    expect(db.ai_actions[0]).toMatchObject({status:'executed',outcome:'pending'});
   });
 });
