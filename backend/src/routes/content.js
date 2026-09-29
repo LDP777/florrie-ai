@@ -11,6 +11,8 @@ const router = Router();
  * GET /api/content
  * List content posts. Paging leaves older drafts reachable as the salon grows.
  * ?bucket=pending returns unfinished work first; ?post_id=uuid opens one owned post.
+ * The response keeps posts for older app versions and adds has_more/next_offset
+ * so Content Studio can continue loading an owner-scoped history.
  */
 router.get('/', requireAuth, async (req, res) => {
   const integer = (value, fallback, min, max) => {
