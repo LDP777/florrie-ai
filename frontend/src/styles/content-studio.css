@@ -16,6 +16,9 @@
 .fl-studio-art-mark { display: grid; place-items: center; border: 1px solid color-mix(in srgb,var(--accent) 20%,transparent); width: 58px; height: 58px; border-radius: 50%; }
 .fl-studio-art-title { font: 500 clamp(29px,4vw,44px)/1.2 var(--font-display); letter-spacing: -.03em; }
 .fl-studio-art-note { font-size: 10px; color: var(--text-secondary); }
+.fl-studio-art.has-error { gap: 14px; }
+.fl-studio-art.has-error .fl-studio-art-title { font-size: clamp(20px,3vw,30px); overflow-wrap: anywhere; }
+.fl-studio-art.has-error .fl-btn { min-height: 44px; font-size: 11px; max-width: 100%; }
 .fl-studio-art.has-photo { padding: 0; background: var(--tone-1); }
 .fl-studio-art.has-photo::after { display: none; }
 .fl-studio-art img { width: 100%; height: 100%; object-fit: cover; position: absolute; inset: 0; }

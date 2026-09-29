@@ -2,6 +2,8 @@
 .fl-reputation-heading{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}
 .fl-reputation-panel h2,.fl-content-results h2{margin:7px 0 10px;font-family:var(--font-display);font-size:30px;font-weight:500;line-height:1.2}
 .fl-reputation-panel p,.fl-content-results p{line-height:1.6;color:var(--text-secondary)}
+.fl-results-refresh{display:flex;align-items:center;justify-content:space-between;gap:8px 16px;flex-wrap:wrap;padding:6px 0 12px;border-bottom:1px solid var(--border)}
+.fl-results-refresh>span{font-size:11px;line-height:1.6;color:var(--text-secondary)}.fl-results-refresh .fl-btn{gap:7px;min-height:44px;padding:8px 0;font-size:12px}
 .fl-reputation-error{padding:12px;border-radius:12px;background:var(--danger-bg);color:var(--danger);margin:12px 0}
 .fl-google-imported-review,.fl-result-list article{border-top:1px solid var(--border);padding:22px 0 8px;margin-top:18px}
 .fl-review-byline,.fl-result-detail{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px}

@@ -13,11 +13,16 @@ export function postReadiness(post) {
 }
 
 function PostPreview({ post, small = false }) {
-  const [failed, setFailed] = useState(false);
-  return <div className={`fl-studio-art ${small ? 'is-small' : ''} ${post?.image_url && !failed ? 'has-photo' : ''}`}>
-    {post?.image_url && !failed
-      ? <img src={post.image_url} alt="Saved post preview" onError={() => setFailed(true)} />
-      : <><span className="fl-studio-art-mark"><Icon name="camera" size={small ? 22 : 29} /></span>{!small && <><span className="fl-studio-art-title">Made<br /><em>by you.</em></span><span className="fl-studio-art-note">{post ? 'Your photo belongs here' : 'Start with something real'}</span></>}</>}
+  const [failedSource, setFailedSource] = useState(null);
+  const [attempt, setAttempt] = useState(0);
+  const source = post?.image_url || null;
+  const failed = !!source && failedSource === source;
+  return <div className={`fl-studio-art ${small ? 'is-small' : ''} ${source && !failed ? 'has-photo' : ''} ${failed ? 'has-error' : ''}`}>
+    {source && !failed
+      ? <img key={`${source}:${attempt}`} src={source} alt="Saved post preview" onError={() => setFailedSource(source)} />
+      : failed
+        ? <><span className="fl-studio-art-mark" aria-label={small ? 'Photo preview unavailable' : undefined}><Icon name="image" size={small ? 22 : 29}/></span>{!small && <><span className="fl-studio-art-title">Preview<br /><em>unavailable.</em></span><span className="fl-studio-art-note">Your saved photo did not load.</span><Button variant="quiet" size="sm" onClick={() => {setFailedSource(null);setAttempt(value => value + 1);}}>Retry preview</Button></>}</>
+        : <><span className="fl-studio-art-mark"><Icon name="camera" size={small ? 22 : 29} /></span>{!small && <><span className="fl-studio-art-title">Made<br /><em>by you.</em></span><span className="fl-studio-art-note">{post ? 'Your photo belongs here' : 'Start with something real'}</span></>}</>}
   </div>;
 }
 
