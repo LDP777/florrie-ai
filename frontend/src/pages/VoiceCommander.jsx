@@ -705,7 +705,6 @@ export default function VoiceCommander() {
       </div>
       <div className="fl-command-discover-heading">
         <h2>{currentGroup.title}</h2>
-        <span>{taskGroup === 'create' ? 'Open a workspace' : 'Tap to ask'}</span>
       </div>
       <div className="fl-command-tasks">
         {currentGroup.tasks.map(task => <button type="button" key={task.title} disabled={busy} onClick={() => chooseTask(task)}>
@@ -720,8 +719,8 @@ export default function VoiceCommander() {
     <div className="fl-voice-composer">
       <EffectFrame focus active={isProcessing || isRecording}>
         <form className={`fl-command-input ${busy ? 'is-active' : ''}`} onSubmit={handleTextSubmit} aria-label="Ask Florrie">
-          <label className="fl-command-input-label" htmlFor="fl-command-message">
-            {isRecording ? 'Listening to you' : micStarting ? 'Opening the microphone' : isProcessing ? 'Working on your request' : hasConversation ? 'What else can I help with?' : 'A question, a plan, a little help…'}
+          <label className={`fl-command-input-label ${busy ? '' : 'is-quiet'}`} htmlFor="fl-command-message">
+            {isRecording ? 'Listening to you' : micStarting ? 'Opening the microphone' : isProcessing || executions > 0 ? 'Working on your request' : 'Your question'}
           </label>
           <textarea id="fl-command-message" ref={inputRef} rows={2} aria-label="Message Florrie" value={isRecording ? interimTranscript : textInput}
             onChange={e => { setTextInput(e.target.value); setDraftHint(''); }}

@@ -6,22 +6,21 @@
   color: var(--text-primary);
 }
 .fl-command-workspace .fl-command-stage .fl-voice-hero {
-  padding: 24px 0 26px;
+  padding: 22px 0 22px;
   overflow: visible;
 }
 .fl-command-stage .fl-voice-emblem {
-  width: 64px;
-  height: 64px;
+  width: 56px;
+  height: 56px;
   background: var(--accent-light);
   border: 1px solid var(--border-light);
-  box-shadow: 0 0 0 9px var(--tone-1);
+  box-shadow: none;
 }
-.fl-command-stage .fl-voice-emblem > span { inset: -15px; }
-.fl-command-stage .fl-voice-emblem > span:last-child { inset: -23px; opacity: .35; }
+.fl-command-stage .fl-voice-emblem > span { display: none; }
 .fl-command-stage .fl-voice-hero .fl-workspace-eyebrow { display: none; }
 .fl-command-workspace .fl-command-stage .fl-voice-hero h1 {
   font-size: clamp(38px, 6vw, 50px);
-  margin: 27px 0 8px;
+  margin: 18px 0 6px;
 }
 .fl-command-workspace .fl-command-stage .fl-voice-hero p { font-size: 13px; }
 .fl-command-stack { width: 100%; max-width: 560px; margin: 0 auto; }
@@ -38,21 +37,22 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  padding: 17px 16px 12px;
+  padding: 18px 18px 12px;
   border: 1px solid var(--border);
-  border-radius: 25px;
+  border-radius: 18px;
   background: var(--bg-card);
-  box-shadow: 0 12px 32px #92405e0b, 0 2px 5px #241b1704;
+  box-shadow: 0 2px 8px #241b1705;
 }
 .fl-command-input-label {
   display: block;
   padding: 0 2px;
   margin: 0 0 8px;
   color: var(--accent);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: .015em;
 }
+.fl-command-input-label.is-quiet { display: none; }
 .fl-command-stage .fl-command-input textarea {
   width: 100%;
   min-width: 0;
@@ -60,30 +60,30 @@
   border: 0;
   border-radius: 4px;
   outline: none;
-  min-height: 60px;
+  min-height: 58px;
   max-height: 180px;
-  padding: 0 2px;
+  padding: 0;
   background: transparent;
   color: var(--text-primary);
   font: 500 clamp(18px, 3.5vw, 21px)/1.45 var(--font-body);
-  letter-spacing: -.025em;
+  letter-spacing: -.015em;
 }
 .fl-command-stage .fl-command-input textarea::placeholder { color: var(--text-secondary); opacity: 1; }
-.fl-command-toolbar { display: flex; align-items: center; gap: 8px; margin-top: 7px; }
+.fl-command-toolbar { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-light); }
 .fl-command-stage .fl-command-tool {
   min-width: 44px;
   min-height: 44px;
-  padding: 0 6px;
+  padding: 0 10px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 5px;
   flex-shrink: 0;
   border: 0;
-  border-radius: 12px;
+  border-radius: 10px;
   background: transparent;
   color: var(--text-secondary);
-  font: 500 11px/1.4 var(--font-body);
+  font: 500 12px/1.4 var(--font-body);
   cursor: pointer;
 }
 .fl-command-stage .fl-command-tool:hover, .fl-command-stage .fl-command-tool[aria-expanded=true] { background: var(--accent-light); color: var(--accent); }
@@ -95,11 +95,11 @@
   height: 44px;
   padding: 0;
   flex-shrink: 0;
-  border: 1px solid #c76b8a70;
+  border: 1px solid var(--accent);
   border-radius: 50%;
-  background: var(--gradient-hero);
-  color: #fff;
-  box-shadow: 0 4px 12px #92405e24, inset 0 1px 0 #ffffff20;
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: none;
   cursor: pointer;
   -webkit-user-select: none;
   user-select: none;
@@ -110,52 +110,53 @@
 .fl-command-talk {
   display: flex;
   align-items: center;
-  gap: 10px;
-  border: 0;
-  padding: 0 0 0 8px;
+  gap: 6px;
+  min-height: 44px;
+  border: 1px solid var(--accent);
+  padding: 0 5px 0 14px;
   border-radius: 24px;
-  background: transparent;
-  color: var(--accent);
-  font: 600 11px/1.4 var(--font-body);
+  background: var(--accent);
+  color: var(--on-accent);
+  font: 600 12px/1.4 var(--font-body);
   cursor: pointer;
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
   touch-action: manipulation;
 }
-.fl-command-talk:hover { background: var(--accent-light); }
-.fl-command-cancel { border: 0; background: transparent; color: var(--text-secondary); min-height: 44px; font: 500 10px/1.4 var(--font-body); cursor: pointer; }
+.fl-command-talk:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+.fl-command-talk .fl-command-petal { width: 34px; height: 34px; border: 0; background: transparent; }
+.fl-command-cancel { border: 0; background: transparent; color: var(--text-secondary); min-height: 44px; font: 500 11px/1.4 var(--font-body); cursor: pointer; }
 .fl-command-text-only { display: flex; align-items: center; gap: 10px; font-size: 11px; color: var(--text-secondary); min-height: 44px; }
 .fl-command-stage button:disabled { opacity: .5; cursor: default; }
 .fl-command-stage :is(button, a):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .fl-command-stage .fl-command-input:focus-within { outline: 2px solid var(--accent); outline-offset: 3px; }
 .fl-command-stage .fl-command-ideas { margin-top: 16px; }
 .fl-command-ideas[hidden] { display: none; }
-.fl-command-day-line { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 46px; color: var(--text-secondary); font-size: 10px; }
+.fl-command-day-line { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 46px; color: var(--text-secondary); font-size: 11px; }
 .fl-command-day-line a { color: inherit; text-decoration: none; padding-block: 10px; }
 .fl-command-day-line button { min-height: 44px; border: none; background: transparent; color: var(--accent); font: 600 11px var(--font-body); cursor: pointer; }
-.fl-command-categories { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px; padding: 4px; border-radius: 15px; background: var(--tone-2); }
-.fl-command-categories button { min-height: 38px; padding: 7px 4px; border: 1px solid transparent; border-radius: 11px; color: var(--text-secondary); background: transparent; font: 500 12px/1.4 var(--font-body); cursor: pointer; }
-.fl-command-categories button[aria-pressed=true] { color: var(--accent); background: var(--bg-card); border-color: var(--border-light); box-shadow: 0 2px 6px #241b1707; }
-.fl-command-discover-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 20px 2px 7px; }
+.fl-command-categories { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; border-bottom: 1px solid var(--border); }
+.fl-command-categories button { min-height: 44px; padding: 10px 4px; margin-bottom: -1px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; color: var(--text-secondary); background: transparent; font: 500 12px/1.4 var(--font-body); cursor: pointer; }
+.fl-command-categories button[aria-pressed=true] { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.fl-command-discover-heading { margin: 22px 0 8px; }
 .fl-command-discover-heading h2 { margin: 0; color: var(--text-primary); font: 500 20px/1.3 var(--font-display); letter-spacing: -.035em; }
-.fl-command-discover-heading > span { flex-shrink: 0; font-size: 9px; color: var(--text-muted); }
 .fl-command-tasks { display: grid; }
-.fl-command-tasks > button { display: grid; grid-template-columns: 36px minmax(0, 1fr) 17px; gap: 12px; align-items: center; text-align: left; min-height: 71px; padding: 12px 2px; border: 0; border-bottom: 1px solid var(--border-light); background: transparent; color: var(--text-secondary); cursor: pointer; font-family: var(--font-body); }
+.fl-command-tasks > button { display: grid; grid-template-columns: 24px minmax(0, 1fr) 17px; gap: 14px; align-items: center; text-align: left; min-height: 76px; padding: 14px 0; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--text-secondary); cursor: pointer; font-family: var(--font-body); }
 .fl-command-tasks > button:last-child { border-bottom: 0; }
 .fl-command-tasks > button:hover { background: var(--tone-1); border-radius: 10px; }
-.fl-command-task-icon { display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid var(--border-light); border-radius: 12px; color: var(--accent); background: var(--bg-card); }
-.fl-command-tasks strong { display: block; margin-bottom: 4px; font-size: 13px; font-weight: 600; line-height: 1.5; color: var(--text-primary); }
-.fl-command-tasks small { display: block; font-size: 11px; line-height: 1.65; }
+.fl-command-task-icon { display: grid; place-items: center; width: 24px; height: 28px; color: var(--accent); }
+.fl-command-tasks strong { display: block; margin-bottom: 4px; font-size: 14px; font-weight: 600; line-height: 1.4; color: var(--text-primary); }
+.fl-command-tasks small { display: block; font-size: 12px; line-height: 1.5; }
 .fl-command-tasks > button > svg { color: var(--accent); }
 .fl-command-shortcuts { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 4px 15px; margin-top: 17px; border-top: 1px solid var(--border-light); padding-top: 6px; }
-.fl-command-shortcuts > span { font-size: 10px; color: var(--text-muted); }
-.fl-command-shortcuts a { display: flex; gap: 4px; align-items: center; min-height: 44px; color: var(--text-secondary); font-size: 10px; text-decoration: none; }
+.fl-command-shortcuts > span { font-size: 11px; color: var(--text-muted); }
+.fl-command-shortcuts a { display: flex; gap: 4px; align-items: center; min-height: 44px; color: var(--text-secondary); font-size: 11px; text-decoration: none; }
 .fl-command-shortcuts a:hover { color: var(--accent); }
 .fl-command-draft-hint, .fl-command-history-note { color: var(--text-secondary); font-size: 11px; line-height: 1.6; }
 .fl-command-draft-hint { margin: 10px 4px; }
 .fl-command-history-note { border-top: 1px solid var(--border); padding-top: 8px; }
-.fl-command-stage .fl-command-hint { margin: 16px auto 0; max-width: 300px; text-align: center; color: var(--text-muted); font-size: 10px; line-height: 1.7; }
+.fl-command-stage .fl-command-hint { margin: 14px auto 0; max-width: 300px; text-align: center; color: var(--text-muted); font-size: 11px; line-height: 1.6; }
 .fl-command-wave { display: flex; align-items: center; gap: 3px; height: 20px; }
 .fl-command-wave i { width: 3px; height: 10px; background: currentColor; border-radius: 3px; }
 .fl-command-wave i:nth-child(2n) { height: 19px; }
@@ -186,13 +187,13 @@
 @media (max-width: 380px) {
   .fl-command-workspace .fl-command-stage { padding-inline: 18px; }
   .fl-command-stage .fl-command-input { padding-inline: 13px; }
-  .fl-command-talk { gap: 6px; font-size: 10px; }
+  .fl-command-talk { gap: 4px; font-size: 11px; padding-left: 12px; }
   .fl-command-categories button { font-size: 11px; }
   .fl-command-discover-heading h2 { font-size: 18px; }
-  .fl-command-discover-heading > span { font-size: 8px; }
-  .fl-command-tasks > button { grid-template-columns: 31px minmax(0, 1fr) 14px; gap: 10px; }
-  .fl-command-task-icon { width: 31px; height: 34px; }
-  .fl-command-tasks strong { font-size: 11px; }
+  .fl-command-tasks > button { grid-template-columns: 22px minmax(0, 1fr) 14px; gap: 12px; }
+  .fl-command-task-icon { width: 22px; }
+  .fl-command-tasks strong { font-size: 13px; }
+  .fl-command-tasks small { font-size: 11px; }
   .fl-command-shortcuts { gap: 10px; }
 }
 @media (prefers-reduced-motion: no-preference) {
