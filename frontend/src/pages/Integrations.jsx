@@ -72,11 +72,10 @@ const CATALOG = [
     name: 'Google Reviews',
     icon: 'star',
     category: 'Reviews',
-    description: 'Monitor and respond to Google Business reviews',
-    features: ['Review monitoring', 'AI-drafted responses', 'Review request automation', 'Rating tracker'],
-    settingsPath: null,
-    connectPath: null,
-    comingSoon: true,
+    description: 'Your review link and Google Business Profile connection',
+    features: ['Google review link', 'Connection status', 'Review replies'],
+    settingsPath: '/reviews',
+    connectPath: '/reviews',
   },
   {
     id: 'tiktok',
@@ -111,6 +110,10 @@ function getIntegrationStatus(id, beautician, smsConfig, igStatus, igChecking) {
       return beautician?.google_calendar_connected
         ? 'connected'
         : 'available';
+    case 'google-reviews':
+      // Reviews owns the live availability check. A saved review link alone
+      // does not establish a Google Business Profile connection.
+      return 'details';
     case 'instagram':
       if (!beautician?.instagram_page_id) return 'available';
       // THE HONEST LADDER, the same one Settings.jsx shows.
@@ -274,13 +277,14 @@ export default function Integrations() {
     // not know yet", which is a thing this screen has to be able to say.
     checking: { bg: 'var(--bg-subtle)', color: 'var(--text-muted)', label: 'Checking…' },
     unknown: { bg: 'var(--bg-subtle)', color: 'var(--text-muted)', label: 'Could not check' },
+    details: { bg: 'var(--bg-subtle)', color: 'var(--text-secondary)', label: 'In Reviews' },
   };
 
   return (
     <div style={ds.page}>
       <PageHeader
         title="Integrations"
-        subtitle={`${connectedCount} connected · ${integrations.length} available`}
+        subtitle={`${connectedCount} connected · ${integrations.length} integrations`}
       />
 
       {/* WhatsApp + SMS moved to their own home at /messaging */}
@@ -407,6 +411,15 @@ export default function Integrations() {
                       onClick={e => { e.stopPropagation(); handleConnect(integ.id); }}
                       disabled={connecting === integ.id}
                     >{connecting === integ.id ? 'Connecting…' : `Connect ${integ.name} →`}</button>
+                  )}
+
+                  {integ.status === 'details' && integ.connectPath && (
+                    <>
+                      <p style={{ ...type.bodySmall, fontSize: 12, lineHeight: 1.5, margin: '0 0 10px' }}>
+                        Check Google availability, manage your connection and save your review request link in Reviews.
+                      </p>
+                      <Button fullWidth onClick={e => { e.stopPropagation(); handleConnect(integ.id); }}>Open Reviews</Button>
+                    </>
                   )}
 
                   {integ.status === 'needs_attention' && (

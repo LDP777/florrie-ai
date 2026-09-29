@@ -319,7 +319,7 @@ export default function Reviews() {
 
           <div style={styles.settingsCard}>
             <h4 style={styles.sectionLabel}>Connect review platforms</h4>
-            <p style={styles.settingHint}>Review imports are not available yet. Requests include your Google review link when one is recorded; otherwise they ask for feedback without a link.</p>
+            <p style={styles.settingHint}>Requests include your saved Google review link; otherwise they ask for feedback without a link. Check Google availability and your connection in the section above.</p>
             <Link to="/settings?section=ai" style={styles.preferencesLink}>Review sending preferences</Link>
           </div>
         </div>

@@ -38,6 +38,6 @@ export default function GoogleReviewSetup({ beautician, onSaved }) {
     </form>}
     {notice && <p role="status" className="fl-studio-note">{notice}</p>}
     {error && <p role="alert">{error}</p>}
-    <p className="fl-studio-note">Requests follow your existing sending preferences. Google ratings and replies are managed in Google for now.</p>
+    <p className="fl-studio-note">Requests follow your existing sending preferences. Check your Business Profile connection in the Google reviews section above.</p>
   </section>;
 }

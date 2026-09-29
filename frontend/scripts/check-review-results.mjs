@@ -18,7 +18,13 @@ try {for(const width of [320,390,1024]){
   window.__reviewTest={sends:[],failReply:true,resultsFail:false,links:0};
   window.fetch=(input,options={})=>{
    const url=String(input),t=window.__reviewTest;
-   if(url.includes('/api/google-reviews/status'))return json({available:true,connected:true,location:{name:'accounts/1/locations/2',title:'Fictional Brow Studio'}});
+   if(url.includes('/api/google-reviews/status')){
+    const state=sessionStorage.getItem('test-google-availability');
+    if(state==='disabled')return json({available:false,connected:false});
+    if(state==='available')return json({available:true,connected:false});
+    if(state==='failed')return json({error:'Could not check the Google connection.'},503);
+    return json({available:true,connected:true,location:{name:'accounts/1/locations/2',title:'Fictional Brow Studio'}});
+   }
    if(url.includes('/api/google-reviews/reviews/r1/draft'))return json({draft:'Thank you for your kind words about the studio.',fingerprint:'current'});
    if(url.includes('/api/google-reviews/reviews/r1/reply')){t.sends.push(JSON.parse(options.body));return t.failReply?json({error:'The reply result is uncertain. Reload Google reviews before trying again.'},503):json({reply:{comment:JSON.parse(options.body).text}});}
    if(url.includes('/api/google-reviews/reviews'))return json({fetched_at:new Date().toISOString(),reviews:[{name:'accounts/1/locations/2/reviews/r1',reviewId:'r1',starRating:'FIVE',comment:'A thoughtful appointment in a welcoming studio.',reviewer:{displayName:'Fictional reviewer'},fingerprint:'current'}]});
@@ -31,6 +37,36 @@ try {for(const width of [320,390,1024]){
   };
  });
  const page=await ctx.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ if(width===390){
+  await page.goto(`http://127.0.0.1:${server.address().port}/integrations`);
+  await page.getByText('Google Reviews',{exact:true}).click();
+  await page.getByText('In Reviews',{exact:true}).waitFor();
+  assert.equal(await page.getByRole('button',{name:'Connect Google Reviews →',exact:true}).count(),0,'the directory does not claim Google is ready to connect');
+  await page.evaluate(()=>sessionStorage.setItem('test-google-availability','disabled'));
+  await page.getByRole('button',{name:'Open Reviews',exact:true}).click();
+  await page.waitForURL('**/reviews');
+  await page.getByText('Google imports and replies are awaiting connection setup.',{exact:false}).waitFor();
+  assert.equal(await page.getByRole('button',{name:'Connect Google Business Profile',exact:true}).count(),0,'provider setup must finish before offering OAuth');
+  assert.ok(await page.getByRole('button',{name:'Save review link',exact:true}).isEnabled(),'review-link setup remains usable while imports are disabled');
+  await page.getByRole('button',{name:'Auto-ask',exact:true}).click();
+  assert.equal(await page.getByText('Review imports are not available yet.',{exact:false}).count(),0,'static settings copy defers to the live connection status');
+  await page.evaluate(()=>sessionStorage.setItem('test-google-availability','available'));
+  await page.reload();
+  await page.getByRole('button',{name:'Connect Google Business Profile',exact:true}).waitFor();
+  assert.equal(await page.getByText('Google imports and replies are awaiting connection setup.',{exact:false}).count(),0);
+  await page.evaluate(()=>sessionStorage.setItem('test-google-availability','failed'));
+  await page.reload();
+  await page.getByRole('alert').filter({hasText:'Could not check the Google connection.'}).waitFor();
+  assert.equal(await page.getByRole('button',{name:'Connect Google Business Profile',exact:true}).count(),0,'an unknown connection must not be labelled available');
+  assert.ok(await page.getByRole('button',{name:'Save review link',exact:true}).isEnabled());
+  await page.evaluate(()=>sessionStorage.removeItem('test-google-availability'));
+  await page.getByRole('button',{name:'Retry',exact:true}).click();
+  await page.getByText('Fictional reviewer',{exact:true}).waitFor();
+  assert.equal(await page.getByRole('button',{name:'Connect Google Business Profile',exact:true}).count(),0,'a connected salon sees its reviews instead of a first-time connection prompt');
+  assert.equal(await page.getByText('Google ratings and replies are managed in Google for now.',{exact:false}).count(),0);
+  assert.deepEqual(await page.evaluate(()=>window.__reviewTest.sends),[],'navigation and status recovery never publish a reply');
+  console.log('PASS Google directory navigation, disabled/available/failed/connected status and independent review-link setup');
+ }
  await page.goto(`http://127.0.0.1:${server.address().port}/reviews`);await page.getByText('Fictional reviewer',{exact:true}).waitFor();
  await page.getByRole('button',{name:'Draft a reply',exact:true}).click();await page.getByLabel('Google review reply').waitFor();
  assert.ok(await page.getByRole('button',{name:'Approve & publish reply',exact:true}).isDisabled());
