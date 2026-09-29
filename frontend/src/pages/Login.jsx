@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { readOAuthProviders } from '../lib/auth-providers.js';
 import { isIOSNative } from '../lib/platform.js';
 import { NATIVE_AUTH_CALLBACK, NATIVE_RECOVERY_CALLBACK, appleNoncePair } from '../lib/native-auth.js';
+import { validConfirmationCode, verifySignupEmail } from '../lib/signup-confirmation.js';
+import Button from '../components/ui/Button.jsx';
 
 /**
  * Login / Signup / Forgot Password, single-screen auth.
@@ -68,6 +70,17 @@ export default function Login({ supabase, initialMode }) {
   const [info, setInfo] = useState('');
   const [loading, setLoading] = useState(false);
   const [appleLoading, setAppleLoading] = useState(false);
+  const [confirmationCode, setConfirmationCode] = useState('');
+  const [emailConfirmed, setEmailConfirmed] = useState(false);
+  const [verifyingEmail, setVerifyingEmail] = useState(false);
+  const verification = useRef(null);
+  useEffect(() => {
+    setVerifyingEmail(false);
+    return () => {
+      verification.current?.abort();
+      verification.current = null;
+    };
+  }, [supabase]);
   const navigate = useNavigate();
   const [providers, setProviders] = useState({ apple: false, google: false });
   useEffect(() => {
@@ -122,6 +135,11 @@ export default function Login({ supabase, initialMode }) {
         // Supabase returns identities=[] for existing accounts, we treat it
         // identically to a real signup to prevent enumeration.
         if (data?.user && !data?.session) {
+          // Keep the confirmation bound to the address that was submitted,
+          // even if its field was edited while signup was in flight.
+          setEmail(email.trim());
+          setConfirmationCode('');
+          setEmailConfirmed(false);
           setMode('confirm');
           return;
         }
@@ -150,10 +168,44 @@ export default function Login({ supabase, initialMode }) {
   function switchMode(newMode) {
     // Defensive: never allow a switch into signup mode on iOS native.
     if (iosNative && newMode === 'signup') return;
+    verification.current?.abort();
+    verification.current = null;
+    setVerifyingEmail(false);
+    setConfirmationCode('');
+    setEmailConfirmed(false);
     setMode(newMode);
     setError('');
     setInfo('');
     if (newMode !== 'forgot') setPassword('');
+  }
+
+  async function confirmEmail(event) {
+    event.preventDefault();
+    if (iosNative || mode !== 'confirm' || emailConfirmed || verification.current) return;
+    if (!validConfirmationCode(confirmationCode)) {
+      setError('Enter the 6 to 8 digit code from your email.');
+      return;
+    }
+    const attempt = new AbortController();
+    verification.current = attempt;
+    setVerifyingEmail(true);
+    setError('');
+    try {
+      await verifySignupEmail({ email, code: confirmationCode, signal: attempt.signal });
+      if (verification.current !== attempt) return;
+      setEmailConfirmed(true);
+      setConfirmationCode('');
+      setPassword('');
+    } catch (err) {
+      if (verification.current === attempt) {
+        setError(err?.message || 'We could not confirm your email. Try again, or use the link in your email.');
+      }
+    } finally {
+      if (verification.current === attempt) {
+        verification.current = null;
+        setVerifyingEmail(false);
+      }
+    }
   }
 
   async function handleGoogle() {
@@ -242,7 +294,7 @@ export default function Login({ supabase, initialMode }) {
     }
   }
 
-  // Confirmation screen (shared for signup + reset)
+  // Web signup confirmation. Email-link confirmation remains available too.
   if (mode === 'confirm') {
     return (
       <div style={styles.page}>
@@ -250,19 +302,36 @@ export default function Login({ supabase, initialMode }) {
           <h1 style={styles.logo}>florrie.ai</h1>
           <div style={styles.goldBar} />
         </div>
-        <div style={styles.form}>
-          <h2 style={styles.formTitle}>Check your email</h2>
-          <p style={styles.confirmText}>
-            We've sent a confirmation link to <strong>{email}</strong>. Click it to confirm your account, then come back and sign in.
-          </p>
+        <form onSubmit={confirmEmail} style={styles.form}>
+          <h2 style={styles.formTitle}>{emailConfirmed ? 'Email confirmed' : 'Check your email'}</h2>
+          {emailConfirmed ? <p role="status" style={styles.confirmText}>
+            <strong>{email}</strong> is confirmed. Sign in with your password to finish setting up Florrie.
+          </p> : <>
+            <p id="signup-code-help" style={styles.confirmText}>
+              We've sent a confirmation email to <strong>{email}</strong>. Enter its code here, or open the confirmation link in the email.
+            </p>
+            <div style={styles.formGroup}>
+              <label htmlFor="signup-confirmation-code" style={styles.label}>Email confirmation code</label>
+              <input id="signup-confirmation-code" name="confirmation-code" type="text"
+                inputMode="numeric" autoComplete="one-time-code" autoFocus
+                aria-describedby={error ? 'signup-code-help signup-code-error' : 'signup-code-help'}
+                aria-invalid={!!error} value={confirmationCode} disabled={verifyingEmail}
+                onChange={event => { setConfirmationCode(event.target.value.replace(/\D/g, '').slice(0, 8)); setError(''); }}
+                style={styles.input} />
+            </div>
+            {error && <p id="signup-code-error" role="alert" style={styles.error}>{error}</p>}
+            <Button type="submit" disabled={verifyingEmail || !validConfirmationCode(confirmationCode)} style={styles.submitBtn}>
+              {verifyingEmail ? 'Confirming...' : 'Confirm email'}
+            </Button>
+          </>}
           <button
             type="button"
             onClick={() => switchMode('login')}
-            style={styles.submitBtn}
+            style={emailConfirmed ? styles.submitBtn : styles.switchBtn}
           >
-            Back to Sign In
+            {emailConfirmed ? 'Sign in to continue' : 'Back to Sign In'}
           </button>
-        </div>
+        </form>
       </div>
     );
   }
