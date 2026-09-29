@@ -1,63 +1,33 @@
-/* The campaign's rose-lit command panel, scoped to this page.
-   Existing typefaces, app chrome and the navigation flower stay unchanged. */
+/* The campaign's floating command panel, using Florrie's shared page palette. */
 .fl-command-workspace .fl-command-stage {
-  --bg: #161514;
-  --bg-card: #262123;
-  --tone-1: #292327;
-  --tone-2: #372a30;
-  --text-primary: #fbf6f1;
-  --text-secondary: #d6c3c9;
-  --text-muted: #c4afb7;
-  --accent: #ffb1c8;
-  --on-accent: #241b17;
-  --accent-light: #482a37;
-  --border: #6a505b;
-  --border-light: #4a393f;
   position: relative;
-  isolation: isolate;
   display: flex;
   flex-direction: column;
-  min-height: 660px;
-  margin: 10px 12px 0;
-  padding: 26px 24px 26px;
-  border: 1px solid #3c2c32;
-  border-radius: 32px;
-  background: #161514;
+  padding: 24px 22px 28px;
   color: var(--text-primary);
-  box-shadow: 0 12px 30px #241b1714;
-}
-.fl-command-stage::before {
-  content: '';
-  position: absolute;
-  z-index: -1;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  background: radial-gradient(ellipse at 40% 43%, #92405e55, transparent 62%),
-    radial-gradient(ellipse at 78% 68%, #92405e18, transparent 60%);
 }
 .fl-command-workspace .fl-command-stage .fl-voice-hero {
-  padding: 28px 0 30px;
+  padding: 34px 0 32px;
   overflow: visible;
 }
 .fl-command-stage .fl-voice-emblem {
-  width: 64px;
-  height: 64px;
-  background: #92405e1a;
-  border: 1px solid #c76b8a38;
-  box-shadow: 0 0 38px #92405e30, inset 0 1px 0 #ffffff0a;
+  width: 80px;
+  height: 80px;
+  background: var(--accent-light);
+  border: 1px solid var(--border-light);
+  box-shadow: 0 0 0 10px var(--tone-1);
 }
 .fl-command-stage .fl-voice-hero .fl-workspace-eyebrow {
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: .18em;
-  color: var(--text-muted);
-  margin-top: 22px;
+  color: var(--accent);
+  margin-top: 28px;
 }
 .fl-command-workspace .fl-command-stage .fl-voice-hero h1 {
   font-size: clamp(36px, 6vw, 48px);
   margin: 10px 0;
 }
-.fl-command-workspace .fl-command-stage .fl-voice-hero p { font-size: 12px; }
+.fl-command-workspace .fl-command-stage .fl-voice-hero p { font-size: 14px; }
 .fl-command-stack { width: 100%; max-width: 520px; margin: 0 auto; }
 .fl-command-workspace .fl-command-stage .fl-voice-composer {
   padding: 0 !important;
@@ -73,12 +43,10 @@
   flex-direction: column;
   align-items: stretch;
   padding: 17px 13px 10px;
-  border: 1px solid #ffffff26;
+  border: 1px solid var(--border);
   border-radius: 23px;
-  background: #30262be8;
-  box-shadow: inset 0 1px 0 #ffffff0d, 0 16px 38px #00000040;
-  -webkit-backdrop-filter: blur(18px);
-  backdrop-filter: blur(18px);
+  background: var(--bg-card);
+  box-shadow: 0 10px 30px #92405e0d, 0 2px 6px #241b1705;
 }
 .fl-command-stage .fl-command-input input {
   width: 100%;
@@ -92,7 +60,7 @@
   font: 500 clamp(17px, 3.5vw, 22px)/1.5 var(--font-body);
   letter-spacing: -.025em;
 }
-.fl-command-stage .fl-command-input input::placeholder { color: #e1cdd5; opacity: 1; }
+.fl-command-stage .fl-command-input input::placeholder { color: var(--text-secondary); opacity: 1; }
 .fl-command-toolbar { display: flex; align-items: center; gap: 1px; }
 .fl-command-stage .fl-command-tool {
   width: 44px;
@@ -108,8 +76,8 @@
   cursor: pointer;
 }
 .fl-command-stage .fl-command-tool:hover, .fl-command-stage .fl-command-tool[aria-expanded=true] {
-  background: #ffffff0c;
-  color: var(--text-primary);
+  background: var(--accent-light);
+  color: var(--accent);
 }
 .fl-command-signature { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--text-secondary); padding: 0 8px; }
 .fl-command-submit { margin-left: auto; padding-left: 6px; }
@@ -122,7 +90,7 @@
   border-radius: 50%;
   background: var(--gradient-hero);
   color: #fff;
-  box-shadow: 0 0 16px #92405e45, inset 0 1px 0 #ffffff20;
+  box-shadow: 0 4px 12px #92405e24, inset 0 1px 0 #ffffff20;
   cursor: pointer;
   -webkit-user-select: none;
   user-select: none;
@@ -133,19 +101,17 @@
 .fl-command-send { font: 500 24px/1 var(--font-body); }
 .fl-command-stage button:disabled { opacity: .5; cursor: default; }
 .fl-command-stage :is(button, a):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-.fl-command-stage .fl-command-input:focus-within { outline: 2px solid #c76b8a; outline-offset: 3px; }
+.fl-command-stage .fl-command-input:focus-within { outline: 2px solid var(--accent); outline-offset: 3px; }
 .fl-command-shortcuts {
   position: relative;
   z-index: 1;
   margin: -1px 16px 0;
   padding: 12px 7px 7px;
-  border: 1px solid #ffffff1f;
+  border: 1px solid var(--border);
   border-top: none;
   border-radius: 0 0 21px 21px;
-  background: #292327d9;
-  box-shadow: 0 16px 32px #00000025;
-  -webkit-backdrop-filter: blur(14px);
-  backdrop-filter: blur(14px);
+  background: var(--tone-1);
+  box-shadow: 0 12px 24px #92405e08;
 }
 .fl-command-shortcuts a {
   display: grid;
@@ -159,19 +125,19 @@
   text-decoration: none;
   color: var(--text-secondary);
 }
-.fl-command-shortcuts a:first-child { background: #92405e3d; border-color: #c76b8a20; color: #f6e7ec; }
-.fl-command-shortcuts a:hover { background: #92405e55; border-color: #c76b8a60; }
+.fl-command-shortcuts a:hover { background: var(--accent-light); border-color: var(--border); color: var(--accent); }
+.fl-command-shortcuts a > svg:first-child { color: var(--accent); }
 .fl-command-shortcuts strong { font-size: 14px; font-weight: 500; color: var(--text-primary); }
-.fl-command-shortcuts a > span { text-align: right; font-size: 10px; }
+.fl-command-shortcuts a > span { text-align: right; font-size: 11px; }
 .fl-command-shortcuts a > svg:last-child { opacity: .7; }
-.fl-command-stage .fl-command-ideas { margin-top: 12px; padding: 15px; border: 1px solid var(--border-light); border-radius: 18px; background: #292327; }
+.fl-command-stage .fl-command-ideas { margin-top: 12px; padding: 15px; border: 1px solid var(--border-light); border-radius: 18px; background: var(--bg-card); }
 .fl-command-ideas p { margin: 0 0 10px; font-size: 11px; color: var(--text-secondary); }
 .fl-command-workspace .fl-command-stage .fl-voice-starts { display: grid; grid-template-columns: 1fr 1fr; padding: 0; gap: 6px; }
 .fl-command-stage .fl-voice-starts button { display: flex; align-items: center; gap: 7px; min-height: 44px; padding: 10px 8px; border: 1px solid var(--border-light); border-radius: 10px; background: transparent; color: var(--text-primary); font: 500 11px/1.5 var(--font-body); cursor: pointer; }
 .fl-command-stage .fl-voice-starts button > span { margin-left: auto; }
 .fl-command-salon-ideas { display: grid; gap: 4px; margin-top: 10px; border-top: 1px solid var(--border-light); padding-top: 8px; }
 .fl-command-salon-ideas button { display: flex; justify-content: space-between; gap: 10px; min-height: 44px; padding: 8px; border: 0; border-radius: 9px; background: transparent; color: var(--text-secondary); font: 400 11px/1.6 var(--font-body); text-align: left; cursor: pointer; }
-.fl-command-salon-ideas button:hover { background: #ffffff08; }
+.fl-command-salon-ideas button:hover { background: var(--accent-light); }
 .fl-command-stage .fl-command-hint { margin: 24px auto 0; max-width: 300px; text-align: center; color: var(--text-muted); font-size: 11px; line-height: 1.7; }
 .fl-command-transcript { margin: 0 4px 12px; color: var(--text-primary); font-size: 16px; line-height: 1.5; overflow-wrap: anywhere; }
 .fl-command-wave { display: flex; align-items: center; gap: 3px; height: 20px; }
@@ -186,7 +152,7 @@
 .fl-command-stage .fl-command-agent-tag { color: var(--accent) !important; background: var(--accent-light) !important; }
 .fl-command-stage .fl-voice-processing { display: flex; align-items: center; gap: 10px; color: var(--text-secondary); font-size: 13px; }
 @media (min-width: 700px) {
-  .fl-command-workspace .fl-command-stage { margin: 20px 24px 0; padding: 32px 48px; min-height: 720px; }
+  .fl-command-workspace .fl-command-stage { padding: 32px 48px; }
   .fl-command-stage .fl-command-input { padding: 22px 18px 13px; }
   .fl-command-shortcuts { margin-inline: 28px; padding: 16px 9px 9px; }
   .fl-command-shortcuts a { min-height: 54px; }
@@ -194,11 +160,11 @@
   .fl-command-shortcuts a > span { font-size: 12px; }
 }
 @media (max-width: 380px) {
-  .fl-command-workspace .fl-command-stage { margin-inline: 8px; padding-inline: 14px; border-radius: 26px; }
+  .fl-command-workspace .fl-command-stage { padding-inline: 18px; }
   .fl-command-shortcuts { margin-inline: 9px; }
   .fl-command-shortcuts a { gap: 7px; padding-inline: 8px; }
   .fl-command-shortcuts strong { font-size: 13px; }
-  .fl-command-shortcuts a > span { font-size: 9px; }
+  .fl-command-shortcuts a > span { font-size: 10px; }
   .fl-command-signature { padding: 0 3px; gap: 4px; font-size: 10px; }
 }
 @media (prefers-reduced-motion: no-preference) {
