@@ -1,5 +1,6 @@
 import { PATCH_TEST_LEAD_HOURS } from '../lib/patch-test-policy.js';
 import BookingEmailVerification from '../components/BookingEmailVerification.jsx';
+import BookingVerificationHelp from '../components/BookingVerificationHelp.jsx';
 import { bookingAuth, bookingHeaders } from '../lib/booking-auth.js';
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import { supabase } from '../lib/supabase.js'
@@ -1364,7 +1365,7 @@ export default function BookingPage() {
         {/* Step 0: Select Treatment */}
         {step === 0 && (
           <div>
-            <BookingEmailVerification onVerified={verifiedEmailChanged} />
+            <BookingEmailVerification onVerified={verifiedEmailChanged} recoveryHelp={<BookingVerificationHelp businessName={bizName} treatments={selectedTreatments} startsAt={selectedSlot?.starts_at} />} />
             {rebookState === 'error' && <p role="alert">Saved details could not be checked. Please try again.</p>}
             {rebookState === 'nomatch' && <p>No saved details for this email. Choose your treatment to continue. If your package uses another email, contact the salon.</p>}
             {bookingEmail && rebookState !== 'matched' && <button type="button" onClick={quickRebookLookup} disabled={rebookState === 'looking'} style={styles.backBtn}>Find my saved details</button>}
@@ -1805,7 +1806,7 @@ export default function BookingPage() {
                 </p>
               </div>
               <div>
-                <BookingEmailVerification onVerified={verifiedEmailChanged} />
+                <BookingEmailVerification onVerified={verifiedEmailChanged} recoveryHelp={<BookingVerificationHelp businessName={bizName} treatments={selectedTreatments} startsAt={selectedSlot?.starts_at} />} />
                 {fieldErrors.email && <span style={styles.fieldErrorText}>{fieldErrors.email}</span>}
                 {lookingUpClient && (
                   <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>Checking…</p>

@@ -92,6 +92,10 @@ jobs:
         working-directory: frontend
       - run: node scripts/check-signup-confirmation.mjs
         working-directory: frontend
+      - run: node scripts/check-booking-identity.mjs
+        working-directory: frontend
+      - run: node --test src/lib/booking-auth-fetch.test.mjs
+        working-directory: frontend
       - run: npm run check:today:browser --workspace frontend
       - run: node scripts/check-calendar-navigation.mjs
         working-directory: frontend
