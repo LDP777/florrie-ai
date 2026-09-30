@@ -29,7 +29,7 @@ ${entry.slice(entry.indexOf('window.fixture='),entry.indexOf('function Harness')
 window.fetch=async()=>({ok:true,json:async()=>({inbox:0,approvals:0})});
 createRoot(document.getElementById('root')).render(<React.StrictMode><BrowserRouter><App/></BrowserRouter></React.StrictMode>);`;
 const stubs={
- supabase:`export const supabase={auth:Object.fromEntries(['getSession','onAuthStateChange','updateUser','signOut'].map(name=>[name,(...args)=>window.fixtureAuth[name](...args)]))};export const useBeautician=()=>({beautician:{id:'fictional-owner',onboarding_completed_at:'2026-09-01',subscription_status:'active'}});`,
+ supabase:`export const supabase={auth:Object.fromEntries(['getSession','onAuthStateChange','updateUser','signOut'].map(name=>[name,(...args)=>window.fixtureAuth[name](...args)]))};export const useBeautician=()=>{const params=new URLSearchParams(location.search);const plans={trial:{subscription_status:'trialing',trial_ends_at:'2020-01-01T00:00:00Z'},cancelled:{subscription_status:'cancelled',subscription_plan:'florrie'},past_due:{subscription_status:'past_due',subscription_plan:'florrie',payment_failed_at:'2020-01-01T00:00:00Z'}};return {beautician:{id:'fictional-owner',onboarding_completed_at:params.has('newowner')?null:'2026-09-01',subscription_status:'active',...plans[params.get('billing')],...(params.has('deleting')?{account_deletion:{status:'pending'}}:{})}}};`,
  config:'export const API_BASE="";',platform:'export const isIOSNative=()=>true;export const isNativeApp=()=>false;',native:'export const hapticTap=()=>{};',voicePref:'export const isVoiceEnabled=()=>true;',theme:'export const useTheme=()=>({});',
 };
 const realApp=await build({stdin:{contents:actualAppEntry,resolveDir:root,loader:'jsx'},bundle:true,write:false,format:'iife',jsx:'automatic',define:{'process.env.NODE_ENV':'"test"','import.meta.env':'{}'},plugins:[{name:'actual-app-recovery',setup(b){
@@ -39,7 +39,7 @@ const realApp=await build({stdin:{contents:actualAppEntry,resolveDir:root,loader
  b.onLoad({filter:/.*/,namespace:'page'},args=>({contents:`import React from 'react';export default ()=>React.createElement('h1',null,${JSON.stringify(args.path)});`,loader:'js',resolveDir:root}));
  b.onResolve({filter:/FlorrieEffects\.jsx$/},args=>({path:args.path,namespace:'component'}));
  b.onResolve({filter:/^\.\/(components|contexts)\//},args=>args.path.endsWith('/Button.jsx')?undefined:({path:args.path,namespace:'component'}));
- b.onLoad({filter:/.*/,namespace:'component'},()=>({contents:'export const FlorrieOrb=()=>null;export const iconName=x=>x;export const CoachProvider=({children})=>children;export default ({children})=>children||null;',loader:'js'}));
+ b.onLoad({filter:/.*/,namespace:'component'},args=>({contents:args.path.endsWith('/AccountDeletionProgress.jsx')?"import React from 'react';export default ()=>React.createElement('h1',null,'Account deletion');":'export const FlorrieOrb=()=>null;export const iconName=x=>x;export const CoachProvider=({children})=>children;export default ({children})=>children||null;',loader:'js',resolveDir:root}));
 }}]});
 const server=http.createServer((req,res)=>{const script=req.url==='/fixture.js'||req.url==='/app.js';res.setHeader('content-type',script?'text/javascript':'text/html');res.end(script?(req.url==='/app.js'?realApp:result).outputFiles[0].text:`<div id="root"></div><script src="${req.url.includes('real=1')?'/app.js':'/fixture.js'}"></script>`);});
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
@@ -121,6 +121,60 @@ try {
   assert.equal(await page.evaluate(()=>fixture.signouts),0);
   assert.equal(await page.getByRole('button',{name:'Update password',exact:true}).count(),0);
  }
+ await page.goto(origin+'/today?mode=session&real=1&newowner=1');
+ await page.getByRole('heading',{name:'Onboarding',exact:true}).waitFor();
+ await page.goto(origin+'/update-password?mode=session&real=1&newowner=1');
+ await page.getByRole('heading',{name:'Choose a new password',exact:true}).waitFor({timeout:2000});
+ await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+ assert.equal(await page.getByRole('heading',{name:'Onboarding',exact:true}).count(),0,'unfinished setup must not replace the password recovery form');
+ await fill();await page.getByRole('button',{name:'Update password',exact:true}).click();
+ await page.getByRole('heading',{name:'Login',exact:true}).waitFor();
+ assert.equal(await page.evaluate(()=>fixture.updates.length),1);
+ assert.equal(await page.evaluate(()=>fixture.signouts),1);
+ await page.goto(origin+'/today?mode=session&real=1&newowner=1');
+ await page.getByRole('heading',{name:'Onboarding',exact:true}).waitFor();
+ assert.equal(await page.getByRole('heading',{name:'Hub',exact:true}).count(),0,'recovery exception cannot skip ordinary setup');
+ for (const [billing,heading] of [
+  ['trial','Your free trial has ended'],
+  ['cancelled','Your plan has ended'],
+  ['past_due','Your payment has not gone through'],
+ ]) {
+  const query='?mode=session&real=1&billing='+billing;
+  await page.goto(origin+'/today'+query);
+  await page.getByRole('heading',{name:heading,exact:true}).waitFor();
+  assert.equal(await page.getByRole('heading',{name:'Hub',exact:true}).count(),0,billing+' must retain the ordinary app restriction');
+  assert.equal(await page.evaluate(()=>fixture.updates.length),0);
+  await page.goto(origin+'/update-password'+query);
+  await page.getByRole('heading',{name:'Choose a new password',exact:true}).waitFor({timeout:2000});
+  assert.equal(await page.getByRole('heading',{name:heading,exact:true}).count(),0,billing+' must not block account recovery');
+  await fill();await page.getByRole('button',{name:'Update password',exact:true}).click();
+  await page.getByRole('heading',{name:'Login',exact:true}).waitFor();
+  assert.equal(await page.evaluate(()=>fixture.updates.length),1,billing+' recovery updates exactly once');
+  assert.equal(await page.evaluate(()=>fixture.signouts),1,billing+' recovery signs out exactly once');
+  await page.goto(origin+'/today'+query);
+  await page.getByRole('heading',{name:heading,exact:true}).waitFor();
+  assert.equal(await page.getByRole('heading',{name:'Hub',exact:true}).count(),0,billing+' recovery must not unlock ordinary access');
+ }
+ for (const path of [
+  '/update-password?mode=session&real=1&deleting=1&newowner=1&billing=cancelled',
+  '/today?mode=session&real=1&deleting=1&newowner=1&billing=cancelled',
+  '/account-deletion?mode=session&real=1',
+ ]) {
+  await page.goto(origin+path);
+  await page.getByRole('heading',{name:'Account deletion',exact:true}).waitFor();
+  assert.equal(await page.getByRole('heading',{name:'Choose a new password',exact:true}).count(),0,'account deletion retains precedence over recovery');
+  assert.equal(await page.getByRole('heading',{name:'Onboarding',exact:true}).count(),0,'account deletion retains precedence over setup');
+  assert.equal(await page.getByRole('heading',{name:'Your plan has ended',exact:true}).count(),0,'account deletion retains precedence over billing');
+  assert.equal(await page.evaluate(()=>fixture.updates.length),0);
+  assert.equal(await page.evaluate(()=>fixture.signouts),0);
+ }
+ await page.goto(origin+'/update-password?mode=empty&real=1&newowner=1&billing=cancelled');
+ await page.getByText('This reset link is unavailable or has expired.',{exact:false}).waitFor();
+ assert.equal(await page.getByRole('button',{name:'Update password',exact:true}).count(),0,'recovery still requires a valid session');
+ assert.equal(await page.evaluate(()=>fixture.updates.length),0);
+ await page.goto(origin+'/today?mode=empty&real=1&newowner=1&billing=cancelled');
+ await page.getByRole('heading',{name:'Login',exact:true}).waitFor();
+ assert.equal(await page.getByRole('heading',{name:'Hub',exact:true}).count(),0,'recovery exception cannot bypass sign-in');
  assert.deepEqual(errors,[]);
- console.log('PASS: recovery read retry/stale/late events, retained edits, expired link; real App confirmed sign-out to login, stalled sign-out to usable app, uncertain update prevents retry/sign-out and ignores late result');
+ console.log('PASS: recovery read retry/stale/late events, retained edits, expired link; real App confirmed sign-out to login, stalled sign-out to usable app, uncertain update prevents retry/sign-out and ignores late result; new-owner and restricted-plan recovery preserve ordinary access gates, account deletion and sign-in');
 } finally {await browser?.close();await new Promise(resolve=>server.close(resolve));}

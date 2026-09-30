@@ -445,8 +445,9 @@ export default function App() {
     );
   }
 
-  // Needs onboarding
-  if (needsOnboarding) {
+  // A new owner can need recovery before finishing setup. Let that route
+  // complete and sign out; ordinary app routes still require onboarding.
+  if (needsOnboarding && location.pathname !== '/update-password') {
     return (
       <Suspense fallback={<PageLoader />}>
         <Onboarding
@@ -492,7 +493,9 @@ export default function App() {
   // The shut door, with the right words on it. On native iOS the screen has
   // no purchase CTA, per App Store Guideline 3.1.3(b) Multiplatform Services.
   const door = pastDueLocked ? 'past_due' : planEnded ? 'cancelled' : showTrialExpired ? 'trial' : null;
-  if (door) {
+  // Account recovery must remain available after a plan ends. This does not
+  // grant access to the diary or any other subscription-controlled route.
+  if (door && location.pathname !== '/update-password') {
     return (
       <TrialExpiredScreen
         variant={door}
