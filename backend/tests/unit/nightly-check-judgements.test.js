@@ -366,6 +366,31 @@ describe('advisory parity between a workspace lock and the root lock', () => {
   it('says nothing at all when the two locks agree', () => {
     expect(judgeLockParity({ workspace: 'frontend', rootAdvisories: root, childAdvisories: { ...root } })).toEqual([]);
   });
+
+  it('identifies the backend Docker install and retains its advisory finding', () => {
+    const [result] = judgeLockParity({
+      workspace: 'backend',
+      rootAdvisories: {},
+      childAdvisories: root,
+    });
+    expect(result.severity).toBe('fail');
+    expect(result.detail).toContain('npm ci --omit=dev');
+    expect(result.detail).toContain('retain and audit this separate installation graph');
+    expect(result.fix).toEqual({ kind: 'lockfile-refresh', workspace: 'backend' });
+  });
+
+  it('does not mistake a reintroduced frontend copy for the web or iOS installation', () => {
+    const [result] = judgeLockParity({
+      workspace: 'frontend',
+      rootAdvisories: {},
+      childAdvisories: root,
+    });
+    expect(result.severity).toBe('fail');
+    expect(result.detail).toContain('uses the root workspace lock');
+    expect(result.detail).toContain('standalone frontend lock is unsupported');
+    expect(result.detail).not.toContain('present in what actually runs');
+    expect(result.detail).not.toContain('stop having a second lockfile');
+  });
 });
 
 describe('the platform matrix', () => {

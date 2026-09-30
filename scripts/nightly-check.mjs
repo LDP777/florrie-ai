@@ -334,23 +334,22 @@ async function checkApi({ apiUrl, requireNetwork }) {
 /* =========================================================================
  * 2. LOCKFILE PARITY
  *
- * This is a workspace root with THREE tracked lockfiles. npm maintains the
- * root one; the two workspace ones are vestigial as far as npm is concerned,
- * and they drift silently.
+ * The root lock serves web, iOS and workspace builds. Vercel includes files
+ * outside its frontend Root Directory and detects the root workspace; Xcode
+ * explicitly installs from the repository root. The unused frontend lock was
+ * removed after checking these actual installation paths on 30 September.
  *
- * That would be harmless except for DEPLOY.md line 415, which sets Vercel's
- * Root Directory to `frontend/`. Vercel therefore installs from
- * frontend/package-lock.json, while `npm audit` run from frontend/ walks UP to
- * the workspace root and reports the ROOT lock's answer. So the audit everyone
- * looks at is green about a lockfile production does not use.
+ * The backend Dockerfile installs from backend/package-lock.json in isolation.
+ * npm does not maintain that copy when updating the workspace root, so audit
+ * and validate it separately. New tracked locks are also checked, without
+ * assuming that a deployment consumes them.
  *
  * The measurement that matters is not "are the two files identical". They
  * never will be: a workspace install hoists differently, and comparing tree
  * paths produces structural false positives on this repo today (@sentry/core
  * is legitimately 10 at the root for the backend and 8 under the frontend).
- * The measurement is "does the lock production installs from carry advisories
- * the root lock does not". That has no false positives and states the risk
- * directly.
+ * The measurement is "does the standalone lock carry advisories the root
+ * lock does not". The report separately identifies its known consumer.
  * ========================================================================= */
 
 function advisoryKey(name, v) {
@@ -359,8 +358,8 @@ function advisoryKey(name, v) {
 
 /**
  * Audit one lockfile ON ITS OWN, by copying it and its package.json into an
- * empty directory so npm cannot walk up to the workspace root. This is the
- * only way to see what Vercel sees.
+ * empty directory so npm cannot walk up to the workspace root. For backend,
+ * this reproduces the isolated dependency graph used by its Docker build.
  */
 function auditIsolated(pkgDir) {
   const pkg = path.join(pkgDir, 'package.json');
@@ -420,11 +419,10 @@ export function judgePlatformMatrix(lockPackages) {
  * invented deployment story.
  */
 const LOCK_CONSUMERS = {
-  frontend: 'DEPLOY.md line 415 sets the Vercel Root Directory to `frontend/`, so if that is still true, Vercel '
-    + 'installs from this lock and the web app and the Capacitor iOS bundle are both built from it.',
-  backend: 'backend/Dockerfile copies `package*.json` and runs `npm install --omit=dev`, so Railway seeds its '
-    + 'resolutions from this lock. Note that it is `npm install` and not `npm ci`, so npm is free to move any '
-    + 'resolution the manifest no longer agrees with, which softens but does not remove the effect.',
+  frontend: 'The frontend uses the root workspace lock for Vercel, Xcode Cloud and local builds. A standalone '
+    + 'frontend lock is unsupported and the integrity guard rejects it; these advisories do not establish a deployed vulnerability.',
+  backend: 'backend/Dockerfile copies `package*.json` and runs `npm ci --omit=dev`. Railway therefore installs '
+    + 'the exact backend lock and rejects manifest drift; retain and audit this separate installation graph.',
 };
 
 /**
@@ -485,15 +483,14 @@ export function judgeLockParity({ workspace, rootAdvisories, childAdvisories, ve
       + 'anywhere this check can read, so it is not claimed here.')
     + '\n' + lines.join('\n')
     + (runtime.length
-      ? `\n\n${runtime.length} of these are runtime dependencies rather than build tooling, so they are present `
-        + 'in what actually runs. That is why this is a failure rather than a note.'
+      ? `\n\n${runtime.length} of these are runtime dependencies in this isolated lock rather than build tooling. `
+        + 'They reach a deployed service only if it installs from this lock; its known consumer is described above.'
       : unknown.length
         ? '\n\nWhether these reach production could not be determined on this run.'
         : '\n\nAll of these are dev only, so they are a build machine risk rather than a production one.')
-    + '\n\nThe cause is structural: npm does not maintain a workspace lockfile, so this one only moves when '
-    + `somebody runs npm inside ${workspace}/. The durable fix is to stop having a second lockfile at all, `
-    + 'which is a change to a deployment setting rather than to this repository, so it is left to a human. '
-    + 'Refreshing the lock in place is the part that is safe to automate, and that is what the fix job does.',
+    + '\n\nA root workspace install does not update this standalone lock. Maintain it explicitly with '
+    + '`--workspaces=false` when its isolated deployment needs it. The fix job can propose an in-place refresh '
+    + 'within the committed manifest ranges; removal or deployment changes require a separate installation-path review.',
     {
       key: extra.map(([k]) => k).sort().join(','),
       fix: { kind: 'lockfile-refresh', workspace },
@@ -568,9 +565,8 @@ function checkLockfiles() {
             + (p.resolved ? `, resolved to ${p.resolved}` : '')))
           .join('\n')
         + '\n\nnpm maintains the ROOT lockfile of a workspace and leaves this one where it was, so a dependency '
-        + `bumped in ${workspace}/package.json never reaches it. Nothing notices, because every gate reads the `
-        + 'root: CI runs `npm ci` at the repository root and `npm audit` from this directory walks up to the '
-        + 'root lock.\n'
+        + `bumped in ${workspace}/package.json does not automatically reach it. Root CI installs and workspace `
+        + 'audits use the root lock; the separate integrity guard and isolated deployment install detect this drift.\n'
         + (LOCK_CONSUMERS[workspace] || '')
         + '\n\nThe advisory parity check below is SKIPPED for this workspace, because auditing a lockfile that '
         + 'describes a dependency set nobody has asked for since would produce a long list of advisories about '
@@ -1837,11 +1833,10 @@ async function checkColumnDrift() {
  *   Refreshing a workspace lockfile that carries advisories the root lock does
  *   not. `npm update --package-lock-only` moves resolutions WITHIN the semver
  *   ranges already in package.json. No manifest change, no major bump, no new
- *   dependency, no application code. On this repository it takes
- *   frontend/package-lock.json from 11 advisories to 4, matching the root lock
- *   exactly, and the entire diff is one lockfile. Every claim is then proved
- *   before anything is proposed: the platform matrix, the parity re-measured,
- *   the full frontend build and the whole backend suite.
+ *   dependency, no application code. A refresh can still move many transitive
+ *   versions and may leave advisories unresolved. Re-measure advisory parity,
+ *   check the platform matrix and run the isolated install, frontend build and
+ *   backend suite before proposing the resulting lockfile diff for review.
  *
  * NOT SAFE, and never applied:
  *   - A MAJOR version bump. `npm audit fix --force` would take @capacitor/cli

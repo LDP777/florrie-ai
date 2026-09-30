@@ -14,17 +14,12 @@
 > files against source code and never opens a database, so it cannot see schema
 > drift at all.
 >
-> **A second finding is already sitting behind it, unread.** The `lock_manifest`
-> check in `scripts/nightly-check.mjs` reports that `backend/package-lock.json`
-> no longer describes `backend/package.json`: the lock pins `@sentry/node` at
-> `^8.0.0` while the manifest asks for `^10.70.0`, and `pg` and `vitest` are
-> absent from it entirely. That lockfile is the one the production image builds
-> from, and `backend/Dockerfile` installs with `npm install` rather than
-> `npm ci`, so npm silently re-resolves whatever the lock gets wrong instead of
-> failing. Production is running `@sentry/node` 10.73.0 against a lockfile that
-> says 8.55.2. Nobody chose that version, and no gate we have would have
-> objected. Confirmed by hand on 1 September 2026 by installing exactly what the
-> Dockerfile installs and reading the versions back.
+> **Historical dependency incident, resolved:** on 1 September the backend
+> standalone lock no longer described its manifest and Docker used `npm install`,
+> allowing production versions to drift. Docker now uses `npm ci --omit=dev`;
+> the lock-integrity guard checks both the root workspace and backend standalone
+> declarations. The unused frontend lock was removed on 30 September after
+> verifying that Vercel and Xcode Cloud install from the root workspace lock.
 >
 > **Do this:** paste the block below over the prompt of the scheduled task
 > "Florrie nightly health check". Until that is done, treat every schema line in
@@ -139,10 +134,10 @@ pins that, so the route cannot quietly close.
   reports and does not delete.
 * **History.** The secret scan reads the current tree. A key committed and later
   removed is still in every clone anybody made.
-* **Whether the Vercel Root Directory is still `frontend/`.** The lockfile
-  finding cites `DEPLOY.md` line 415 as its evidence and says so. If that setting
-  has changed, the finding is weaker than it reads and the evidence should be
-  updated.
+* **Changes to provider installation settings.** Vercel was verified on
+  30 September with Root Directory `frontend/` and outside-root source files
+  enabled, which preserves the root workspace installation. The nightly check
+  does not query provider settings; review installation paths if these change.
 
 ## Running it locally
 
@@ -164,7 +159,7 @@ Reading the output, which follows the same convention as the guards in
 `frontend/scripts/`:
 
 ```
-✗ lock_parity: frontend/package-lock.json carries 7 advisory(ies) the root lock does not
+✗ lock_parity: backend/package-lock.json carries 2 advisory(ies) the root lock does not
 - migration_ledger: the migration ledger was not read (not checked)
 ✓ tracked_secrets: no secret shaped strings in tracked files
 ```
@@ -217,13 +212,16 @@ a major version bump. Before the branch is pushed, the workflow proves it:
 1. The platform matrix survived, or the change is reverted.
 2. The lockfile still describes its manifest, or the change is reverted.
 3. Advisory parity with the root lock is re-measured.
-4. Each changed lockfile is **installed from on its own**, in a copy of the tree
-   with the workspace root deleted. This is the only way to make npm read a
-   workspace lockfile at all, and it reproduces what Vercel does with Root
-   Directory `frontend/`.
-5. The frontend build runs against that standalone install, and the backend suite
-   against its own.
-6. `scripts/check-lockfile.mjs`, the root build and the root suite all run too.
+4. Each changed standalone lockfile is **installed from on its own**, in a copy
+   of the tree with the workspace root removed. This reproduces the backend
+   Docker dependency graph; its dev dependencies are included for tests.
+5. The backend suite runs against that standalone install.
+6. `scripts/check-lockfile.mjs`, the frontend build and backend suite also run
+   against the root workspace installation used by CI, web and iOS builds.
+
+The root and backend locks are both audited. There is no frontend standalone
+lock to refresh. Vercel includes the repository files outside `frontend/` and
+Xcode Cloud explicitly runs `npm ci --workspace frontend` from the root.
 
 Never fixed automatically:
 
@@ -318,21 +316,20 @@ It records every file currently on disk as applied without executing any of it.
 After that, a pending file genuinely means an unapplied file, and the check can
 be promoted from a warning to a failure.
 
-## The two structural problems it will keep reporting
+## Installation graphs and the migration ledger
 
-Neither is fixable by this check, and both are worth doing properly.
+**Two active lockfiles.** The repository root lock covers frontend, iOS and
+workspace builds. `backend/package-lock.json` remains necessary because
+Railway builds the backend in isolation from `/backend`. Root npm commands do
+not update that separate lock. Maintain it explicitly with `--workspaces=false`
+when backend dependencies change, and run `npm run check:lockfile` before pushing.
+The guard checks the workspace declarations, backend standalone declarations,
+resolved direct packages and Mac/Linux platform binaries.
 
-**Three tracked lockfiles.** npm maintains the root lock of a workspace and
-leaves the workspace locks where they were. `frontend/package-lock.json` and
-`backend/package-lock.json` therefore only move when somebody runs npm inside
-those directories, and nothing notices, because every gate reads the root: CI
-runs `npm ci` at the root, and `npm audit` from `frontend/` walks **up** to the
-root lock. That is why `npm audit` in `frontend/` reported 4 vulnerabilities
-while `frontend/package-lock.json` audited on its own reported 11, several of them
-high and one of them `react-router-dom`, a runtime dependency. The nightly can
-refresh those locks; the durable fix is to stop having them, by moving the Vercel
-Root Directory to the repository root, which is a deployment setting and not a
-change to this repository.
+The previous frontend standalone lock produced different audit results, but
+provider settings and shipped runtime versions confirmed it was unused. It was
+removed rather than refreshing its dependency graph. Do not reintroduce it or
+change Vercel's outside-root source setting without reviewing the install path.
 
 **Migrations applied by hand.** See above. Until `baseline` has been run once,
 nothing can answer "is production up to date" with confidence, including a human.

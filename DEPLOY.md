@@ -413,8 +413,14 @@ Vercel hosts your React frontend with automatic deploys from GitHub.
 4. Configure:
    - **Framework:** Vite (auto-detected)
    - **Root Directory:** `frontend/`
+   - **Include source files outside the Root Directory:** enabled. Keep the repository root's `package.json` and `package-lock.json` available so Vercel detects the npm workspace and installs the tested root lock. Do not create a separate frontend lockfile.
    - **Build Command:** `npm run build` (auto-filled)
    - **Output Directory:** `dist` (auto-filled)
+
+For local and Xcode Cloud frontend builds, install from the repository root with
+`npm ci --workspace frontend`, then run `npm run build --workspace frontend`.
+Railway's backend uses a different installation path: its `/backend` Docker
+build needs `backend/package-lock.json` for `npm ci --omit=dev`.
 
 ### 3.3 Add Environment Variables
 

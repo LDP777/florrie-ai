@@ -319,18 +319,15 @@ jobs:
 
       # PROVE IT, DO NOT ASSUME IT.
       #
-      # This is the only honest way to verify a workspace lockfile, and it is
-      # worth explaining. `npm ci` inside frontend/ does NOT read
-      # frontend/package-lock.json: npm walks up to the workspace root and
-      # installs the root lock, into the root node_modules. That is exactly why
-      # this lockfile drifts unnoticed in the first place, and it means the
-      # ordinary build proves nothing about the file being changed.
+      # Standalone locks need an isolated install: running npm from a workspace
+      # normally finds the root lock. The active standalone consumer is the
+      # backend Docker build. Web and Xcode Cloud use the root workspace lock;
+      # there is deliberately no separate frontend lock.
       #
       # So: copy the tree somewhere, delete the root package.json and root
       # lockfile so there is no workspace to walk up to, and install. npm then
-      # has no choice but to read the lockfile under test. This reproduces what
-      # Vercel does with Root Directory `frontend/`, which is the situation the
-      # finding is about.
+      # has no choice but to read the lockfile under test. This reproduces the
+      # backend Docker dependency graph, including dev dependencies for tests.
       - name: Install from the changed lockfiles and build
         if: steps.apply.outputs.changed == 'true'
         run: |

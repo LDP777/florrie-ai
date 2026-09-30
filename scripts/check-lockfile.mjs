@@ -21,75 +21,24 @@
  *
  *   node scripts/check-lockfile.mjs
  */
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { checkLockfileIntegrity, REQUIRED_PLATFORM_PACKAGES } from './lib/lockfile-integrity.mjs';
 
-const LOCK = new URL('../package-lock.json', import.meta.url).pathname;
-
-/**
- * Packages whose absence breaks a build on a real machine somebody uses.
- * darwin-arm64 is Levi's Mac and the iOS build; darwin-x64 is an Intel Mac.
- * The Linux ones are CI and Vercel, and are here so a lockfile regenerated on
- * a MAC is caught by the same check.
- */
-const REQUIRED = [
-  '@rollup/rollup-darwin-arm64',
-  '@rollup/rollup-darwin-x64',
-  '@rollup/rollup-linux-x64-gnu',
-  '@esbuild/darwin-arm64',
-  '@esbuild/linux-x64',
-];
-
-const raw = readFileSync(LOCK, 'utf8');
-const lock = JSON.parse(raw);
-const names = new Set(
-  Object.keys(lock.packages || {})
-    .map(k => k.replace(/^.*node_modules\//, ''))
-    .filter(Boolean),
-);
-
-const missing = REQUIRED.filter(p => !names.has(p));
-
-if (missing.length) {
-  console.error('✗ lockfile: platform binaries are missing.\n');
-  for (const m of missing) console.error(`    ${m}`);
-  console.error(`
-  This happens when package-lock.json is deleted and regenerated on one
-  platform: npm only records the optional dependencies for the machine it ran
-  on. CI will stay green — CI is Linux — and \`npm ci\` will fail on a Mac with
-  "Cannot find module @rollup/rollup-darwin-arm64".
-
-  Do not regenerate the lockfile to fix this. Restore it and update it in
-  place, which preserves entries npm has no reason to touch:
-
-      git checkout HEAD -- package-lock.json
-      npm install --package-lock-only
-`);
-  process.exit(1);
-}
-
-console.log(`✓ lockfile: ${REQUIRED.length} platform binaries present, so it still installs on a Mac as well as on CI`);
-
-// A root npm ci does not validate either standalone lock. Keep both deploy
-// inputs current when adding a library, rather than discovering drift nightly.
-// Include dev dependencies: npm ci validates them even with --omit=dev.
-for (const workspace of ['backend', 'frontend']) {
-  const manifest = JSON.parse(readFileSync(new URL(`../${workspace}/package.json`, import.meta.url), 'utf8'));
-  const standalone = JSON.parse(readFileSync(new URL(`../${workspace}/package-lock.json`, import.meta.url), 'utf8'));
-  for (const group of ['dependencies', 'devDependencies', 'optionalDependencies']) {
-    const expected = manifest[group] || {};
-    const declared = standalone.packages?.['']?.[group] || {};
-    for (const name of new Set([...Object.keys(expected), ...Object.keys(declared)])) {
-      if (expected[name] !== declared[name] || !standalone.packages?.[`node_modules/${name}`]) {
-        throw new Error(`${workspace}/package-lock.json is out of sync: ${group}.${name}`);
-      }
-    }
-  }
-  if (workspace === 'frontend') {
-    for (const name of REQUIRED) {
-      if (!standalone.packages?.[`node_modules/${name}`]) {
-        throw new Error(`frontend/package-lock.json is missing platform binary: ${name}`);
-      }
-    }
-  }
-  console.log(`✓ lockfile: ${workspace} standalone manifest and locked packages agree`);
+const readJson = path => JSON.parse(readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'));
+try {
+  const errors = checkLockfileIntegrity({
+    rootLock: readJson('package-lock.json'),
+    frontendManifest: readJson('frontend/package.json'),
+    backendManifest: readJson('backend/package.json'),
+    backendLock: readJson('backend/package-lock.json'),
+    frontendStandaloneExists: existsSync(new URL('../frontend/package-lock.json', import.meta.url)),
+  });
+  if (errors.length) throw new Error(errors.join('\n'));
+  console.log(`✓ lockfile: ${REQUIRED_PLATFORM_PACKAGES.length} Mac/Linux platform binaries present`);
+  console.log('✓ lockfile: frontend and backend workspace manifests agree with the root lock');
+  console.log('✓ lockfile: backend standalone manifest and locked packages agree');
+} catch (error) {
+  console.error(`✗ lockfile integrity:\n${error.message}`);
+  console.error('Update the active lock in place; do not delete and regenerate it, which can lose Mac platform binaries.');
+  process.exitCode = 1;
 }
