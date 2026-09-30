@@ -5,6 +5,7 @@ import { useTheme } from '../lib/theme.jsx';
 import { API_BASE } from '../lib/config.js';
 import { isNativeApp } from '../lib/platform.js';
 import { startInstagramConnection } from '../lib/instagram-connect.js';
+import { startGoogleCalendarConnection, createGoogleCalendarReturnCheck } from '../lib/google-calendar-connect.js';
 import SMSUsageWidget from '../components/SMSUsageWidget.jsx';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
@@ -104,7 +105,13 @@ export default function Settings({ onLogout }) {
   const [connectingStripe, setConnectingStripe] = useState(false);
   const [stripeError, setStripeError] = useState(null);
   const [gcalConnecting, setGcalConnecting] = useState(false);
-  const [gcalBanner, setGcalBanner] = useState(null); // 'success' | 'error' | null
+  const [gcalBanner, setGcalBanner] = useState(null);
+  const [gcalDetail, setGcalDetail] = useState('');
+  const gcalReturn = useRef(null), gcalRun = useRef(0), gcalBusy = useRef(false);
+  const gcalDisplayedOwner = useRef(beautician?.id);
+  const gcalCallback = useRef(new URLSearchParams(window.location.search).get('gcal'));
+  const currentOwner = useRef(beautician?.id);
+  currentOwner.current = beautician?.id;
   const [stripeBanner, setStripeBanner] = useState(null); // 'success' | 'refresh' | 'pending' | null
   const [igConnecting, setIgConnecting] = useState(false);
   const [igBanner, setIgBanner] = useState(null); // 'success' | 'error' | 'no_page' | 'no_ig_account' | null
@@ -124,16 +131,56 @@ export default function Settings({ onLogout }) {
   // { check_failed: true } = the check itself failed (network, 500).
   const [igStatus, setIgStatus] = useState(null);
 
-  // Detect Google Calendar OAuth callback redirect (?gcal=success|error)
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const gcalStatus = params.get('gcal');
-    if (gcalStatus === 'success' || gcalStatus === 'error') {
-      setGcalBanner(gcalStatus);
-      setSection('calendar', true);
-      if (gcalStatus === 'success') refresh();
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    const ownerId = beautician?.id;
+    gcalRun.current++;
+    gcalBusy.current = false;
+    setGcalConnecting(false);
+    if (gcalDisplayedOwner.current && gcalDisplayedOwner.current !== ownerId) { setGcalBanner(null); setGcalDetail(''); }
+    gcalDisplayedOwner.current = ownerId;
+    if (!isNativeApp() || !ownerId) return () => { gcalRun.current++; };
+    let disposed = false, listener;
+    const check = createGoogleCalendarReturnCheck({
+      isCurrent: () => !disposed && currentOwner.current === ownerId && gcalReturn.current === check,
+      readStatus: () => readAuthenticatedJson({ auth: supabase.auth, url: `${API_BASE}/api/gcal/status` }),
+      refresh,
+      onChecking: setGcalConnecting,
+      onResult: result => { setGcalBanner(result); setGcalDetail(''); },
+    });
+    gcalReturn.current = check;
+    // Foregrounding the app can happen while Google's sheet is still open.
+    // Only closing that browser finishes the pending connection attempt.
+    import('@capacitor/browser').then(async ({ Browser }) => {
+      listener = await Browser.addListener('browserFinished', () => { void check.finish(); });
+      if (disposed) await listener.remove();
+    }).catch(() => {});
+    return () => {
+      disposed = true; check.cancel(); gcalRun.current++;
+      if (gcalReturn.current === check) gcalReturn.current = null;
+      void listener?.remove();
+    };
+  }, [beautician?.id, refresh]);
+
+  // A callback URL alone cannot prove the currently signed-in salon connected.
+  useEffect(() => {
+    const result = gcalCallback.current;
+    if (result !== 'success' && result !== 'error') return;
+    setSection('calendar', true);
+    if (result === 'error') { setGcalBanner('error'); gcalCallback.current = null; return; }
+    setGcalBanner('checking');
+    const ownerId = beautician?.id;
+    if (!ownerId) return;
+    let disposed = false;
+    const check = createGoogleCalendarReturnCheck({
+      isCurrent: () => !disposed && currentOwner.current === ownerId,
+      readStatus: () => readAuthenticatedJson({ auth: supabase.auth, url: `${API_BASE}/api/gcal/status` }),
+      refresh,
+      onChecking: setGcalConnecting,
+      onResult: status => { gcalCallback.current = null; setGcalBanner(status); },
+    });
+    check.begin(); void check.finish();
+    return () => { disposed = true; check.cancel(); };
+  }, [beautician?.id, refresh]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Detect Instagram OAuth callback (?ig=success|error|no_page|no_ig_account)
   useEffect(() => {
@@ -273,24 +320,27 @@ export default function Settings({ onLogout }) {
   }
 
   async function handleConnectGoogleCal() {
+    if (gcalBusy.current || gcalConnecting) return;
+    const ownerId = beautician?.id, run = ++gcalRun.current;
+    const active = () => currentOwner.current === ownerId && gcalRun.current === run;
+    gcalBusy.current = true;
     setGcalConnecting(true);
     setGcalBanner(null);
+    setGcalDetail('');
     try {
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const res = await fetch(`${API_BASE}/api/gcal/connect`, {
-        headers: { 'Authorization': `Bearer ${token}` },
+      const native = isNativeApp();
+      await startGoogleCalendarConnection({
+        api: API_BASE, native, isCurrent: active,
+        getToken: async () => (await supabase.auth.getSession()).data.session?.access_token,
+        beforeOpen: () => {
+          if (native) { gcalReturn.current?.begin(); setGcalBanner('awaiting'); }
+        },
       });
-      const data = await res.json();
-      if (data.url) {
-        window.location.href = data.url;
-      } else {
-        setGcalBanner('error');
-        setGcalConnecting(false);
-      }
     } catch (err) {
       logger.error('Google Cal connect error:', err);
-      setGcalBanner('error');
-      setGcalConnecting(false);
+      if (active()) { gcalReturn.current?.cancel(); setGcalBanner('error'); setGcalDetail(err.message); }
+    } finally {
+      if (active()) { gcalBusy.current = false; setGcalConnecting(false); }
     }
   }
 
@@ -1092,7 +1142,16 @@ export default function Settings({ onLogout }) {
               <p style={{ fontSize: 12, color: 'var(--success)', marginTop: 8, marginBottom: 0 }}><Icon name="check" size={14} inline /> Google Calendar connected</p>
             )}
             {gcalBanner === 'error' && (
-              <p style={{ fontSize: 12, color: 'var(--danger, #9E2B32)', marginTop: 8, marginBottom: 0 }}>Connection failed, check your Google credentials and try again</p>
+              <p role="alert" style={{ fontSize: 12, color: 'var(--danger, #9E2B32)', marginTop: 8, marginBottom: 0 }}>{gcalDetail || 'Could not confirm your calendar connection. Refresh Settings or try connecting again.'}</p>
+            )}
+            {gcalBanner === 'awaiting' && (
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, marginBottom: 0 }}>Finish in Google, then close that browser to return here.</p>
+            )}
+            {gcalBanner === 'checking' && (
+              <p role="status" style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, marginBottom: 0 }}>Checking your saved calendar connection…</p>
+            )}
+            {gcalBanner === 'not_connected' && (
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, marginBottom: 0 }}>Google Calendar is not connected yet. You can try again whenever you are ready.</p>
             )}
           </div>
 
