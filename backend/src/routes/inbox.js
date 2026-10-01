@@ -8,6 +8,7 @@ import { authorshipForSend } from '../lib/idiolect.js';
 import { generateReplySuggestions, replyIsOwed, learnFromCorrection } from '../services/ai-front-desk.js';
 import { isMissingColumnError } from '../lib/junk-classifier.js';
 import { isSocialLead, clientsEverBooked } from '../lib/inbox-space.js';
+import { INSTAGRAM_STORY_UNAVAILABLE_MARKER } from '../lib/instagram-story-context.js';
 
 const router = Router();
 
@@ -127,6 +128,7 @@ function needsYou(bucket) {
   if (bucket.needs_appointment_decision) return true;
   if (bucket.last_message_direction !== 'inbound') return false;
   if (Date.now() - new Date(bucket.last_message_at).getTime() > NEEDS_YOU_WINDOW_MS) return false;
+  if (typeof bucket._latestInboundReplyOwed === 'boolean') return bucket._latestInboundReplyOwed;
   return replyIsOwed(bucket.last_inbound_preview || bucket.last_message_preview, {
     intent: bucket.last_inbound_intent,
   });
@@ -290,6 +292,7 @@ async function computeThreads(beauticianId, limit) {
             _junkInbound: 0,
             _hasIdentity: false,
             _instagramOnly: true,
+            _latestInboundLead: false,
           };
           buckets.set(row.client_id, bucket);
           for (const k of keys) identityToBucket.set(k, bucket);
@@ -324,6 +327,17 @@ async function computeThreads(beauticianId, limit) {
       if (row.direction === 'inbound' && bucket.last_inbound_intent === null) {
         bucket.last_inbound_intent = row.ai_intent || 'unknown';
         bucket.last_inbound_at = row.created_at;
+        // The visible preview is only 90 characters. Classify the complete
+        // question before its story metadata or request can be truncated.
+        bucket._latestInboundLead = isSocialLead({
+          content: row.content, intent: row.ai_intent, isJunk: row.is_junk,
+          media_type: row.media_type, escalated_reason: row.escalated_reason,
+        });
+        // Story metadata must not turn a heart or a thank-you into a question.
+        bucket._latestInboundReplyOwed = replyIsOwed(
+          String(row.content || '').split(INSTAGRAM_STORY_UNAVAILABLE_MARKER)[0].trim(),
+          { intent: row.ai_intent },
+        );
       }
       // Latest inbound preview: prefer the newest inbound that actually has
       // text, so "Waiting on you" shows her the question, not a media stub.
@@ -410,11 +424,7 @@ async function computeThreads(beauticianId, limit) {
       // marks the handful with actual buying intent.
       const igStranger = t._instagramOnly && !isKnownClient;
       t.space = igStranger ? 'instagram' : 'clients';
-      t.is_social_lead = igStranger && isSocialLead({
-        content: t.last_inbound_preview,
-        intent: t.last_inbound_intent,
-        isJunk,
-      });
+      t.is_social_lead = igStranger && !isJunk && t._latestInboundLead;
 
       // Kept (as a plain array) for clear-social; /threads strips it.
       t.client_ids = Array.from(t.client_ids);
@@ -424,6 +434,8 @@ async function computeThreads(beauticianId, limit) {
       delete t._junkInbound;
       delete t._hasIdentity;
       delete t._instagramOnly;
+      delete t._latestInboundLead;
+      delete t._latestInboundReplyOwed;
     }
 
     return { threads };

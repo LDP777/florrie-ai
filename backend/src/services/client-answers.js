@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { cleanReply } from '../lib/text.js';
 import { checkReplyClaims, timesMentionedIn } from '../lib/reply-claims-guard.js';
-import { diaryReleaseAnswer, questionMissingReply, renderClientHistory } from '../lib/client-question.js';
+import { diaryReleaseAnswer, usableDiaryReleaseNote, questionMissingReply, renderClientHistory } from '../lib/client-question.js';
 import { answerTreatmentMenuQuestion } from './treatment-menu-answer.js';
 
 const schema = z.object({
@@ -14,19 +14,24 @@ const guidanceSelection = z.object({ covered: z.boolean(), guidance_ids: z.array
 /** Read-only answer generation shared by client replies and the owner's rehearsal. */
 export async function answerClientQuestion({ message, scenario, context, beautician, voiceInstructions = '', askModel, now = new Date() }) {
   const kind = scenario?.kind || 'general_question';
+  const question = scenario?.question || message;
+  if (kind === 'story_context') return { reply: questionMissingReply(kind), canAnswer: false, reason: 'story_context:unavailable', sources: [] };
   // A product failure needs support, even when the message names a treatment
   // and time. Do not turn it into a fresh booking or claim an email was sent.
   if (kind === 'booking_problem') return { reply: questionMissingReply(kind), canAnswer: false, reason: 'booking_support:booking_problem', sources: [] };
   if (kind === 'treatment_menu') return answerTreatmentMenuQuestion({ message: scenario?.question || message, context, askModel });
   if (kind === 'diary_release') {
-    const policyAnswer = diaryReleaseAnswer({ message, beautician, now });
+    const policyAnswer = diaryReleaseAnswer({ message: question, beautician, now });
     if (policyAnswer) return policyAnswer;
   }
-  const notes = (context.knowledge || []).filter(note => note.id && note.content && note.is_active !== false);
+  const notes = (context.knowledge || []).filter(note => note.id && note.content && note.is_active !== false)
+    // A general 60-day rule cannot confirm a named Christmas or monthly launch.
+    .filter(note => kind !== 'diary_release' || usableDiaryReleaseNote(note, question, beautician, now));
   const missing = reason => ({ reply: questionMissingReply(kind), canAnswer: false, reason, sources: [] });
-  if (!notes.length) return missing('training:no_approved_answer');
+  if (!notes.length) return missing(kind === 'diary_release' ? 'diary_release:announcement_unconfirmed' : 'training:no_approved_answer');
 
   const treatmentGuidance = kind === 'treatment_guidance';
+  const diaryGuidance = kind === 'diary_release';
   const result = await askModel({
     model: 'claude-haiku-4-5-20251001', max_tokens: 650,
     ...(treatmentGuidance ? {
@@ -48,6 +53,7 @@ Answer only when those facts cover the question. A matching treatment name alone
 For treatment spacing, state only the approved interval and maintenance options. Do not calculate or name a calendar return date, an elapsed duration, or declare the client safe/cleared for treatment. A past "appointment" does not establish which treatment they had. A client's account is not a verified treatment record.
 If the approved rule is known but the last full treatment or its date is missing, covered can be true: give the rule and ask one short clarifying question. Do not invent the missing detail, divert them into booking, or unnecessarily hand them to the owner. If the rule itself is missing, covered must be false. Never infer safety from visit count or a client's claim that no patch test is needed.
 For dates not released, explain the salon's rule; do not assume a holiday, promise an opening or ask for a treatment to answer that policy question.
+For a named month, seasonal promotion or story, a general advance-booking limit does not establish the announcement. Set covered false unless the approved note explicitly confirms the requested release. Never dismiss the requested period as too far away or replace it with an earlier appointment. The application will quote the full selected diary note, including its qualifications; do not add your own release date or availability claim.
 Do not offer slots, start a booking, claim to have sent anything, promise a callback, or volunteer patch-test/deposit instructions unrelated to the question. Do not pretend to be the owner. Keep the answer short, usually one to three sentences.
 Return JSON only: {"covered":true|false,"reply":"client-facing answer","evidence":[{"id":"approved note id","quote":"exact supporting text from that note"}]}. When covered is true, cite every factual rule you use with an exact supporting quote. When the notes do not answer the question, set covered false. Never invent a source.
 
@@ -72,16 +78,16 @@ ${JSON.stringify((context.conversation || []).slice(-8).map(({ direction, conten
       parsed = schema.parse(JSON.parse(raw));
     }
   } catch { return missing('training:answer_unverified'); }
-  if (!parsed.covered || !parsed.evidence.length) return missing('training:answer_not_covered');
+  if (!parsed.covered || !parsed.evidence.length) return missing(diaryGuidance ? 'diary_release:announcement_unconfirmed' : 'training:answer_not_covered');
   const cited = [];
   for (const evidence of parsed.evidence) {
     const note = notes.find(note => note.id === evidence.id);
     if (!note || !normalise(note.content).includes(normalise(evidence.quote))) return missing('training:source_unverified');
     if (!cited.some(source => source.id === note.id)) cited.push(note);
   }
-  // Clinical timing rules are quoted in full, never rewritten into a model's
-  // calculation or personal clearance. Keep qualifiers at the end of the note.
-  const reply = treatmentGuidance ? cited.map(note => note.content.trim()).join('\n\n') : cleanReply(parsed.reply);
+  // Quote treatment rules and diary announcements in full. A rewrite must not
+  // invent personal clearance or a release date, or drop the note's conditions.
+  const reply = treatmentGuidance || diaryGuidance ? cited.map(note => note.content.trim()).join('\n\n') : cleanReply(parsed.reply);
   if (reply.length > 1200) return missing('training:guidance_too_long');
   const sourceText = cited.map(note => note.content).join('\n');
   const guarded = checkReplyClaims(reply, { allowedTimes: timesMentionedIn(sourceText), arrivalNote: sourceText });

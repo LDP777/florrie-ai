@@ -9,6 +9,8 @@
  * new reason is never hidden, only unpolished.
  */
 const EXACT = {
+  'story_context:unavailable': 'They asked about an Instagram story that Florrie cannot see. Check the story and reply to their question.',
+  'diary_release:announcement_unconfirmed': 'They asked when dates will open. Florrie does not have a confirmed announcement. Confirm the release date before replying.',
   'appointment_change:short_notice': 'A short-notice booking change needs your decision. Check the diary and any fees before confirming it.',
   'appointment_change:booking_unclear': 'Florrie could not tell which booking they want to change. Check the date and treatment with them.',
   'appointment_change:booking_not_found': 'Florrie could not find the booking they want to change. Check their details before confirming anything.',

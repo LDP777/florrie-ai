@@ -30,6 +30,8 @@ import { deDash } from '../lib/text.js';
 import { guardedSend } from '../lib/outbound-guard.js';
 import { isOptOutMessage, applyOptOut, OPT_OUT_CONFIRMATION } from '../lib/opt-out.js';
 import { queueReplyLearning } from '../services/reply-learning.js';
+import { describeInstagramStoryReply, formatInstagramStoryReply, isUnavailableStoryContext } from '../lib/instagram-story-context.js';
+import { isSocialLead } from '../lib/inbox-space.js';
 
 const router = Router();
 
@@ -306,7 +308,8 @@ async function handleInstagramEcho(event, entryId) {
   const media = event.message?.attachments?.length
     ? describeInstagramAttachment(event.message.attachments[0])
     : null;
-  if (!text && !media) return;   // reactions, read receipts, nothing to record
+  const story = describeInstagramStoryReply(event.message);
+  if (!text && !media && !story) return;   // reactions, read receipts, nothing to record
 
   // On an echo the business is the SENDER and the client is the RECIPIENT,
   // which is the reverse of every other event in this file.
@@ -379,9 +382,9 @@ async function handleInstagramEcho(event, entryId) {
     client_id: client.id,
     channel: 'instagram',
     direction: 'outbound',
-    content: text || media?.label || '[Message]',
-    media_url: media?.media_url || null,
-    media_type: media?.media_type || null,
+    content: formatInstagramStoryReply(text, story, media?.label),
+    media_url: media ? media.media_url : story?.media_url || null,
+    media_type: media?.media_type || story?.media_type || null,
     external_message_id: mid || null,
     ai_handled: false,
     ...authorship('human'),
@@ -400,8 +403,23 @@ async function handleInstagramEcho(event, entryId) {
   // teach her. Only checked text replies enter the private approval queue;
   // media can change the meaning of a caption, and no suggestion is approved
   // automatically. The detached learner cannot delay delivery or the inbox.
-  if (learningProvenanceChecked && !media && text.trim().length >= 20 && saved?.id) {
-    queueReplyLearning(beautician.id, saved.id);
+  if (learningProvenanceChecked && !media && !story && text.trim().length >= 20 && saved?.id) {
+    // A reply to an unseen story is not standalone salon guidance. Even if
+    // the echo omits reply_to, inspect the preceding question before learning.
+    // Failure here holds learning only; the owner's message is already saved.
+    try {
+      let query = supabase.from('messages').select('content, media_type, escalated_reason')
+        .eq('beautician_id', beautician.id).eq('client_id', client.id)
+        .eq('channel', 'instagram').eq('direction', 'inbound')
+        .lte('created_at', new Date().toISOString());
+      const replyMid = event.message?.reply_to?.mid;
+      if (typeof replyMid === 'string' && replyMid.length <= 1024) query = query.eq('external_message_id', replyMid);
+      const { data: preceding, error: contextErr } = await query.order('created_at', { ascending: false }).limit(1);
+      if (!contextErr && !isUnavailableStoryContext(preceding?.[0])
+        && (!replyMid || preceding?.length)) queueReplyLearning(beautician.id, saved.id);
+    } catch {
+      logger.warn({ beauticianId: beautician.id, clientId: client.id }, 'Instagram echo: could not verify story context; learning skipped');
+    }
   }
 }
 
@@ -441,10 +459,11 @@ async function handleInstagramMessage(event, pageId) {
   // WhatsApp webhook already writes them, the Inbox already renders that
   // shape, so storing it is the whole fix.
   const media = describeInstagramAttachment((event.message.attachments || [])[0]);
+  const story = describeInstagramStoryReply(event.message);
 
   if (!senderId) return;
   // Genuinely nothing to store: no words and no attachment.
-  if (!messageText && !media) return;
+  if (!messageText && !media && !story) return;
 
   const candidateIds = receivingAccountIds(event, pageId);
   const { beautician, matchedOn } = await findBeauticianForIds(candidateIds);
@@ -473,7 +492,7 @@ async function handleInstagramMessage(event, pageId) {
   // in front of answering the client.
   ensureEchoSubscription(beautician).catch(() => {});
 
-  await processInstagramDM(beautician, senderId, messageText, messageId, media);
+  await processInstagramDM(beautician, senderId, messageText, messageId, media, story);
 }
 
 /**
@@ -633,7 +652,7 @@ async function flagMessageAsJunk(messageId, reason) {
 /**
  * Find or create client, store message, and pass to AI Front Desk.
  */
-async function processInstagramDM(beautician, senderId, messageText, messageId, media = null) {
+async function processInstagramDM(beautician, senderId, messageText, messageId, media = null, story = null) {
   // A NULL MODE MEANS SILENCE, NOT A REDIRECT.
   //
   // 31 August 2026. This line read `|| 'redirect'`, so a salon that had never
@@ -741,6 +760,9 @@ async function processInstagramDM(beautician, senderId, messageText, messageId, 
   const junk = classifyInboundMessage(messageText, {
     isKnownClient: looksLikeKnownClient(client, { channel: 'instagram' }),
   });
+  const needsStoryReview = !!story && !!messageText.trim() && dmMode !== 'off'
+    && !junk.isJunk && !isOptOutMessage(messageText)
+    && isSocialLead({ content: formatInstagramStoryReply(messageText, story), intent: 'general_question', isJunk: junk.isJunk });
 
   // Store the inbound message. A media DM carries a placeholder in `content`
   // (never blank, see describeInstagramAttachment) plus the media columns, so
@@ -752,13 +774,14 @@ async function processInstagramDM(beautician, senderId, messageText, messageId, 
       client_id: client?.id,
       channel: 'instagram',
       direction: 'inbound',
-      content: messageText || media?.label || '[Message]',
-      media_url: media?.media_url || null,
-      media_type: media?.media_type || null,
+      content: formatInstagramStoryReply(messageText, story, media?.label),
+      media_url: media ? media.media_url : story?.media_url || null,
+      media_type: media?.media_type || story?.media_type || null,
       external_message_id: messageId,
       ai_handled: false,
       ...authorship('client'),
-      escalated: false,
+      escalated: needsStoryReview,
+      ...(needsStoryReview ? { escalated_reason: 'story_context:unavailable', ai_intent: 'general_question' } : {}),
     })
     .select()
     .single();
@@ -815,6 +838,12 @@ async function processInstagramDM(beautician, senderId, messageText, messageId, 
 
   if (dmMode === 'off') {
     logger.info({ senderId, mode: 'off' }, 'Instagram DM stored, no reply (mode=off)');
+    return;
+  }
+
+  if (story) {
+    logger.info({ beauticianId: beautician.id, senderId, mode: dmMode, needsReview: needsStoryReview },
+      'Instagram story reply stored; story content unavailable, no automatic reply');
     return;
   }
 

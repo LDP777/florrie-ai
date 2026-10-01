@@ -382,6 +382,11 @@ export async function processInboundMessage(messageId, beautician, client, messa
       trainingEnquiry,
     });
 
+    // Confidence and an explicit auto-reply preference cannot replace a
+    // missing answer. Keep unsupported policy questions out of every send and
+    // booking path, including accounts with grounded replies switched off.
+    if (context.questionAnswer && context.questionAnswer.canAnswer !== true) shouldAct = false;
+
     if (florriePaused) {
       logger.info({ beauticianId: beautician.id, clientId: client?.id || null },
         'AI Front Desk: Florrie is paused, drafting for her instead of sending');
@@ -638,6 +643,8 @@ export async function processInboundMessage(messageId, beautician, client, messa
             ? personNeeded.reason
           : trainingEnquiry?.yes
             ? trainingEnquiry.reason
+          : context.questionAnswer?.canAnswer === false
+            ? context.questionAnswer.reason
           : subscriptionLapsed
             ? 'subscription_lapsed'
           : !salonHasAMenu
@@ -1005,7 +1012,7 @@ async function gatherContext(beautician, client, messageContent = '') {
       // would reject the WHOLE select, and this select IS the conversation
       // history, so the failure would be Florrie answering with no context at
       // all: worse than the out-of-context replies it is here to prevent.
-      .select(`id, direction, content, channel, created_at${authorshipAvailable() ? ', authored_by' : ''}`)
+      .select(`id, direction, content, channel, created_at, media_type, escalated_reason${authorshipAvailable() ? ', authored_by' : ''}`)
       .eq('client_id', client.id)
       .eq('beautician_id', beautician.id)
       .order('created_at', { ascending: false })
@@ -1273,7 +1280,7 @@ async function prepareClientAnswer({ message, scenario, context, beautician }) {
   try {
     // Only the evidence-checked answer pipeline may consider unmatched notes.
     // A different wording can mean the same thing; a keyword score is not proof.
-    if (!['diary_release', 'treatment_menu'].includes(scenario?.kind)) {
+    if (!['treatment_menu', 'story_context'].includes(scenario?.kind)) {
       const candidates = await retrieveKnowledge(beautician.id, scenario?.question || message, { maxEntries: 12, maxChars: 12000, includeUnmatched: true });
       context = { ...context, knowledge: candidates };
     }
@@ -1322,7 +1329,7 @@ Intents:
 - complaint: unhappy about something
 - unknown: can't determine intent
 
-Questions come before booking. "Is it too early for lami again in 2 weeks?" and "is 8 October too soon after my last appointment?" are general_question, even though they mention booking or a date. "Have November dates been released?" is a diary-policy question, not a request for slots. A follow-up date or last-treatment detail continues that question. Only switch to booking_request when they actually choose to make a booking.
+Questions come before booking. "Is it too early for lami again in 2 weeks?" and "is 8 October too soon after my last appointment?" are general_question, even though they mention booking or a date. "Have November dates been released?", "When is December dates out!! Need to book in asap" and "When do you open Christmas appointments?" ask when booking opens. They are general_question even with urgency or an intent to book later. Answer the release question first; do not substitute nearer dates, call the requested month too far away or ask for a treatment to avoid the question. A follow-up date or last-treatment detail continues that question. Only switch to booking_request when they actually choose to make a booking.
 
 Respond with: {"intent": "...", "confidence": 0.XX, "extracted": {"treatment": "...", "date": "...", "time": "..."}}
 Only include extracted fields if they're mentioned in the message. Confidence is 0.0 to 1.0.`,

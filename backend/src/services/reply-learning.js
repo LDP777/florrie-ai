@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { supabase } from '../config.js';
 import { KNOWLEDGE_CATEGORIES } from '../lib/knowledge.js';
 import logger from '../lib/logger.js';
+import { isUnavailableStoryContext } from '../lib/instagram-story-context.js';
 
 const model = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: 20000, maxRetries: 0 });
 const schema = z.object({
@@ -21,6 +22,10 @@ export const eligibleReply = row => row?.direction === 'outbound' && ['human', '
 // The client's name is used locally to reject a candidate, never in a global note.
 export async function extractReplyLesson({ reply, question = '', clientNames = [], askModel = request => model.messages.create(request) }) {
   if (typeof reply !== 'string' || reply.length < 20 || reply.length > 5000) return null;
+  // A reply to a story can depend on terms we cannot see. It is not reusable
+  // guidance until the owner supplies a complete, explicit salon rule.
+  if (isUnavailableStoryContext(question) || isUnavailableStoryContext(reply)) return null;
+  if (/\b(?:today|tomorrow|tonight|rolling out|this (?:christmas|december)|next (?:week|month))\b/i.test(reply)) return null;
   // A model must not strip the words that make a concession personal.
   if (/\b(?:just (?:for you|this once|this time)|one[- ]off|as a favour|for you only|make an exception|this (?:slot|cancellation)|your (?:booking|cancellation|deposit|refund)|i(?:'m| am) not able to fill)\b/i.test(reply)) return null;
   const result = await askModel({

@@ -63,7 +63,7 @@ async function leadCard(beauticianId, timezone) {
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const { data, error } = await supabase
       .from('messages')
-      .select('id, client_id, content, ai_intent, is_junk, created_at, clients(id, first_name, phone, email, whatsapp_id, instagram_username)')
+      .select('id, client_id, content, media_type, escalated_reason, ai_intent, ai_response, is_junk, created_at, clients(id, first_name, phone, email, whatsapp_id, instagram_username)')
       .eq('beautician_id', beauticianId)
       .eq('channel', 'instagram')
       .eq('escalated', true)
@@ -77,7 +77,8 @@ async function leadCard(beauticianId, timezone) {
     // The Instagram space is strangers only: same rule as the inbox split.
     // Known clients' messages already live in the Clients space and its own
     // approval surfaces; duplicating them here would be nagging.
-    const rows = data.filter(r => r.client_id && isSocialLead({ content: r.content, intent: r.ai_intent, isJunk: r.is_junk }));
+    const rows = data.filter(r => r.client_id && isSocialLead({ content: r.content, intent: r.ai_intent, isJunk: r.is_junk,
+      media_type: r.media_type, escalated_reason: r.escalated_reason }));
     if (!rows.length) return [];
 
     const everBooked = await clientsEverBooked(beauticianId, rows.map(r => r.client_id));
@@ -96,13 +97,15 @@ async function leadCard(beauticianId, timezone) {
       const when = agoLabel(row.created_at, timezone);
       const impact = await cheapestTreatmentPrice(beauticianId);
       const threadLink = `/inbox?client=${encodeURIComponent(row.client_id)}`;
+      const nextStep = typeof row.ai_response === 'string' && row.ai_response.trim()
+        ? 'Reply ready for your OK.' : 'Needs your reply.';
 
       return [{
         id: `lead-${row.id}`,
         type: 'lead',
         icon: '\u{1F4AC}',
         person,
-        summary: `${person} ${asked} ${when}. Reply ready for your OK.`,
+        summary: `${person} ${asked} ${when}. ${nextStep}`,
         evidence: { label: `asked ${when}`, link_to: threadLink },
         action_label: 'Open thread',
         link_to: threadLink,

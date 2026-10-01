@@ -20,6 +20,7 @@ import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import { isMissingColumnError } from '../lib/junk-classifier.js';
 import { isSocialLead, clientsEverBooked, hasContactIdentity } from '../lib/inbox-space.js';
+import { INSTAGRAM_STORY_UNAVAILABLE_MARKER } from '../lib/instagram-story-context.js';
 import logger from '../lib/logger.js';
 
 const router = Router();
@@ -233,7 +234,7 @@ async function openEscalations(beauticianId, sinceIso) {
   // the count back at 99+ within a week of Instagram going live.
   const { data, error } = await supabase
     .from('messages')
-    .select('client_id, channel, direction, content, ai_intent, is_junk, created_at, clients ( phone, email, whatsapp_id )')
+    .select('client_id, channel, direction, content, media_type, escalated_reason, ai_intent, is_junk, created_at, clients ( phone, email, whatsapp_id )')
     .eq('beautician_id', beauticianId)
     .gte('created_at', sinceIso)
     .order('created_at', { ascending: false })
@@ -253,7 +254,8 @@ async function openEscalations(beauticianId, sinceIso) {
     seen.add(row.client_id);
     if (row.is_junk) continue;
     if (row.direction !== 'inbound') continue;
-    if (replyIsOwed(row.content, { intent: row.ai_intent })) waiting.set(row.client_id, row);
+    const question = String(row.content || '').split(INSTAGRAM_STORY_UNAVAILABLE_MARKER)[0].trim();
+    if (replyIsOwed(question, { intent: row.ai_intent })) waiting.set(row.client_id, row);
   }
   if (!waiting.size) return 0;
 
@@ -275,7 +277,8 @@ async function openEscalations(beauticianId, sinceIso) {
     // A stranger off Instagram (an email enquiry, say) still counts: they
     // reached her on a channel she owns. Only IG strangers get the lead gate.
     if (row.channel !== 'instagram') { count += 1; continue; }
-    if (isSocialLead({ content: row.content, intent: row.ai_intent, isJunk: row.is_junk })) count += 1;
+    if (isSocialLead({ content: row.content, intent: row.ai_intent, isJunk: row.is_junk,
+      media_type: row.media_type, escalated_reason: row.escalated_reason })) count += 1;
   }
   return count;
 }

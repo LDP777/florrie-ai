@@ -99,3 +99,19 @@ it('removes a greeting to this client but rejects private facts elsewhere in the
   expect((await extractReplyLesson({ reply: `Hi Sam. ${rule}`, clientNames: ['Sam'], askModel: async () => modelAnswer(rule) })).content).toBe(rule);
   expect(await extractReplyLesson({ reply: `${rule} Sam also has credit on their account.`, clientNames: ['Sam'], askModel: async () => modelAnswer(rule) })).toBeNull();
 });
+
+it('does not learn a reply that depends on an unseen Instagram story', async () => {
+  const askModel = vi.fn();
+  expect(await extractReplyLesson({ reply: rule, question: '[Reply to an Instagram story; story content unavailable to Florrie]\nWhen are these out?', askModel })).toBeNull();
+  expect(askModel).not.toHaveBeenCalled();
+});
+
+it.each([
+  'They’ll be rolling out day by day from today girl xxx',
+  'Christmas appointments will be released later today.',
+  'The December diary opens next week.',
+])('does not turn a temporary announcement into a reusable policy: %s', async reply => {
+  const askModel = vi.fn();
+  expect(await extractReplyLesson({ reply, askModel })).toBeNull();
+  expect(askModel).not.toHaveBeenCalled();
+});

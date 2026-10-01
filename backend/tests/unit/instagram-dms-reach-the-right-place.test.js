@@ -40,6 +40,7 @@ import express from 'express';
 import { createServer } from 'http';
 import crypto from 'crypto';
 import { probeAuthorshipColumn } from '../../src/lib/authorship.js';
+import { INSTAGRAM_STORY_UNAVAILABLE_MARKER } from '../../src/lib/instagram-story-context.js';
 
 // The night in question. Everything under test that reads a clock reads this
 // one, so nothing here can start failing in November.
@@ -75,7 +76,7 @@ const BASE_COLUMNS = {
   messages: [
     'id', 'beautician_id', 'client_id', 'channel', 'direction', 'content',
     'external_message_id', 'ai_handled', 'ai_confidence', 'ai_intent',
-    'ai_response', 'tone_match_score', 'escalated', 'resolved',
+    'ai_response', 'tone_match_score', 'escalated', 'escalated_reason', 'resolved',
     'media_url', 'media_type', 'created_at',
     'is_junk', 'junk_reason', 'authored_by', 'digital_employee',
   ],
@@ -150,6 +151,8 @@ function makeBuilder(table) {
   let selectError = null;
   let writeError = null;
   let selectedColumns = '';
+  let ordering = null;
+  let rowLimit = null;
 
   const matching = () => (db[table] || []).filter(r => filters.every(f => f(r)));
 
@@ -168,7 +171,9 @@ function makeBuilder(table) {
       for (const r of rows) Object.assign(r, pending.payload);
       return { data: rows, error: null, count: rows.length };
     }
-    const rows = matching();
+    let rows = matching();
+    if (ordering) rows = [...rows].sort((a, b) => String(a[ordering.column] || '').localeCompare(String(b[ordering.column] || '')) * (ordering.ascending ? 1 : -1));
+    if (rowLimit !== null) rows = rows.slice(0, rowLimit);
     return { data: rows.map(r => ({ ...r })), error: null, count: rows.length };
   };
 
@@ -192,8 +197,8 @@ function makeBuilder(table) {
     lte(c, v) { filters.push(r => String(r[c]) <= String(v)); return b; },
     gt(c, v) { filters.push(r => String(r[c]) > String(v)); return b; },
     lt(c, v) { filters.push(r => String(r[c]) < String(v)); return b; },
-    order() { return b; },
-    limit() { return b; },
+    order(column, { ascending = true } = {}) { ordering = { column, ascending }; return b; },
+    limit(value) { rowLimit = value; return b; },
     maybeSingle() { const o = settle(); return Promise.resolve(o.error ? o : { data: (o.data || [])[0] || null, error: null }); },
     single() { const o = settle(); return Promise.resolve(o.error ? o : { data: (o.data || [])[0] || null, error: null }); },
     then(res, rej) { return Promise.resolve(settle()).then(res, rej); },
@@ -217,6 +222,7 @@ vi.mock('../../src/lib/logger.js', () => {
  */
 const sends = [];
 const learning = vi.hoisted(() => vi.fn());
+const modelRequests = vi.hoisted(() => []);
 vi.mock('../../src/services/reply-learning.js', () => ({ queueReplyLearning: learning }));
 vi.mock('../../src/services/notifications.js', () => ({
   sendInstagramDM: async (args) => { sends.push({ via: 'instagram', ...args }); return { message_id: 'ig-out-1' }; },
@@ -238,7 +244,7 @@ vi.mock('@sentry/node', () => ({ captureMessage: () => {}, captureException: () 
 vi.mock('@anthropic-ai/sdk', () => ({
   default: class {
     constructor() {
-      this.messages = { create: async () => ({ content: [{ text: '{}' }] }) };
+      this.messages = { create: async (request) => { modelRequests.push(request); return { content: [{ text: '{}' }] }; } };
     }
   },
 }));
@@ -341,6 +347,7 @@ beforeEach(async () => {
   graphCalls.length = 0;
   idCounter = 0;
   messageReadFailure = ''; messageInsertFailure = false; learning.mockClear();
+  modelRequests.length = 0;
   await probeAuthorshipColumn();
   graph = {
     'me/messages': () => ok({ message_id: 'mid.out' }),
@@ -393,6 +400,60 @@ describe('learning from the owner’s Instagram replies', () => {
   it('never attaches the reply to a different salon’s client', async () => {
     seed(); db.clients[0].beautician_id = 'other-salon'; await postWebhook(echo());
     expect(db.messages).toHaveLength(0); expect(learning).not.toHaveBeenCalled();
+  });
+  it('records an owner story reply without learning it as standalone guidance', async () => {
+    seed();
+    await postWebhook(echo({ reply_to: { story: { id: '1791234', url: 'https://lookaside.fbsbx.com/story.jpg' } } }));
+    expect(db.messages).toHaveLength(1);
+    expect(db.messages[0]).toMatchObject({ authored_by: 'human', media_type: 'story_reply' });
+    expect(db.messages[0].content).toContain(INSTAGRAM_STORY_UNAVAILABLE_MARKER);
+    expect(learning).not.toHaveBeenCalled();
+    expect(sends).toHaveLength(0);
+  });
+  it('preserves a human reply but does not learn when the question referred to an unseen story', async () => {
+    seed();
+    db.messages.push({ id: 'story-inbound', beautician_id: 'b-ellie', client_id: 'c-sophie', channel: 'instagram', direction: 'inbound',
+      content: `When are those dates out\n${INSTAGRAM_STORY_UNAVAILABLE_MARKER}`, media_type: 'image', external_message_id: 'story-mid', created_at: NOW.toISOString() });
+    await postWebhook(echo({ reply_to: { mid: 'story-mid' } }));
+    expect(db.messages).toHaveLength(2);
+    expect(db.messages[1]).toMatchObject({ authored_by: 'human', content: text });
+    expect(learning).not.toHaveBeenCalled();
+  });
+  it('holds learning on an unreadable preceding question without losing the owner reply', async () => {
+    seed(); messageReadFailure = 'content, media_type, escalated_reason';
+    await postWebhook(echo());
+    expect(db.messages).toHaveLength(1);
+    expect(db.messages[0]).toMatchObject({ authored_by: 'human', content: text });
+    expect(learning).not.toHaveBeenCalled();
+  });
+  it('checks the latest question when the echo has no reply target', async () => {
+    seed();
+    db.messages.push({ id: 'earlier-plain', beautician_id: 'b-ellie', client_id: 'c-sophie', channel: 'instagram', direction: 'inbound',
+      content: 'How long do vouchers last?', created_at: '2026-08-31T20:30:00.000Z' });
+    db.messages.push({ id: 'latest-story', beautician_id: 'b-ellie', client_id: 'c-sophie', channel: 'instagram', direction: 'inbound',
+      content: `How much is that\n${INSTAGRAM_STORY_UNAVAILABLE_MARKER}`, created_at: '2026-08-31T21:30:00.000Z' });
+    await postWebhook(echo());
+    expect(db.messages.at(-1)).toMatchObject({ authored_by: 'human' });
+    expect(learning).not.toHaveBeenCalled();
+  });
+  it('does not use an old story to suppress a later self-contained question', async () => {
+    seed();
+    db.messages.push({ id: 'earlier-story', beautician_id: 'b-ellie', client_id: 'c-sophie', channel: 'instagram', direction: 'inbound',
+      content: INSTAGRAM_STORY_UNAVAILABLE_MARKER, created_at: '2026-08-31T20:30:00.000Z' });
+    db.messages.push({ id: 'latest-plain', beautician_id: 'b-ellie', client_id: 'c-sophie', channel: 'instagram', direction: 'inbound',
+      content: 'How long do gift vouchers last?', created_at: '2026-08-31T21:30:00.000Z' });
+    await postWebhook(echo());
+    expect(learning).toHaveBeenCalledTimes(1);
+  });
+  it('does not let a story in another salon or thread suppress legitimate learning', async () => {
+    seed();
+    db.messages.push({ id: 'other-story', beautician_id: 'another-salon', client_id: 'c-sophie', channel: 'instagram', direction: 'inbound',
+      content: INSTAGRAM_STORY_UNAVAILABLE_MARKER, created_at: NOW.toISOString() });
+    db.messages.push({ id: 'other-thread-story', beautician_id: 'b-ellie', client_id: 'other-client', channel: 'instagram', direction: 'inbound',
+      content: INSTAGRAM_STORY_UNAVAILABLE_MARKER, created_at: NOW.toISOString() });
+    await postWebhook(echo());
+    expect(learning).toHaveBeenCalledTimes(1);
+    expect(db.messages.at(-1)).toMatchObject({ authored_by: 'human', client_id: 'c-sophie' });
   });
 });
 
@@ -605,6 +666,58 @@ describe('a DM that is not words is still a DM', () => {
     await postWebhook({ object: 'instagram', entry: [{ id: IG_ACCOUNT, messaging: [{ sender: { id: SENDER }, recipient: { id: IG_ACCOUNT }, reaction: { emoji: '❤️' } }] }] });
 
     expect(db.messages).toHaveLength(0);
+  });
+});
+
+describe('Instagram story questions preserve their unavailable context', () => {
+  const question = 'When is December dates out!! Need to book in asap xx';
+  const story = { id: '17912345678901234', url: 'https://lookaside.fbsbx.com/story.jpg' };
+  it.each(['ai', 'reply', 'redirect'])('holds a story question for review in %s mode without a guessed answer or redirect', async mode => {
+    seedSalon({ instagram_dm_mode: mode }); seedWhatsAppClient();
+    expect(await postWebhook(dm({ mid: `story-${mode}`, text: question, reply_to: { story } }))).toBe(200);
+    expect(db.messages).toHaveLength(1);
+    expect(db.messages[0]).toMatchObject({ client_id: 'c-sophie', beautician_id: 'b-ellie', direction: 'inbound',
+      media_type: 'story_reply', media_url: story.url, escalated: true,
+      escalated_reason: 'story_context:unavailable', ai_intent: 'general_question', ai_handled: false });
+    expect(db.messages[0].content).toBe(`${question}\n${INSTAGRAM_STORY_UNAVAILABLE_MARKER}`);
+    expect(graphCalls.filter(c => c.url.includes('me/messages') || c.url === story.url)).toHaveLength(0);
+    expect(sends).toHaveLength(0); expect(db.outbound_sends).toHaveLength(0); expect(db.ai_actions).toHaveLength(0); expect(modelRequests).toHaveLength(0);
+  });
+  it('stores and escalates a new client’s real question instead of dropping an Instagram-only lead', async () => {
+    seedSalon({ instagram_dm_mode: 'ai' });
+    await postWebhook(dm({ mid: 'new-story-client', text: question, reply_to: { story: {} } }));
+    expect(db.clients).toHaveLength(1); expect(db.messages).toHaveLength(1);
+    expect(db.messages[0]).toMatchObject({ client_id: db.clients[0].id, escalated: true, ai_intent: 'general_question', media_url: null });
+    expect(db.messages[0].content).toContain(INSTAGRAM_STORY_UNAVAILABLE_MARKER);
+    expect(sends).toHaveLength(0);
+  });
+  it('keeps a story-only message and an unavailable story reference without inventing content', async () => {
+    seedSalon({ instagram_dm_mode: 'ai' }); seedWhatsAppClient();
+    await postWebhook(dm({ mid: 'story-no-text', reply_to: { story: null } }));
+    expect(db.messages[0]).toMatchObject({ content: INSTAGRAM_STORY_UNAVAILABLE_MARKER, media_type: 'story_reply', media_url: null, escalated: false });
+    expect(sends).toHaveLength(0);
+  });
+  it('keeps the client’s actual attachment when story metadata is present too', async () => {
+    seedSalon({ instagram_dm_mode: 'ai' }); seedWhatsAppClient();
+    await postWebhook(dm({ mid: 'story-with-photo', text: question, reply_to: { story },
+      attachments: [{ type: 'image', payload: { url: 'https://lookaside.fbsbx.com/client-photo.jpg' } }] }));
+    expect(db.messages[0]).toMatchObject({ media_type: 'image', media_url: 'https://lookaside.fbsbx.com/client-photo.jpg', escalated: true });
+    expect(db.messages[0].content).toContain(INSTAGRAM_STORY_UNAVAILABLE_MARKER);
+    expect(sends).toHaveLength(0);
+  });
+  it.each(['❤️', 'Thanks lovely xx', 'Love these', 'Gorgeous'])('does not turn a story reaction into an owed answer: %s', async text => {
+    seedSalon({ instagram_dm_mode: 'ai' }); seedWhatsAppClient();
+    await postWebhook(dm({ mid: 'story-thanks', text, reply_to: { story } }));
+    expect(db.messages[0].escalated).toBe(false); expect(sends).toHaveLength(0);
+  });
+  it('honours off mode and STOP without creating a story review', async () => {
+    seedSalon({ instagram_dm_mode: 'off' }); seedWhatsAppClient();
+    await postWebhook(dm({ mid: 'off-story', text: question, reply_to: { story } }));
+    expect(db.messages[0].escalated).toBe(false);
+    await postWebhook(dm({ mid: 'stop-story', text: 'STOP', reply_to: { story } }));
+    expect(db.clients[0].marketing_opted_out_at).toBeTruthy();
+    expect(db.messages[1].escalated).toBe(false); expect(sends).toHaveLength(0);
+    expect(graphCalls.filter(c => c.url.includes('me/messages'))).toHaveLength(0);
   });
 });
 

@@ -67,7 +67,8 @@ router.get('/', requireAuth, async (req, res) => {
     // Strangers on her own channels (an email enquiry, say) still show.
     // Only Instagram strangers get the lead gate.
     if (r.channel !== 'instagram') return true;
-    return isSocialLead({ content: r.content, intent: r.ai_intent, isJunk: r.is_junk });
+    return isSocialLead({ content: r.content, intent: r.ai_intent, isJunk: r.is_junk,
+      media_type: r.media_type, escalated_reason: r.escalated_reason });
   });
 
   res.json({ escalations });
