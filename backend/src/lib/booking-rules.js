@@ -1,4 +1,5 @@
 import { PATCH_TEST_LEAD_HOURS } from './patch-test-policy.js';
+import { hasExplicitBookingRequest, isPassiveBookingInterest, declinesBookingNow } from './booking-request.js';
 /**
  * The pure half of booking: money arithmetic, wall clock formatting, and the
  * language a client uses to pick a slot.
@@ -834,7 +835,6 @@ export function isLive(row, now = new Date()) {
  * Continuing one does not: once an offer is on the table, "the 4 one" is a
  * perfectly good answer and the state is the context.
  */
-const ASKS_TO_BOOK = /\b(?:book|books|booking|bookings|rebook|appointments?|appts?|availab|free|slots?|openings?|spaces?|fit me in|squeeze|get me in|come in|pencil me in|get in)\b/i;
 
 /**
  * About a booking they ALREADY have. "What time is my appointment on Friday"
@@ -868,19 +868,26 @@ const ABOUT_AN_EXISTING_BOOKING = new RegExp([
  */
 export function looksLikeABookingOpening(text, treatments = []) {
   const body = String(text || '').trim();
-  if (body.length < 3) return false;
+  if (body.length < 3 || isPassiveBookingInterest(body) || declinesBookingNow(body)) return false;
   const withoutPatchClaim = body.replace(/(?:i\s+(?:do\s+not|don['’]t)\s+need|i(?:['’]ve| have)\s+(?:already\s+)?had)\s+(?:a\s+)?patch test[^.!?]*/ig, '');
   if (ABOUT_AN_EXISTING_BOOKING.test(withoutPatchClaim)) return false;
   // A secondary claim about a patch test does not erase an explicit treatment
   // booking request. It never supplies evidence that the patch requirement is met.
-  if (withoutPatchClaim !== body) return ASKS_TO_BOOK.test(withoutPatchClaim) && Boolean(matchTreatment(withoutPatchClaim, treatments)?.treatment);
-  if (ASKS_TO_BOOK.test(body)) return true;
+  if (withoutPatchClaim !== body) return hasExplicitBookingRequest(withoutPatchClaim) && Boolean(matchTreatment(withoutPatchClaim, treatments)?.treatment);
+  if (hasExplicitBookingRequest(body)) return true;
 
   // No booking words, but she named something on the menu: "oh and waxing".
   // matchTreatment already knows how to read her list, so the naming rule lives
   // in one place rather than two that can drift.
   const m = matchTreatment(body, treatments);
-  return Boolean(m?.treatment || m?.ambiguous);
+  const requestCue = /\b(?:please|can i|could i|i(?:'d| would) like|i want|i need|do you do|do you have|have you got|oh and|add|any chance)\b/i;
+  // A bare menu order ("korean lash lift and lash tint") is a request too.
+  // Other prose about that treatment needs an actual request cue; its name
+  // appearing in a compliment or story comment must not start a negotiation.
+  const menuWords = new Set(treatments.flatMap(t => treatmentTokens(t.name)));
+  const bareOrder = treatmentTokens(body).every(word => menuWords.has(word)
+    || /^(?:x{1,3}|today|tomorrow|next|this|week|on|at|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d+(?:am|pm)?)$/.test(word));
+  return Boolean(m?.treatment || m?.ambiguous) && (requestCue.test(body) || bareOrder);
 }
 
 /**

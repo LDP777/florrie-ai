@@ -1,6 +1,8 @@
 import { dayPreferenceFrom } from './booking-rules.js';
 import { isTrainingEnquiry } from './training-enquiry.js';
 import { isUnavailableStoryContext } from './instagram-story-context.js';
+import { hasExplicitBookingRequest } from './booking-request.js';
+import { isBookingProblem } from './booking-problem.js';
 
 const normalise = value => String(value || '').replace(/[’‘]/g, "'").toLowerCase().trim();
 const TREATMENT = /\b(?:brows?|lami(?:nation)?|lamination|hybrid|stain|tint|lash(?:es)?|lift|wax|treatment)\b/i;
@@ -73,15 +75,59 @@ export function treatmentMenuFields(message) {
 
 function directScenario(message) {
   const text = normalise(message);
-  const verificationIssue = /\b(?:verification (?:email|code)|email (?:verification|code))\b/.test(text)
-    && /\b(?:won'?t|can'?t|not|isn'?t|hasn'?t|failed|error|never|no)\b/.test(text);
-  const bookingIssue = /\b(?:book(?:ing)?|booking system)\b/.test(text)
-    && /\b(?:error|failed|not (?:letting|working)|won'?t (?:let|work)|can'?t (?:complete|finish))\b/.test(text);
-  if (verificationIssue || bookingIssue) return 'booking_problem';
+  if (isBookingProblem(text)) return 'booking_problem';
   const maintenanceChoice = /\b(?:maintenance.{0,45}\b(?:right|need)|(?:should|do) i.{0,45}\bmaintenance)\b/.test(text);
   if ((SPACING.test(text) || maintenanceChoice) && TREATMENT.test(text)) return 'treatment_guidance';
   if (diaryReleaseQuestion(text)) return 'diary_release';
   if (treatmentMenuFields(text).length) return 'treatment_menu';
+  return null;
+}
+
+function dependsOnStory(message) {
+  // "This Friday" supplies its own date; "is it too soon for lamination"
+  // asks a treatment question. Neither pronoun points to missing story media.
+  let text = normalise(message)
+    .replace(/\bthis\s+(?:morning|afternoon|evening|week(?:end)?|month|year|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/g, '')
+    .replace(/\bis it(?=\s+(?:too (?:early|soon)|safe|suitable)\b)/g, 'is');
+  const namedTreatment = TREATMENT.exec(text);
+  if (namedTreatment && namedTreatment[0] !== 'treatment') {
+    const afterSubject = namedTreatment.index + namedTreatment[0].length;
+    // "A brow tint, how much is it?" names its own subject. Conversely,
+    // "book it with a brow tint" still depends on an unnamed earlier subject.
+    text = text.slice(0, afterSubject) + text.slice(afterSubject).replace(/\bit\b/g, '');
+  }
+  return /\b(?:that|this|it|these|those|story|stories|offer|promotion)\b/.test(text);
+}
+
+function selfContainedBookingRequest(message) {
+  if (dependsOnStory(message)) return false;
+  if (hasExplicitBookingRequest(message)) return true;
+  const text = normalise(message);
+  const treatment = TREATMENT.exec(text);
+  if (treatment && treatment[0] !== 'treatment'
+    && /\b(?:can|could|may)\s+i\s+(?:please\s+)?(?:get|have)\s+(?:(?:a|an|some|my|full|signature|classic|korean)\s+){0,3}$/.test(text.slice(0, treatment.index))) return true;
+  // A named choice such as "Brow tint please" can start the engine too. Keep
+  // its subsequent slot choices attached to it without treating bare treatment
+  // mentions or price/suitability questions as new booking instructions.
+  return !!treatment && treatment[0] !== 'treatment' && /\bplease\b/.test(text)
+    && !/\b(?:when|where|why|how|what|which|not|don'?t|can'?t|is|are|does|do)\b/.test(text);
+}
+
+function priorContextBefore(message, conversation, matches) {
+  const text = normalise(message);
+  const previous = [...conversation];
+  // gatherContext includes the row currently being processed. Exclude that
+  // one row, not every older message which happens to repeat the same words.
+  if (previous.at(-1)?.direction === 'inbound' && normalise(previous.at(-1)?.content) === text) previous.pop();
+  for (const row of previous.reverse()) {
+    if (row.direction === 'outbound' && ['human', 'ai_edited'].includes(row.authored_by)) return null;
+    if (row.direction !== 'inbound') continue;
+    if (row.created_at && Date.now() - Date.parse(row.created_at) > 48 * 60 * 60 * 1000) continue;
+    if (matches(row)) return row;
+    // An actual new request starts a different subject. Its later "that one"
+    // or date choice belongs to that booking, not a story from earlier on.
+    if (selfContainedBookingRequest(row.content)) return null;
+  }
   return null;
 }
 
@@ -92,20 +138,29 @@ export function clientQuestionScenario(message, conversation = []) {
   // "How much is that?" cannot be detached from an unseen story. Stop carrying
   // the uncertainty once the owner answers, or when the next request supplies
   // its own details instead of referring back to the missing content.
-  if (/\b(?:that|this|it|these|those|story|offer|promotion)\b/.test(text)
-    && /\b(?:how much|when|which|where|does|can|could|is|are|book|available|include)\b|\?/.test(text)) {
-    const prior = [...conversation].reverse().find(row => normalise(row.content) !== text
-      && (row.direction === 'inbound' || (row.direction === 'outbound' && ['human', 'ai_edited'].includes(row.authored_by))));
-    if (prior?.direction === 'inbound' && isUnavailableStoryContext(prior)
-      && (!prior.created_at || Date.now() - Date.parse(prior.created_at) <= 48 * 60 * 60 * 1000)) {
-      return { kind: 'story_context', question: String(message) };
-    }
+  const storyDependent = dependsOnStory(message);
+  const explicitNewRequest = selfContainedBookingRequest(message);
+  const hasDate = !!diaryReleaseScope(message)
+    || /\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|today|tomorrow|tonight|next week|next month)\b/.test(text);
+  const dateClarification = hasDate && (/^(?:what|how) about\b/.test(text)
+    || (!text.includes('?') && !/^(?:can|could|would|will|do|does|have|has|is|are|when|where|why|what|which|how)\b/.test(text)));
+  if (!explicitNewRequest && (storyDependent || dateClarification)
+    && priorContextBefore(message, conversation, isUnavailableStoryContext)) {
+    return { kind: 'story_context', question: String(message) };
   }
   const training = isTrainingEnquiry(message, conversation);
   if (training.yes) return { kind: 'training_enquiry', question: training.sourceQuestion ? `${training.sourceQuestion}\nStudent follow-up: ${message}` : String(message) };
   const direct = directScenario(message);
   if (direct) return { kind: direct, question: String(message) };
-  if (!text || /\b(?:book me|book (?:it|that)|go ahead|yes please|let'?s book|cancel|reschedul)\b/.test(text)) return null;
+  if (!text || explicitNewRequest || /\b(?:book me|book (?:it|that)|go ahead|yes please|let'?s book|cancel|reschedul)\b/.test(text)) return null;
+  const clarifiesDate = /\b(?:i'?m after|im after|looking (?:at|for)|wanted|want|wednesday|monday|tuesday|thursday|friday|saturday|sunday|\d{1,2}(?:st|nd|rd|th)?\s*(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec))/.test(text) || !!diaryReleaseScope(text);
+  if (clarifiesDate) {
+    // Older Instagram messages have no story marker. A declared diary-release
+    // question still survives intervening comments; retain its actual wording
+    // so a date fragment cannot become a fresh request for treatment choices.
+    const releaseQuestion = priorContextBefore(message, conversation, row => directScenario(row.content) === 'diary_release');
+    if (releaseQuestion) return { kind: 'diary_release', question: `${releaseQuestion.content}\nClient clarification: ${message}` };
+  }
   const previous = [...conversation].reverse().filter(row => row.direction === 'inbound'
     && normalise(row.content) !== text).slice(0, 2);
   const last = previous[0];
@@ -114,8 +169,7 @@ export function clientQuestionScenario(message, conversation = []) {
   const kind = directScenario(last.content);
   if (!kind) return null;
   const clarifiesVisit = /\b(?:i (?:had|have had)|my last|last (?:appointment|visit|treatment)|on the|on \d)\b/.test(text);
-  const clarifiesDate = /\b(?:i'?m after|im after|looking (?:at|for)|wanted|want|wednesday|monday|tuesday|thursday|friday|saturday|sunday|\d{1,2}(?:st|nd|rd|th)?\s*(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec))/.test(text) || !!diaryReleaseScope(text);
-  if ((kind === 'treatment_guidance' && clarifiesVisit) || (kind === 'diary_release' && clarifiesDate)) {
+  if (kind === 'treatment_guidance' && clarifiesVisit) {
     return { kind, question: `${last.content}\nClient clarification: ${message}` };
   }
   return null;

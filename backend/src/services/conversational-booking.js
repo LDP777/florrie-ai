@@ -40,6 +40,7 @@ import { alreadyBookedForThis } from '../lib/already-booked.js';
 import { hasColumn } from '../lib/schema-probe.js';
 import { treatmentSetLabel } from '../lib/appointment-treatments.js';
 import { diaryReleaseAnswer } from '../lib/client-question.js';
+import { isPassiveBookingInterest, declinesBookingNow } from '../lib/booking-request.js';
 import {
   combineTreatments, resolveDepositCents, formatWallTime, describeSlot,
   matchTreatments, dayPreferenceFrom, chooseOffers, matchSlotChoice, timeCandidates,
@@ -372,6 +373,9 @@ function guarded(preferred, { allowedTimes = [], actionPerformed = false, fallba
  */
 export async function advanceBookingConversation({ beautician, client: inbound, message, classification, context }) {
   if (!beautician?.id || !inbound?.id) return null;
+  // A watch/update message is not a treatment or slot selection, even if an
+  // earlier turn opened a negotiation. Leave that state and any hold intact.
+  if (isPassiveBookingInterest(message) || declinesBookingNow(message)) return null;
 
   // The client row the webhooks hand over is not always complete, and two
   // fields here are load bearing: blocked_at decides whether she may book at

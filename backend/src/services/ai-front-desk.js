@@ -35,7 +35,8 @@ import { patchTestEvidence, patchTestStance } from '../lib/patch-test-status.js'
 import { inboundBudget } from '../lib/inbound-budget.js';
 import { isTrainingEnquiry, renderCoursesBlock } from '../lib/training-enquiry.js';
 import { hasColumn } from '../lib/schema-probe.js';
-import { isReturningVersion, describeSlot } from '../lib/booking-rules.js';
+import { isReturningVersion, describeSlot, looksLikeABookingOpening } from '../lib/booking-rules.js';
+import { isPassiveBookingInterest } from '../lib/booking-request.js';
 import { appointmentChangeIntent, planAppointmentChange } from '../lib/appointment-message-scenario.js';
 import { isBillable, billabilityEnforced } from '../lib/billable.js';
 import { clientQuestionScenario, questionMissingReply, renderClientHistory } from '../lib/client-question.js';
@@ -131,6 +132,7 @@ export function replyIsOwed(messageContent, classification) {
   // to the quiet branch below. Without this the 27 August message would not
   // even have made it into her queue, let alone onto her lock screen.
   if (atTheDoorPhrase(text)) return true;
+  if (isPassiveBookingInterest(text)) return false;
 
   // A question mark is the clearest signal someone is waiting. Always owed,
   // whatever the classifier thinks the intent is.
@@ -273,6 +275,19 @@ export async function processInboundMessage(messageId, beautician, client, messa
         logger.warn({ err: budgetError, messageId }, 'Could not mark budget-exhausted message as escalated');
       }
       return { handled: false, reason: 'inbound_budget_exhausted' };
+    }
+
+    // A future plan/watch update needs no booking question. Check before the
+    // model and before any booking writes; retain it in the ordinary inbox.
+    if (isPassiveBookingInterest(messageContent) && !asksForHuman(messageContent, beautician.first_name)
+      && !needsAPerson(messageContent).yes && !doorstep) {
+      const { error } = await supabase.from('messages').update({
+        ai_handled: false, ai_response: null, ai_confidence: null,
+        ai_intent: 'general_question', escalated: false,
+        escalated_reason: null, digital_employee: 'front_desk',
+      }).eq('id', messageId).eq('beautician_id', beautician.id);
+      if (error) throw error;
+      return { handled: false, drafted: false, quiet: true, reason: 'no_booking_request' };
     }
 
     // 1. Gather context
@@ -455,6 +470,14 @@ export async function processInboundMessage(messageId, beautician, client, messa
     // free, asked twice already) is exactly the case where Ellie should see it.
     if (convo?.handOver) shouldAct = false;
 
+    // A confident booking label only permits CHECKING a request. The general
+    // writer must not override a declined turn with an invented booking chat.
+    const bookingRequestUnclear = !convo && !context.questionAnswer && !appointmentPlan
+      && (classification.intent === INTENTS.BOOKING_REQUEST
+        || (classification.intent === INTENTS.AVAILABILITY_CHECK
+          && !looksLikeABookingOpening(messageContent, context.treatments)));
+    if (bookingRequestUnclear) shouldAct = false;
+
     // 3c. THE RESEND, and it sits HERE for exactly the reason 3b does.
     //
     // "I don't think I got a confirmation" is the one request in this file
@@ -579,7 +602,9 @@ export async function processInboundMessage(messageId, beautician, client, messa
       logger.info({ handled: sent, drafted: !sent, intent: classification.intent }, sent ? 'AI Front Desk sent reply' : 'AI Front Desk drafted reply for one-tap send');
       return { handled: sent, drafted: !sent, intent: classification.intent, response: result.response };
 
-    } else if (!convo && !resend?.escalate && !replyIsOwed(messageContent, classification)) {
+    } else if (!convo && !resend?.escalate && !personNeeded?.yes
+      && !asksForHuman(messageContent, beautician.first_name)
+      && !replyIsOwed(messageContent, classification)) {
       // 4c. Nothing is owed. She said thanks, or see you Tuesday, or sent a
       // heart. Florrie reads it, records what it was, and stays quiet. No
       // escalation, no badge, no draft for Ellie to approve. This is the single
@@ -603,6 +628,7 @@ export async function processInboundMessage(messageId, beautician, client, messa
       return await escalateWithDraft({
         beautician, client, messageContent, classification, context, messageId,
         draft: context.questionAnswer?.reply || convo?.reply || null,
+        skipDraft: bookingRequestUnclear,
         // A doorstep escalation still gets a draft. An earlier version of this
         // fix skipped it, reasoning that every sentence worth sending to
         // somebody outside is a fact only the person in the room holds. That is
@@ -645,6 +671,8 @@ export async function processInboundMessage(messageId, beautician, client, messa
             ? trainingEnquiry.reason
           : context.questionAnswer?.canAnswer === false
             ? context.questionAnswer.reason
+          : bookingRequestUnclear
+            ? 'booking_request:unclear'
           : subscriptionLapsed
             ? 'subscription_lapsed'
           : !salonHasAMenu
@@ -1317,7 +1345,7 @@ async function classifyIntent(message, context) {
 Available treatments: ${treatmentNames}
 ${transcript ? `\nConversation so far (oldest first):\n${transcript}\n\nUse this thread for context. A short message like "yes please" or "Tuesday works" follows on from the chat above. Classify the customer's LATEST message (below), reading it as part of this conversation.\n` : ''}
 Intents:
-- booking_request: wants to book an appointment
+- booking_request: explicitly asks to start a booking now, or answers an active booking question. Mentioning a booking, future date or treatment is not itself a request.
 - price_enquiry: asking about prices or costs
 - availability_check: asking when the beautician is free
 - reschedule: wants to move an existing appointment, including "I can't make it today", "something has come up" in a booking conversation, or asking for a different time without a question mark. An already-completed change or "thanks for moving it" is not a new request. Familiarity with the client must not change the intent.
@@ -1446,9 +1474,9 @@ async function handleAppointmentChange({ plan, maySend, beautician, client, mess
 async function escalateWithDraft({
   beautician, client, messageContent, classification, context, messageId,
   draft = null, reason = null, doorstep = false, arrivalNote = '', writtenNotes = '',
-  skipPush = false, alert = null,
+  skipPush = false, alert = null, skipDraft = false,
 }) {
-  const suggestion = draft || await generateSuggestedResponse(
+  const suggestion = skipDraft ? null : draft || await generateSuggestedResponse(
     messageContent, classification, context, beautician,
     { arrivalNote, writtenNotes, holdingFallback: !doorstep },
   );
