@@ -256,6 +256,13 @@ function treatmentTokens(text) {
     .filter(w => !TREATMENT_STOPWORDS.has(w));
 }
 
+/** A named service/product detail on this menu, not just a body area. */
+export function hasNamedTreatmentDetail(text, treatments = []) {
+  const details = new Set(treatments.flatMap(t => treatmentTokens(t.name))
+    .filter(word => !BODY_WORDS.has(word)));
+  return treatmentTokens(text).some(word => details.has(word));
+}
+
 /**
  * Is this the returning-client version of some other treatment? True for
  * "Brow lamination maintenance", "Lash infills", "Gel top up". Shared with the

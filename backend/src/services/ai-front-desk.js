@@ -35,8 +35,9 @@ import { patchTestEvidence, patchTestStance } from '../lib/patch-test-status.js'
 import { inboundBudget } from '../lib/inbound-budget.js';
 import { isTrainingEnquiry, renderCoursesBlock } from '../lib/training-enquiry.js';
 import { hasColumn } from '../lib/schema-probe.js';
-import { isReturningVersion, describeSlot, looksLikeABookingOpening } from '../lib/booking-rules.js';
+import { isReturningVersion, describeSlot } from '../lib/booking-rules.js';
 import { isPassiveBookingInterest } from '../lib/booking-request.js';
+import { treatmentBookingContinuation } from '../lib/booking-continuation.js';
 import { appointmentChangeIntent, planAppointmentChange } from '../lib/appointment-message-scenario.js';
 import { isBillable, billabilityEnforced } from '../lib/billable.js';
 import { clientQuestionScenario, questionMissingReply, renderClientHistory } from '../lib/client-question.js';
@@ -310,11 +311,17 @@ export async function processInboundMessage(messageId, beautician, client, messa
 
     // 2. Classify intent
     const questionScenario = clientQuestionScenario(messageContent, context.conversation);
+    context.bookingContinuation = !questionScenario && context.conversationReadable !== false
+      ? treatmentBookingContinuation({ message: messageContent, messageId, channel: replyChannel,
+        conversation: context.conversation, treatments: context.treatments, ownerName: beautician.first_name })
+      : null;
     const changeIntent = questionScenario?.kind === 'training_enquiry' ? null : appointmentChangeIntent(messageContent);
     const classification = changeIntent
       ? { intent: changeIntent, confidence: 1, extracted: {} }
       : questionScenario
         ? { intent: INTENTS.GENERAL_QUESTION, confidence: 1, extracted: {} }
+        : context.bookingContinuation
+          ? { intent: INTENTS.BOOKING_REQUEST, confidence: 1, extracted: {} }
         : await classifyIntent(messageContent, context);
     const appointmentPlan = planAppointmentChange({ message: messageContent, classification, context, beautician });
 
@@ -473,9 +480,7 @@ export async function processInboundMessage(messageId, beautician, client, messa
     // A confident booking label only permits CHECKING a request. The general
     // writer must not override a declined turn with an invented booking chat.
     const bookingRequestUnclear = !convo && !context.questionAnswer && !appointmentPlan
-      && (classification.intent === INTENTS.BOOKING_REQUEST
-        || (classification.intent === INTENTS.AVAILABILITY_CHECK
-          && !looksLikeABookingOpening(messageContent, context.treatments)));
+      && [INTENTS.BOOKING_REQUEST, INTENTS.AVAILABILITY_CHECK].includes(classification.intent);
     if (bookingRequestUnclear) shouldAct = false;
 
     // 3c. THE RESEND, and it sits HERE for exactly the reason 3b does.
@@ -508,7 +513,7 @@ export async function processInboundMessage(messageId, beautician, client, messa
       const result = context.questionAnswer
         ? { response: context.questionAnswer.reply, toneScore: null, actions: [], intent: classification.intent }
         : convo
-        ? { response: convo.reply, toneScore: null, actions: [], intent: classification.intent }
+        ? { response: convo.reply, toneScore: null, actions: [], intent: classification.intent, bookingStep: convo.step }
         : await generateResponseAndAct(
           messageContent, classification, context, beautician, client, { resend, arrivalNote, writtenNotes }
         );
@@ -1040,7 +1045,7 @@ async function gatherContext(beautician, client, messageContent = '') {
       // would reject the WHOLE select, and this select IS the conversation
       // history, so the failure would be Florrie answering with no context at
       // all: worse than the out-of-context replies it is here to prevent.
-      .select(`id, direction, content, channel, created_at, media_type, escalated_reason${authorshipAvailable() ? ', authored_by' : ''}`)
+      .select(`id, direction, content, channel, created_at, media_type, escalated_reason, escalated, send_status, ai_handled, digital_employee${authorshipAvailable() ? ', authored_by' : ''}`)
       .eq('client_id', client.id)
       .eq('beautician_id', beautician.id)
       .order('created_at', { ascending: false })
@@ -2287,16 +2292,23 @@ async function logAiAction(beauticianId, clientId, messageId, classification, re
     greeting: `Greeted a client`,
     review_thanks: `Thanked a client for their feedback`
   };
+  const bookingSummary = {
+    awaiting_treatment: 'Asked which treatment the client wants',
+    awaiting_pick: 'Offered appointment times for the client to choose',
+    held: 'Sent the deposit link for a held appointment',
+  }[result.bookingStep];
+  const summary = bookingSummary || summaryMap[classification.intent] || `Handled a "${classification.intent}" message`;
 
   await supabase.from('ai_actions').insert({
     beautician_id: beauticianId,
     action_type: actionTypeMap[classification.intent] || 'message_replied',
     digital_employee: 'front_desk',
-    summary: summaryMap[classification.intent] || `Handled a "${classification.intent}" message`,
+    summary,
     details: {
       intent: classification.intent,
       confidence: classification.confidence,
       response_preview: truncate(result.response, 80),
+      ...(result.bookingStep ? { booking_step: result.bookingStep } : {}),
       // Why Florrie was allowed to send this one herself. Recorded so a
       // decision can be read back rather than reconstructed from the intent —
       // and so that if she ever answers something she should not have, the
@@ -2309,7 +2321,7 @@ async function logAiAction(beauticianId, clientId, messageId, classification, re
     autonomous: true,
     outcome: 'success',
     notification_sent: true,
-    notification_text: summaryMap[classification.intent] || 'Handled a message'
+    notification_text: summary
   });
 }
 

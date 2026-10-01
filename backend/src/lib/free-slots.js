@@ -181,6 +181,7 @@ export function excludedAppointmentIds(ids) {
  * @param {number} [opts.days]         how far ahead to scan
  * @param {number} [opts.leadHours]    minimum notice before the first slot
  * @param {number} [opts.maxSlots]     hard cap so a quiet diary cannot run away
+ * @param {function} [opts.acceptSlot] optional preference filter, applied before the result cap
  * @param {string|string[]} [opts.excludeAppointmentIds]  appointment(s) that must
  *        not count as busy, because they are the ones being moved. Without this
  *        a client rescheduling 1pm to 1.30pm is blocked by her own booking.
@@ -194,6 +195,7 @@ export async function getFreeSlots(beauticianId, {
   days = 7,
   leadHours = 1,
   maxSlots = 200,
+  acceptSlot = null,
   excludeAppointmentIds = null,
 } = {}) {
   if (!beauticianId) return [];
@@ -259,7 +261,8 @@ export async function getFreeSlots(beauticianId, {
         if (!clash) {
           const iso = cursor.toISOString();
           // slice, not any Date accessor: the wall clock is already in the string.
-          slots.push({ iso, date: iso.slice(0, 10), time: iso.slice(11, 16) });
+          const slot = { iso, date: iso.slice(0, 10), time: iso.slice(11, 16) };
+          if (!acceptSlot || acceptSlot(slot)) slots.push(slot);
         }
       }
     }

@@ -97,3 +97,20 @@ describe('getFreeSlots', () => {
     expect(slots[0].time).toBe('10:00');
   });
 });
+
+describe('availability preferences are applied before the result cap', () => {
+  it('finds later-month evening slots even when 200 earlier times exist', async () => {
+    const options = { fromWall: new Date('2026-10-01T00:00:00Z'), days: 62, durationMinutes: 30, maxSlots: 3 };
+    const first = await run(options);
+    expect(first.every(slot => slot.date.startsWith('2026-10'))).toBe(true);
+    const later = await run({ ...options, acceptSlot: slot => slot.date.startsWith('2026-11') && slot.time >= '16:30' });
+    expect(later).toHaveLength(3);
+    expect(later.every(slot => slot.date.startsWith('2026-11') && slot.time === '16:30')).toBe(true);
+  });
+  it('still excludes actual bookings and closures when a preference accepts them', async () => {
+    appointments.push({ starts_at: '2026-07-30T16:00:00Z', ends_at: '2026-07-30T17:00:00Z' });
+    exceptions.push({ date: '2026-07-31', type: 'closed' });
+    const slots = await run({ days: 5, durationMinutes: 30, maxSlots: 2, acceptSlot: slot => slot.time === '16:30' });
+    expect(slots.map(slot => slot.date)).toEqual(['2026-08-03']);
+  });
+});

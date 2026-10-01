@@ -260,9 +260,12 @@ describe('step 1 and 2: working out what she wants', () => {
     expect(r.allowedTimes.length).toBeGreaterThan(1);
   });
 
-  it('leaves a plain availability question to the normal reply path', async () => {
+  it('remembers a treatment question before looking up availability', async () => {
     freezeSalonClock();
-    expect(await say('are you free next week?', 'availability_check')).toBeNull();
+    const result = await say('are you free next week?', 'availability_check');
+    expect(result.step).toBe('awaiting_treatment');
+    expect(state().step).toBe('awaiting_treatment');
+    expect(db.appointments).toEqual([]);
   });
 });
 

@@ -39,7 +39,8 @@ import { announceBookingConfirmed } from './booking-confirmed-alert.js';
 import { alreadyBookedForThis } from '../lib/already-booked.js';
 import { hasColumn } from '../lib/schema-probe.js';
 import { treatmentSetLabel } from '../lib/appointment-treatments.js';
-import { diaryReleaseAnswer } from '../lib/client-question.js';
+import { diaryReleaseAnswer, salonWallNow } from '../lib/client-question.js';
+import { bookingPreferencesFrom, bookingPreferencesFromState, withBookingPreferences, slotsWithinBookingPreferences } from '../lib/booking-preferences.js';
 import { isPassiveBookingInterest, declinesBookingNow } from '../lib/booking-request.js';
 import {
   combineTreatments, resolveDepositCents, formatWallTime, describeSlot,
@@ -418,7 +419,13 @@ export async function advanceBookingConversation({ beautician, client: inbound, 
   // saying thanks. Continuing an existing conversation is exempt: once an offer
   // is on the table, "the 4 one" is a complete answer and the state is context.
   // See looksLikeABookingOpening in lib/booking-rules.js.
-  if (!state && !looksLikeABookingOpening(message, bookableTreatments(context))) return null;
+  const continuation = context?.bookingContinuation;
+  const continuationAge = Date.now() - Date.parse(continuation?.requestedAt);
+  const continuationMatch = continuation ? matchTreatments(message, bookableTreatments(context)) : null;
+  const recoveredTreatmentAnswer = typeof continuation?.request === 'string'
+    && continuationAge >= 0 && continuationAge <= OFFER_TTL_MINUTES * 60000
+    && Boolean(continuationMatch?.treatment || continuationMatch?.ambiguous);
+  if (!state && !recoveredTreatmentAnswer && !looksLikeABookingOpening(message, bookableTreatments(context))) return null;
 
   // SHE IS ALREADY BOOKED FOR THIS. Do not offer her times for it.
   //
@@ -495,18 +502,20 @@ async function handleOpening({ beautician, client, message, classification, cont
   if (!treatments.length) return null; // nothing to book, leave it to the normal reply
 
   const match = matchTreatments(message, treatments);
+  const continuation = context?.bookingContinuation;
+  const preferences = continuation
+    ? bookingPreferencesFrom(continuation.request, salonWallNow(beautician.timezone, new Date(continuation.requestedAt)))
+    : {};
 
   if (match.treatment) {
     return await startFor({ beautician, client, message, match, context, salonNow, askedCount: 0,
-      acceptRequestedSlot: classification?.intent === 'booking_request' });
+      preferences, acceptRequestedSlot: !continuation && classification?.intent === 'booking_request' });
   }
 
-  // "Are you free next week?" with no treatment named is a question, not a
-  // booking. Answering it with a menu would be worse than the reply the normal
-  // path already writes from the same verified slot list, so leave it alone.
-  if (classification?.intent !== 'booking_request') return null;
-
-  return await askWhichTreatment({ beautician, client, match, treatments, askedCount: 1, first: true });
+  // Availability depends on the treatment duration. Remember this question so
+  // the treatment answer can continue the same request without a generic reply.
+  return await askWhichTreatment({ beautician, client, match, treatments, askedCount: 1, first: true,
+    preferences: bookingPreferencesFrom(message, salonNow, preferences) });
 }
 
 /**
@@ -517,9 +526,9 @@ async function handleOpening({ beautician, client, message, classification, cont
  * The candidates are kept in the state so "yes" and "the second one" can be
  * read as answers next time round.
  */
-async function askWhichTreatment({ beautician, client, match, treatments, askedCount, first }) {
+async function askWhichTreatment({ beautician, client, match, treatments, askedCount, first, preferences = {} }) {
   const options = (match.ambiguous ? match.candidates : treatments).slice(0, 5);
-  const offered = options.map(t => ({ treatment_id: t.id, name: t.name }));
+  const offered = withBookingPreferences(options.map(t => ({ treatment_id: t.id, name: t.name })), preferences);
   const saved = await saveState(beautician.id, client.id, { step: 'awaiting_treatment', treatment_id: null, offered, asked_count: askedCount });
   if (!saved) return handOver(HOLDING_REPLY);
 
@@ -551,35 +560,36 @@ async function askWhichTreatment({ beautician, client, match, treatments, askedC
  * can remember it; otherwise the owner takes it, told exactly what was asked
  * for, rather than Florrie booking half of it.
  */
-async function startFor({ beautician, client, message, match, context, salonNow, askedCount, acceptRequestedSlot = false }) {
+async function startFor({ beautician, client, message, match, context, salonNow, askedCount, acceptRequestedSlot = false, preferences = {} }) {
   const set = bookingSet(match.treatment, match.extras);
   if (set.extras.length && !(await canRememberExtras())) {
     logger.warn({ beauticianId: beautician.id, treatments: set.all.map(t => t.name) }, 'Two-treatment booking asked for before migration 030; handing to the owner');
     return handOver(`${set.spoken} together, lovely. Let me check the book for the two of them and come straight back to you.`);
   }
-  return await offerSlots({ beautician, client, message, set, context, salonNow, askedCount, acceptRequestedSlot });
+  return await offerSlots({ beautician, client, message, set, context, salonNow, askedCount, acceptRequestedSlot, preferences });
 }
 
 async function handleTreatmentAnswer({ beautician, client, message, state, context, salonNow }) {
   const treatments = bookableTreatments(context);
+  const preferences = bookingPreferencesFromState(state);
 
   const fromList = (c) => (c ? treatments.find(t => t.id === c.treatment_id) : null);
 
   // "Yes" to "did you mean X?".
   const agreed = fromList(agreesWithOnly(message, state.offered));
   if (agreed) {
-    return await startFor({ beautician, client, message, match: { treatment: agreed, extras: [] }, context, salonNow, askedCount: state.asked_count || 0 });
+    return await startFor({ beautician, client, message, match: { treatment: agreed, extras: [] }, context, salonNow, askedCount: state.asked_count || 0, preferences });
   }
 
   const match = matchTreatments(message, treatments);
   if (match.treatment) {
-    return await startFor({ beautician, client, message, match, context, salonNow, askedCount: state.asked_count || 0 });
+    return await startFor({ beautician, client, message, match, context, salonNow, askedCount: state.asked_count || 0, preferences });
   }
 
   // "The second one", when she named nothing.
   const positional = fromList(picksByPosition(message, state.offered));
   if (positional) {
-    return await startFor({ beautician, client, message, match: { treatment: positional, extras: [] }, context, salonNow, askedCount: state.asked_count || 0 });
+    return await startFor({ beautician, client, message, match: { treatment: positional, extras: [] }, context, salonNow, askedCount: state.asked_count || 0, preferences });
   }
 
   // One question, then Ellie. Asking a third time is how a bot argues with a
@@ -589,7 +599,8 @@ async function handleTreatmentAnswer({ beautician, client, message, state, conte
     return handOver(HOLDING_REPLY);
   }
 
-  return await askWhichTreatment({ beautician, client, match, treatments, askedCount: (state.asked_count || 0) + 1, first: false });
+  return await askWhichTreatment({ beautician, client, match, treatments, askedCount: (state.asked_count || 0) + 1, first: false,
+    preferences: bookingPreferencesFrom(message, salonNow, preferences) });
 }
 
 // ---------------------------------------------------------------------------
@@ -660,11 +671,13 @@ function depositFor(set, beautician) {
   });
 }
 
-async function freeSlotsFor({ beautician, set, salonNow, extraLeadHours = 0, dates = null }) {
+async function freeSlotsFor({ beautician, set, salonNow, extraLeadHours = 0, dates = null, preferences = {} }) {
   const policy = beautician.booking_policy || {};
   const { totalMinutes } = combineTreatments(set.all);
   const leadHours = Math.max(1, policy.min_booking_hours || 0, extraLeadHours);
-  const days = Math.max(1, Math.min(policy.max_advance_days || SCAN_DAYS, SCAN_DAYS));
+  const requestedRangeDays = preferences.toDate
+    ? Math.ceil((Date.parse(`${preferences.toDate}T23:59:59Z`) - salonNow.getTime()) / 86400000) : SCAN_DAYS;
+  const days = Math.max(1, Math.min(policy.max_advance_days || requestedRangeDays, requestedRangeDays, 62));
 
   if (dates?.length) {
     const today = new Date(salonNow); today.setUTCHours(0, 0, 0, 0);
@@ -680,6 +693,7 @@ async function freeSlotsFor({ beautician, set, salonNow, extraLeadHours = 0, dat
         workingHours: beautician.working_hours, timezone: beautician.timezone || 'Europe/London',
         durationMinutes: totalMinutes || 60, fromWall, days: 1,
         leadHours: Math.max(0, (earliestTime - fromWall.getTime()) / 3600000),
+        acceptSlot: slot => slotsWithinBookingPreferences([slot], preferences).length === 1,
       });
     }));
     return results.flat().sort((a, b) => a.iso.localeCompare(b.iso));
@@ -694,12 +708,14 @@ async function freeSlotsFor({ beautician, set, salonNow, extraLeadHours = 0, dat
     fromWall: salonNow,
     days,
     leadHours,
+    acceptSlot: slot => slotsWithinBookingPreferences([slot], preferences).length === 1,
   });
 }
 
-async function offerSlots({ beautician, client, message, set, context, salonNow, askedCount = 0, acceptRequestedSlot = false, preferredDates = null }) {
+async function offerSlots({ beautician, client, message, set, context, salonNow, askedCount = 0, acceptRequestedSlot = false, preferredDates = null, preferences = {} }) {
   const patchTest = needsPatchTest(set, context);
-  const wanted = dayPreferenceFrom(message, salonNow) ?? preferredDates;
+  preferences = bookingPreferencesFrom(message, salonNow, preferences);
+  const wanted = preferences.dates ?? (preferences.fromDate || preferences.toDate ? null : preferredDates);
   if (wanted && !wanted.length) return handOver("Let me check the date with you before I book anything. What date would you like?");
   const maxAdvance = Number(beautician.booking_policy?.max_advance_days);
   const todayStart = new Date(salonNow); todayStart.setUTCHours(0, 0, 0, 0);
@@ -710,7 +726,7 @@ async function offerSlots({ beautician, client, message, set, context, salonNow,
   const slots = await freeSlotsFor({
     beautician, set, salonNow,
     extraLeadHours: patchTest ? PATCH_TEST_LEAD_HOURS : 0,
-    dates: wanted,
+    dates: wanted, preferences,
   });
 
   if (!slots.length) {
@@ -718,20 +734,22 @@ async function offerSlots({ beautician, client, message, set, context, salonNow,
     // True, and checked: the lookup succeeded and came back empty. A FAILED
     // lookup throws and never reaches this line.
     if (wanted?.length) return handOver("I couldn't find a bookable time on that date. Another date may work, but I haven't changed or reserved anything.");
-    return handOver(`I've not got anything free for ${set.spoken} in the next couple of weeks. Let me have a look at what I can shuffle and come straight back to you.`);
+    return handOver(Object.keys(preferences).length
+      ? "I couldn't find a bookable time matching the dates and times you asked for. Let me check with you before suggesting something else."
+      : `I couldn't find a bookable time for ${set.spoken} in the diary window I checked. This needs a check with the salon before suggesting another date.`);
   }
 
-  const scoped = wanted?.length ? slots.filter(s => wanted.includes(s.date)) : slots;
+  const scoped = slotsWithinBookingPreferences(wanted?.length ? slots.filter(s => wanted.includes(s.date)) : slots, preferences);
   if (!scoped.length) {
     await clearState(beautician.id, client.id);
-    return handOver("I couldn't find a bookable time for that date in the diary window I can check. Let me check that day for you before suggesting another date.");
+    return handOver("I couldn't find a bookable time matching the dates and times you asked for. Let me check with you before suggesting something else.");
   }
   const requestedTimes = timeCandidates(message);
   const requested = wanted?.length && requestedTimes.length
     ? matchSlotChoice(message, scoped, { fromWall: salonNow }) : null;
   // A complete booking request can arrive after an earlier offer expired.
   // Recheck the exact date/time and apply the normal form/payment gates once.
-  if (acceptRequestedSlot && wanted?.length === 1 && requestedTimes.length === 1 && requested?.slot) {
+  if (acceptRequestedSlot && !preferences.afterTime && !preferences.beforeTime && wanted?.length === 1 && requestedTimes.length === 1 && requested?.slot) {
     return holdAndCharge({ beautician, client, set, slot: requested.slot, state: null, context, salonNow });
   }
   const offers = requested?.slot ? [requested.slot] : chooseOffers(scoped, { max: 3 }).offers;
@@ -742,7 +760,7 @@ async function offerSlots({ beautician, client, message, set, context, salonNow,
     step: 'awaiting_pick',
     treatment_id: set.primary.id,
     extra_treatment_ids: set.extras.map(t => t.id),
-    offered: offers.map(s => ({ iso: s.iso, date: s.date, time: s.time })),
+    offered: withBookingPreferences(offers.map(s => ({ iso: s.iso, date: s.date, time: s.time })), preferences),
     asked_count: askedCount,
     appointment_id: null,
     checkout_url: null,
@@ -784,6 +802,7 @@ function describeOffers(offers, todayWallDate) {
 
 async function handlePick({ beautician, client, message, state, context, salonNow }) {
   const offered = Array.isArray(state.offered) ? state.offered : [];
+  const preferences = bookingPreferencesFromState(state);
   const treatments = bookableTreatments(context);
   const set = setFromState(state, treatments);
 
@@ -802,11 +821,21 @@ async function handlePick({ beautician, client, message, state, context, salonNo
     const match = adding
       ? { treatment: set.primary, extras: [...set.extras, ...named.filter(t => !set.all.some(s => s.id === t.id))].slice(0, 2) }
       : reMatch;
-    return await startFor({ beautician, client, message, match, context, salonNow, askedCount: 0 });
+    return await startFor({ beautician, client, message, match, context, salonNow, askedCount: 0, preferences });
   }
   if (!set) {
     await clearState(beautician.id, client.id);
     return handOver(HOLDING_REPLY);
+  }
+
+  // A time range describes availability, even when its boundary happens to
+  // equal a previously offered slot. It is not permission to reserve that slot.
+  const requestedPreferences = bookingPreferencesFrom(message, salonNow);
+  if (requestedPreferences.afterTime || requestedPreferences.beforeTime
+      || requestedPreferences.fromDate || requestedPreferences.toDate
+      || /\b(?:any time|anytime|any day|any date)\b/i.test(message)) {
+    return offerSlots({ beautician, client, message, set, context, salonNow, preferences,
+      preferredDates: [...new Set(offered.map(s => s.date))] });
   }
 
   const choice = matchSlotChoice(message, offered, { fromWall: salonNow });
@@ -825,7 +854,7 @@ async function handlePick({ beautician, client, message, state, context, salonNo
   if (!choice.slot) {
     if (choice.wantedDates?.length || choice.wantedTimes?.length) {
       return offerSlots({ beautician, client, message, set, context, salonNow,
-        preferredDates: [...new Set(offered.map(s => s.date))] });
+        preferences, preferredDates: [...new Set(offered.map(s => s.date))] });
     }
     // She said something we cannot read as a choice. Ask once, then hand over.
     if ((state.asked_count || 0) >= 1) {
@@ -846,25 +875,26 @@ async function handlePick({ beautician, client, message, state, context, salonNo
 }
 
 async function offerMore({ beautician, client, state, set, context, salonNow, offered, message }) {
-  const dates = dayPreferenceFrom(message, salonNow) ?? [...new Set(offered.map(s => s.date))];
+  const preferences = bookingPreferencesFrom(message, salonNow, bookingPreferencesFromState(state));
+  const dates = preferences.dates ?? (preferences.fromDate || preferences.toDate ? null : [...new Set(offered.map(s => s.date))]);
   const slots = await freeSlotsFor({
     beautician, set, salonNow,
     extraLeadHours: needsPatchTest(set, context) ? PATCH_TEST_LEAD_HOURS : 0,
-    dates,
+    dates, preferences,
   });
   const alreadyOffered = new Set(offered.map(s => s.iso));
-  const fresh = slots.filter(s => !alreadyOffered.has(s.iso) && dates.includes(s.date));
+  const fresh = slotsWithinBookingPreferences(slots.filter(s => !alreadyOffered.has(s.iso) && (!dates || dates.includes(s.date))), preferences);
 
   if (!fresh.length) {
     await clearState(beautician.id, client.id);
-    return handOver("That's everything else I can offer on that date. Let me check with you before looking at another day.");
+    return handOver("I couldn't find another time matching what you asked for. Let me check with you before looking outside those dates or times.");
   }
 
   const { offers } = chooseOffers(fresh, { max: 3 });
   const allowedTimes = offers.map(s => s.time);
   const saved = await saveState(beautician.id, client.id, {
     step: 'awaiting_pick', treatment_id: set.primary.id, extra_treatment_ids: set.extras.map(t => t.id),
-    offered: offers.map(s => ({ iso: s.iso, date: s.date, time: s.time })),
+    offered: withBookingPreferences(offers.map(s => ({ iso: s.iso, date: s.date, time: s.time })), preferences),
     asked_count: 0,
   });
   if (!saved) return handOver(HOLDING_REPLY);
@@ -900,7 +930,7 @@ async function holdAndCharge({ beautician, client, set, slot, state, context, sa
   if (needingForm) {
     const saved = await saveState(beautician.id, client.id, {
       step: 'awaiting_pick', treatment_id: set.primary.id, extra_treatment_ids: set.extras.map(t => t.id),
-      offered: [{ iso: slot.iso, date: slot.date, time: slot.time }],
+      offered: withBookingPreferences([{ iso: slot.iso, date: slot.date, time: slot.time }], bookingPreferencesFromState(state)),
       appointment_id: null, checkout_url: null,
     });
     if (!saved) return handOver(HOLDING_REPLY);
@@ -1114,7 +1144,8 @@ async function releaseHold(appointmentId, reason) {
  * guard would refuse the sentence, and rightly.
  */
 async function slotGone({ beautician, client, set, state, fresh, today, slot }) {
-  const { offers } = chooseOffers((fresh || []).filter(s => s.date === slot.date && s.iso !== slot.iso), { max: 3 });
+  const preferences = bookingPreferencesFromState(state);
+  const { offers } = chooseOffers(slotsWithinBookingPreferences(fresh, preferences).filter(s => s.date === slot.date && s.iso !== slot.iso), { max: 3 });
   if (!offers.length) {
     await clearState(beautician.id, client.id);
     return handOver("I'm so sorry, that one has just gone and I've nothing else to offer on that date. Let me check with you before looking at another day.");
@@ -1123,7 +1154,7 @@ async function slotGone({ beautician, client, set, state, fresh, today, slot }) 
   const allowedTimes = offers.map(s => s.time);
   const saved = await saveState(beautician.id, client.id, {
     step: 'awaiting_pick', treatment_id: set.primary.id, extra_treatment_ids: set.extras.map(t => t.id),
-    offered: offers.map(s => ({ iso: s.iso, date: s.date, time: s.time })),
+    offered: withBookingPreferences(offers.map(s => ({ iso: s.iso, date: s.date, time: s.time })), preferences),
     asked_count: 0, appointment_id: null, checkout_url: null,
   });
   if (!saved) return handOver(HOLDING_REPLY);
