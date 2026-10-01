@@ -1843,13 +1843,14 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
     }
   }
 
-  // Anything this client still owes from previous visits (unpaid no-show or
-  // late-cancel fee, or an unsettled remainder). Shown as a line on the sheet
-  // so Ellie knows before they arrive. Fail-soft: any error hides the line.
+  // Prior policy fees and missing payment records need different labels.
+  // The latter must never tell the owner to collect money a second time.
   const [owesCents, setOwesCents] = useState(0);
+  const [paymentReviewSources, setPaymentReviewSources] = useState([]);
   useEffect(() => {
     let cancelled = false;
     setOwesCents(0);
+    setPaymentReviewSources([]);
     if (!appointment.client_id) return undefined;
     (async () => {
       try {
@@ -1859,7 +1860,10 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
         });
         if (!res.ok) return;
         const d = await res.json();
-        if (!cancelled) setOwesCents(d.owes_cents || 0);
+        if (!cancelled) {
+          setOwesCents(d.owes_cents || 0);
+          setPaymentReviewSources(Array.isArray(d.review_sources) ? d.review_sources : []);
+        }
       } catch { /* the line just stays hidden */ }
     })();
     return () => { cancelled = true; };
@@ -2468,6 +2472,21 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               <div style={styles.detailRow}>
                 <span style={styles.detailLabel}>Outstanding balance</span>
                 <span style={{ ...styles.detailValue, color: 'var(--accent, #92405e)' }}><Money pence={owesCents} /> from before</span>
+              </div>
+            )}
+            {paymentReviewSources.length > 0 && (
+              <div style={{ ...styles.detailRow, display: 'block' }}>
+                <span style={styles.detailLabel}>Payment records to check</span>
+                {paymentReviewSources.map(source => (
+                  <div key={source.appointment_id} style={{ ...styles.detailValue, marginTop: 6 }}>
+                    {source.starts_at && Number.isFinite(Date.parse(source.starts_at))
+                      ? new Date(source.starts_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
+                      : 'Previous appointment'}: <Money pence={source.cents} /> needs checking
+                  </div>
+                ))}
+                <p style={{ ...styles.detailLabel, margin: '8px 0 0', lineHeight: 1.5 }}>
+                  A payment record is missing. This does not confirm money is owed. Check the visit and any cash or bank payment before collecting anything.
+                </p>
               </div>
             )}
             {appointment.buffer_minutes > 0 && (

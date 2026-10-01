@@ -981,10 +981,10 @@ router.post('/:slug/lookup-client', requireBookingIdentity, async (req, res) => 
       return res.json({ found: false, consultation: shapeConsultation(strangerStatus) });
     }
 
-    // Anything still owed from previous visits (unpaid policy fee or an
-    // unsettled remainder). The confirm step shows a warm heads-up so the
-    // client is not surprised at the till. Fails OPEN inside the service:
-    // any error means zero, and zero means no notice. Never blocks booking.
+    // Only assessed policy fees may appear in the client notice. Missing
+    // completed-visit payment records need the owner's review; they are not
+    // debts and must never be passed to public checkout as money owed.
+    // The owner-only balance endpoint supplies those separate review details.
     const { owesCents } = await getOutstandingBalanceCents(b.id, client.id);
 
     /* HAS SHE ACTUALLY BEEN HERE BEFORE, which is NOT the same question as

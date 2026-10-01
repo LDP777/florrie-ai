@@ -1,33 +1,35 @@
 import { supabase } from '../config.js';
 import { computePolicyFee } from './policy-fees.js';
+import { PRICE_SETTLED_TYPES } from '../lib/money-guards.js';
 import logger from '../lib/logger.js';
 
 /**
  * What does this client still owe from previous visits?
  *
  * The data model has no single "balance" column, so the owing figure is
- * derived from the three places unpaid money can actually be seen:
+ * derived from eligible unpaid policy fees:
  *
  *   1. An unpaid no-show fee: status 'no_show' with a chargeable fee under
  *      the policy but policy_fee_charged_at still NULL (the charge failed,
  *      or there was no card, or Ellie has not tapped Charge).
  *   2. An unpaid late-cancel fee: late_cancel_charged flagged at cancel time
  *      (meaning "a fee applies") but policy_fee_charged_at still NULL.
- *   3. An unsettled remainder: a 'completed' appointment with a price but no
- *      payment / full_payment transaction. Completion normally writes an
- *      assumed-takings row, so a completed appointment with no payment row
- *      means the income was reversed or removed, i.e. not actually settled.
+ * A completed appointment without a payment record is a separate owner review
+ * item. A missing ledger row does not prove the client has not paid: cash,
+ * transfers and failed bookkeeping can all leave this gap. Never present it to
+ * a client as confirmed debt. Existing completion/takings rows remain recorded
+ * here; this check does not assert that those assumptions are actual payments.
  *
  * CAUTION - this check must FAIL OPEN. It feeds a warning on the public
  * booking page and a line on the appointment sheet; a broken query must
  * never block a booking or an appointment view. Every Supabase result is
  * error-checked (supabase does not throw) and any failure returns zero.
  *
- * Returns { owesCents, sources } where sources is a small breakdown for
- * logging/debugging. Never throws.
+ * Returns { owesCents, sources, reviewCents, reviewSources }. Never throws and
+ * never writes payment or appointment records.
  */
 export async function getOutstandingBalanceCents(beauticianId, clientId) {
-  const nothing = { owesCents: 0, sources: [] };
+  const nothing = { owesCents: 0, sources: [], reviewCents: 0, reviewSources: [] };
   if (!beauticianId || !clientId) return nothing;
 
   try {
@@ -73,6 +75,8 @@ export async function getOutstandingBalanceCents(beauticianId, clientId) {
 
     let owesCents = 0;
     const sources = [];
+    let reviewCents = 0;
+    const reviewSources = [];
     const completedIds = [];
 
     for (const appt of appts) {
@@ -100,30 +104,41 @@ export async function getOutstandingBalanceCents(beauticianId, clientId) {
     }
 
     if (completedIds.length > 0) {
-      // One round trip: which completed appointments have a settled payment?
+      // One round trip: which completed appointments have a payment record?
       const { data: paid, error: txErr } = await supabase
         .from('transactions')
         .select('appointment_id')
+        .eq('beautician_id', beauticianId)
+        .eq('status', 'completed')
+        .gt('amount_cents', 0)
         .in('appointment_id', completedIds)
-        .in('type', ['payment', 'full_payment']);
+        .in('type', PRICE_SETTLED_TYPES);
       if (txErr) {
         // Fail open on this leg only: the fee legs above are still valid.
         logger.warn({ err: txErr, clientId }, 'outstanding-balance: transactions query failed, skipping remainder check');
       } else {
-        const paidSet = new Set((paid || []).map(t => t.appointment_id));
+        const recordedSet = new Set((paid || []).map(t => t.appointment_id));
+        const completedSet = new Set(completedIds);
         for (const appt of appts) {
-          if (appt.status !== 'completed' || paidSet.has(appt.id)) continue;
+          // Only inspect the candidates actually queried. In particular a
+          // full-paid visit must not reappear when another visit needs review.
+          if (!completedSet.has(appt.id) || recordedSet.has(appt.id)) continue;
           const depositPaid = appt.deposit_paid ? (appt.deposit_cents || 0) : 0;
           const remainder = Math.max(0, (appt.price_cents || 0) - depositPaid);
           if (remainder > 0) {
-            owesCents += remainder;
-            sources.push({ appointment_id: appt.id, kind: 'unsettled_remainder', cents: remainder });
+            reviewCents += remainder;
+            reviewSources.push({
+              appointment_id: appt.id,
+              kind: 'payment_record_missing',
+              cents: remainder,
+              starts_at: appt.starts_at,
+            });
           }
         }
       }
     }
 
-    return { owesCents, sources };
+    return { owesCents, sources, reviewCents, reviewSources };
   } catch (err) {
     logger.warn({ err, clientId }, 'outstanding-balance: unexpected failure, failing open');
     return nothing;

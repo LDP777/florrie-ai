@@ -411,13 +411,13 @@ router.post('/:id/unarchive', requireAuth, async (req, res) => {
 
 /**
  * GET /api/clients/:id/outstanding-balance
- * What this client still owes from previous visits (unpaid policy fees +
- * unsettled remainders). Shown on the appointment sheet so Ellie knows before
- * they arrive. The service fails open (zero) on any error.
+ * Previous policy fees and missing payment records are separate: a missing
+ * ledger entry needs owner review and is not proof that the client owes money.
  */
 router.get('/:id/outstanding-balance', requireAuth, async (req, res) => {
-  const { owesCents, sources } = await getOutstandingBalanceCents(req.beautician.id, req.params.id);
-  res.json({ owes_cents: owesCents || 0, sources: sources || [] });
+  const { owesCents, sources, reviewCents, reviewSources } = await getOutstandingBalanceCents(req.beautician.id, req.params.id);
+  res.json({ owes_cents: owesCents || 0, sources: sources || [],
+    review_cents: reviewCents || 0, review_sources: reviewSources || [] });
 });
 
 /**

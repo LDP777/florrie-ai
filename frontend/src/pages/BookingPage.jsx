@@ -2078,7 +2078,7 @@ export default function BookingPage() {
                 background: `${brand}10`, border: `1px solid ${brand}30`,
                 fontSize: 13, color: 'var(--text-primary, #241B17)', lineHeight: 1.55,
               }}>
-                Looks like there is an outstanding balance of <Money pence={recognisedClient.outstandingBalanceCents} /> from a previous visit. This will need settling at your appointment.
+                The salon’s records show a fee of <Money pence={recognisedClient.outstandingBalanceCents} /> from a previous appointment. If you’ve already paid or don’t recognise it, please check with the salon.
               </div>
             )}
             <div style={styles.summaryCard}>
