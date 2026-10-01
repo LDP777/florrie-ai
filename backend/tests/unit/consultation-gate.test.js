@@ -206,6 +206,8 @@ const { supabase } = await import('../../src/config.js');
 const bookingRouter = (await import('../../src/routes/booking.js')).default;
 const { readConsultationStatus } = await import('../../src/lib/consultation-status.js');
 const { advanceBookingConversation } = await import('../../src/services/conversational-booking.js');
+const { readBookingPreparation, ensureBookingConsultations } = await import('../../src/lib/booking-preparation.js');
+const { assertCareSubmission } = await import('../../src/lib/consultation-booking-care.js');
 
 /** Drive one route handler straight, no HTTP server, no middleware. */
 async function run(router, method, path, req) {
@@ -524,18 +526,8 @@ describe('the populations the page used to wave through', () => {
   });
 });
 
-/**
- * The booking page reads its verdict off POST /lookup-client. Florrie reads
- * hers inside conversational-booking. Both come from
- * lib/consultation-status.js, and this is the test that says so: for the same
- * client and the same treatment, the shared function, the endpoint the page
- * obeys, and what Florrie actually does in a DM all have to line up.
- *
- * Nothing here restates the rule. The expected value is whatever the shared
- * module says, so this file cannot drift from the code by agreeing with an
- * out of date copy of it.
- */
-describe('the booking page and Florrie reach the same verdict', () => {
+/** Both booking routes secure the appointment before its preparation steps. */
+describe('public and conversational booking share the post-confirmation consultation checklist', () => {
   const CASES = ['importedNeverAttended', 'importedRegular', 'importedRegularWithForm', 'regularOrdinaryTreatment'];
 
   for (const name of CASES) {
@@ -554,18 +546,55 @@ describe('the booking page and Florrie reach the same verdict', () => {
       expect(seen.body.consultation.ask).toBe(shared.ask);
       expect(seen.body.consultation.block).toBe(shared.block);
 
-      // 2. What Florrie does about the same booking in a DM. She refuses to
-      //    take a deposit for a treatment whose consultation is outstanding
-      //    and sends the client to the booking page instead, so "did she hand
-      //    over about the form" is her answer to the same question.
+      const completedBefore = db.consultation_responses.filter(row => row.status === 'completed').map(row => row.id);
+
+      // 2. Neither route requires a new consultation to reserve the treatment.
       const florrie = await florrieVerdict(pop);
-      expect(florrie.sentHerToTheForm).toBe(shared.ask && shared.needsConsultation);
+      expect(florrie.picked.actionPerformed).toBe(true);
+      expect(florrie.picked.handOver).toBe(false);
+      expect(florrie.appointment).toMatchObject({ status: 'confirmed', client_id: pop.client.id, treatment_id: pop.treatment.id });
+      const publicResult = await book(pop);
+      expect(publicResult.status).toBe(201);
+      const publicAppointment = db.appointments.find(row => row.id !== florrie.appointment.id && row.client_id === pop.client.id);
+      expect(publicAppointment).toMatchObject({ status: 'confirmed', treatment_id: pop.treatment.id });
+
+      // 3. The actual manage-booking helper gives both confirmed appointments
+      // their own pending checklist. Imports and older completed forms cannot
+      // mark a new appointment's consultation as received or signed.
+      const summary = prep => ({ confirmed: prep.confirmed, required: prep.required,
+        forms: prep.forms.map(form => ({ id: form.id, status: form.status })), patchRequired: prep.patch.required });
+      const chatAppointment = { ...florrie.appointment, beauticians: BEAUTICIAN };
+      const webAppointment = { ...publicAppointment, beauticians: BEAUTICIAN };
+      const chatPrep = await readBookingPreparation(supabase, chatAppointment);
+      const webPrep = await readBookingPreparation(supabase, webAppointment);
+      expect(summary(chatPrep)).toEqual(summary(webPrep));
+      expect(chatPrep.confirmed).toBe(true);
+      expect(chatPrep.forms.map(form => form.id)).toEqual(pop.treatment.requires_consultation ? [pop.treatment.consultation_form_id] : []);
+      expect(chatPrep.forms.every(form => form.status === 'pending')).toBe(true);
+
+      await ensureBookingConsultations(supabase, chatAppointment);
+      await ensureBookingConsultations(supabase, webAppointment);
+      for (const appointment of [chatAppointment, webAppointment]) {
+        const forms = db.consultation_responses.filter(row => row.appointment_id === appointment.id);
+        expect(forms).toHaveLength(pop.treatment.requires_consultation ? 1 : 0);
+        for (const form of forms) {
+          expect(form).toMatchObject({ status: 'pending', client_id: pop.client.id, beautician_id: 'b1', form_id: pop.treatment.consultation_form_id });
+          expect(form.signature_data).toBeFalsy();
+          expect(form.completed_at).toBeFalsy();
+          expect(() => assertCareSubmission(form, chatPrep, { revision: 0 })).toThrow(/sign/i);
+        }
+      }
+      expect(db.consultation_responses.filter(row => row.status === 'completed').map(row => row.id)).toEqual(completedBefore);
+      if (pop.treatment.requires_consultation) {
+        expect(florrie.picked.reply).toContain(`/book/ellindigo/manage/${florrie.appointment.management_token}`);
+        expect(florrie.picked.reply).toContain('Before your appointment');
+      }
     });
   }
 
   /**
    * Walk Florrie through picking a time for this client and this treatment,
-   * and report whether she handed over about the health form.
+   * and return the actual confirmed appointment for the preparation checks.
    */
   async function florrieVerdict(pop) {
     db.booking_conversations.length = 0;
@@ -581,10 +610,7 @@ describe('the booking page and Florrie reach the same verdict', () => {
     // no form was needed". A verdict that was never reached is not a verdict.
     expect(time, `Florrie offered no time, so there is no verdict to compare: ${offered?.reply}`).toBeTruthy();
     const picked = await advanceBookingConversation({ ...args, message: `${time} please` });
-    return {
-      sentHerToTheForm: /health form/i.test(picked?.reply || ''),
-      reply: picked?.reply || null,
-    };
+    return { picked, appointment: db.appointments.find(row => row.id === picked?.appointmentId) };
   }
 });
 

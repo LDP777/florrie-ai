@@ -217,12 +217,14 @@ describe('the selected Wednesday 4pm survives the conversation', () => {
     const result=await say('Can I book brow lamination and hybrid dye on 23 September at 2pm?');
     expect(result.step).toBe('awaiting_pick');expect(held()).toHaveLength(0);expect(state().offered.every(s=>s.date===DAY)).toBe(true);
   });
-  it('preserves an unheld chosen slot when an outstanding consultation needs owner help',async()=>{
+  it('keeps the chosen slot through the deposit step and leaves consultation for the booking checklist',async()=>{
     offeredState();
     const treatments=TREATMENTS.map(t=>({...t,requires_consultation:true,consultation_form_id:'form1'}));
     const result=await say('4pm please',{treatments});
-    expect(result.handOver).toBe(true);expect(result.actionPerformed).toBe(false);expect(held()).toHaveLength(0);
-    expect(state().step).toBe('awaiting_pick');expect(state().offered).toEqual([slot('16:00')]);
+    expect(result.handOver).toBe(false);expect(result.actionPerformed).toBe(true);expect(held()).toHaveLength(1);
+    expect(state().step).toBe('held');expect(held()[0].starts_at).toBe(slot('16:00').iso);
+    expect(held()[0].status).toBe('pending');expect(stripeCalls.sessions).toHaveLength(1);
+    expect(result.reply).toContain('Once your booking is confirmed');expect(db.consultation_responses).toEqual([]);
   });
   it('does not move a lost Wednesday slot to another date without asking',async()=>{
     offeredState();db.appointments.push({id:'busy',beautician_id:'b1',status:'confirmed',starts_at:slot('13:15').iso,ends_at:slot('17:00').iso});

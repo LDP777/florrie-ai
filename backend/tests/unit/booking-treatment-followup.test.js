@@ -49,9 +49,9 @@ vi.mock('../../src/lib/free-slots.js', () => ({
   nowInSalonWall: () => new Date('2026-10-01T11:00:00Z'),
   getFreeSlots: async (owner, options) => {
     fixture.slotReads.push({ owner, ...options });
-    const end = new Date(options.fromWall.getTime() + options.days * 86400000).toISOString().slice(0, 10);
-    const start = options.fromWall.toISOString().slice(0, 10);
-    return fixture.slots.filter(slot => slot.date >= start && slot.date < end);
+    const end = options.fromWall.getTime() + options.days * 86400000;
+    const start = options.fromWall.getTime() + options.leadHours * 3600000;
+    return fixture.slots.filter(slot => Date.parse(slot.iso) >= start && Date.parse(slot.iso) < end && (!options.acceptSlot || options.acceptSlot(slot)));
   },
 }));
 vi.mock('../../src/services/notifications.js', () => ({ notifyBookingConfirmed: async id => { fixture.confirmations.push(id); return true; } }));
@@ -179,6 +179,38 @@ describe('a treatment answer continues the client’s availability request', () 
     assertNoReservation();
   });
 
+  it('checks the whole named month, including late dates, when policy allows it', async () => {
+    owner.booking_policy = { max_advance_days: 120 };
+    fixture.slots = [slot('2026-12-01', '16:30'), slot('2026-12-28', '17:00'), slot('2027-01-01', '17:00')];
+    await advance('Do you have any availability in December after 4:30pm?', 'availability_check');
+    const result = await advance(answer);
+    expect(result?.step).toBe('awaiting_pick');
+    expect(state().offered.map(offer => offer.date)).toEqual(['2026-12-01', '2026-12-28']);
+    expect(fixture.slotReads[0].fromWall.toISOString()).toBe('2026-12-01T00:00:00.000Z');
+    expect(fixture.slotReads[0].days).toBe(31);
+    assertNoReservation();
+  });
+
+  it('does not move the policy horizon forward when a named month starts beyond it', async () => {
+    owner.booking_policy = { max_advance_days: 30 };
+    fixture.slots = [slot('2026-12-28', '17:00')];
+    await advance('Do you have any availability in December after 4:30pm?', 'availability_check');
+    expect((await advance(answer))?.handOver).toBe(true);
+    expect(fixture.slotReads).toEqual([]);
+    assertNoReservation();
+  });
+
+  it('keeps minimum lead time anchored to now when scanning a future month', async () => {
+    owner.booking_policy = { max_advance_days: 120, min_booking_hours: 1600 };
+    fixture.slots = [slot('2026-12-01', '16:30'), slot('2026-12-28', '17:00')];
+    await advance('Do you have any availability in December after 4:30pm?', 'availability_check');
+    await advance(answer);
+    expect(state().offered.map(offer => offer.date)).toEqual(['2026-12-28']);
+    const read = fixture.slotReads[0];
+    expect(read.fromWall.getTime() + read.leadHours * 3600000).toBe(Date.parse('2026-10-01T11:00:00Z') + 1600 * 3600000);
+    assertNoReservation();
+  });
+
   it('keeps the time window when a treatment changes', async () => {
     await advance(request); await advance(answer);
     const result = await advance('Brow tint please');
@@ -208,6 +240,19 @@ describe('a treatment answer continues the client’s availability request', () 
 });
 
 describe('explicit booking preference bounds', () => {
+  it.each(['from', 'before'])('does not turn %s a calendar date into a clock boundary', (cue) => {
+    const prefs = bookingPreferencesFrom(`Can I book ${cue} 7 December at 4pm?`, new Date('2026-10-01T11:00:00Z'));
+    expect(prefs.afterTime).toBeUndefined();
+    expect(prefs.beforeTime).toBeUndefined();
+    expect(prefs.times).toEqual(['16:00']);
+  });
+
+  it('preserves an explicitly suffixed time without requiring the word at', () => {
+    const prefs = bookingPreferencesFrom('Can I have brow lamination 4pm on 7 December?', new Date('2026-10-01T11:00:00Z'));
+    expect(prefs.times).toEqual(['16:00']);
+    expect(prefs.dates).toEqual(['2026-12-07']);
+  });
+
   it('does not read a calendar date after a time as a later clock time', () => {
     const prefs = bookingPreferencesFrom('After 4 on 7 October', new Date('2026-10-01T11:00:00Z'));
     expect(prefs.afterTime).toBe('16:00');

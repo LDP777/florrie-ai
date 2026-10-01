@@ -32,7 +32,6 @@ import logger from '../lib/logger.js';
 import * as Sentry from '@sentry/node';
 import { getFreeSlots, nowInSalonWall } from '../lib/free-slots.js';
 import { safeReply, HOLDING_REPLY } from '../lib/reply-claims-guard.js';
-import { hasCompletedConsultation } from '../lib/consultation-status.js';
 import { totalApplicationFee } from '../lib/platform-fees.js';
 import { apiPublicBase } from '../lib/public-url.js';
 import { announceBookingConfirmed } from './booking-confirmed-alert.js';
@@ -636,29 +635,16 @@ function needsPatchTest(set, context) {
   return true;
 }
 
-/**
- * Scoped to the form THIS treatment asks for, because "any completed form,
- * ever" is not a consultation. A client who filled in a brow tint form in
- * April would have sailed through a lash lift booking with no allergy answers
- * on file for it.
- *
- * The body of this function moved to lib/consultation-status.js on 29 August
- * 2026 and now has four callers instead of one. Florrie got this right while
- * the booking page was waving through all 926 imported clients on
- * `recognisedClient?.found`; rather than write a third copy of the rule, the
- * page and the /book gate were pointed at Florrie's. This wrapper stays so the
- * two call sites below read the way they always did.
- */
-async function hasConsultationOnRecord(beauticianId, clientId, treatment) {
-  return hasCompletedConsultation(supabase, { beauticianId, clientId, treatment, logger });
-}
-
-/** The first treatment in the set that wants a form she has not filled in. */
-async function firstNeedingConsultation(beauticianId, clientId, set) {
-  for (const t of set.all) {
-    if (t.requires_consultation && !(await hasConsultationOnRecord(beauticianId, clientId, t))) return t;
-  }
-  return null;
+function bookingCareLine({ set, appointment, beautician, confirmed, patchTest }) {
+  if (!set.all.some(t => t.requires_consultation || t.requires_patch_test)) return '';
+  const manageUrl = appointment.management_token && beautician.booking_slug
+    ? `${FRONTEND_URL}/book/${beautician.booking_slug}/manage/${appointment.management_token}` : null;
+  const entry = confirmed && manageUrl
+    ? ` Open the Before your appointment checklist in Manage my booking: ${manageUrl}.`
+    : ' Once your booking is confirmed, open Manage my booking for your Before your appointment checklist.';
+  return `${entry}${patchTest
+    ? ` Use the checklist to book your patch test. Complete any required consultation after the recorded test and its ${PATCH_TEST_LEAD_HOURS}-hour waiting period.`
+    : ' Follow the checklist for any consultation needed before your treatment.'}`;
 }
 
 /** The deposit for the whole set, the way the booking page works it out. */
@@ -675,9 +661,6 @@ async function freeSlotsFor({ beautician, set, salonNow, extraLeadHours = 0, dat
   const policy = beautician.booking_policy || {};
   const { totalMinutes } = combineTreatments(set.all);
   const leadHours = Math.max(1, policy.min_booking_hours || 0, extraLeadHours);
-  const requestedRangeDays = preferences.toDate
-    ? Math.ceil((Date.parse(`${preferences.toDate}T23:59:59Z`) - salonNow.getTime()) / 86400000) : SCAN_DAYS;
-  const days = Math.max(1, Math.min(policy.max_advance_days || requestedRangeDays, requestedRangeDays, 62));
 
   if (dates?.length) {
     const today = new Date(salonNow); today.setUTCHours(0, 0, 0, 0);
@@ -699,15 +682,25 @@ async function freeSlotsFor({ beautician, set, salonNow, extraLeadHours = 0, dat
     return results.flat().sort((a, b) => a.iso.localeCompare(b.iso));
   }
 
+  // Start at the requested window, not today: a December enquiry in October
+  // must not spend its bounded scan on October and November. Policy and lead
+  // limits remain anchored to the real current salon time.
+  const dayMs = 86400000;
+  const startMs = Math.max(salonNow.getTime(), preferences.fromDate ? Date.parse(`${preferences.fromDate}T00:00:00Z`) : salonNow.getTime());
+  const desiredEnd = preferences.toDate ? Date.parse(`${preferences.toDate}T00:00:00Z`) + dayMs : startMs + SCAN_DAYS * dayMs;
+  const policyEnd = Number(policy.max_advance_days) > 0 ? salonNow.getTime() + Number(policy.max_advance_days) * dayMs : Infinity;
+  const endMs = Math.min(desiredEnd, startMs + 62 * dayMs, policyEnd);
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return [];
+
   return getFreeSlots(beautician.id, {
     workingHours: beautician.working_hours,
     timezone: beautician.timezone || 'Europe/London',
     // The slot has to fit the treatment AND its cleanup buffer, or Florrie
     // offers a time that cannot actually be booked.
     durationMinutes: totalMinutes || 60,
-    fromWall: salonNow,
-    days,
-    leadHours,
+    fromWall: new Date(startMs),
+    days: (endMs - startMs) / dayMs,
+    leadHours: Math.max(0, (salonNow.getTime() + leadHours * 3600000 - startMs) / 3600000),
     acceptSlot: slot => slotsWithinBookingPreferences([slot], preferences).length === 1,
   });
 }
@@ -923,24 +916,9 @@ async function holdAndCharge({ beautician, client, set, slot, state, context, sa
     return await slotGone({ beautician, client, set, state, fresh, today, slot });
   }
 
-  // A treatment that needs consultation answers is not something to take a
-  // deposit for over a DM. The booking page already collects the form properly,
-  // so the client goes there, with the real time named.
-  const needingForm = await firstNeedingConsultation(beautician.id, client.id, set);
-  if (needingForm) {
-    const saved = await saveState(beautician.id, client.id, {
-      step: 'awaiting_pick', treatment_id: set.primary.id, extra_treatment_ids: set.extras.map(t => t.id),
-      offered: withBookingPreferences([{ iso: slot.iso, date: slot.date, time: slot.time }], bookingPreferencesFromState(state)),
-      appointment_id: null, checkout_url: null,
-    });
-    if (!saved) return handOver(HOLDING_REPLY);
-    const link = beautician.booking_slug ? `${FRONTEND_URL}/book/${beautician.booking_slug}` : null;
-    const when = describeSlot(slot, today);
-    const reply = link
-      ? `${when} is free. There's a quick health form to fill in for that one, so grab it here and it will take you through it: ${link}`
-      : `${when} is free. There's a quick health form to fill in for that one, I'll send it over now.`;
-    return handOver(guarded(reply, { allowedTimes: [slot.time], context: { stage: 'consultation' } }), [slot.time]);
-  }
+  // Match public booking: confirm first, then complete the appointment-scoped
+  // checklist. The manage portal enforces patch evidence and its waiting period
+  // before consultation signing; creating this booking clears neither step.
 
   const { durationMinutes, bufferMinutes, totalMinutes, priceCents } = combineTreatments(set.all);
   const depositCents = depositFor(set, beautician);
@@ -1014,7 +992,9 @@ async function holdAndCharge({ beautician, client, set, slot, state, context, sa
     const { error: ptError } = await supabase.from('patch_tests').insert({
       client_id: client.id,
       beautician_id: beautician.id,
-      appointment_id: appointment.id,
+      parent_appointment_id: appointment.id,
+      appointment_id: null,
+      covered_treatment_ids: set.all.filter(t => t.requires_patch_test).map(t => t.id),
       status: 'pending',
     });
     if (ptError) logger.warn({ err: ptError, appointmentId: appointment.id }, 'Pending patch test insert failed (non-fatal)');
@@ -1044,11 +1024,7 @@ async function holdAndCharge({ beautician, client, set, slot, state, context, sa
   // below, which is the branch that used to tell a client with no deposit to
   // pay one. When there IS a deposit, the reply beside this already carries the
   // link, so saying it here too says it twice in four lines.
-  const patchLine = patchTestLine({
-    patchTest,
-    depositDue: depositCents > 0,
-    depositAlreadyMentioned: depositCents > 0,
-  });
+  const careLine = bookingCareLine({ set, appointment, beautician, confirmed: depositCents === 0, patchTest });
 
   // No deposit configured: the booking page confirms these outright, so this
   // one is confirmed too rather than inventing a different rule.
@@ -1079,9 +1055,9 @@ async function holdAndCharge({ beautician, client, set, slot, state, context, sa
       claim: false,
     }).catch(err =>
       logger.warn({ err, appointmentId: appointment.id }, 'Owner booking alert failed (non-fatal)'));
-    const reply = `Lovely, I've got you in for ${set.spoken} on ${when}.${patchLine}`;
+    const reply = `Lovely, I've got you in for ${set.spoken} on ${when}.${careLine}`;
     return speak(
-      guarded(reply, { allowedTimes: [slot.time], actionPerformed: true, fallback: `Lovely, that's you booked in for ${set.spoken}.`, context: { stage: 'confirmed_no_deposit' } }),
+      guarded(reply, { allowedTimes: [slot.time], actionPerformed: true, fallback: `Lovely, that's you booked in for ${set.spoken}.${careLine}`, context: { stage: 'confirmed_no_deposit' } }),
       { allowedTimes: [slot.time], actionPerformed: true, step: 'held', appointmentId: appointment.id },
     );
   }
@@ -1117,11 +1093,11 @@ async function holdAndCharge({ beautician, client, set, slot, state, context, sa
     return handOver(HOLDING_REPLY);
   }
 
-  const reply = `Perfect, ${when} is held for you. Pop the ${money(depositCents)} deposit through here and it's yours: ${checkoutUrl} I'll hold it for ${HOLD_MINUTES} minutes.${patchLine}`;
+  const reply = `Perfect, ${when} is held for you. Pop the ${money(depositCents)} deposit through here and it's yours: ${checkoutUrl} I'll hold it for ${HOLD_MINUTES} minutes.${careLine}`;
   return speak(
     guarded(reply, {
       allowedTimes: [slot.time], actionPerformed: true,
-      fallback: `Perfect, that's held for you. Pop the ${money(depositCents)} deposit through here and it's yours: ${checkoutUrl}`,
+      fallback: `Perfect, that's held for you. Pop the ${money(depositCents)} deposit through here and it's yours: ${checkoutUrl}${careLine}`,
       context: { stage: 'held', appointmentId: appointment.id },
     }),
     { allowedTimes: [slot.time], actionPerformed: true, step: 'held', appointmentId: appointment.id },

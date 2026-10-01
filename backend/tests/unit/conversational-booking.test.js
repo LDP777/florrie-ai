@@ -420,14 +420,17 @@ describe('step 4 and 5: she picks, the slot is held, the deposit link goes out',
     expect(checkReplyClaims(r.reply, { allowedTimes: ['16:00'] }).ok).toBe(true);
   });
 
-  it('sends a consultation-form treatment to the booking page instead of booking blind', async () => {
+  it('holds the selected treatment and collects its deposit before the consultation checklist', async () => {
     freezeSalonClock();
     await say('brow lamination please');
     state().offered = [{ iso: '2026-08-07T16:00:00.000Z', date: '2026-08-07', time: '16:00' }];
     const r = await say('yes please', 'unknown');
-    expect(held()).toHaveLength(0);
-    expect(r.reply).toContain('/book/ellie');
-    expect(r.reply).toContain('form');
+    expect(held()).toHaveLength(1);
+    expect(held()[0].status).toBe('pending');
+    expect(r.reply).toContain('https://checkout.stripe.com/');
+    expect(r.reply).toContain('Once your booking is confirmed');
+    expect(r.reply).toContain('Before your appointment');
+    expect(db.consultation_responses).toEqual([]);
   });
 });
 

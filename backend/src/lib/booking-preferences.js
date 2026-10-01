@@ -8,6 +8,8 @@ const CLOCK = `(?:(?:half(?: past)?|quarter past|quarter to)\\s+${HOUR}|${HOUR}(
 function clocksAfter(text, cue) {
   const match = new RegExp(`\\b(?:${cue})\\s+(${CLOCK}(?:\\s*(?:/|or)\\s*${CLOCK})*)(?!\\d)\\b`).exec(text);
   if (!match) return [];
+  const remainder = text.slice(match.index + match[0].length);
+  if (new RegExp(`^\\s+(?:${MONTHS.join('|')})\\b`).test(remainder)) return [];
   const clocks = match[1].replace(new RegExp(`\\b(${HOURS.join('|')})\\b`, 'g'), word => String(HOURS.indexOf(word) + 1));
   return timeCandidates(clocks);
 }
@@ -55,7 +57,9 @@ export function bookingPreferencesFrom(message, fromWall, previous = {}) {
     if (afterTimes.length) { prefs.afterTime = [...afterTimes].sort().at(-1); delete prefs.times; }
     if (beforeTimes.length) { prefs.beforeTime = [...beforeTimes].sort()[0]; delete prefs.times; }
     if (!afterTimes.length && !beforeTimes.length && /\bat\s+|\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b/.test(text)) {
-      const times = clocksAfter(text, 'at');
+      const atTimes = clocksAfter(text, 'at');
+      const explicitClocks = text.match(/\b\d{1,2}(?:[.:]\d{2})?\s*(?:am|pm)\b/g) || [];
+      const times = atTimes.length ? atTimes : [...new Set(explicitClocks.flatMap(clock => timeCandidates(clock)))];
       if (times.length) { prefs.times = times; delete prefs.afterTime; delete prefs.beforeTime; }
     }
   }

@@ -2295,7 +2295,6 @@ async function logAiAction(beauticianId, clientId, messageId, classification, re
   const bookingSummary = {
     awaiting_treatment: 'Asked which treatment the client wants',
     awaiting_pick: 'Offered appointment times for the client to choose',
-    held: 'Sent the deposit link for a held appointment',
   }[result.bookingStep];
   const summary = bookingSummary || summaryMap[classification.intent] || `Handled a "${classification.intent}" message`;
 
