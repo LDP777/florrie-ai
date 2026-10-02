@@ -1,4 +1,5 @@
 import { PATCH_TEST_LEAD_HOURS } from '../lib/patch-test-policy.js';
+import { cancellationNoticeHours, policyFeePercent } from '../lib/booking-policy.js';
 import BookingEmailVerification from '../components/BookingEmailVerification.jsx';
 import BookingVerificationHelp from '../components/BookingVerificationHelp.jsx';
 import { bookingAuth, bookingHeaders } from '../lib/booking-auth.js';
@@ -2378,9 +2379,9 @@ export default function BookingPage() {
               // salon that only keeps the deposit on a cancel is simply untrue,
               // and an inaccurate notice is exactly what loses a card dispute.
               const bp = beautician?.booking_policy || {};
-              const notice = bp.cancellation_notice_hours || 48;
-              const lateP = Math.min(Number(bp.late_cancel_charge_percent) || 0, 100);
-              const noShowP = Math.min(Number(bp.no_show_charge_percent) || 0, 100);
+              const notice = cancellationNoticeHours(bp);
+              const lateP = notice > 0 ? policyFeePercent(bp) : 0;
+              const noShowP = policyFeePercent(bp, 'no_show');
               // Paying the deposit by card stores that card against the client
               // (Checkout runs with setup_future_usage 'off_session'), and the
               // salon can charge it afterwards for the rest of the appointment,
@@ -2398,10 +2399,11 @@ export default function BookingPage() {
                 }}>
                   {(lateP > 0 || noShowP > 0) && (
                     <>
-                      Cancellation policy: free to cancel or move your appointment up to {notice} hours before.
-                      {lateP > 0
-                        ? ` Cancelling later than that may mean a fee of up to ${lateP}% of the treatment price charged to your card.`
-                        : ' Cancelling later than that means your deposit is not refunded.'}
+                      {notice > 0
+                        ? `Cancellation policy: please give at least ${notice} hours' notice to cancel or move your appointment.`
+                        : 'There is no advance cancellation notice period.'}
+                      {lateP > 0 && ` Cancelling within that period may mean a fee of up to ${lateP}% of the treatment price, less any deposit already paid, charged to your card.`}
+                      {notice > 0 && lateP === 0 && ' For late cancellations, your deposit is not refunded.'}
                       {noShowP > 0 && ` If you do not turn up at all, the full ${noShowP}% of the treatment price may be charged to your card.`}
                       {' '}
                     </>

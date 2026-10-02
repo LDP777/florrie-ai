@@ -23,6 +23,7 @@ import { validate } from '../middleware/validate.js';
 import { requireAuth } from '../middleware/auth.js';
 import { totalApplicationFee } from '../lib/platform-fees.js';
 import { chargePolicyFee, computePolicyFee } from '../services/policy-fees.js';
+import { cancellationNoticeHours, isWithinCancellationWindow } from '../lib/booking-policy.js';
 import { verifyTurnstile } from '../middleware/turnstile.js';
 import logger from '../lib/logger.js';
 import { bookingSchema } from '../lib/schemas.js';
@@ -1307,7 +1308,7 @@ router.get('/:slug/manage/:token', async (req, res) => {
     const now = new Date();
     const apptStart = new Date(appt.starts_at);
     const hoursUntil = (apptStart - now) / (1000 * 60 * 60);
-    const withinCancellationWindow = hoursUntil < (policy.cancellation_notice_hours || 48);
+    const withinCancellationWindow = isWithinCancellationWindow(hoursUntil, policy);
 
     // What a late cancellation would cost right now (percent of price minus
     // deposit already paid) and whether we hold a card we can charge it to.
@@ -1383,6 +1384,7 @@ router.get('/:slug/manage/:token', async (req, res) => {
       })(),
       policy: {
         ...policy,
+        cancellation_notice_hours: cancellationNoticeHours(policy),
         withinCancellationWindow,
         hoursUntil: Math.max(0, Math.round(hoursUntil)),
         lateCancelFeeCents,
@@ -1449,7 +1451,8 @@ router.post('/:slug/manage/:token/cancel', async (req, res) => {
 
     const policy = appt.policy_snapshot || appt.beauticians?.booking_policy || {};
     const hoursUntil = (new Date(appt.starts_at) - new Date()) / (1000 * 60 * 60);
-    const isLateCancel = hoursUntil < (policy.cancellation_notice_hours || 48);
+    const noticeHours = cancellationNoticeHours(policy);
+    const isLateCancel = isWithinCancellationWindow(hoursUntil, policy);
     const { feeCents } = computePolicyFee(appt, policy, 'late_cancel');
     const cardOnFile = !!(appt.clients?.stripe_customer_id &&
       (appt.stripe_payment_method_id || appt.deposit_paid));
@@ -1491,10 +1494,10 @@ router.post('/:slug/manage/:token/cancel', async (req, res) => {
       isLateCancel,
       chargePercent: isLateCancel ? (policy.late_cancel_charge_percent || 0) : 0,
       feeCents: isLateCancel ? feeCents : 0,
-      message: isLateCancel
+      message: isLateCancel && feeCents > 0
         ? (willCharge
-          ? `Cancelled. As this is within the ${policy.cancellation_notice_hours || 48}-hour notice period, a £${(feeCents / 100).toFixed(2)} cancellation fee will be charged to the card you used for your deposit.`
-          : `Cancelled. As this is within the ${policy.cancellation_notice_hours || 48}-hour notice period, a cancellation fee may apply.`)
+          ? `Cancelled. As this is within the ${noticeHours}-hour notice period, a £${(feeCents / 100).toFixed(2)} cancellation fee may be charged to the card you used for your deposit.`
+          : `Cancelled. As this is within the ${noticeHours}-hour notice period, a cancellation fee may apply.`)
         : 'Your appointment has been cancelled.',
     });
   } catch (err) {
@@ -2077,9 +2080,9 @@ router.post('/:slug/manage/:token/reschedule', async (req, res) => {
     }
 
     const policy = appt.policy_snapshot || appt.beauticians?.booking_policy || {};
-    const noticeHours = policy.cancellation_notice_hours || 48;
+    const noticeHours = cancellationNoticeHours(policy);
     const hoursUntilCurrent = (new Date(appt.starts_at) - new Date()) / (1000 * 60 * 60);
-    const isLateReschedule = hoursUntilCurrent < noticeHours;
+    const isLateReschedule = isWithinCancellationWindow(hoursUntilCurrent, policy);
 
     // Min booking hours check for the new time
     const minHours = policy.min_booking_hours || 0;
@@ -2322,6 +2325,18 @@ router.post('/:slug/manage/:token/reschedule', async (req, res) => {
 
     const beauticianName = appt.beauticians?.business_name || appt.beauticians?.first_name;
     const chargePercent = isLateReschedule ? (policy.late_cancel_charge_percent || 0) : 0;
+    const remainingLateFeeCents = isLateReschedule ? computePolicyFee(appt, policy, 'late_cancel').feeCents : 0;
+    const message = [
+      `Rescheduled to ${newStart.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })} at ${newStart.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}.`,
+      remainingLateFeeCents > 0
+        ? `As this is within the ${noticeHours}-hour notice period, a £${(remainingLateFeeCents / 100).toFixed(2)} fee for the original appointment may be charged.`
+        : '',
+      newDepositCollected
+        ? 'A fresh deposit has been taken for your new appointment.'
+        : isLateReschedule && chargePercent > 0 && (appt.deposit_cents || 0) > 0
+          ? 'Your new appointment will need a fresh deposit.'
+          : '',
+    ].filter(Boolean).join(' ');
 
     res.json({
       success: true,
@@ -2330,9 +2345,7 @@ router.post('/:slug/manage/:token/reschedule', async (req, res) => {
       isLateReschedule,
       chargePercent,
       newDepositCollected,
-      message: isLateReschedule && chargePercent > 0
-        ? `Rescheduled to ${newStart.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })} at ${newStart.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}. As this is within the ${noticeHours}-hour notice period, a ${chargePercent}% fee for the original appointment will be charged to the card on file${newDepositCollected ? ', and a fresh deposit has been taken for your new appointment' : ', and your new appointment will need a fresh deposit'}.`
-        : `Rescheduled to ${newStart.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })} at ${newStart.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}.`,
+      message,
     });
   } catch (err) {
     logger.error({ err }, 'Reschedule failed');

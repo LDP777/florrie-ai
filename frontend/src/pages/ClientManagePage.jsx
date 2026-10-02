@@ -1,5 +1,6 @@
 import BookingPreparation from '../components/BookingPreparation.jsx';
 import { PATCH_TEST_LEAD_HOURS } from '../lib/patch-test-policy.js';
+import { cancellationNoticeHours, policyFeePercent } from '../lib/booking-policy.js';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { API_BASE } from '../lib/config.js';
@@ -416,7 +417,9 @@ export default function ClientManagePage() {
     </div>
   );
 
-  const { appointment, policy, patchTests, needsPatchTest, payment } = data;
+  const { appointment, policy: savedPolicy, patchTests, needsPatchTest, payment } = data;
+  const policy = { ...savedPolicy, cancellation_notice_hours: cancellationNoticeHours(savedPolicy),
+    late_cancel_charge_percent: policyFeePercent(savedPolicy), no_show_charge_percent: policyFeePercent(savedPolicy, 'no_show') };
   /* What the salon actually knows about her patch test, and how sure it is.
    *
    * On 26 August Sophie moved her appointment with this page and was then
@@ -899,28 +902,28 @@ export default function ClientManagePage() {
             {policy.cancellation_notice_hours > 0 ? (
               <>
                 <p style={S.policyText}>
-                  Free cancellation up to <strong>{policy.cancellation_notice_hours} hours</strong> before your appointment.
+                  Please give at least <strong>{policy.cancellation_notice_hours} hours</strong> notice to cancel or move your appointment.
                 </p>
                 {policy.late_cancel_charge_percent > 0 && (
                   <p style={S.policyText}>
                     Cancellations within {policy.cancellation_notice_hours} hours may incur a charge of{' '}
-                    <strong>{policy.late_cancel_charge_percent}%</strong> of the treatment price.
-                  </p>
-                )}
-                {policy.no_show_charge_percent > 0 && (
-                  <p style={S.policyText}>
-                    If you do not turn up, <strong>{policy.no_show_charge_percent}%</strong> of the
-                    treatment price may be charged to your card.
+                    <strong>{policy.late_cancel_charge_percent}%</strong> of the treatment price, less any deposit already paid.
                   </p>
                 )}
                 {policy.withinCancellationWindow && (
                   <div style={S.warningBanner}><Icon name="alert-triangle" size={14} inline /> You are within the {policy.cancellation_notice_hours}-hour notice period.
-                    A fee may apply if you cancel now.
+                    {policy.lateCancelFeeCents > 0 ? ' A fee may apply if you cancel now.' : ' Please check the cancellation terms below.'}
                   </div>
                 )}
               </>
             ) : (
-              <p style={S.policyText}>Free cancellation at any time before your appointment.</p>
+              <p style={S.policyText}>There is no advance cancellation notice period.</p>
+            )}
+            {policy.no_show_charge_percent > 0 && (
+              <p style={S.policyText}>
+                If you do not turn up, <strong>{policy.no_show_charge_percent}%</strong> of the
+                treatment price, less any deposit already paid, may be charged to your card.
+              </p>
             )}
             <p style={{ ...S.policyText, color: 'var(--text-muted)', marginTop: 8 }}>
               {policy.hoursUntil > 0
@@ -1132,8 +1135,8 @@ export default function ClientManagePage() {
               </button>
             ) : (
               <div style={S.rescheduleCard}>
-                {policy.withinCancellationWindow && policy.late_cancel_charge_percent > 0 && (
-                  <div style={{ ...S.warningBanner, marginBottom: 12 }}><Icon name="alert-triangle" size={14} inline /> You're within the {policy.cancellation_notice_hours}-hour window. Rescheduling now may result in a {policy.late_cancel_charge_percent}% charge for this appointment, plus you'll need to pay for your new booking.
+                {policy.withinCancellationWindow && policy.lateCancelFeeCents > 0 && (
+                  <div style={{ ...S.warningBanner, marginBottom: 12 }}><Icon name="alert-triangle" size={14} inline /> You're within the {policy.cancellation_notice_hours}-hour window. Rescheduling now may result in a £{(policy.lateCancelFeeCents / 100).toFixed(2)} charge for this appointment after crediting your paid deposit.
                   </div>
                 )}
 
@@ -1255,10 +1258,10 @@ export default function ClientManagePage() {
                 {policy.withinCancellationWindow && policy.lateCancelFeeCents > 0 ? (
                   <p style={{ fontSize: 13, color: 'var(--danger)', margin: '0 0 12px' }}>
                     {policy.cardOnFile
-                      ? `Cancelling within ${policy.cancellation_notice_hours || 48} hours of your appointment means a £${(policy.lateCancelFeeCents / 100).toFixed(2)} fee on the card you used for your deposit.`
-                      : `Cancelling within ${policy.cancellation_notice_hours || 48} hours of your appointment means a £${(policy.lateCancelFeeCents / 100).toFixed(2)} late cancellation fee may apply.`}
+                      ? `Cancelling within ${policy.cancellation_notice_hours} hours of your appointment means a £${(policy.lateCancelFeeCents / 100).toFixed(2)} fee on the card you used for your deposit.`
+                      : `Cancelling within ${policy.cancellation_notice_hours} hours of your appointment means a £${(policy.lateCancelFeeCents / 100).toFixed(2)} late cancellation fee may apply.`}
                   </p>
-                ) : policy.withinCancellationWindow && policy.late_cancel_charge_percent > 0 ? (
+                ) : policy.withinCancellationWindow && policy.late_cancel_charge_percent > 0 && policy.lateCancelFeeCents == null ? (
                   <p style={{ fontSize: 13, color: 'var(--danger)', margin: '0 0 12px' }}>
                     A {policy.late_cancel_charge_percent}% cancellation fee may be charged as you are within the notice period.
                   </p>

@@ -252,14 +252,22 @@ vi.mock('../../src/routes/consultation-forms.js', () => ({
   sendConsultationFormSMS: async () => true,
   recordBookingConsultation: async () => ({ unrecorded: {}, failed: false }),
 }));
-vi.mock('../../src/services/policy-fees.js', () => ({
-  chargePolicyFee: async () => ({ charged: false }),
-  computePolicyFee: () => ({ feeCents: 0 }),
+const feeFixture = vi.hoisted(() => ({ feeCents: 0, useActual: false, charges: [], paidMove: false }));
+vi.mock('../../src/services/policy-fees.js', async importOriginal => {
+  const { computePolicyFee } = await importOriginal();
+  return {
+  chargePolicyFee: async (...args) => { feeFixture.charges.push(args); return { charged: false }; },
+  computePolicyFee: (...args) => feeFixture.useActual ? computePolicyFee(...args) : ({ feeCents: feeFixture.feeCents }),
   chargeRescheduleDeposit: async () => ({ charged: false, reason: 'no_deposit' }),
   chargeRemainingBalance: async () => ({ charged: false }),
   chargeCardAmount: async () => ({ charged: false }),
   getCardOnFile: async () => null,
-}));
+  };
+});
+vi.mock('../../src/services/reschedule-payments.js', async importOriginal => {
+  const actual = await importOriginal();
+  return { ...actual, performPaidReschedule: (...args) => feeFixture.paidMove ? Promise.resolve({ state: 'moved' }) : actual.performPaidReschedule(...args) };
+});
 vi.mock('../../src/middleware/turnstile.js', () => ({ verifyTurnstile: (_q, _s, next) => next() }));
 vi.mock('../../src/middleware/auth.js', () => ({ requireAuth: (_q, _s, next) => next() }));
 vi.mock('../../src/services/outstanding-balance.js', () => ({ getOutstandingBalanceCents: async () => ({ owesCents: 0 }) }));
@@ -425,6 +433,10 @@ beforeEach(() => {
   for (const t of Object.keys(db)) db[t] = [];
   failing.clear();
   idCounter = 0;
+  feeFixture.feeCents = 0;
+  feeFixture.useActual = false;
+  feeFixture.paidMove = false;
+  feeFixture.charges.length = 0;
 });
 
 /* ================================================== 1. the default mode ===== */
@@ -779,5 +791,118 @@ describe('the manage page can always reach the salon', () => {
     expect(out.body.appointment.beautician.phone).toBe('07700 900123');
     // The login email stays private.
     expect(out.body.appointment.beautician.email).toBeUndefined();
+  });
+});
+
+describe('manage, cancellation and rescheduling honour the agreed notice', () => {
+  const params = { slug: 'ellindigo', token: TOKEN };
+  const soon = () => {
+    const start = Date.now() + 6 * 3600_000;
+    db.appointments[0].starts_at = new Date(start).toISOString();
+    db.appointments[0].ends_at = new Date(start + 3600_000).toISOString();
+  };
+
+  it('shows and honours a zero-hour snapshot without charging a same-day cancellation', async () => {
+    seed({ policy: { cancellation_notice_hours: 0, late_cancel_charge_percent: 100 } });
+    soon();
+    db.beauticians[0].booking_policy = { cancellation_notice_hours: 48, late_cancel_charge_percent: 100 };
+    feeFixture.feeCents = 2800;
+
+    const manage = await run('get', '/:slug/manage/:token', { params });
+    expect(manage.status).toBe(200);
+    expect(manage.body.policy).toMatchObject({ cancellation_notice_hours: 0, withinCancellationWindow: false });
+    const cancelled = await run('post', '/:slug/manage/:token/cancel', { params });
+    expect(cancelled.status).toBe(200);
+    expect(cancelled.body).toMatchObject({ success: true, isLateCancel: false, chargePercent: 0, feeCents: 0 });
+    expect(db.appointments[0]).toMatchObject({ status: 'cancelled', late_cancel_charged: false });
+    expect(feeFixture.charges).toEqual([]);
+  });
+
+  it('exposes the 48-hour effective default when the agreed snapshot omitted notice', async () => {
+    seed();
+    soon();
+    db.beauticians[0].booking_policy = { cancellation_notice_hours: 0 };
+    const manage = await run('get', '/:slug/manage/:token', { params });
+    expect(manage.status).toBe(200);
+    expect(manage.body.policy).toMatchObject({ cancellation_notice_hours: 48, withinCancellationWindow: true });
+  });
+
+  it('retains a 48-hour agreed fee even if the current salon policy is zero', async () => {
+    seed({ policy: { cancellation_notice_hours: 48, late_cancel_charge_percent: 100 } });
+    soon();
+    db.beauticians[0].booking_policy = { cancellation_notice_hours: 0, late_cancel_charge_percent: 0 };
+    feeFixture.feeCents = 2800;
+    const cancelled = await run('post', '/:slug/manage/:token/cancel', { params });
+    expect(cancelled.status).toBe(200);
+    expect(cancelled.body).toMatchObject({ success: true, isLateCancel: true, chargePercent: 100, feeCents: 2800 });
+    expect(feeFixture.charges).toEqual([[APPT_ID, 'late_cancel']]);
+  });
+
+  it('moves a zero-notice booking to an offered slot without a late fee or replacement deposit', async () => {
+    seed({ policy: { cancellation_notice_hours: 0, late_cancel_charge_percent: 100, require_deposit_on_late_reschedule: true } });
+    soon();
+    db.beauticians[0].booking_policy = { cancellation_notice_hours: 48, late_cancel_charge_percent: 100, require_deposit_on_late_reschedule: true };
+    feeFixture.feeCents = 2800;
+    const slots = await getSlots();
+    expect(slots.status).toBe(200);
+    expect(slots.body.slots.length).toBeGreaterThan(0);
+    const offered = slots.body.slots.find(slot => new Date(`${slot}Z`) > new Date(Date.now() + 24 * 3600_000));
+    expect(offered).toBeDefined();
+    const moved = await run('post', '/:slug/manage/:token/reschedule', { params, body: { new_starts_at: offered } });
+    expect(moved.status).toBe(200);
+    expect(moved.body).toMatchObject({ success: true, isLateReschedule: false, chargePercent: 0, newDepositCollected: false });
+    expect(db.appointments[0].starts_at).toBe(`${offered}.000Z`);
+    expect(feeFixture.charges).toEqual([]);
+  });
+
+  it.each([
+    { percent: 0, deposit: 700 },
+    { percent: 100, deposit: 3500 },
+  ])('does not warn of a cancellation fee when the effective amount is zero (%j)', async ({ percent, deposit }) => {
+    seed({ policy: { cancellation_notice_hours: 48, late_cancel_charge_percent: percent } });
+    soon();
+    Object.assign(db.appointments[0], { price_cents: 3500, deposit_cents: deposit, deposit_paid: true });
+    feeFixture.useActual = true;
+    const out = await run('post', '/:slug/manage/:token/cancel', { params });
+    expect(out.status).toBe(200);
+    expect(out.body).toMatchObject({ isLateCancel: true, feeCents: 0, message: 'Your appointment has been cancelled.' });
+    expect(feeFixture.charges).toEqual([]);
+  });
+
+  it.each([
+    { percent: 0, deposit: 700, fee: 0 },
+    { percent: 100, deposit: 3500, fee: 0 },
+    { percent: 100, deposit: 700, fee: 2800 },
+  ])('describes only the effective remaining reschedule fee (%j)', async ({ percent, deposit, fee }) => {
+    seed({ policy: { cancellation_notice_hours: 48, late_cancel_charge_percent: percent } });
+    soon();
+    Object.assign(db.appointments[0], { price_cents: 3500, deposit_cents: deposit, deposit_paid: true });
+    feeFixture.useActual = true;
+    const slots = await getSlots();
+    const offered = slots.body.slots.find(slot => slot.slice(0, 10) === openDay(4));
+    expect(offered).toBeDefined();
+    const out = await run('post', '/:slug/manage/:token/reschedule', { params, body: { new_starts_at: offered } });
+    expect(out.status).toBe(200);
+    expect(out.body).toMatchObject({ success: true, isLateReschedule: true, newDepositCollected: false });
+    if (fee) expect(out.body.message).toContain('a £28.00 fee for the original appointment may be charged');
+    else expect(out.body.message).not.toMatch(/fee|may be charged|will be charged/i);
+    expect(out.body.message).not.toMatch(/100%|will be charged/i);
+  });
+
+  it('reports a freshly collected reschedule deposit separately when the late fee is zero', async () => {
+    seed({ policy: { cancellation_notice_hours: 48, late_cancel_charge_percent: 0, require_deposit_on_late_reschedule: true } });
+    soon();
+    Object.assign(db.appointments[0], { price_cents: 3500, deposit_cents: 700, deposit_paid: true });
+    feeFixture.useActual = true;
+    feeFixture.paidMove = true;
+    const slots = await getSlots();
+    const offered = slots.body.slots.find(slot => slot.slice(0, 10) === openDay(4));
+    expect(offered).toBeDefined();
+    const out = await run('post', '/:slug/manage/:token/reschedule', { params, body: { new_starts_at: offered } });
+    expect(out.status).toBe(200);
+    expect(out.body).toMatchObject({ success: true, newDepositCollected: true });
+    expect(out.body.message).toContain('A fresh deposit has been taken for your new appointment.');
+    expect(out.body.message).not.toMatch(/fee|may be charged|will be charged/i);
+    expect(feeFixture.charges).toEqual([]);
   });
 });

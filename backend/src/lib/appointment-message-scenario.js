@@ -1,3 +1,5 @@
+import { isWithinCancellationWindow } from './booking-policy.js';
+
 /** Direct appointment requests are service work, irrespective of visit count. */
 const CHANGE = /\b(?:reschedul(?:e|ing)|rearrang(?:e|ing)|mov(?:e|ing)|chang(?:e|ing)|cancel(?:ling)?)\b/i;
 const BOOKING = /\b(?:appointment|booking|booked|appt|slot|today|tomorrow)\b/i;
@@ -57,8 +59,8 @@ export function planAppointmentChange({ message, classification, context, beauti
   const appt = rows[0];
   plan.appointmentId = appt.id;
   const remaining = (Date.parse(appt.starts_at) - wallNow(now, beautician.timezone)) / 3_600_000;
-  const notice = Number((appt.policy_snapshot || beautician.booking_policy || {}).cancellation_notice_hours) || 48;
-  if (!Number.isFinite(remaining) || remaining < notice || /\b(?:today|last minute|short notice)\b/i.test(message)) {
+  const policy = appt.policy_snapshot || beautician.booking_policy || {};
+  if (!Number.isFinite(remaining) || isWithinCancellationWindow(remaining, policy) || /\b(?:today|last minute|short notice)\b/i.test(message)) {
     return handoff('short_notice', `Thanks for letting us know. This is a short-notice change, so your request is in ${owner}'s inbox for review. I haven't changed or cancelled your booking, and any fees need to be checked.`);
   }
   if (beautician.booking_policy?.reschedule_once === true && appt.rescheduled_at) {

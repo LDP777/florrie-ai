@@ -19,6 +19,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBeautician, supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
+import { cancellationNoticeHours, policyFeePercent } from '../lib/booking-policy.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import Icon, { iconName } from '../components/ui/Icon';
@@ -83,8 +84,9 @@ export default function DepositTracker() {
   // Real deposit + cancellation terms, straight from her saved booking policy,
   // so this card reflects what clients actually see (not a fixed placeholder).
   const bp = beautician?.booking_policy || {};
-  const noticeHours = bp.cancellation_notice_hours ?? 48;
-  const chargePct = Math.min(bp.late_cancel_charge_percent ?? bp.no_show_charge_percent ?? 0, 100);
+  const noticeHours = cancellationNoticeHours(bp);
+  const chargePct = policyFeePercent(bp);
+  const noShowPct = policyFeePercent(bp, 'no_show');
   // Only claim a specific % when the deposit really is percentage-based; a
   // fixed deposit gets a neutral line so we never quote a wrong number.
   const depositPct = bp.deposit_type === 'percentage' ? (bp.deposit_percent ?? null) : null;
@@ -92,12 +94,12 @@ export default function DepositTracker() {
   policyLines.push(depositPct ? `A ${depositPct}% deposit secures each booking.` : 'A deposit secures each booking.');
   if (noticeHours > 0) {
     const notice = noticeHours % 24 === 0 ? `${noticeHours / 24} day${noticeHours / 24 === 1 ? '' : 's'}` : `${noticeHours} hours`;
-    policyLines.push(chargePct > 0
-      ? `Free to cancel or reschedule up to ${notice} before. Later than that, or a no-show, may be charged up to ${chargePct}% of the treatment.`
-      : `Free to cancel or reschedule up to ${notice} before.`);
+    policyLines.push(`Clients should give ${notice} notice to cancel or reschedule.`);
+    if (chargePct > 0) policyLines.push(`Late cancellations may be charged up to ${chargePct}% of the treatment price, less any deposit paid.`);
   } else {
-    policyLines.push('Free cancellation any time before the appointment.');
+    policyLines.push('No advance cancellation notice period is set.');
   }
+  if (noShowPct > 0) policyLines.push(`No-shows may be charged up to ${noShowPct}% of the treatment price, less any deposit paid.`);
   const hasCustomNote = !!(bp.cancellation_message && bp.cancellation_message.trim());
 
   if (bLoading || loading) return <PageLoader />;
