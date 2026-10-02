@@ -103,6 +103,8 @@ jobs:
         working-directory: frontend
       - run: node scripts/check-knowledge-training.mjs
         working-directory: frontend
+      - run: node scripts/check-settings-policy.mjs
+        working-directory: frontend
 
       # The rest of the browser checks ride along free — chromium is already
       # installed by the step above, so these cost seconds, not minutes.

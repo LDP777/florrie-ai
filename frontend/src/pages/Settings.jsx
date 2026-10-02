@@ -666,7 +666,7 @@ export default function Settings({ onLogout }) {
         const bufferEnabled = policy.payment_buffer_enabled ?? false;
         const bufferMinutes = policy.payment_buffer_minutes ?? 10;
         const cancelHours = policy.cancellation_notice_hours ?? 48;
-        const chargePercent = policy.late_cancel_charge_percent ?? 100;
+        const chargePercent = policy.late_cancel_charge_percent ?? 0;
         // A no-show is its own thing: it used to silently inherit the late-cancel
         // percent, so setting late-cancel to 0 (deposit kept, not 100%) also
         // silenced no-show charging entirely.
@@ -789,10 +789,11 @@ export default function Settings({ onLogout }) {
               {cancelHours > 0 && (
                 <>
                   <div style={{ height: 1, background: 'var(--border-light)', margin: '14px 0' }} />
-                  <div style={styles.cardTitle}>Late cancel charge</div>
-                  <p style={styles.cardDesc}>Percentage of the appointment value charged when a client cancels late.</p>
+                  <label htmlFor="late-cancellation-fee" style={styles.cardTitle}>Late-cancellation fee</label>
+                  <p style={styles.cardDesc}>Percentage of the appointment price used to calculate a late-cancellation fee. Any paid deposit counts towards it. A saved card can be charged when the client cancels.</p>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8 }}>
                     <input
+                      id="late-cancellation-fee"
                       type="range"
                       min={0} max={100} step={10}
                       value={chargePercent}
@@ -800,16 +801,19 @@ export default function Settings({ onLogout }) {
                       style={{ flex: 1, accentColor: 'var(--accent)' }}
                     />
                     <span style={{ minWidth: 80, fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', textAlign: 'right' }}>
-                      {chargePercent === 0 ? 'No charge' : `${chargePercent}%`}
+                      {chargePercent === 0 ? '0% (off)' : `${chargePercent}%`}
                     </span>
                   </div>
+                  {chargePercent === 0 && (
+                    <p style={{ ...styles.cardDesc, marginTop: 8 }}>No additional late-cancellation fee is configured in Florrie. Your written policy does not change this setting.</p>
+                  )}
 
                   <div style={{ height: 1, background: 'var(--border-light)', margin: '14px 0' }} />
                   <div style={styles.cardTitle}>No-show charge</div>
                   <p style={styles.cardDesc}>
                     Percentage charged when a client simply doesn't turn up. Set this separately from
-                    late cancels, a no-show costs you the whole slot with no warning. You always
-                    confirm each charge yourself before any money is taken.
+                    late cancels, a no-show costs you the whole slot with no warning. A saved
+                    card can be charged when you mark an appointment as a no-show.
                   </p>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8 }}>
                     <input
@@ -883,34 +887,46 @@ export default function Settings({ onLogout }) {
             {/* Custom client-facing cancellation note (migrated from the retired
                 Policies page; saved to booking_policy so it's the real source). */}
             <div style={styles.card}>
-              <div style={styles.cardTitle}>Cancellation note (optional)</div>
-              <p style={styles.cardDesc}>A note in your own words, shown to clients on your booking page and their manage-booking link, under the cancellation policy.</p>
+              <label htmlFor="cancellation-note" style={styles.cardTitle}>Cancellation note (optional)</label>
+              <p style={styles.cardDesc}>Your wording for the booking page and Manage my booking. The notice period and fees are set separately above; editing this note does not change them.</p>
               <textarea
+                id="cancellation-note"
                 defaultValue={policy.cancellation_message || ''}
-                onBlur={e => savePolicy({ cancellation_message: e.target.value.trim() })}
+                onBlur={e => {
+                  const note = e.target.value.trim();
+                  if (note !== (policy.cancellation_message || '')) savePolicy({ cancellation_message: note });
+                }}
                 placeholder="e.g. Please give as much notice as you can if you need to rearrange, my slots book up fast 🌸"
                 rows={3}
                 style={{ minHeight: 44, width: '100%', marginTop: 8, padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border)', fontSize: 14, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box', background: 'var(--bg-card)', color: 'var(--text-primary)' }}
               />
+              {cancelHours > 0 && (
+                <Button variant="secondary" size="sm" style={{ marginTop: 10 }} onClick={() => {
+                  const control = document.getElementById('late-cancellation-fee');
+                  control?.scrollIntoView({ block: 'center' });
+                  control?.focus({ preventScroll: true });
+                }}>Review fee setting ({chargePercent}%)</Button>
+              )}
             </div>
 
             {/* Policy preview */}
-            {(minHours > 0 || cancelHours > 0) && (
+            {(minHours > 0 || cancelHours > 0 || noShowPercent > 0 || policy.cancellation_message) && (
               <div style={{ ...styles.card, background: 'var(--accent-light)', border: '1.5px solid rgba(199, 107, 138, 0.2)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                   <Icon name={iconName('policy')} size={18} inline style={{ color: 'var(--accent)', }} />
-                  <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Your booking policy (as clients see it)</span>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Booking policy summary</span>
                 </div>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, margin: '0 0 8px' }}>The settings above and your written note, together. Clients see the terms saved with their booking.</p>
                 <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.55, margin: 0 }}>
                   {minHours > 0 && `Bookings must be made at least ${minHours < 24 ? `${minHours} hours` : `${minHours / 24} day${minHours / 24 !== 1 ? 's' : ''}`} in advance. `}
                   {cancelHours > 0 && `We require ${cancelHours < 24 ? `${cancelHours} hours` : `${cancelHours / 24} day${cancelHours / 24 !== 1 ? 's' : ''}`} notice to cancel or reschedule. `}
                   {cancelHours > 0 && chargePercent > 0 && `Late cancellations within this window may be charged ${chargePercent}% of the appointment value.`}
-                  {cancelHours > 0 && chargePercent === 0 && `No charge applies for late cancellations.`}
-                  {cancelHours > 0 && requireReschedDeposit && ` Rescheduling inside this window is charged for the original appointment, and the new appointment requires a fresh deposit.`}
+                  {noShowPercent > 0 && ` If you do not turn up, a fee of up to ${noShowPercent}% of the appointment value may apply.`}
+                  {cancelHours > 0 && requireReschedDeposit && ` Rescheduling inside this window requires a fresh deposit for the new appointment.`}
                 </p>
                 {policy.cancellation_message && (
-                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.55, margin: '8px 0 0', fontStyle: 'italic' }}>
-                    "{policy.cancellation_message}"
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.55, margin: '8px 0 0', fontStyle: 'italic', whiteSpace: 'pre-line' }}>
+                    {policy.cancellation_message}
                   </p>
                 )}
               </div>
