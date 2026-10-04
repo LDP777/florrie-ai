@@ -132,20 +132,33 @@ router.post('/', async (req, res) => {
     const body = req.body;
     if (body.object !== 'instagram') return;
 
-    for (const entry of body.entry || []) {
-      for (const event of entry.messaging || []) {
-        // Each event on its own. Meta batches several into one delivery, the
-        // 200 above has already gone so there is no retry, and since echoes
-        // were added on 1 September a delivery can hold an echo and a real DM
-        // together. One failing must not take the rest of the batch with it.
-        try {
-          await handleInstagramMessage(event, entry.id);
-        } catch (err) {
-          logger.error({ err, entryId: entry.id, isEcho: !!event?.message?.is_echo },
-            'Instagram webhook: one event failed, continuing with the rest of the delivery');
-        }
+    const deliveries = (body.entry || []).flatMap(entry =>
+      (entry.messaging || []).map(event => ({ event, entryId: entry.id })));
+    const learningAfterDelivery = [];
+    // Save the owner's side before any inbound event can start a model call.
+    // Meta may put an older owner echo after the client's answer in one batch.
+    for (const { event, entryId } of deliveries.filter(item => item.event?.message?.is_echo)) {
+      try {
+        const learn = await handleInstagramEcho(event, entryId, { deferLearning: true });
+        if (typeof learn === 'function') learningAfterDelivery.push(learn);
+      } catch (err) {
+        logger.error({ err, entryId, isEcho: true }, 'Instagram webhook: owner echo failed');
       }
     }
+    for (const { event, entryId } of deliveries.filter(item => !item.event?.message?.is_echo)) {
+      // The delivery was acknowledged already. One failed event must not
+      // prevent the remaining messages from reaching their threads.
+      try {
+        await handleInstagramMessage(event, entryId);
+      } catch (err) {
+        logger.error({ err, entryId, isEcho: false },
+          'Instagram webhook: one event failed, continuing with the rest of the delivery');
+      }
+    }
+    // The preceding question may itself be in this delivery. Read it only
+    // after storage, so an unseen story reply cannot enter learning review
+    // without its original context.
+    for (const learn of learningAfterDelivery) await learn();
   } catch (err) {
     logger.error({ err }, 'Instagram webhook processing error');
   }
@@ -302,7 +315,42 @@ export function __resetEchoSubscriptionCache() { echoSubscriptionEnsured.clear()
  * that way makes Florrie quiet for a few hours in one thread. Getting it wrong
  * the other way puts her back to talking over her owner, which is the bug.
  */
-async function handleInstagramEcho(event, entryId) {
+function instagramEventCreatedAt(timestamp, now = Date.now()) {
+  const value = (typeof timestamp === 'number'
+    || (typeof timestamp === 'string' && /^\d+$/.test(timestamp))) ? Number(timestamp) : NaN;
+  // Meta uses epoch milliseconds. Invalid/seconds/far-future timestamps must
+  // not erase owner presence or manufacture a future conversation.
+  return new Date(Number.isSafeInteger(value) && value >= Date.UTC(2010, 0, 1)
+    && value <= now + 5 * 60_000 ? Math.min(value, now) : now).toISOString();
+}
+
+async function ownerEchoClient(beauticianId, instagramId) {
+  if (typeof instagramId !== 'string' || !instagramId.trim() || instagramId.length > 256) return null;
+  const read = () => supabase.from('clients').select('id')
+    .eq('beautician_id', beauticianId).eq('instagram_id', instagramId).maybeSingle();
+  const existing = await read();
+  if (existing.error) {
+    logger.error({ err: existing.error, beauticianId }, 'Instagram echo: client identity could not be checked');
+    return null;
+  }
+  if (existing.data?.id) return existing.data;
+  // Owners can start conversations themselves. Keep that message even when
+  // the first inbound DM (which normally creates the mapping) has not arrived.
+  // Never match or merge a person by their display name.
+  const created = await supabase.from('clients').insert({
+    beautician_id: beauticianId, first_name: PLACEHOLDER_NAME,
+    instagram_id: instagramId, preferred_channel: 'instagram', status: 'new',
+  }).select('id').single();
+  if (!created.error && created.data?.id) return created.data;
+  if (created.error?.code === '23505') {
+    const raced = await read();
+    if (!raced.error && raced.data?.id) return raced.data;
+  }
+  logger.error({ err: created.error, beauticianId }, 'Instagram echo: could not save client identity');
+  return null;
+}
+
+async function handleInstagramEcho(event, entryId, { deferLearning = false } = {}) {
   const mid = event.message?.mid;
   const text = typeof event.message?.text === 'string' ? event.message.text : '';
   const media = event.message?.attachments?.length
@@ -339,16 +387,10 @@ async function handleInstagramEcho(event, entryId) {
     if (existing?.length) return;
   }
 
-  const { data: client } = await supabase
-    .from('clients')
-    .select('id')
-    .eq('beautician_id', beautician.id)
-    .eq('instagram_id', clientIgId)
-    .maybeSingle();
-
-  // No recorded thread means there is no client conversation to learn from.
+  const client = await ownerEchoClient(beautician.id, clientIgId);
   if (!client?.id) return;
   let learningProvenanceChecked = !!mid;
+  const createdAt = instagramEventCreatedAt(event.timestamp);
 
   // Belt and braces for a send whose id we never captured. Same thread, same
   // words, sent by us in the last quarter of an hour: that is our own message
@@ -386,6 +428,7 @@ async function handleInstagramEcho(event, entryId) {
     media_url: media ? media.media_url : story?.media_url || null,
     media_type: media?.media_type || story?.media_type || null,
     external_message_id: mid || null,
+    created_at: createdAt,
     ai_handled: false,
     ...authorship('human'),
     escalated: false,
@@ -404,22 +447,26 @@ async function handleInstagramEcho(event, entryId) {
   // media can change the meaning of a caption, and no suggestion is approved
   // automatically. The detached learner cannot delay delivery or the inbox.
   if (learningProvenanceChecked && !media && !story && text.trim().length >= 20 && saved?.id) {
-    // A reply to an unseen story is not standalone salon guidance. Even if
-    // the echo omits reply_to, inspect the preceding question before learning.
-    // Failure here holds learning only; the owner's message is already saved.
-    try {
-      let query = supabase.from('messages').select('content, media_type, escalated_reason')
-        .eq('beautician_id', beautician.id).eq('client_id', client.id)
-        .eq('channel', 'instagram').eq('direction', 'inbound')
-        .lte('created_at', new Date().toISOString());
-      const replyMid = event.message?.reply_to?.mid;
-      if (typeof replyMid === 'string' && replyMid.length <= 1024) query = query.eq('external_message_id', replyMid);
-      const { data: preceding, error: contextErr } = await query.order('created_at', { ascending: false }).limit(1);
-      if (!contextErr && !isUnavailableStoryContext(preceding?.[0])
-        && (!replyMid || preceding?.length)) queueReplyLearning(beautician.id, saved.id);
-    } catch {
-      logger.warn({ beauticianId: beautician.id, clientId: client.id }, 'Instagram echo: could not verify story context; learning skipped');
-    }
+    const learn = async () => {
+      // A reply to an unseen story is not standalone salon guidance. Even if
+      // the echo omits reply_to, inspect the preceding question before learning.
+      // Failure here holds learning only; the owner's message is already saved.
+      try {
+        let query = supabase.from('messages').select('content, media_type, escalated_reason')
+          .eq('beautician_id', beautician.id).eq('client_id', client.id)
+          .eq('channel', 'instagram').eq('direction', 'inbound')
+          .lte('created_at', createdAt);
+        const replyMid = event.message?.reply_to?.mid;
+        if (typeof replyMid === 'string' && replyMid.length <= 1024) query = query.eq('external_message_id', replyMid);
+        const { data: preceding, error: contextErr } = await query.order('created_at', { ascending: false }).limit(1);
+        if (!contextErr && !isUnavailableStoryContext(preceding?.[0])
+          && (!replyMid || preceding?.length)) queueReplyLearning(beautician.id, saved.id);
+      } catch {
+        logger.warn({ beauticianId: beautician.id, clientId: client.id }, 'Instagram echo: could not verify story context; learning skipped');
+      }
+    };
+    if (deferLearning) return learn;
+    await learn();
   }
 }
 
@@ -492,7 +539,7 @@ async function handleInstagramMessage(event, pageId) {
   // in front of answering the client.
   ensureEchoSubscription(beautician).catch(() => {});
 
-  await processInstagramDM(beautician, senderId, messageText, messageId, media, story);
+  await processInstagramDM(beautician, senderId, messageText, messageId, media, story, event.timestamp);
 }
 
 /**
@@ -652,7 +699,7 @@ async function flagMessageAsJunk(messageId, reason) {
 /**
  * Find or create client, store message, and pass to AI Front Desk.
  */
-async function processInstagramDM(beautician, senderId, messageText, messageId, media = null, story = null) {
+async function processInstagramDM(beautician, senderId, messageText, messageId, media = null, story = null, timestamp = null) {
   // A NULL MODE MEANS SILENCE, NOT A REDIRECT.
   //
   // 31 August 2026. This line read `|| 'redirect'`, so a salon that had never
@@ -778,6 +825,7 @@ async function processInstagramDM(beautician, senderId, messageText, messageId, 
       media_url: media ? media.media_url : story?.media_url || null,
       media_type: media?.media_type || story?.media_type || null,
       external_message_id: messageId,
+      created_at: instagramEventCreatedAt(timestamp),
       ai_handled: false,
       ...authorship('client'),
       escalated: needsStoryReview,

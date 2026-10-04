@@ -146,6 +146,10 @@ describe('a thread Florrie cannot read', () => {
 });
 
 describe('a thread Ellie opened herself: the training enrolment', () => {
+  it.each(['failed', 'pending', 'queued'])('does not treat a %s human message as a delivered owner reply', send_status => {
+    expect(check([{ ...her(mins(1)), send_status }]).present).toBe(false);
+  });
+
   // "& it's messing up me trying to get the training people enrolled", Ellie,
   // the same afternoon. Enrolling people on a course is a thread per person
   // that runs over days, and she opens every one of them.

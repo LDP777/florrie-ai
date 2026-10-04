@@ -52,7 +52,8 @@ vi.mock('../../src/config.js', () => ({ supabase: { from: builder } }));
 vi.mock('@anthropic-ai/sdk', () => ({ default: class {
   constructor() { this.messages = { create: async request => {
     fixture.modelCalls.push(request);
-    if (/intent classifier/i.test(request.system)) return { content: [{ text: JSON.stringify({ intent: 'booking_request', confidence: 0.99, extracted: {} }) }] };
+    if (/intent classifier/i.test(request.system)) return { content: [{ text: JSON.stringify({ intent: 'booking_request', confidence: 0.99,
+      participation: { decision: 'service', evidence: request.messages.at(-1).content }, extracted: {} }) }] };
     return { content: [{ type: 'text', text: 'Amazing, which treatment you thinking xxx' }] };
   } }; }
 } }));

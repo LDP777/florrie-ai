@@ -106,6 +106,7 @@ export function ownerIsInThread({ conversation, now = Date.now(), currentMessage
   for (const m of rows) {
     if (!m || m.direction !== 'outbound') continue;
     if (currentMessageId && m.id === currentMessageId) continue;
+    if (m.send_status && !['sent', 'delivered', 'read'].includes(m.send_status)) continue;
 
     const outAt = Date.parse(m.created_at || '');
     if (Number.isFinite(outAt) && (lastOutboundAt === null || outAt > lastOutboundAt)) {

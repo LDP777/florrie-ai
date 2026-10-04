@@ -211,7 +211,7 @@ describe('unseen story context remains uncertain until the salon answers', () =>
 describe('the real front desk cannot route an unknown launch into a booking', () => {
   it('retains unresolved story context through a second follow-up using the actually selected transcript fields', async () => {
     const client = { id: 'fictional-client', beautician_id: owner.id, first_name: 'Client', instagram_id: 'fictional-ig', preferred_channel: 'instagram' };
-    const row = (id, content, extra = {}) => ({ id, beautician_id: owner.id, client_id: client.id, direction: 'inbound', content, created_at: now.toISOString(), ...extra });
+    const row = (id, content, extra = {}) => ({ id, beautician_id: owner.id, client_id: client.id, channel: 'instagram', direction: 'inbound', content, created_at: now.toISOString(), ...extra });
     fixture.db.treatments = [{ id: 'treatment', beautician_id: owner.id, name: 'Hybrid brows', is_active: true, booking_enabled: true, requires_patch_test: false }];
     const message = 'Can I book that tomorrow?';
     fixture.db.messages = [row('story', `How do I book this?\n${INSTAGRAM_STORY_UNAVAILABLE_MARKER}`), row('first-follow-up', 'How much is that?', { escalated: true, escalated_reason: 'story_context:unavailable' }), row('inbound', message)];
@@ -231,7 +231,7 @@ describe('the real front desk cannot route an unknown launch into a booking', ()
   ])('holds $reason even with explicit Florrie mode and grounded_replies=$grounded', async ({ grounded, message, reason }) => {
     const client = { id: 'fictional-client', beautician_id: owner.id, first_name: 'Client', instagram_id: 'fictional-ig', preferred_channel: 'instagram' };
     fixture.db.treatments = [{ id: 'treatment', beautician_id: owner.id, name: 'Hybrid brows', is_active: true, booking_enabled: true, requires_patch_test: false }];
-    fixture.db.messages = [{ id: 'inbound', beautician_id: owner.id, client_id: client.id, direction: 'inbound', content: message, created_at: now.toISOString() }];
+    fixture.db.messages = [{ id: 'inbound', beautician_id: owner.id, client_id: client.id, channel: 'instagram', direction: 'inbound', content: message, created_at: now.toISOString() }];
     const result = await processInboundMessage('inbound', { ...owner, autonomy: { grounded_replies: grounded } }, client, message, 'instagram');
     expect(result.error).toBeUndefined();
     expect(result.escalated).toBe(true);

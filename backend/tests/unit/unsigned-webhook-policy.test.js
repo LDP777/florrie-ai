@@ -136,6 +136,15 @@ describe('the Instagram subscribe cannot cost the DM subscription', () => {
   });
 
   it('handles each webhook event in its own try, so an echo cannot take a DM with it', () => {
-    expect(webhook).toMatch(/for \(const event of entry\.messaging \|\| \[\]\) \{\s*\n[^\n]*\n[^\n]*\n[^\n]*\n[^\n]*\n\s*try \{\s*\n\s*await handleInstagramMessage/);
+    // Owner echoes are now saved first, before any inbound AI work. Each
+    // phase must retain its own per-event catch, not one catch for the batch.
+    const echoStart = webhook.indexOf('for (const { event, entryId } of deliveries.filter(item => item.event?.message?.is_echo))');
+    const inboundStart = webhook.indexOf('for (const { event, entryId } of deliveries.filter(item => !item.event?.message?.is_echo))');
+    const learningStart = webhook.indexOf('for (const learn of learningAfterDelivery)');
+    expect(echoStart).toBeGreaterThan(-1);
+    expect(inboundStart).toBeGreaterThan(echoStart);
+    expect(learningStart).toBeGreaterThan(inboundStart);
+    expect(webhook.slice(echoStart, inboundStart)).toMatch(/try\s*\{[\s\S]*await handleInstagramEcho\(event, entryId,[\s\S]*\}\s*catch\s*\(err\)\s*\{[\s\S]*logger\.error/);
+    expect(webhook.slice(inboundStart, learningStart)).toMatch(/try\s*\{[\s\S]*await handleInstagramMessage\(event, entryId\)[\s\S]*\}\s*catch\s*\(err\)\s*\{[\s\S]*logger\.error/);
   });
 });

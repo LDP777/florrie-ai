@@ -172,10 +172,10 @@ vi.mock('@anthropic-ai/sdk', () => ({
   default: class {
     constructor() {
       this.messages = {
-        create: async ({ system }) => {
+        create: async ({ system, messages }) => {
           if (/intent classifier/i.test(system)) {
             timeline.push('model:classify');
-            return { content: [{ text: JSON.stringify(script.classification) }] };
+            return { content: [{ text: JSON.stringify({ ...script.classification, participation: { decision: 'service', evidence: messages.at(-1).content.slice(0, 500) } }) }] };
           }
           if (/evaluating how well a generated response matches/i.test(system)) {
             return { content: [{ text: '0.9' }] };
@@ -278,7 +278,7 @@ function freshWorld(content = SHE_WROTE) {
   table('beauticians').push(beautician);
   table('clients').push(client);
   table('messages').push({
-    id: MSG_ID, beautician_id: 'b1', client_id: 'c1', direction: 'inbound',
+    id: MSG_ID, beautician_id: 'b1', client_id: 'c1', direction: 'inbound', channel: 'sms',
     content, created_at: THAT_MORNING.toISOString(),
   });
 }

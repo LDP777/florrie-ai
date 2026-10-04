@@ -103,6 +103,9 @@ const db = { beauticians: [], clients: [], messages: [], ai_actions: [], outboun
 let idCounter = 0;
 let messageReadFailure = '';
 let messageInsertFailure = false;
+let clientReadFailure = false;
+let clientInsertFailure = false;
+let clientInsertRace = false;
 const nextId = (p) => `${p}_${++idCounter}`;
 
 const undefinedColumn = (table, col) => ({ code: '42703', message: `column ${table}.${col} does not exist` });
@@ -157,11 +160,17 @@ function makeBuilder(table) {
   const matching = () => (db[table] || []).filter(r => filters.every(f => f(r)));
 
   const settle = () => {
+    if (table === 'clients' && ((!pending && clientReadFailure) || (pending?.op === 'insert' && clientInsertFailure))) return { data: null, error: { code: '500', message: 'synthetic identity outage' } };
     if (table === 'messages' && ((!pending && selectedColumns === messageReadFailure) || (pending?.op === 'insert' && messageInsertFailure))) return { data: null, error: { message: 'synthetic database outage' } };
     if (writeError) return { data: null, error: writeError, count: null };
     if (selectError) return { data: null, error: selectError, count: null };
     if (pending?.op === 'insert') {
       const payload = Array.isArray(pending.payload) ? pending.payload : [pending.payload];
+      if (table === 'clients' && clientInsertRace) {
+        clientInsertRace = false;
+        db.clients.push({ id: 'concurrent-client', ...payload[0] });
+        return { data: null, error: { code: '23505', message: 'duplicate Instagram identity' } };
+      }
       const created = payload.map(p => ({ id: nextId(table), created_at: new Date().toISOString(), ...p }));
       db[table].push(...created);
       return { data: created, error: null, count: created.length };
@@ -221,11 +230,12 @@ vi.mock('../../src/lib/logger.js', () => {
  * whole point of the first test.
  */
 const sends = [];
+const ownersAtSend = [];
 const learning = vi.hoisted(() => vi.fn());
 const modelRequests = vi.hoisted(() => []);
 vi.mock('../../src/services/reply-learning.js', () => ({ queueReplyLearning: learning }));
 vi.mock('../../src/services/notifications.js', () => ({
-  sendInstagramDM: async (args) => { sends.push({ via: 'instagram', ...args }); return { message_id: 'ig-out-1' }; },
+  sendInstagramDM: async (args) => { ownersAtSend.push(db.messages.filter(row => row.authored_by === 'human').map(row => row.id)); sends.push({ via: 'instagram', ...args }); return { message_id: 'ig-out-1' }; },
   sendWhatsAppText: async (args) => { sends.push({ via: 'whatsapp', ...args }); return { messages: [{ id: 'wa-out-1' }] }; },
   sendSMS: async (args) => { sends.push({ via: 'sms', ...args }); return { id: 'sms-out-1' }; },
   sendMessage: async (args) => { sends.push({ via: 'auto', ...args }); return true; },
@@ -347,10 +357,12 @@ beforeEach(async () => {
   graphCalls.length = 0;
   idCounter = 0;
   messageReadFailure = ''; messageInsertFailure = false; learning.mockClear();
+  clientReadFailure = false; clientInsertFailure = false; clientInsertRace = false;
+  ownersAtSend.length = 0;
   modelRequests.length = 0;
   await probeAuthorshipColumn();
   graph = {
-    'me/messages': () => ok({ message_id: 'mid.out' }),
+    'me/messages': () => { ownersAtSend.push(db.messages.filter(row => row.authored_by === 'human').map(row => row.id)); return ok({ message_id: 'mid.out' }); },
     [`graph.instagram.com/v21.0/${SENDER}`]: () => ok({ name: 'Sophie', username: 'sophie.b' }),
   };
   vi.setSystemTime(NOW);
@@ -399,7 +411,12 @@ describe('learning from the owner’s Instagram replies', () => {
   });
   it('never attaches the reply to a different salon’s client', async () => {
     seed(); db.clients[0].beautician_id = 'other-salon'; await postWebhook(echo());
-    expect(db.messages).toHaveLength(0); expect(learning).not.toHaveBeenCalled();
+    expect(db.clients).toHaveLength(2);
+    expect(db.clients[0]).toMatchObject({ id: 'c-sophie', beautician_id: 'other-salon' });
+    expect(db.messages).toHaveLength(1);
+    expect(db.messages[0]).toMatchObject({ beautician_id: 'b-ellie', client_id: db.clients[1].id, authored_by: 'human' });
+    expect(db.messages[0].client_id).not.toBe('c-sophie');
+    expect(sends).toHaveLength(0);
   });
   it('records an owner story reply without learning it as standalone guidance', async () => {
     seed();
@@ -454,6 +471,98 @@ describe('learning from the owner’s Instagram replies', () => {
     await postWebhook(echo());
     expect(learning).toHaveBeenCalledTimes(1);
     expect(db.messages.at(-1)).toMatchObject({ authored_by: 'human', client_id: 'c-sophie' });
+  });
+});
+
+describe('owner-first Instagram conversations and delivery ordering', () => {
+  const ownerEvent = (over = {}) => ({ sender: { id: IG_ACCOUNT }, recipient: { id: SENDER },
+    timestamp: NOW.getTime() - 60_000,
+    message: { is_echo: true, mid: 'birthday-owner', text: 'Happy birthday xx' }, ...over });
+  const delivery = events => ({ object: 'instagram', entry: [{ id: IG_ACCOUNT, messaging: events }] });
+
+  it('records a native owner-first message and reuses its scoped identity when the client answers', async () => {
+    seedSalon({ instagram_dm_mode: 'off' });
+    await postWebhook(delivery([ownerEvent()]));
+    expect(db.clients).toHaveLength(1);
+    const id = db.clients[0].id;
+    expect(db.clients[0]).toMatchObject({ beautician_id: 'b-ellie', instagram_id: SENDER, first_name: 'Instagram User' });
+    expect(db.messages[0]).toMatchObject({ client_id: id, authored_by: 'human', direction: 'outbound', created_at: '2026-08-31T21:39:00.000Z' });
+    expect(sends).toHaveLength(0);
+    await postWebhook(dm({ mid: 'birthday-thanks', text: 'Thank you gorg ♥️♥️' }));
+    expect(db.clients).toHaveLength(1);
+    expect(db.messages).toHaveLength(2);
+    expect(db.messages[1]).toMatchObject({ client_id: id, direction: 'inbound', created_at: NOW.toISOString() });
+    expect(db.clients[0].first_name).toBe('Sophie');
+    expect(sends).toHaveLength(0);
+  });
+
+  it('never merges an unlinked owner contact by display name', async () => {
+    seedSalon(); seedWhatsAppClient({ first_name: 'Instagram User', instagram_id: null });
+    await postWebhook(delivery([ownerEvent()]));
+    expect(db.clients).toHaveLength(2);
+    expect(db.clients[0].instagram_id).toBeNull();
+    expect(db.messages[0].client_id).toBe(db.clients[1].id);
+    expect(sends).toHaveLength(0);
+  });
+
+  it('re-reads the exact tenant identity when another delivery creates it concurrently', async () => {
+    seedSalon(); clientInsertRace = true;
+    await postWebhook(delivery([ownerEvent()]));
+    expect(db.clients).toHaveLength(1);
+    expect(db.messages[0]).toMatchObject({ client_id: 'concurrent-client', beautician_id: 'b-ellie' });
+    expect(sends).toHaveLength(0);
+  });
+
+  it.each(['read', 'insert'])('does not invent or misattach a client after an identity %s failure', async failure => {
+    seedSalon();
+    clientReadFailure = failure === 'read'; clientInsertFailure = failure === 'insert';
+    await postWebhook(delivery([ownerEvent()]));
+    expect(db.clients).toHaveLength(0); expect(db.messages).toHaveLength(0);
+    expect(learning).not.toHaveBeenCalled(); expect(sends).toHaveLength(0);
+    expect(logs.error.some(row => /client identity/i.test(row.msg))).toBe(true);
+  });
+
+  it('stores an echo placed after the inbound event before any inbound reply work', async () => {
+    seedSalon({ instagram_dm_mode: 'ai' }); seedWhatsAppClient();
+    const inbound = dm({ mid: 'ordered-inbound', text: 'STOP' }).entry[0].messaging[0];
+    await postWebhook(delivery([inbound, ownerEvent()]));
+    const owner = db.messages.find(row => row.external_message_id === 'birthday-owner');
+    expect(owner).toBeDefined();
+    expect(ownersAtSend).toEqual([[owner.id]]);
+    expect(db.messages[0].id).toBe(owner.id);
+    expect(db.messages[1]).toMatchObject({ external_message_id: 'ordered-inbound', direction: 'inbound', created_at: NOW.toISOString() });
+  });
+
+  it('pre-stores owner echoes across entries in the same delivery', async () => {
+    seedSalon({ instagram_dm_mode: 'ai' }); seedWhatsAppClient();
+    const payload = dm({ mid: 'other-entry-inbound', text: 'STOP' });
+    payload.entry.push({ id: IG_ACCOUNT, messaging: [ownerEvent()] });
+    await postWebhook(payload);
+    const owner = db.messages.find(row => row.external_message_id === 'birthday-owner');
+    expect(ownersAtSend).toEqual([[owner.id]]);
+  });
+
+  it.each([null, '', 'not a date', NOW.getTime() / 1000, -1, Infinity, NOW.getTime() + 86_400_000])('falls back to receipt time for invalid Meta timestamp %j', async timestamp => {
+    seedSalon(); seedWhatsAppClient();
+    await postWebhook(delivery([ownerEvent({ timestamp })]));
+    expect(db.messages[0].created_at).toBe(NOW.toISOString());
+  });
+
+  it('keeps a delayed provider timestamp instead of making an old owner message look current', async () => {
+    seedSalon(); seedWhatsAppClient();
+    await postWebhook(delivery([ownerEvent({ timestamp: String(NOW.getTime() - 9 * 86_400_000) })]));
+    expect(db.messages[0].created_at).toBe('2026-08-22T21:40:00.000Z');
+  });
+
+  it('checks same-delivery story context before queuing learning from a pre-stored owner reply', async () => {
+    seedSalon({ instagram_dm_mode: 'off' }); seedWhatsAppClient();
+    const inbound = dm({ mid: 'story-question-batch', text: 'When do those dates open?', reply_to: { story: { id: 'story-one' } } }).entry[0].messaging[0];
+    inbound.timestamp = NOW.getTime() - 120_000;
+    const owner = ownerEvent({ message: { is_echo: true, mid: 'answer-story-batch', text: 'All of the dates from that story open next Friday.' } });
+    await postWebhook(delivery([inbound, owner]));
+    expect(db.messages).toHaveLength(2);
+    expect(db.messages[0]).toMatchObject({ authored_by: 'human' });
+    expect(learning).not.toHaveBeenCalled(); expect(sends).toHaveLength(0);
   });
 });
 

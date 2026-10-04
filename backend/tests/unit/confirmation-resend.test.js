@@ -167,9 +167,9 @@ vi.mock('@anthropic-ai/sdk', () => ({
   default: class {
     constructor() {
       this.messages = {
-        create: async ({ system, tool_choice }) => {
+        create: async ({ system, tool_choice, messages }) => {
           if (/intent classifier/i.test(system)) {
-            return { content: [{ text: JSON.stringify(script.classification) }] };
+            return { content: [{ text: JSON.stringify({ ...script.classification, participation: { decision: 'service', evidence: messages.at(-1).content.slice(0, 500) } }) }] };
           }
           promptsSeen.push(system);
           if (tool_choice?.name === 'select_menu_treatments' && script.menu) return { content: [{ type: 'tool_use', name: 'select_menu_treatments', input: script.menu }] };
@@ -275,7 +275,7 @@ beforeEach(() => {
   };
   db.beauticians.push(beautician);
   db.clients.push(client);
-  db.messages.push({ id: MSG_ID, beautician_id: 'b1', client_id: 'c1', direction: 'inbound', content: SOPHIE_ASKED, created_at: new Date().toISOString() });
+  db.messages.push({ id: MSG_ID, beautician_id: 'b1', client_id: 'c1', direction: 'inbound', channel: 'sms', content: SOPHIE_ASKED, created_at: new Date().toISOString() });
 });
 
 /** Sophie's next booking, a week out, the one she said she could not make. */
@@ -640,7 +640,7 @@ describe('client questions use approved answers before the booking engine', () =
     setupQuestion();
     const message='I’ll go ahead with lamination, hybrid dye and tinting';
     db.messages[0].content=message;
-    db.messages.push({id:'previous-training',beautician_id:'b1',client_id:'c1',direction:'inbound',content:'Any 1-1 training days after October?',created_at:new Date(Date.now()-60000).toISOString()});
+    db.messages.push({id:'previous-training',beautician_id:'b1',client_id:'c1',direction:'inbound',channel:'sms',content:'Any 1-1 training days after October?',created_at:new Date(Date.now()-60000).toISOString()});
     const result=await processInboundMessage(MSG_ID,beautician,client,message);
     expect(result.escalated).toBe(true);
     expect(bookingCalls).toHaveLength(0);
