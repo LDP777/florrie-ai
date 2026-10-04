@@ -11,7 +11,7 @@ const bundle = await build({
     import {BrowserRouter} from 'react-router-dom';
     import Integrations from './src/pages/Integrations.jsx';
     window.fixture={native:true,token:'expired-sdk-token',refreshes:0,requests:[],opened:[],popups:[],listeners:new Set(),profileRefreshes:0,
-      profile:{id:'demo',instagram_page_id:'demo-ig'},status:{token_valid:true,webhook_subscribed:true,echoes_subscribed:true},statusCode:200,
+      profile:{id:'demo',instagram_page_id:'demo-ig'},status:{token_valid:true,webhook_subscribed:true,echoes_subscribed:null},statusCode:200,
       connectUrl:'https://www.instagram.com/oauth/authorize?client_id=fixture&state=synthetic',connectCode:200,
       mount(){this.root ||= createRoot(document.getElementById('root'));this.root.render(<React.StrictMode><BrowserRouter><Integrations/></BrowserRouter></React.StrictMode>);}
     };
@@ -60,7 +60,7 @@ try {
   const origin=`http://127.0.0.1:${server.address().port}`;const errors=[];
   page.on('pageerror',error=>errors.push(error.message));
   await page.route('**/*',route=>new URL(route.request().url()).origin===origin?route.continue():route.abort());
-  const start=async(setup)=>{await page.goto(origin);if(setup)await page.evaluate(setup);await page.evaluate(()=>fixture.mount());};
+  const start=async(setup,value)=>{await page.goto(origin);if(setup)await page.evaluate(setup,value);await page.evaluate(()=>fixture.mount());};
   const expand=()=>page.getByText('Instagram',{exact:true}).click();
   await start();await expand();await page.getByText('Page ID',{exact:true}).waitFor();
   assert.equal(await page.evaluate(()=>fixture.refreshes),1,'status refreshes the expired SDK session');
@@ -80,15 +80,29 @@ try {
   await page.getByText('Page ID',{exact:true}).waitFor();
   assert.equal(await page.getByText('new-demo-ig',{exact:true}).count(),1);
   assert.ok(await page.evaluate(()=>fixture.profileRefreshes>0));
-  for(const missing of ['webhook_subscribed','echoes_subscribed']){
-    await start(()=>{fixture.token='fresh-sdk-token';});
-    await page.evaluate(missing=>{fixture.status[missing]=false;for(const callback of fixture.listeners)callback();},missing);
-    await expand();await page.getByText('Setup incomplete',{exact:true}).waitFor();
-    await page.getByRole('button',{name:'Review Instagram connection'}).waitFor();
-    assert.equal(await page.getByText('Connected',{exact:true}).count(),0);
-    await page.evaluate(()=>{fixture.status.webhook_subscribed=true;fixture.status.echoes_subscribed=true;});
-    await page.getByRole('button',{name:'Retry connection check'}).click();
-    await page.getByText('Page ID',{exact:true}).waitFor();
+  // Incoming-message access is required. Instagram Login does not support
+  // the separate owner-echo field, so that field cannot decide readiness.
+  await start(()=>{fixture.token='fresh-sdk-token';fixture.status.webhook_subscribed=false;});
+  await expand();await page.getByText('Setup incomplete',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'Review Instagram connection'}).waitFor();
+  assert.equal(await page.getByText('Connected',{exact:true}).count(),0,'missing incoming-message subscription is never connected');
+  await page.evaluate(()=>{fixture.status.webhook_subscribed=true;});
+  await page.getByRole('button',{name:'Retry connection check'}).click();
+  await page.getByText('Page ID',{exact:true}).waitFor();
+  assert.equal(await page.evaluate(()=>fixture.opened.length),0,'checking incoming-message readiness must not reopen OAuth');
+
+  for(const echoes of [false,null,'absent']){
+    await start(value=>{
+      fixture.token='fresh-sdk-token';
+      if(value==='absent')delete fixture.status.echoes_subscribed;
+      else fixture.status.echoes_subscribed=value;
+    },echoes);
+    await expand();await page.getByText('Page ID',{exact:true}).waitFor();
+    assert.equal(await page.getByText('Connected',{exact:true}).count(),1,`unsupported owner echoes (${echoes}) must not block a valid message connection`);
+    assert.equal(await page.getByText('Setup incomplete',{exact:true}).count(),0);
+    assert.equal(await page.getByRole('button',{name:'Review Instagram connection'}).count(),0,'unsupported owner echoes do not need an impossible reconnect');
+    assert.equal(await page.evaluate(()=>fixture.requests.some(request=>request.method!=='GET')),false,'status checks never write connection or account settings');
+    assert.equal(await page.evaluate(()=>fixture.opened.length),0);
   }
 
   await start(()=>{fixture.token='fresh-sdk-token';fixture.status.webhook_subscribed=null;fixture.status.echoes_subscribed=null;});await expand();
@@ -130,5 +144,5 @@ try {
   assert.equal(await page.evaluate(()=>fixture.opened.length),0,'late OAuth response cannot open after the timeout');
   assert.equal(await page.evaluate(()=>fixture.requests.some(r=>r.method!=='GET')),false,'no connection or account writes in the rehearsal');
   assert.deepEqual(errors,[]);
-  console.log('PASS: Integrations native system-browser handoff, URL/error/timeout protection, SDK refresh, read-only status retry, late-response safety and exact Settings destination, native return refresh and incomplete webhook warning');
+  console.log('PASS: Integrations native system-browser handoff, URL/error/timeout protection, SDK refresh, read-only status retry, late-response safety and exact Settings destination, native return refresh, required incoming-message subscription and unsupported owner-echo handling');
 }finally{await browser?.close();await new Promise(resolve=>server.close(resolve));}
