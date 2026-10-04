@@ -551,25 +551,9 @@ router.get('/callback', async (req, res) => {
     // Step 5 — subscribe this account to the app's message webhooks so inbound
     // DMs reach POST /api/webhooks/instagram. Non-fatal: connection still counts
     // as successful if this fails (it can be retried).
-    //
-    // message_echoes was added on 1 September 2026, after Florrie replied into
-    // a thread Ellie was already handling and made no sense, because she could
-    // not see it. `messages` alone delivers only what the CLIENT sends. Ellie
-    // types her own replies in the Instagram app on her phone, and without
-    // echoes not one of them was ever written to the thread, so the transcript
-    // Florrie reasons over had the owner's half of the conversation missing
-    // entirely. See lib/owner-in-thread.js.
-    //
-    // TWO CALLS, NOT ONE, AND THE ORDER MATTERS. `messages` is the call that
-    // has worked since 31 August and is the one that makes DMs arrive at all.
-    // `message_echoes` is new, and Meta's reference lists a permission for it
-    // that this app does not request, so Meta may refuse it. A single call
-    // asking for both would then be refused as a whole, and a reconnect would
-    // leave the account subscribed to NOTHING: no echoes, and no DMs either.
-    // "Make sure nothing you did breaks the instagram connection" was the
-    // instruction the night this shipped. So the call that must succeed goes
-    // first and alone, and the one that may not goes second, on its own, where
-    // its failure can cost nothing but itself.
+    // Instagram Login does not accept message_echoes as a subscription field.
+    // Subscribe only to the supported messages field; the webhook separately
+    // records any delivered is_echo messages without rewriting subscriptions.
     try {
       const subscribe = async (fields) => {
         const r = await fetch(
@@ -587,15 +571,6 @@ router.get('/callback', async (req, res) => {
         logger.warn({ beauticianId, subData: dms.body }, 'Instagram: webhook subscribe returned an error');
       } else {
         logger.info({ beauticianId, accountId }, 'Instagram: account subscribed to message webhooks');
-      }
-
-      // Best effort. Never allowed to matter to the line above.
-      const echoes = await subscribe('messages,message_echoes').catch((err) => ({ ok: false, body: { thrown: err?.message } }));
-      if (!echoes.ok) {
-        logger.warn({ beauticianId, subData: echoes.body },
-          'Instagram: message_echoes not subscribed (DMs still arrive; Florrie will not see the owner\'s own replies in this thread until this succeeds)');
-      } else {
-        logger.info({ beauticianId, accountId }, 'Instagram: message_echoes subscribed');
       }
     } catch (err) {
       logger.warn({ err, beauticianId }, 'Instagram: webhook subscribe failed (non-fatal)');
@@ -626,13 +601,16 @@ export function instagramSubscriptionStatus(body, applicationIds = [IG_APP_ID, p
     // nonempty unmatched response cannot prove Florrie is disconnected, and
     // cannot prove another subscription belongs to us. Keep that unknown.
     if (body.paging?.next || apps.length) return unknown;
-    return { messages: false, echoes: false };
+    return { messages: false, echoes: null };
   }
   if (matching.some(app => !Array.isArray(app.subscribed_fields))) return unknown;
   const fields = matching.flatMap(app => app.subscribed_fields);
   if (fields.some(field => typeof field !== 'string' && typeof field?.name !== 'string')) return unknown;
   const names = new Set(fields.map(field => typeof field === 'string' ? field : field.name));
-  return { messages: names.has('messages'), echoes: names.has('message_echoes') };
+  // Retain the response field for existing clients, but this listing cannot
+  // establish whether owner echoes are being delivered. In particular,
+  // message_echoes is not a supported Instagram Login subscription field.
+  return { messages: names.has('messages'), echoes: null };
 }
 
 // GET /api/instagram/status
@@ -710,7 +688,7 @@ router.get('/status', requireAuth, async (req, res) => {
     // a working setup right up until somebody sends a message and waits.
     // Asked here so it can be checked before it matters.
     let webhookSubscribed = null;   // null = could not check
-    let echoesSubscribed = null;    // null = could not check
+    let echoesSubscribed = null;    // not verifiable from the subscription list
     if (tokenValid) {
       try {
         const s = await fetch('https://graph.instagram.com/v21.0/me/subscribed_apps', {
@@ -720,7 +698,6 @@ router.get('/status', requireAuth, async (req, res) => {
         if (s.ok) {
           const subscription = instagramSubscriptionStatus(sBody);
           webhookSubscribed = subscription.messages;
-          // Owner echoes are a separate capability of Florrie's app.
           echoesSubscribed = subscription.echoes;
         }
       } catch (err) {
@@ -736,9 +713,8 @@ router.get('/status', requireAuth, async (req, res) => {
       // true / false / null. Only ever false when Instagram positively said
       // this account is not subscribed to the messages field.
       webhook_subscribed: webhookSubscribed,
-      // An account connected before 1 September 2026 is subscribed to
-      // `messages` only, so nothing Ellie sends from the Instagram app reaches
-      // the thread and Florrie answers around her. Reconnecting fixes it.
+      // Compatibility field: subscription metadata cannot verify owner-echo
+      // delivery, so do not diagnose a missing capability or advise reconnect.
       echoes_subscribed: echoesSubscribed,
       account_id: data.instagram_page_id,
       token_valid: tokenValid,

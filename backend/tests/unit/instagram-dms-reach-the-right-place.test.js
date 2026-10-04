@@ -480,6 +480,20 @@ describe('owner-first Instagram conversations and delivery ordering', () => {
     message: { is_echo: true, mid: 'birthday-owner', text: 'Happy birthday xx' }, ...over });
   const delivery = events => ({ object: 'instagram', entry: [{ id: IG_ACCOUNT, messaging: events }] });
 
+  it('keeps inbound messages and owner echoes without attempting subscription repair', async () => {
+    seedSalon({ instagram_dm_mode: 'off' });
+    graph['subscribed_apps'] = () => ({ ok: false, status: 400, body: { error: { code: 100, message: 'Invalid subscription field' } } });
+    await postWebhook(delivery([ownerEvent()]));
+    await postWebhook(dm({ mid: 'no-repair-1', text: 'Thank you gorg ♥️♥️' }));
+    await postWebhook(dm({ mid: 'no-repair-2', text: 'Speak soon xx' }));
+    expect(db.messages.map(row => row.external_message_id)).toEqual(['birthday-owner', 'no-repair-1', 'no-repair-2']);
+    expect(db.messages[0]).toMatchObject({ authored_by: 'human', direction: 'outbound' });
+    expect(db.messages.slice(1).every(row => row.direction === 'inbound')).toBe(true);
+    expect(graphCalls.filter(call => call.url.includes('/subscribed_apps'))).toEqual([]);
+    expect(graphCalls.filter(call => call.method !== 'GET')).toEqual([]);
+    expect(sends).toHaveLength(0);
+  });
+
   it('records a native owner-first message and reuses its scoped identity when the client answers', async () => {
     seedSalon({ instagram_dm_mode: 'off' });
     await postWebhook(delivery([ownerEvent()]));

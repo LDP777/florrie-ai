@@ -440,6 +440,31 @@ describe('connect: every id the login reports is kept, not one guess', () => {
     expect(row.instagram_page_name).toBe('ellindigo');
   });
 
+  it.each([true, false])('requests messages once using the connected account token, without unsupported retries (success=%s)', async success => {
+    applyProposedColumns();
+    stubHappyOAuth();
+    graph['me/subscribed_apps'] = () => success ? ok({ success: true }) : fail(400, { code: 100, message: 'Subscription request rejected' });
+    const res = await runCallback();
+    const subscriptions = graphCalls.filter(call => call.url.includes('/me/subscribed_apps'));
+    expect(subscriptions).toHaveLength(1);
+    expect(subscriptions[0].method).toBe('POST');
+    const url = new URL(subscriptions[0].url);
+    expect(url.searchParams.get('subscribed_fields')).toBe('messages');
+    expect(url.searchParams.get('access_token')).toBe('long-tok');
+    expect(res.location).toContain('ig=success');
+    expect(db.beauticians[0].instagram_page_token).toBe('long-tok');
+    if (!success) expect(logs.warn.some(row => row.msg === 'Instagram: webhook subscribe returned an error')).toBe(true);
+  });
+
+  it('does not attempt subscription or token changes for an invalid OAuth state', async () => {
+    applyProposedColumns();
+    seedConnected();
+    const res = await get('/api/instagram/callback?code=abc123&state=invalid');
+    expect(res.location).not.toContain('ig=success');
+    expect(db.beauticians[0].instagram_page_token).toBe('IGQVJ-long-lived');
+    expect(graphCalls).toEqual([]);
+  });
+
   it('records when the token expires, so the health check can warn first', async () => {
     // lib/health.js has always READ instagram_token_expires_at and warned on
     // anything close to it. Nothing ever wrote it, so that warning had never
@@ -584,10 +609,12 @@ describe('status: the card tells the truth about the token and the handle', () =
     graph['graph.instagram.com/v21.0/me?fields=user_id,username'] = () => ok({ user_id: IG_USER_ID, username: 'ellindigo' });
     let res = await get('/api/instagram/status');
     expect(res.body.webhook_subscribed).toBe(true);
+    expect(res.body.echoes_subscribed).toBeNull();
 
     graph['me/subscribed_apps'] = () => ok({ data: [] });
     res = await get('/api/instagram/status');
     expect(res.body.webhook_subscribed).toBe(false);
+    expect(res.body.echoes_subscribed).toBeNull();
     // Still connected: an unsubscribed account is not a dead token.
     expect(res.body.needs_reconnect).toBe(false);
   });
@@ -603,7 +630,7 @@ describe('status: the card tells the truth about the token and the handle', () =
       { id: process.env.INSTAGRAM_APP_ID, subscribed_fields: ['messages'] },
     ] });
     res = await get('/api/instagram/status');
-    expect(res.body).toMatchObject({ webhook_subscribed: true, echoes_subscribed: false });
+    expect(res.body).toMatchObject({ webhook_subscribed: true, echoes_subscribed: null });
   });
 
   it('recognises the configured parent Meta app without including a foreign app fields', async () => {
@@ -614,7 +641,9 @@ describe('status: the card tells the truth about the token and the handle', () =
       graph['graph.instagram.com/v21.0/me?fields=user_id,username'] = () => ok({ user_id: IG_USER_ID, username: 'ellindigo' });
       graph['me/subscribed_apps'] = () => ok({ data: [{ id: 'known-parent-app', subscribed_fields: [{ name: 'messages' }, 'message_echoes'] }] });
       const res = await get('/api/instagram/status');
-      expect(res.body).toMatchObject({ webhook_subscribed: true, echoes_subscribed: true });
+      // Even a legacy fixture containing message_echoes cannot prove owner
+      // delivery: Instagram Login rejects that subscription field.
+      expect(res.body).toMatchObject({ webhook_subscribed: true, echoes_subscribed: null });
     } finally { if (old === undefined) delete process.env.META_APP_ID; else process.env.META_APP_ID = old; }
   });
 

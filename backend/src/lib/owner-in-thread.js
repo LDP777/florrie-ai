@@ -18,16 +18,17 @@
  * Two separate faults produced that message, and this file is the second one.
  *
  * The FIRST is that Florrie could not see Ellie's line at all. Ellie typed it
- * in the Instagram app on her phone, and we subscribed only to `messages`, not
- * `message_echoes`, so nothing the owner sends herself was ever written to the
- * thread. The transcript handed to the model was:
+ * in the Instagram app on her phone, but her outbound message was absent from
+ * the stored thread. The transcript handed to the model was:
  *
  *   Client  Can I change my appointment ... to full lami
  *   Client  Yes no problem!! Xxx
  *
  * From which "let me check whether you need a patch test" is a perfectly
  * sensible reply. The model was not wrong. It was answering a conversation
- * that did not happen. routes/instagram-webhooks.js now records echoes.
+ * that did not happen. routes/instagram-webhooks.js records received echoes,
+ * including owner-first contacts. Do not try to repair this by subscribing to
+ * `message_echoes`: Instagram Login rejects that field (verified 4 Oct 2026).
  *
  * The SECOND is that even with the full transcript, nothing anywhere said that
  * a human being was already in this conversation. Every dial we have is about

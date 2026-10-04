@@ -115,24 +115,18 @@ describe('waking somebody up', () => {
 });
 
 describe('the Instagram subscribe cannot cost the DM subscription', () => {
-  // "make sure nothing you did or will do breaks the instagram connection,
-  // ellie will need it in the morning". Meta's reference lists a permission
-  // for message_echoes that this app does not request, so a single call
-  // asking for messages AND echoes could be refused as a whole. On a reconnect
-  // that would leave the account subscribed to nothing.
+  // Connect requests the supported messages field. Incoming deliveries must
+  // never rewrite the account's subscriptions.
   const connect = readFileSync(new URL('../../src/routes/instagram.js', import.meta.url), 'utf8');
   const webhook = readFileSync(new URL('../../src/routes/instagram-webhooks.js', import.meta.url), 'utf8');
 
-  it('subscribes to messages ALONE first at connect time, then echoes separately', () => {
-    const alone = connect.indexOf("subscribe('messages')");
-    const withEchoes = connect.indexOf("subscribe('messages,message_echoes')");
-    expect(alone).toBeGreaterThan(-1);
-    expect(withEchoes).toBeGreaterThan(alone);
+  it('subscribes only to the supported messages field at connect time', () => {
+    expect(connect.match(/await subscribe\('[^']+'\)/g)).toEqual(["await subscribe('messages')"]);
   });
 
-  it('re-asserts messages alone if the echo subscribe fails on a live account', () => {
-    const at = webhook.indexOf('could not add message_echoes');
-    expect(webhook.slice(at, at + 900)).toContain('subscribed_fields=messages\'');
+  it('does not rewrite account subscriptions from an incoming webhook', () => {
+    expect(webhook).not.toContain('/subscribed_apps');
+    expect(webhook).not.toContain('ensureEchoSubscription');
   });
 
   it('handles each webhook event in its own try, so an echo cannot take a DM with it', () => {

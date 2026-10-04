@@ -9,6 +9,11 @@
  * new reason is never hidden, only unpolished.
  */
 const EXACT = {
+  'participation:answer_context_unverified': 'This looks like an answer to an earlier question, but Florrie could not verify a current conversation. Read the thread before booking anything.',
+  'participation:thanks_without_request': 'This may just be a thank-you. Florrie has not sent another reply. Check whether the client needs anything.',
+  thread_refresh_unavailable: 'Florrie could not check the latest messages, so she held the reply. Open the conversation before replying.',
+  owner_replied_during_processing: 'You replied while Florrie was checking this request, so she stopped her reply. Check whether the booking change still needs handling.',
+  newer_client_message: 'Another message arrived while Florrie was checking this request. Read the latest message before replying.',
   'booking_request:unclear': 'Florrie could not tell whether they want to book or are continuing another conversation. Read the thread before replying.',
   'story_context:unavailable': 'They asked about an Instagram story that Florrie cannot see. Check the story and reply to their question.',
   'diary_release:announcement_unconfirmed': 'They asked when dates will open. Florrie does not have a confirmed announcement. Confirm the release date before replying.',
@@ -34,6 +39,8 @@ const EXACT = {
 };
 
 const PREFIXED = [
+  [/:service_action_completed$/, 'Florrie completed a booking step or resent a confirmation before the conversation changed. Check the recorded result and latest messages before taking another action.'],
+  [/^participation:/, 'Florrie could not tell whether this needs help from the salon. She has left it for you without sending or drafting a reply.'],
   [/^client_is_at_the_door/, 'This client is at your door now. Florrie has not replied.'],
   [/^confirmation_resend:no_upcoming_booking/, 'They asked for their confirmation, but Florrie could not find an upcoming booking for them.'],
   [/^confirmation_resend:/, 'They asked for their confirmation and Florrie could not resend it herself.'],

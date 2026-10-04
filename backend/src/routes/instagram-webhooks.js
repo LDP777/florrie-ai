@@ -235,65 +235,6 @@ export async function findBeauticianForIds(candidateIds) {
 }
 
 /**
- * Make sure this account is subscribed to message_echoes, not just messages.
- *
- * The subscription is made once, at connect time. Ellindigo connected on 31
- * August, the day before echoes were added, so her account is subscribed to
- * `messages` only and every /status check reports her as perfectly healthy
- * while Florrie remains blind to everything Ellie writes herself. Shipping the
- * code without this would fix the bug for salons that connect tomorrow and
- * leave the one salon that has it exactly as broken as before.
- *
- * Subscribing is idempotent, so the safe thing is simply to do it, once per
- * process, the first time a DM arrives from an account. Deliberately NOT done
- * at boot: that would put a Meta API call on the startup path of a service
- * whose whole job is to be up.
- *
- * Fire and forget. A failure here must never delay or break handling the
- * message that triggered it.
- */
-const echoSubscriptionEnsured = new Set();
-
-async function ensureEchoSubscription(beautician) {
-  if (!beautician?.id || !beautician.instagram_page_token) return;
-  if (echoSubscriptionEnsured.has(beautician.id)) return;
-  echoSubscriptionEnsured.add(beautician.id);
-
-  try {
-    const res = await fetch(
-      'https://graph.instagram.com/v21.0/me/subscribed_apps?subscribed_fields=messages,message_echoes',
-      { method: 'POST', headers: { Authorization: `Bearer ${beautician.instagram_page_token}` } },
-    );
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok || body?.success === false) {
-      // Let it be retried next boot rather than remembering a failure forever.
-      echoSubscriptionEnsured.delete(beautician.id);
-      logger.warn({ beauticianId: beautician.id, body },
-        'Instagram: could not add message_echoes to this account. Florrie will not see the owner\'s own replies until this succeeds or she reconnects.');
-      // Insurance. A refused POST should leave the existing `messages`
-      // subscription exactly as it was, and this account was plainly
-      // subscribed a moment ago or the DM that triggered this would not have
-      // arrived. Re-asserting `messages` alone costs one call and removes the
-      // word "should" from that sentence.
-      try {
-        await fetch(
-          'https://graph.instagram.com/v21.0/me/subscribed_apps?subscribed_fields=messages',
-          { method: 'POST', headers: { Authorization: `Bearer ${beautician.instagram_page_token}` } },
-        );
-      } catch { /* the original subscription stands regardless */ }
-      return;
-    }
-    logger.info({ beauticianId: beautician.id }, 'Instagram: message_echoes subscription confirmed');
-  } catch (err) {
-    echoSubscriptionEnsured.delete(beautician.id);
-    logger.warn({ err, beauticianId: beautician.id }, 'Instagram: message_echoes subscribe threw');
-  }
-}
-
-/** Tests only. */
-export function __resetEchoSubscriptionCache() { echoSubscriptionEnsured.clear(); }
-
-/**
  * Record a message the SALON sent, so the thread Florrie reads is the whole
  * thread and not just the client's half of it.
  *
@@ -534,11 +475,9 @@ async function handleInstagramMessage(event, pageId) {
       'Instagram DM: routed on a secondary account id, not instagram_page_id');
   }
 
-  // Not awaited. Heals an account subscribed before message_echoes existed,
-  // at the first moment we know it is live, without putting a Meta round trip
-  // in front of answering the client.
-  ensureEchoSubscription(beautician).catch(() => {});
-
+  // Receiving a message must not rewrite account subscriptions. Instagram
+  // Login rejects message_echoes as a subscription field; handle any is_echo
+  // deliveries above without attempting a provider configuration change.
   await processInstagramDM(beautician, senderId, messageText, messageId, media, story, event.timestamp);
 }
 

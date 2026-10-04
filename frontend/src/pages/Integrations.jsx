@@ -127,8 +127,9 @@ function getIntegrationStatus(id, beautician, smsConfig, igStatus, igChecking) {
       // connected once. Only a live check proves it still works.
       if (igChecking || !igStatus) return 'checking';
       if (igStatus.needs_reconnect) return 'needs_reconnect';
-      if (igStatus.token_valid && (igStatus.webhook_subscribed === false || igStatus.echoes_subscribed === false)) return 'needs_attention';
-      if (igStatus.token_valid && igStatus.webhook_subscribed === true && igStatus.echoes_subscribed === true) return 'connected';
+      // Instagram Login has no separate owner-echo subscription to verify.
+      if (igStatus.token_valid && igStatus.webhook_subscribed === false) return 'needs_attention';
+      if (igStatus.token_valid && igStatus.webhook_subscribed === true) return 'connected';
       return 'unknown';
     default:
       return 'coming_soon';
@@ -425,9 +426,7 @@ export default function Integrations() {
                   {integ.status === 'needs_attention' && (
                     <>
                       <p role="status" style={{ ...type.bodySmall, fontSize: 12, lineHeight: 1.5, margin: '0 0 10px' }}>
-                        {igStatus.webhook_subscribed === false
-                          ? 'Your Instagram account is saved, but messages are not reaching Florrie yet.'
-                          : 'Your Instagram account is saved, but Florrie cannot see replies you send in Instagram yet.'}
+                        Your Instagram account is saved, but messages are not reaching Florrie yet.
                         {' '}Review the connection in Settings, then check again.
                       </p>
                       <Button variant="secondary" fullWidth onClick={e => { e.stopPropagation(); fetchIgStatus(); }}>Retry connection check</Button>
