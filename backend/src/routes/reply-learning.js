@@ -5,6 +5,7 @@ import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import { learnReply } from '../services/reply-learning.js';
 import { KNOWLEDGE_CATEGORIES } from '../lib/knowledge.js';
+import logger from '../lib/logger.js';
 
 const router = Router();
 const idSchema = z.string().uuid();
@@ -48,7 +49,7 @@ router.post('/discover', limit, async (req, res) => {
   const done = new Set((existing.data || []).filter(row => !['retry','processing'].includes(row.status) || Date.now() - Date.parse(row.updated_at) < 60000).map(row => row.source_message_id));
   const selected = ids.filter(id => !done.has(id)).slice(0, 6);
   // Sequential extraction limits provider concurrency. No sends take place.
-  void (async () => { for (const id of selected) { try { await learnReply(req.beautician.id, id); } catch {} } })();
+  void (async () => { for (const id of selected) { try { await learnReply(req.beautician.id, id); } catch (err) { logger.warn({ id, err: err?.message }, 'reply-learning: learnReply failed during discover'); } } })();
   res.status(202).json({ reviewing: selected.length });
 });
 
