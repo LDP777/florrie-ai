@@ -5,8 +5,10 @@ import { requireAuth } from '../middleware/auth.js';
 import { createPostFromPhoto, publishPost, draftAvailabilityPost, generateCaption, planWeek, imageUrlProblem } from '../services/content-autopilot.js';
 import logger from '../lib/logger.js';
 import assistantRoutes from './content-assistant.js';
+import teamRoutes from './content-team.js';
 
 const router = Router();
+router.use('/team', teamRoutes);
 router.use('/assistant', assistantRoutes);
 
 /**

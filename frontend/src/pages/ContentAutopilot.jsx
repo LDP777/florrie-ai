@@ -805,7 +805,8 @@ export default function ContentAutopilot() {
       {tab === 'results' && <ContentResults ownerId={beautician.id} posts={[...drafts,...scheduled,...posted]} initialPostId={resultsPostId} />}
       {tab === 'assistant' && !composing && <ContentAssistant key={beautician.id} owner={beautician}
         onPost={post => {putPosts([post], true); openPost(post);}} onPrepared={posts => putPosts(posts, true)}
-        onPosts={() => setTab('drafts')} onPhotos={() => setTab('gallery')} onResults={() => setTab('results')}/>}
+        onPosts={() => setTab('drafts')} onPhotos={() => setTab('gallery')} onResults={() => setTab('results')}
+        onCompose={({ caption, format, title, source_note, imageFile }) => { startCompose('general', caption); setComposeMediaKind(format === 'story' ? 'story' : 'feed'); setComposeBrief([title, source_note].filter(Boolean).join('\n')); if (imageFile) { setComposeImageFile(imageFile); setComposeImagePreview(URL.createObjectURL(imageFile)); } }}/>}
       {tab === 'ideas' && !composing && <ContentStudioHome treatments={treatments} drafts={drafts} scheduled={scheduled} gallery={gallery} complete={!hasMore} error={error}
         igStatus={igStatus} igChecking={igChecking} planning={planning} onPlan={handlePlanWeek} onPost={openPost}
         onCompose={({ type, treatment, brief }) => { startCompose(type, ''); setComposeTreatment(treatment || ''); setComposeBrief(brief || ''); }}
@@ -888,7 +889,7 @@ export default function ContentAutopilot() {
           </section>
 
           <section className="fl-compose-step" aria-labelledby="compose-caption-title">
-            <div className="fl-compose-step-heading"><span aria-hidden="true">2</span><div><h2 id="compose-caption-title">Caption</h2><p>Write your words, or ask Florrie for a starting point.</p></div></div>
+            <div className="fl-compose-step-heading"><span aria-hidden="true">2</span><div><h2 id="compose-caption-title">{composeMediaKind === 'story' ? 'Story notes' : 'Caption'}</h2><p>{composeMediaKind === 'story' ? 'Instagram shares the Story image. These notes are not posted; check that your words appear in the picture.' : 'Write your words, or ask Florrie for a starting point.'}</p></div></div>
             <textarea aria-label="Post caption" value={composeCaption} onChange={e => setComposeCaption(e.target.value)} placeholder="What would you like to say?" className="fl-compose-caption-input" rows={5} disabled={saving} />
             <details className="fl-compose-disclosure fl-compose-writing-help">
               <summary><Icon name="sparkles" size={17}/><span>Help me write</span></summary>

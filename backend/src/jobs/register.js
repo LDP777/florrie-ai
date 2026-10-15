@@ -50,6 +50,7 @@ import { expireStaleEscalations } from '../services/escalation-expiry.js';
 import { runMoneyMoments } from '../services/money-moments.js';
 import { runWeekInReview } from '../services/week-in-review.js';
 import { publishScheduledPosts } from '../services/content-scheduler.js';
+import { processContentTeamRuns } from '../services/content-team.js';
 import { runVoiceProfileRefresh } from '../services/voice-profile.js';
 import { runAutonomousCycle } from '../services/autonomous-scheduler.js';
 import { autoCompletePastAppointments } from '../services/auto-complete.js';
@@ -135,6 +136,14 @@ export const JOBS = [
     description: 'publish scheduled posts whose time has arrived',
     intervalMs: 5 * MINUTE,
     handler: publishScheduledPosts,
+  },
+  {
+    name: 'content-team',
+    description: 'finish explicitly requested content plans, captions and filming scripts',
+    intervalMs: MINUTE,
+    handler: processContentTeamRuns,
+    startupDelayMs: MINUTE,
+    leaseMs: 10 * MINUTE,
   },
   {
     name: 'money-moments',
