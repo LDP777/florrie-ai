@@ -14,7 +14,7 @@
  * of Ellie's blocks. Getting any of those wrong books somebody into time that
  * is not there.
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import express from 'express';
 import { createServer } from 'node:http';
 
@@ -134,6 +134,10 @@ function seed(over = {}) {
 }
 
 const add = (t = LASH_LIFT, tok = TOKEN) => post(`/api/booking/${SLUG}/manage/${tok}/add-treatment`, { treatment_id: t });
+
+// These scenarios use October 2026 appointments; freeze Date, not HTTP timers.
+beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-10-01T12:00:00Z')); });
+afterEach(() => vi.useRealTimers());
 
 beforeEach(() => { seed(); writes.length = 0; pushes.length = 0; failing.clear(); });
 

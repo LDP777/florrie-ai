@@ -14,7 +14,7 @@
  * The fake database is the minimum the route touches. Everything asserted is
  * what reached the tables, the trainer's phone and the student's inbox.
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import express from 'express';
 import { createServer } from 'node:http';
 import { checkoutAbandoned, holdsAPlace, enrolmentLabel, spotsLeft, balanceDue } from '../../src/lib/course-enrolment.js';
@@ -94,6 +94,10 @@ function seed({ deposit = 150, stripeReady = true, enrolled = 0, max = 4, date =
   announced.length = 0; sessions.length = 0;
 }
 const STUDENT = { name: 'Chloe Morgan', email: 'Chloe.Morgan@Example.com', phone: '07700900123', notes: 'Complete beginner' };
+
+// These scenarios use October 2026 appointments; freeze Date, not HTTP timers.
+beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-10-01T12:00:00Z')); });
+afterEach(() => vi.useRealTimers());
 
 beforeEach(() => seed());
 

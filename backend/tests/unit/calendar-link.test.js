@@ -41,6 +41,9 @@ const APPT = {
   beauticians: { business_name: 'Ellindigo', first_name: 'Ellie', booking_slug: 'ellindigo', address: '12 Bell Street, Henley', brand_color: '#C76B8A' },
 };
 
+// Match CI's UTC parsing of the fixed timezone-less appointment fixture.
+process.env.TZ = 'UTC';
+
 const { appointmentIcs, googleCalendarUrl, DEAD_STATUSES } = await import('../../src/lib/ical.js');
 const { calendarLandingPage } = await import('../../src/lib/calendar-page.js');
 
