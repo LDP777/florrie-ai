@@ -69,7 +69,7 @@ export function planAppointmentChange({ message, classification, context, beauti
   if (!appt.management_token || !beautician.booking_slug || !['pending', 'confirmed'].includes(appt.status)) {
     return handoff('manage_link_unavailable', `Your request is in ${owner}'s inbox for review. I couldn't get a booking management link, so I haven't changed or cancelled anything.`);
   }
-  const link = `https://florrie.ai/book/${encodeURIComponent(beautician.booking_slug)}/manage/${encodeURIComponent(appt.management_token)}`;
+  const link = `${process.env.FRONTEND_URL || 'https://florrie.ai'}/book/${encodeURIComponent(beautician.booking_slug)}/manage/${encodeURIComponent(appt.management_token)}`;
   return { ...plan, needsOwner: false, reason: 'booking_manage_link',
     reply: `You can ${intent === 'cancellation' ? 'cancel your booking' : 'choose a new time'} using your booking link: ${link}\nYour current booking stays in place until you confirm the change there. The booking page shows any fees before you confirm.` };
 }
