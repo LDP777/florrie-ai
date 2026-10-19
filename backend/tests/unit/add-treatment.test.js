@@ -102,8 +102,8 @@ function seed(over = {}) {
   db.appointments = [{
     id: 'appt-lucy',
     management_token: TOKEN,
-    starts_at: '2026-10-05T14:00:00',
-    ends_at: '2026-10-05T15:00:00',
+    starts_at: '2030-10-14T14:00:00',
+    ends_at: '2030-10-14T15:00:00',
     status: 'confirmed',
     client_id: 'lucy',
     treatment_id: LAMINATION,
@@ -146,7 +146,7 @@ describe('the message that asked for this', () => {
     // Both treatments, not one instead of the other. This is the whole point.
     expect(res.body.duration_minutes).toBe(120);
     expect(res.body.price_cents).toBe(9000);
-    expect(res.body.ends_at).toBe('2026-10-05T16:00:00');
+    expect(res.body.ends_at).toBe('2030-10-14T16:00:00');
   });
 
   it('tells her what it now costs and when it now finishes, in her own words', async () => {
@@ -178,7 +178,7 @@ describe('the message that asked for this', () => {
     db.appointments[0].extra_treatment_ids = [LASH_LIFT];
     db.appointments[0].duration_minutes = 120;
     db.appointments[0].price_cents = 9000;
-    db.patch_tests = [{ client_id: 'lucy', beautician_id: BIZ, status: 'passed', test_date: '2026-08-01' }];
+    db.patch_tests = [{ client_id: 'lucy', beautician_id: BIZ, status: 'passed', test_date: '2030-08-01' }];
     const res = await add('t-tint');
     expect(res.status).toBe(200);
     expect(res.body.extra_treatment_ids).toEqual([LASH_LIFT, 't-tint']);
@@ -191,7 +191,7 @@ describe('it will not book time that is not there', () => {
   it('refuses when the next client is in the way', async () => {
     db.appointments.push({
       id: 'appt-next', beautician_id: BIZ, status: 'confirmed',
-      starts_at: '2026-10-05T15:00:00.000Z', ends_at: '2026-10-05T16:00:00.000Z',
+      starts_at: '2030-10-14T15:00:00.000Z', ends_at: '2030-10-14T16:00:00.000Z',
     });
     const res = await add();
     expect(res.status).toBe(409);
@@ -202,8 +202,8 @@ describe('it will not book time that is not there', () => {
   });
 
   it('refuses when it would run past closing time', async () => {
-    db.appointments[0].starts_at = '2026-10-05T17:00:00';
-    db.appointments[0].ends_at = '2026-10-05T18:00:00';
+    db.appointments[0].starts_at = '2030-10-14T17:00:00';
+    db.appointments[0].ends_at = '2030-10-14T18:00:00';
     const res = await add();
     expect(res.status).toBe(409);
     expect(res.body.error).toMatch(/past closing time/i);
@@ -212,7 +212,7 @@ describe('it will not book time that is not there', () => {
 
   it('refuses when it would run into one of her blocks', async () => {
     // Exactly what Ellie ended up doing by hand: a 30-minute block out.
-    db.hours_exceptions = [{ beautician_id: BIZ, date: '2026-10-05', type: 'break', start_time: '15:00', end_time: '15:30' }];
+    db.hours_exceptions = [{ beautician_id: BIZ, date: '2030-10-14', type: 'break', start_time: '15:00', end_time: '15:30' }];
     const res = await add();
     expect(res.status).toBe(409);
     expect(res.body.error).toMatch(/not enough time left in that slot/i);
@@ -292,7 +292,7 @@ describe('a patch test is still a patch test', () => {
   });
 
   it('allows it when a valid test is on file', async () => {
-    db.patch_tests = [{ client_id: 'lucy', beautician_id: BIZ, status: 'passed', test_date: '2026-08-01' }];
+    db.patch_tests = [{ client_id: 'lucy', beautician_id: BIZ, status: 'passed', test_date: '2030-08-01' }];
     const res = await add('t-tint');
     expect(res.status).toBe(200);
   });
