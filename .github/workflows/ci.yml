@@ -12,7 +12,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, codex/training-dates-20261020]
   pull_request:
 
 # A second push to the same branch makes the first run pointless. Cancel it.
