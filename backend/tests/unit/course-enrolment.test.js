@@ -94,7 +94,7 @@ const get = (path) => fetch(`http://127.0.0.1:${PORT}${path}`).then(async r => (
 
 /* --------------------------------------------------------------- fixtures -- */
 const COURSE = 'course-1';
-function seed({ deposit = 150, stripeReady = true, enrolled = 0, max = 4, date = '2026-10-12', status = 'active' } = {}) {
+function seed({ deposit = 150, stripeReady = true, enrolled = 0, max = 4, date = '2030-10-14', status = 'active' } = {}) {
   db.beauticians = [{ id: 'biz-1', booking_slug: 'ellindigo', first_name: 'Ellie', business_name: 'Ellindigo', email: 'ellie@example.com', phone: '07700900000', stripe_account_id: stripeReady ? 'acct_1' : null, stripe_onboarding_complete: stripeReady }];
   db.courses = [{ id: COURSE, beautician_id: 'biz-1', name: 'Ultimate Beginner Course', date, location: 'Ellindigo', duration: 'Full day (7hrs)', max_students: max, price: 750, deposit, includes: ['certificate', 'kit'], enrolled, status }];
   db.course_enrollments = [];
@@ -211,7 +211,7 @@ describe('what cannot be booked', () => {
     seed({ enrolled: 1 });
     const r = await get(`/api/courses/ellindigo/${COURSE}`);
     expect(r.status).toBe(200);
-    expect(r.body.course.date_label).toBe('Monday 12 October 2026');
+    expect(r.body.course.date_label).toBe('Monday 14 October 2030');
     expect(r.body.course.spots_left).toBe(3);
     expect(r.body.course.in_the_past).toBe(false);
   });
