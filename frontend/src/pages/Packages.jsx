@@ -2,6 +2,7 @@
  * Courses. Sell training courses and masterclasses.
  *
  * What the owner does here:
+ *   - offers several independently bookable dates behind one shared link
  *   - builds a course: name, what students learn, date (or "date to be
  *     confirmed"), start time, where, how long, how many, price, deposit,
  *     what is included
@@ -26,7 +27,7 @@
  * without start_time if the database has not got it yet.
  * Public page: /training/:slug/:courseId (TrainingBooking.jsx).
  */
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useBeautician, supabase } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
@@ -34,7 +35,7 @@ import ErrorCard from '../components/ErrorCard.jsx';
 import Icon from '../components/ui/Icon';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import Button from '../components/ui/Button.jsx';
-import { holdsAPlace, checkoutAbandoned, enrolmentLabel, spotsLeft, balanceDue, paidOnline, courseStage, sortCourses } from '../lib/course-enrolment.js';
+import { holdsAPlace, checkoutAbandoned, enrolmentLabel, spotsLeft, balanceDue, paidOnline, courseStage, sortCourses, groupCourses } from '../lib/course-enrolment.js';
 
 const DURATIONS = ['1 hour', '2 hours', '3 hours', 'Half day (4hrs)', 'Full day (7hrs)', '2 days'];
 const MAX_SPOTS = [1, 2, 3, 4, 6, 8, 10, 12];
@@ -47,7 +48,9 @@ const INCLUDES_OPTIONS = [
   { key: 'models',      label: 'Live models' },
   { key: 'aftercare',   label: 'Aftercare pack' },
 ];
-const EMPTY_FORM = { name: '', description: '', date: '', start_time: '', location: '', duration: 'Full day (7hrs)', max_students: 4, price: '', deposit: '', includes: [] };
+const newDateOption = () => ({ id: crypto.randomUUID(), date: '', start_time: '' });
+const emptyForm = () => ({ name: '', description: '', dates: [newDateOption()], group_id: crypto.randomUUID(), location: '', duration: 'Full day (7hrs)', max_students: 4, price: '', deposit: '', includes: [] });
+const MAX_DATE_OPTIONS = 24;
 
 const STAGE_CHIP = {
   today:     { text: 'Today',            color: 'var(--accent, #92405e)',      bg: 'var(--accent-light, #F6E7EC)' },
@@ -70,19 +73,32 @@ const fmtDate = (d, long = false) => {
     ? { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }
     : { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 };
+const todayInLondon = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 const fmtTime = (t) => (t ? String(t).slice(0, 5) : '');
-const pounds = (n) => `£${Number(n || 0).toLocaleString('en-GB', { maximumFractionDigits: 0 })}`;
+const pounds = (n) => `£${Number(n || 0).toLocaleString('en-GB', { maximumFractionDigits: 2 })}`;
 const missingColumn = (err, col) => /column|schema cache|does not exist/i.test(err?.message || '') && new RegExp(col).test(err?.message || '');
+const bounded = async (operation) => {
+  let timer;
+  try {
+    return await Promise.race([operation, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Connection timed out. Please try again.')), 15000); })]);
+  } finally { clearTimeout(timer); }
+};
 const tableMissing = (err) => /relation .* does not exist|could not find the table|schema cache/i.test(err?.message || '');
 
 export default function Courses() {
   const { beautician, loading: bLoading } = useBeautician();
+  const ownerRef = useRef(beautician?.id);
+  ownerRef.current = beautician?.id;
+  const loadedOwnerRef = useRef(null);
+  const loadSequence = useRef(0);
+  const saveOwnerRef = useRef(null);
   const [tab, setTab] = useState('courses');
   const [showCreate, setShowCreate] = useState(false);
   const [courses, setCourses] = useState([]);
   const [enrollments, setEnrollments] = useState([]);
   const [saving, setSaving] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
+  const [addingTo, setAddingTo] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [loadError, setLoadError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -92,24 +108,29 @@ export default function Courses() {
   const [openStudent, setOpenStudent] = useState(null);
   const [busyId, setBusyId] = useState(null);
   const [customSpots, setCustomSpots] = useState('');
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [form, setForm] = useState(emptyForm);
 
   const setField = (key, val) => setForm(f => ({ ...f, [key]: val }));
   const say = useCallback((msg) => { setNotice(msg); setTimeout(() => setNotice(''), 2800); }, []);
 
-  const resetForm = () => { setForm(EMPTY_FORM); setEditingItem(null); setErrorMsg(''); setCustomSpots(''); };
+  const resetForm = () => { setForm(emptyForm()); setEditingItem(null); setAddingTo(null); setErrorMsg(''); setCustomSpots(''); };
+  const setDateOption = (id, field, value) => setForm(f => ({ ...f, dates: f.dates.map(d => d.id === id ? { ...d, [field]: value } : d) }));
 
   // Keyed on the id, not the object: a provider that hands back a fresh
   // object each render would otherwise reload (and re-render) forever.
   const beauticianId = beautician?.id;
   const load = useCallback(async () => {
     if (!beauticianId) return;
+    const request = ++loadSequence.current;
     setLoading(true);
     setLoadError('');
-    const [c, e] = await Promise.all([
+    let c, e;
+    try { [c, e] = await bounded(Promise.all([
       supabase.from('courses').select('*').eq('beautician_id', beauticianId).order('created_at', { ascending: false }),
       supabase.from('course_enrollments').select('*').eq('beautician_id', beauticianId).order('created_at', { ascending: false }),
-    ]);
+    ])); } catch (err) { c = { error: err }; e = { error: err }; }
+    if (ownerRef.current !== beauticianId || loadSequence.current !== request) return;
+    loadedOwnerRef.current = beauticianId;
     if (c.error || e.error) {
       const err = c.error || e.error;
       logger.error({ err }, 'Failed to load courses');
@@ -122,83 +143,147 @@ export default function Courses() {
     setLoading(false);
   }, [beauticianId]);
 
+  useEffect(() => {
+    setCourses([]); setEnrollments([]); setShowCreate(false); setSaving(false);
+    setEditingItem(null); setAddingTo(null); setErrorMsg(''); setNotice('');
+    setForm(emptyForm());
+  }, [beauticianId]);
   useEffect(() => { if (!bLoading && beauticianId) load(); }, [beauticianId, bLoading, load]);
 
   /* ------------------------------------------------------------ the form -- */
   const priceNum = Number(form.price);
   const depositNum = Number(form.deposit) || 0;
+  const heldOnEditedDate = editingItem ? Math.max(Number(editingItem.enrolled || 0), enrollments.filter(e => e.course_id === editingItem.id && holdsAPlace(e)).length) : 0;
+  const dateLocked = !!editingItem && (Number(editingItem.enrolled || 0) > 0 || enrollments.some(e => e.course_id === editingItem.id));
   const formProblem = (() => {
     if (!form.name.trim()) return 'Give the course a name.';
-    if (!form.price || !(priceNum > 0)) return 'Set a price.';
-    if (depositNum < 0) return 'The deposit cannot be negative.';
+    if (!form.price || !Number.isFinite(priceNum) || !(priceNum > 0)) return 'Set a price.';
+    if (!Number.isFinite(depositNum) || depositNum < 0) return 'The deposit cannot be negative.';
     if (depositNum > priceNum) return 'The deposit cannot be more than the price.';
-    const held = editingItem ? Number(editingItem.enrolled || 0) : 0;
+    const held = heldOnEditedDate;
     if (Number(form.max_students) < held) return `${held} student${held === 1 ? ' has' : 's have'} already booked, so the maximum cannot be lower than ${held}.`;
-    if (!(Number(form.max_students) >= 1)) return 'Choose how many students.';
-    if (form.date && form.date < new Date().toISOString().slice(0, 10) && !editingItem) return 'That date has already passed.';
+    if (!Number.isInteger(Number(form.max_students)) || Number(form.max_students) < 1 || Number(form.max_students) > 200) return 'Choose between 1 and 200 students per date.';
+    const offered = form.dates;
+    if (offered.length > MAX_DATE_OPTIONS) return `Offer up to ${MAX_DATE_OPTIONS} dates at once.`;
+    if ((offered.length > 1 || addingTo) && offered.some(d => !d.date)) return 'Choose a date for each option, or remove the empty option.';
+    if (!editingItem && offered.some(d => d.date && d.date < todayInLondon())) return 'One of those dates has already passed.';
+    const keys = offered.map(d => `${d.date}|${d.start_time}`);
+    if (new Set(keys).size !== keys.length) return 'You have added the same date and time twice.';
+    if (dateLocked && (offered[0].date !== String(editingItem.date || '').slice(0, 10) || offered[0].start_time !== fmtTime(editingItem.start_time))) return 'This date has bookings or a checkout in progress. Add a new date to offer another option.';
     return null;
   })();
 
   const handleSave = async () => {
-    if (formProblem || saving) { setErrorMsg(formProblem || ''); return; }
+    if (formProblem || saving || saveOwnerRef.current === beautician?.id) { setErrorMsg(formProblem || ''); return; }
+    const savingOwner = beautician.id;
+    saveOwnerRef.current = savingOwner;
+    const stillSameOwner = () => ownerRef.current === savingOwner;
     setSaving(true);
     setErrorMsg('');
-    const payload = {
-      name: form.name.trim(),
-      description: form.description.trim() || null,
-      // '' is not a date. Postgres rejects it and the whole save failed.
-      date: form.date || null,
-      start_time: form.start_time || null,
-      location: form.location.trim() || null,
-      duration: form.duration || null,
-      max_students: Number(form.max_students),
-      price: priceNum,
-      deposit: depositNum,
-      includes: form.includes,
+    const details = {
+      name: form.name.trim(), description: form.description.trim() || null,
+      location: form.location.trim() || null, duration: form.duration || null,
+      max_students: Number(form.max_students), price: priceNum,
+      deposit: depositNum, includes: form.includes,
     };
-    const write = async (body) => editingItem
-      ? supabase.from('courses').update(body).eq('id', editingItem.id).select().single()
-      : supabase.from('courses').insert({ ...body, beautician_id: beautician.id, status: 'active' }).select().single();
+    const first = form.dates[0];
+    const payload = { ...details, date: first.date || null, start_time: first.start_time || null };
+    const multiple = form.dates.length > 1;
+    const rows = form.dates.map(d => ({ ...details, id: d.id, date: d.date || null, start_time: d.start_time || null,
+      beautician_id: beautician.id, status: 'active', ...(multiple ? { course_group_id: form.group_id } : {}),
+    }));
+    const mergeRows = (saved) => setCourses(prev => {
+      const ids = new Set(saved.map(c => c.id));
+      return [...saved, ...prev.filter(c => !ids.has(c.id))];
+    });
+    let omittedStartTime = false;
     try {
-      let { data, error } = await write(payload);
-      if (error && missingColumn(error, 'start_time')) {
-        // The database has not had migration 029 yet. Save everything else
-        // rather than nothing, and say what was dropped.
-        logger.warn({ err: error }, 'courses.start_time is missing from the live database; saving without it');
-        const { start_time, ...rest } = payload;
-        ({ data, error } = await write(rest));
-        if (!error && form.start_time) say('Saved. The start time could not be stored yet; tell your students the time directly.');
+      let result;
+      let droppedTime = false;
+      if (addingTo) {
+        result = await bounded(supabase.rpc('add_course_dates', {
+          p_course_id: addingTo.id,
+          p_dates: form.dates.map(d => ({ id: d.id, date: d.date, start_time: d.start_time || null, max_students: Number(form.max_students) })),
+        }));
+      } else if (editingItem) {
+        result = await bounded(supabase.from('courses').update(payload).eq('id', editingItem.id).eq('beautician_id', beautician.id).select().single());
+      } else {
+        // A batch insert is one transaction: all offered dates save together.
+        result = await bounded(supabase.from('courses').insert(multiple ? rows : rows[0]).select());
       }
-      if (error) throw error;
-      setCourses(prev => editingItem ? prev.map(c => (c.id === data.id ? data : c)) : [data, ...prev]);
+      if (!stillSameOwner()) return;
+      if (result.error && missingColumn(result.error, 'start_time') && !multiple && !addingTo) {
+        omittedStartTime = true;
+        const { start_time, ...rest } = editingItem ? payload : rows[0];
+        result = editingItem
+          ? await bounded(supabase.from('courses').update(rest).eq('id', editingItem.id).eq('beautician_id', beautician.id).select().single())
+          : await bounded(supabase.from('courses').insert(rest).select());
+        droppedTime = !result.error && !!first.start_time;
+      }
+      if (!stillSameOwner()) return;
+      if (result.error) throw result.error;
+      const saved = Array.isArray(result.data) ? result.data : [result.data].filter(Boolean);
+      if (!saved.length) throw new Error('No saved dates returned');
+      mergeRows(saved);
       setShowCreate(false);
       resetForm();
-      if (!editingItem) { say('Course created. Copy the link to start taking bookings.'); setTab('courses'); }
+      say(droppedTime ? 'Saved. The start time could not be stored yet; tell your students the time directly.' : addingTo ? 'Dates added. Students can choose from the same booking link.' : editingItem ? 'This date has been updated.' : multiple ? 'Course created. Share one link so students can choose their date.' : 'Course created. Copy the link to start taking bookings.');
+      setTab('courses');
     } catch (err) {
+      if (!stillSameOwner()) return;
+      // Generated ids stay with the form. If a connection drops after a successful
+      // create, an exact retry reads the saved records instead of making duplicates.
+      if (!editingItem && !addingTo && (err?.code === '23505' || /fetch|network|connection/i.test(err?.message || ''))) {
+        let recovered;
+        try { recovered = await bounded(supabase.from('courses').select('*').eq('beautician_id', beautician.id).in('id', rows.map(r => r.id))); } catch { recovered = { error: true }; }
+        if (!stillSameOwner()) return;
+        if (!recovered.error && recovered.data?.length === rows.length && recovered.data.every(row => {
+          const intended = rows.find(r => r.id === row.id);
+          return intended && row.name === intended.name && String(row.date || '').slice(0, 10) === (intended.date || '') && fmtTime(row.start_time) === (omittedStartTime ? '' : fmtTime(intended.start_time))
+            && ['price', 'deposit', 'max_students'].every(key => Number(row[key]) === Number(intended[key]))
+            && ['description', 'location', 'duration', 'course_group_id'].every(key => (row[key] || null) === (intended[key] || null))
+            && JSON.stringify(row.includes || []) === JSON.stringify(intended.includes || []);
+        })) {
+          mergeRows(recovered.data); setShowCreate(false); resetForm();
+          say(omittedStartTime && first.start_time ? 'Your course was saved without its start time. Tell your students the time directly until the training update is ready.' : 'Your course dates were saved. The booking link is ready.');
+          setSaving(false); return;
+        }
+      }
       logger.error({ err }, 'Failed to save course');
-      setErrorMsg(err?.message?.includes('row-level security') ? 'You do not have permission to save this course.' : 'Could not save the course. Check your connection and try again.');
+      const unavailable = missingColumn(err, 'course_group_id') || missingColumn(err, 'start_time') || /add_course_dates|schema cache/i.test(err?.message || '');
+      setErrorMsg(unavailable && (multiple || addingTo)
+        ? 'Offering several dates is not available on this account yet. Your dates are still here. Try again once the training update is ready.'
+        : err?.message?.includes('row-level security') ? 'You do not have permission to save this course.'
+          : /duplicate|already|past|booked|date|maximum|students/i.test(err?.message || '') && addingTo ? err.message
+            : 'Could not confirm the course was saved. Your details are still here; check your connection and try again.');
     } finally {
-      setSaving(false);
+      if (saveOwnerRef.current === savingOwner) saveOwnerRef.current = null;
+      if (stillSameOwner()) setSaving(false);
     }
   };
 
   const handleEdit = (course) => {
+    setAddingTo(null);
     setEditingItem(course);
+    setErrorMsg('');
     setForm({
-      name: course.name || '',
-      description: course.description || '',
-      date: course.date ? String(course.date).slice(0, 10) : '',
-      start_time: fmtTime(course.start_time),
-      location: course.location || '',
-      duration: course.duration || 'Full day (7hrs)',
-      max_students: course.max_students || 4,
-      price: course.price ?? '',
-      deposit: course.deposit || '',
+      name: course.name || '', description: course.description || '',
+      dates: [{ id: course.id, date: String(course.date || '').slice(0, 10), start_time: fmtTime(course.start_time) }],
+      group_id: course.course_group_id || crypto.randomUUID(),
+      location: course.location || '', duration: course.duration || 'Full day (7hrs)',
+      max_students: course.max_students || 4, price: course.price ?? '', deposit: course.deposit || '',
       includes: Array.isArray(course.includes) ? course.includes : [],
     });
     setCustomSpots(MAX_SPOTS.includes(course.max_students) ? '' : String(course.max_students || ''));
     setShowCreate(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleAddDates = (course) => {
+    handleEdit(course);
+    setEditingItem(null);
+    setAddingTo(course);
+    setForm(f => ({ ...f, dates: [newDateOption()] }));
   };
 
   /* --------------------------------------------------------- course acts -- */
@@ -218,22 +303,23 @@ export default function Courses() {
     }
   };
 
-  const closeBookings = (course) => patchCourse(course.id, { status: 'draft' }).then(r => r && say('Bookings closed. The link now says so.'));
-  const reopenBookings = (course) => patchCourse(course.id, { status: 'active' }).then(r => r && say('Bookings open again.'));
+  const closeBookings = (course) => patchCourse(course.id, { status: 'draft' }).then(r => r && say('Bookings closed for this date.'));
+  const reopenBookings = (course) => patchCourse(course.id, { status: 'active' }).then(r => r && say('Bookings open again for this date.'));
 
   const cancelCourse = async (course) => {
     const n = studentsOf(course.id).length;
     const ok = window.confirm(n
-      ? `Cancel ${course.name}? ${n} student${n === 1 ? '' : 's'} will keep their record here so you can refund and message them. The booking link will say the course is cancelled.`
-      : `Cancel ${course.name}? The booking link will say the course is cancelled.`);
+      ? `Cancel ${course.name} on ${course.date ? fmtDate(course.date) : 'the unconfirmed date'}? ${n} student${n === 1 ? '' : 's'} will keep their record here so you can refund and message them. Other offered dates stay available.`
+      : `Cancel this date for ${course.name}? Other offered dates stay available.`);
     if (!ok) return;
     const r = await patchCourse(course.id, { status: 'cancelled' });
     if (r) say(n ? 'Cancelled. Message your students; refunds are in Money.' : 'Cancelled.');
   };
 
   const deleteCourse = async (course) => {
+    if (course.course_group_id) { await cancelCourse(course); return; }
     if (studentsOf(course.id).length) { say('This course has students. Cancel it instead, so their records stay.'); return; }
-    if (!window.confirm(`Delete ${course.name}? This cannot be undone.`)) return;
+    if (!window.confirm(`Delete this date for ${course.name}? This cannot be undone.`)) return;
     setBusyId(course.id);
     try {
       const { error } = await supabase.from('courses').delete().eq('id', course.id);
@@ -247,7 +333,7 @@ export default function Courses() {
     }
   };
 
-  const courseUrl = (course) => `${window.location.origin}/training/${beautician?.booking_slug || course.booking_slug || 'your-link'}/${course.id}`;
+  const courseUrl = (course) => `${/^https?:$/.test(window.location.protocol) && window.location.hostname !== 'localhost' ? window.location.origin : 'https://florrie.ai'}/training/${beautician?.booking_slug || course.booking_slug || 'your-link'}/${course.id}`;
   const copyLink = async (course) => {
     try {
       await navigator.clipboard.writeText(courseUrl(course));
@@ -323,11 +409,12 @@ export default function Courses() {
   };
 
   /* ------------------------------------------------------------- derived -- */
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayInLondon();
   const studentsOf = (courseId) => enrollments.filter(e => e.course_id === courseId && holdsAPlace(e));
   const attemptsOf = (courseId) => enrollments.filter(e => e.course_id === courseId);
   const sorted = useMemo(() => sortCourses(courses, today), [courses, today]);
-  const upcoming = sorted.filter(c => ['today', 'upcoming', 'tbc'].includes(courseStage(c, today))).length;
+  const groups = useMemo(() => groupCourses(sorted, today), [sorted, today]);
+  const upcoming = groups.filter(g => g.courses.some(c => ['today', 'upcoming', 'tbc'].includes(courseStage(c, today)))).length;
   const placesHeld = enrollments.filter(holdsAPlace).length;
   const collected = enrollments.reduce((s, e) => s + Number(e.amount_paid_cents || 0), 0) / 100;
   const stillToCollect = enrollments.filter(holdsAPlace).reduce((s, e) => {
@@ -337,7 +424,7 @@ export default function Courses() {
 
   const toggleInclude = (key) => setField('includes', form.includes.includes(key) ? form.includes.filter(k => k !== key) : [...form.includes, key]);
 
-  if (bLoading || loading) return <PageLoader />;
+  if (bLoading || loading || loadedOwnerRef.current !== beauticianId) return <PageLoader />;
 
   return (
     <div style={s.page}>
@@ -345,7 +432,7 @@ export default function Courses() {
         title="Courses"
         subtitle="Sell training and masterclasses"
         action={(
-          <Button variant={showCreate ? 'secondary' : 'primary'} size="sm" onClick={() => { if (showCreate) resetForm(); setShowCreate(!showCreate); }}>
+          <Button disabled={saving} variant={showCreate ? 'secondary' : 'primary'} size="sm" onClick={() => { if (showCreate) resetForm(); setShowCreate(!showCreate); }}>
             {showCreate ? 'Close' : '+ New course'}
           </Button>
         )}
@@ -366,32 +453,53 @@ export default function Courses() {
       {showCreate && (
         <div style={s.formCard}>
           <div style={s.formHeader}>
-            <span style={s.formTitle}>{editingItem ? 'Edit course' : 'Build a course'}</span>
-            <Button variant="quiet" icon size="icon" aria-label="Close" onClick={() => { setShowCreate(false); resetForm(); }}><Icon name="x" size={16} /></Button>
+            <span style={s.formTitle}>{addingTo ? `Add dates to ${addingTo.name}` : editingItem ? 'Edit this course date' : 'Build a course'}</span>
+            <Button disabled={saving} variant="quiet" icon size="icon" aria-label="Close" onClick={() => { setShowCreate(false); resetForm(); }}><Icon name="x" size={16} /></Button>
           </div>
           {errorMsg && <ErrorCard message={errorMsg} onDismiss={() => setErrorMsg('')} />}
 
+          <fieldset disabled={saving} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }} aria-busy={saving}>
+          {!addingTo && <>
           <label style={s.label}>Course name</label>
-          <input value={form.name} onChange={e => setField('name', e.target.value)} placeholder="e.g. Ultimate Beginner Lash Course" style={s.input} maxLength={120} />
+          <input aria-label="Course name" value={form.name} onChange={e => setField('name', e.target.value)} placeholder="e.g. Ultimate Beginner Lash Course" style={s.input} maxLength={120} />
 
           <label style={s.label}>What students will learn</label>
-          <textarea value={form.description} onChange={e => setField('description', e.target.value)} placeholder="What you cover, who it is for, and what they can charge afterwards." style={{ ...s.input, height: 88, resize: 'vertical' }} maxLength={2000} />
+          <textarea aria-label="What students will learn" value={form.description} onChange={e => setField('description', e.target.value)} placeholder="What you cover, who it is for, and what they can charge afterwards." style={{ ...s.input, height: 88, resize: 'vertical' }} maxLength={2000} />
 
-          <div style={s.row2}>
-            <div style={{ flex: 1 }}>
-              <label style={s.label}>Date</label>
-              <DateLike type="date" value={form.date} onChange={v => setField('date', v)} placeholder="Pick a date" min={editingItem ? undefined : today} />
-              <span style={s.hint}>Leave blank for "date to be confirmed".</span>
-            </div>
-            <div style={{ flex: 1 }}>
-              <label style={s.label}>Start time</label>
-              <DateLike type="time" value={form.start_time} onChange={v => setField('start_time', v)} placeholder="e.g. 09:30" />
-              <span style={s.hint}>Goes in the student's confirmation and calendar.</span>
-            </div>
+          </>}
+          <div style={s.dateIntro}>
+            <strong>{editingItem ? 'Date and time' : 'Dates students can choose'}</strong>
+            <p style={s.dateHelp}>{editingItem
+              ? dateLocked ? 'This date has bookings or a checkout in progress, so its date and time stay fixed. Add another date to offer more choice.' : 'Changes apply to this date only.'
+              : 'Each student chooses one date. Places and payments stay with that date.'}</p>
+            {addingTo && <><p style={s.dateHelp}>Based on {addingTo.date ? `${fmtDate(addingTo.date)}${addingTo.start_time ? ` at ${fmtTime(addingTo.start_time)}` : ''}` : 'the current course'}: {pounds(addingTo.price)} per student{Number(addingTo.deposit) > 0 ? `, ${pounds(addingTo.deposit)} deposit` : ', no deposit'}. {addingTo.location || 'Location to confirm'}.</p><p style={s.dateHelp}>New dates keep those details, the duration and included items. Existing dates and students stay as they are.</p></>}
           </div>
+          {form.dates.map((option, index) => (
+            <div key={option.id} style={s.dateOption}>
+              <div style={s.dateOptionTop}>
+                <span style={s.dateOptionTitle}>{editingItem ? 'Course date' : `Date ${index + 1}`}</span>
+                {!editingItem && form.dates.length > 1 && <Button variant="quiet" size="xs" disabled={saving} aria-label={`Remove date ${index + 1}`} onClick={() => setField('dates', form.dates.filter(d => d.id !== option.id))}>Remove</Button>}
+              </div>
+              <div style={s.row2}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <label style={s.label} htmlFor={`course-date-${option.id}`}>Date</label>
+                  <DateLike id={`course-date-${option.id}`} ariaLabel={`Date ${index + 1}`} type="date" value={option.date} onChange={v => setDateOption(option.id, 'date', v)} placeholder="Pick a date" min={editingItem ? undefined : today} disabled={saving || dateLocked} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <label style={s.label} htmlFor={`course-time-${option.id}`}>Start time</label>
+                  <DateLike id={`course-time-${option.id}`} ariaLabel={`Start time ${index + 1}`} type="time" value={option.start_time} onChange={v => setDateOption(option.id, 'start_time', v)} placeholder="e.g. 09:30" disabled={saving || dateLocked} />
+                </div>
+              </div>
+            </div>
+          ))}
+          {!editingItem && <Button variant="secondary" size="sm" disabled={saving || form.dates.length >= MAX_DATE_OPTIONS} onClick={() => setField('dates', [...form.dates, newDateOption()])}>+ Add another date</Button>}
+          {!editingItem && !addingTo && form.dates.length === 1 && <span style={s.hint}>Leave the date blank if you will confirm it later. Add dates when you are ready.</span>}
+          {!dateLocked && <span style={s.hint}>The selected date and start time appear in each student’s confirmation.</span>}
+
+          {!addingTo && <>
 
           <label style={s.label}>Location</label>
-          <input value={form.location} onChange={e => setField('location', e.target.value)} placeholder="Salon address, or Online" style={s.input} maxLength={200} />
+          <input aria-label="Location" value={form.location} onChange={e => setField('location', e.target.value)} placeholder="Salon address, or Online" style={s.input} maxLength={200} />
 
           <label style={s.label}>Duration</label>
           <div style={s.chipWrap}>
@@ -400,13 +508,14 @@ export default function Courses() {
             ))}
           </div>
 
-          <label style={s.label}>Max students</label>
+          </>}
+          <label style={s.label}>Max students per date</label>
           <div style={s.chipWrap}>
             {MAX_SPOTS.map(n => (
               <Button key={n} variant="chip" size="xs" aria-pressed={form.max_students === n && !customSpots} onClick={() => { setField('max_students', n); setCustomSpots(''); }}>{n}</Button>
             ))}
             <input
-              type="number" inputMode="numeric" min="1" max="200" placeholder="Other"
+              aria-label="Custom students per date" type="number" inputMode="numeric" min="1" max="200" placeholder="Other"
               value={customSpots}
               onChange={e => { const v = e.target.value; setCustomSpots(v); if (Number(v) >= 1) setField('max_students', Number(v)); }}
               style={{ ...s.input, width: 84, minHeight: 44, padding: '7px 10px', display: 'inline-block', ...(customSpots ? { borderColor: 'var(--accent, #92405e)', color: 'var(--accent, #92405e)', fontWeight: 600 } : {}) }}
@@ -416,14 +525,15 @@ export default function Courses() {
             <span style={s.hint}>{editingItem.enrolled} already booked. You can raise the maximum, not lower it below that.</span>
           )}
 
+          {!addingTo && <>
           <div style={s.row2}>
             <div style={{ flex: 1 }}>
               <label style={s.label}>Full price (£)</label>
-              <input type="number" inputMode="decimal" value={form.price} onChange={e => setField('price', e.target.value)} placeholder="750" style={s.input} min="0" step="1" />
+              <input aria-label="Full price (£)" type="number" inputMode="decimal" value={form.price} onChange={e => setField('price', e.target.value)} placeholder="750" style={s.input} min="0" step="1" />
             </div>
             <div style={{ flex: 1 }}>
               <label style={s.label}>Deposit to book (£)</label>
-              <input type="number" inputMode="decimal" value={form.deposit} onChange={e => setField('deposit', e.target.value)} placeholder="150" style={s.input} min="0" step="1" />
+              <input aria-label="Deposit to book (£)" type="number" inputMode="decimal" value={form.deposit} onChange={e => setField('deposit', e.target.value)} placeholder="150" style={s.input} min="0" step="1" />
             </div>
           </div>
 
@@ -445,14 +555,17 @@ export default function Courses() {
             ))}
           </div>
 
+          </>}
+
           {formProblem && form.name && form.price && <p style={s.problem}>{formProblem}</p>}
 
           <div style={s.formActions}>
             <Button fullWidth loading={saving} disabled={!!formProblem} onClick={handleSave} style={{ flex: 1 }}>
-              {saving ? (editingItem ? 'Saving' : 'Creating') : (editingItem ? 'Save changes' : 'Create course')}
+              {saving ? 'Saving' : addingTo ? 'Save dates' : editingItem ? 'Save changes' : 'Create course'}
             </Button>
-            <Button variant="secondary" onClick={() => { setShowCreate(false); resetForm(); }}>Cancel</Button>
+            <Button disabled={saving} variant="secondary" onClick={() => { setShowCreate(false); resetForm(); }}>Cancel</Button>
           </div>
+          </fieldset>
         </div>
       )}
 
@@ -480,91 +593,80 @@ export default function Courses() {
               <p style={s.emptyText}>Build your first one above. You get a link to share on Instagram, WhatsApp or your story, and students book themselves in.</p>
             </div>
           )}
-          {sorted.map(course => {
-            const stage = courseStage(course, today);
-            const chip = STAGE_CHIP[stage];
-            const students = studentsOf(course.id);
-            const attempts = attemptsOf(course.id);
-            const left = spotsLeft(course);
-            const full = left <= 0;
-            const open = stage === 'today' || stage === 'upcoming' || stage === 'tbc';
-            const takenHere = students.reduce((sum, e) => sum + Number(e.amount_paid_cents || 0), 0) / 100;
+          {groups.map(group => {
+            const base = group.anchor;
+            const multiple = group.courses.length > 1;
+            const shareable = group.courses.some(c => c.status !== 'cancelled');
+            const priceVaries = group.courses.some(c => Number(c.price) !== Number(base.price) || Number(c.deposit) !== Number(base.deposit));
             return (
-              <div key={course.id} style={{ ...s.courseCard, opacity: stage === 'cancelled' || stage === 'past' ? 0.75 : 1 }}>
+              <section key={group.id} style={s.courseCard} aria-label={base.name}>
                 <div style={s.courseTop}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={s.chipRow}>
-                      <span style={{ ...s.stageChip, color: chip.color, background: chip.bg }}>{chip.text}</span>
-                      {open && full && <span style={{ ...s.stageChip, color: '#82580f', background: 'var(--warning-bg, #F7EEDD)' }}>Full</span>}
-                    </div>
-                    <div style={s.courseName}>{course.name}</div>
-                    <div style={s.courseMeta}>
-                      <Icon name="calendar" inline /> {course.date ? `${fmtDate(course.date)}${course.start_time ? `, ${fmtTime(course.start_time)}` : ''}` : 'Date to be confirmed'}
-                      {course.location && <> · <Icon name="map-pin" inline /> {course.location}</>}
-                    </div>
-                    {course.duration && <div style={s.courseMeta}><Icon name="clock" inline /> {course.duration}</div>}
+                    {multiple && <span style={{ ...s.stageChip, color: 'var(--accent, #92405e)', background: 'var(--accent-light, #F6E7EC)', display: 'inline-block', marginBottom: 8 }}>{group.courses.length} date options</span>}
+                    <div style={s.courseName}>{base.name}</div>
+                    {base.location && <div style={s.courseMeta}><Icon name="map-pin" inline /> {base.location}</div>}
+                    {base.duration && <div style={s.courseMeta}><Icon name="clock" inline /> {base.duration}</div>}
                   </div>
                   <div style={s.coursePrice}>
-                    <span style={s.coursePriceMain}>{pounds(course.price)}</span>
-                    {Number(course.deposit) > 0 && <span style={s.courseDeposit}>{pounds(course.deposit)} deposit</span>}
+                    <span style={s.coursePriceMain}>{priceVaries ? 'From ' : ''}{pounds(Math.min(...group.courses.map(c => Number(c.price || 0))))}</span>
+                    {!priceVaries && Number(base.deposit) > 0 && <span style={s.courseDeposit}>{pounds(base.deposit)} deposit</span>}
                   </div>
                 </div>
-
-                {course.description && <p style={s.courseDesc}>{course.description}</p>}
-
-                {Array.isArray(course.includes) && course.includes.length > 0 && (
-                  <div style={s.includesRow}>
-                    {course.includes.map(key => {
-                      const opt = INCLUDES_OPTIONS.find(o => o.key === key);
-                      return opt ? <span key={key} style={s.includeTag}>{opt.label}</span> : null;
-                    })}
-                  </div>
-                )}
-
-                <div style={s.spotsRow}>
-                  <div style={s.spotsBar}>
-                    <div style={{ ...s.spotsBarFill, width: `${Math.min(100, (Number(course.enrolled || 0) / Math.max(1, Number(course.max_students || 1))) * 100)}%`, background: full ? 'var(--warning, #79581C)' : 'var(--accent, #92405e)' }} />
-                  </div>
-                  <span style={{ ...s.spotsLabel, color: full ? 'var(--warning, #79581C)' : 'var(--text-muted, #6B5D54)' }}>
-                    {full ? 'Full' : `${left} place${left !== 1 ? 's' : ''} left`} ({course.enrolled || 0}/{course.max_students})
-                    {takenHere > 0 && <> · {pounds(takenHere)} taken</>}
-                  </span>
-                </div>
-
-                {stage !== 'cancelled' && (
+                {base.description && <p style={s.courseDesc}>{base.description}</p>}
+                {Array.isArray(base.includes) && base.includes.length > 0 && <div style={s.includesRow}>
+                  {base.includes.map(key => { const opt = INCLUDES_OPTIONS.find(o => o.key === key); return opt ? <span key={key} style={s.includeTag}>{opt.label}</span> : null; })}
+                </div>}
+                {shareable && <>
+                  {multiple && <p style={s.dateHelp}>Share one link. Students choose the date that suits them.</p>}
                   <div style={s.linkRow}>
-                    <div style={s.linkBox}><span style={s.linkText}>florrie.ai/training/{beautician?.booking_slug || '…'}/{course.id.slice(0, 8)}</span></div>
-                    <Button size="sm" onClick={() => copyLink(course)} style={copiedId === course.id ? { background: 'var(--success, #386F52)' } : undefined}>
-                      {copiedId === course.id ? 'Copied' : 'Copy link'}
-                    </Button>
-                    <Button variant="secondary" icon size="icon" aria-label="Share link" onClick={() => shareLink(course)}><Icon name="share" size={16} /></Button>
+                    <div style={s.linkBox}><span style={s.linkText}>florrie.ai/training/{beautician?.booking_slug || '…'}/{base.id.slice(0, 8)}</span></div>
+                    <Button size="sm" onClick={() => copyLink(base)} style={copiedId === base.id ? { background: 'var(--success, #386F52)' } : undefined}>{copiedId === base.id ? 'Copied' : 'Copy link'}</Button>
+                    <Button variant="secondary" icon size="icon" aria-label="Share link" onClick={() => shareLink(base)}><Icon name="share" size={16} /></Button>
                   </div>
-                )}
-
-                <div style={s.courseActions}>
-                  {stage !== 'cancelled' && <Button variant="secondary" size="xs" style={s.actionBtn} onClick={() => handleEdit(course)}>Edit</Button>}
-                  <Button variant="secondary" size="xs" style={s.actionBtn} onClick={() => { setExpandedCourse(expandedCourse === course.id ? null : course.id); setOpenStudent(null); }}>
-                    {expandedCourse === course.id ? 'Hide' : `Students (${students.length})`}
-                  </Button>
-                  {open && <Button variant="secondary" size="xs" style={s.actionBtn} disabled={busyId === course.id} onClick={() => closeBookings(course)}>Close bookings</Button>}
-                  {stage === 'closed' && <Button variant="secondary" size="xs" style={s.actionBtn} disabled={busyId === course.id} onClick={() => reopenBookings(course)}>Reopen</Button>}
-                  {stage !== 'cancelled' && (students.length
-                    ? <Button variant="danger" size="xs" style={s.actionBtn} disabled={busyId === course.id} onClick={() => cancelCourse(course)}>Cancel</Button>
-                    : <Button variant="danger" size="xs" style={s.actionBtn} disabled={busyId === course.id} onClick={() => deleteCourse(course)}>Delete</Button>)}
+                </>}
+                <div style={s.dateList}>
+                  {group.courses.map(course => {
+                    const stage = courseStage(course, today);
+                    const chip = STAGE_CHIP[stage];
+                    const students = studentsOf(course.id);
+                    const attempts = attemptsOf(course.id);
+                    const left = spotsLeft(course);
+                    const full = left <= 0;
+                    const open = ['today', 'upcoming', 'tbc'].includes(stage);
+                    const takenHere = students.reduce((sum, e) => sum + Number(e.amount_paid_cents || 0), 0) / 100;
+                    return <div key={course.id} style={{ ...s.offeredDate, opacity: stage === 'cancelled' || stage === 'past' ? 0.75 : 1 }}>
+                      <div style={s.chipRow}>
+                        <span style={{ ...s.stageChip, color: chip.color, background: chip.bg }}>{chip.text}</span>
+                        {open && full && <span style={{ ...s.stageChip, color: '#82580f', background: 'var(--warning-bg, #F7EEDD)' }}>Full</span>}
+                      </div>
+                      <div style={s.dateHeading}><Icon name="calendar" size={16} inline /> {course.date ? `${fmtDate(course.date)}${course.start_time ? `, ${fmtTime(course.start_time)}` : ''}` : 'Date to be confirmed'}</div>
+                      {course.name !== base.name && <div style={s.courseMeta}>{course.name}</div>}
+                      {course.location !== base.location && <div style={s.courseMeta}>{course.location || 'Location to confirm'}</div>}
+                      {course.duration !== base.duration && <div style={s.courseMeta}>{course.duration}</div>}
+                      {course.description !== base.description && <p style={s.courseDesc}>{course.description}</p>}
+                      {priceVaries && <p style={s.dateHelp}>{pounds(course.price)} · {Number(course.deposit) > 0 ? `${pounds(course.deposit)} deposit` : 'No deposit'}</p>}
+                      <div style={s.spotsRow}>
+                        <div style={s.spotsBar}><div style={{ ...s.spotsBarFill, width: `${Math.min(100, (Number(course.enrolled || 0) / Math.max(1, Number(course.max_students || 1))) * 100)}%`, background: full ? 'var(--warning, #79581C)' : 'var(--accent, #92405e)' }} /></div>
+                        <span style={{ ...s.spotsLabel, color: full ? 'var(--warning, #79581C)' : 'var(--text-muted, #6B5D54)' }}>{full ? 'Full' : `${left} place${left !== 1 ? 's' : ''} left`} ({course.enrolled || 0}/{course.max_students}){takenHere > 0 && <> · {pounds(takenHere)} taken</>}</span>
+                      </div>
+                      <div style={s.courseActions}>
+                        {stage !== 'cancelled' && <Button variant="secondary" size="xs" style={s.actionBtn} disabled={saving} onClick={() => handleEdit(course)}>Edit date</Button>}
+                        <Button variant="secondary" size="xs" style={s.actionBtn} onClick={() => { setExpandedCourse(expandedCourse === course.id ? null : course.id); setOpenStudent(null); }}>{expandedCourse === course.id ? 'Hide students' : `Students (${students.length})`}</Button>
+                        {open && <Button variant="secondary" size="xs" style={s.actionBtn} disabled={busyId === course.id} onClick={() => closeBookings(course)}>Close bookings</Button>}
+                        {stage === 'closed' && <Button variant="secondary" size="xs" style={s.actionBtn} disabled={busyId === course.id} onClick={() => reopenBookings(course)}>Reopen</Button>}
+                        {stage !== 'cancelled' && (students.length || course.course_group_id
+                          ? <Button variant="danger" size="xs" style={s.actionBtn} disabled={busyId === course.id} onClick={() => cancelCourse(course)}>Cancel date</Button>
+                          : <Button variant="danger" size="xs" style={s.actionBtn} disabled={busyId === course.id} onClick={() => deleteCourse(course)}>Delete date</Button>)}
+                      </div>
+                      {expandedCourse === course.id && <div style={s.enrollList}>
+                        {attempts.length === 0 ? <p style={s.enrollEmpty}>Nobody booked on this date yet.</p> : attempts.map(e => <StudentRow key={e.id} row={e} course={course} open={openStudent === e.id} busy={busyId === e.id}
+                          onToggle={() => setOpenStudent(openStudent === e.id ? null : e.id)} onMarkDeposit={() => markPaid(e, 'deposit')} onMarkPaid={() => markPaid(e, 'paid')} onRemove={() => removeStudent(e)} />)}
+                      </div>}
+                    </div>;
+                  })}
                 </div>
-
-                {expandedCourse === course.id && (
-                  <div style={s.enrollList}>
-                    {attempts.length === 0 ? (
-                      <p style={s.enrollEmpty}>Nobody booked yet. Share the link: it goes in a story, a bio, a DM.</p>
-                    ) : attempts.map(e => (
-                      <StudentRow key={e.id} row={e} course={course} open={openStudent === e.id} busy={busyId === e.id}
-                        onToggle={() => setOpenStudent(openStudent === e.id ? null : e.id)}
-                        onMarkDeposit={() => markPaid(e, 'deposit')} onMarkPaid={() => markPaid(e, 'paid')} onRemove={() => removeStudent(e)} />
-                    ))}
-                  </div>
-                )}
-              </div>
+                {shareable && <Button variant="secondary" fullWidth size="sm" disabled={saving} style={{ marginTop: 12 }} onClick={() => handleAddDates(group.courses.find(c => c.status === 'active') || group.courses.find(c => c.status !== 'cancelled'))}>+ Add dates</Button>}
+              </section>
             );
           })}
         </div>
@@ -602,10 +704,10 @@ export default function Courses() {
  * what made the Date field look broken. The placeholder is painted over the
  * empty control and lets taps through to it.
  */
-function DateLike({ type, value, onChange, placeholder, min }) {
+function DateLike({ type, value, onChange, placeholder, min, id, ariaLabel, disabled }) {
   return (
     <div style={{ position: 'relative' }}>
-      <input type={type} value={value} min={min} onChange={e => onChange(e.target.value)} style={{ ...s.input, minHeight: 44, color: value ? 'var(--text-primary, #241B17)' : 'transparent' }} />
+      <input id={id} aria-label={ariaLabel} disabled={disabled} type={type} value={value} min={min} onChange={e => onChange(e.target.value)} style={{ ...s.input, minHeight: 44, color: value ? 'var(--text-primary, #241B17)' : 'transparent' }} />
       {!value && <span style={s.fakePlaceholder} aria-hidden="true">{placeholder}</span>}
     </div>
   );
@@ -624,7 +726,7 @@ function StudentRow({ row, course, open, busy, showCourse = false, onToggle, onM
         <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
           <div style={s.enrollName}>{row.name || 'Unknown'}</div>
           <div style={s.enrollContact}>{[row.email, row.phone].filter(Boolean).join(' · ')}</div>
-          {showCourse && course && <div style={s.enrollCourse}>{course.name}{course.date ? ` · ${fmtDate(course.date)}` : ''}</div>}
+          {showCourse && course && <div style={s.enrollCourse}>{course.name}{course.date ? ` · ${fmtDate(course.date)}${course.start_time ? `, ${fmtTime(course.start_time)}` : ''}` : ' · Date to confirm'}</div>}
           {row.notes && <div style={s.enrollNotes}>“{row.notes}”</div>}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
@@ -660,6 +762,15 @@ const s = {
   statValue:    { display: 'block', fontSize: 20, fontWeight: 700, color: 'var(--text-primary, #241B17)' },
   statLabel:    { display: 'block', fontSize: 10, color: 'var(--text-muted, #6B5D54)', textTransform: 'uppercase', letterSpacing: '0.03em' },
   statNote:     { fontSize: 12, color: 'var(--text-muted, #6B5D54)', margin: '4px 2px 12px' },
+
+  dateIntro:    { marginTop: 18, color: 'var(--text-primary, #241B17)', fontSize: 14 },
+  dateHelp:     { margin: '6px 0 12px', color: 'var(--text-muted, #6B5D54)', fontSize: 12, lineHeight: 1.55 },
+  dateOption:   { padding: '10px 12px 14px', marginBottom: 10, background: 'var(--bg, #FBF6F1)', border: '1px solid var(--border, #E8DDD4)', borderRadius: 12 },
+  dateOptionTop:{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 32 },
+  dateOptionTitle: { fontSize: 12, fontWeight: 700, color: 'var(--accent, #92405e)' },
+  dateList:     { display: 'flex', flexDirection: 'column', gap: 12, marginTop: 14 },
+  offeredDate:  { padding: 12, background: 'var(--bg, #FBF6F1)', borderRadius: 12, border: '1px solid var(--border, #E8DDD4)' },
+  dateHeading:  { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #241B17)', margin: '10px 0 14px', lineHeight: 1.5 },
 
   formCard:     { background: 'var(--card-bg, #FFFCF9)', borderRadius: 16, padding: 18, margin: '10px 0 16px', border: '1px solid var(--border, #E8DDD4)' },
   formHeader:   { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },

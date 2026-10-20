@@ -103,6 +103,8 @@ jobs:
         working-directory: frontend
       - run: node scripts/check-knowledge-training.mjs
         working-directory: frontend
+      - run: node scripts/check-training-dates.mjs
+        working-directory: frontend
       - run: node scripts/check-settings-policy.mjs
         working-directory: frontend
       - run: node scripts/check-client-policy.mjs

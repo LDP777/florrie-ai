@@ -513,4 +513,5 @@ export const enrollCourseSchema = z.object({
   email: z.string().trim().email('Please enter a valid email').max(200),
   phone: z.string().trim().max(40).optional().or(z.literal('')),
   notes: z.string().trim().max(2000).optional().or(z.literal('')),
+  selected_course_id: z.string().uuid('Please choose one of the offered course dates').optional(),
 });

@@ -71,3 +71,18 @@ export function sortCourses(courses, today) {
     return String(b.created_at || '').localeCompare(String(a.created_at || ''));
   });
 }
+
+/** A shared course with separate dated places, payments and student records. */
+export function groupCourses(courses, today) {
+  const groups = new Map();
+  for (const course of sortCourses(courses, today)) {
+    const key = course.course_group_id || course.id;
+    if (!groups.has(key)) groups.set(key, { id: key, courses: [] });
+    groups.get(key).courses.push(course);
+  }
+  return [...groups.values()].map(group => {
+    // Keep the shared link stable as earlier options fill or pass.
+    const anchor = [...group.courses].sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')) || String(a.id).localeCompare(String(b.id)))[0];
+    return { ...group, anchor, course: group.courses[0] };
+  });
+}

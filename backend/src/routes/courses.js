@@ -41,12 +41,24 @@ const stripe = process.env.STRIPE_SECRET_KEY
 /** The course columns the public page is allowed to see, plus start_time when the database has it. */
 async function publicCourseColumns() {
   const base = 'id, name, description, date, location, duration, max_students, price, deposit, includes, enrolled, status';
-  return (await hasColumn(supabase, 'courses', 'start_time')) ? `${base}, start_time` : base;
+  const [withTime, withGroup] = await Promise.all([
+    hasColumn(supabase, 'courses', 'start_time'),
+    hasColumn(supabase, 'courses', 'course_group_id'),
+  ]);
+  return `${base}${withTime ? ', start_time' : ''}${withGroup ? ', course_group_id' : ''}`;
+}
+
+function todayInLondon() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+}
+
+function dateStillOpen(course) {
+  return course.status === 'active' && (!course.date || String(course.date).slice(0, 10) >= todayInLondon());
 }
 
 function publicCourse(course) {
   const left = spotsLeft(course);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayInLondon();
   return {
     id: course.id,
     name: course.name,
@@ -66,6 +78,27 @@ function publicCourse(course) {
   };
 }
 
+// Dates are separate occurrences: each keeps its own students, payments and
+// capacity. Only the explicit group, scoped to the same trainer, links them.
+async function offeredDates(anchor, beauticianId, columns) {
+  if (!anchor.course_group_id) return dateStillOpen(anchor) ? [anchor] : [];
+  const { data, error } = await supabase.from('courses')
+    .select(columns)
+    .eq('beautician_id', beauticianId)
+    .eq('course_group_id', anchor.course_group_id)
+    .eq('status', 'active')
+    .order('date', { ascending: true });
+  if (error) throw error;
+  return (data || []).filter(c => c.date && dateStillOpen(c))
+    .sort((a, b) => `${a.date} ${a.start_time || ''}`.localeCompare(`${b.date} ${b.start_time || ''}`));
+}
+
+function requiresSelection(anchor, dates) {
+  const bookable = dates.filter(c => spotsLeft(c) > 0);
+  return bookable.length > 1
+    || (bookable.length > 0 && (!dates.some(c => c.id === anchor.id) || spotsLeft(anchor) <= 0));
+}
+
 // Public: returns course details + beautician branding for the booking page
 router.get('/:slug/:courseId', async (req, res) => {
   try {
@@ -81,9 +114,10 @@ router.get('/:slug/:courseId', async (req, res) => {
       return res.status(404).json({ error: 'Trainer not found' });
     }
 
+    const columns = await publicCourseColumns();
     const { data: course, error: cErr } = await supabase
       .from('courses')
-      .select(await publicCourseColumns())
+      .select(columns)
       .eq('id', courseId)
       .eq('beautician_id', beautician.id)
       .single();
@@ -91,7 +125,8 @@ router.get('/:slug/:courseId', async (req, res) => {
     if (cErr || !course) {
       return res.status(404).json({ error: 'Course not found or no longer available' });
     }
-    if (course.status !== 'active') {
+    const dates = await offeredDates(course, beautician.id, columns);
+    if (course.status !== 'active' && !dates.length) {
       // Closed, cancelled or completed. Say which, kindly, rather than 404.
       return res.status(410).json({
         error: course.status === 'cancelled'
@@ -101,8 +136,13 @@ router.get('/:slug/:courseId', async (req, res) => {
       });
     }
 
+    const shownCourse = (!dateStillOpen(course) || (course.course_group_id && !course.date)) && dates.length
+      ? dates.find(c => spotsLeft(c) > 0) || dates[0] : course;
     res.json({
-      course: publicCourse(course),
+      course: publicCourse(shownCourse),
+      requested_course_id: courseId,
+      dates: dates.map(publicCourse),
+      date_selection_required: requiresSelection(course, dates),
       beautician: {
         first_name: beautician.first_name,
         business_name: beautician.business_name,
@@ -122,7 +162,8 @@ router.get('/:slug/:courseId', async (req, res) => {
 // Public: enrol a student. If deposit > 0 and Stripe is configured, creates a Checkout session.
 router.post('/:slug/:courseId/enroll', async (req, res) => {
   try {
-    const { slug, courseId } = req.params;
+    const { slug, courseId: requestedCourseId } = req.params;
+    let courseId = requestedCourseId;
     const parsed = enrollSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: parsed.error.issues[0]?.message || 'Validation failed' });
@@ -140,17 +181,37 @@ router.post('/:slug/:courseId/enroll', async (req, res) => {
       return res.status(404).json({ error: 'Trainer not found' });
     }
 
-    const { data: course, error: cErr } = await supabase
+    const columns = await publicCourseColumns();
+    const { data: anchor, error: cErr } = await supabase
       .from('courses')
-      .select(await publicCourseColumns())
+      .select(columns)
       .eq('id', courseId)
       .eq('beautician_id', beautician.id)
       .single();
 
-    if (cErr || !course || course.status !== 'active') {
+    if (cErr || !anchor) {
       return res.status(404).json({ error: 'Course not found or no longer available' });
     }
-    if (course.date && String(course.date).slice(0, 10) < new Date().toISOString().slice(0, 10)) {
+    const dates = await offeredDates(anchor, beautician.id, columns);
+    let course = anchor;
+    if (parsed.data.selected_course_id && parsed.data.selected_course_id !== anchor.id) {
+      // Only advertised occurrences from this trainer's explicit group may
+      // be chosen. Never accept another similarly named course or salon.
+      course = dates.find(c => c.id === parsed.data.selected_course_id);
+      if (!course || !anchor.course_group_id) {
+        return res.status(400).json({ error: 'That date is not available for this course. Please choose an offered date.' });
+      }
+    } else if (!parsed.data.selected_course_id && requiresSelection(anchor, dates)) {
+      return res.status(400).json({ error: 'Please choose a course date before booking.' });
+    }
+    courseId = course.id;
+    if (anchor.course_group_id && !course.date) {
+      return res.status(400).json({ error: 'Please choose an offered course date before booking.' });
+    }
+    if (course.status !== 'active') {
+      return res.status(404).json({ error: 'Course not found or no longer available' });
+    }
+    if (course.date && String(course.date).slice(0, 10) < todayInLondon()) {
       return res.status(410).json({ error: 'This course date has passed. Message the trainer about the next one.' });
     }
 
@@ -269,6 +330,8 @@ router.post('/:slug/:courseId/enroll', async (req, res) => {
 
         return res.status(201).json({
           enrollment: { id: enrollment.id, name, email },
+          selected_course_id: courseId,
+          course: publicCourse(course),
           checkout_url: session.url,
         });
       } catch (stripeErr) {
@@ -290,6 +353,8 @@ router.post('/:slug/:courseId/enroll', async (req, res) => {
 
     return res.status(201).json({
       enrollment: { id: enrollment.id, name, email },
+      selected_course_id: courseId,
+      course: publicCourse(course),
       confirmed: true,
       deposit_pending: needsPayment,
       deposit_note: paymentNote,
