@@ -1,5 +1,5 @@
 import { supabase } from '../config.js';
-import { computePolicyFee } from './policy-fees.js';
+import { quotePolicyFeeFromRows } from './policy-fees.js';
 import { PRICE_SETTLED_TYPES } from '../lib/money-guards.js';
 import logger from '../lib/logger.js';
 
@@ -38,7 +38,7 @@ export async function getOutstandingBalanceCents(beauticianId, clientId) {
     const [{ data: appts, error: apptErr }, { data: bRow, error: bErr }] = await Promise.all([
       supabase
         .from('appointments')
-        .select('id, status, price_cents, deposit_cents, deposit_paid, payment_type, policy_snapshot, policy_fee_charged_at, late_cancel_charged, starts_at')
+        .select('id, status, price_cents, deposit_cents, deposit_amount_cents, deposit_paid, deposit_status, payment_type, policy_snapshot, policy_fee_charged_at, late_cancel_charged, starts_at')
         .eq('beautician_id', beauticianId)
         .eq('client_id', clientId)
         .in('status', ['no_show', 'cancelled', 'completed'])
@@ -79,15 +79,40 @@ export async function getOutstandingBalanceCents(beauticianId, clientId) {
     const reviewSources = [];
     const completedIds = [];
 
+    // One bounded read for every fee candidate. Never turn a failed or
+    // ambiguous ledger check into a public claim that the client owes money.
+    const feeIds = appts.filter(appt => !appt.policy_fee_charged_at &&
+      (appt.status === 'no_show' || (appt.status === 'cancelled' && appt.late_cancel_charged)))
+      .map(appt => appt.id);
+    let feePayments = null;
+    if (feeIds.length) {
+      const { data, error } = await supabase.from('transactions')
+        .select('id, appointment_id, type, amount_cents, status, payment_method, stripe_payment_intent_id')
+        .eq('beautician_id', beauticianId).eq('status', 'completed')
+        .in('appointment_id', feeIds).in('type', ['deposit', ...PRICE_SETTLED_TYPES, 'refund']);
+      if (!error && Array.isArray(data)) feePayments = data;
+      else logger.warn({ err: error, clientId }, 'outstanding-balance: fee payments unavailable, omitting unverified debt');
+    }
+    const feeFor = (appt, kind) => {
+      if (!feePayments) return 0;
+      try {
+        return quotePolicyFeeFromRows(appt, policyFor(appt), kind,
+          feePayments.filter(row => row.appointment_id === appt.id)).feeCents;
+      } catch (err) {
+        logger.warn({ err, appointmentId: appt.id }, 'outstanding-balance: fee needs payment review, omitting unverified debt');
+        return 0;
+      }
+    };
+
     for (const appt of appts) {
       if (appt.status === 'no_show' && !appt.policy_fee_charged_at) {
-        const { feeCents } = computePolicyFee(appt, policyFor(appt), 'no_show');
+        const feeCents = feeFor(appt, 'no_show');
         if (feeCents > 0) {
           owesCents += feeCents;
           sources.push({ appointment_id: appt.id, kind: 'no_show_fee', cents: feeCents });
         }
       } else if (appt.status === 'cancelled' && appt.late_cancel_charged && !appt.policy_fee_charged_at) {
-        const { feeCents } = computePolicyFee(appt, policyFor(appt), 'late_cancel');
+        const feeCents = feeFor(appt, 'late_cancel');
         if (feeCents > 0) {
           owesCents += feeCents;
           sources.push({ appointment_id: appt.id, kind: 'late_cancel_fee', cents: feeCents });

@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
-import { isCancelledBooking } from '../lib/booking-management-access.js';
+import { matchesClientCancellation } from '../lib/client-cancellation-provenance.js';
 import { pushClientCancelled } from './push-notifications.js';
 
 const ACTION = 'booking_cancelled';
@@ -11,20 +11,24 @@ export function cancellationAlertId(appointmentId) {
   return `${h.slice(0,8)}-${h.slice(8,12)}-5${h.slice(13,16)}-a${h.slice(17,20)}-${h.slice(20,32)}`;
 }
 
-/** Persist delivery intent before changing the booking. A restart after the
- * cancellation can then retry the push without cancelling or charging again. */
-export async function queueClientCancellation(appt, { lateCancel, feeCents }) {
+/** Build the intent committed in the same transaction as cancellation. */
+export function clientCancellationIntent(appt, { lateCancel, feeCents }) {
   const id = cancellationAlertId(appt.id);
-  const { error } = await supabase.from('ai_actions').insert({
+  return {
     id, beautician_id: appt.beautician_id, client_id: appt.client_id || null, appointment_id: appt.id,
     action_type: ACTION, digital_employee: 'front_desk', outcome: 'pending',
     summary: `${appt.clients?.first_name || 'A client'} requested cancellation of their booking`,
     autonomous: true, notification_sent: false,
-    details: { delivery_version: 1, source: 'client_manage', attempt_id: randomUUID(),
+    details: { delivery_version: 1, source: 'client_manage', attempt_id: randomUUID(), cancelled_at: appt.cancelled_at || null,
       late_cancel: !!lateCancel, fee_cents: feeCents || 0, queued_at: new Date().toISOString() },
-  });
+  };
+}
+
+export async function queueClientCancellation(appt, options) {
+  const intent = clientCancellationIntent(appt, options);
+  const { error } = await supabase.from('ai_actions').insert(intent);
   if (error && error.code !== '23505') throw new Error('Could not queue the cancellation notification');
-  return id;
+  return intent.id;
 }
 
 export async function announceClientCancellation(appointmentId) {
@@ -32,10 +36,10 @@ export async function announceClientCancellation(appointmentId) {
     const id = cancellationAlertId(appointmentId);
     const [{ data: old, error: ledgerError }, { data: appt, error: appointmentError }] = await Promise.all([
       supabase.from('ai_actions').select('*').eq('id', id).maybeSingle(),
-      supabase.from('appointments').select('id, beautician_id, client_id, starts_at, status, clients(first_name)').eq('id', appointmentId).maybeSingle(),
+      supabase.from('appointments').select('id, beautician_id, client_id, starts_at, status, cancelled_at, clients(first_name)').eq('id', appointmentId).maybeSingle(),
     ]);
     if (ledgerError || appointmentError) throw new Error('Could not check the cancellation delivery');
-    if (!old || old.details?.delivery_version !== 1 || !isCancelledBooking(appt)) return { delivered: 0, reason: 'not_cancelled' };
+    if (!old || old.details?.delivery_version !== 1 || !matchesClientCancellation(old, appt)) return { delivered: 0, reason: 'not_cancelled' };
     if (old.outcome === 'success') return { delivered: 0, reason: 'already_announced' };
     if (Date.parse(old.details?.lease_until) > Date.now()) return { delivered: 0, reason: 'delivery_in_progress' };
     const attemptId = randomUUID();

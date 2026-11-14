@@ -442,6 +442,17 @@ describe('when the WhatsApp link follow-up works', () => {
     expect(params[2]).not.toMatch(/[–—]/);
   });
 
+  it('keeps both URLs intact even when the approved template suffix has no leading space', async () => {
+    seed();await notifyBookingConfirmed('a1');
+    const message=sent.meta.find(m=>m.template.name==='generic_message_v4').template.components[0].parameters[2].text;
+    const rendered=`${message}If there is anything you need to change, reply here.`;
+    expect(rendered.match(/https:\/\/\S+/g)).toEqual([
+      `https://florrie.ai/book/ellindigo/manage/${MANAGE_TOKEN}`,
+      CALENDAR_URL,
+    ]);
+    expect(rendered).not.toContain('/calendarIf');
+  });
+
   it('records nothing alarming', async () => {
     seed();
     await notifyBookingConfirmed('a1');

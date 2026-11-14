@@ -26,10 +26,15 @@ const {queueClientCancellation,announceClientCancellation,retryClientCancellatio
 const appt=()=>state.tables.appointments[0];
 const ledger=()=>state.tables.ai_actions[0];
 beforeEach(()=>{
-  state.tables={appointments:[{id:'a1',beautician_id:'b1',client_id:'c1',status:'confirmed',starts_at:'2026-12-12T11:00:00Z',clients:{first_name:'Demo'}}],ai_actions:[]};
+  state.tables={appointments:[{id:'a1',beautician_id:'b1',client_id:'c1',status:'confirmed',cancelled_at:'2026-11-14T17:00:00Z',starts_at:'2026-12-12T11:00:00Z',clients:{first_name:'Demo'}}],ai_actions:[]};
   state.pushes=[];state.failInsert=false;state.result={sent:0,apns:{sent:1}};
 });
 describe('durable client cancellation notifications',()=>{
+  it('ignores a staged request and a later unrelated cancellation',async()=>{
+    appt().cancelled_at=null;await queueClientCancellation(appt(),{});appt().status='cancelled';appt().cancelled_at='2026-11-14T18:00:00Z';
+    await announceClientCancellation('a1');expect(state.pushes).toEqual([]);
+    ledger().details.cancelled_at='2026-11-14T17:00:00Z';await announceClientCancellation('a1');expect(state.pushes).toEqual([]);
+  });
   it('queues before cancellation and sends only once the booking is cancelled',async()=>{
     await queueClientCancellation(appt(),{lateCancel:true,feeCents:2800});
     expect(ledger().outcome).toBe('pending');

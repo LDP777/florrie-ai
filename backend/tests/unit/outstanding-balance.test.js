@@ -191,11 +191,48 @@ describe('eligible policy fees keep their existing behaviour', () => {
     expect((await balance()).owesCents).toBe(1050);
   });
 
-  it('keeps eligible fees but does not fabricate review items when payment reads fail', async () => {
+  it('does not assert a fee is owed when payments cannot be checked', async () => {
     db.rows.beauticians[0].booking_policy = { no_show_charge_percent: 100 };
     db.rows.appointments = [appointment({ id: 'missed', status: 'no_show' }), appointment()];
     db.errors.transactions = { message: 'Database temporarily unavailable' };
-    expect(await balance()).toEqual({ ...empty(), owesCents: 2800, sources: [{ appointment_id: 'missed', kind: 'no_show_fee', cents: 2800 }] });
+    expect(await balance()).toEqual(empty());
+  });
+
+  it.each(['no_show', 'cancelled'])('credits the actual balance payment before showing %s debt', async status => {
+    db.rows.beauticians[0].booking_policy = { no_show_charge_percent: 100, late_cancel_charge_percent: 100 };
+    db.rows.appointments = [appointment({ status, late_cancel_charged: true })];
+    db.rows.transactions = [transaction()];
+    expect(await balance()).toEqual(empty());
+    expect(db.writes).toEqual([]);
+  });
+
+  it('does not count a deposit flag and its receipt twice', async () => {
+    db.rows.beauticians[0].booking_policy = { late_cancel_charge_percent: 100 };
+    db.rows.appointments = [appointment({ status: 'cancelled', late_cancel_charged: true })];
+    db.rows.transactions = [transaction({ type: 'deposit', amount_cents: 700 }), transaction({ id: 'balance', amount_cents: 1800 })];
+    expect((await balance()).owesCents).toBe(1000);
+  });
+
+  it('omits ambiguous legacy payment-link debt rather than guessing', async () => {
+    db.rows.beauticians[0].booking_policy = { late_cancel_charge_percent: 100 };
+    db.rows.appointments = [appointment({ status: 'cancelled', late_cancel_charged: true })];
+    db.rows.transactions = [transaction({ type: 'payment_link', amount_cents: 1500 })];
+    expect(await balance()).toEqual(empty());
+  });
+
+  it('reads several fee ledgers together while isolating owners and appointments', async () => {
+    db.rows.beauticians[0].booking_policy = { late_cancel_charge_percent: 100 };
+    db.rows.appointments = [appointment({ status: 'cancelled', late_cancel_charged: true }), appointment({ id: 'visit-two', status: 'cancelled', late_cancel_charged: true })];
+    db.rows.transactions = [transaction(), transaction({ id: 'foreign', appointment_id: 'visit-two', beautician_id: 'another-salon' })];
+    expect(await balance()).toEqual({ ...empty(), owesCents: 2800, sources: [{ appointment_id: 'visit-two', kind: 'late_cancel_fee', cents: 2800 }] });
+    expect(db.queries.filter(query => query.table === 'transactions')).toHaveLength(1);
+  });
+
+  it('does not mistake assumed takings for real settlement of a cancellation fee', async () => {
+    db.rows.beauticians[0].booking_policy = { late_cancel_charge_percent: 100 };
+    db.rows.appointments = [appointment({ status: 'cancelled', late_cancel_charged: true })];
+    db.rows.transactions = [transaction({ payment_method: null, stripe_payment_intent_id: null })];
+    expect((await balance()).owesCents).toBe(2800);
   });
 
   it.each(['appointments', 'beauticians'])('fails open when %s reads fail', async (table) => {

@@ -37,18 +37,23 @@ vi.mock('../../src/lib/payment-receipt.js',()=>({insertPaymentReceipt:async(db,r
 }}));
 vi.mock('../../src/lib/logger.js',()=>({default:{info(){},warn(){},error(){},debug(){}}}));
 vi.mock('@sentry/node',()=>({captureException(){},captureMessage(){}}));
-const {queueClientCancellationFee,settleClientCancellationFee,retryClientCancellationFees}=await import('../../src/services/client-cancellation-fee.js');
+const {queueClientCancellationFee,settleClientCancellationFee,attemptClientCancellationFee,retryClientCancellationFees}=await import('../../src/services/client-cancellation-fee.js');
 const {computePolicyFee}=await import('../../src/services/policy-fees.js');
 const appointment=()=>state.tables.appointments[0];
 const intent=()=>state.tables.ai_actions.find(r=>r.action_type==='client_cancellation_fee');
 const queue=async()=>{await queueClientCancellationFee(appointment(),2500);appointment().status='cancelled';};
 beforeEach(()=>{
-  state.tables={appointments:[{id:'a1',beautician_id:'b1',client_id:'c1',status:'confirmed',price_cents:3500,deposit_cents:700,deposit_amount_cents:1000,deposit_paid:true,
+  state.tables={appointments:[{id:'a1',beautician_id:'b1',client_id:'c1',status:'confirmed',cancelled_at:'2026-11-14T17:00:00Z',price_cents:3500,deposit_cents:700,deposit_amount_cents:1000,deposit_paid:true,
     policy_snapshot:{late_cancel_charge_percent:100},stripe_payment_method_id:'pm_saved',clients:{id:'c1',first_name:'Demo',stripe_customer_id:'cus_demo'},
     beauticians:{id:'b1',stripe_account_id:'acct_demo',stripe_onboarding_complete:true}}],ai_actions:[],transactions:[]};
   state.creates=[];state.retrieves=[];state.response={id:'pi_demo',status:'succeeded'};state.failAnchor=false;state.failReceipt=false;state.failRequest=false;state.nextId=0;
 });
 describe('prospective late-cancellation payment recovery',()=>{
+  it('never charges a staged request activated by a different cancellation',async()=>{
+    appointment().cancelled_at=null;await queue();appointment().cancelled_at='2026-11-14T18:00:00Z';
+    await retryClientCancellationFees();expect(state.creates).toHaveLength(0);
+    intent().details.cancelled_at='2026-11-14T17:00:00Z';await retryClientCancellationFees();expect(state.creates).toHaveLength(0);
+  });
   it('credits the actual deposit and a payment in full, not the configured deposit estimate',()=>{
     expect(computePolicyFee(appointment(),{late_cancel_charge_percent:100},'late_cancel').feeCents).toBe(2500);
     expect(computePolicyFee({...appointment(),payment_type:'full'},{late_cancel_charge_percent:100},'late_cancel').feeCents).toBe(0);
@@ -57,6 +62,18 @@ describe('prospective late-cancellation payment recovery',()=>{
   it('recovers after cancellation, records one payment and does not repeat it',async()=>{
     await queue();await retryClientCancellationFees();await retryClientCancellationFees();await settleClientCancellationFee('a1');
     expect(state.creates).toHaveLength(1);expect(state.creates[0].params.amount).toBe(2500);expect(intent().outcome).toBe('success');expect(state.tables.transactions).toHaveLength(1);
+  });
+  it('returns a pending receipt promptly while a slow provider finishes the durable attempt',async()=>{
+    await queue();let finish;
+    state.response=new Promise(resolve=>{finish=resolve;});
+    const result=await attemptClientCancellationFee('a1',{budgetMs:10});
+    expect(result).toEqual({charged:false,pending:true,reason:'awaiting_confirmation'});
+    expect(appointment().status).toBe('cancelled');expect(appointment().policy_fee_charged_at).toBeUndefined();
+    expect(intent().outcome).toBe('pending');expect(state.tables.transactions).toEqual([]);
+    expect(intent().details.request).toMatchObject({params:{amount:2500}});
+    finish({id:'pi_demo',status:'succeeded'});
+    await vi.waitFor(()=>expect(intent().outcome).toBe('success'));
+    await retryClientCancellationFees();expect(state.creates).toHaveLength(1);expect(state.tables.transactions).toHaveLength(1);
   });
   it('retries an unknown network result with the exact stored request and key despite later edits',async()=>{
     await queue();state.response=Object.assign(new Error('connection lost'),{type:'StripeConnectionError'});

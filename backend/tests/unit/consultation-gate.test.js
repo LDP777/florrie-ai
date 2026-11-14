@@ -183,6 +183,7 @@ vi.mock('../../src/services/live-activity.js', () => ({ refreshLiveActivity: asy
 vi.mock('../../src/services/policy-fees.js', () => ({
   chargePolicyFee: async () => ({ charged: false }),
   computePolicyFee: () => ({ feeCents: 0 }),
+  quotePolicyFee: async () => ({ feeCents: 0 }),
   chargeRescheduleDeposit: async () => ({ charged: false, reason: 'no_deposit' }),
 }));
 vi.mock('../../src/middleware/turnstile.js', () => ({ verifyTurnstile: (_q, _s, next) => next() }));

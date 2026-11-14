@@ -71,7 +71,7 @@ async function logAction({ appt, kind, actionType, outcome, summary, details }) 
  * Returns { feeCents, percent } - feeCents is 0 when no fee applies.
  * Shared by the charge path and the manage-page preview.
  */
-export function computePolicyFee(appointment, policy, kind) {
+export function computePolicyFee(appointment, policy, kind, { creditedCents } = {}) {
   const pol = policy || {};
   let percent;
   if (kind === 'late_cancel') {
@@ -87,13 +87,54 @@ export function computePolicyFee(appointment, policy, kind) {
   const priceCents = appointment.price_cents || 0;
   let feeCents = Math.round(priceCents * percent / 100);
 
-  // Deposit already paid counts towards the fee; never go negative.
-  if (appointment.deposit_paid) {
-    const paidCents = appointment.payment_type === 'full' ? priceCents
-      : (appointment.deposit_amount_cents ?? appointment.deposit_cents ?? 0);
-    feeCents = Math.max(0, feeCents - Math.max(0, Number(paidCents) || 0));
-  }
+  feeCents = Math.max(0, feeCents - (creditedCents ?? legacyPaidCredit(appointment)));
   return { feeCents, percent };
+}
+
+function legacyPaidCredit(appointment) {
+  if (!appointment.deposit_paid || appointment.deposit_status === 'refunded') return 0;
+  if (appointment.payment_type === 'full') return Math.max(0, Number(appointment.price_cents) || 0);
+  // Older bookings have the schema's default zero in deposit_amount_cents.
+  // A verified paid deposit must still credit their original deposit_cents.
+  return Math.max(0, Number(appointment.deposit_amount_cents) || Number(appointment.deposit_cents) || 0);
+}
+
+/** Quote against the owner's actual ledger before starting a new charge.
+ * A deposit field and its receipt describe the same payment. Cash/card/transfer
+ * balance receipts count too; completion-only assumptions and tips do not. */
+export async function quotePolicyFee(appointment, policy, kind, { db = supabase } = {}) {
+  const gross = computePolicyFee(appointment, policy, kind, { creditedCents: 0 });
+  if (!gross.feeCents) return { ...gross, creditedCents: 0 };
+  const ownerId = appointment.beautician_id || appointment.beauticians?.id;
+  if (!appointment.id || !ownerId) throw new Error('Could not verify payment ownership');
+  const { data, error } = await db.from('transactions')
+    .select('id,type,amount_cents,status,payment_method,stripe_payment_intent_id')
+    .eq('beautician_id', ownerId).eq('appointment_id', appointment.id)
+    .eq('status', 'completed')
+    .in('type', ['deposit', ...PRICE_SETTLED_TYPES, 'refund']);
+  if (error || !Array.isArray(data)) throw new Error('Could not check payments already received');
+  return quotePolicyFeeFromRows(appointment, policy, kind, data);
+}
+
+/** Use a previously owner-scoped ledger read when checking several visits. */
+export function quotePolicyFeeFromRows(appointment, policy, kind, data) {
+  if (!Array.isArray(data)) throw new Error('Could not check payments already received');
+  const rows = data.filter(row => row.status === 'completed');
+  const receipts = rows.filter(row => row.type === 'deposit' || isSettledPriceRow(row));
+  const bookingReceipts = receipts.filter(row => ['deposit', 'full_payment', 'payment_link'].includes(row.type));
+  const legacyCredit = legacyPaidCredit(appointment);
+  const amount = row => Number(row.amount_cents) || 0;
+  const ledgerCredit = receipts.reduce((total, row) => total + Math.max(0, amount(row)), 0);
+  // Payment links may cover a deposit or a balance. If a legacy deposit has
+  // no separate receipt, do not guess whether it is part of the link payment.
+  if (legacyCredit > 0 && bookingReceipts.length > 0
+      && bookingReceipts.every(row => row.type === 'payment_link')
+      && ledgerCredit < (Number(appointment.price_cents) || 0)) {
+    throw new Error('The recorded payments need review before a cancellation fee can be quoted');
+  }
+  const refunds = rows.filter(row => row.type === 'refund').reduce((total, row) => total + amount(row), 0);
+  const creditedCents = Math.max(0, ledgerCredit + (bookingReceipts.length ? 0 : legacyCredit) + refunds);
+  return { ...computePolicyFee(appointment, policy, kind, { creditedCents }), creditedCents };
 }
 
 export async function chargePolicyFee(appointmentId, kind, { recovery = null } = {}) {
@@ -107,7 +148,7 @@ export async function chargePolicyFee(appointmentId, kind, { recovery = null } =
       .from('appointments')
       .select(`
         id, beautician_id, client_id, status, price_cents, deposit_cents, deposit_amount_cents,
-        deposit_paid, payment_type, policy_snapshot, stripe_payment_method_id,
+        deposit_paid, deposit_status, payment_type, policy_snapshot, stripe_payment_method_id,
         policy_fee_charged_at, policy_fee_payment_intent_id,
         clients(id, first_name, last_name, stripe_customer_id),
         beauticians(id, business_name, first_name, booking_policy,
@@ -119,7 +160,7 @@ export async function chargePolicyFee(appointmentId, kind, { recovery = null } =
     if (!appt) return { charged: false, reason: 'not_found' };
 
     // HARD RULE: never charge twice.
-    if (appt.policy_fee_charged_at && !recovery) {
+    if (appt.policy_fee_charged_at && !recovery?.request) {
       return { charged: false, reason: 'already_charged' };
     }
 
@@ -136,8 +177,8 @@ export async function chargePolicyFee(appointmentId, kind, { recovery = null } =
       ? { ...snapshot, ...(snapshot.no_show_charge_percent === undefined && live.no_show_charge_percent !== undefined
             ? { no_show_charge_percent: live.no_show_charge_percent } : {}) }
       : live;
-    const computed = computePolicyFee(appt, policy, kind);
     const priorRequest = recovery?.request || null;
+    const computed = priorRequest ? null : await quotePolicyFee(appt, policy, kind);
     const feeCents = priorRequest?.params?.amount ?? computed.feeCents;
     const percent = priorRequest?.percent ?? computed.percent;
     if (!priorRequest && recovery?.expectedFeeCents != null && feeCents !== recovery.expectedFeeCents) {

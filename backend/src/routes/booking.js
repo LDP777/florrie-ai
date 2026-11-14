@@ -17,15 +17,15 @@ import { isMissingColumnError } from '../lib/junk-classifier.js';
 import { notifyBookingConfirmed } from '../services/notifications.js';
 import { pushNewBooking, pushReschedule, pushPatchTestBooked, pushTeamUpdate } from '../services/push-notifications.js';
 import { announceBookingConfirmed } from '../services/booking-confirmed-alert.js';
-import { queueClientCancellation, announceClientCancellation } from '../services/booking-cancelled-alert.js';
-import { queueClientCancellationFee, settleClientCancellationFee } from '../services/client-cancellation-fee.js';
+import { clientCancellationIntent, announceClientCancellation } from '../services/booking-cancelled-alert.js';
+import { clientCancellationFeeIntent, attemptClientCancellationFee } from '../services/client-cancellation-fee.js';
 import { refreshLiveActivity } from '../services/live-activity.js';
 import { sendConsultationFormSMS, recordBookingConsultation } from './consultation-forms.js';
 import { splitBookingSubmission } from '../lib/client-notes.js';
 import { validate } from '../middleware/validate.js';
 import { requireAuth } from '../middleware/auth.js';
 import { totalApplicationFee } from '../lib/platform-fees.js';
-import { chargePolicyFee, computePolicyFee } from '../services/policy-fees.js';
+import { chargePolicyFee, computePolicyFee, quotePolicyFee } from '../services/policy-fees.js';
 import { cancellationNoticeHours, isWithinCancellationWindow } from '../lib/booking-policy.js';
 import { verifyTurnstile } from '../middleware/turnstile.js';
 import logger from '../lib/logger.js';
@@ -1110,7 +1110,7 @@ router.get('/:slug/manage/:token', async (req, res) => {
     const { data: appt } = await supabase
       .from('appointments')
       .select(`
-        id, starts_at, ends_at, status, management_token, rescheduled_at, cancelled_at,
+        id, beautician_id, starts_at, ends_at, status, management_token, rescheduled_at, cancelled_at,
         payment_expires_at, policy_snapshot, client_email, extra_treatment_ids,
         price_cents, deposit_cents, deposit_amount_cents, deposit_paid, deposit_status,
         payment_type, stripe_payment_intent_id, stripe_payment_method_id,
@@ -1327,7 +1327,7 @@ router.get('/:slug/manage/:token', async (req, res) => {
 
     // What a late cancellation would cost right now (percent of price minus
     // deposit already paid) and whether we hold a card we can charge it to.
-    const { feeCents: lateCancelFeeCents } = computePolicyFee(appt, policy, 'late_cancel');
+    const { feeCents: lateCancelFeeCents } = withinCancellationWindow ? await quotePolicyFee(appt, policy, 'late_cancel') : { feeCents: 0 };
     const cardOnFile = !!(appt.clients?.stripe_customer_id &&
       (appt.stripe_payment_method_id || appt.deposit_paid));
 
@@ -1444,7 +1444,7 @@ router.get('/:slug/manage/:token', async (req, res) => {
 /**
  * POST /api/booking/:slug/manage/:token/cancel
  * Client self-cancels. Enforces cancellation policy:
- *   - Within notice window → records late_cancel_charged flag (beautician charges separately)
+ *   - Within notice window → durably queues the agreed fee, crediting payments
  *   - Outside window → free cancellation
  */
 router.post('/:slug/manage/:token/cancel', async (req, res) => {
@@ -1454,7 +1454,7 @@ router.post('/:slug/manage/:token/cancel', async (req, res) => {
       // beautician_id is here because the cancellation push below passes it.
       // It was not in the select, so it was always undefined, pushClientCancelled
       // had nobody to send to, and Ellie was never told a client had cancelled.
-      .select('id, starts_at, status, policy_snapshot, client_id, beautician_id, price_cents, deposit_cents, deposit_amount_cents, deposit_paid, payment_type, stripe_payment_method_id, clients(first_name, stripe_customer_id), beauticians(booking_policy, booking_slug, timezone)')
+      .select('id, starts_at, status, policy_snapshot, client_id, beautician_id, price_cents, deposit_cents, deposit_amount_cents, deposit_paid, deposit_status, payment_type, stripe_payment_intent_id, stripe_payment_method_id, clients(first_name, stripe_customer_id), beauticians(booking_policy, booking_slug, timezone)')
       .eq('management_token', req.params.token)
       .single();
 
@@ -1463,7 +1463,7 @@ router.post('/:slug/manage/:token/cancel', async (req, res) => {
     }
 
     if (isCancelledBooking(appt)) {
-      await announceClientCancellation(appt.id);
+      void announceClientCancellation(appt.id).catch(err => logger.error({ err }, 'Cancellation notification will retry'));
       return res.json({ success: true, alreadyCancelled: true, message: 'Your appointment has already been cancelled.' });
     }
     if (!['confirmed', 'pending'].includes(appt.status)) {
@@ -1477,43 +1477,34 @@ router.post('/:slug/manage/:token/cancel', async (req, res) => {
     }
     const noticeHours = cancellationNoticeHours(policy);
     const isLateCancel = isWithinCancellationWindow(hoursUntil, policy);
-    const { feeCents } = computePolicyFee(appt, policy, 'late_cancel');
+    const { feeCents } = isLateCancel ? await quotePolicyFee(appt, policy, 'late_cancel') : { feeCents: 0 };
     const cardOnFile = !!(appt.clients?.stripe_customer_id &&
       (appt.stripe_payment_method_id || appt.deposit_paid));
 
-    try {
-      await queueClientCancellation(appt, { lateCancel: isLateCancel, feeCents: isLateCancel ? feeCents : 0 });
-      if (isLateCancel && feeCents > 0) await queueClientCancellationFee(appt, feeCents);
-    } catch (err) {
-      logger.error({ err, appointmentId: appt.id }, 'Cancellation notification could not be queued');
-      return res.status(503).json({ error: 'Your booking has not been cancelled. Please try again or contact the salon.' });
+    const intents = [clientCancellationIntent(appt, { lateCancel: isLateCancel, feeCents: isLateCancel ? feeCents : 0 })];
+    const feeIntent = isLateCancel ? clientCancellationFeeIntent(appt, feeCents) : null;
+    if (feeIntent) intents.push(feeIntent);
+    const { data: changed, error } = await supabase.rpc('cancel_client_booking', {
+      p_appointment: appt.id, p_owner: appt.beautician_id, p_token: req.params.token,
+      p_starts_at: appt.starts_at, p_price: appt.price_cents, p_policy: appt.policy_snapshot || null,
+      p_late: isLateCancel && (policy.late_cancel_charge_percent || 0) > 0, p_intents: intents,
+    });
+    if (error || typeof changed?.already_cancelled !== 'boolean') {
+      logger.error({ err: error }, 'Cancellation and its delivery work could not be saved');
+      return res.status(error?.code === '40001' ? 409 : 503).json({ error: error?.code === '40001'
+        ? 'This booking changed while you were cancelling. Please reload it before trying again.'
+        : 'We could not confirm your cancellation. Refresh this booking to check before trying again, or contact the salon.' });
     }
-
-    const { data: changed, error } = await supabase
-      .from('appointments')
-      .update({
-        status: 'cancelled',
-        cancelled_at: new Date().toISOString(),
-        late_cancel_charged: isLateCancel && (policy.late_cancel_charge_percent || 0) > 0,
-      })
-      .eq('id', appt.id).in('status', ['confirmed', 'pending']).select('id');
-
-    if (error) {
-      logger.error({ err: error }, 'Failed to cancel appointment');
-      return res.status(500).json({ error: 'Something went wrong' });
-    }
-    if (!changed?.length) {
-      const current = await supabase.from('appointments').select('status').eq('id', appt.id).maybeSingle();
-      if (current.error || !isCancelledBooking(current.data)) return res.status(409).json({ error: 'This booking changed while you were cancelling. Please reload it.' });
-      await announceClientCancellation(appt.id);
+    if (changed?.already_cancelled) {
+      void announceClientCancellation(appt.id).catch(err => logger.error({ err }, 'Cancellation notification will retry'));
       return res.json({ success: true, alreadyCancelled: true, message: 'Your appointment has already been cancelled.' });
     }
 
     // Delivery is separate from cancellation: a failed push stays in the
     // durable queue and retries without cancelling or charging again.
-    await announceClientCancellation(appt.id);
+    void announceClientCancellation(appt.id).catch(err => logger.error({ err }, 'Cancellation notification will retry'));
     const feeCollection = isLateCancel && feeCents > 0
-      ? await settleClientCancellationFee(appt.id) : { charged: false, reason: 'no_fee_configured' };
+      ? await attemptClientCancellationFee(appt.id) : { charged: false, reason: 'no_fee_configured' };
 
     const willCharge = isLateCancel && feeCents > 0 && cardOnFile;
     res.json({

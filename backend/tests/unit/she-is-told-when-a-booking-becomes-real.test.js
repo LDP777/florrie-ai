@@ -251,6 +251,7 @@ vi.mock('../../src/routes/consultation-forms.js', () => ({
 vi.mock('../../src/services/policy-fees.js', () => ({
   chargePolicyFee: async () => ({ charged: false }),
   computePolicyFee: () => ({ feeCents: 0 }),
+  quotePolicyFee: async () => ({ feeCents: 0 }),
   chargeRescheduleDeposit: async () => ({ charged: false, reason: 'no_deposit' }),
   chargeRemainingBalance: async () => ({ charged: false }),
   chargeCardAmount: async () => ({ charged: false }),

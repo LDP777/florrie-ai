@@ -1667,9 +1667,9 @@ export async function sendBookingLink({
   const bookingLinks = manageUrl
     ? `Manage your booking, patch test and consultation: ${manageUrl}${calendarUrl ? ` Add to your calendar: ${calendarUrl}` : ''}`
     : null;
-  const blurb = bookingLinks || (isCalendarLink
+  const blurb = `${bookingLinks || (isCalendarLink
     ? `Here is your appointment, ready to add to your calendar: ${url}`
-    : `Here is everything about your appointment, including adding another treatment: ${url}`);
+    : `Here is everything about your appointment, including adding another treatment: ${url}`)} Keep this link for your appointment.`;
 
   const wa = await sendWhatsApp({
     to: phone,

@@ -221,7 +221,18 @@ function makeBuilder(table) {
   return b;
 }
 
-vi.mock('../../src/config.js', () => ({ supabase: { from: (t) => makeBuilder(t) } }));
+vi.mock('../../src/config.js', () => ({ supabase: { from: (t) => makeBuilder(t), rpc: async (name, args) => {
+  if (name !== 'cancel_client_booking') throw new Error(`Unexpected RPC: ${name}`);
+  const row = db.appointments.find(a => a.id === args.p_appointment && a.beautician_id === args.p_owner && a.management_token === args.p_token);
+  if (!row) return { data: null, error: { code: 'P0002' } };
+  if (row.status === 'cancelled') return { data: { already_cancelled: true }, error: null };
+  if (failing.has('ai_actions') || failing.has('appointments')) return { data: null, error: failing.get('ai_actions') || failing.get('appointments') };
+  if (!['confirmed','pending'].includes(row.status) || row.starts_at !== args.p_starts_at) return { data:null,error:{code:'40001'} };
+  const stamp = new Date().toISOString();
+  row.status='cancelled';row.cancelled_at=stamp;row.late_cancel_charged=args.p_late;
+  db.ai_actions.push(...args.p_intents.map(item => ({...item,created_at:stamp,details:{...item.details,cancelled_at:stamp,source:'client_manage'}})));
+  return {data:{already_cancelled:false,cancelled_at:stamp},error:null};
+} } }));
 
 /* ------------------------------------------------------------------- mocks -- */
 vi.mock('stripe', () => ({
@@ -245,19 +256,20 @@ vi.mock('../../src/services/notifications.js', () => ({
 vi.mock('../../src/services/push-notifications.js', () => ({
   pushNewBooking: async () => true, pushBookingConfirmed: async () => true,
   pushReschedule: async () => true, pushPatchTestBooked: async () => true,
-  pushClientCancelled: async () => true, pushTeamUpdate: async () => true,
+  pushClientCancelled: async () => feeFixture.pushResult ?? true, pushTeamUpdate: async () => true,
 }));
 vi.mock('../../src/services/live-activity.js', () => ({ refreshLiveActivity: async () => true }));
 vi.mock('../../src/routes/consultation-forms.js', () => ({
   sendConsultationFormSMS: async () => true,
   recordBookingConsultation: async () => ({ unrecorded: {}, failed: false }),
 }));
-const feeFixture = vi.hoisted(() => ({ feeCents: 0, useActual: false, charges: [], paidMove: false }));
+const feeFixture = vi.hoisted(() => ({ feeCents: 0, useActual: false, charges: [], paidMove: false, pushResult: null, chargeResult: null, failQuote: false }));
 vi.mock('../../src/services/policy-fees.js', async importOriginal => {
   const { computePolicyFee } = await importOriginal();
   return {
-  chargePolicyFee: async (...args) => { feeFixture.charges.push(args.slice(0,2)); return { charged: false, reason: 'no_card_on_file' }; },
+  chargePolicyFee: async (...args) => { feeFixture.charges.push(args.slice(0,2)); return feeFixture.chargeResult ?? { charged: false, reason: 'no_card_on_file' }; },
   computePolicyFee: (...args) => feeFixture.useActual ? computePolicyFee(...args) : ({ feeCents: feeFixture.feeCents }),
+  quotePolicyFee: async (...args) => { if(feeFixture.failQuote)throw new Error('Cannot check ledger');return feeFixture.useActual ? computePolicyFee(...args) : ({ feeCents: feeFixture.feeCents }); },
   chargeRescheduleDeposit: async () => ({ charged: false, reason: 'no_deposit' }),
   chargeRemainingBalance: async () => ({ charged: false }),
   chargeCardAmount: async () => ({ charged: false }),
@@ -436,6 +448,9 @@ beforeEach(() => {
   feeFixture.feeCents = 0;
   feeFixture.useActual = false;
   feeFixture.paidMove = false;
+  feeFixture.pushResult = null;
+  feeFixture.chargeResult = null;
+  feeFixture.failQuote = false;
   feeFixture.charges.length = 0;
 });
 
@@ -802,6 +817,15 @@ describe('manage, cancellation and rescheduling honour the agreed notice', () =>
     db.appointments[0].ends_at = new Date(start + 3600_000).toISOString();
   };
 
+  it('does not require a fee ledger to view or freely cancel outside the notice period', async () => {
+    seed({policy:{cancellation_notice_hours:48,late_cancel_charge_percent:100}});feeFixture.failQuote=true;
+    const manage=await run('get','/:slug/manage/:token',{params});
+    expect(manage.status).toBe(200);expect(manage.body.policy).toMatchObject({withinCancellationWindow:false,lateCancelFeeCents:0});
+    const cancelled=await run('post','/:slug/manage/:token/cancel',{params});
+    expect(cancelled.status).toBe(200);expect(cancelled.body).toMatchObject({success:true,isLateCancel:false,feeCents:0});
+    expect(feeFixture.charges).toEqual([]);
+  });
+
   it('shows and honours a zero-hour snapshot without charging a same-day cancellation', async () => {
     seed({ policy: { cancellation_notice_hours: 0, late_cancel_charge_percent: 100 } });
     soon();
@@ -888,6 +912,23 @@ describe('manage, cancellation and rescheduling honour the agreed notice', () =>
     expect((await run('post','/:slug/manage/:token/cancel',{params})).status).toBe(200);
     const replay=await run('post','/:slug/manage/:token/cancel',{params});
     expect(replay.body).toMatchObject({success:true,alreadyCancelled:true});
+    expect(feeFixture.charges).toEqual([[APPT_ID,'late_cancel']]);
+  });
+
+  it('returns a cancelled receipt while push and payment providers are still waiting', async () => {
+    seed({policy:{cancellation_notice_hours:48,late_cancel_charge_percent:100}});soon();feeFixture.feeCents=2800;
+    let finishPush,finishCharge;
+    feeFixture.pushResult=new Promise(resolve=>{finishPush=resolve;});
+    feeFixture.chargeResult=new Promise(resolve=>{finishCharge=resolve;});
+    const start=performance.now();
+    const out=await run('post','/:slug/manage/:token/cancel',{params});
+    expect(performance.now()-start).toBeLessThan(3000);
+    expect(out.status).toBe(200);expect(out.body).toMatchObject({success:true,feeCollection:{charged:false,pending:true,needsReview:false}});
+    expect(db.appointments[0].status).toBe('cancelled');
+    const replay=await run('post','/:slug/manage/:token/cancel',{params});
+    expect(replay.body).toMatchObject({success:true,alreadyCancelled:true});
+    finishPush(true);finishCharge({charged:false,reason:'no_card_on_file'});
+    await vi.waitFor(()=>expect(db.ai_actions.find(r=>r.action_type==='client_cancellation_fee').outcome).toBe('escalated'));
     expect(feeFixture.charges).toEqual([[APPT_ID,'late_cancel']]);
   });
 

@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
-import { isCancelledBooking } from '../lib/booking-management-access.js';
+import { matchesClientCancellation } from '../lib/client-cancellation-provenance.js';
 import { chargePolicyFee } from './policy-fees.js';
 
 const ACTION = 'client_cancellation_fee';
@@ -21,14 +21,19 @@ export function cancellationFeeId(appointmentId) {
   const h=createHash('sha256').update(`client-cancellation-fee:${appointmentId}`).digest('hex');
   return `${h.slice(0,8)}-${h.slice(8,12)}-5${h.slice(13,16)}-a${h.slice(17,20)}-${h.slice(20,32)}`;
 }
-export async function queueClientCancellationFee(appt, feeCents) {
-  if (feeCents < 30) return;
-  const {error}=await supabase.from('ai_actions').insert({
+export function clientCancellationFeeIntent(appt, feeCents) {
+  if (feeCents < 30) return null;
+  return {
     id:cancellationFeeId(appt.id),appointment_id:appt.id,beautician_id:appt.beautician_id,client_id:appt.client_id || null,
     action_type:ACTION,digital_employee:'money',outcome:'pending',autonomous:true,notification_sent:false,
     summary:`Late-cancellation payment of £${(feeCents/100).toFixed(2)} queued`,
-    details:{version:1,fee_cents:feeCents,queued_at:new Date().toISOString(),attempt_id:randomUUID()},
-  });
+    details:{version:1,source:'client_manage',cancelled_at:appt.cancelled_at || null,fee_cents:feeCents,queued_at:new Date().toISOString(),attempt_id:randomUUID()},
+  };
+}
+export async function queueClientCancellationFee(appt, feeCents) {
+  const intent=clientCancellationFeeIntent(appt,feeCents);
+  if(!intent)return;
+  const {error}=await supabase.from('ai_actions').insert(intent);
   if(error && error.code!=='23505')throw new Error('Could not record the cancellation payment');
 }
 
@@ -37,10 +42,10 @@ export async function settleClientCancellationFee(appointmentId) {
     const id=cancellationFeeId(appointmentId);
     const [{data:row,error},{data:appt,error:apptError}]=await Promise.all([
       supabase.from('ai_actions').select('*').eq('id',id).maybeSingle(),
-      supabase.from('appointments').select('id,status').eq('id',appointmentId).maybeSingle(),
+      supabase.from('appointments').select('id,status,beautician_id,cancelled_at').eq('id',appointmentId).maybeSingle(),
     ]);
     if(error || apptError)throw new Error('Could not read cancellation payment');
-    if(!row || row.details?.version!==1 || !isCancelledBooking(appt))return {charged:false,reason:'not_queued'};
+    if(!row || row.details?.version!==1 || !matchesClientCancellation(row,appt))return {charged:false,reason:'not_queued'};
     if(row.outcome==='success' || row.outcome==='escalated')return row.details?.result || {charged:false,reason:'already_handled'};
     if(Date.parse(row.details?.lease_until)>Date.now())return {charged:false,reason:'in_progress'};
     const attemptId=randomUUID();
@@ -74,6 +79,27 @@ export async function settleClientCancellationFee(appointmentId) {
   } catch(err) {
     logger.error({err,appointmentId},'Cancellation payment will be checked again');
     return {charged:false,reason:'retry_pending'};
+  }
+}
+
+// The cancellation is already durable before this starts. Give the receipt a
+// short chance to show a confirmed outcome, without making the client wait for
+// Stripe. The attempt keeps running, and the queue recovers a stopped process.
+export async function attemptClientCancellationFee(appointmentId, { budgetMs = 2000 } = {}) {
+  const attempt = settleClientCancellationFee(appointmentId).catch(err => {
+    logger.error({ err, appointmentId }, 'Cancellation payment will be checked again');
+    return { charged: false, pending: true, reason: 'retry_pending' };
+  });
+  let timeout;
+  try {
+    return await Promise.race([
+      attempt,
+      new Promise(resolve => {
+        timeout = setTimeout(() => resolve({ charged: false, pending: true, reason: 'awaiting_confirmation' }), budgetMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
