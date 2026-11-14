@@ -32,16 +32,23 @@ const stubs={
  supabase:`export const supabase={auth:Object.fromEntries(['getSession','onAuthStateChange','updateUser','signOut'].map(name=>[name,(...args)=>window.fixtureAuth[name](...args)]))};export const useBeautician=()=>{const params=new URLSearchParams(location.search);const plans={trial:{subscription_status:'trialing',trial_ends_at:'2020-01-01T00:00:00Z'},cancelled:{subscription_status:'cancelled',subscription_plan:'florrie'},past_due:{subscription_status:'past_due',subscription_plan:'florrie',payment_failed_at:'2020-01-01T00:00:00Z'}};return {beautician:{id:'fictional-owner',onboarding_completed_at:params.has('newowner')?null:'2026-09-01',subscription_status:'active',...plans[params.get('billing')],...(params.has('deleting')?{account_deletion:{status:'pending'}}:{})}}};`,
  config:'export const API_BASE="";',platform:'export const isIOSNative=()=>true;export const isNativeApp=()=>false;',native:'export const hapticTap=()=>{};',voicePref:'export const isVoiceEnabled=()=>true;',theme:'export const useTheme=()=>({});',
 };
-const realApp=await build({stdin:{contents:actualAppEntry,resolveDir:root,loader:'jsx'},bundle:true,write:false,format:'iife',jsx:'automatic',define:{'process.env.NODE_ENV':'"test"','import.meta.env':'{}'},plugins:[{name:'actual-app-recovery',setup(b){
+const realApp=await build({stdin:{contents:actualAppEntry,resolveDir:root,loader:'jsx'},bundle:true,write:false,outfile:'app.js',format:'iife',jsx:'automatic',define:{'process.env.NODE_ENV':'"test"','import.meta.env':'{}'},plugins:[{name:'actual-app-recovery',setup(b){
  b.onResolve({filter:/\/lib\/(supabase|config|platform|native|voicePref|theme)\.(js|jsx)$/},args=>({path:args.path.split('/').pop().replace(/\.jsx?$/,''),namespace:'stub'}));
  b.onLoad({filter:/.*/,namespace:'stub'},args=>({contents:stubs[args.path],loader:'js'}));
  b.onResolve({filter:/^\.\/pages\/.*\.jsx$/},args=>args.path.endsWith('/UpdatePassword.jsx')?undefined:({path:args.path.split('/').pop().replace('.jsx',''),namespace:'page'}));
  b.onLoad({filter:/.*/,namespace:'page'},args=>({contents:`import React from 'react';export default ()=>React.createElement('h1',null,${JSON.stringify(args.path)});`,loader:'js',resolveDir:root}));
  b.onResolve({filter:/FlorrieEffects\.jsx$/},args=>({path:args.path,namespace:'component'}));
- b.onResolve({filter:/^\.\/(components|contexts)\//},args=>args.path.endsWith('/Button.jsx')?undefined:({path:args.path,namespace:'component'}));
+ b.onResolve({filter:/^\.\/(components|contexts)\//},args=>['/Button.jsx','/ClientPrivacyContext.jsx'].some(path=>args.path.endsWith(path))?undefined:({path:args.path,namespace:'component'}));
  b.onLoad({filter:/.*/,namespace:'component'},args=>({contents:args.path.endsWith('/AccountDeletionProgress.jsx')?"import React from 'react';export default ()=>React.createElement('h1',null,'Account deletion');":'export const FlorrieOrb=()=>null;export const iconName=x=>x;export const CoachProvider=({children})=>children;export default ({children})=>children||null;',loader:'js',resolveDir:root}));
 }}]});
-const server=http.createServer((req,res)=>{const script=req.url==='/fixture.js'||req.url==='/app.js';res.setHeader('content-type',script?'text/javascript':'text/html');res.end(script?(req.url==='/app.js'?realApp:result).outputFiles[0].text:`<div id="root"></div><script src="${req.url.includes('real=1')?'/app.js':'/fixture.js'}"></script>`);});
+// Keep the real owner context and its CSS in the fixture when App imports them.
+const appAssets=Object.fromEntries(realApp.outputFiles.map(file=>['/'+file.path.split('/').pop(),file.text]));
+const server=http.createServer((req,res)=>{
+ if(req.url in appAssets){res.setHeader('content-type',req.url.endsWith('.css')?'text/css':'text/javascript');res.end(appAssets[req.url]);return;}
+ if(req.url==='/fixture.js'){res.setHeader('content-type','text/javascript');res.end(result.outputFiles[0].text);return;}
+ const real=req.url.includes('real=1');
+ res.setHeader('content-type','text/html');res.end(`${real?'<link rel="stylesheet" href="/app.css">':''}<div id="root"></div><script src="${real?'/app.js':'/fixture.js'}"></script>`);
+});
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
 let browser;
 try {

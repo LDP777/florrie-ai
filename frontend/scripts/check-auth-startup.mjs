@@ -35,7 +35,7 @@ const stubs = {
 };
 const bundle = await build({
   stdin: { contents: entry, resolveDir: root, loader: 'jsx' },
-  bundle: true, write: false, format: 'iife', platform: 'browser', jsx: 'automatic',
+  bundle: true, write: false, outfile: 'fixture.js', format: 'iife', platform: 'browser', jsx: 'automatic',
   define: { 'process.env.NODE_ENV': '"development"', 'import.meta.env': '{}' },
   plugins: [{ name: 'auth-startup-fixture', setup(b) {
     b.onResolve({ filter: /\/lib\/(supabase|config|platform|native|voicePref|theme)\.(js|jsx)$/ }, args => ({
@@ -45,14 +45,20 @@ const bundle = await build({
     b.onResolve({ filter: /^\.\/pages\/.*\.jsx$/ }, args => ({ path: args.path.split('/').pop().replace('.jsx', ''), namespace: 'test-page' }));
     b.onLoad({ filter: /.*/, namespace: 'test-page' }, args => ({ contents: `import React from 'react';export default ()=>React.createElement('h1',null,${JSON.stringify(args.path)});`, loader: 'js', resolveDir: root }));
     b.onResolve({ filter: /FlorrieEffects\.jsx$/ }, args => ({ path: args.path, namespace: 'test-component' }));
-    b.onResolve({ filter: /^\.\/(components|contexts)\// }, args => args.path.endsWith('/Button.jsx') ? undefined : ({ path: args.path, namespace: 'test-component' }));
+    b.onResolve({ filter: /^\.\/(components|contexts)\// }, args => ['/Button.jsx', '/ClientPrivacyContext.jsx'].some(path => args.path.endsWith(path)) ? undefined : ({ path: args.path, namespace: 'test-component' }));
     b.onLoad({ filter: /.*/, namespace: 'test-component' }, () => ({ contents: 'export const FlorrieOrb=()=>null;export const iconName=x=>x;export const CoachProvider=({children})=>children;export default ({children})=>children||null;', loader: 'js' }));
   } }],
 });
+// App's real privacy context and stylesheet are part of the owner shell fixture.
+const assets = Object.fromEntries(bundle.outputFiles.map(file => ['/' + file.path.split('/').pop(), file.text]));
 const server = http.createServer((req, res) => {
-  const script = req.url === '/fixture.js';
-  res.setHeader('content-type', script ? 'text/javascript' : 'text/html');
-  res.end(script ? bundle.outputFiles[0].text : '<div id="root"></div><script src="/fixture.js"></script>');
+  if (req.url in assets) {
+    res.setHeader('content-type', req.url.endsWith('.css') ? 'text/css' : 'text/javascript');
+    res.end(assets[req.url]);
+    return;
+  }
+  res.setHeader('content-type', 'text/html');
+  res.end('<link rel="stylesheet" href="/fixture.css"><div id="root"></div><script src="/fixture.js"></script>');
 });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 let browser;
