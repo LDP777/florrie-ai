@@ -1,3 +1,4 @@
+import { PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 /**
  * Referrals - Refer-a-friend programme.
  *
@@ -40,6 +41,7 @@ const STATUS_CONFIG = {
 };
 
 export default function Referrals() {
+  const { hidden: clientDetailsHidden } = useClientPrivacy();
   const { dark } = useTheme();
   const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('overview');
@@ -252,7 +254,7 @@ export default function Referrals() {
         <span style={s.shareTitle}>Referral link for one client</span>
         {clientLinks.length > 0 ? (
           <>
-            <select
+            <PrivateText placeholder="Client selection hidden"><select
               value={pickedClientId}
               onChange={e => setPickedClientId(e.target.value)}
               style={s.clientPicker}
@@ -261,7 +263,7 @@ export default function Referrals() {
               {clientLinks.map(l => (
                 <option key={l.client_id} value={l.client_id}>{l.name}</option>
               ))}
-            </select>
+            </select></PrivateText>
             <span style={s.shareNote}>
               Each client gets her own link. That is how we know who to credit when her friend books.
             </span>
@@ -274,17 +276,17 @@ export default function Referrals() {
           </span>
         )}
         <div style={s.urlRow}>
-          <span style={s.urlText}>{linkLabel || 'No booking link yet'}</span>
-          <button onClick={handleCopyLink} style={s.copyBtn} disabled={!fullLink}>
+          <span style={s.urlText}><PrivateText placeholder="Client link hidden">{linkLabel || 'No booking link yet'}</PrivateText></span>
+          <button onClick={handleCopyLink} style={s.copyBtn} disabled={clientDetailsHidden || (!fullLink)}>
             {linkCopied ? 'Copied' : 'Copy'}
           </button>
         </div>
         <div style={s.shareActions}>
-          <button onClick={handleWhatsAppShare} style={s.shareBtn} disabled={!programEnabled || !fullLink}><Icon name="phone" size={14} inline /> WhatsApp</button>
-          <button onClick={handleCopyMessage} style={s.shareBtn} disabled={!programEnabled || !fullLink}>
+          <button onClick={handleWhatsAppShare} style={s.shareBtn} disabled={clientDetailsHidden || (!programEnabled || !fullLink)}><Icon name="phone" size={14} inline /> WhatsApp</button>
+          <button onClick={handleCopyMessage} style={s.shareBtn} disabled={clientDetailsHidden || (!programEnabled || !fullLink)}>
             {msgCopied ? 'Copied' : 'Copy message'}
           </button>
-          <button onClick={handleCopyLink} style={s.shareBtn} disabled={!programEnabled || !fullLink}><Icon name="link" size={14} inline /> Link</button>
+          <button onClick={handleCopyLink} style={s.shareBtn} disabled={clientDetailsHidden || (!programEnabled || !fullLink)}><Icon name="link" size={14} inline /> Link</button>
         </div>
       </div>
 
@@ -334,9 +336,9 @@ export default function Referrals() {
               <span style={{ ...s.rank,
                 color: i === 0 ? '#F5A623' : i === 1 ? '#9E9E9E' : i === 2 ? '#C4A882' : 'var(--text-muted, #6B5D54)',
               }}>#{i + 1}</span>
-              <div style={s.leaderAvatar}>{l.name[0]}</div>
+              <div style={s.leaderAvatar}><PrivateText placeholder="•">{l.name[0]}</PrivateText></div>
               <div style={s.leaderInfo}>
-                <span style={s.leaderName}>{l.name}</span>
+                <span style={s.leaderName}><PrivateText placeholder="Client">{l.name}</PrivateText></span>
                 <span style={s.leaderMeta}>{l.referrals} shared · {l.converted} converted</span>
               </div>
               <div style={s.leaderBar}>
@@ -370,9 +372,9 @@ export default function Referrals() {
               <div key={r.id} style={s.refCard}>
                 <div style={s.refTop}>
                   <div style={s.refInfo}>
-                    <span style={s.refFrom}>{referrerName}</span>
+                    <span style={s.refFrom}><PrivateText placeholder="Client">{referrerName}</PrivateText></span>
                     <span style={s.refArrow}>→</span>
-                    <span style={s.refTo}>{friendName}</span>
+                    <span style={s.refTo}><PrivateText placeholder="Client">{friendName}</PrivateText></span>
                   </div>
                   <span style={{ ...s.statusBadge, background: st.bg, color: st.color }}>{st.label}</span>
                 </div>
@@ -380,7 +382,7 @@ export default function Referrals() {
                   {/* There is no referral_code column. What is worth showing is
                       how to reach the friend, and what she is owed. */}
                   <span style={s.refCode}>
-                    {r.referred_contact || `£${((r.referrer_reward_cents || 0) / 100).toFixed(0)} to ${referrerName}`}
+                    <PrivateText placeholder="Hidden">{r.referred_contact || `£${((r.referrer_reward_cents || 0) / 100).toFixed(0)} to ${referrerName}`}</PrivateText>
                   </span>
                   <span style={s.refDate}>{new Date(r.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
                 </div>
@@ -435,12 +437,12 @@ export default function Referrals() {
             </div>
           </div>
 
-          <button onClick={saveConfig} disabled={saving} style={s.saveBtn}>
+          <button onClick={saveConfig} disabled={clientDetailsHidden || (saving)} style={s.saveBtn}>
             {saving ? 'Saving…' : 'Save settings'}
           </button>
           {saveMsg && (
             <div style={{ ...s.saveNote, color: saveMsg.ok ? 'var(--success, #2E7D32)' : 'var(--danger, #B3261E)' }}>
-              {saveMsg.text}
+              <PrivateText>{saveMsg.text}</PrivateText>
             </div>
           )}
         </div>

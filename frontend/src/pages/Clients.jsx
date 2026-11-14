@@ -1,3 +1,4 @@
+import { useClientPrivacy, PrivateText, PrivateSection } from '../contexts/ClientPrivacyContext.jsx';
 import ConsultationSection from '../components/ClientCareRecord.jsx';
 import { useState, useEffect } from 'react';
 import { useVisibleSlice } from '../lib/use-visible-slice.js';
@@ -150,6 +151,7 @@ const MENU_ITEM = {
 };
 
 export default function Clients() {
+  const { hidden } = useClientPrivacy();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -629,7 +631,7 @@ export default function Clients() {
 
   return (
     <div style={styles.page}>
-      {error && <ErrorCard message={error} onDismiss={() => setError(null)} />}
+      {error && <ErrorCard message={hidden ? "Could not complete the client action." : error} onDismiss={() => setError(null)} />}
       {/* Select and Export are rare and were sitting in the best real
           estate on the page, next to the one button that is not rare. They
           go behind a menu; Add stays where the thumb goes. */}
@@ -639,10 +641,11 @@ export default function Clients() {
           <>
             {!selectMode && (
               <>
-                <Button size="sm" onClick={() => setShowAdd(!showAdd)}>+ Add</Button>
+                <Button size="sm" disabled={hidden} onClick={() => setShowAdd(!showAdd)}>+ Add</Button>
                 <div style={{ position: 'relative', flexShrink: 0 }}>
                   <Button
                     variant="quiet" icon size="icon"
+                    disabled={hidden}
                     aria-label="More client actions"
                     aria-haspopup="menu"
                     aria-expanded={moreOpen}
@@ -650,7 +653,7 @@ export default function Clients() {
                   >
                     <Icon name={iconName('expand_more')} size={18} inline />
                   </Button>
-                  {moreOpen && (
+                  {moreOpen && !hidden && (
                     <div style={styles.sortMenu} role="menu">
                       <MenuItem onClick={() => { setMoreOpen(false); setSelectMode(true); }}>Select several</MenuItem>
                       <MenuItem onClick={() => { setMoreOpen(false); handleExportCSV(); }}>Export to a spreadsheet</MenuItem>
@@ -678,7 +681,7 @@ export default function Clients() {
             {undoWindowOpen && (
               <button
                 onClick={undoLastImport}
-                disabled={undoing}
+                disabled={hidden || undoing}
                 style={{ ...styles.bannerLinkBtn, color: 'var(--danger, #9E2B32)' }}
               >
                 {undoing ? 'Undoing...' : 'Undo this import'}
@@ -690,7 +693,7 @@ export default function Clients() {
 
       {/* Toast for undo confirmation */}
       {toast && (
-        <div style={styles.toast}>{toast}</div>
+        <div style={styles.toast}><PrivateText placeholder="Client action updated">{toast}</PrivateText></div>
       )}
 
       {/* Archived view header: same page, quieter frame, no tab bar */}
@@ -727,8 +730,9 @@ export default function Clients() {
       <div style={styles.searchWrap}>
         <input
           type="text"
-          placeholder="Search by name, phone, or email..."
-          value={search}
+          placeholder={hidden ? "Client search hidden" : "Search by name, phone, or email..."}
+          value={hidden ? '' : search}
+          disabled={hidden}
           onChange={e => setSearch(e.target.value)}
           style={styles.searchInput}
         />
@@ -799,7 +803,7 @@ export default function Clients() {
       )}
 
       {/* Add client form */}
-      {showAdd && (
+      {showAdd && !hidden && (
         <div style={styles.addForm}>
           <div style={styles.formRow}>
             <div style={styles.formGroup}>
@@ -870,11 +874,11 @@ export default function Clients() {
                   </div>
                 )}
                 <div style={styles.clientAvatar}>
-                  {(c.first_name?.[0] || '?').toUpperCase()}
+                  {hidden ? '•' : (c.first_name?.[0] || '?').toUpperCase()}
                 </div>
                 <div style={styles.clientInfo}>
                   <span style={styles.clientName}>
-                    {c.first_name} {c.last_name || ''}
+                    <PrivateText placeholder="Client">{c.first_name} {c.last_name || ''}</PrivateText>
                     {c.imported_from && <span style={styles.importedChip}>imported</span>}
                   </span>
                   {(() => {
@@ -906,7 +910,7 @@ export default function Clients() {
                             aria-hidden="true"
                             style={{ ...styles.tagDot, background: tag.color || 'var(--accent, #92405e)' }}
                           />
-                          {tag.name}
+                          <PrivateText placeholder="Tag hidden">{tag.name}</PrivateText>
                         </span>
                       ))}
                     </span>
@@ -949,7 +953,7 @@ export default function Clients() {
       )}
 
       {/* Floating action bar for multi-select */}
-      {selectMode && selectedIds.size > 0 && (
+      {selectMode && !hidden && selectedIds.size > 0 && (
         <div style={styles.actionBar}>
           <span style={styles.actionCount}>{selectedIds.size} selected</span>
           <Button size="sm" onClick={messageSelected}>Message all</Button>
@@ -970,7 +974,7 @@ export default function Clients() {
                 variant="secondary"
                 fullWidth
                 onClick={handleReviewArchiveAll}
-                disabled={archivingAll}
+                disabled={hidden || archivingAll}
                 style={{ margin: '12px 0' }}
               >
                 {archivingAll ? 'Archiving...' : `Archive all ${(inactiveReview?.candidates || []).length}`}
@@ -982,7 +986,7 @@ export default function Clients() {
               (inactiveReview?.candidates || []).map(c => (
                 <div key={c.id} style={styles.reviewRow}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={styles.reviewRowName}>{c.first_name} {c.last_name || ''}</div>
+                    <div style={styles.reviewRowName}><PrivateText placeholder="Client">{c.first_name} {c.last_name || ''}</PrivateText></div>
                     <div style={styles.reviewRowMeta}>
                       {c.last_visit_at
                         ? `Last visit ${new Date(c.last_visit_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
@@ -993,7 +997,7 @@ export default function Clients() {
                   <Button
                     variant="secondary"
                     onClick={() => handleReviewArchive(c.id)}
-                    disabled={archivingId === c.id || archivingAll}
+                    disabled={hidden || archivingId === c.id || archivingAll}
                     style={{ flexShrink: 0 }}
                   >
                     {archivingId === c.id ? '...' : 'Archive'}
@@ -1177,9 +1181,9 @@ function ClientDetailPanel({ detail, onClose, onNavigate, onChanged }) {
         {/* Header */}
         <div style={styles.detailHeader}>
           <div style={styles.detailAvatar}>
-            {(client?.first_name?.[0] || '?').toUpperCase()}
+            <PrivateText placeholder="•">{(client?.first_name?.[0] || '?').toUpperCase()}</PrivateText>
           </div>
-          <h2 style={styles.detailName}>{client?.first_name} {client?.last_name || ''}</h2>
+          <h2 style={styles.detailName}><PrivateText placeholder="Client">{client?.first_name} {client?.last_name || ''}</PrivateText></h2>
           <div style={styles.detailBadges}>
             <span style={{ ...styles.healthBadge,
               background: healthColor === '#306F33' ? 'var(--success-bg)'
@@ -1200,6 +1204,7 @@ function ClientDetailPanel({ detail, onClose, onNavigate, onChanged }) {
           </div>
         </div>
 
+        <PrivateSection placeholder="Contact details, care records and messages hidden">
         {/* Contact row */}
         <div style={styles.contactRow}>
           {client?.phone && (
@@ -1566,6 +1571,7 @@ function ClientDetailPanel({ detail, onClose, onNavigate, onChanged }) {
             )}
           </div>
         )}
+        </PrivateSection>
       </div>
     </div>
   );

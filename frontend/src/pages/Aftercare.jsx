@@ -1,3 +1,4 @@
+import { PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import { useState, useEffect, useRef } from 'react';
 import { useBeautician, fetchRowsStrict, insertRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
@@ -10,6 +11,7 @@ import MoreLoadError from '../components/MoreLoadError.jsx';
 // Preserve existing preferences without claiming these cards schedule delivery.
 
 export default function Aftercare() {
+  const { hidden: clientDetailsHidden } = useClientPrivacy();
   const { beautician, loading: bLoading } = useBeautician();
   const [cards, setCards] = useState([]);
   const [tab, setTab] = useState('cards');
@@ -134,12 +136,12 @@ export default function Aftercare() {
 
               <div style={styles.formGroup}>
                 <label style={styles.formLabel}>Treatment name</label>
-                <input disabled={saving}
+                <PrivateText><input disabled={saving}
                   type="text" placeholder="e.g. Lash Lift & Tint"
                   value={newCard.treatment_name}
                   onChange={e => setNewCard(p => ({ ...p, treatment_name: e.target.value }))}
                   style={styles.formInput}
-                />
+                /></PrivateText>
               </div>
 
               <div style={styles.formGroup}>
@@ -165,19 +167,19 @@ export default function Aftercare() {
                 {newCard.instructions.map((inst, idx) => (
                   <div key={idx} style={styles.instructionRow}>
                     <div style={{ flex: 1 }}>
-                      <input disabled={saving}
+                      <PrivateText><input disabled={saving}
                         type="text" placeholder="e.g. First 24 hours"
                         value={inst.title}
                         onChange={e => handleInstructionChange(idx, 'title', e.target.value)}
                         style={{ ...styles.formInput, marginBottom: 6 }}
-                      />
-                      <textarea disabled={saving}
+                      /></PrivateText>
+                      <PrivateText><textarea disabled={saving}
                         placeholder="What the client should do..."
                         value={inst.text}
                         onChange={e => handleInstructionChange(idx, 'text', e.target.value)}
                         rows={2}
                         style={styles.formTextarea}
-                      />
+                      /></PrivateText>
                     </div>
                     {newCard.instructions.length > 1 && (
                       <button disabled={saving} onClick={() => handleRemoveInstruction(idx)} style={styles.removeBtn}>×</button>
@@ -190,30 +192,30 @@ export default function Aftercare() {
               <div style={styles.formGroup}>
                 <label style={styles.formLabel}>Recommended products</label>
                 {newCard.products.map((product, idx) => (
-                  <input disabled={saving}
+                  <PrivateText><input disabled={saving}
                     key={idx}
                     type="text" placeholder="e.g. Brow oil"
                     value={product}
                     onChange={e => handleProductChange(idx, e.target.value)}
                     style={{ ...styles.formInput, marginBottom: 6 }}
-                  />
+                  /></PrivateText>
                 ))}
                 <button disabled={saving} onClick={handleAddProduct} style={styles.addStepBtn}>+ Add product</button>
               </div>
 
               <div style={styles.formGroup}>
                 <label style={styles.formLabel}>Personal note</label>
-                <textarea disabled={saving}
+                <PrivateText><textarea disabled={saving}
                   placeholder="A warm message in your voice..."
                   value={newCard.personal_note}
                   onChange={e => setNewCard(p => ({ ...p, personal_note: e.target.value }))}
                   rows={2}
                   style={styles.formTextarea}
-                />
+                /></PrivateText>
               </div>
 
               <div style={styles.formActions}>
-                <Button disabled={saving} onClick={handleSaveCard} style={styles.saveBtn}>{saving ? 'Saving…' : 'Save Card'}</Button>
+                <Button disabled={clientDetailsHidden || (saving)} onClick={handleSaveCard} style={styles.saveBtn}>{saving ? 'Saving…' : 'Save Card'}</Button>
                 <Button variant="quiet" disabled={saving} onClick={() => setShowCreateForm(false)} style={styles.cancelBtn}>Cancel</Button>
               </div>
             </div>
@@ -247,8 +249,8 @@ export default function Aftercare() {
                   <div style={styles.instructionPreview}>
                     {card.instructions.slice(0, 2).map((inst, i) => (
                       <div key={i} style={styles.previewStep}>
-                        <span style={styles.stepTitle}>{inst.title}</span>
-                        <span style={styles.stepText}>{inst.text.length > 80 ? inst.text.slice(0, 80) + '...' : inst.text}</span>
+                        <span style={styles.stepTitle}><PrivateText>{inst.title}</PrivateText></span>
+                        <span style={styles.stepText}><PrivateText>{inst.text.length > 80 ? inst.text.slice(0, 80) + '...' : inst.text}</PrivateText></span>
                       </div>
                     ))}
                     {card.instructions.length > 2 && (
@@ -259,7 +261,7 @@ export default function Aftercare() {
                   {card.products && card.products.length > 0 && (
                     <div style={styles.productTags}>
                       {card.products.map((p, i) => (
-                        <span key={i} style={styles.productTag}>{p}</span>
+                        <span key={i} style={styles.productTag}><PrivateText>{p}</PrivateText></span>
                       ))}
                     </div>
                   )}
@@ -305,8 +307,8 @@ export default function Aftercare() {
                     </div>
                     {selectedCard.instructions.map((inst, i) => (
                       <div key={i} style={styles.phoneStep}>
-                        <span style={styles.phoneStepTitle}>{inst.title}</span>
-                        <span style={styles.phoneStepText}>{inst.text}</span>
+                        <span style={styles.phoneStepTitle}><PrivateText>{inst.title}</PrivateText></span>
+                        <span style={styles.phoneStepText}><PrivateText>{inst.text}</PrivateText></span>
                       </div>
                     ))}
 
@@ -314,14 +316,14 @@ export default function Aftercare() {
                       <div style={styles.phoneProducts}>
                         <span style={styles.phoneProductsTitle}>Recommended products:</span>
                         {selectedCard.products.map((p, i) => (
-                          <span key={i} style={styles.phoneProductItem}>· {p}</span>
+                          <span key={i} style={styles.phoneProductItem}>· <PrivateText>{p}</PrivateText></span>
                         ))}
                       </div>
                     )}
                   </div>
 
                   {selectedCard.personal_note && (
-                    <p style={styles.phoneNote}>{selectedCard.personal_note}</p>
+                    <p style={styles.phoneNote}><PrivateText>{selectedCard.personal_note}</PrivateText></p>
                   )}
 
 

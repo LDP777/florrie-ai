@@ -1,3 +1,4 @@
+import { PrivateText } from '../contexts/ClientPrivacyContext.jsx';
 import MoreLoadError from '../components/MoreLoadError.jsx';
 /**
  * Deposit Tracker - every deposit taken, and what happened to it.
@@ -36,6 +37,7 @@ const STATUS_CONFIG = {
 };
 
 export default function DepositTracker() {
+
   const navigate = useNavigate();
   const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('held');
@@ -111,7 +113,7 @@ export default function DepositTracker() {
 
       {error && (
         <div style={S.errorBanner}>
-          <span>{error}</span>
+          <span><PrivateText>{error}</PrivateText></span>
           <button style={S.errorClose} onClick={() => setError(null)}><Icon name="x" size={15} /></button>
         </div>
       )}
@@ -164,9 +166,9 @@ export default function DepositTracker() {
             <div key={d.id} style={S.depositCard} onClick={() => setExpanded(isExp ? null : d.id)}>
               <div style={S.depositHeader}>
                 <div style={S.depositLeft}>
-                  <div style={S.avatar}>{d.client[0]}</div>
+                  <div style={S.avatar}><PrivateText placeholder="•">{d.client[0]}</PrivateText></div>
                   <div style={S.depositInfo}>
-                    <span style={S.depositClient}>{d.client}</span>
+                    <span style={S.depositClient}><PrivateText placeholder="Client">{d.client}</PrivateText></span>
                     <span style={S.depositTreatment}>{d.treatment}</span>
                   </div>
                 </div>

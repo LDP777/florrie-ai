@@ -1,3 +1,4 @@
+import { PrivateText, PrivateSection, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 /**
  * MessageTemplates - Reusable message templates for client comms.
  *
@@ -52,6 +53,7 @@ import Icon, { iconName } from '../components/ui/Icon';
 import PageHeader from '../components/ui/PageHeader.jsx';
 
 export default function MessageTemplates() {
+  const { hidden: clientDetailsHidden } = useClientPrivacy();
   const { dark } = useTheme();
   const { beautician, loading: bLoading } = useBeautician();
   const [templates, setTemplates] = useState([]);
@@ -151,7 +153,7 @@ export default function MessageTemplates() {
 
       {/* Create form */}
       {showCreate && (
-        <div style={s.createCard}>
+        <PrivateSection placeholder="Template editor hidden"><div style={s.createCard}>
           {/* Category */}
           <div style={s.catRow}>
             {CATEGORIES.map(c => (
@@ -227,7 +229,7 @@ export default function MessageTemplates() {
           <button onClick={handleCreate} disabled={!newName || !newBody} style={{ ...s.saveBtn, opacity: newName && newBody ? 1 : 0.4 }}>
             Save template
           </button>
-        </div>
+        </div></PrivateSection>
       )}
 
       {/* Category filter */}
@@ -264,7 +266,7 @@ export default function MessageTemplates() {
               <button onClick={() => setExpandedId(expanded ? null : t.id)} style={s.tmplHeader}>
                 <span style={{ ...s.catDot, background: cat?.color || 'var(--text-muted)' }} />
                 <div style={s.tmplInfo}>
-                  <span style={s.tmplName}>{t.name}</span>
+                  <span style={s.tmplName}><PrivateText>{t.name}</PrivateText></span>
                   <span style={s.tmplMeta}>
                     {cat?.label} · {TRIGGERS.find(tr => tr.key === t.trigger)?.label}
                     {t.autoSend && ' · Auto'}
@@ -275,7 +277,7 @@ export default function MessageTemplates() {
 
               {expanded && (
                 <div style={s.tmplBody}>
-                  <p style={s.tmplText}>{t.body}</p>
+                  <p style={s.tmplText}><PrivateText>{t.body}</PrivateText></p>
                   <div style={s.tmplActions}>
                     <button
                       onClick={() => setPreviewId(previewing ? null : t.id)}
@@ -286,7 +288,7 @@ export default function MessageTemplates() {
                     <button style={s.actionBtn}>Edit</button>
                     <button
                       onClick={() => handleDelete(t.id)}
-                      disabled={deleting === t.id}
+                      disabled={clientDetailsHidden || (deleting === t.id)}
                       style={{ ...s.actionBtn, color: '#E57373', opacity: deleting === t.id ? 0.5 : 1 }}
                     >
                       {deleting === t.id ? '...' : 'Delete'}
@@ -295,7 +297,7 @@ export default function MessageTemplates() {
                   {previewing && (
                     <div style={s.previewBox}>
                       <span style={s.previewLabel}>How it looks</span>
-                      <p style={s.previewText}>{previewMessage(t.body)}</p>
+                      <p style={s.previewText}><PrivateText>{previewMessage(t.body)}</PrivateText></p>
                     </div>
                   )}
                 </div>

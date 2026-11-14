@@ -1,8 +1,10 @@
+import { useClientPrivacy, PrivateText, PrivateSection } from '../contexts/ClientPrivacyContext.jsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 const CATEGORIES = ['faq', 'policy', 'treatment', 'aftercare', 'prep', 'arrival', 'general'];
 
 function Lesson({ suggestion, entries, request, onSaved, onDismissed }) {
+  const { hidden } = useClientPrivacy();
   const [title, setTitle] = useState(suggestion.title || '');
   const [content, setContent] = useState(suggestion.content || '');
   const [category, setCategory] = useState(suggestion.category || 'faq');
@@ -11,7 +13,7 @@ function Lesson({ suggestion, entries, request, onSaved, onDismissed }) {
   const [error, setError] = useState('');
   const previous = entries.find(entry => entry.id === replace);
   async function decide(event, action) {
-    event.preventDefault(); if (busy) return;
+    event.preventDefault(); if (hidden || busy) return;
     setBusy(true); setError('');
     try {
       const result = await request(`/api/knowledge/learning/${suggestion.id}/${action}`, {
@@ -22,7 +24,7 @@ function Lesson({ suggestion, entries, request, onSaved, onDismissed }) {
     } catch (err) { setError(err.message); }
     finally { setBusy(false); }
   }
-  return <form className="fl-knowledge-lesson" onSubmit={event => decide(event, 'approve')} aria-label="Review a learned answer">
+  return <PrivateSection placeholder="Learned answer hidden"><form className="fl-knowledge-lesson" onSubmit={event => decide(event, 'approve')} aria-label="Review a learned answer">
     <span className="fl-knowledge-eyebrow">FROM YOUR SENT REPLY · NEEDS YOUR APPROVAL</span>
     <details><summary>Words Florrie picked from your reply</summary><blockquote>{suggestion.evidence}</blockquote></details>
     <label htmlFor={`lesson-title-${suggestion.id}`}>Question or topic</label>
@@ -38,11 +40,12 @@ function Lesson({ suggestion, entries, request, onSaved, onDismissed }) {
     <p className="fl-knowledge-help">Check this applies to other clients. Keep every condition, and remove private details or favours for one person. Nothing is learned until you approve.</p>
     {error && <p role="alert" className="fl-knowledge-error">{error}</p>}
     <button type="submit" className="fl-knowledge-primary" disabled={busy || !title.trim() || !content.trim()}>{busy ? 'Saving…' : 'Approve for future replies'}</button>
-    <button type="button" className="fl-knowledge-text-button" disabled={busy} onClick={event => decide(event, 'dismiss')}>Keep this just in the conversation</button>
-  </form>;
+    <button type="button" className="fl-knowledge-text-button" disabled={hidden || busy} onClick={event => decide(event, 'dismiss')}>Keep this just in the conversation</button>
+  </form></PrivateSection>;
 }
 
 export default function ReplyLearning({ request, entries, onSaved }) {
+  const { hidden } = useClientPrivacy();
   const [suggestions, setSuggestions] = useState([]);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
@@ -73,15 +76,16 @@ export default function ReplyLearning({ request, entries, onSaved }) {
   useEffect(() => {
     alive.current = true; refresh();
     const id = new URLSearchParams(window.location.search).get('reply');
-    if (!initial.current && /^[0-9a-f-]{36}$/i.test(id || '')) { initial.current = true; checkReply(id); }
+    if (!hidden && !initial.current && /^[0-9a-f-]{36}$/i.test(id || '')) { initial.current = true; checkReply(id); }
     return () => { alive.current = false; };
-  }, [refresh, checkReply]);
+  }, [refresh, checkReply, hidden]);
   useEffect(() => {
     if (!watching) return;
     const timer = setInterval(() => { if (Date.now() > expiry.current) setWatching(false); else refresh(); }, 4000);
     return () => clearInterval(timer);
   }, [watching, refresh]);
   async function discover() {
+    if (hidden) return;
     setBusy(true); setError('');
     try {
       const body = await request('/api/knowledge/learning/discover', { method: 'POST' });
@@ -96,11 +100,11 @@ export default function ReplyLearning({ request, entries, onSaved }) {
     <span className="fl-knowledge-eyebrow">TEACH ONCE, HELP THE NEXT CLIENT</span>
     <h2 id="reply-learning-heading">Learn from your replies</h2>
     <p className="fl-knowledge-help">When you write or correct a reply, Florrie looks for guidance worth remembering. You check it here before it helps anyone else. Your messages send as usual.</p>
-    <button type="button" className="fl-knowledge-text-button" onClick={discover} disabled={busy}>{busy ? 'Checking…' : 'Check my recent replies'}</button>
-    {notice && <p role="status" className="fl-knowledge-notice">{notice}</p>}
-    {error && <p role="alert" className="fl-knowledge-error">{error} <button type="button" onClick={refresh}>Retry loading suggestions</button></p>}
+    <button type="button" className="fl-knowledge-text-button" onClick={discover} disabled={hidden || busy}>{busy ? 'Checking…' : 'Check my recent replies'}</button>
+    {notice && <p role="status" className="fl-knowledge-notice"><PrivateText>{notice}</PrivateText></p>}
+    {error && <p role="alert" className="fl-knowledge-error"><PrivateText>{error}</PrivateText> <button type="button" onClick={refresh}>Retry loading suggestions</button></p>}
     {suggestions.some(s => s.status === 'processing') && <p className="fl-knowledge-help">Some replies are still being checked. <button className="fl-knowledge-text-button" onClick={refresh}>Refresh</button></p>}
-    {suggestions.filter(s => s.status === 'retry').map(s => <button type="button" className="fl-knowledge-text-button" key={s.id} disabled={busy} onClick={() => checkReply(s.source_message_id)}>Retry a reply that could not be checked</button>)}
+    {suggestions.filter(s => s.status === 'retry').map(s => <button type="button" className="fl-knowledge-text-button" key={s.id} disabled={hidden || busy} onClick={() => checkReply(s.source_message_id)}>Retry a reply that could not be checked</button>)}
     {pending.map(suggestion => <Lesson key={suggestion.id} suggestion={suggestion} entries={entries} request={request}
       onDismissed={id => setSuggestions(rows => rows.filter(row => row.id !== id))}
       onSaved={(entry, source) => { setSuggestions(rows => rows.filter(row => row.id !== source.id)); setNotice(entry.is_active ? 'Answer learned. Try the question below to check what the next client will hear.' : 'Answer updated. It is still paused.'); onSaved(entry, source.title); }} />)}

@@ -1,3 +1,4 @@
+import { PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import MoreLoadError from '../components/MoreLoadError.jsx';
 import { useState, useEffect, useMemo } from 'react';
 import { useBeautician, fetchRowsStrict } from '../lib/supabase.js';
@@ -40,6 +41,7 @@ const TREND_ICONS = { up: '📈', down: '📉', stable: '➡️' };
 const TREND_COLORS = { up: 'var(--success, #386F52)', down: 'var(--danger, #9E2B32)', stable: 'var(--text-muted, #6B5D54)' };
 
 export default function Analytics() {
+
   const [loadError, setLoadError] = useState(null);
   const { beautician } = useBeautician();
   const [tab, setTab] = useState('overview');
@@ -397,7 +399,7 @@ export default function Analytics() {
                   <div key={client.id} style={styles.clientRow}>
                     <div style={styles.clientRank}>{i + 1}</div>
                     <div style={styles.clientInfo}>
-                      <span style={styles.clientName}>{client.name}</span>
+                      <span style={styles.clientName}><PrivateText placeholder="Client">{client.name}</PrivateText></span>
                       <span style={styles.clientVisits}>{client.visits} visit{client.visits !== 1 ? 's' : ''}</span>
                     </div>
                     <span style={styles.clientSpend}><Money pence={client.spend} round /></span>
@@ -417,7 +419,7 @@ export default function Analytics() {
                 {getInsights(stats).map((insight, i) => (
                   <div key={i} style={styles.aiInsight}>
                     <span style={styles.aiInsightIcon}><Icon name={iconName(insight.icon)} inline /></span>
-                    <span style={styles.aiInsightText}>{insight.text}</span>
+                    <span style={styles.aiInsightText}><PrivateText>{insight.text}</PrivateText></span>
                   </div>
                 ))}
               </div>
@@ -558,6 +560,7 @@ export default function Analytics() {
 // Sub-components
 
 function StatCard({ label, value, sub, color }) {
+
   return (
     <div style={styles.statCard}>
       <span style={styles.statLabel}>{label}</span>
@@ -568,6 +571,7 @@ function StatCard({ label, value, sub, color }) {
 }
 
 function DayBarChart({ data }) {
+
   const max = Math.max(...Object.values(data), 1);
   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   const keys = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
@@ -593,6 +597,7 @@ function DayBarChart({ data }) {
 }
 
 function SkeletonCard({ height = 80 }) {
+
   return (
     <div style={{ ...styles.card, height, display: 'flex', flexDirection: 'column', gap: 10, justifyContent: 'center' }}>
       <div style={{ height: 14, width: '40%', borderRadius: 10, background: 'var(--border-light, #ede7e3)' }} />
@@ -602,6 +607,7 @@ function SkeletonCard({ height = 80 }) {
 }
 
 function ExportCard({ icon, title, desc, onExport, loading }) {
+  const { hidden: clientDetailsHidden } = useClientPrivacy();
   return (
     <div style={styles.exportCard}>
       <div style={styles.exportCardLeft}>
@@ -613,7 +619,7 @@ function ExportCard({ icon, title, desc, onExport, loading }) {
       </div>
       <button
         onClick={onExport}
-        disabled={loading}
+        disabled={clientDetailsHidden || (loading)}
         style={{ ...styles.exportBtn, opacity: loading ? 0.5 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}
       >
         CSV

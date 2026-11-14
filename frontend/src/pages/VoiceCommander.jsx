@@ -1,3 +1,4 @@
+import { PrivateText, PrivateSection, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import { FlorrieOrb, EffectFrame } from '../components/ui/FlorrieEffects.jsx';
 import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
@@ -367,6 +368,9 @@ const MIC_DENIED_MSG = IS_NATIVE_APP
   ? 'Mic access is off. Enable it in Settings, Florrie, Microphone. Or type your message instead.'
   : 'Microphone access denied. Check your browser settings, or type your message instead.';
 export default function VoiceCommander() {
+  const { hidden } = useClientPrivacy();
+  const privacyRef = useRef(hidden);
+  privacyRef.current = hidden;
   const { beautician, loading: bLoading } = useBeautician();
   const navigate = useNavigate();
   const location = useLocation();
@@ -402,6 +406,8 @@ export default function VoiceCommander() {
     window.addEventListener('florrie:voice-pref', sync);
     return () => window.removeEventListener('florrie:voice-pref', sync);
   }, []);
+
+  useEffect(() => { if (hidden) cancelRecording(); }, [hidden]);
 
   // One small diary read. A failed or partial query must never imply an empty day.
   const today = localDateStr();
@@ -479,6 +485,7 @@ export default function VoiceCommander() {
   }, []);
 
   function startRecording() {
+    if (privacyRef.current) return;
     if (recognitionRef.current || processingRef.current || executions > 0 || !isVoiceEnabled() || !beautician?.id) return;
     if (!SpeechRecognition || !speechSupported) {
       inputRef.current?.focus();
@@ -584,6 +591,7 @@ export default function VoiceCommander() {
     }]);
   }
   async function processMessage(text, isVoice = false) {
+    if (privacyRef.current) return;
     if (!text.trim() || processingRef.current || executions > 0 || !beautician?.id || ownerRef.current !== beautician.id || historyOwner !== beautician.id) return;
     const requestOwner = beautician.id;
     const requestGeneration = generationRef.current;
@@ -672,7 +680,7 @@ export default function VoiceCommander() {
   }
   const visibleMessages = historyOwner === beautician?.id ? messages : [];
   const hasConversation = visibleMessages.some(m => m.id !== '0');
-  const busy = isProcessing || executions > 0 || isRecording || micStarting || bLoading || !beautician?.id || historyOwner !== beautician?.id;
+  const busy = hidden || isProcessing || executions > 0 || isRecording || micStarting || bLoading || !beautician?.id || historyOwner !== beautician?.id;
   const currentGroup = TASK_GROUPS.find(group => group.id === taskGroup) || TASK_GROUPS[0];
   function chooseTask(task) {
     if (busy) return;
@@ -685,7 +693,7 @@ export default function VoiceCommander() {
   }
   const renderedGeneration = generationRef.current;
   const renderedOwner = beautician?.id;
-  const isCurrentConversation = () => renderedGeneration === generationRef.current && renderedOwner === ownerRef.current;
+  const isCurrentConversation = () => !privacyRef.current && renderedGeneration === generationRef.current && renderedOwner === ownerRef.current;
   function newConversation() {
     if (busy) return;
     generationRef.current++;
@@ -722,10 +730,10 @@ export default function VoiceCommander() {
           <label className={`fl-command-input-label ${busy ? '' : 'is-quiet'}`} htmlFor="fl-command-message">
             {isRecording ? 'Listening to you' : micStarting ? 'Opening the microphone' : isProcessing || executions > 0 ? 'Working on your request' : 'Your question'}
           </label>
-          <textarea id="fl-command-message" ref={inputRef} rows={2} aria-label="Message Florrie" value={isRecording ? interimTranscript : textInput}
+          <textarea id="fl-command-message" ref={inputRef} rows={2} aria-label="Message Florrie" value={hidden ? '' : isRecording ? interimTranscript : textInput}
             onChange={e => { setTextInput(e.target.value); setDraftHint(''); }}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); if (!busy) handleTextSubmit(e); } }}
-            placeholder={isRecording ? 'Go on, I’m listening…' : 'Show me what you can do'}
+            placeholder={hidden ? 'Show client details to ask Florrie' : isRecording ? 'Go on, I’m listening…' : 'Show me what you can do'}
             disabled={busy} autoComplete="off" maxLength={2000} />
           <div className="fl-command-toolbar">
             <button type="button" className="fl-command-tool fl-command-explore" aria-label="More ways to ask"
@@ -758,7 +766,7 @@ export default function VoiceCommander() {
           </div>
         </form>
       </EffectFrame>
-      {draftHint && <p className="fl-command-draft-hint" role="status">{draftHint}</p>}
+      {draftHint && <p className="fl-command-draft-hint" role="status"><PrivateText>{draftHint}</PrivateText></p>}
     </div>
   );
   return (
@@ -795,6 +803,7 @@ export default function VoiceCommander() {
           </>}
         </div>
       </div>}
+      <PrivateSection placeholder="Conversation and client details hidden">
       {/* Messages */}
       <div className="fl-voice-messages" style={styles.messagesContainer} aria-live="polite">
         {visibleMessages.filter(msg => msg.id !== '0').map(msg => (
@@ -863,11 +872,12 @@ export default function VoiceCommander() {
         {isProcessing && <div className="fl-voice-processing" role="status"><FlorrieOrb state="working" size={40} /><span>Thinking it through…</span></div>}
         <div ref={messagesEndRef} />
       </div>
+      </PrivateSection>
       {hasConversation && <div className={`fl-command-stack ${showIdeas ? 'is-expanded' : ''}`}>{composer}
         {showIdeas && <div id="fl-command-ideas" className="fl-command-deck is-expanded">{taskPicker}</div>}
       </div>}
       <p className="fl-command-hint" role="status">
-        {isRecording ? 'Listening. Tap the wave to stop.' : isProcessing ? 'Thinking it through…'
+        {hidden ? 'Show client details to use voice or send a request.' : isRecording ? 'Listening. Tap the wave to stop.' : isProcessing ? 'Thinking it through…'
           : speechSupported ? voiceEnabled ? 'Tap the flower to speak. Tap + to explore.' : 'Voice is optional. You can always type to Florrie.'
           : 'Type above to ask Florrie. Voice is unavailable in this browser.'}
       </p>

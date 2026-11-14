@@ -1,3 +1,4 @@
+import { PrivateText } from '../contexts/ClientPrivacyContext.jsx';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import Button from './ui/Button.jsx';
@@ -23,7 +24,7 @@ export default function ContentDirection({ treatments, planning, onPlan, onCompo
       <div className="fl-content-capture"><Icon name="camera" size={19} /><div><strong>What to capture</strong><p>{direction.capture}</p></div></div>
       <div className="fl-studio-actions"><Button disabled={planning} onClick={() => onPlan({ goal, treatment_id: treatmentId || null, post_count: 3 })}>{planning ? 'Preparing your plan…' : 'Draft this plan'}</Button><Button variant="quiet" disabled={planning} onClick={() => onCompose({ type: goal === 'show_work' ? 'before_after' : 'general', treatment: treatments.find(t => t.id === treatmentId)?.name || '', brief: direction.brief })}>Start with one post</Button></div>
       <p className="fl-studio-note">Drafts use your salon’s saved information. Add photos and review the details before publishing.</p>
-      {note && <p role="status" className="fl-studio-note">{note}</p>}{blocked && <Button variant="secondary" onClick={onDrafts}>Review my drafts</Button>}
+      {note && <p role="status" className="fl-studio-note"><PrivateText>{note}</PrivateText></p>}{blocked && <Button variant="secondary" onClick={onDrafts}>Review my drafts</Button>}
     </div>
     <div className="fl-studio-paths">
       <button type="button" onClick={onGallery}><Icon name="camera" size={19} /><span><strong>Your photo library</strong><small>Give work from your camera roll a purpose</small></span><Icon name="chevron-right" size={17} /></button>

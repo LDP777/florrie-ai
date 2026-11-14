@@ -1,3 +1,4 @@
+import { PrivateText, PrivateSection, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase.js';
@@ -23,6 +24,7 @@ const formatDate = value => value ? new Date(value).toLocaleDateString('en-GB', 
 const fullName = row => `${row.clients?.first_name || ''} ${row.clients?.last_name || ''}`.trim() || row.client_name || 'Client';
 
 export default function PhotoConsent() {
+  const { hidden: clientDetailsHidden } = useClientPrivacy();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const clientId = params.get('clientId') || '';
@@ -96,40 +98,40 @@ export default function PhotoConsent() {
     <CareNav />
     <PageHeader title="Photo consent" subtitle="Keep the permission and its scope together" />
     <section style={S.intro}><Icon name="camera" size={24} color="var(--accent)" /><div><h2 style={S.heading}>Permission, before publishing</h2><p style={S.body}>Review what each client has agreed to and record any withdrawal. An outstanding request is not permission to use their photos.</p></div></section>
-    <div style={S.actions}><Button onClick={() => { setShowForm(open => !open); setSaveError(''); }}>{showForm ? 'Close request' : 'Record a request'}</Button><Button variant="secondary" onClick={() => navigate('/compliance?tab=records')}>Client records</Button></div>
+    <div style={S.actions}><Button disabled={clientDetailsHidden} onClick={() => { setShowForm(open => !open); setSaveError(''); }}>{showForm ? 'Close request' : 'Record a request'}</Button><Button disabled={clientDetailsHidden} variant="secondary" onClick={() => navigate('/compliance?tab=records')}>Client records</Button></div>
     {clientId && <div style={S.context}><span>Showing one client</span><Button variant="quiet" onClick={() => openClient(clientId)}>Client profile</Button><Button variant="quiet" onClick={() => setParams({})}>Show everyone</Button></div>}
-    {notice && <p role="status" style={S.notice}>{notice}</p>}
-    {saveError && <p role="alert" style={S.error}>{saveError}</p>}
+    {notice && <p role="status" style={S.notice}><PrivateText>{notice}</PrivateText></p>}
+    {saveError && <p role="alert" style={S.error}><PrivateText>{saveError}</PrivateText></p>}
 
-    {showForm && <form onSubmit={save} style={S.card}>
+    {showForm && <PrivateSection placeholder="Form details hidden"><form onSubmit={save} style={S.card}>
       <h2 style={S.heading}>Record an outstanding request</h2><p style={{ ...S.body, margin: '8px 0 18px' }}>This saves a note for follow-up. To collect a client’s signature, send a consultation form from their profile.</p>
       <ClientLookup value={form.client_id} onChange={client => setForm(f => ({ ...f, client_id: client.id }))} />
       <fieldset disabled={saving} style={S.fieldset}><legend style={S.label}>Where are you asking to use the photos?</legend><div style={S.scopes}>
         {SCOPES.map(([value, label]) => <label key={value} style={S.option}><input type="checkbox" checked={form.permitted_uses.includes(value)} onChange={event => setForm(f => ({ ...f, permitted_uses: event.target.checked ? [...f.permitted_uses, value] : f.permitted_uses.filter(item => item !== value) }))} style={{ width: 18, height: 18, accentColor: 'var(--accent)' }} />{label}</label>)}
       </div></fieldset>
-      <label htmlFor="photo-notes" style={S.label}>Your notes</label><textarea id="photo-notes" rows={3} value={form.notes} onChange={event => setForm(f => ({ ...f, notes: event.target.value }))} style={S.input} placeholder="What you asked and anything to follow up" />
+      <label htmlFor="photo-notes" style={S.label}>Your notes</label><PrivateText placeholder="Private field hidden"><textarea id="photo-notes" rows={3} value={form.notes} onChange={event => setForm(f => ({ ...f, notes: event.target.value }))} style={S.input} placeholder="What you asked and anything to follow up" /></PrivateText>
       <div style={S.actions}><Button type="submit" disabled={saving || !form.client_id || !form.permitted_uses.length} loading={saving}>{saving ? 'Saving…' : 'Save request record'}</Button><Button variant="quiet" disabled={saving} onClick={() => setShowForm(false)}>Cancel</Button></div>
-    </form>}
+    </form></PrivateSection>}
 
     <nav aria-label="Photo permission status" style={S.tabs}>
       {[['all', 'All records'], ['granted', 'Granted'], ['pending', 'Outstanding'], ['expired', 'Expired'], ['declined', 'Withdrawn / declined']].map(([key, label]) => <Button key={key} variant={tab === key ? 'primary' : 'chip'} aria-pressed={tab === key} onClick={() => setTab(key)} style={{ whiteSpace: 'normal' }}>{label}{!busy && !error ? ` (${key === 'all' ? records.length : records.filter(row => row.status === key).length})` : ''}</Button>)}
     </nav>
-    {busy ? <p role="status">Loading photo permissions…</p> : error ? <div role="alert" style={S.error}><p>{error}</p><Button variant="secondary" onClick={() => setRetry(n => n + 1)}>Try again</Button></div> : filtered.length ? <div style={{ display: 'grid', gap: 12 }}>
+    {busy ? <p role="status">Loading photo permissions…</p> : error ? <div role="alert" style={S.error}><p><PrivateText>{error}</PrivateText></p><Button variant="secondary" onClick={() => setRetry(n => n + 1)}>Try again</Button></div> : filtered.length ? <div style={{ display: 'grid', gap: 12 }}>
       {filtered.map(row => {
         const [label, color, background] = STATUS[row.status] || ['Status unknown', 'var(--text-muted)', 'var(--bg-subtle)'];
         const open = expanded === row.id;
         return <article key={row.id} style={S.card}>
           <Button variant="quiet" aria-expanded={open} onClick={() => setExpanded(open ? null : row.id)} style={S.cardButton}>
-            <span style={{ minWidth: 0 }}><strong style={{ fontSize: 16, display: 'block' }}>{fullName(row)}</strong><span style={S.detail}>{row.granted_at ? `Granted ${formatDate(row.granted_at)}` : `Recorded ${formatDate(row.created_at)}`}</span></span>
+            <span style={{ minWidth: 0 }}><strong style={{ fontSize: 16, display: 'block' }}><PrivateText placeholder="Client">{fullName(row)}</PrivateText></strong><span style={S.detail}>{row.granted_at ? `Granted ${formatDate(row.granted_at)}` : `Recorded ${formatDate(row.created_at)}`}</span></span>
             <span style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}><span style={{ ...S.badge, color, background }}>{label}</span><Icon name={open ? 'chevron-up' : 'chevron-down'} size={18} /></span>
           </Button>
           <p style={S.detail}>{row.status === 'pending' ? 'Requested uses' : 'Recorded scope'}: {(row.permitted_uses || []).map(value => SCOPES.find(([key]) => key === value)?.[1] || value).join(', ') || 'None on record'}</p>
           {open && <div style={S.expanded}>
-            {row.notes && <p style={{ ...S.body, whiteSpace: 'pre-wrap' }}>{row.notes}</p>}
+            {row.notes && <p style={{ ...S.body, whiteSpace: 'pre-wrap' }}><PrivateText placeholder="Hidden">{row.notes}</PrivateText></p>}
             {row.status === 'granted' && row.expires_at && <p style={S.detail}>Permission expires {formatDate(row.expires_at)}</p>}
             {row.status === 'pending' && <p style={S.body}>This record does not contain a client’s acceptance. Open their profile to check any signed consultation forms.</p>}
             <div style={S.actions}><Button variant="secondary" onClick={() => openClient(row.client_id)}>Client profile & forms</Button>
-              {row.status === 'granted' && <Button variant="danger" disabled={revoking === row.id} onClick={() => revoke(row)}>{revoking === row.id ? 'Saving…' : 'Record withdrawal'}</Button>}
+              {row.status === 'granted' && <Button variant="danger" disabled={clientDetailsHidden || (revoking === row.id)} onClick={() => revoke(row)}>{revoking === row.id ? 'Saving…' : 'Record withdrawal'}</Button>}
             </div>
           </div>}
         </article>;

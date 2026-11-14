@@ -1,3 +1,4 @@
+import { PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 /**
  * Client Tags & Segments - Group, filter & target clients.
  *
@@ -33,6 +34,7 @@ const DEV_SEGMENTS = [
 ];
 
 export default function ClientTags() {
+  const { hidden: clientDetailsHidden } = useClientPrivacy();
   const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('tags');
   const [expanded, setExpanded] = useState(null);
@@ -141,24 +143,24 @@ export default function ClientTags() {
                     {tag.auto && tag.rule && (
                       <div style={S.ruleBox}>
                         <span style={S.ruleLabel}>Auto-tag rule</span>
-                        <span style={S.ruleValue}>{tag.rule}</span>
+                        <span style={S.ruleValue}><PrivateText placeholder="Hidden">{tag.rule}</PrivateText></span>
                       </div>
                     )}
                     <div style={S.clientChips}>
                       {tag.clients.map(c => (
-                        <span key={c} style={S.clientChip}>{c}</span>
+                        <span key={c} style={S.clientChip}><PrivateText placeholder="Client">{c}</PrivateText></span>
                       ))}
                     </div>
                     <div style={S.actionRow}>
                       <Button variant="secondary" size="sm" style={{ flex: 1 }}>Use in Campaign</Button>
-                      <Button variant="secondary" size="sm" style={{ flex: 1 }} onClick={(e) => {
+                      <Button disabled={clientDetailsHidden} variant="secondary" size="sm" style={{ flex: 1 }} onClick={(e) => {
                         e.stopPropagation();
                         setEditingTag(tag);
                         setTagForm({ name: tag.name, colour: tag.colour, icon: tag.icon });
                         setShowCreate(true);
                         setCreateType('tag');
                       }}>Edit Tag</Button>
-                      {!tag.auto && <Button variant="secondary" size="sm" style={{ flex: 1, color: '#F44336' }} onClick={async (e) => {
+                      {!tag.auto && <Button disabled={clientDetailsHidden} variant="secondary" size="sm" style={{ flex: 1, color: '#F44336' }} onClick={async (e) => {
                         e.stopPropagation();
                         if (!window.confirm(`Delete "${tag.name}" tag?`)) return;
                         try {
@@ -198,7 +200,7 @@ export default function ClientTags() {
 
                 {isExp && (
                   <div style={S.expandedSection}>
-                    <p style={S.segDesc}>{seg.description}</p>
+                    <p style={S.segDesc}><PrivateText placeholder="Hidden">{seg.description}</PrivateText></p>
                     <div style={S.segTags}>
                       {seg.tags.map(tn => {
                         const t = tags.find(x => x.name === tn);
@@ -212,7 +214,7 @@ export default function ClientTags() {
                     </div>
                     <div style={S.actionRow}>
                       <Button variant="primary" size="sm" style={{ flex: 1 }}>Send Campaign</Button>
-                      <Button variant="secondary" size="sm" style={{ flex: 1 }} onClick={(e) => {
+                      <Button disabled={clientDetailsHidden} variant="secondary" size="sm" style={{ flex: 1 }} onClick={(e) => {
                         e.stopPropagation();
                         setEditingSegment(seg);
                         setSegForm({ name: seg.name, description: seg.description, selectedTags: seg.tags, match: seg.match });
@@ -230,7 +232,7 @@ export default function ClientTags() {
 
       {/* Create FAB */}
       {!showCreate && (
-        <Button variant="primary" icon style={S.fab} onClick={() => setShowCreate(true)}>+</Button>
+        <Button disabled={clientDetailsHidden} variant="primary" icon style={S.fab} onClick={() => setShowCreate(true)}>+</Button>
       )}
 
       {/* Create Modal */}
@@ -246,7 +248,7 @@ export default function ClientTags() {
           <div style={S.modal} onClick={e => e.stopPropagation()}>
             <div style={S.modalHeader}>
               <h2 style={S.modalTitle}>{editingTag || editingSegment ? 'Edit' : 'Create'} {createType === 'tag' ? 'Tag' : 'Segment'}</h2>
-              <Button variant="quiet" icon aria-label="Close" style={{ color: 'var(--text-muted, #6B5D54)' }} onClick={() => {
+              <Button  variant="quiet" icon aria-label="Close" style={{ color: 'var(--text-muted, #6B5D54)' }} onClick={() => {
                 setShowCreate(false);
                 setEditingTag(null);
                 setEditingSegment(null);
@@ -259,7 +261,7 @@ export default function ClientTags() {
             {/* Type toggle */}
             <div style={S.typeToggle}>
               {['tag', 'segment'].map(t => (
-                <Button key={t} variant={createType === t ? 'primary' : 'secondary'} size="sm" onClick={() => setCreateType(t)} style={{ flex: 1 }}>
+                <Button disabled={clientDetailsHidden} key={t} variant={createType === t ? 'primary' : 'secondary'} size="sm" onClick={() => setCreateType(t)} style={{ flex: 1 }}>
                   {t === 'tag' ? '🏷️ Tag' : 'Segment'}
                 </Button>
               ))}
@@ -268,7 +270,7 @@ export default function ClientTags() {
             {createType === 'tag' ? (
               <div style={S.formBody}>
                 <label style={S.label}>Tag Name</label>
-                <input style={S.input} placeholder="e.g. Sensitive Skin" value={tagForm.name} onChange={e => setTagForm(f => ({ ...f, name: e.target.value }))} />
+                <PrivateText placeholder="Private field hidden"><input style={S.input} placeholder="e.g. Sensitive Skin" value={tagForm.name} onChange={e => setTagForm(f => ({ ...f, name: e.target.value }))} /></PrivateText>
 
                 <label style={S.label}>Colour</label>
                 <div style={S.colourRow}>
@@ -286,10 +288,10 @@ export default function ClientTags() {
             ) : (
               <div style={S.formBody}>
                 <label style={S.label}>Segment Name</label>
-                <input style={S.input} placeholder="e.g. Lapsed VIPs" value={segForm.name} onChange={e => setSegForm(f => ({ ...f, name: e.target.value }))} />
+                <PrivateText placeholder="Private field hidden"><input style={S.input} placeholder="e.g. Lapsed VIPs" value={segForm.name} onChange={e => setSegForm(f => ({ ...f, name: e.target.value }))} /></PrivateText>
 
                 <label style={S.label}>Description</label>
-                <input style={S.input} placeholder="Who this targets and why" value={segForm.description} onChange={e => setSegForm(f => ({ ...f, description: e.target.value }))} />
+                <PrivateText placeholder="Private field hidden"><input style={S.input} placeholder="Who this targets and why" value={segForm.description} onChange={e => setSegForm(f => ({ ...f, description: e.target.value }))} /></PrivateText>
 
                 <label style={S.label}>Include Tags</label>
                 <div style={S.clientChips}>
@@ -311,7 +313,7 @@ export default function ClientTags() {
               </div>
             )}
 
-            <Button variant="primary" size="lg" fullWidth style={{ marginTop: 16, opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={async () => {
+            <Button variant="primary" size="lg" fullWidth style={{ marginTop: 16, opacity: saving ? 0.6 : 1 }} disabled={clientDetailsHidden || (saving)} onClick={async () => {
               setSaving(true);
               setError('');
               try {
@@ -387,7 +389,7 @@ export default function ClientTags() {
               {saving ? `${editingTag || editingSegment ? 'Saving' : 'Creating'}…` : `${editingTag || editingSegment ? 'Update' : 'Create'} ${createType === 'tag' ? 'Tag' : 'Segment'}`}
             </Button>
 
-            {error && <div style={{ marginTop: 10, padding: 10, borderRadius: 10, background: '#F44336', color: 'var(--bg-card, #FFFCF9)', fontSize: 12, textAlign: 'center' }}>{error}</div>}
+            {error && <div style={{ marginTop: 10, padding: 10, borderRadius: 10, background: '#F44336', color: 'var(--bg-card, #FFFCF9)', fontSize: 12, textAlign: 'center' }}><PrivateText>{error}</PrivateText></div>}
           </div>
         </div>
       )}

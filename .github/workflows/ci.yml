@@ -86,6 +86,7 @@ jobs:
         working-directory: frontend
       - run: npm run check:drag --workspace frontend
       - run: npm run check:voice:browser --workspace frontend
+      - run: npm run check:privacy:browser --workspace frontend
       - run: npm run check:channels --workspace frontend
       - run: npm run check:recovery:browser --workspace frontend
       - run: node scripts/check-password-recovery.mjs

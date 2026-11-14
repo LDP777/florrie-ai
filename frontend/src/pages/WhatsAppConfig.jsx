@@ -1,3 +1,4 @@
+import { PrivateText, PrivateSection } from '../contexts/ClientPrivacyContext.jsx';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import WhatsAppSignup from '../components/WhatsAppSignup.jsx';
 import { templateDisplay, isClientTemplate } from '../lib/templates.js';
@@ -917,7 +918,7 @@ function SendMessagePanel() {
   });
 
   return (
-    <div style={styles.sendCard}>
+    <PrivateSection placeholder="Messages and recipient details hidden"><div style={styles.sendCard}>
       <div style={styles.sendHeader}>
         <div style={styles.sendTitle}>Send a message</div>
         <div style={styles.sendSubtitle}>
@@ -1059,7 +1060,7 @@ function SendMessagePanel() {
         Free-form messages only work if the recipient has messaged you within the last 24 hours.
         For first-contact messages use an approved template.
       </div>
-    </div>
+    </div></PrivateSection>
   );
 }
 
@@ -1160,7 +1161,7 @@ export default function WhatsAppConfig() {
       />
 
       {loadError && <div role="alert" style={styles.connectionCard}>
-        <p>{loadError}</p>
+        <p><PrivateText>{loadError}</PrivateText></p>
         <button className="fl-tap" onClick={loadData}>Retry</button>
       </div>}
 

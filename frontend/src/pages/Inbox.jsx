@@ -1,3 +1,4 @@
+import { useClientPrivacy, PrivateText, PrivateSection } from '../contexts/ClientPrivacyContext.jsx';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase, useBeautician } from '../lib/supabase.js';
@@ -612,6 +613,7 @@ function FilterChip({ active, onClick, label, count }) {
 }
 
 function ThreadList({ sections, visibleCount, error, search, onSearch, onOpen, onDelete, activeId, segment, onSegment, counts, totalCount, space, onSpace, spaceCounts, ig, onClearSocial, clearingSocial }) {
+  const { hidden } = useClientPrivacy();
   const loading = sections === null;
   // Social starts folded to one line; searching unfolds everything.
   const [expanded, setExpanded] = useState({});
@@ -678,9 +680,10 @@ function ThreadList({ sections, visibleCount, error, search, onSearch, onOpen, o
         <Icon name={iconName('search')} inline style={S.searchIcon} />
         <input
           type="search"
-          value={search}
+          value={hidden ? '' : search}
+          disabled={hidden}
           onChange={e => onSearch(e.target.value)}
-          placeholder="Search by name or @handle"
+          placeholder={hidden ? "Client search hidden" : "Search by name or @handle"}
           style={S.searchInput}
         />
       </div>
@@ -847,8 +850,9 @@ function ThreadList({ sections, visibleCount, error, search, onSearch, onOpen, o
 // escalation dot, no bold unread, no maroon badge. She should be able to
 // scroll past the whole lane and lose nothing.
 function ThreadRow({ thread, active, onOpen, onDelete, muted = false, quiet = false, hideTypeChip = false }) {
-  const name = displayName(thread);
-  const handle = secondaryHandle(thread);
+  const { hidden } = useClientPrivacy();
+  const name = hidden ? 'Client' : displayName(thread);
+  const handle = hidden ? null : secondaryHandle(thread);
   const isUnread = thread.unread_count > 0;
   const loud = isUnread && !quiet;
   const flagged = !quiet && !!thread.needs_attention;
@@ -901,7 +905,7 @@ function ThreadRow({ thread, active, onOpen, onDelete, muted = false, quiet = fa
             ...((automated || muted) && !owed ? S.avatarMuted : {}),
             boxShadow: `0 0 0 2px ${channelOf(thread.last_channel).tint}${(automated || muted) && !owed ? '55' : '99'}`,
           }} aria-hidden>
-            {initialOf(name)}
+            {hidden ? '•' : initialOf(name)}
           </span>
           <span style={S.avatarChannel}>
             <ChannelMark channel={thread.last_channel} size={(automated || muted) && !owed ? 15 : 16} />
@@ -931,7 +935,7 @@ function ThreadRow({ thread, active, onOpen, onDelete, muted = false, quiet = fa
               color: loud ? 'var(--text-primary, #241B17)' : 'var(--text-muted, #6B5D54)',
               fontWeight: loud ? 600 : 400,
             }}>
-              {previewPrefix}{previewText}
+              <PrivateText placeholder="Message hidden">{previewPrefix}{previewText}</PrivateText>
             </span>
             {isUnread && (
               <span style={quiet ? S.rowBadgeQuiet : S.rowBadge}>{unreadLabel}</span>
@@ -960,6 +964,7 @@ function ThreadRow({ thread, active, onOpen, onDelete, muted = false, quiet = fa
 
       <button
         type="button"
+        disabled={hidden}
         aria-label={`More options for ${name}`}
         aria-haspopup="menu"
         aria-expanded={menuOpen}
@@ -969,7 +974,7 @@ function ThreadRow({ thread, active, onOpen, onDelete, muted = false, quiet = fa
         <Icon name={iconName('more_vert')} size={18} inline />
       </button>
 
-      {menuOpen && (
+      {menuOpen && !hidden && (
         <div role="menu" style={S.rowMenu}>
           <button
             type="button"
@@ -1109,6 +1114,7 @@ function EmptyConvoPlaceholder() {
 }
 
 function Conversation({ clientId, onBack, onSent, embedded = false }) {
+  const { hidden } = useClientPrivacy();
   const navigate = useNavigate();
   const [state, setState] = useState({ status: 'loading' });
   const [composer, setComposer] = useState('');
@@ -1156,6 +1162,7 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
   }, [state.status, state.messages, clientId]);
 
   async function handleSend(retryBody) {
+    if (hidden) return;
     // Retry passes the failed bubble's own text. Without this the button could
     // only ever resend whatever happened to be in the composer, which is
     // usually empty.
@@ -1227,7 +1234,7 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
     return (
       <div className="fl-client-chat" style={embedded ? S.convoEmbedded : S.convoFull}>
         <ConvoHeader onBack={onBack} embedded={embedded} clientName="Conversation" navigate={navigate} clientId={clientId} />
-        <div style={S.errorCard}>{state.error || "Couldn't load this conversation."}</div>
+        <div style={S.errorCard}><PrivateText placeholder="Couldn't load this conversation.">{state.error || "Couldn't load this conversation."}</PrivateText></div>
       </div>
     );
   }
@@ -1348,6 +1355,7 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
         </div>
       )}
 
+      <PrivateSection placeholder="Show client details to write or send a reply.">
       {channels.length === 0 ? (
         <div style={S.noContact}>
           No contact info on file for this client. Add a phone or email on their profile.
@@ -1428,6 +1436,7 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
           </div></EffectFrame>
         </div>
       )}
+      </PrivateSection>
     </div>
   );
 }
@@ -1440,6 +1449,7 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
  * Tapping the active pill returns to Auto. Saves straight to the client row.
  */
 function ClientControls({ clientId, initialAutonomy = null }) {
+  const { hidden } = useClientPrivacy();
   const [value, setValue] = useState(initialAutonomy);
   const [saving, setSaving] = useState(false);
   const [failure, setFailure] = useState(null);
@@ -1455,7 +1465,7 @@ function ClientControls({ clientId, initialAutonomy = null }) {
   const meDriving = value === 'just_me';
 
   async function save(v) {
-    if (busy.current) return;
+    if (hidden || busy.current) return;
     busy.current = true;
     const attempt = ++request.current;
     setSaving(true); setFailure(null);
@@ -1477,6 +1487,7 @@ function ClientControls({ clientId, initialAutonomy = null }) {
     { key: 'drafts', label: 'Drafts first' },
   ];
 
+  if (hidden) return <PrivateSection placeholder="Client controls hidden" />;
   return (
     <details className="fl-chat-settings" style={S.controlsWrap}>
       <summary style={{ minHeight: 44 }}><span><Icon name={meDriving ? 'user' : 'sparkles'} size={14} /> {meDriving ? 'You’re replying' : value === 'drafts' ? 'Drafts for your approval' : 'Florrie is replying'}</span><span>Reply settings <span aria-hidden="true">⌄</span></span></summary>
@@ -1555,10 +1566,11 @@ function nextApptLabel(iso) {
 }
 
 function ConvoHeader({ onBack, embedded, clientName, navigate, clientId, channel = null, meta = null, initialAutonomy = null, handle = null }) {
+  const { hidden } = useClientPrivacy();
   const metaBits = [];
   // The handle leads the meta line, directly under the name, so she can place
   // an Instagram contact without opening their profile.
-  if (handle) metaBits.push(handle);
+  if (handle && !hidden) metaBits.push(handle);
   if (meta) {
     if (meta.visits >= 3) metaBits.push('Regular');
     metaBits.push(`${meta.visits} visit${meta.visits === 1 ? '' : 's'}`);
@@ -1578,10 +1590,10 @@ function ConvoHeader({ onBack, embedded, clientName, navigate, clientId, channel
         )}
         <span style={{ ...S.convoAvatar,
           boxShadow: channel ? `0 0 0 2px ${channelOf(channel).tint}99` : 'inset 0 0 0 1px rgba(146,64,94,0.05)',
-        }}>{initialOf(clientName)}</span>
+        }}>{hidden ? '•' : initialOf(clientName)}</span>
         <div style={S.convoNameCol}>
           <span style={S.convoNameRow}>
-            <span style={S.convoName}>{clientName}</span>
+            <span style={S.convoName}><PrivateText placeholder="Client">{clientName}</PrivateText></span>
             {channel && <ChannelMark channel={channel} size={16} />}
           </span>
           {metaBits.length > 0 && (
@@ -1666,7 +1678,7 @@ function DraftBubble({ draft, onDone, onSent }) {
     <div style={{ ...S.bubbleRow, justifyContent: 'flex-end' }}>
       <div style={{ ...S.bubbleStack, alignItems: 'flex-end' }}>
         <span style={S.bubbleTag}>{'\u{1F337}'} Draft {'\u00B7'} waiting for your OK</span>
-        <div style={S.draftBubble}>
+        <div style={S.draftBubble}><PrivateSection placeholder="Draft hidden">
           {editing ? (
             <textarea
               value={text}
@@ -1690,7 +1702,7 @@ function DraftBubble({ draft, onDone, onSent }) {
             </button>
             <button type="button" onClick={bin} disabled={busy} style={S.draftGhost}>Bin</button>
           </div>
-        </div>
+        </PrivateSection></div>
       </div>
     </div>
   );
@@ -1748,13 +1760,14 @@ function ActionReceipt({ action, messageIso }) {
         style={S.receiptIcon}
         title={ok ? 'Done' : 'Not done'}
       />
-      <span style={ok ? S.receiptTextOk : S.receiptTextFailed}>{summary}</span>
+      <span style={ok ? S.receiptTextOk : S.receiptTextFailed}><PrivateText placeholder="Action details hidden">{summary}</PrivateText></span>
       {time && <span style={ok ? S.receiptTimeOk : S.receiptTimeFailed}>{time}</span>}
     </div>
   );
 }
 
 function Bubble({ msg, threadChannel, onRetry }) {
+  const { hidden } = useClientPrivacy();
   const out = msg.direction === 'outbound';
   const type = msg.message_type;
   const failed = msg.status === 'failed';
@@ -1795,11 +1808,11 @@ function Bubble({ msg, threadChannel, onRetry }) {
             borderBottomRightRadius: out ? 5 : 18,
           }}
         >
-          {msg.image_url && (
+          {msg.image_url && !hidden && (
             <img src={msg.image_url} alt="" style={{ maxWidth: '100%', borderRadius: 10, marginBottom: msg.body ? 6 : 0, display: 'block' }} />
           )}
-          {msg.body && <div style={S.bubbleText}>{msg.body}</div>}
-          {mediaStub && <div style={{ ...S.bubbleText, fontStyle: 'italic', opacity: 0.7 }}>{mediaStub}</div>}
+          {(msg.body || hidden) && <PrivateText as="div" placeholder="Message hidden" style={S.bubbleText}>{msg.body}</PrivateText>}
+          {mediaStub && !hidden && <div style={{ ...S.bubbleText, fontStyle: 'italic', opacity: 0.7 }}>{mediaStub}</div>}
           <div style={{ ...S.bubbleMeta, color: metaFg }}>
             {florrieSent && !failed && <Icon name="flower" size={12} />}
             {msg.channel && msg.channel !== threadChannel && <ChannelMark channel={msg.channel} size={13} />}
@@ -1807,10 +1820,10 @@ function Bubble({ msg, threadChannel, onRetry }) {
             {msg.status === 'sending' && <span>{'·'} sending</span>}
           </div>
         </div>
-        {msg.can_teach && !failed && msg.status !== 'sending' && /^[0-9a-f-]{36}$/i.test(msg.id || '') && (
+        {!hidden && msg.can_teach && !failed && msg.status !== 'sending' && /^[0-9a-f-]{36}$/i.test(msg.id || '') && (
           <Link to={`/knowledge?reply=${msg.id}`} style={{ color: 'var(--accent)', fontSize: 12, padding: '10px 4px', minHeight: 44, display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon name="flower" size={14} />Teach Florrie</Link>
         )}
-        {failed && (
+        {failed && !hidden && (
           <button type="button" onClick={() => onRetry?.(msg.body)} style={S.failedNote}>
             <Icon name="alert-triangle" size={13} /> Not delivered {'·'} Retry
           </button>

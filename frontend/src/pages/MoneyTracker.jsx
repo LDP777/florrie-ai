@@ -1,3 +1,4 @@
+import { PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import MoreLoadError from '../components/MoreLoadError.jsx';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
@@ -215,6 +216,7 @@ async function apiFetch(path, options = {}) {
 
 
 export default function MoneyTracker() {
+  const { hidden: clientDetailsHidden } = useClientPrivacy();
   const navigate = useNavigate();
   const { beautician, loading: bLoading } = useBeautician();
   const [expenses, setExpenses] = useState([]);
@@ -1247,7 +1249,7 @@ export default function MoneyTracker() {
 
       {notice && (
         <div style={S.noticeBar} role="status">
-          <span style={{ flex: 1 }}>{notice}</span>
+          <span style={{ flex: 1 }}><PrivateText placeholder="Hidden">{notice}</PrivateText></span>
           <button onClick={() => setNotice(null)} aria-label="Dismiss" style={S.noticeClose}>
             <Icon name={iconName('close')} size={16} inline />
           </button>
@@ -1276,7 +1278,7 @@ export default function MoneyTracker() {
                   <span style={S.reportLabel}>no-shows (90d)</span>
                 </div>
               </div>
-              {reports.insight && <div style={S.reportInsight}>{reports.insight}</div>}
+              {reports.insight && <div style={S.reportInsight}><PrivateText placeholder="Hidden">{reports.insight}</PrivateText></div>}
             </div>
           )}
           {pulse ? (
@@ -1419,12 +1421,12 @@ export default function MoneyTracker() {
                     />
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <input
+                    <PrivateText placeholder="Private field hidden"><input
                       type="text" placeholder="Product name (optional)"
                       value={saleDesc}
                       onChange={e => setSaleDesc(e.target.value)}
                       style={{ ...S.formInput, flex: 1 }}
-                    />
+                    /></PrivateText>
                     <button className="fl-tap" onClick={handleLogSale} style={{ ...S.btnPrimary, flex: 'none', padding: '11px 20px', background: 'var(--gold)' }}>
                       Save
                     </button>
@@ -1482,7 +1484,7 @@ export default function MoneyTracker() {
                           <div style={{ ...S.txAvatar,
                             ...(tx.type === 'tip' ? { background: 'linear-gradient(135deg, #d4f5e0 0%, #a3e4b8 100%)' } :
                                 tx.type === 'product_sale' ? { background: 'linear-gradient(135deg, #fedb9b 0%, #f5c563 100%)' } : {}),
-                          }}>{initial}</div>
+                          }}><PrivateText placeholder="•">{initial}</PrivateText></div>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
                               {clientId ? (
@@ -1490,7 +1492,7 @@ export default function MoneyTracker() {
                                   onClick={() => navigate('/clients', { state: { clientId } })}
                                   style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit', fontWeight: 'inherit', color: 'inherit', textDecoration: 'underline', textDecorationColor: 'rgba(146,64,94,0.25)', textUnderlineOffset: 2 }}
                                 >
-                                  {name}
+                                  <PrivateText placeholder="Client">{name}</PrivateText>
                                 </button>
                               ) : name}
                             </p>
@@ -1577,12 +1579,12 @@ export default function MoneyTracker() {
 
               <div style={{ marginBottom: 12 }}>
                 <label style={S.formLabel}>Vendor</label>
-                <input
+                <PrivateText placeholder="Private field hidden"><input
                   type="text" placeholder="e.g. Sally Beauty"
                   value={newExpense.vendor}
                   onChange={e => setNewExpense(p => ({ ...p, vendor: e.target.value }))}
                   style={S.formInput}
-                />
+                /></PrivateText>
               </div>
 
               <div style={{ marginBottom: 12 }}>
@@ -1609,12 +1611,12 @@ export default function MoneyTracker() {
 
               <div style={{ marginBottom: 12 }}>
                 <label style={S.formLabel}>Description</label>
-                <input
+                <PrivateText placeholder="Private field hidden"><input
                   type="text" placeholder="e.g. Brow tint x3, wax strips"
                   value={newExpense.description}
                   onChange={e => setNewExpense(p => ({ ...p, description: e.target.value }))}
                   style={S.formInput}
-                />
+                /></PrivateText>
               </div>
 
               <div style={{ marginBottom: 12 }}>
@@ -1622,7 +1624,7 @@ export default function MoneyTracker() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   {receiptPreview ? (
                     <div style={{ position: 'relative', display: 'inline-block' }}>
-                      <img src={receiptPreview} alt="Receipt" style={{ width: 64, height: 64, borderRadius: 10, objectFit: 'cover', border: '1.5px solid var(--border-light)' }} />
+                      <PrivateText placeholder="Photo hidden"><img src={receiptPreview} alt="Receipt" style={{ width: 64, height: 64, borderRadius: 10, objectFit: 'cover', border: '1.5px solid var(--border-light)' }} /></PrivateText>
                       <button className="fl-tap" onClick={() => { setReceiptPreview(null); setNewExpense(p => ({ ...p, receipt_url: '' })); }} style={{ position: 'absolute', top: -6, right: -6,
                         width: 20, height: 20, borderRadius: 10, border: 'none',
                         background: 'var(--danger)', color: '#fff', fontSize: 12,
@@ -1764,12 +1766,12 @@ export default function MoneyTracker() {
                     </div>
                     <div style={{ flex: 1 }}>
                       <label style={S.formLabel}>What is it</label>
-                      <input
+                      <PrivateText placeholder="Private field hidden"><input
                         type="text" placeholder="e.g. Rent"
                         value={recurringForm.vendor}
                         onChange={e => setRecurringForm(f => ({ ...f, vendor: e.target.value }))}
                         style={S.formInput}
-                      />
+                      /></PrivateText>
                     </div>
                   </div>
 
@@ -1871,7 +1873,7 @@ export default function MoneyTracker() {
                   <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
                     <button
                       onClick={handleSaveRecurring}
-                      disabled={savingRecurring}
+                      disabled={clientDetailsHidden || (savingRecurring)}
                       style={{ ...S.btnPrimary, opacity: savingRecurring ? 0.6 : 1, minHeight: 44 }}
                     >
                       {savingRecurring ? 'Saving...' : (editingRecurring ? 'Save changes' : 'Add regular cost')}
@@ -1896,7 +1898,7 @@ export default function MoneyTracker() {
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <p style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
-                          {describeRecurring(rule)}
+                          <PrivateText>{describeRecurring(rule)}</PrivateText>
                         </p>
                         <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '2px 0 0' }}>
                           {rule.active
@@ -1905,7 +1907,7 @@ export default function MoneyTracker() {
                         </p>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <button
+                        <button disabled={clientDetailsHidden}
                           onClick={() => handleToggleRecurring(rule)}
                           aria-label={rule.active ? 'Pause this cost' : 'Start this cost again'}
                           style={S.iconBtn}
@@ -1919,7 +1921,7 @@ export default function MoneyTracker() {
                         >
                           <Icon name={iconName('edit')} size={18} inline style={{ color: 'var(--text-muted)' }} />
                         </button>
-                        <button
+                        <button disabled={clientDetailsHidden}
                           onClick={() => setConfirmDeleteRule(rule)}
                           aria-label="Remove this cost"
                           style={S.iconBtn}
@@ -1961,8 +1963,8 @@ export default function MoneyTracker() {
                     <span><Icon name={catMeta.icon} size={16} /></span>
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>{exp.vendor || catMeta.label}</p>
-                    {exp.description && <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{exp.description}</p>}
+                    <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}><PrivateText>{exp.vendor || catMeta.label}</PrivateText></p>
+                    {exp.description && <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><PrivateText placeholder="Hidden">{exp.description}</PrivateText></p>}
                     <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: '2px 0 0' }}>
                       {new Date(exp.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
                       {' · '}{catMeta.label}
@@ -1974,11 +1976,11 @@ export default function MoneyTracker() {
                       this src is a signed URL minted on read, never a value
                       out of the database. */}
                   {receiptThumbs[exp.id] && (
-                    <img
+                    <PrivateText placeholder="Photo hidden"><img
                       src={receiptThumbs[exp.id]}
                       alt={`Receipt for ${exp.vendor || catMeta.label}`}
                       style={{ width: 34, height: 34, borderRadius: 8, objectFit: 'cover', marginLeft: 10, border: '1px solid var(--border-light)', flexShrink: 0 }}
-                    />
+                    /></PrivateText>
                   )}
                   <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--danger)', marginLeft: 12, whiteSpace: 'nowrap' }}>
                     -{fmt(exp.amount_cents)}
@@ -2116,7 +2118,7 @@ export default function MoneyTracker() {
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {label}
+                      <PrivateText>{label}</PrivateText>
                     </p>
                     <p style={{ fontSize: 11, color: assumed ? '#8A5A22' : 'var(--text-muted)', margin: 0 }}>
                       {prettyDate(row.date)}
@@ -2166,7 +2168,7 @@ export default function MoneyTracker() {
             </div>
           )}
 
-          <button onClick={handleExportLedgerCSV} style={S.exportBtn}>
+          <button disabled={clientDetailsHidden} onClick={handleExportLedgerCSV} style={S.exportBtn}>
             <Icon name={iconName('download')} size={16} inline style={{ marginRight: 6, verticalAlign: 'middle' }} />
             Export {ledgerYear && ledgerYear !== 'all' ? ledgerYear : 'this year'} as CSV
           </button>
@@ -2205,10 +2207,10 @@ export default function MoneyTracker() {
                   ...(tx.type === 'tip' ? { background: 'linear-gradient(135deg, #d4f5e0 0%, #a3e4b8 100%)' } :
                       tx.type === 'product_sale' ? { background: 'linear-gradient(135deg, #fedb9b 0%, #f5c563 100%)' } : {}),
                   ...(assumed ? { background: '#FDF3E7', color: '#6B4E2E' } : {}),
-                }}>{initial}</div>
+                }}><PrivateText placeholder="•">{initial}</PrivateText></div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
-                    {name}{treatment ? ` - ${treatment}` : ''}
+                    <PrivateText placeholder="Client">{name}</PrivateText>{treatment ? ` - ${treatment}` : ''}
                   </p>
                   <p style={{ fontSize: 11, color: assumed ? '#8A5A22' : 'var(--text-muted)', margin: 0 }}>
                     {new Date(tx.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
@@ -2439,7 +2441,7 @@ export default function MoneyTracker() {
                 )}
 
                 {/* Export for accountant */}
-                <button
+                <button disabled={clientDetailsHidden}
                   onClick={() => {
                     const a = document.createElement('a');
                     a.href = `/api/exports/tax-quarterly?year=${t.taxYear.replace('/', '-')}`;
@@ -2493,14 +2495,14 @@ export default function MoneyTracker() {
               Delete this expense?
             </p>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 16px' }}>
-              {confirmDeleteExp.vendor || getCategoryMeta(confirmDeleteExp.category).label}
+              <PrivateText>{confirmDeleteExp.vendor || getCategoryMeta(confirmDeleteExp.category).label}</PrivateText>
               {' · '}-{fmt(confirmDeleteExp.amount_cents)}
               {' · '}{new Date(confirmDeleteExp.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
             </p>
             <div style={{ display: 'flex', gap: 10 }}>
               <button
                 onClick={handleDeleteExpense}
-                disabled={deleting}
+                disabled={clientDetailsHidden || (deleting)}
                 style={{ flex: 1, padding: '13px 0', borderRadius: 10, border: 'none',
                   background: 'var(--danger, #9E2B32)', color: '#fff',
                   fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
@@ -2546,11 +2548,11 @@ export default function MoneyTracker() {
               Remove this regular cost?
             </p>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 16px' }}>
-              {describeRecurring(confirmDeleteRule)}. It will stop being logged from now on.
+              <PrivateText>{describeRecurring(confirmDeleteRule)}</PrivateText>. It will stop being logged from now on.
               Everything already on the books stays exactly as it is.
             </p>
             <div style={{ display: 'flex', gap: 10 }}>
-              <button
+              <button disabled={clientDetailsHidden}
                 onClick={handleDeleteRecurring}
                 style={{ flex: 1, padding: '13px 0', borderRadius: 10, border: 'none',
                   background: 'var(--danger, #9E2B32)', color: '#fff',

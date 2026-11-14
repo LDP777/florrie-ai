@@ -24,8 +24,8 @@ body {
   /* Inside the shell the page gets the viewport MINUS what the shell reserves.
      Scoping it here means `minHeight: var(--shell-viewport)` is correct on a
      page whether it renders inside the shell or outside it. */
-  --shell-viewport: calc(100dvh - var(--shell-top) - var(--shell-bottom));
-  --shell-viewport-nav: calc(100dvh - var(--shell-top) - var(--shell-bottom-nav));
+  --shell-viewport: calc(100dvh - var(--shell-top) - var(--shell-bottom) - var(--client-privacy-toolbar-height, 0px) - var(--client-privacy-status-height, 0px));
+  --shell-viewport-nav: calc(100dvh - var(--shell-top) - var(--shell-bottom-nav) - var(--client-privacy-toolbar-height, 0px) - var(--client-privacy-status-height, 0px));
 }
 
 /* Smooth page transitions */

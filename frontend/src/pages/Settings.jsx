@@ -1,3 +1,4 @@
+import { PrivateText, PrivateSection } from '../contexts/ClientPrivacyContext.jsx';
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useBeautician, updateRow, supabase } from '../lib/supabase.js';
@@ -468,7 +469,7 @@ export default function Settings({ onLogout }) {
         )}
       />
 
-      {saveError && <p role="alert" style={{ color: 'var(--danger)', margin: '0 0 16px' }}>{saveError}</p>}
+      {saveError && <p role="alert" style={{ color: 'var(--danger)', margin: '0 0 16px' }}><PrivateText>{saveError}</PrivateText></p>}
       <SettingsDirectory section={section} onSelect={setSection} />
       {section && <div className="settings-section-intro">
         <h2>{SETTINGS_SECTIONS.find(item => item.key === section)?.title}</h2>
@@ -716,7 +717,7 @@ export default function Settings({ onLogout }) {
 
           {/* Subscription management, hidden on native iOS for App Store
               Guideline 3.1.3(b) compliance (no external purchasing surfaces).
-              
+
               With no Stripe customer yet there is nothing for the portal to
               open, and until now that meant a beautician on a card-free trial
               had no way to set up billing anywhere in the app short of waiting
@@ -1976,7 +1977,7 @@ function FewShotExamples({ examples, onSave }) {
   }
 
   return (
-    <div>
+    <PrivateSection placeholder="Conversation examples hidden"><div>
       {items.map((ex, i) => (
         <div key={i} style={styles.exampleCard}>
           <div style={styles.exampleBubble}>
@@ -2021,7 +2022,7 @@ function FewShotExamples({ examples, onSave }) {
           + Add example
         </button>
       )}
-    </div>
+    </div></PrivateSection>
   );
 }
 
@@ -2399,7 +2400,7 @@ function StartPlanCard() {
         No card on file. Your trial keeps running either way, and adding one now
         means nothing stops when it ends. {PLAN.monthlyLabel} from day 15, or {PLAN.annualLabel} on annual billing. Cancel any time before then.
       </p>
-      {error && <p style={{ ...styles.cardHint, color: 'var(--danger, #9E2B32)', marginTop: 8 }}>{error}</p>}
+      {error && <p style={{ ...styles.cardHint, color: 'var(--danger, #9E2B32)', marginTop: 8 }}><PrivateText>{error}</PrivateText></p>}
       <Button size="sm" onClick={startCheckout} disabled={loading}>
         {loading ? 'Opening secure checkout...' : 'Add a card'}
       </Button>
@@ -2450,7 +2451,7 @@ function SubscriptionManager({ beautician }) {
     <div style={styles.card}>
       <div style={styles.cardTitle}>Manage Subscription</div>
       <p style={styles.cardHint}>Update payment method, billing address, or cancel your subscription.</p>
-      {error && <p style={{ ...styles.cardHint, color: '#E57373', marginTop: 8 }}>{error}</p>}
+      {error && <p style={{ ...styles.cardHint, color: '#E57373', marginTop: 8 }}><PrivateText>{error}</PrivateText></p>}
       <Button
         size="sm"
         onClick={handleManageSubscription}

@@ -1,3 +1,4 @@
+import { PrivateText, PrivateSection } from '../contexts/ClientPrivacyContext.jsx';
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { ds, type } from '../lib/designSystem.js';
@@ -22,7 +23,7 @@ function ReadIssue({ state, label, retry }) {
   if (state.loading) return <p role="status" style={type.bodySmall}>Loading {label}…</p>;
   if (!state.error) return null;
   return <div role="alert" style={{ marginBottom: 12 }}>
-    <p style={type.bodySmall}>Couldn’t load {label}. {state.error}</p>
+    <p style={type.bodySmall}>Couldn’t load {label}. <PrivateText>{state.error}</PrivateText></p>
     <button style={ds.btnSecondary} onClick={retry}>Retry {label}</button>
   </div>;
 }
@@ -218,7 +219,7 @@ export default function SMSConfig() {
           {dirty && <p style={type.bodySmall}>You have unsaved changes.</p>}
           {saveMsg && <p role={saveMsg.ok ? 'status' : 'alert'} style={{ ...type.bodySmall, color: saveMsg.ok ? 'var(--success)' : 'var(--danger)' }}>{saveMsg.text}</p>}
         </div>
-        {cfg.bird_configured && <div style={ds.card}>
+        {cfg.bird_configured && <PrivateSection placeholder="Test recipient details hidden"><div style={ds.card}>
           <h2 style={type.heading}>Check a test message</h2>
           <p style={type.bodySmall}>Send one text to your own phone using the saved setup. It counts towards your message usage.</p>
           {dirty && <p style={type.bodySmall}>Save your changes before sending a test.</p>}
@@ -226,7 +227,7 @@ export default function SMSConfig() {
           <input id="sms-test" inputMode="tel" style={inputStyle} placeholder="+447700900000" value={testPhone} disabled={testing} onChange={event => setTestPhone(event.target.value)} />
           <button onClick={sendTest} disabled={testing || saving || dirty || !testPhone.trim()} style={{ ...ds.btnPrimary, marginTop: 12 }}>{testing ? 'Sending…' : 'Send test SMS'}</button>
           {testMsg && <p role={testMsg.ok ? 'status' : 'alert'} style={{ ...type.bodySmall, color: testMsg.ok ? 'var(--success)' : 'var(--danger)' }}>{testMsg.text}</p>}
-        </div>}
+        </div></PrivateSection>}
       </>}
     </div>}
   </div>;

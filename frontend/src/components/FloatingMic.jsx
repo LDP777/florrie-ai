@@ -1,3 +1,4 @@
+import { useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import { useEffect, useRef, useState } from 'react';
 import { isVoiceEnabled } from '../lib/voicePref.js';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -125,6 +126,9 @@ function getToken() {
 }
 
 export default function FloatingMic() {
+  const { hidden } = useClientPrivacy();
+  const privacyRef = useRef(hidden);
+  privacyRef.current = hidden;
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -146,7 +150,8 @@ export default function FloatingMic() {
 
   // Hide on inbox thread view too. The conversation route is /inbox?client=…
   const isInboxThread = location.pathname === '/inbox' && /[?&]client=/.test(location.search || '');
-  const hide = shouldHide(location.pathname) || isInboxThread;
+  const hide = hidden || shouldHide(location.pathname) || isInboxThread;
+  useEffect(() => { if (hidden) { hardReset(); setResult(null); } }, [hidden]);
 
   // Voice button is opt-in. Keep it in sync with the Settings toggle live so
   // switching it on/off never needs an app reload.
@@ -296,6 +301,7 @@ export default function FloatingMic() {
 
   // ---- MediaRecorder fallback (Safari iOS) ----
   async function startMediaRecorder({ continuous }) {
+    if (privacyRef.current) return;
     let stream;
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
@@ -305,6 +311,7 @@ export default function FloatingMic() {
         return false;
       }
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (privacyRef.current) { stream.getTracks().forEach(track => track.stop()); return false; }
       const mimeType = MediaRecorder.isTypeSupported('audio/webm')
         ? 'audio/webm'
         : MediaRecorder.isTypeSupported('audio/mp4')
@@ -369,6 +376,7 @@ export default function FloatingMic() {
   }
 
   async function submitAudio(blob, mimeType) {
+    if (privacyRef.current) return;
     setProcessing(true);
     try {
       const base64 = await blobToBase64(blob);
@@ -377,6 +385,7 @@ export default function FloatingMic() {
         setError("You're not signed in. Sign in to use voice.");
         return;
       }
+      if (privacyRef.current) return;
       const res = await fetch(`${API_BASE}/api/voice/command`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -402,6 +411,7 @@ export default function FloatingMic() {
   }
 
   async function submitCommand(text) {
+    if (privacyRef.current) return;
     if (!text) return;
     setProcessing(true);
     try {
@@ -410,6 +420,7 @@ export default function FloatingMic() {
         setError("You're not signed in. Sign in to use voice.");
         return;
       }
+      if (privacyRef.current) return;
       const res = await fetch(`${API_BASE}/api/voice/command`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },

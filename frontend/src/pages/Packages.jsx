@@ -1,3 +1,4 @@
+import { PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 /**
  * Courses. Sell training courses and masterclasses.
  *
@@ -86,6 +87,7 @@ const bounded = async (operation) => {
 const tableMissing = (err) => /relation .* does not exist|could not find the table|schema cache/i.test(err?.message || '');
 
 export default function Courses() {
+  const { hidden: clientDetailsHidden } = useClientPrivacy();
   const { beautician, loading: bLoading } = useBeautician();
   const ownerRef = useRef(beautician?.id);
   ownerRef.current = beautician?.id;
@@ -432,14 +434,14 @@ export default function Courses() {
         title="Courses"
         subtitle="Sell training and masterclasses"
         action={(
-          <Button disabled={saving} variant={showCreate ? 'secondary' : 'primary'} size="sm" onClick={() => { if (showCreate) resetForm(); setShowCreate(!showCreate); }}>
+          <Button disabled={clientDetailsHidden || (saving)} variant={showCreate ? 'secondary' : 'primary'} size="sm" onClick={() => { if (showCreate) resetForm(); setShowCreate(!showCreate); }}>
             {showCreate ? 'Close' : '+ New course'}
           </Button>
         )}
       />
 
       {loadError && <ErrorCard message={loadError} onDismiss={() => setLoadError('')} />}
-      {notice && <div style={s.notice}>{notice}</div>}
+      {notice && <div style={s.notice}><PrivateText>{notice}</PrivateText></div>}
 
       {/* Stats: things that are true, not price x heads */}
       <div style={s.statsRow}>
@@ -461,10 +463,10 @@ export default function Courses() {
           <fieldset disabled={saving} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }} aria-busy={saving}>
           {!addingTo && <>
           <label style={s.label}>Course name</label>
-          <input aria-label="Course name" value={form.name} onChange={e => setField('name', e.target.value)} placeholder="e.g. Ultimate Beginner Lash Course" style={s.input} maxLength={120} />
+          <PrivateText placeholder="Private field hidden"><input aria-label="Course name" value={form.name} onChange={e => setField('name', e.target.value)} placeholder="e.g. Ultimate Beginner Lash Course" style={s.input} maxLength={120} /></PrivateText>
 
           <label style={s.label}>What students will learn</label>
-          <textarea aria-label="What students will learn" value={form.description} onChange={e => setField('description', e.target.value)} placeholder="What you cover, who it is for, and what they can charge afterwards." style={{ ...s.input, height: 88, resize: 'vertical' }} maxLength={2000} />
+          <PrivateText placeholder="Private field hidden"><textarea aria-label="What students will learn" value={form.description} onChange={e => setField('description', e.target.value)} placeholder="What you cover, who it is for, and what they can charge afterwards." style={{ ...s.input, height: 88, resize: 'vertical' }} maxLength={2000} /></PrivateText>
 
           </>}
           <div style={s.dateIntro}>
@@ -499,7 +501,7 @@ export default function Courses() {
           {!addingTo && <>
 
           <label style={s.label}>Location</label>
-          <input aria-label="Location" value={form.location} onChange={e => setField('location', e.target.value)} placeholder="Salon address, or Online" style={s.input} maxLength={200} />
+          <PrivateText placeholder="Private field hidden"><input aria-label="Location" value={form.location} onChange={e => setField('location', e.target.value)} placeholder="Salon address, or Online" style={s.input} maxLength={200} /></PrivateText>
 
           <label style={s.label}>Duration</label>
           <div style={s.chipWrap}>
@@ -560,7 +562,7 @@ export default function Courses() {
           {formProblem && form.name && form.price && <p style={s.problem}>{formProblem}</p>}
 
           <div style={s.formActions}>
-            <Button fullWidth loading={saving} disabled={!!formProblem} onClick={handleSave} style={{ flex: 1 }}>
+            <Button fullWidth loading={saving} disabled={clientDetailsHidden || (!!formProblem)} onClick={handleSave} style={{ flex: 1 }}>
               {saving ? 'Saving' : addingTo ? 'Save dates' : editingItem ? 'Save changes' : 'Create course'}
             </Button>
             <Button disabled={saving} variant="secondary" onClick={() => { setShowCreate(false); resetForm(); }}>Cancel</Button>
@@ -620,8 +622,8 @@ export default function Courses() {
                   {multiple && <p style={s.dateHelp}>Share one link. Students choose the date that suits them.</p>}
                   <div style={s.linkRow}>
                     <div style={s.linkBox}><span style={s.linkText}>florrie.ai/training/{beautician?.booking_slug || '…'}/{base.id.slice(0, 8)}</span></div>
-                    <Button size="sm" onClick={() => copyLink(base)} style={copiedId === base.id ? { background: 'var(--success, #386F52)' } : undefined}>{copiedId === base.id ? 'Copied' : 'Copy link'}</Button>
-                    <Button variant="secondary" icon size="icon" aria-label="Share link" onClick={() => shareLink(base)}><Icon name="share" size={16} /></Button>
+                    <Button disabled={clientDetailsHidden} size="sm" onClick={() => copyLink(base)} style={copiedId === base.id ? { background: 'var(--success, #386F52)' } : undefined}>{copiedId === base.id ? 'Copied' : 'Copy link'}</Button>
+                    <Button disabled={clientDetailsHidden} variant="secondary" icon size="icon" aria-label="Share link" onClick={() => shareLink(base)}><Icon name="share" size={16} /></Button>
                   </div>
                 </>}
                 <div style={s.dateList}>
@@ -656,7 +658,7 @@ export default function Courses() {
                         {stage === 'closed' && <Button variant="secondary" size="xs" style={s.actionBtn} disabled={busyId === course.id} onClick={() => reopenBookings(course)}>Reopen</Button>}
                         {stage !== 'cancelled' && (students.length || course.course_group_id
                           ? <Button variant="danger" size="xs" style={s.actionBtn} disabled={busyId === course.id} onClick={() => cancelCourse(course)}>Cancel date</Button>
-                          : <Button variant="danger" size="xs" style={s.actionBtn} disabled={busyId === course.id} onClick={() => deleteCourse(course)}>Delete date</Button>)}
+                          : <Button variant="danger" size="xs" style={s.actionBtn} disabled={clientDetailsHidden || (busyId === course.id)} onClick={() => deleteCourse(course)}>Delete date</Button>)}
                       </div>
                       {expandedCourse === course.id && <div style={s.enrollList}>
                         {attempts.length === 0 ? <p style={s.enrollEmpty}>Nobody booked on this date yet.</p> : attempts.map(e => <StudentRow key={e.id} row={e} course={course} open={openStudent === e.id} busy={busyId === e.id}
@@ -705,6 +707,7 @@ export default function Courses() {
  * empty control and lets taps through to it.
  */
 function DateLike({ type, value, onChange, placeholder, min, id, ariaLabel, disabled }) {
+
   return (
     <div style={{ position: 'relative' }}>
       <input id={id} aria-label={ariaLabel} disabled={disabled} type={type} value={value} min={min} onChange={e => onChange(e.target.value)} style={{ ...s.input, minHeight: 44, color: value ? 'var(--text-primary, #241B17)' : 'transparent' }} />
@@ -714,6 +717,7 @@ function DateLike({ type, value, onChange, placeholder, min, id, ariaLabel, disa
 }
 
 function StudentRow({ row, course, open, busy, showCourse = false, onToggle, onMarkDeposit, onMarkPaid, onRemove }) {
+  const { hidden: clientDetailsHidden } = useClientPrivacy();
   const label = enrolmentLabel(row);
   const tone = TONE[label.tone];
   const abandoned = checkoutAbandoned(row);
@@ -722,12 +726,12 @@ function StudentRow({ row, course, open, busy, showCourse = false, onToggle, onM
   return (
     <div style={{ ...s.enrollRow, opacity: abandoned ? 0.7 : 1 }}>
       <button type="button" onClick={onToggle} style={s.enrollMain}>
-        <div style={s.enrollAvatar}>{(row.name || '?')[0].toUpperCase()}</div>
+        <div style={s.enrollAvatar}><PrivateText placeholder="•">{(row.name || '?')[0].toUpperCase()}</PrivateText></div>
         <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
-          <div style={s.enrollName}>{row.name || 'Unknown'}</div>
-          <div style={s.enrollContact}>{[row.email, row.phone].filter(Boolean).join(' · ')}</div>
+          <div style={s.enrollName}><PrivateText placeholder="Client">{row.name || 'Unknown'}</PrivateText></div>
+          <div style={s.enrollContact}><PrivateText placeholder="Hidden">{[row.email, row.phone].filter(Boolean).join(' · ')}</PrivateText></div>
           {showCourse && course && <div style={s.enrollCourse}>{course.name}{course.date ? ` · ${fmtDate(course.date)}${course.start_time ? `, ${fmtTime(course.start_time)}` : ''}` : ' · Date to confirm'}</div>}
-          {row.notes && <div style={s.enrollNotes}>“{row.notes}”</div>}
+          {row.notes && <div style={s.enrollNotes}>“<PrivateText placeholder="Hidden">{row.notes}</PrivateText>”</div>}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
           <span style={{ ...s.enrollStatus, background: tone.bg, color: tone.color }}>{label.text}</span>
@@ -739,13 +743,13 @@ function StudentRow({ row, course, open, busy, showCourse = false, onToggle, onM
           {abandoned && <p style={s.studentHint}>They opened the card payment and did not finish, so no place is held. If they have paid you another way, record it below and the place is theirs.</p>}
           <div style={s.studentBtns}>
             {row.payment_status !== 'paid' && row.payment_status !== 'deposit_paid' && Number(course?.deposit) > 0 && (
-              <Button variant="tonal" size="xs" disabled={busy} onClick={onMarkDeposit}>Deposit paid</Button>
+              <Button variant="tonal" size="xs" disabled={clientDetailsHidden || (busy)} onClick={onMarkDeposit}>Deposit paid</Button>
             )}
-            {row.payment_status !== 'paid' && <Button variant="tonal" size="xs" disabled={busy} onClick={onMarkPaid}>Paid in full</Button>}
-            {row.email && <Button as="a" variant="secondary" size="xs" href={`mailto:${row.email}`}>Email</Button>}
-            {wa && <Button as="a" variant="secondary" size="xs" href={wa} target="_blank" rel="noreferrer">WhatsApp</Button>}
-            {row.phone && <Button as="a" variant="secondary" size="xs" href={`tel:${row.phone}`}>Call</Button>}
-            <Button variant="danger" size="xs" disabled={busy} onClick={onRemove}>{abandoned ? 'Clear' : 'Remove'}</Button>
+            {row.payment_status !== 'paid' && <Button variant="tonal" size="xs" disabled={clientDetailsHidden || (busy)} onClick={onMarkPaid}>Paid in full</Button>}
+            {row.email && <PrivateText placeholder="Contact hidden"><Button as="a" variant="secondary" size="xs" href={`mailto:${row.email}`}>Email</Button></PrivateText>}
+            {wa && <PrivateText placeholder="Contact hidden"><Button as="a" variant="secondary" size="xs" href={wa} target="_blank" rel="noreferrer">WhatsApp</Button></PrivateText>}
+            {row.phone && <PrivateText placeholder="Contact hidden"><Button as="a" variant="secondary" size="xs" href={`tel:${row.phone}`}>Call</Button></PrivateText>}
+            <Button variant="danger" size="xs" disabled={clientDetailsHidden || (busy)} onClick={onRemove}>{abandoned ? 'Clear' : 'Remove'}</Button>
           </div>
         </div>
       )}

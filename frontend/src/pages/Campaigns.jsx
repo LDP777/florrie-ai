@@ -1,3 +1,4 @@
+import { PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import MoreLoadError from '../components/MoreLoadError.jsx';
 import { useState, useEffect } from 'react';
 import { useBeautician, fetchRowsStrict, insertRow, updateRow, supabase } from '../lib/supabase.js';
@@ -70,6 +71,7 @@ const MESSAGE_TEMPLATES = {
 };
 
 export default function Campaigns() {
+  const { hidden: clientDetailsHidden } = useClientPrivacy();
   const [actionError, setActionError] = useState(null);
   const [loadError, setLoadError] = useState(null);
   const { beautician, loading: bLoading } = useBeautician();
@@ -278,23 +280,23 @@ export default function Campaigns() {
           </div>
 
           {/* Name */}
-          <input
+          <PrivateText placeholder="Private field hidden"><input
             value={form.name}
             onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
             placeholder="Campaign name"
             style={styles.nameInput}
-          />
+          /></PrivateText>
 
           {/* Message */}
           <div style={styles.msgSection}>
             <label style={styles.fieldLabel}>Message</label>
-            <textarea
+            <PrivateText placeholder="Private field hidden"><textarea
               value={form.message}
               onChange={e => setForm(f => ({ ...f, message: e.target.value }))}
               style={styles.msgTextarea}
               rows={5}
               placeholder="Write your message..."
-            />
+            /></PrivateText>
             <button
               onClick={() => {
                 const templates = MESSAGE_TEMPLATES[selectedType] || MESSAGE_TEMPLATES.custom;
@@ -325,7 +327,7 @@ export default function Campaigns() {
 
           {/* Actions */}
           <div style={styles.createActions}>
-            <button onClick={handleSave} disabled={!form.message.trim() || saving} style={{ ...styles.primaryBtn,
+            <button onClick={handleSave} disabled={clientDetailsHidden || (!form.message.trim() || saving)} style={{ ...styles.primaryBtn,
               opacity: !form.message.trim() ? 0.5 : 1,
             }}>
               {saving ? 'Saving...' : 'Save as Draft'}
@@ -343,7 +345,7 @@ export default function Campaigns() {
           {/* Campaign type selector */}
           <div style={styles.typeGrid}>
             {Object.entries(TYPE_CONFIG).map(([type, cfg]) => (
-              <button
+              <button disabled={clientDetailsHidden}
                 key={type}
                 onClick={() => startCreate(type)}
                 style={styles.typeCard}
@@ -360,8 +362,8 @@ export default function Campaigns() {
               <span style={{ fontSize: 16 }}><Icon name="sparkles" size={15} /></span>
               <span style={styles.aiCardTitle}>AI Suggestion</span>
             </div>
-            <p style={styles.aiCardText}>{aiSuggestion.text}</p>
-            <button
+            <p style={styles.aiCardText}><PrivateText placeholder="Hidden">{aiSuggestion.text}</PrivateText></p>
+            <button disabled={clientDetailsHidden}
               onClick={() => startCreate(aiSuggestion.type)}
               style={styles.aiCardBtn}
             >
@@ -420,13 +422,13 @@ export default function Campaigns() {
 
             <div style={styles.detailHeader}>
               <span style={{ fontSize: 28 }}>{TYPE_CONFIG[detail.type]?.icon}</span>
-              <h2 style={styles.detailName}>{detail.name}</h2>
+              <h2 style={styles.detailName}><PrivateText>{detail.name}</PrivateText></h2>
               <StatusBadge status={detail.status} />
             </div>
 
             <div style={styles.detailMsgCard}>
               <span style={styles.detailMsgLabel}>Message</span>
-              <p style={styles.detailMsgText}>{detail.message_template}</p>
+              <p style={styles.detailMsgText}><PrivateText placeholder="Hidden">{detail.message_template}</PrivateText></p>
             </div>
 
             {/* Performance stats (for sent campaigns) */}
@@ -463,12 +465,12 @@ export default function Campaigns() {
       {sendResult && (
         <div style={styles.overlay} onClick={() => setSendResult(null)}>
           <div style={styles.detailPanel} onClick={e => e.stopPropagation()}>
-            <button onClick={() => setSendResult(null)} style={styles.closeBtn}>×</button>
+            <button disabled={clientDetailsHidden} onClick={() => setSendResult(null)} style={styles.closeBtn}>×</button>
             {sendResult.error ? (
               <div style={styles.resultHeader}>
                 <span style={{ fontSize: 30 }}>{<Icon name="alert-triangle" inline />}</span>
                 <h2 style={styles.detailName}>Couldn't send</h2>
-                <p style={styles.resultSubtle}>{sendResult.error}</p>
+                <p style={styles.resultSubtle}><PrivateText>{sendResult.error}</PrivateText></p>
               </div>
             ) : (
               <>
@@ -506,7 +508,7 @@ export default function Campaigns() {
                 )}
               </>
             )}
-            <button onClick={() => setSendResult(null)} style={{ ...styles.primaryBtn, marginTop: 12 }}>Done</button>
+            <button disabled={clientDetailsHidden} onClick={() => setSendResult(null)} style={{ ...styles.primaryBtn, marginTop: 12 }}>Done</button>
           </div>
         </div>
       )}
@@ -515,6 +517,7 @@ export default function Campaigns() {
 }
 
 function CampaignCard({ campaign, sending, onApprove, onSend, onCancel, onView }) {
+  const { hidden: clientDetailsHidden } = useClientPrivacy();
   const cfg = TYPE_CONFIG[campaign.type] || TYPE_CONFIG.custom;
   return (
     <div style={styles.campaignCard} onClick={onView}>
@@ -522,7 +525,7 @@ function CampaignCard({ campaign, sending, onApprove, onSend, onCancel, onView }
         <div style={styles.campaignCardLeft}>
           <span style={{ fontSize: 18 }}><Icon name={iconName(cfg.icon)} inline /></span>
           <div>
-            <span style={styles.campaignName}>{campaign.name}</span>
+            <span style={styles.campaignName}><PrivateText>{campaign.name}</PrivateText></span>
             <span style={styles.campaignMeta}>
               {cfg.label} · {campaign.target_count} recipient{campaign.target_count !== 1 ? 's' : ''}
             </span>
@@ -532,7 +535,7 @@ function CampaignCard({ campaign, sending, onApprove, onSend, onCancel, onView }
       </div>
 
       <p style={styles.campaignPreview}>
-        {(campaign.message_template || '').substring(0, 90)}
+        <PrivateText placeholder="Hidden">{(campaign.message_template || '').substring(0, 90)}</PrivateText>
         {(campaign.message_template || '').length > 90 ? '...' : ''}
       </p>
 
@@ -550,10 +553,10 @@ function CampaignCard({ campaign, sending, onApprove, onSend, onCancel, onView }
       {(campaign.status === 'draft' || campaign.status === 'approved' || campaign.status === 'sending') && (
         <div style={styles.cardActions} onClick={e => e.stopPropagation()}>
           {campaign.status === 'draft' && onApprove && (
-            <button onClick={onApprove} style={styles.approveBtn}>Approve</button>
+            <button disabled={clientDetailsHidden} onClick={onApprove} style={styles.approveBtn}>Approve</button>
           )}
           {campaign.status === 'approved' && onSend && (
-            <button onClick={onSend} disabled={sending} style={{ ...styles.approveBtn, opacity: sending ? 0.6 : 1 }}>
+            <button onClick={onSend} disabled={clientDetailsHidden || (sending)} style={{ ...styles.approveBtn, opacity: sending ? 0.6 : 1 }}>
               {sending ? 'Sending...' : 'Send now'}
             </button>
           )}
@@ -570,6 +573,7 @@ function CampaignCard({ campaign, sending, onApprove, onSend, onCancel, onView }
 }
 
 function StatusBadge({ status }) {
+
   const cfg = STATUS_LABELS[status] || STATUS_LABELS.draft;
   return (
     <span style={{ padding: '3px 10px', borderRadius: 'var(--radius-xs)', fontSize: 11, fontWeight: 600, background: cfg.bg, color: cfg.color }}>
@@ -579,6 +583,7 @@ function StatusBadge({ status }) {
 }
 
 function PerfStat({ label, value, color }) {
+
   return (
     <div style={styles.perfStatBox}>
       <span style={{ ...styles.perfStatValue, color: color || 'var(--text-primary)' }}>{value}</span>

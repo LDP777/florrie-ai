@@ -1,3 +1,4 @@
+import { PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import { voucherIsActive } from './more-reliability.js';
 import { useState, useEffect } from 'react';
 import { useBeautician, fetchRowsStrict, insertRow, updateRow } from '../lib/supabase.js';
@@ -28,6 +29,7 @@ function generateCode() {
 }
 
 export default function GiftVouchers() {
+  const { hidden: clientDetailsHidden } = useClientPrivacy();
   const { beautician, loading: bLoading } = useBeautician();
   const [vouchers, setVouchers] = useState([]);
   const [treatments, setTreatments] = useState([]);
@@ -175,10 +177,10 @@ export default function GiftVouchers() {
 
       {/* Quick actions */}
       <div style={styles.quickActions}>
-        <button onClick={() => { setShowCreate(true); setTab('create'); }} style={styles.createBtn}>
+        <button disabled={clientDetailsHidden} onClick={() => { setShowCreate(true); setTab('create'); }} style={styles.createBtn}>
           + Create Voucher
         </button>
-        <button onClick={() => setShowRedeem(true)} style={styles.redeemBtn}><Icon name="tag" size={14} inline /> Redeem
+        <button disabled={clientDetailsHidden} onClick={() => setShowRedeem(true)} style={styles.redeemBtn}><Icon name="tag" size={14} inline /> Redeem
         </button>
       </div>
 
@@ -288,43 +290,43 @@ export default function GiftVouchers() {
           <div style={styles.formRow}>
             <div style={{ flex: 1 }}>
               <label style={styles.formLabel}>Buyer name</label>
-              <input
+              <PrivateText placeholder="Private field hidden"><input
                 type="text" placeholder="Who's buying?"
                 value={form.buyer_name}
                 onChange={e => setForm(p => ({ ...p, buyer_name: e.target.value }))}
                 style={styles.formInput}
-              />
+              /></PrivateText>
             </div>
             <div style={{ flex: 1 }}>
               <label style={styles.formLabel}>Recipient name</label>
-              <input
+              <PrivateText placeholder="Private field hidden"><input
                 type="text" placeholder="Who's it for?"
                 value={form.recipient_name}
                 onChange={e => setForm(p => ({ ...p, recipient_name: e.target.value }))}
                 style={styles.formInput}
-              />
+              /></PrivateText>
             </div>
           </div>
 
           <div style={styles.formGroup}>
             <label style={styles.formLabel}>Recipient email (optional)</label>
-            <input
+            <PrivateText placeholder="Private field hidden"><input
               type="email" placeholder="Recipient email for your records"
               value={form.recipient_email}
               onChange={e => setForm(p => ({ ...p, recipient_email: e.target.value }))}
               style={styles.formInput}
-            />
+            /></PrivateText>
           </div>
 
           <div style={styles.formGroup}>
             <label style={styles.formLabel}>Personal message</label>
-            <textarea
+            <PrivateText placeholder="Private field hidden"><textarea
               placeholder="Happy birthday! Treat yourself..."
               value={form.message}
               onChange={e => setForm(p => ({ ...p, message: e.target.value }))}
               rows={2}
               style={styles.formTextarea}
-            />
+            /></PrivateText>
           </div>
 
           <div style={styles.formGroup}>
@@ -355,12 +357,12 @@ export default function GiftVouchers() {
                 : fmt(form.amount_cents)
               }
             </div>
-            <div style={styles.previewFor}>For: {form.recipient_name || '...'}</div>
-            {form.message && <div style={styles.previewMsg}>"{form.message}"</div>}
+            <div style={styles.previewFor}>For: <PrivateText placeholder="Client">{form.recipient_name || '...'}</PrivateText></div>
+            {form.message && <div style={styles.previewMsg}>"<PrivateText placeholder="Hidden">{form.message}</PrivateText>"</div>}
             <div style={styles.previewCode}>GIFT-XXXXX</div>
           </div>
 
-          <button onClick={handleCreate} disabled={saving} style={styles.createVoucherBtn}>
+          <button onClick={handleCreate} disabled={clientDetailsHidden || (saving)} style={styles.createVoucherBtn}>
             {saving ? 'Creating…' : 'Create voucher'}
           </button>
         </div>
@@ -391,13 +393,13 @@ export default function GiftVouchers() {
             {error && <ErrorCard message={error} onDismiss={() => setError(null)} />}
             <h3 style={styles.modalTitle}>Redeem Voucher</h3>
             <div style={styles.redeemInputRow}>
-              <input
+              <PrivateText placeholder="Private field hidden"><input
                 type="text" placeholder="Enter voucher code"
                 value={redeemCode}
                 onChange={e => setRedeemCode(e.target.value.toUpperCase())}
                 style={{ ...styles.formInput, flex: 1, textTransform: 'uppercase', letterSpacing: '0.1em' }}
-              />
-              <button onClick={handleRedeemSearch} style={styles.searchBtn}>Find</button>
+              /></PrivateText>
+              <button disabled={clientDetailsHidden} onClick={handleRedeemSearch} style={styles.searchBtn}>Find</button>
             </div>
 
             {redeemSearch === 'not_found' && (
@@ -410,22 +412,22 @@ export default function GiftVouchers() {
             {redeemSearch && redeemSearch !== 'not_found' && (
               <div style={styles.redeemFound}>
                 <div style={styles.redeemFoundHeader}>
-                  <span style={styles.redeemFoundCode}>{redeemSearch.code}</span>
+                  <span style={styles.redeemFoundCode}><PrivateText placeholder="Hidden">{redeemSearch.code}</PrivateText></span>
                   <span style={styles.redeemFoundAmount}>{fmt(redeemSearch.amount_cents)}</span>
                 </div>
                 <p style={styles.redeemFoundDetail}>
-                  For: {redeemSearch.recipient_name} · From: {redeemSearch.buyer_name}
+                  For: <PrivateText placeholder="Client">{redeemSearch.recipient_name}</PrivateText> · From: <PrivateText placeholder="Client">{redeemSearch.buyer_name}</PrivateText>
                 </p>
                 {redeemSearch.treatment_name && (
                   <p style={styles.redeemFoundDetail}>Treatment: {redeemSearch.treatment_name}</p>
                 )}
-                <button onClick={() => handleRedeem(redeemSearch)} disabled={saving} style={styles.redeemConfirmBtn}>
+                <button onClick={() => handleRedeem(redeemSearch)} disabled={clientDetailsHidden || (saving)} style={styles.redeemConfirmBtn}>
                   Mark as Redeemed
                 </button>
               </div>
             )}
 
-            <button onClick={() => { setShowRedeem(null); setRedeemSearch(null); setRedeemCode(''); }} style={styles.cancelBtn}>
+            <button  onClick={() => { setShowRedeem(null); setRedeemSearch(null); setRedeemCode(''); }} style={styles.cancelBtn}>
               Close
             </button>
           </div>
@@ -436,6 +438,7 @@ export default function GiftVouchers() {
 }
 
 function VoucherCard({ voucher, onRedeem }) {
+  const { hidden: clientDetailsHidden } = useClientPrivacy();
   const expiredByDate = voucher.expires_at && new Date(voucher.expires_at) < new Date();
   const isActive = voucher.status === 'active' && !expiredByDate;
   const daysLeft = isActive
@@ -453,7 +456,7 @@ function VoucherCard({ voucher, onRedeem }) {
             {voucher.type === 'treatment' ? voucher.treatment_name : fmt(voucher.amount_cents)}
           </span>
           <span style={styles.voucherFor}>
-            For {voucher.recipient_name} · from {voucher.buyer_name}
+            For <PrivateText placeholder="Client">{voucher.recipient_name}</PrivateText> · from <PrivateText placeholder="Client">{voucher.buyer_name}</PrivateText>
           </span>
         </div>
         <div style={{ ...styles.statusBadge,
@@ -464,10 +467,10 @@ function VoucherCard({ voucher, onRedeem }) {
         </div>
       </div>
 
-      <div style={styles.voucherCode}>{voucher.code}</div>
+      <div style={styles.voucherCode}><PrivateText placeholder="Hidden">{voucher.code}</PrivateText></div>
 
       {voucher.message && (
-        <p style={styles.voucherMsg}>"{voucher.message}"</p>
+        <p style={styles.voucherMsg}>"<PrivateText placeholder="Hidden">{voucher.message}</PrivateText>"</p>
       )}
 
       <div style={styles.voucherFooter}>
@@ -480,7 +483,7 @@ function VoucherCard({ voucher, onRedeem }) {
           }
         </span>
         {isActive && onRedeem && (
-          <button onClick={onRedeem} style={styles.redeemSmallBtn}>Redeem</button>
+          <button disabled={clientDetailsHidden} onClick={onRedeem} style={styles.redeemSmallBtn}>Redeem</button>
         )}
       </div>
     </div>

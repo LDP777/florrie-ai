@@ -30,11 +30,11 @@ const fail = [];
 const pill = app.slice(app.indexOf('function FloatingBack'));
 const topPx = /top:\s*'calc\(env\(safe-area-inset-top,\s*0px\)\s*\+\s*(\d+)px\)'/.exec(pill);
 const heightPx = /height:\s*(\d+)\s*,/.exec(pill);
-const reserved = /paddingTop:\s*showBackPill\s*\n?\s*\?\s*'calc\(var\(--shell-top\)\s*\+\s*(\d+)px\)'/.exec(app);
+const reserved = /paddingTop:\s*showNav\s*\n?\s*\?\s*'calc\(var\(--shell-top\)\s*\+\s*(\d+)px\)'/.exec(app);
 
 if (!topPx) fail.push('cannot find the Back pill top offset in App.jsx');
 if (!heightPx) fail.push('cannot find the Back pill height in App.jsx');
-if (!reserved) fail.push('the scroll region no longer reserves a band for the Back pill (paddingTop: showBackPill ? ...)');
+if (!reserved) fail.push('the scroll region no longer reserves a band for the Back pill (paddingTop: showNav ? ...)');
 
 if (topPx && heightPx && reserved) {
   const need = Number(topPx[1]) + Number(heightPx[1]);

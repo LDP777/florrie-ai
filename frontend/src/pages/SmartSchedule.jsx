@@ -1,3 +1,4 @@
+import { useClientPrivacy, PrivateText } from '../contexts/ClientPrivacyContext.jsx';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBeautician, supabase } from '../lib/supabase.js';
@@ -114,6 +115,7 @@ function withAbort(promise, signal) {
 }
 
 export default function SmartSchedule() {
+  const { hidden } = useClientPrivacy();
   const { beautician, loading: profileLoading, refresh: refreshProfile } = useBeautician();
   const [gaps, setGaps] = useState([]);
   const [schedule, setSchedule] = useState(null);
@@ -233,6 +235,7 @@ export default function SmartSchedule() {
   // land in the Outbox for approval, never raw sends).
   const [fillGapState, setFillGapState] = useState({});
   async function handleFillGap(gap) {
+    if (hidden) return;
     if (fillRequests.current.has(gap.id) || loading || loadError) return;
     const ac = new AbortController(), seq = request.current.seq;
     fillRequests.current.set(gap.id, ac);
@@ -416,10 +419,10 @@ export default function SmartSchedule() {
                       <div style={styles.gapExpanded}>
                         {/* One tap: Florrie offers this slot to matched clients,
                             through the outbound guard (Outbox approval). */}
-                        {fgs.error && <p style={styles.utilisationEmpty} role="alert">{fgs.note}<Button variant="quiet" size="sm" onClick={loadData}>Refresh schedule</Button></p>}
+                        {fgs.error && <p style={styles.utilisationEmpty} role="alert"><PrivateText placeholder="Offer details hidden">{fgs.note}</PrivateText><Button variant="quiet" size="sm" onClick={loadData}>Refresh schedule</Button></p>}
                         {fgs.done ? (
                           <div style={{ padding: '10px 12px', borderRadius: 10, background: fgs.held ? '#FDF8EE' : 'var(--bg-subtle, #ede7e3)', fontSize: 13, color: 'var(--text-secondary, #574A42)', marginBottom: 8 }}>
-                            {fgs.note}
+                            <PrivateText placeholder="Offer details hidden">{fgs.note}</PrivateText>
                             {fgs.held && (
                               <button
                                 onClick={e => { e.stopPropagation(); navigate('/outbox'); }}
@@ -432,7 +435,7 @@ export default function SmartSchedule() {
                         ) : (
                           <button
                             onClick={e => { e.stopPropagation(); handleFillGap(gap); }}
-                            disabled={!!fgs.busy || gap.fitCount === 0}
+                            disabled={hidden || !!fgs.busy || gap.fitCount === 0}
                             style={{ ...styles.offerBtn, opacity: fgs.busy ? 0.6 : 1, marginBottom: 8 }}
                           >
                             {fgs.busy ? 'Finding who to offer it to...' : 'Offer this gap to matching clients'}
@@ -442,10 +445,10 @@ export default function SmartSchedule() {
                         {gapSuggestions.rebook_due.slice(0, gap.fillability === 'high' ? 2 : 1).map((s, i) => (
                           <div key={`rb-${i}`} style={styles.suggestionCard}>
                             <div style={styles.suggestionTop}>
-                              <div style={styles.suggAvatar}>{s.client.first_name[0]}</div>
+                              <div style={styles.suggAvatar}><PrivateText placeholder="•">{s.client.first_name[0]}</PrivateText></div>
                               <div style={styles.suggInfo}>
-                                <span style={styles.suggName}>{s.client.first_name} {s.client.last_name}</span>
-                                <span style={styles.suggReason}>{s.reason}</span>
+                                <span style={styles.suggName}><PrivateText placeholder="Client">{s.client.first_name} {s.client.last_name}</PrivateText></span>
+                                <span style={styles.suggReason}><PrivateText placeholder="Client suggestion hidden">{s.reason}</PrivateText></span>
                               </div>
                             </div>
                             <div style={styles.suggTreatment}>
@@ -466,11 +469,11 @@ export default function SmartSchedule() {
                           <div style={styles.suggestionCard}>
                             <div style={styles.suggestionTop}>
                               <div style={{ ...styles.suggAvatar, background: '#E3F2FD' }}>
-                                <span style={{ color: '#1976D2' }}>{gapSuggestions.waitlist_match[0].client.first_name[0]}</span>
+                                <span style={{ color: '#1976D2' }}><PrivateText placeholder="•">{gapSuggestions.waitlist_match[0].client.first_name[0]}</PrivateText></span>
                               </div>
                               <div style={styles.suggInfo}>
-                                <span style={styles.suggName}>{gapSuggestions.waitlist_match[0].client.first_name} {gapSuggestions.waitlist_match[0].client.last_name}</span>
-                                <span style={styles.suggReason}>{gapSuggestions.waitlist_match[0].reason || 'Waiting for an opening'}</span>
+                                <span style={styles.suggName}><PrivateText placeholder="Client">{gapSuggestions.waitlist_match[0].client.first_name} {gapSuggestions.waitlist_match[0].client.last_name}</PrivateText></span>
+                                <span style={styles.suggReason}><PrivateText placeholder="Client suggestion hidden">{gapSuggestions.waitlist_match[0].reason || 'Waiting for an opening'}</PrivateText></span>
                               </div>
                             </div>
                             <button
@@ -524,14 +527,14 @@ export default function SmartSchedule() {
             {suggestions.rebook_due.map((s, i) => (
               <div key={`rb-${i}`} style={styles.suggFullCard}>
                 <div style={styles.suggestionTop}>
-                  <div style={styles.suggAvatar}>{s.client.first_name[0]}</div>
+                  <div style={styles.suggAvatar}><PrivateText placeholder="•">{s.client.first_name[0]}</PrivateText></div>
                   <div style={styles.suggInfo}>
-                    <span style={styles.suggName}>{s.client.first_name} {s.client.last_name}</span>
+                    <span style={styles.suggName}><PrivateText placeholder="Client">{s.client.first_name} {s.client.last_name}</PrivateText></span>
                     <span style={styles.suggDetail}>{s.treatment.name}</span>
                   </div>
                   <span style={styles.overdueBadge}>{s.days_overdue}d past usual</span>
                 </div>
-                <p style={styles.suggReasonText}>{s.reason}</p>
+                <p style={styles.suggReasonText}><PrivateText placeholder="Client suggestion hidden">{s.reason}</PrivateText></p>
                 <button
                   onClick={() => navigate(`/inbox?client=${s.client.id}`)}
                   style={styles.offerBtn}
@@ -552,15 +555,15 @@ export default function SmartSchedule() {
               <div key={`dr-${i}`} style={styles.suggFullCard}>
                 <div style={styles.suggestionTop}>
                   <div style={{ ...styles.suggAvatar, background: '#FFF3E0' }}>
-                    <span style={{ color: '#B33F00' }}>{s.client.first_name[0]}</span>
+                    <span style={{ color: '#B33F00' }}><PrivateText placeholder="•">{s.client.first_name[0]}</PrivateText></span>
                   </div>
                   <div style={styles.suggInfo}>
-                    <span style={styles.suggName}>{s.client.first_name} {s.client.last_name}</span>
+                    <span style={styles.suggName}><PrivateText placeholder="Client">{s.client.first_name} {s.client.last_name}</PrivateText></span>
                     <span style={styles.suggDetail}>{s.treatment.name}</span>
                   </div>
                   <span style={{ ...styles.overdueBadge, background: '#FFF3E0', color: '#B33F00' }}>{s.last_visit_days}d ago</span>
                 </div>
-                <p style={styles.suggReasonText}>{s.reason}</p>
+                <p style={styles.suggReasonText}><PrivateText placeholder="Client suggestion hidden">{s.reason}</PrivateText></p>
                 <button
                   onClick={() => navigate(`/inbox?client=${s.client.id}`)}
                   style={styles.offerBtn}
@@ -581,11 +584,11 @@ export default function SmartSchedule() {
               <div key={`wl-${i}`} style={styles.suggFullCard}>
                 <div style={styles.suggestionTop}>
                   <div style={{ ...styles.suggAvatar, background: '#E3F2FD' }}>
-                    <span style={{ color: '#1976D2' }}>{s.client.first_name[0]}</span>
+                    <span style={{ color: '#1976D2' }}><PrivateText placeholder="•">{s.client.first_name[0]}</PrivateText></span>
                   </div>
                   <div style={styles.suggInfo}>
-                    <span style={styles.suggName}>{s.client.first_name} {s.client.last_name}</span>
-                    <span style={styles.suggDetail}>{s.reason || 'Waiting for an opening'}</span>
+                    <span style={styles.suggName}><PrivateText placeholder="Client">{s.client.first_name} {s.client.last_name}</PrivateText></span>
+                    <span style={styles.suggDetail}><PrivateText placeholder="Client suggestion hidden">{s.reason || 'Waiting for an opening'}</PrivateText></span>
                   </div>
                 </div>
                 <p style={styles.suggReasonText}>{s.treatment.name}, {s.treatment.duration_minutes}min</p>

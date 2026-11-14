@@ -1,3 +1,4 @@
+import { PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import GoogleReviews from '../components/GoogleReviews.jsx';
 import { API_BASE } from '../lib/config.js';
 import { contentRequest } from '../lib/content-workflow.js';
@@ -14,6 +15,7 @@ import Icon from '../components/ui/Icon';
 import Button from '../components/ui/Button.jsx';
 
 export default function Reviews() {
+
   const { beautician, loading: bLoading, refresh } = useBeautician();
   if (bLoading || !beautician) return <PageLoader />;
   // Changing salons clears drafts and loaded feedback before another render.
@@ -21,6 +23,7 @@ export default function Reviews() {
 }
 
 function ReviewsWorkspace({ beautician, refresh }) {
+  const { hidden: clientDetailsHidden } = useClientPrivacy();
   const [loadError, setLoadError] = useState(null);
   const active = useRef(false);
   const loadRun = useRef(0);
@@ -171,10 +174,10 @@ function ReviewsWorkspace({ beautician, refresh }) {
                 <div style={styles.reviewHeader}>
                   <div style={styles.reviewAuthorRow}>
                     <div style={styles.reviewAvatar}>
-                      {(review.author?.[0] || '?').toUpperCase()}
+                      <PrivateText placeholder="•">{(review.author?.[0] || '?').toUpperCase()}</PrivateText>
                     </div>
                     <div>
-                      <span style={styles.reviewAuthor}>{review.author}</span>
+                      <span style={styles.reviewAuthor}><PrivateText placeholder="Client">{review.author}</PrivateText></span>
                       <span style={styles.reviewDate}>
                         {new Date(review.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                       </span>
@@ -188,7 +191,7 @@ function ReviewsWorkspace({ beautician, refresh }) {
                   </div>
                 </div>
 
-                <p style={styles.reviewText}>{review.text}</p>
+                <p style={styles.reviewText}><PrivateText placeholder="Hidden">{review.text}</PrivateText></p>
 
                 {review.treatment && (
                   <span style={styles.reviewTreatment}>{<Icon name="sparkles" inline />} {review.treatment}</span>
@@ -197,7 +200,7 @@ function ReviewsWorkspace({ beautician, refresh }) {
                 {review.is_public === true && review.platform !== 'google' && review.text && <div className="fl-review-share">
                   {shareReview === review.id ? <>
                     <label><input type="checkbox" checked={shareAllowed} onChange={e => setShareAllowed(e.target.checked)} /> I have permission to use this review in my marketing.</label>
-                    <button disabled={!shareAllowed || shareSaving} onClick={async () => {
+                    <button disabled={clientDetailsHidden || (!shareAllowed || shareSaving)} onClick={async () => {
                       setShareSaving(true);setShareError('');
                       try {
                         const {data}=await supabase.auth.getSession();
@@ -207,28 +210,28 @@ function ReviewsWorkspace({ beautician, refresh }) {
                         navigate('/content', {state:{showDrafts:true,contentPostId:saved.post?.id}});
                       } catch(error) {if (active.current) setShareError(error.message);} finally {if (active.current) setShareSaving(false);}
                     }}>{shareSaving ? 'Saving permission & draft…' : 'Prepare a review post'}</button>
-                    {shareError && <p role="alert">{shareError}</p>}
-                    <button onClick={() => setShareReview(null)}>Cancel</button>
-                  </> : <button onClick={() => { setShareReview(review.id); setShareAllowed(false); }}><Icon name="camera" size={16} /> Turn into a post</button>}
+                    {shareError && <p role="alert"><PrivateText>{shareError}</PrivateText></p>}
+                    <button  onClick={() => setShareReview(null)}>Cancel</button>
+                  </> : <button disabled={clientDetailsHidden} onClick={() => { setShareReview(review.id); setShareAllowed(false); }}><Icon name="camera" size={16} /> Turn into a post</button>}
                 </div>}
                 {/* Reply section */}
                 {review.reply ? (
                   <div style={styles.replyCard}>
                     <span style={styles.replyLabel}>Reply saved in Florrie</span>
-                    <p style={styles.replyText}>{review.reply}</p>
+                    <p style={styles.replyText}><PrivateText placeholder="Hidden">{review.reply}</PrivateText></p>
                   </div>
                 ) : replyingTo === review.id ? (
                   <div style={styles.replyForm}>
                     <span style={styles.replyDraftLabel}><Icon name="sparkles" size={14} inline /> Suggested reply</span>
-                    <textarea
+                    <PrivateText placeholder="Private field hidden"><textarea
                       value={replyText}
                       onChange={e => setReplyText(e.target.value)}
                       style={styles.replyTextarea}
                       rows={3}
-                    />
+                    /></PrivateText>
                     <p style={styles.settingHint}>Saves inside Florrie. Publish it on the review platform separately.</p>
                     <div style={styles.replyActions}>
-                      <button
+                      <button disabled={clientDetailsHidden}
                         onClick={async () => {
                           const text = replyText;
                           try {

@@ -48,7 +48,8 @@
     "check:more": "node --test src/pages/more-*.test.mjs && node scripts/check-more-reliability.mjs && node scripts/check-membership-clarity.mjs && node scripts/audit-owner-pages-20260906.mjs && node scripts/check-content-waitlist.mjs && node scripts/check-workspace-visuals.mjs && node scripts/check-content-completion.mjs && node scripts/check-content-studio.mjs && node scripts/check-content-refresh.mjs && node scripts/check-content-assistant.mjs && node scripts/check-content-team.mjs && node scripts/check-content-artwork.mjs && npm run check:intelligence && npm run check:sms",
     "check:intelligence": "node scripts/check-intelligence-brief.mjs && node scripts/check-agent-network-loading.mjs && node scripts/check-effects.mjs",
     "check:voice:browser": "node scripts/check-voice-petal.mjs && node scripts/check-voice-design.mjs",
-    "check:sms": "node --test src/lib/sms-settings.test.mjs && node scripts/check-sms-setup.mjs"
+    "check:sms": "node --test src/lib/sms-settings.test.mjs && node scripts/check-sms-setup.mjs",
+    "check:privacy:browser": "node scripts/check-client-privacy.mjs && node scripts/check-client-privacy-primary.mjs && node scripts/check-client-privacy-content.mjs && node scripts/check-client-privacy-secondary.mjs"
   },
   "dependencies": {
     "@capacitor-community/apple-sign-in": "^6.0.0",

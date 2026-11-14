@@ -1,3 +1,4 @@
+import { useClientPrivacy, PrivateSection } from '../contexts/ClientPrivacyContext.jsx';
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useBeautician, supabase } from '../lib/supabase.js';
@@ -107,6 +108,7 @@ function layoutDay(appts) {
 }
 
 export default function CalendarFull() {
+  const { hidden } = useClientPrivacy();
   const navigate = useNavigate();
   const location = useLocation();
   const { beautician, loading: bLoading } = useBeautician();
@@ -218,7 +220,7 @@ export default function CalendarFull() {
           <h1 style={S.title}>Calendar</h1>
         </div>
         <div style={S.headerActions}>
-          <button onClick={() => setSyncOpen(true)} style={S.ghostBtn}>
+          <button disabled={hidden} onClick={() => setSyncOpen(true)} style={S.ghostBtn}>
             <Icon name={iconName('sync')} size={17} inline />
             <span style={S.btnLabel}>Sync to my calendar</span>
           </button>
@@ -259,13 +261,14 @@ export default function CalendarFull() {
         ? <WeekGrid days={days} apptsOn={apptsOn} blocksOn={blocksOn} onPickDay={(d) => navigate(`/calendar/week?date=${localDateStr(d)}&view=day`)} onOpenAppt={(a) => navigate(`/calendar/week?date=${localDateStr(new Date(String(a.starts_at).slice(0, 10) + 'T12:00:00'))}&appt=${a.id}`)} />
         : <MonthGrid anchor={anchor} apptsOn={apptsOn} blocksOn={blocksOn} onPickDay={(d) => navigate(`/calendar/week?date=${localDateStr(d)}&view=day`)} />)}
 
-      {syncOpen && <SyncPanel onClose={() => setSyncOpen(false)} />}
+      {syncOpen && <PrivateSection placeholder="Calendar connection details hidden"><SyncPanel onClose={() => setSyncOpen(false)} /></PrivateSection>}
     </div>
   );
 }
 
 /* ============================ WEEK GRID ============================ */
 function WeekGrid({ days, apptsOn, blocksOn = () => [], onPickDay, onOpenAppt = () => {} }) {
+  const { hidden } = useClientPrivacy();
   const hours = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => START_HOUR + i);
   const gridHeight = (END_HOUR - START_HOUR) * HOUR_HEIGHT;
   const todayStr = todayLocal();
@@ -336,7 +339,7 @@ function WeekGrid({ days, apptsOn, blocksOn = () => [], onPickDay, onOpenAppt = 
                 {rects.map(({ a, top, height, col, cols }) => {
                   const color = treatmentColor(a.treatments);
                   const widthPct = 100 / cols;
-                  const name = a.clients?.first_name || 'Booking';
+                  const name = hidden ? 'Client' : a.clients?.first_name || 'Booking';
                   const treat = a.treatments?.name || (a.beautician_notes && /patch test/i.test(a.beautician_notes) ? 'Patch test' : '');
                   return (
                     <button

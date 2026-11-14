@@ -1,3 +1,4 @@
+import { PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useBeautician, supabase } from '../lib/supabase.js';
@@ -18,6 +19,7 @@ const REASONS = {
 const dateLabel = date => date ? new Date(`${date.slice(0, 10)}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }) : 'Date to confirm';
 
 export default function Compliance() {
+  const { hidden: clientDetailsHidden } = useClientPrivacy();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const tab = ['records', 'templates'].includes(params.get('tab')) ? params.get('tab') : 'checks';
@@ -45,7 +47,7 @@ export default function Compliance() {
     return () => controller.abort();
   }, [beautician?.id, loading, retry]);
   const openClient = id => setParams({ tab: 'records', clientId: id });
-  const renderError = message => <div role="alert" style={S.error}><p>{message}</p><Button variant="secondary" onClick={() => setRetry(n => n + 1)}>Try again</Button></div>;
+  const renderError = message => <div role="alert" style={S.error}><p><PrivateText>{message}</PrivateText></p><Button variant="secondary" onClick={() => setRetry(n => n + 1)}>Try again</Button></div>;
 
   return <div className="care-hub" style={S.page}>
     <style>{`
@@ -73,14 +75,14 @@ export default function Compliance() {
     {tab === 'checks' && <section aria-label="Consultations to review" style={{ marginBottom: 28 }}>
       <h2 style={S.heading}>Consultations to review</h2><p style={{ ...S.description, margin: '8px 0 16px' }}>Client-reported concerns and answers needing your attention. Receiving a form does not clear a client for treatment.</p>
       {reviews.loading ? <p role="status">Checking consultations…</p> : reviews.error ? renderError(reviews.error) : !reviews.rows?.length ? <p style={S.description}>No consultation concerns waiting for review.</p> : <div className="care-hub__queue">
-        {reviews.rows.map(r => <article key={r.id} style={S.card}><h3 style={S.client}>{r.client_name}</h3><p style={{ ...S.description, margin: '8px 0 14px' }}>{r.starts_at ? `${dateLabel(r.starts_at)} · ` : ''}{r.status === 'completed' ? 'Consultation received' : 'Concern reported in saved answers'}{r.booking_status?.startsWith('cancelled') ? ' · Booking cancelled' : ''}</p><Button variant="secondary" onClick={() => openClient(r.client_id)}>Read and review</Button></article>)}
+        {reviews.rows.map(r => <article key={r.id} style={S.card}><h3 style={S.client}><PrivateText placeholder="Client">{r.client_name}</PrivateText></h3><p style={{ ...S.description, margin: '8px 0 14px' }}>{r.starts_at ? `${dateLabel(r.starts_at)} · ` : ''}{r.status === 'completed' ? 'Consultation received' : 'Concern reported in saved answers'}{r.booking_status?.startsWith('cancelled') ? ' · Booking cancelled' : ''}</p><Button variant="secondary" onClick={() => openClient(r.client_id)}>Read and review</Button></article>)}
       </div>}
     </section>}
     {tab === 'checks' && <section aria-label="Upcoming patch-test checks">
       <div style={S.sectionHeader}><div><h2 style={S.heading}>Give these a look</h2><p style={S.description}>{checks.until ? `Bookings through ${dateLabel(checks.until)}.` : 'Upcoming bookings that need their patch-test record reviewed.'}</p></div><Link to="/patch-tests" style={S.textLink}>All patch tests <Icon name="arrow-right" size={16} inline /></Link></div>
       {checks.loading ? <p role="status">Loading upcoming checks…</p> : checks.error ? renderError(checks.error) : checks.rows.length ? <div className="care-hub__queue">
         {checks.rows.map(client => <article key={`${client.client_id}-${client.appointment_id}`} style={S.card}>
-          <div style={S.cardTop}><span style={S.avatar}>{client.client_name?.slice(0, 1) || 'C'}</span><div style={{ minWidth: 0 }}><h3 style={S.client}>{client.client_name}</h3><p style={S.note}>{client.treatment || 'Upcoming treatment'} · {dateLabel(client.appointment_date)}</p></div></div>
+          <div style={S.cardTop}><span style={S.avatar}><PrivateText placeholder="•">{client.client_name?.slice(0, 1) || 'C'}</PrivateText></span><div style={{ minWidth: 0 }}><h3 style={S.client}><PrivateText placeholder="Client">{client.client_name}</PrivateText></h3><p style={S.note}>{client.treatment || 'Upcoming treatment'} · {dateLabel(client.appointment_date)}</p></div></div>
           <p style={{ ...S.description, margin: '14px 0' }}>{REASONS[client.reason] || 'Review the patch-test evidence for this booking.'}</p>
           <div style={S.actions}><Button variant="secondary" onClick={() => openClient(client.client_id)}>Client record</Button><Button variant="tonal" onClick={() => navigate(`/patch-tests?clientId=${encodeURIComponent(client.client_id)}&log=1`)}>Record a test</Button></div>
         </article>)}

@@ -1,3 +1,4 @@
+import { useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import Icon from './ui/Icon.jsx';
@@ -13,12 +14,13 @@ export function postReadiness(post) {
 }
 
 export function PostPreview({ post, small = false }) {
+  const { hidden } = useClientPrivacy();
   const [failedSource, setFailedSource] = useState(null);
   const [attempt, setAttempt] = useState(0);
   const source = post?.image_url || null;
   const failed = !!source && failedSource === source;
   return <div className={`fl-studio-art ${small ? 'is-small' : ''} ${source && !failed ? 'has-photo' : ''}`}>
-    {source && !failed
+    {hidden ? <span role="img" aria-label="Post image hidden"><Icon name="image" size={25} /></span> : source && !failed
       ? <img key={`${source}:${attempt}`} src={source} alt="Saved post preview" onError={() => setFailedSource(source)} />
       : failed
         ? <Button variant="quiet" onClick={() => { setFailedSource(null); setAttempt(value => value + 1); }}><Icon name="image" size={20}/><span>Retry preview</span></Button>

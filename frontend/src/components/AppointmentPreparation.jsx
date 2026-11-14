@@ -1,3 +1,4 @@
+import { PrivateSection } from '../contexts/ClientPrivacyContext.jsx';
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { readAuthenticatedJson } from '../lib/authenticated-json.js';
@@ -20,7 +21,7 @@ export default function AppointmentPreparation({ appointmentId, clientId }) {
   const flagged = prep?.forms.some(f => f.review_required) || ['review', 'check_record', 'timing_review'].includes(prep?.patch.state) || prep?.missing_template;
   return <details style={{ marginTop: 14, padding: 12, border: '1px solid var(--border)', borderRadius: 12 }}>
     <summary style={{ minHeight: 32, cursor: 'pointer', fontWeight: 600 }}>Booking preparation{flagged ? ' · Needs your review' : ''}</summary>
-    {state.loading ? <p role="status">Checking preparation…</p> : state.error ? <div role="alert"><p>Preparation could not be checked.</p><Button variant="secondary" onClick={() => setAttempt(n => n + 1)}>Retry preparation</Button></div>
-      : <><PreparationChecklist preparation={prep} owner /><a href={`/compliance?tab=records&clientId=${encodeURIComponent(clientId)}`} style={{ color: 'var(--accent)' }}>Open client care record</a></>}
+    <PrivateSection placeholder="Preparation details hidden">{state.loading ? <p role="status">Checking preparation…</p> : state.error ? <div role="alert"><p>Preparation could not be checked.</p><Button variant="secondary" onClick={() => setAttempt(n => n + 1)}>Retry preparation</Button></div>
+      : <><PreparationChecklist preparation={prep} owner /><a href={`/compliance?tab=records&clientId=${encodeURIComponent(clientId)}`} style={{ color: 'var(--accent)' }}>Open client care record</a></>}</PrivateSection>
   </details>;
 }

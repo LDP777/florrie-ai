@@ -1,3 +1,4 @@
+import { PrivateText } from '../contexts/ClientPrivacyContext.jsx';
 /**
  * MessagePreview - shows an outgoing message exactly as the client receives it,
  * as a true-to-life phone chat bubble. Used wherever the beautician previews a
@@ -18,7 +19,7 @@ export default function MessagePreview({ text, salonName = 'Your salon', channel
       <div style={S.body}>
         <span style={S.dayPill}>Today</span>
         <div style={S.bubble}>
-          <p style={S.msg}>{text || 'Your message will appear here…'}</p>
+          <p style={S.msg}><PrivateText placeholder="Message hidden">{text || 'Your message will appear here…'}</PrivateText></p>
           <span style={S.time}>now</span>
         </div>
       </div>

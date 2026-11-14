@@ -1,3 +1,4 @@
+import { PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 /**
  * Client Timeline - Full chronological history per client.
  *
@@ -59,6 +60,7 @@ const TYPE_CONFIG = {
 };
 const fmt = (cents) => `£${(cents / 100).toFixed(2)}`;
 export default function ClientTimeline() {
+  const { hidden: clientDetailsHidden } = useClientPrivacy();
   const { beautician, loading: bLoading } = useBeautician();
   const [selectedClient, setSelectedClient] = useState('c1');
   const [filterType, setFilterType] = useState('all');
@@ -174,8 +176,8 @@ export default function ClientTimeline() {
       <div style={S.clientRow}>
         {clients.map(c => (
           <button key={c.id} onClick={() => { setSelectedClient(c.id); setExpanded(null); }} style={{ ...S.clientChip, ...(selectedClient === c.id ? S.clientActive : {}) }}>
-            <div style={{ ...S.clientAvatar, background: selectedClient === c.id ? 'var(--bg-card, #FFFCF9)' : 'var(--accent-light, #F6E7EC)', color: selectedClient === c.id ? 'var(--accent, #92405e)' : 'var(--accent, #92405e)' }}>{c.name[0]}</div>
-            <span>{c.name}</span>
+            <div style={{ ...S.clientAvatar, background: selectedClient === c.id ? 'var(--bg-card, #FFFCF9)' : 'var(--accent-light, #F6E7EC)', color: selectedClient === c.id ? 'var(--accent, #92405e)' : 'var(--accent, #92405e)' }}><PrivateText placeholder="•">{c.name[0]}</PrivateText></div>
+            <span><PrivateText placeholder="Client">{c.name}</PrivateText></span>
           </button>
         ))}
       </div>
@@ -183,12 +185,12 @@ export default function ClientTimeline() {
       {client && (
         <div style={S.profileCard}>
           <div style={S.profileTop}>
-            <div style={S.profileAvatar}>{client.name[0]}</div>
+            <div style={S.profileAvatar}><PrivateText placeholder="•">{client.name[0]}</PrivateText></div>
             <div style={S.profileInfo}>
-              <span style={S.profileName}>{client.name}</span>
+              <span style={S.profileName}><PrivateText placeholder="Client">{client.name}</PrivateText></span>
               <span style={S.profileSince}>Client since {formatDate(client.since)}</span>
               <div style={S.tagRow}>
-                {client.tags.map(t => <span key={t} style={S.tag}>{t}</span>)}
+                {client.tags.map(t => <span key={t} style={S.tag}><PrivateText placeholder="Hidden">{t}</PrivateText></span>)}
               </div>
             </div>
           </div>
@@ -224,17 +226,17 @@ export default function ClientTimeline() {
       )}
       {showAddNote && (
         <div style={S.addNoteCard}>
-          <textarea
+          <PrivateText placeholder="Private field hidden"><textarea
             style={S.noteInput}
             rows={3}
             placeholder={`Quick note about ${client?.name || 'client'}...`}
             value={noteText}
             onChange={e => setNoteText(e.target.value)}
             autoFocus
-          />
+          /></PrivateText>
           <div style={S.noteActions}>
             <button style={S.noteCancelBtn} onClick={() => { setShowAddNote(false); setNoteText(''); }}>Cancel</button>
-            <button style={{ ...S.noteSaveBtn, opacity: noteSaving || !noteText.trim() ? 0.5 : 1 }} disabled={noteSaving || !noteText.trim()} onClick={handleAddNote}>
+            <button style={{ ...S.noteSaveBtn, opacity: noteSaving || !noteText.trim() ? 0.5 : 1 }} disabled={clientDetailsHidden || noteSaving || !noteText.trim()} onClick={handleAddNote}>
               {noteSaving ? 'Saving…' : 'Save Note'}
             </button>
           </div>
@@ -271,14 +273,14 @@ export default function ClientTimeline() {
                       <div style={{ ...S.eventCard, borderLeft: `3px solid ${cfg.colour}` }}>
                         <div style={S.eventHeader}>
                           <span style={S.eventIcon}><Icon name={iconName(cfg.icon)} inline /></span>
-                          <span style={S.eventTitle}>{evt.title}</span>
+                          <span style={S.eventTitle}><PrivateText placeholder="Hidden">{evt.title}</PrivateText></span>
                           {evt.amount && <span style={{ ...S.eventAmount, color: cfg.colour }}>{fmt(evt.amount)}</span>}
                         </div>
                         {(isExp || !evt.detail) ? null : (
-                          <p style={S.eventPreview}>{evt.detail.slice(0, 60)}{evt.detail.length > 60 ? '...' : ''}</p>
+                          <p style={S.eventPreview}><PrivateText placeholder="Hidden">{evt.detail.slice(0, 60)}</PrivateText>{evt.detail.length > 60 ? '...' : ''}</p>
                         )}
                         {isExp && evt.detail && (
-                          <p style={S.eventDetail}>{evt.detail}</p>
+                          <p style={S.eventDetail}><PrivateText placeholder="Hidden">{evt.detail}</PrivateText></p>
                         )}
                         {evt.status && (
                           <span style={{ ...S.eventStatus, background: evt.status === 'completed' ? 'var(--success-bg, #E9F0EB)' : 'var(--gold-light, #ffdea4)', color: evt.status === 'completed' ? 'var(--success, #386F52)' : 'var(--gold, #79581C)' }}>

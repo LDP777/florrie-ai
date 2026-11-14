@@ -1,3 +1,4 @@
+import { PrivateText, PrivateSection, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import { useEffect, useState } from 'react';
 import { API_BASE } from '../lib/config.js';
 import Icon, { iconName } from './ui/Icon';
@@ -143,7 +144,7 @@ export default function MorningCatchup({ beautician }) {
           <Row
             icon="eye"
             label="Heads-up"
-            line={headsUpLine(data)}
+            line={<PrivateText placeholder="Private reminder hidden">{headsUpLine(data)}</PrivateText>}
             onClick={data?.suggestionCount > 0 ? goToSuggestions : null}
           />
         </div>

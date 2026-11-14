@@ -1,3 +1,4 @@
+import { PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import { rebookClients } from './more-reliability.js';
 import { todayLocal } from '../lib/dates.js';
 /**
@@ -66,6 +67,7 @@ function daysSinceLabel(dateStr) {
 }
 
 export default function RebookReminders() {
+  const { hidden: clientDetailsHidden } = useClientPrivacy();
   const { dark } = useTheme();
   const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('due');
@@ -240,7 +242,7 @@ export default function RebookReminders() {
                 { key: 'sms', label: 'SMS' },
                 { key: 'email', label: 'Email' },
               ].map(ch => (
-                <button
+                <button disabled={clientDetailsHidden}
                   key={ch.key}
                   onClick={() => setSendChannel(ch.key)}
                   style={{ ...s.templateChip,
@@ -270,9 +272,9 @@ export default function RebookReminders() {
                   <div key={c.id} style={s.clientCard}>
                     <div style={s.clientTop}>
                       <div style={s.clientLeft}>
-                        <div style={s.avatar}>{(c.name || '?').charAt(0).toUpperCase()}</div>
+                        <div style={s.avatar}><PrivateText placeholder="•">{(c.name || '?').charAt(0).toUpperCase()}</PrivateText></div>
                         <div>
-                          <span style={s.clientName}>{c.name}</span>
+                          <span style={s.clientName}><PrivateText placeholder="Client">{c.name}</PrivateText></span>
                           <span style={s.clientMeta}>{c.treatment}</span>
                           <span style={s.clientMeta}>Last visit: {daysSinceLabel(c.lastVisit)}</span>
                         </div>
@@ -289,8 +291,8 @@ export default function RebookReminders() {
 
                     {/* Message preview */}
                     <div style={s.messagePreview}>
-                      <p style={s.messageText}>{renderMessage(c)}</p>
-                      {previewClient === c.id && <textarea aria-label={`Message for ${c.name}`} value={renderMessage(c)} onChange={e => setDrafts(prev => ({ ...prev, [c.id]: e.target.value }))} style={{ width: '100%', minHeight: 100, boxSizing: 'border-box', font: 'inherit' }} />}
+                      <p style={s.messageText}><PrivateText placeholder="Hidden">{renderMessage(c)}</PrivateText></p>
+                      {previewClient === c.id && <PrivateText placeholder="Private field hidden"><textarea aria-label={`Message for ${c.name}`} value={renderMessage(c)} onChange={e => setDrafts(prev => ({ ...prev, [c.id]: e.target.value }))} style={{ width: '100%', minHeight: 100, boxSizing: 'border-box', font: 'inherit' }} /></PrivateText>}
                     </div>
 
                     {/* Actions */}
@@ -302,7 +304,7 @@ export default function RebookReminders() {
                           <button
                             onClick={() => handleSend(c.id)}
                             style={s.sendBtn}
-                            disabled={sending || !(sendChannel === 'email' ? c.email : c.phone)}
+                            disabled={clientDetailsHidden || (sending || !(sendChannel === 'email' ? c.email : c.phone))}
                           >
                             Send nudge
                           </button>
@@ -324,7 +326,7 @@ export default function RebookReminders() {
           {/* Bulk action */}
           {activeList.length > 0 && (
             <button
-              disabled={sending}
+              disabled={clientDetailsHidden || (sending)}
               onClick={async () => { for (const c of activeList.filter(c => !sentIds.has(c.id))) await handleSend(c.id); }}
               style={s.bulkBtn}
             >

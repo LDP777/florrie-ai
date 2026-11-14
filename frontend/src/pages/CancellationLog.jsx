@@ -1,3 +1,4 @@
+import { PrivateText } from '../contexts/ClientPrivacyContext.jsx';
 import { useNavigate } from 'react-router-dom';
 import MoreLoadError from '../components/MoreLoadError.jsx';
 /**
@@ -28,6 +29,7 @@ const TYPE_CONFIG = {
 import { cancellationClients } from './cancellation-clients.js';
 
 export default function CancellationLog() {
+
   const navigate = useNavigate();
   const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('log');
@@ -122,7 +124,7 @@ export default function CancellationLog() {
   return (
     <div style={S.page}>
       <PageHeader title="Cancellation Log" />
-      {error && <div style={{ ...S.errorBanner, marginBottom: 16 }}>{error}</div>}
+      {error && <div style={{ ...S.errorBanner, marginBottom: 16 }}><PrivateText>{error}</PrivateText></div>}
       {loading && <p style={{ textAlign: 'center', color: 'var(--text-muted, #6B5D54)' }}>Loading cancellations...</p>}
 
       {/* Period filter */}
@@ -174,9 +176,9 @@ export default function CancellationLog() {
                 <div key={c.id} style={S.logCard}>
                   <div style={S.logHeader}>
                     <div style={S.logLeft}>
-                      <div style={S.avatar}>{c.client[0]}</div>
+                      <div style={S.avatar}><PrivateText placeholder="•">{c.client[0]}</PrivateText></div>
                       <div style={S.logInfo}>
-                        <span style={S.logClient}>{c.client}</span>
+                        <span style={S.logClient}><PrivateText placeholder="Client">{c.client}</PrivateText></span>
                         <span style={S.logTreatment}>{c.treatment}</span>
                       </div>
                     </div>
@@ -186,7 +188,7 @@ export default function CancellationLog() {
                     </div>
                   </div>
                   <div style={S.logMeta}>
-                    {c.reason && <span style={S.reasonTag}>"{c.reason}"</span>}
+                    {c.reason && <span style={S.reasonTag}>"<PrivateText placeholder="Hidden">{c.reason}</PrivateText>"</span>}
                     {c.revenue_lost > 0 && <span style={S.lostTag}>-{fmt(c.revenue_lost)}</span>}
                     {c.deposit > 0 && <span style={S.depositTag}>Paid deposit: {fmt(c.deposit)}</span>}
                     {c.notice && <span style={S.noticeTag}>{c.notice} notice</span>}
@@ -209,9 +211,9 @@ export default function CancellationLog() {
               {repeatOffenders.map(([client, data]) => (
                 <div key={client} style={S.offenderRow}>
                   <div style={S.offenderLeft}>
-                    <div style={S.avatar}>{data.name?.[0] || 'C'}</div>
+                    <div style={S.avatar}><PrivateText placeholder="•">{data.name?.[0] || 'C'}</PrivateText></div>
                     <div>
-                      <span style={S.offenderName}>{data.name}</span>
+                      <span style={S.offenderName}><PrivateText placeholder="Client">{data.name}</PrivateText></span>
                       <span style={S.offenderDetail}>{data.noShows} no-show{data.noShows !== 1 ? 's' : ''}, {data.total} total</span>
                     </div>
                   </div>
@@ -264,7 +266,7 @@ export default function CancellationLog() {
             <div style={S.tipCard}>
               <span style={S.tipTitle}><Icon name="info" size={14} inline /> Insight</span>
               <p style={S.tipText}>
-                {topNoShow[1].name} has {topNoShow[1].noShows} no-show{topNoShow[1].noShows !== 1 ? 's' : ''} in this period. Review their booking history before changing their booking policy.
+                <PrivateText placeholder="Client">{topNoShow[1].name}</PrivateText> has {topNoShow[1].noShows} no-show{topNoShow[1].noShows !== 1 ? 's' : ''} in this period. Review their booking history before changing their booking policy.
               </p>
             </div>
           )}

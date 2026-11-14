@@ -1,3 +1,4 @@
+import { useClientPrivacy, PrivateText, PrivateSection } from '../contexts/ClientPrivacyContext.jsx';
 import AppointmentPreparation from '../components/AppointmentPreparation.jsx';
 import { PATCH_TEST_LEAD_HOURS } from '../lib/patch-test-policy.js';
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -272,6 +273,7 @@ function CalendarBookingStatus({ appointment }) {
 }
 
 export default function CalendarView({ initialView } = {}) {
+  const { hidden } = useClientPrivacy();
   const navigate = useNavigate();
   const location = useLocation();
   const { beautician, loading: bLoading } = useBeautician();
@@ -423,6 +425,7 @@ export default function CalendarView({ initialView } = {}) {
   const longPressTimer = useRef(null);
   const longPressFired = useRef(false);
   async function deleteAppointmentFromAgenda(appt) {
+    if (hidden) return;
     const who = appt.clients?.first_name
       ? `${appt.clients.first_name}'s ${apptLabel(appt, treatNames) || 'appointment'}`
       : 'this appointment';
@@ -455,6 +458,7 @@ export default function CalendarView({ initialView } = {}) {
     }
   }
   function startLongPress(appt) {
+    if (hidden) return;
     longPressFired.current = false;
     clearTimeout(longPressTimer.current);
     longPressTimer.current = setTimeout(() => {
@@ -509,6 +513,7 @@ export default function CalendarView({ initialView } = {}) {
     return () => document.removeEventListener('touchmove', stop);
   }, [dragMove]);
   function beginCardDrag(e, appt) {
+    if (hidden) return;
     if (DEAD_STATUSES.includes(appt.status)) return; // a cancelled row has no time to move
     const target = e.currentTarget;
     const d = {
@@ -962,7 +967,7 @@ export default function CalendarView({ initialView } = {}) {
           <div className="calendar-tools-panel">
             <Button variant="quiet" onClick={e => { e.currentTarget.closest('details').open = false; navigate(`/calendar/full?date=${formatDate(currentDate)}`); }}><Icon name="calendar" size={17} />Open full calendar</Button>
             <Button variant="quiet" onClick={e => { e.currentTarget.closest('details').open = false; setShowBlockModal(true); }}><Icon name={iconName('event_busy')} size={17} />Block time</Button>
-            {view === 'day' && <Button variant="quiet" disabled={markingAllDone || loading || !!loadError} onClick={e => { e.currentTarget.closest('details').open = false; handleMarkAllDone(); }}><Icon name="check" size={17} />{markingAllDone ? 'Completing...' : 'Mark day complete'}</Button>}
+            {view === 'day' && <Button variant="quiet" disabled={hidden || markingAllDone || loading || !!loadError} onClick={e => { e.currentTarget.closest('details').open = false; handleMarkAllDone(); }}><Icon name="check" size={17} />{markingAllDone ? 'Completing...' : 'Mark day complete'}</Button>}
           </div>
         </details>
       </div>
@@ -1061,7 +1066,7 @@ export default function CalendarView({ initialView } = {}) {
               // service type is distinct; a separate label explains status.
               const treatColor = treatmentColor(appt.treatments);
               const dead = DEAD_STATUSES.includes(appt.status);
-              const clientName = [appt.clients?.first_name, appt.clients?.last_name].filter(Boolean).join(' ') || 'Client';
+              const clientName = hidden ? 'Client' : [appt.clients?.first_name, appt.clients?.last_name].filter(Boolean).join(' ') || 'Client';
               const tiny = height < 50 && cols === 1;   // e.g. a 10-min patch test
               const compact = tiny || cols > 1 || height < 72;
               const showTreatment = height >= 60 && cols < 3;
@@ -1131,7 +1136,7 @@ export default function CalendarView({ initialView } = {}) {
                   }
                 }
                 const label = isClosed ? 'CLOSED ALL DAY'
-                  : `🚫 ${(block.reason || block.note || 'BLOCKED').toUpperCase()}`;
+                  : `🚫 ${hidden ? 'BLOCKED' : (block.reason || block.note || 'BLOCKED').toUpperCase()}`;
                 // The block used to be one big full-width button at zIndex 3, so it
                 // sat ON TOP of any appointment inside it and ate the taps: you
                 // could not open a booking that fell in a blocked hour. It is now
@@ -1258,7 +1263,7 @@ export default function CalendarView({ initialView } = {}) {
                       const dotColor = treatmentColor(appt.treatments);
                       const dead = DEAD_STATUSES.includes(appt.status);
                       const firstName = appt.clients?.first_name || '';
-                      const clientLabel = [firstName, appt.clients?.last_name].filter(Boolean).join(' ') || 'Client';
+                      const clientLabel = hidden ? 'Client' : [firstName, appt.clients?.last_name].filter(Boolean).join(' ') || 'Client';
                       const price = appt.price_cents ?? appt.treatments?.price_cents ?? 0;
                       return (
                         <button
@@ -1351,7 +1356,7 @@ export default function CalendarView({ initialView } = {}) {
           }}
         >
           <Icon name={iconName('warning')} size={18} inline style={{ flexShrink: 0, marginTop: 1 }} />
-          <span style={{ flex: 1, minWidth: 0 }}>{saveNotice}</span>
+          <span style={{ flex: 1, minWidth: 0 }}><PrivateText placeholder="Booking update hidden">{saveNotice}</PrivateText></span>
           <Button variant="quiet" icon size="icon" aria-label="Dismiss"
             onClick={() => setSaveNotice(null)}
             style={{ color: 'inherit', flexShrink: 0, width: 28, height: 28 }}>
@@ -1443,6 +1448,7 @@ function BookingDetailSheet({ children, view, onClose, onWeek }) {
 }
 
 function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefresh, onCompleted, getStatusColor, onViewClient }) {
+  const { hidden } = useClientPrivacy();
   const [mode, setMode] = useState('detail'); // detail | completing | done
   const [notes, setNotes] = useState(appointment.beautician_notes || '');
   const [paymentMethod, setPaymentMethod] = useState('card');
@@ -2266,6 +2272,21 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
   const collectableCents = takingsKnown
     ? (cardInfo.uncollected_cents ?? localOutstandingCents)
     : (cardInfo?.outstanding_cents ?? localOutstandingCents);
+  if (hidden) return (
+    <div className="calendar-booking-detail" style={styles.detailPanel}>
+      <div style={styles.detailHeader}>
+        <h3 style={styles.detailTitle}>Client</h3>
+        <button onClick={onClose} aria-label="Close booking details" style={styles.detailClose}>×</button>
+      </div>
+      <div style={styles.detailGrid}>
+        <div style={styles.detailRow}><span style={styles.detailLabel}>Treatment</span><span>{baseLabel(appointment) || 'Appointment'}</span></div>
+        <div style={styles.detailRow}><span style={styles.detailLabel}>Date</span><span>{String(appointment.starts_at || '').slice(0, 10)}</span></div>
+        <div style={styles.detailRow}><span style={styles.detailLabel}>Time</span><span>{formatWallTime(appointment.starts_at)}</span></div>
+        <div style={styles.detailRow}><span style={styles.detailLabel}>Status</span><CalendarBookingStatus appointment={appointment} /></div>
+      </div>
+      <PrivateSection placeholder="Client details, notes and payment controls hidden" />
+    </div>
+  );
   return (
     <div className="calendar-booking-detail" style={styles.detailPanel}>
       <div style={styles.detailHeader}>
@@ -3226,6 +3247,7 @@ const BLOCK_REASONS = [
   { key: 'other', label: 'Other' },
 ];
 function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
+  const { hidden } = useClientPrivacy();
   const now = new Date();
   const roundedMinute = Math.min(23 * 60 + 45, Math.ceil((now.getHours() * 60 + now.getMinutes()) / 15) * 15);
   const nowTime = minToHHMM(roundedMinute);
@@ -3291,6 +3313,14 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
   }
   const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', alignItems: 'flex-end' };
   const sheet = { background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', padding: '20px 20px 40px', width: '100%', maxWidth: 480, margin: '0 auto', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxHeight: '90vh', overflowY: 'auto' };
+  if (hidden) return createPortal(
+    <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,0.3)', padding: 20 }}>
+      <div style={{ background: 'var(--bg-card)', padding: 20, borderRadius: 20, maxWidth: 440 }}>
+        <PrivateSection placeholder="Show client details to change blocked time." />
+        <Button onClick={onClose}>Close</Button>
+      </div>
+    </div>, document.body
+  );
   return createPortal(
     <div style={overlay} onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={sheet}>
@@ -3391,10 +3421,12 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
 }
 // BlockDetailSheet - shows an existing block + remove option
 function BlockDetailSheet({ block, onDelete, onClose }) {
+  const { hidden } = useClientPrivacy();
   const [confirming, setConfirming] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [error, setError] = useState(null);
   async function removeBlock() {
+    if (hidden) return;
     if (removing) return;
     setRemoving(true); setError(null);
     try { await onDelete(); }
@@ -3425,16 +3457,16 @@ function BlockDetailSheet({ block, onDelete, onClose }) {
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: block.note ? 8 : 0 }}>
             <span style={{ fontSize: 12, color: COLORS.stone400 }}>Reason</span>
-            <span style={{ fontSize: 13, fontWeight: 600, textTransform: 'capitalize' }}>{block.reason || '-'}</span>
+            <span style={{ fontSize: 13, fontWeight: 600, textTransform: 'capitalize' }}><PrivateText placeholder="Hidden">{block.reason || '-'}</PrivateText></span>
           </div>
           {block.note && (
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 12, color: COLORS.stone400 }}>Note</span>
-              <span style={{ fontSize: 13, fontWeight: 500, textAlign: 'right', maxWidth: '65%' }}>{block.note}</span>
+              <span style={{ fontSize: 13, fontWeight: 500, textAlign: 'right', maxWidth: '65%' }}><PrivateText placeholder="Hidden">{block.note}</PrivateText></span>
             </div>
           )}
         </div>
-        {error && <p role="alert">{error}</p>}
+        {error && <p role="alert"><PrivateText placeholder="Could not update blocked time.">{error}</PrivateText></p>}
         {confirming ? (
           <div>
             <p style={{ fontSize: 14, color: COLORS.onSurface, marginBottom: 12, textAlign: 'center' }}>Remove this block?</p>
@@ -3442,13 +3474,14 @@ function BlockDetailSheet({ block, onDelete, onClose }) {
               <button className="fl-tap" disabled={removing} onClick={() => setConfirming(false)} style={{ flex: 1, padding: '12px 0', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, background: 'var(--bg-card)', color: COLORS.onSurface, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                 Cancel
               </button>
-              <button className="fl-tap" disabled={removing} onClick={removeBlock} style={{ flex: 1, padding: '12px 0', borderRadius: 10, border: 'none', background: '#d52828', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+              <button className="fl-tap" disabled={hidden || removing} onClick={removeBlock} style={{ flex: 1, padding: '12px 0', borderRadius: 10, border: 'none', background: '#d52828', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                 {removing ? 'Removing…' : 'Remove'}
               </button>
             </div>
           </div>
         ) : (
           <button
+            disabled={hidden}
             onClick={() => setConfirming(true)}
             style={{ width: '100%', padding: '13px 0', borderRadius: 10, border: 'none', background: '#FEE2E2', color: '#B91C1C', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
           >
@@ -3481,6 +3514,7 @@ function isPastSlot(date, time) {
 }
 
 function NewAppointmentModal({ defaultDate, existingAppointments = [], initialClient = null, onClose, onSaved }) {
+  const { hidden } = useClientPrivacy();
   const [treatments, setTreatments] = useState([]);
   const [selectedIds, setSelectedIds] = useState([]); // one or more treatments
   const [price, setPrice] = useState('');
@@ -3658,6 +3692,14 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], initialCl
   const sheetFooter = { flexShrink: 0, padding: '12px 20px calc(14px + env(safe-area-inset-bottom))', borderTop: `1px solid ${COLORS.outlineVariant}55`, background: 'var(--bg-card)', boxShadow: 'var(--elev-3)' };
   const labelStyle = { fontSize: 12, fontWeight: 600, color: COLORS.stone400, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block' };
   const inputStyle = { display: 'block', width: '100%', minWidth: 0, maxWidth: '100%', marginTop: 4, padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: 'var(--bg-card)', color: COLORS.onSurface };
+  if (hidden) return createPortal(
+    <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,0.3)', padding: 20 }}>
+      <div style={{ background: 'var(--bg-card)', padding: 20, borderRadius: 20, maxWidth: 440 }}>
+        <PrivateSection placeholder="Show client details to add a booking." />
+        <Button onClick={onClose}>Close</Button>
+      </div>
+    </div>, document.body
+  );
   return createPortal(
     <div style={overlay} onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={sheet}>

@@ -1,3 +1,4 @@
+import { PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBeautician, fetchRowsStrict, updateRow, supabase } from '../lib/supabase.js';
@@ -45,6 +46,7 @@ function timeAgo(isoString) {
 }
 
 export default function Notifications() {
+  const { hidden: clientDetailsHidden } = useClientPrivacy();
   const { beautician, loading: profileLoading } = useBeautician();
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
@@ -179,7 +181,7 @@ export default function Notifications() {
         title="Notifications"
         subtitle={loading || profileLoading ? 'Loading notifications…' : loadError ? 'Notifications unavailable' : unreadCount > 0 ? `${unreadCount} unread notifications` : 'No unread notifications'}
         action={!loadError && unreadCount > 0 ? (
-          <button disabled={Boolean(pending)} onClick={markAllRead} style={styles.markAllBtn}>{pending === 'all' ? 'Saving…' : 'Mark all read'}</button>
+          <button disabled={clientDetailsHidden || (Boolean(pending))} onClick={markAllRead} style={styles.markAllBtn}>{pending === 'all' ? 'Saving…' : 'Mark all read'}</button>
         ) : null}
       />
 
@@ -191,7 +193,7 @@ export default function Notifications() {
         <button
           onClick={() => navigate('/outbox')}
           style={styles.approvalBanner}
-          aria-label={`${approvals.count} messages waiting for your OK`}
+          aria-label={clientDetailsHidden ? 'Client details hidden' : (`${approvals.count} messages waiting for your OK`)}
         >
           <div style={styles.approvalIcon}>
             <Icon name={iconName('how_to_reg')} size={20} inline style={{ color: 'var(--accent, #92405e)' }} />
@@ -202,7 +204,7 @@ export default function Notifications() {
             </span>
             {approvals.snippet && (
               <span style={styles.approvalPreview}>
-                <span style={{ fontWeight: 600, color: 'var(--accent, #92405e)' }}>{approvals.name}:</span> {approvals.snippet}
+                <span style={{ fontWeight: 600, color: 'var(--accent, #92405e)' }}><PrivateText placeholder="Client">{approvals.name}</PrivateText>:</span> <PrivateText placeholder="Hidden">{approvals.snippet}</PrivateText>
               </span>
             )}
           </div>
@@ -256,7 +258,7 @@ export default function Notifications() {
                       background: n.read ? 'var(--bg-card, #FFFCF9)' : '#FFFBF9',
                       borderLeft: n.read ? '3px solid transparent' : `3px solid ${cat.textColor}`,
                     }}
-                    role="button" tabIndex={0} aria-label={`${n.title || 'Notification'}${n.read ? ', read' : ', mark as read'}`}
+                    role="button" tabIndex={0} aria-label={clientDetailsHidden ? 'Client details hidden' : (`${n.title || 'Notification'}${n.read ? ', read' : ', mark as read'}`)}
                     aria-disabled={Boolean(pending)}
                     onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); markRead(n.id); } }}
                     onClick={() => markRead(n.id)}
@@ -269,11 +271,11 @@ export default function Notifications() {
                         <span style={{ ...styles.notifTitle,
                           fontWeight: n.read ? 500 : 700,
                         }}>
-                          {n.title}
+                          <PrivateText placeholder="Hidden">{n.title}</PrivateText>
                         </span>
                         <span style={styles.notifTime}>{timeAgo(n.time)}</span>
                       </div>
-                      <p style={styles.notifText}>{n.body}</p>
+                      <p style={styles.notifText}><PrivateText placeholder="Hidden">{n.body}</PrivateText></p>
                     </div>
                     {!n.read && <div style={styles.unreadDot} />}
                   </div>

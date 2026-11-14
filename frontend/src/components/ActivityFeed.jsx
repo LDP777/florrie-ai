@@ -1,3 +1,4 @@
+import { PrivateText, PrivateSection, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase.js';
@@ -205,7 +206,7 @@ export default function ActivityFeed({ limit = 50, compact = false }) {
           <span style={F.title}>What Florrie did</span>
         </div>
         <p style={F.errorText} role="status">
-          {state.message || 'Could not load activity. Please try again.'}
+          <PrivateText placeholder="Could not load activity. Please try again.">{state.message || 'Could not load activity. Please try again.'}</PrivateText>
         </p>
         <Button variant="secondary" onClick={retry}>Retry</Button>
       </section>
@@ -325,7 +326,7 @@ function ActivityRow({ row, now, navigate }) {
         }}
       >
         <span style={F.icon} aria-hidden><Icon name={iconFor(row.type)} size={17} /></span>
-        <span style={F.summary}>{deDash(row.summary)}</span>
+        <span style={F.summary}><PrivateText placeholder="Activity details hidden">{deDash(row.summary)}</PrivateText></span>
         <span style={F.time}>{relativeTime(row.created_at, now)}</span>
         {clickable && (
           <Icon name={iconName('chevron_right')} inline style={F.chev} />

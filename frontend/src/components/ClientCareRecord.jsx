@@ -1,3 +1,4 @@
+import { PrivateSection } from '../contexts/ClientPrivacyContext.jsx';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase.js';
@@ -91,6 +92,7 @@ export default function ClientCareRecord({ clientId, data }) {
   return (
     <section style={styles.paymentsCard} aria-label="Client care records">
       <h4 style={{ ...styles.sectionLabel, margin: '0 0 12px' }}>Client care</h4>
+      <PrivateSection placeholder="Client care records hidden">
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
         <Button variant="secondary" onClick={() => navigate(`/patch-tests?clientId=${encodeURIComponent(clientId)}`)}>Patch tests</Button>
         <Button variant="secondary" onClick={() => navigate(`/photo-consent?clientId=${encodeURIComponent(clientId)}`)}>Photo consent</Button>
@@ -133,6 +135,7 @@ export default function ClientCareRecord({ clientId, data }) {
           <Button variant="quiet" style={{ ...styles.consultLinkBtn, marginTop: 12, minHeight: 44 }} onClick={() => navigate('/consultation-forms')}>{templates.length ? 'Manage blank templates' : 'Create a form template'}</Button>
         </div>
       </>}
+      </PrivateSection>
     </section>
   );
 }

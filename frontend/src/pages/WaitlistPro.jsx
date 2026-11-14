@@ -1,3 +1,4 @@
+import { PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 /**
  * WaitlistPro - the salon waitlist for treatment slots.
  *
@@ -65,6 +66,7 @@ async function authedFetch(path, opts = {}) {
 }
 
 export default function WaitlistPro() {
+  const { hidden: clientDetailsHidden } = useClientPrivacy();
   const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('active');
   const [expanded, setExpanded] = useState(null);
@@ -281,10 +283,10 @@ export default function WaitlistPro() {
               <div key={w.id} style={{ ...S.wlCard, borderLeft: `3px solid ${pri.color}` }} onClick={() => setExpanded(isExpanded ? null : w.id)}>
                 <div style={S.wlHeader}>
                   <div style={S.wlLeft}>
-                    <div style={S.avatar}>{name.charAt(0)}</div>
+                    <div style={S.avatar}><PrivateText placeholder="•">{name.charAt(0)}</PrivateText></div>
                     <div style={S.wlInfo}>
                       <div style={S.wlNameRow}>
-                        <span style={S.wlClient}>{name}</span>
+                        <span style={S.wlClient}><PrivateText placeholder="Client">{name}</PrivateText></span>
                         <span style={{ ...S.priBadge, background: pri.bg, color: pri.color }}>
                           <Icon name={iconName(pri.icon)} inline style={S.priIcon} />
                           {pri.label}
@@ -334,16 +336,16 @@ export default function WaitlistPro() {
                         </div>
                       )}
                     </div>
-                    {w.notes && <p style={S.wlNotes}>{w.notes}</p>}
+                    {w.notes && <p style={S.wlNotes}><PrivateText placeholder="Hidden">{w.notes}</PrivateText></p>}
                     <p style={S.wlNotes}>Record offer made tracks an offer you have already discussed for 24 hours. It does not send a message or reserve an appointment.</p>
                     <div style={S.actionRow}>
-                      <button style={S.actionBtn} disabled={isBusy} onClick={e => { e.stopPropagation(); handleNotify(w.id); }}>
+                      <button style={S.actionBtn} disabled={clientDetailsHidden || (isBusy)} onClick={e => { e.stopPropagation(); handleNotify(w.id); }}>
                         {isBusy ? '...' : 'Notify'}
                       </button>
-                      <button style={{ ...S.actionBtn, background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)' }} disabled={isBusy} onClick={e => { e.stopPropagation(); handleOfferSlot(w.id); }}>
+                      <button style={{ ...S.actionBtn, background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)' }} disabled={clientDetailsHidden || (isBusy)} onClick={e => { e.stopPropagation(); handleOfferSlot(w.id); }}>
                         Record offer made
                       </button>
-                      <button style={S.actionBtn} disabled={isBusy} onClick={e => { e.stopPropagation(); handleRemove(w.id); }}>
+                      <button style={S.actionBtn} disabled={clientDetailsHidden || (isBusy)} onClick={e => { e.stopPropagation(); handleRemove(w.id); }}>
                         Remove
                       </button>
                     </div>
@@ -367,15 +369,15 @@ export default function WaitlistPro() {
               <div key={w.id} style={S.wlCard}>
                 <div style={S.wlHeader}>
                   <div style={S.wlLeft}>
-                    <div style={{ ...S.avatar, opacity: 0.6 }}>{name.charAt(0)}</div>
+                    <div style={{ ...S.avatar, opacity: 0.6 }}><PrivateText placeholder="•">{name.charAt(0)}</PrivateText></div>
                     <div style={S.wlInfo}>
-                      <span style={S.wlClient}>{name}</span>
+                      <span style={S.wlClient}><PrivateText placeholder="Client">{name}</PrivateText></span>
                       <span style={S.wlTreatment}>{treatmentName(w)}</span>
                     </div>
                   </div>
                   <span style={{ ...S.statusBadge, background: st.bg, color: st.color }}>{st.label}</span>
                 </div>
-                {w.notes && <p style={S.wlNotes}>{w.notes}</p>}
+                {w.notes && <p style={S.wlNotes}><PrivateText placeholder="Hidden">{w.notes}</PrivateText></p>}
               </div>
             );
           })}
@@ -388,12 +390,12 @@ export default function WaitlistPro() {
             <h2 style={S.modalTitle}>Add to waitlist</h2>
 
             <div style={S.fieldLabel}>Client</div>
-            <select style={S.select} value={addForm.client_id} onChange={e => setAddForm(f => ({ ...f, client_id: e.target.value }))}>
+            <PrivateText placeholder="Client selection hidden"><select style={S.select} value={addForm.client_id} onChange={e => setAddForm(f => ({ ...f, client_id: e.target.value }))}>
               <option value="">Select client</option>
               {clients.map(c => (
                 <option key={c.id} value={c.id}>{[c.first_name, c.last_name].filter(Boolean).join(' ')}</option>
               ))}
-            </select>
+            </select></PrivateText>
             {clients.length === 0 && <p style={S.hint}>No clients yet. Add a client first, then waitlist them.</p>}
 
             <div style={S.fieldLabel}>Treatment</div>
@@ -439,9 +441,9 @@ export default function WaitlistPro() {
             </div>
 
             <div style={S.fieldLabel}>Notes</div>
-            <textarea style={S.textarea} rows={2} placeholder="Any notes..." value={addForm.notes} onChange={e => setAddForm(f => ({ ...f, notes: e.target.value }))} />
+            <PrivateText placeholder="Private field hidden"><textarea style={S.textarea} rows={2} placeholder="Any notes..." value={addForm.notes} onChange={e => setAddForm(f => ({ ...f, notes: e.target.value }))} /></PrivateText>
 
-            {error && <div style={{ color: 'var(--danger, #9E2B32)', fontSize: 13, marginBottom: 8 }}>{error}</div>}
+            {error && <div style={{ color: 'var(--danger, #9E2B32)', fontSize: 13, marginBottom: 8 }}><PrivateText>{error}</PrivateText></div>}
             <button style={{ ...S.saveBtn, opacity: saving ? 0.6 : 1 }} onClick={handleAddToWaitlist} disabled={saving}>
               {saving ? 'Adding...' : 'Add to waitlist'}
             </button>

@@ -1,3 +1,4 @@
+import { PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 /**
  * Daily Checklist - Stitch M3, fully customisable.
  *
@@ -64,6 +65,7 @@ const DEV_APPOINTMENTS = [
   { id: 3, client_name: 'Jasmin', treatment_name: 'HD Brows', starts_at: todayStr() + 'T15:00:00', price_cents: 2500 },
 ];
 export default function DailyChecklist() {
+  const { hidden: clientDetailsHidden } = useClientPrivacy();
   const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('opening');
   const [checklists, setChecklists] = useState({ opening: [], closing: [], custom: [] });
@@ -518,7 +520,7 @@ export default function DailyChecklist() {
             </div>
             {todayInsights.nextAppt && (
               <p style={S.overviewSub}>
-                Next: {todayInsights.nextAppt.client_name} at {todayInsights.nextTime} - {todayInsights.nextAppt.treatment_name}
+                Next: <PrivateText placeholder="Client">{todayInsights.nextAppt.client_name}</PrivateText> at {todayInsights.nextTime} - {todayInsights.nextAppt.treatment_name}
               </p>
             )}
           </div>
@@ -658,7 +660,7 @@ export default function DailyChecklist() {
               <span style={{ ...S.checkLabel,
                 textDecoration: !editing && item.done ? 'line-through' : 'none',
               }}>
-                {item.label}
+                <PrivateText placeholder="Hidden">{item.label}</PrivateText>
               </span>
               {item.dueDate && item.dueDate !== todayStr() && (
                 <span style={S.dueDate}>{formatDate(item.dueDate)}</span>
@@ -670,7 +672,7 @@ export default function DailyChecklist() {
             )}
             {/* ── Edit mode: delete button ── */}
             {editing && (
-              <button
+              <button disabled={clientDetailsHidden}
                 onClick={(e) => { e.stopPropagation(); handleDeleteItem(tab, item.id); }}
                 style={S.deleteBtn}
               >
@@ -698,14 +700,14 @@ export default function DailyChecklist() {
       )}
       {showAdd && (
         <section style={S.addForm}>
-          <input
+          <PrivateText placeholder="Private field hidden"><input
             style={S.formInput}
             placeholder={tab === 'custom' ? 'What needs doing?' : `New ${tab} task...`}
             value={newLabel}
             onChange={e => setNewLabel(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleAddItem()}
             autoFocus
-          />
+          /></PrivateText>
           <div style={{ display: 'flex', gap: 8 }}>
             {tab === 'custom' && (
               <input
@@ -731,7 +733,7 @@ export default function DailyChecklist() {
           <div style={{ display: 'flex', gap: 8 }}>
             <button
               onClick={handleSaveAsTemplate}
-              disabled={templateSaving}
+              disabled={clientDetailsHidden || (templateSaving)}
               style={{ ...S.saveBtn, flex: 1, opacity: templateSaving ? 0.6 : 1 }}
             >
               <Icon name={iconName('bookmark')} size={15} inline style={{ color: '#fff', marginRight: 4 }} />
@@ -782,7 +784,7 @@ export default function DailyChecklist() {
                   </div>
                   <div style={S.apptDivider} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #241B17)', margin: 0 }}>{apt.client_name}</p>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #241B17)', margin: 0 }}><PrivateText placeholder="Client">{apt.client_name}</PrivateText></p>
                     <p style={{ fontSize: 11, color: 'var(--text-muted, #6B5D54)', margin: 0 }}>{apt.treatment_name}</p>
                   </div>
                   <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--gold, #79581C)' }}>

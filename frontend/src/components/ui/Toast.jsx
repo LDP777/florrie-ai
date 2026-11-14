@@ -1,3 +1,4 @@
+import { PrivateText } from '../../contexts/ClientPrivacyContext.jsx';
 /**
  * Toast Component
  *
@@ -125,7 +126,7 @@ const Toast = ({ id, message, variant = 'info', duration = 3000, onDismiss }) =>
       `}</style>
       <div style={toastStyle}>
         <span style={{ fontSize: 18, lineHeight: 1 }}><Icon name={iconName(style.icon)} inline /></span>
-        <span>{message}</span>
+        <span><PrivateText placeholder="Notification details hidden">{message}</PrivateText></span>
       </div>
     </>
   );

@@ -1,3 +1,4 @@
+import { PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBeautician, supabase } from '../lib/supabase.js';
@@ -50,6 +51,7 @@ function describeRow(row) {
 }
 
 export default function Loyalty() {
+  const { hidden: clientDetailsHidden } = useClientPrivacy();
   const { beautician, loading: bLoading } = useBeautician();
   const navigate = useNavigate();
 
@@ -272,7 +274,7 @@ export default function Loyalty() {
         <div style={styles.rewardFields}>
           <div style={{ flex: 1, minWidth: 160 }}>
             <label htmlFor="loyalty-reward-name" style={styles.fieldLabel}>The reward</label>
-            <input
+            <PrivateText placeholder="Private field hidden"><input
               id="loyalty-reward-name"
               type="text"
               value={rewardName}
@@ -280,7 +282,7 @@ export default function Loyalty() {
               placeholder="Free lash infill"
               maxLength={60}
               style={styles.input}
-            />
+            /></PrivateText>
           </div>
           <div style={{ width: 96 }}>
             <label htmlFor="loyalty-reward-threshold" style={styles.fieldLabel}>At</label>
@@ -301,9 +303,9 @@ export default function Loyalty() {
             : 'Name the reward so clients know what they are working towards.'}
         </p>
 
-        {saveError && <div style={styles.errorBox}>{saveError}</div>}
+        {saveError && <div style={styles.errorBox}><PrivateText>{saveError}</PrivateText></div>}
 
-        <button type="button" onClick={saveSettings} disabled={saving} style={styles.saveBtn}>
+        <button type="button" onClick={saveSettings} disabled={clientDetailsHidden || (saving)} style={styles.saveBtn}>
           {saving ? 'Saving…' : saved ? 'Saved' : 'Save changes'}
         </button>
       </div>
@@ -366,9 +368,9 @@ export default function Loyalty() {
                     onClick={() => navigate('/clients', { state: { clientId: m.clientId } })}
                     style={styles.memberMain}
                   >
-                    <div style={styles.memberAvatar}>{m.name[0]?.toUpperCase() || '?'}</div>
+                    <div style={styles.memberAvatar}><PrivateText placeholder="•">{m.name[0]?.toUpperCase() || '?'}</PrivateText></div>
                     <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
-                      <span style={styles.memberName}>{m.name}</span>
+                      <span style={styles.memberName}><PrivateText placeholder="Client">{m.name}</PrivateText></span>
                       <div style={styles.progressTrack}>
                         <div
                           style={{ ...styles.progressFill,
@@ -392,7 +394,7 @@ export default function Loyalty() {
                     <button
                       type="button"
                       onClick={() => markRewardUsed(m)}
-                      disabled={redeemingId === m.clientId}
+                      disabled={clientDetailsHidden || (redeemingId === m.clientId)}
                       style={styles.redeemBtn}
                     >
                       {redeemingId === m.clientId ? 'Marking…' : 'Mark reward used'}
@@ -417,7 +419,7 @@ export default function Loyalty() {
           <div style={styles.activityCard}>
             {recent.map((row) => (
               <div key={row.id} style={styles.activityRow}>
-                <span style={styles.activityText}>{describeRow(row)}</span>
+                <span style={styles.activityText}><PrivateText placeholder="Hidden">{describeRow(row)}</PrivateText></span>
                 <span style={styles.activityDate}>{shortDate(row.created_at)}</span>
               </div>
             ))}

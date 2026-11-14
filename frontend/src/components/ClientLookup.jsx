@@ -1,3 +1,4 @@
+import { useClientPrivacy, PrivateSection } from '../contexts/ClientPrivacyContext.jsx';
 import { useEffect, useId, useState } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
@@ -9,6 +10,7 @@ export const clientName = client => `${client?.first_name || ''} ${client?.last_
 
 // Search the server instead of silently limiting selection to the first page.
 export default function ClientLookup({ value = '', onChange, label = 'Find a client' }) {
+  const { hidden } = useClientPrivacy();
   const id = useId();
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
@@ -51,6 +53,7 @@ export default function ClientLookup({ value = '', onChange, label = 'Find a cli
     }, 200);
     return () => { clearTimeout(timer); controller.abort(); };
   }, [query, page, choosing, retry]);
+  if (hidden) return <PrivateSection placeholder="Show client details to find or change a client." />;
   return <div style={{ minWidth: 0 }}>
     {selected && !choosing ? <div style={S.selected}>
       <div><span style={S.label}>Selected client</span><strong>{clientName(selected)}</strong></div>

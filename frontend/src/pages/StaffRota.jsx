@@ -1,3 +1,4 @@
+import { PrivateText } from '../contexts/ClientPrivacyContext.jsx';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useBeautician, fetchRowsStrict, updateRow } from '../lib/supabase.js';
@@ -77,7 +78,7 @@ export default function StaffRota() {
           })}</div>}
         </section>;
       })}
-      <section style={s.card}><h2 style={s.memberName}>Salon exceptions this week</h2><p style={s.text}>These changes apply across the salon.</p>{weekExceptions.length ? weekExceptions.map(item=><div key={item.id} style={s.exception}><strong style={{fontSize:12}}>{item.date}</strong><span style={s.text}>{item.reason || item.note || (item.type==='closed' ? 'Salon closed' : 'Changed hours')}{item.start_time && item.end_time ? ` · ${item.start_time.slice(0,5)}–${item.end_time.slice(0,5)}` : ''}</span></div>) : <p style={s.text}>No salon exceptions for this week.</p>}<Button as={Link} to="/hours" variant="secondary">Manage hours & time off</Button></section>
+      <section style={s.card}><h2 style={s.memberName}>Salon exceptions this week</h2><p style={s.text}>These changes apply across the salon.</p>{weekExceptions.length ? weekExceptions.map(item=><div key={item.id} style={s.exception}><strong style={{fontSize:12}}>{item.date}</strong><span style={s.text}><PrivateText>{item.reason || item.note || (item.type==='closed' ? 'Salon closed' : 'Changed hours')}</PrivateText>{item.start_time && item.end_time ? ` · ${item.start_time.slice(0,5)}–${item.end_time.slice(0,5)}` : ''}</span></div>) : <p style={s.text}>No salon exceptions for this week.</p>}<Button as={Link} to="/hours" variant="secondary">Manage hours & time off</Button></section>
     </>}
   </div>;
 }

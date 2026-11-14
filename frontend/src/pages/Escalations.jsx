@@ -1,3 +1,4 @@
+import { PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import { useState, useEffect } from 'react';
 import { explainHold } from '../lib/hold-reasons.js';
 import { useBeautician, supabase, updateRow } from '../lib/supabase.js';
@@ -24,6 +25,7 @@ import Icon from '../components/ui/Icon';
  */
 
 export default function Escalations() {
+  const { hidden: clientDetailsHidden } = useClientPrivacy();
   const { beautician, loading: bLoading } = useBeautician();
   const [escalations, setEscalations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -143,7 +145,7 @@ export default function Escalations() {
               <div style={styles.cardHeader}>
                 <div style={styles.clientInfo}>
                   <span style={styles.clientName}>
-                    {msg.clients?.first_name || 'Unknown'} {msg.clients?.last_name || ''}
+                    <PrivateText placeholder="Client">{msg.clients?.first_name || 'Unknown'} {msg.clients?.last_name || ''}</PrivateText>
                   </span>
                   <span style={styles.channel}>
                     {msg.channel === 'whatsapp' ? 'WhatsApp' : msg.channel === 'instagram' ? 'Instagram' : msg.channel}
@@ -154,37 +156,37 @@ export default function Escalations() {
 
               {/* Why it was escalated */}
               <div style={styles.reasonBadge}>
-                {explainHold(msg.escalated_reason, 'Needs review')}
+                <PrivateText placeholder="Hidden">{explainHold(msg.escalated_reason, 'Needs review')}</PrivateText>
               </div>
 
               {/* Their message */}
               <div style={styles.inboundBubble}>
                 <span style={styles.bubbleLabel}>They said:</span>
-                <p style={styles.bubbleText}>{msg.content}</p>
+                <p style={styles.bubbleText}><PrivateText placeholder="Hidden">{msg.content}</PrivateText></p>
               </div>
 
               {/* AI suggestion */}
               {msg.ai_response && editingId !== msg.id && (
                 <div style={styles.suggestionBubble}>
                   <span style={styles.bubbleLabel}>Florrie suggests:</span>
-                  <p style={styles.bubbleText}>{msg.ai_response}</p>
+                  <p style={styles.bubbleText}><PrivateText placeholder="Hidden">{msg.ai_response}</PrivateText></p>
                 </div>
               )}
 
               {/* Editing mode */}
               {editingId === msg.id && (
                 <div style={styles.editContainer}>
-                  <textarea
+                  <PrivateText placeholder="Private field hidden"><textarea
                     value={editText}
                     onChange={e => setEditText(e.target.value)}
                     style={styles.editTextarea}
                     rows={3}
                     autoFocus
-                  />
+                  /></PrivateText>
                   <div style={styles.editActions}>
                     <button
                       onClick={() => resolve(msg.id, 'send_edited', editText)}
-                      disabled={sending === msg.id || !editText.trim()}
+                      disabled={clientDetailsHidden || (sending === msg.id || !editText.trim())}
                       style={{ ...styles.sendBtn, opacity: sending === msg.id ? 0.5 : 1 }}
                     >
                       {sending === msg.id ? 'Sending...' : 'Send'}
@@ -202,13 +204,13 @@ export default function Escalations() {
                   {msg.ai_response && (
                     <button
                       onClick={() => resolve(msg.id, 'send_as_is')}
-                      disabled={sending === msg.id}
+                      disabled={clientDetailsHidden || (sending === msg.id)}
                       style={styles.approveBtn}
                     >
                       {sending === msg.id ? '...' : 'Send as-is'}
                     </button>
                   )}
-                  <button onClick={() => startEdit(msg)} style={styles.editBtn}>
+                  <button disabled={clientDetailsHidden} onClick={() => startEdit(msg)} style={styles.editBtn}>
                     Edit & send
                   </button>
                   <button onClick={() => resolve(msg.id, 'dismiss')} style={styles.dismissBtn}>

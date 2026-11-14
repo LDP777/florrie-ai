@@ -1,3 +1,4 @@
+import { PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBeautician } from '../lib/supabase.js';
@@ -108,6 +109,7 @@ async function xlsxToCsv(arrayBuffer) {
 }
 
 export default function ClientImport() {
+  const { hidden: clientDetailsHidden } = useClientPrivacy();
   const { beautician } = useBeautician();
   const navigate = useNavigate();
   const fileRef = useRef(null);
@@ -297,7 +299,7 @@ export default function ClientImport() {
       {error && (
         <div style={styles.errorBanner}>
           <span style={{ fontSize: 14 }}><Icon name="alert-triangle" size={15} /></span>
-          <span style={styles.errorText}>{error}</span>
+          <span style={styles.errorText}><PrivateText>{error}</PrivateText></span>
         </div>
       )}
 
@@ -368,7 +370,7 @@ export default function ClientImport() {
           {preview.warnings && preview.warnings.length > 0 && (
             <div style={styles.warnBlock}>
               {preview.warnings.map((w, i) => (
-                <div key={i} style={styles.warnLine}>{w}</div>
+                <div key={i} style={styles.warnLine}><PrivateText placeholder="Hidden">{w}</PrivateText></div>
               ))}
             </div>
           )}
@@ -420,41 +422,41 @@ export default function ClientImport() {
                       {isEditing ? (
                         <div style={styles.editGrid}>
                           <div style={styles.editRowTop}>
-                            <div style={styles.avatar}>{(c.first_name?.[0] || '?').toUpperCase()}</div>
-                            <button
+                            <div style={styles.avatar}><PrivateText placeholder="•">{(c.first_name?.[0] || '?').toUpperCase()}</PrivateText></div>
+                            <button disabled={clientDetailsHidden}
                               onClick={() => removeClient(i)}
                               style={styles.removeBtn}
                               aria-label="Remove this client from the import"
                             >Remove</button>
                           </div>
                           <div style={styles.editPair}>
-                            <input
+                            <PrivateText placeholder="Private field hidden"><input
                               value={c.first_name || ''}
                               onChange={e => updateClient(i, { first_name: e.target.value })}
                               placeholder="First name"
                               style={styles.editInput}
-                            />
-                            <input
+                            /></PrivateText>
+                            <PrivateText placeholder="Private field hidden"><input
                               value={c.last_name || ''}
                               onChange={e => updateClient(i, { last_name: e.target.value })}
                               placeholder="Last name"
                               style={styles.editInput}
-                            />
+                            /></PrivateText>
                           </div>
-                          <input
+                          <PrivateText placeholder="Private field hidden"><input
                             value={c.phone || ''}
                             onChange={e => updateClient(i, { phone: e.target.value })}
                             placeholder="Phone"
                             type="tel"
                             style={styles.editInput}
-                          />
-                          <input
+                          /></PrivateText>
+                          <PrivateText placeholder="Private field hidden"><input
                             value={c.email || ''}
                             onChange={e => updateClient(i, { email: e.target.value })}
                             placeholder="Email"
                             type="email"
                             style={styles.editInput}
-                          />
+                          /></PrivateText>
                           <Button variant="tonal" size="sm" fullWidth onClick={() => setEditingIndex(null)}>Done</Button>
                         </div>
                       ) : (
@@ -462,10 +464,10 @@ export default function ClientImport() {
                           onClick={() => setEditingIndex(i)}
                           style={styles.previewRowBtn}
                         >
-                          <div style={styles.avatar}>{(c.first_name?.[0] || '?').toUpperCase()}</div>
+                          <div style={styles.avatar}><PrivateText placeholder="•">{(c.first_name?.[0] || '?').toUpperCase()}</PrivateText></div>
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={styles.clientName}>{c.first_name} {c.last_name}</div>
-                            <div style={styles.clientMeta}>{c.phone || c.email || 'No contact info'}</div>
+                            <div style={styles.clientName}><PrivateText placeholder="Client">{c.first_name} {c.last_name}</PrivateText></div>
+                            <div style={styles.clientMeta}><PrivateText placeholder="Hidden">{c.phone || c.email || 'No contact info'}</PrivateText></div>
                           </div>
                           <span style={styles.pencil} aria-hidden><Icon name="edit" size={15} /></span>
                         </button>
@@ -508,7 +510,7 @@ export default function ClientImport() {
             size="lg"
             fullWidth
             onClick={executeImport}
-            disabled={totalItems === 0}
+            disabled={clientDetailsHidden || (totalItems === 0)}
             style={{ boxShadow: 'var(--elev-2)', opacity: totalItems === 0 ? 0.5 : 1, cursor: totalItems === 0 ? 'not-allowed' : 'pointer' }}
           >
             {totalItems === 0 ? 'Nothing to import' : `Import everything (${totalItems} items)`}
@@ -580,6 +582,7 @@ export default function ClientImport() {
  * Manual paste sub-component. Paste names from notes/contacts.
  */
 function ManualPaste({ beautician, navigate, onDone, onBack }) {
+  const { hidden: clientDetailsHidden } = useClientPrivacy();
   const [text, setText] = useState('');
   const [importing, setImporting] = useState(false);
 
@@ -631,19 +634,19 @@ function ManualPaste({ beautician, navigate, onDone, onBack }) {
         <div style={styles.exampleLine}>Daisy Smith</div>
         <div style={styles.exampleLine}>Chloe R - 07898765432</div>
       </div>
-      <textarea
+      <PrivateText placeholder="Private field hidden"><textarea
         value={text}
         onChange={e => setText(e.target.value)}
         placeholder="Paste names here..."
         style={styles.textarea}
         rows={8}
-      />
+      /></PrivateText>
       <Button
         variant="primary"
         size="lg"
         fullWidth
         onClick={handleImport}
-        disabled={!text.trim() || importing}
+        disabled={clientDetailsHidden || (!text.trim() || importing)}
         style={{ boxShadow: 'var(--elev-2)', opacity: text.trim() && !importing ? 1 : 0.5 }}
       >
         {importing ? 'Importing...' : `Import ${text.split('\n').filter(l => l.trim()).length} clients`}
@@ -748,6 +751,7 @@ function looksLikeTime(raw) {
 }
 
 function TimelyAppointmentsImport() {
+  const { hidden: clientDetailsHidden } = useClientPrivacy();
   const fileRef = useRef(null);
   const [phase, setPhase] = useState('idle'); // idle | parsed | importing | done
   const [rows, setRows] = useState([]);
@@ -914,7 +918,7 @@ function TimelyAppointmentsImport() {
       {error && (
         <div style={styles.errorBanner}>
           <span style={{ fontSize: 14 }}><Icon name="alert-triangle" size={15} /></span>
-          <span style={styles.errorText}>{error}</span>
+          <span style={styles.errorText}><PrivateText>{error}</PrivateText></span>
         </div>
       )}
 
@@ -934,9 +938,9 @@ function TimelyAppointmentsImport() {
           {rows.length > 0 ? (
             <>
               <div style={styles.timelyPreviewSub}>
-                First up: {rows[0].client_name}{rows[0].service ? `, ${rows[0].service}` : ''} on {rows[0].date} at {rows[0].start_time}
+                First up: <PrivateText placeholder="•">{rows[0].client_name}</PrivateText>{rows[0].service ? `, ${rows[0].service}` : ''} on {rows[0].date} at {rows[0].start_time}
               </div>
-              <Button variant="primary" size="lg" fullWidth onClick={runImport} style={{ boxShadow: 'var(--elev-2)' }}>
+              <Button disabled={clientDetailsHidden} variant="primary" size="lg" fullWidth onClick={runImport} style={{ boxShadow: 'var(--elev-2)' }}>
                 Import {rows.length} {rows.length === 1 ? 'appointment' : 'appointments'}
               </Button>
             </>
@@ -982,7 +986,7 @@ function TimelyAppointmentsImport() {
               <div style={styles.timelyResultLine}>
                 {result.errors.length} {result.errors.length === 1 ? 'row' : 'rows'} could not be imported:
                 {result.errors.slice(0, 8).map((er, i) => (
-                  <div key={i} style={styles.timelyErrorLine}>Row {er.row}: {er.reason}</div>
+                  <div key={i} style={styles.timelyErrorLine}>Row {er.row}: <PrivateText placeholder="Hidden">{er.reason}</PrivateText></div>
                 ))}
                 {result.errors.length > 8 && <div style={styles.timelyErrorLine}>and {result.errors.length - 8} more.</div>}
               </div>

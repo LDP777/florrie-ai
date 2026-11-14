@@ -1,3 +1,4 @@
+import { PrivateText, PrivateSection, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase.js';
@@ -66,7 +67,7 @@ export function AgentNetwork({ agents = [], learning, compact = false, loading =
           {!compact && <div className="agent-network__sources" aria-label="Shared information">{role.sources.map(source => <span key={source}>{source}</span>)}</div>}
           <div className="agent-network__evidence" aria-live="polite">
             {loading ? <p role="status">Checking recent work…</p> : error ? <p role="status">Recent work could not be checked.</p> : <>
-              <p className="agent-network__outcome">{agent?.statusLine || 'No activity information available for this role.'}</p>
+              <p className="agent-network__outcome"><PrivateText placeholder="Activity details hidden">{agent?.statusLine || 'No activity information available for this role.'}</PrivateText></p>
               {agent?.lastActionAt && <span className="agent-network__timestamp">Recorded {STAMP(agent.lastActionAt)}</span>}
               <p className={`agent-network__check agent-network__check--${status.key}`}><span aria-hidden="true" />{status.label}</p>
             </>}

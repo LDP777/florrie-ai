@@ -1,3 +1,4 @@
+import { PrivateText } from '../contexts/ClientPrivacyContext.jsx';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase.js';
@@ -44,6 +45,7 @@ const REASON = {
 };
 
 export default function ValueBreakdown() {
+
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -110,13 +112,13 @@ export default function ValueBreakdown() {
                   return (
                     <div key={it.appointment_id} style={S.item}>
                       <div style={S.itemMain}>
-                        <div style={S.itemName}>{it.client}</div>
+                        <div style={S.itemName}><PrivateText placeholder="Client">{it.client}</PrivateText></div>
                         <div style={S.itemMeta}>
                           {it.treatment}{it.appt_at ? ` · ${apptDateLabel(it.appt_at)}` : ''}
                         </div>
                         <div style={S.reasonRow}>
                           <span style={{ ...S.reasonTag, ...(it.reason === 'gap_fill' ? S.tagGap : S.tagRebook) }}>{r.label}</span>
-                          <span style={S.reasonNote}>{r.note}</span>
+                          <span style={S.reasonNote}><PrivateText placeholder="Hidden">{r.note}</PrivateText></span>
                         </div>
                       </div>
                       <div style={S.itemAmount}>{pounds(it.amount_pence)}</div>
@@ -157,6 +159,7 @@ export default function ValueBreakdown() {
 }
 
 function Part({ amount, label }) {
+
   return (
     <div style={S.part}>
       <div style={S.partAmount}>{amount}</div>

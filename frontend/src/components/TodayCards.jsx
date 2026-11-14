@@ -1,3 +1,4 @@
+import { PrivateText, PrivateSection, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
@@ -58,6 +59,7 @@ function ChannelStatus({ beautician, onNav }) {
 }
 
 export function TodaySummary({ beautician, onNav }) {
+  const { hidden } = useClientPrivacy();
   const [state, setState] = useState({ status: 'loading' });
   const [inbox, setInbox] = useState(null);
   const [revision, refresh] = useTodayRefresh();
@@ -112,13 +114,13 @@ export function TodaySummary({ beautician, onNav }) {
       </Button>
     </div>
     {focus ? <Button variant="quiet" className="today-next" onClick={() => openAppointment(focus)}
-      aria-label={`Open ${appointmentName(focus)} at ${appointmentTime(focus)}`}>
+      aria-label={`Open ${hidden ? 'client appointment' : appointmentName(focus)} at ${appointmentTime(focus)}`}>
       <span className="today-next-label"><span className="today-status-dot" />{day.current ? 'Scheduled now' : 'Next client'}</span>
       <span className="today-next-main">
         <span className="today-next-time">{appointmentTime(focus)}</span>
-        <span className="today-avatar" aria-hidden="true">{appointmentName(focus).split(' ').map(n => n[0]).slice(0, 2).join('')}</span>
+        <span className="today-avatar" aria-hidden="true"><PrivateText placeholder="•">{appointmentName(focus).split(' ').map(n => n[0]).slice(0, 2).join('')}</PrivateText></span>
       </span>
-      <span className="today-next-name">{appointmentName(focus)}</span>
+      <span className="today-next-name"><PrivateText placeholder="Client">{appointmentName(focus)}</PrivateText></span>
       {treatment && <span className="today-next-treatment">{treatment}</span>}
       <span className="today-next-footer">View appointment <Icon name="arrow-right" size={17} /></span>
     </Button> : <div className="today-next today-next--empty">
@@ -141,7 +143,7 @@ export function TodaySummary({ beautician, onNav }) {
         {day.diary.map(appointment => <li key={appointment.id}>
           <Button variant="quiet" className="today-appointment" onClick={() => openAppointment(appointment)}>
             <span className="today-appointment-time">{appointmentTime(appointment)}</span>
-            <span className="today-appointment-person"><strong>{appointmentName(appointment)}</strong><small>{appointment.treatments?.name || appointment.treatment_name || 'Appointment'}</small></span>
+            <span className="today-appointment-person"><strong><PrivateText placeholder="Client">{appointmentName(appointment)}</PrivateText></strong><small>{appointment.treatments?.name || appointment.treatment_name || 'Appointment'}</small></span>
             {appointment.status === 'completed' ? <span className="today-done"><Icon name="check" size={14} />Done</span> : <Icon name="chevron-right" size={16} />}
           </Button>
         </li>)}

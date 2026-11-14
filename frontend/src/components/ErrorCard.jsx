@@ -1,9 +1,10 @@
+import { PrivateText, PrivateSection, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import { memo } from 'react';
 
 function ErrorCard({ message = 'Something went wrong', onDismiss }) {
   return (
     <div style={S.wrap}>
-      <span style={S.text}>{message}</span>
+      <span style={S.text}><PrivateText placeholder="Something needs attention. Show details to read the message.">{message}</PrivateText></span>
       {onDismiss && (
         <button onClick={onDismiss} style={S.close} aria-label="Dismiss error">&times;</button>
       )}

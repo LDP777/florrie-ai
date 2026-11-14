@@ -1,3 +1,4 @@
+import { useClientPrivacy, PrivateText, PrivateSection } from '../contexts/ClientPrivacyContext.jsx';
 import { useEffect, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { supabase } from '../lib/supabase.js';
@@ -7,6 +8,7 @@ import Button from './ui/Button.jsx';
 import Icon from './ui/Icon.jsx';
 
 export default function GoogleReviews({ ownerId, salonName }) {
+  const { hidden } = useClientPrivacy();
   const [status, setStatus] = useState(null), [data, setData] = useState(null), [locations, setLocations] = useState([]);
   const [error, setError] = useState(''), [busy, setBusy] = useState(false), [editor, setEditor] = useState(null);
   const [loading, setLoading] = useState(false), [fresh, setFresh] = useState(false), [choosingBusiness, setChoosingBusiness] = useState(false);
@@ -85,7 +87,7 @@ export default function GoogleReviews({ ownerId, salonName }) {
   }, [ownerId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function act(fn) {
-    if (locked.current || loading) return;
+    if (hidden || locked.current || loading) return;
     const run = currentScope(), lock = {};
     locked.current = lock; setBusy(true); setError('');
     try { await fn(run); }
@@ -111,11 +113,11 @@ export default function GoogleReviews({ ownerId, salonName }) {
     setLocations(result.locations || []);
   }
 
-  const disabled = busy || loading;
+  const disabled = hidden || busy || loading;
   const reconnect = status?.reconnect_required === true;
   return <section className="fl-reputation-panel" aria-labelledby="google-reviews-title">
     <div className="fl-reputation-heading"><div><span className="fl-workspace-eyebrow">Your public reputation</span><h2 id="google-reviews-title">Google reviews</h2><p>{status?.location?.title || 'Read the feedback. Choose your words. Approve each reply.'}</p></div><Icon name="star" size={25} /></div>
-    {error && <div className="fl-reputation-error" role="alert">{error}<Button variant="quiet" onClick={() => choosingBusiness && status?.connected ? act(chooseBusiness) : load()} disabled={disabled}>Retry</Button></div>}
+    {error && <div className="fl-reputation-error" role="alert"><PrivateText>{error}</PrivateText><Button variant="quiet" onClick={() => choosingBusiness && status?.connected ? act(chooseBusiness) : load()} disabled={disabled}>Retry</Button></div>}
     {loading && <p role="status">{status ? 'Refreshing your Google connection…' : 'Checking Google connection…'}</p>}
     {status?.available === false && <p className="fl-studio-note">Google imports and replies are awaiting connection setup. Your review request link below still works.</p>}
     {status?.available && !status.connected && <>
@@ -130,7 +132,7 @@ export default function GoogleReviews({ ownerId, salonName }) {
       <Button variant="quiet" disabled={disabled} onClick={() => act(async run => { await request('/disconnect', { method: 'POST' }, run); setEditor(null); await load(run, true); })}>Disconnect reviews</Button>
     </div>}
     {status?.connected && <p className="fl-studio-note">This connection belongs to {salonName || 'your salon'}. Disconnecting reviews leaves Google Calendar unchanged.</p>}
-    {status?.connected && choosingBusiness && <div className="fl-reputation-locations">
+    {status?.connected && choosingBusiness && <PrivateSection placeholder="Business profile choices hidden"><div className="fl-reputation-locations">
       <p>Choose the Business Profile for {salonName || 'your salon'}.</p>
       {(loading || busy) && <p role="status">Loading your Business Profiles…</p>}
       {locations.map(l => <button key={l.name} disabled={disabled || l.name === status.location?.name} aria-label={`Use ${l.title}${l.address ? `, ${l.address}` : ''}`} onClick={() => act(async run => {
@@ -144,17 +146,17 @@ export default function GoogleReviews({ ownerId, salonName }) {
         {status.location && <Button variant="quiet" disabled={disabled} onClick={() => { setChoosingBusiness(false); setError(''); }}>Keep current business</Button>}
         <a className="fl-studio-link" href="https://business.google.com/locations" target="_blank" rel="noopener noreferrer">Find my Business Profile ↗</a>
       </div>
-    </div>}
+    </div></PrivateSection>}
     {data && !choosingBusiness && <>
       <p className="fl-studio-note">Read from Google {new Date(data.fetched_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}. Review text stays separate from your Florrie training notes and marketing posts.</p>
       {!data.reviews?.length && <p>No Google reviews found for this business.</p>}
       {(data.reviews || []).map(review => {
         const id = review.reviewId || review.name?.split('/').pop();
         return <article className="fl-google-imported-review" key={review.name || id}>
-          <div className="fl-review-byline"><strong>{review.reviewer?.displayName || 'Google reviewer'}</strong><span>{({ ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 })[review.starRating] || 'Unrated'} / 5</span></div>
-          <p className="fl-review-quote">{review.comment || 'This review contains a rating only.'}</p>
-          {review.reviewReply && <div className="fl-review-existing"><strong>Reply on Google</strong><p>{review.reviewReply.comment}</p></div>}
-          {editor?.id === id ? <div className="fl-review-editor">
+          <div className="fl-review-byline"><strong><PrivateText placeholder="Google reviewer">{review.reviewer?.displayName || 'Google reviewer'}</PrivateText></strong><span>{({ ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 })[review.starRating] || 'Unrated'} / 5</span></div>
+          <p className="fl-review-quote"><PrivateText placeholder="Review hidden">{review.comment || 'This review contains a rating only.'}</PrivateText></p>
+          {review.reviewReply && <div className="fl-review-existing"><strong>Reply on Google</strong><p><PrivateText placeholder="Reply hidden">{review.reviewReply.comment}</PrivateText></p></div>}
+          <PrivateSection placeholder="Show client details to write or publish a reply.">{editor?.id === id ? <div className="fl-review-editor">
             <label>Review your reply<textarea aria-label="Google review reply" rows={4} maxLength={4096} value={editor.text} disabled={disabled} onChange={e => setEditor({ ...editor, text: e.target.value, approved: false })} /></label>
             <label className="fl-review-consent"><input type="checkbox" checked={editor.approved} disabled={disabled || !fresh} onChange={e => setEditor({ ...editor, approved: e.target.checked })} /> I approve these exact words as a public reply on Google.</label>
             <div className="fl-studio-actions"><Button disabled={disabled || !fresh || !editor.approved || !editor.text.trim()} onClick={() => act(async run => {
@@ -165,7 +167,7 @@ export default function GoogleReviews({ ownerId, salonName }) {
           </div> : <div className="fl-studio-actions"><Button variant="secondary" disabled={disabled || !fresh} onClick={() => act(async run => {
             const r = await request(`/reviews/${encodeURIComponent(id)}/draft`, { method: 'POST' }, run);
             setEditor({ id, text: r.draft, fingerprint: r.fingerprint, approved: false });
-          })}>Draft a reply</Button><Button variant="quiet" disabled={disabled || !fresh} onClick={() => setEditor({ id, text: review.reviewReply?.comment || '', fingerprint: review.fingerprint, approved: false })}>Write my own</Button></div>}
+          })}>Draft a reply</Button><Button variant="quiet" disabled={disabled || !fresh} onClick={() => setEditor({ id, text: review.reviewReply?.comment || '', fingerprint: review.fingerprint, approved: false })}>Write my own</Button></div>}</PrivateSection>
         </article>;
       })}
       {data.nextPageToken && <Button variant="secondary" disabled={disabled || !fresh} onClick={() => act(async run => {

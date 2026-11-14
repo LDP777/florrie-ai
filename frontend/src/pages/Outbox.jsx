@@ -1,3 +1,4 @@
+import { PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import { successfulBatchIds } from './more-reliability.js';
 /**
  * Florrie's Outbox , the one calm place to give your yes or no.
@@ -155,6 +156,7 @@ function fromEscalation(row) {
 }
 
 export default function Outbox() {
+
   const [holds, setHolds] = useState([]);
   const [replies, setReplies] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -432,7 +434,7 @@ export default function Outbox() {
         />
       )}
 
-      {toast && <div style={s.toast}>{toast}</div>}
+      {toast && <div style={s.toast}><PrivateText placeholder="Hidden">{toast}</PrivateText></div>}
     </div>
   );
 }
@@ -442,6 +444,7 @@ export default function Outbox() {
  * with a choose-who expander. The gold edge marks a Florrie initiative.
  */
 function BatchCard({ batch, onSendAll, onSkipAll, onSkipOne }) {
+  const { hidden: clientDetailsHidden } = useClientPrivacy();
   const [expanded, setExpanded] = useState(false);
   const [busy, setBusy] = useState(false);
   const live = batch.items;
@@ -459,25 +462,25 @@ function BatchCard({ batch, onSendAll, onSkipAll, onSkipOne }) {
           <span style={s.typeLabel}>One decision, {live.length} offer{live.length === 1 ? '' : 's'}. Florrie staggers them so nobody clashes.</span>
         </div>
       </div>
-      <div style={s.bodyBox}>{preview}</div>
+      <div style={s.bodyBox}><PrivateText placeholder="Hidden">{preview}</PrivateText></div>
       <div style={s.actions}>
         <button
           onClick={async () => { setBusy(true); await onSendAll(); setBusy(false); }}
-          disabled={busy}
+          disabled={clientDetailsHidden || (busy)}
           style={{ ...s.approveBtn, opacity: busy ? 0.6 : 1 }}
         >
-          {busy ? 'Sending…' : `Offer it to ${live.length === 1 ? live[0].displayName : `all ${live.length}`}`}
+          {busy ? 'Sending…' : clientDetailsHidden ? 'Offer this gap' : `Offer it to ${live.length === 1 ? live[0].displayName : `all ${live.length}`}`}
         </button>
-        <button onClick={onSkipAll} disabled={busy} style={s.skipBtn}>Not now</button>
+        <button onClick={onSkipAll} disabled={clientDetailsHidden || busy} style={s.skipBtn}>Not now</button>
       </div>
       <button onClick={() => setExpanded(v => !v)} style={s.chooseWho}>
         {expanded ? 'Hide the list' : 'Choose who ›'}
       </button>
       {expanded && live.map(item => (
         <div key={item.id} style={s.batchRow}>
-          <span style={{ fontSize: 13, fontWeight: 600 }}>{item.displayName}</span>
+          <span style={{ fontSize: 13, fontWeight: 600 }}><PrivateText placeholder="Client">{item.displayName}</PrivateText></span>
           <button className="fl-tap"
-            onClick={() => onSkipOne(item.id)}
+            disabled={clientDetailsHidden} onClick={() => onSkipOne(item.id)}
             style={{ ...s.skipBtn, minHeight: 34, padding: '0 14px', fontSize: 12.5 }}
           >
             Skip her
@@ -493,6 +496,7 @@ function BatchCard({ batch, onSendAll, onSkipAll, onSkipOne }) {
  * left or "Not now" skips. Ends on the earned empty state.
  */
 function ReviewDeck({ replies, batches, holds, onReply, onReplySkip, onBatch, onBatchSkip, onHold, onHoldSkip, onClose }) {
+  const { hidden: clientDetailsHidden } = useClientPrivacy();
   const items = [
     ...replies.map(r => ({ kind: 'reply', title: `${r.displayName} is waiting on a reply`, why: r.why, body: r.body, data: r })),
     ...batches.map(b => ({ kind: 'batch', title: `Fill the ${b.slot} gap`, why: `One yes offers it to ${b.items.length} client${b.items.length === 1 ? '' : 's'}`, body: b.items[0]?.body || '', data: b })),
@@ -506,6 +510,7 @@ function ReviewDeck({ replies, batches, holds, onReply, onReplySkip, onBatch, on
   useEffect(() => { if (done && items.length > 0) bloom(); }, [done]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function act(yes) {
+    if (clientDetailsHidden) return;
     if (leaving || done) return;
     const it = items[idx];
     setLeaving(yes ? 'yes' : 'no');
@@ -543,21 +548,21 @@ function ReviewDeck({ replies, batches, holds, onReply, onReplySkip, onBatch, on
               style={{ ...s.deckCard, transform: cardShift, opacity: leaving ? 0 : 1 }}
               onTouchStart={e => { startX.current = e.touches[0].clientX; }}
               onTouchEnd={e => {
-                if (startX.current === null) return;
+                if (clientDetailsHidden || startX.current === null) return;
                 const dx = e.changedTouches[0].clientX - startX.current;
                 if (dx > 60) act(true);
                 else if (dx < -60) act(false);
                 startX.current = null;
               }}
             >
-              <p style={{ margin: 0, fontSize: 15.5, fontWeight: 700 }}>{items[idx].title}</p>
-              <p style={{ margin: '4px 0 10px', fontSize: 12, color: 'var(--text-secondary, #574A42)' }}>{items[idx].why}</p>
-              <div style={{ ...s.bodyBox, maxHeight: 180, overflowY: 'auto' }}>{items[idx].body}</div>
+              <p style={{ margin: 0, fontSize: 15.5, fontWeight: 700 }}><PrivateText placeholder="Hidden">{items[idx].title}</PrivateText></p>
+              <p style={{ margin: '4px 0 10px', fontSize: 12, color: 'var(--text-secondary, #574A42)' }}><PrivateText placeholder="Hidden">{items[idx].why}</PrivateText></p>
+              <div style={{ ...s.bodyBox, maxHeight: 180, overflowY: 'auto' }}><PrivateText placeholder="Hidden">{items[idx].body}</PrivateText></div>
             </div>
           </div>
           <div style={{ display: 'flex', gap: 10, marginTop: 18, width: '100%', maxWidth: 340 }}>
-            <button onClick={() => act(false)} disabled={!!leaving} style={{ ...s.skipBtn, flex: 1 }}>Not now</button>
-            <button onClick={() => act(true)} disabled={!!leaving} style={{ ...s.approveBtn, flex: 1 }}>Yes, send</button>
+            <button onClick={() => act(false)} disabled={clientDetailsHidden || !!leaving} style={{ ...s.skipBtn, flex: 1 }}>Not now</button>
+            <button onClick={() => act(true)} disabled={clientDetailsHidden || !!leaving} style={{ ...s.approveBtn, flex: 1 }}>Yes, send</button>
           </div>
         </>
       )}
@@ -566,6 +571,7 @@ function ReviewDeck({ replies, batches, holds, onReply, onReplySkip, onBatch, on
 }
 
 function Section({ icon, title, hint, children }) {
+
   return (
     <div style={s.section}>
       <div style={s.sectionHead}>
@@ -581,12 +587,15 @@ function Section({ icon, title, hint, children }) {
 }
 
 function ReviewCard({ item, onApprove, onSkip, onSave, skipLabel }) {
+  const { hidden: clientDetailsHidden } = useClientPrivacy();
   const [body, setBody] = useState(item.body || '');
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
   const ch = channelMeta(item.channel);
 
-  function handleBlur() {
+  function handleBlur(event) {
+    // Toggling display privacy must not save or send a draft as a side effect.
+    if (clientDetailsHidden || event.relatedTarget?.closest('.client-privacy-toggle')) return;
     if (dirty && onSave) {
       onSave(body);
       setDirty(false);
@@ -611,10 +620,10 @@ function ReviewCard({ item, onApprove, onSkip, onSave, skipLabel }) {
   return (
     <div style={s.card}>
       <div style={s.cardTop}>
-        <span style={s.avatar} aria-hidden>{initialOf(item.displayName)}</span>
+        <span style={s.avatar} aria-hidden><PrivateText placeholder="•">{initialOf(item.displayName)}</PrivateText></span>
         <div style={s.cardTopText}>
           <div style={s.nameRow}>
-            <span style={s.clientName}>{item.displayName}</span>
+            <span style={s.clientName}><PrivateText placeholder="Client">{item.displayName}</PrivateText></span>
             {item.regular && <span style={s.regularPill}>Regular</span>}
           </div>
           <span style={s.typeLabel}>{item.typeLabel}</span>
@@ -625,35 +634,36 @@ function ReviewCard({ item, onApprove, onSkip, onSave, skipLabel }) {
         </span>
       </div>
 
-      <p style={s.why}>{item.why}</p>
+      <p style={s.why}><PrivateText placeholder="Hidden">{item.why}</PrivateText></p>
 
       {item.kind === 'reply' && item.inbound && (
         <div style={s.inboundQuote}>
           <span style={s.inboundLabel}>They said</span>
-          <span style={s.inboundText}>{item.inbound}</span>
+          <span style={s.inboundText}><PrivateText placeholder="Hidden">{item.inbound}</PrivateText></span>
         </div>
       )}
 
-      <textarea
+      <PrivateText placeholder="Private field hidden"><textarea
         value={body}
         onChange={e => { setBody(e.target.value); setDirty(true); }}
         onBlur={handleBlur}
         rows={4}
         style={s.textarea}
         aria-label="Message text"
-      />
+      /></PrivateText>
 
       <div style={s.actions}>
-        <button onClick={send} disabled={busy || !body.trim()} style={{ ...s.approveBtn, opacity: busy || !body.trim() ? 0.6 : 1 }}>
+        <button onClick={send} disabled={clientDetailsHidden || (busy || !body.trim())} style={{ ...s.approveBtn, opacity: busy || !body.trim() ? 0.6 : 1 }}>
           {busy ? 'Sending...' : 'Send it'}
         </button>
-        <button onClick={skip} disabled={busy} style={s.skipBtn}>{skipLabel || 'Not now'}</button>
+        <button onClick={skip} disabled={clientDetailsHidden || busy} style={s.skipBtn}>{skipLabel || 'Not now'}</button>
       </div>
     </div>
   );
 }
 
 function LoadingState() {
+
   return (
     <div style={s.list}>
       {[0, 1, 2].map(i => (
@@ -669,10 +679,11 @@ function LoadingState() {
 }
 
 function ErrorState({ message, onRetry }) {
+
   return (
     <div style={s.centerState}>
       <Icon name={iconName('cloud_off')} inline style={s.stateIcon} />
-      <p style={s.stateTitle}>{message}</p>
+      <p style={s.stateTitle}><PrivateText>{message}</PrivateText></p>
       <p style={s.stateSub}>Give it another go.</p>
       <button onClick={onRetry} style={s.retryBtn}>Try again</button>
     </div>
@@ -680,6 +691,7 @@ function ErrorState({ message, onRetry }) {
 }
 
 function EmptyState() {
+
   return (
     <div style={s.centerState}>
       <Icon name={iconName('mark_email_read')} inline style={s.stateIcon} />

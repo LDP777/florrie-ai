@@ -1,3 +1,4 @@
+import { PrivateText, PrivateSection, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import Button from './ui/Button.jsx';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -126,6 +127,7 @@ export default function SuggestionCards({ showEmpty = false }) {
 }
 
 function SuggestionCard({ card, onOpen, onEvidence, onDismiss, dismissing, dismissDisabled }) {
+  const { hidden } = useClientPrivacy();
   const impact = poundsFromPence(card.impact_pence);
   return (
     <article style={SC.card}>
@@ -134,19 +136,19 @@ function SuggestionCard({ card, onOpen, onEvidence, onDismiss, dismissing, dismi
         {impact && <span style={SC.impact}>{impact}</span>}
       </div>
 
-      <p style={SC.summary}>{card.summary}</p>
+      <p style={SC.summary}><PrivateText placeholder="Suggestion details hidden">{card.summary}</PrivateText></p>
 
       {card.evidence?.label && (
         <button onClick={onEvidence} style={SC.evidence}>
-          {card.evidence.label}
+          <PrivateText placeholder="View evidence">{card.evidence.label}</PrivateText>
         </button>
       )}
 
       <div style={SC.actions}>
         <button onClick={onOpen} style={{ ...SC.btn, ...SC.btnYes }}>
-          {card.action_label || 'Open'}
+          <PrivateText placeholder="Open">{card.action_label || 'Open'}</PrivateText>
         </button>
-        <button disabled={dismissDisabled} onClick={onDismiss} style={{ ...SC.btn, ...SC.btnNo }}>
+        <button disabled={hidden || dismissDisabled} onClick={onDismiss} style={{ ...SC.btn, ...SC.btnNo }}>
           {dismissing ? 'Saving…' : 'Not now'}
         </button>
       </div>

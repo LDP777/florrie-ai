@@ -1,3 +1,4 @@
+import { PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import { useState, useEffect, useRef } from 'react';
 import { useBeautician, supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
@@ -109,6 +110,7 @@ const clientLabel = (t) => (
 );
 
 export default function PatchTests() {
+  const { hidden: clientDetailsHidden } = useClientPrivacy();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const filterClientId = params.get('clientId') || '';
@@ -439,26 +441,26 @@ export default function PatchTests() {
 
           <div style={styles.formGroup}>
             <label style={styles.formLabel}>Notes (optional)</label>
-            <input
+            <PrivateText placeholder="Private field hidden"><input
               type="text" placeholder="e.g. Slight redness, gone by 48h"
               value={form.notes}
               onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
               style={styles.formInput}
-            />
+            /></PrivateText>
           </div>
 
           {saveError && (
-            <p style={{ fontSize: 12, color: 'var(--danger)', margin: '0 0 10px' }}>{saveError}</p>
+            <p style={{ fontSize: 12, color: 'var(--danger)', margin: '0 0 10px' }}><PrivateText>{saveError}</PrivateText></p>
           )}
           <div style={styles.formActions}>
             <Button
               onClick={handleSave}
-              disabled={saving || !form.client_id || !form.test_date}
+              disabled={clientDetailsHidden || (saving || !form.client_id || !form.test_date)}
               style={{ ...styles.saveBtn, opacity: (saving || !form.client_id || !form.test_date) ? 0.5 : 1 }}
             >
               {saving ? 'Saving...' : 'Record it'}
             </Button>
-            <Button onClick={() => { setShowAdd(false); setSaveError(null); }} style={styles.cancelBtn}>Cancel</Button>
+            <Button  onClick={() => { setShowAdd(false); setSaveError(null); }} style={styles.cancelBtn}>Cancel</Button>
           </div>
         </div>
       )}
@@ -506,9 +508,9 @@ export default function PatchTests() {
               {visibleAlerts.map((alert) => (
                 <div key={`${alert.client_id}-${alert.appointment_id}`} style={styles.alertCard}>
                   <div style={styles.alertTop}>
-                    <div style={styles.alertAvatar}>{(alert.client_name || 'C')[0]}</div>
+                    <div style={styles.alertAvatar}><PrivateText placeholder="•">{(alert.client_name || 'C')[0]}</PrivateText></div>
                     <div style={styles.alertInfo}>
-                      <Button variant="quiet" onClick={() => navigate('/clients', { state: { clientId: alert.client_id } })} style={{ ...styles.alertName, justifyContent: 'flex-start', padding: 0, whiteSpace: 'normal' }}>{alert.client_name}<Icon name="chevron-right" size={16} /></Button>
+                      <Button variant="quiet" onClick={() => navigate('/clients', { state: { clientId: alert.client_id } })} style={{ ...styles.alertName, justifyContent: 'flex-start', padding: 0, whiteSpace: 'normal' }}><PrivateText placeholder="Client">{alert.client_name}</PrivateText><Icon name="chevron-right" size={16} /></Button>
                       <span style={styles.alertDetail}>
                         {alert.treatment ? `${alert.treatment} - ` : ''}
                         {alert.appointment_date
@@ -537,10 +539,10 @@ export default function PatchTests() {
                     <span style={styles.sentLabel}>Reminder accepted ✓</span>
                   ) : (
                     <div style={styles.alertActions}>
-                      <Button disabled={reminding[alert.client_id]} onClick={() => handleRemind(alert.client_id, alert.client_name)} style={styles.remindBtn}>
+                      <Button disabled={clientDetailsHidden || (reminding[alert.client_id])} onClick={() => handleRemind(alert.client_id, alert.client_name)} style={styles.remindBtn}>
                         {reminding[alert.client_id] ? 'Sending…' : 'Ask her to book one'}
                       </Button>
-                      <Button
+                      <Button disabled={clientDetailsHidden}
                         onClick={() => {
                           setForm(p => ({ ...p, client_id: alert.client_id }));
                           setSaveError(null);
@@ -564,12 +566,12 @@ export default function PatchTests() {
               <h3 style={styles.sectionTitle}>Due again soon</h3>
               {testsWithStatus.filter(t => t.ageStatus === 'ageing').map(t => (
                 <div key={t.id} style={styles.testRow}>
-                  <div style={styles.testAvatar}>{clientLabel(t)[0]}</div>
+                  <div style={styles.testAvatar}><PrivateText placeholder="•">{clientLabel(t)[0]}</PrivateText></div>
                   <div style={styles.testInfo}>
-                    <span style={styles.testName}>{clientLabel(t)}</span>
+                    <span style={styles.testName}><PrivateText placeholder="Client">{clientLabel(t)}</PrivateText></span>
                     <span style={styles.testMeta}>{t.daysLeft} days left of your {settings.expiry_months} month window</span>
                   </div>
-                  <Button disabled={reminding[t.clients?.id] || reminded[t.clients?.id]} onClick={() => handleRemind(t.clients?.id, clientLabel(t))} style={styles.smallRemindBtn}>
+                  <Button disabled={clientDetailsHidden || (reminding[t.clients?.id] || reminded[t.clients?.id])} onClick={() => handleRemind(t.clients?.id, clientLabel(t))} style={styles.smallRemindBtn}>
                     {reminding[t.clients?.id] ? 'Sending…' : reminded[t.clients?.id] ? 'Accepted ✓' : 'Remind'}
                   </Button>
                 </div>
@@ -583,7 +585,7 @@ export default function PatchTests() {
       {tab === 'all' && (
         <div>
           <label htmlFor="patch-record-search" style={styles.formLabel}>Search patch-test records</label>
-          <input id="patch-record-search" type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Client name or treatment" style={{ ...styles.formInput, minHeight: 48, marginBottom: 16 }} />
+          <PrivateText placeholder="Private field hidden"><input id="patch-record-search" type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Client name or treatment" style={{ ...styles.formInput, minHeight: 48, marginBottom: 16 }} /></PrivateText>
           {testsWithStatus.length === 0 ? (
             <EmptyState title="No patch tests on file" subtitle='Tap "+ Record a test" to record one you did.' />
           ) : !matchingTests.length ? <p role="status">No patch-test records match this search.</p> : (
@@ -600,7 +602,7 @@ export default function PatchTests() {
                         {/* clientLabel, not t.client_name. That column does
                             not exist, so every card was blank and the avatar
                             beside it threw on undefined[0]. */}
-                        <Button variant="quiet" onClick={() => navigate('/clients', { state: { clientId: t.client_id || t.clients?.id } })} style={{ ...styles.testCardName, justifyContent: 'flex-start', padding: 0, whiteSpace: 'normal' }}>{clientLabel(t)}<Icon name="chevron-right" size={16} /></Button>
+                        <Button variant="quiet" onClick={() => navigate('/clients', { state: { clientId: t.client_id || t.clients?.id } })} style={{ ...styles.testCardName, justifyContent: 'flex-start', padding: 0, whiteSpace: 'normal' }}><PrivateText placeholder="Client">{clientLabel(t)}</PrivateText><Icon name="chevron-right" size={16} /></Button>
                         <span style={styles.testCardDate}>
                           {t.test_date
                             ? `Done ${new Date(`${String(t.test_date).slice(0, 10)}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })}`
@@ -617,12 +619,12 @@ export default function PatchTests() {
                           every row in production, so a page about compliance
                           told her that every test she had ever done was
                           unfinished. */}
-                      <span style={styles.testResult}>{attests(t)}</span>
+                      <span style={styles.testResult}><PrivateText placeholder="Hidden">{attests(t)}</PrivateText></span>
                       {t.daysLeft !== null && t.ageStatus === 'current' && (
                         <span style={styles.testExpiry}>{t.daysLeft} days left of your window</span>
                       )}
                     </div>
-                    {t.reaction_notes && <p style={styles.testNotes}>{t.reaction_notes}</p>}
+                    {t.reaction_notes && <p style={styles.testNotes}><PrivateText placeholder="Hidden">{t.reaction_notes}</PrivateText></p>}
                   </div>
                 );
               })}
@@ -671,7 +673,7 @@ export default function PatchTests() {
                 <span style={styles.settingsLabel}>Auto-remind clients</span>
                 <span style={styles.settingsHint}>Florrie messages clients when their patch test is about to expire</span>
               </div>
-              <Button variant="quiet" role="switch" disabled={settingsSaving}
+              <Button variant="quiet" role="switch" disabled={clientDetailsHidden || (settingsSaving)}
                 onClick={() => {
                   const next = !settings.auto_remind;
                   setSettings(p => ({ ...p, auto_remind: next }));
@@ -713,7 +715,7 @@ export default function PatchTests() {
                 <span style={styles.settingsLabel}>Require a patch-test review</span>
                 <span style={styles.settingsHint}>Apply your patch-test requirement when clients manage a booking that needs one</span>
               </div>
-              <Button variant="quiet" role="switch" disabled={settingsSaving}
+              <Button variant="quiet" role="switch" disabled={clientDetailsHidden || (settingsSaving)}
                 onClick={() => {
                   const next = !settings.block_booking_without_test;
                   setSettings(p => ({ ...p, block_booking_without_test: next }));
@@ -767,6 +769,7 @@ export default function PatchTests() {
                 value={settings.price_pounds}
                   onChange={e => setSettings(p => ({ ...p, price_pounds: e.target.value }))}
                   onBlur={e => {
+                    if (clientDetailsHidden || e.relatedTarget?.closest('.client-privacy-toggle')) return;
                     const pounds = Math.max(0, parseFloat(e.target.value) || 0);
                     setSettings(p => ({ ...p, price_pounds: pounds }));
                     saveReminderSettings({ patch_test_price_cents: Math.round(pounds * 100) });

@@ -1,3 +1,4 @@
+import { PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import { useState, useEffect } from 'react';
 import { useBeautician, fetchRowsStrict, insertRow, updateRow } from '../lib/supabase.js';
 import PageLoader from '../components/PageLoader.jsx';
@@ -46,6 +47,7 @@ function normaliseMember(m) {
 }
 
 export default function ClientMemberships() {
+  const { hidden: clientDetailsHidden } = useClientPrivacy();
   const [tab, setTab] = useState('plans');
   const [showCreate, setShowCreate] = useState(false);
   const [expandedMember, setExpandedMember] = useState(null);
@@ -197,19 +199,19 @@ export default function ClientMemberships() {
           ))}
 
           {plans.length > 0 && (
-            <button onClick={() => setShowCreate(!showCreate)} style={s.addBtn}>+ Create New Plan</button>
+            <button disabled={clientDetailsHidden} onClick={() => setShowCreate(!showCreate)} style={s.addBtn}>+ Create New Plan</button>
           )}
 
           {showCreate && (
             <div style={s.formCard}>
               <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>New Membership Plan</div>
-              <input type="text" aria-label="Plan name" placeholder="Plan name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} style={s.input} />
+              <PrivateText placeholder="Private field hidden"><input type="text" aria-label="Plan name" placeholder="Plan name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} style={s.input} /></PrivateText>
               <input type="number" min="0.01" step="0.01" aria-label="Plan price in pounds" placeholder="Plan price (£)" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} style={{ ...s.input, marginTop: 8 }} />
-              <textarea aria-label="Perks, one per line" placeholder="Perks (one per line)" rows={3} value={form.perks} onChange={e => setForm({ ...form, perks: e.target.value })} style={{ ...s.input, marginTop: 8, resize: 'vertical' }} />
+              <PrivateText placeholder="Private field hidden"><textarea aria-label="Perks, one per line" placeholder="Perks (one per line)" rows={3} value={form.perks} onChange={e => setForm({ ...form, perks: e.target.value })} style={{ ...s.input, marginTop: 8, resize: 'vertical' }} /></PrivateText>
               <p style={s.noticeText}>Saving a plan does not enrol clients or set up payments.</p>
               <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                <button onClick={handleCreatePlan} disabled={saving || !form.name.trim() || !form.price} style={{ ...s.primaryBtn, opacity: saving || !form.name.trim() || !form.price ? 0.5 : 1 }}>{saving ? 'Saving...' : 'Create Plan'}</button>
-                <button onClick={() => setShowCreate(false)} style={s.ghostBtn}>Cancel</button>
+                <button onClick={handleCreatePlan} disabled={clientDetailsHidden || (saving || !form.name.trim() || !form.price)} style={{ ...s.primaryBtn, opacity: saving || !form.name.trim() || !form.price ? 0.5 : 1 }}>{saving ? 'Saving...' : 'Create Plan'}</button>
+                <button  onClick={() => setShowCreate(false)} style={s.ghostBtn}>Cancel</button>
               </div>
             </div>
           )}
@@ -234,7 +236,7 @@ export default function ClientMemberships() {
               <article key={member.id} style={s.memberCard}>
                 <button aria-expanded={expanded} aria-controls={`membership-${member.id}`} onClick={() => setExpandedMember(expanded ? null : member.id)} style={s.memberTop}>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text, #241B17)' }}>{member.name}</div>
+                    <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text, #241B17)' }}><PrivateText placeholder="Client">{member.name}</PrivateText></div>
                     <div style={{ fontSize: 12, color: plan?.textColor || 'var(--text-muted, #6B5D54)', fontWeight: 600 }}>{plan?.name || 'Unknown plan'}</div>
                   </div>
                   <span style={{ padding: '3px 10px', borderRadius: 10, fontSize: 11, fontWeight: 600, background: sc.bg, color: sc.color }}>
@@ -247,9 +249,9 @@ export default function ClientMemberships() {
                     <div style={s.detailRow}><span style={s.detailLabel}>Recorded next payment</span><span>{member.nextPayment || 'Not set'}</span></div>
                     <p style={s.noticeText}>These actions change the membership status in Florrie. Manage any payment arrangement with your payment provider separately.</p>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
-                      {member.status === 'active' && <button disabled={!!updatingMember} onClick={() => updateMemberStatus(member.id, 'paused')} style={s.smallBtn}>Mark paused</button>}
-                      {member.status === 'paused' && <button disabled={!!updatingMember} onClick={() => updateMemberStatus(member.id, 'active')} style={{ ...s.smallBtn, color: 'var(--success, #386F52)' }}>Mark active</button>}
-                      {member.status !== 'cancelled' && <button disabled={!!updatingMember} onClick={() => updateMemberStatus(member.id, 'cancelled')} style={{ ...s.smallBtn, color: 'var(--danger, #9E2B32)' }}>Mark cancelled</button>}
+                      {member.status === 'active' && <button disabled={clientDetailsHidden || (!!updatingMember)} onClick={() => updateMemberStatus(member.id, 'paused')} style={s.smallBtn}>Mark paused</button>}
+                      {member.status === 'paused' && <button disabled={clientDetailsHidden || (!!updatingMember)} onClick={() => updateMemberStatus(member.id, 'active')} style={{ ...s.smallBtn, color: 'var(--success, #386F52)' }}>Mark active</button>}
+                      {member.status !== 'cancelled' && <button disabled={clientDetailsHidden || (!!updatingMember)} onClick={() => updateMemberStatus(member.id, 'cancelled')} style={{ ...s.smallBtn, color: 'var(--danger, #9E2B32)' }}>Mark cancelled</button>}
                     </div>
                   </div>
                 )}

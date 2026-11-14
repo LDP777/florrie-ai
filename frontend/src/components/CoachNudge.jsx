@@ -1,3 +1,4 @@
+import { PrivateText, PrivateSection, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 /**
  * CoachNudge - The Biz Coach contextual insight card.
  *
@@ -114,7 +115,7 @@ export default function CoachNudge() {
               </span>
             </div>
             <div style={{ fontSize: 14, fontWeight: 700, color: '#fff', lineHeight: 1.25 }}>
-              {nudge.headline}
+              <PrivateText placeholder="Florrie has an update">{nudge.headline}</PrivateText>
             </div>
           </div>
 
@@ -136,7 +137,7 @@ export default function CoachNudge() {
           <p style={{ fontSize: 13, color: '#4A4540', lineHeight: 1.5,
             margin: '0 0 12px', fontWeight: 400,
           }}>
-            {nudge.body}
+            <PrivateText placeholder="Update details hidden">{nudge.body}</PrivateText>
           </p>
           {nudge.cta_label && nudge.cta_path && (
             <button className="fl-tap"
@@ -147,7 +148,7 @@ export default function CoachNudge() {
                 fontFamily: 'inherit', letterSpacing: '0.01em',
               }}
             >
-              {nudge.cta_label} →
+              <PrivateText placeholder="Open update">{nudge.cta_label}</PrivateText> →
             </button>
           )}
         </div>

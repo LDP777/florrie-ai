@@ -1,3 +1,4 @@
+import { PrivateText } from '../contexts/ClientPrivacyContext.jsx';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AgentNetwork } from '../components/AgentNetwork.jsx';
@@ -14,6 +15,7 @@ const number = value => value == null ? 'Unavailable' : value.toLocaleString('en
 const VIEWS = [{ id: 'overview', label: 'Your brief' }, { id: 'team', label: 'The team' }, { id: 'learning', label: 'Learning' }];
 
 export default function Insights() {
+
   const { beautician } = useBeautician();
   const navigate = useNavigate();
   const [state, setState] = useState({ loading: true, data: null, error: null });
@@ -51,7 +53,7 @@ export default function Insights() {
         <Button variant="quiet" className="brief-team-link" onClick={() => setView('team')}><span className="brief-team-dots" aria-hidden="true">{['message', 'camera', 'users', 'wallet', 'chart', 'shield'].map(icon => <span key={icon}><Icon name={icon} size={13} /></span>)}</span><span>Meet your six specialists</span><Icon name="arrow-right" size={15} /></Button>
       </section></EffectFrame>
       {state.loading && !data && <p className="insights-notice" role="status">Checking your latest work and patterns…</p>}
-      {state.error && <div className="insights-notice" role="alert"><p>{state.error}</p><Button variant="secondary" onClick={() => refresh(n => n + 1)}>Try again</Button></div>}
+      {state.error && <div className="insights-notice" role="alert"><p><PrivateText>{state.error}</PrivateText></p><Button variant="secondary" onClick={() => refresh(n => n + 1)}>Try again</Button></div>}
       {data && <>
         {data.partial && <p className="insights-notice" role="status">Some sources could not be checked. Available evidence is shown below; missing data is labelled.</p>}
         <div className="brief-metrics" aria-label="Work in the last seven days">
@@ -69,7 +71,7 @@ export default function Insights() {
             <div className="brief-section-heading"><h2>Worth a closer look</h2><Icon name="chart" size={19} /></div>
             {!data.insights_available && <p className="insights-muted">Booking patterns are unavailable. Refresh to try again.</p>}
             {data.insights_available && !data.insights?.length && <p className="insights-muted">A few more completed bookings will help Florrie find useful patterns here.</p>}
-            {data.insights?.map(card => <article className="insight-story" key={card.id}><span className="insights-eyebrow">{card.confidence === 'scenario' ? 'A SCENARIO TO CONSIDER' : 'FROM YOUR BOOKINGS'}</span><h3>{card.title}</h3><p>{card.summary}</p><details><summary>See the evidence</summary><p className="insights-muted">{card.evidence}</p>{data.insights_sampled && <p className="insights-muted">Based on a sample of recent bookings and services.</p>}</details><Button variant="quiet" onClick={() => navigate(card.link_to)}>{card.action_label}<Icon name="arrow-right" size={14} /></Button></article>)}
+            {data.insights?.map(card => <article className="insight-story" key={card.id}><span className="insights-eyebrow">{card.confidence === 'scenario' ? 'A SCENARIO TO CONSIDER' : 'FROM YOUR BOOKINGS'}</span><h3><PrivateText placeholder="Hidden">{card.title}</PrivateText></h3><p><PrivateText placeholder="Hidden">{card.summary}</PrivateText></p><details><summary>See the evidence</summary><p className="insights-muted"><PrivateText placeholder="Hidden">{card.evidence}</PrivateText></p>{data.insights_sampled && <p className="insights-muted">Based on a sample of recent bookings and services.</p>}</details><Button variant="quiet" onClick={() => navigate(card.link_to)}><PrivateText placeholder="Open">{card.action_label}</PrivateText><Icon name="arrow-right" size={14} /></Button></article>)}
             <div className="brief-permissions"><Icon name="shield" size={20} /><div><strong>You set the pace</strong><p>{replyMode === true ? 'Automatic replies are enabled. Message rules and your approval settings still apply.' : replyMode === false ? 'Automatic replies are off. You stay in control of replies while Florrie prepares the work.' : 'Reply settings could not be checked.'}</p><Button variant="quiet" onClick={() => navigate('/settings')}>Your preferences <Icon name="arrow-right" size={14} /></Button></div></div>
           </>}
           {view === 'team' && <AgentNetwork key={beautician?.id} agents={data.agents} />}

@@ -1,3 +1,4 @@
+import { PrivateText, PrivateSection, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import ContentResults from '../components/ContentResults.jsx';
 import ContentAssistant from '../components/ContentAssistant.jsx';
 import ContentStudioHome, { postReadiness, PostPreview } from '../components/ContentStudioHome.jsx';
@@ -104,6 +105,7 @@ const STATUS_BADGES = {
 };
 
 export default function ContentAutopilot() {
+  const { hidden } = useClientPrivacy();
   const { beautician, loading: bLoading } = useBeautician();
   const [drafts, setDrafts] = useState([]);
   const [draftSearch, setDraftSearch] = useState('');
@@ -787,17 +789,17 @@ export default function ContentAutopilot() {
     <div className="fl-content-studio" style={styles.page}>
       {error && <ErrorCard message={error} onDismiss={() => setError(null)} />}
       {error && !composing && <Button variant="secondary" onClick={() => loadAll()}>Retry posts</Button>}
-      {handoffError && <div role="alert" className="fl-content-origin"><span>{handoffError}</span><Button variant="quiet" onClick={() => setHandoffRetry(value => value + 1)}>Retry opening post</Button><Button variant="quiet" onClick={() => {setHandoffError(null);navigate('/content',{replace:true,state:null});}}>View other posts</Button></div>}
+      {handoffError && <div role="alert" className="fl-content-origin"><span><PrivateText placeholder="Could not open this post.">{handoffError}</PrivateText></span><Button variant="quiet" onClick={() => setHandoffRetry(value => value + 1)}>Retry opening post</Button><Button variant="quiet" onClick={() => {setHandoffError(null);navigate('/content',{replace:true,state:null});}}>View other posts</Button></div>}
       <header className="fl-content-heading">
         <div><h1>{composing ? <>Create a <em>post.</em></> : <>Your <em>content.</em></>}</h1>{tab !== 'assistant' && <p>{composing ? 'Add a photo and a caption. Save it when you’re ready.' : 'Your saved work, ready when you are.'}</p>}</div>
-        {!composing && tab !== 'assistant' && <Button onClick={() => startCompose('before_after', '')}><Icon name="plus" size={17} /> Create a post</Button>}
+        {!composing && tab !== 'assistant' && <Button disabled={hidden} onClick={() => startCompose('before_after', '')}><Icon name="plus" size={17} /> Create a post</Button>}
       </header>
       {!composing && <div className="fl-studio-tabs" aria-label="Content views">
         {[['assistant','For you'],['drafts','Your posts'],['gallery','Photos'],['results','Results']].map(([value,label]) => <button type="button" key={value}
           aria-pressed={value === 'drafts' ? ['drafts','scheduled','posted','calendar'].includes(tab) : tab === value}
           onClick={() => {setTab(value);setComposing(false);if(value === 'assistant')setSelectedStreamId(null);}}>{label}</button>)}
       </div>}
-      {selectedStreamId && <div className="fl-content-origin"><span>{composing ? 'Saving this post in' : 'Showing collection:'} <strong>{streams.find(item => item.id === selectedStreamId)?.name || 'Selected collection'}</strong></span>{!composing && <Button variant="quiet" onClick={() => setSelectedStreamId(null)}>Show all posts</Button>}</div>}
+      {!hidden && selectedStreamId && <div className="fl-content-origin"><span>{composing ? 'Saving this post in' : 'Showing collection:'} <strong>{streams.find(item => item.id === selectedStreamId)?.name || 'Selected collection'}</strong></span>{!composing && <Button variant="quiet" onClick={() => setSelectedStreamId(null)}>Show all posts</Button>}</div>}
       {['drafts','scheduled','posted'].includes(tab) && <div className="fl-content-subtabs" role="group" aria-label="Post views">{[['drafts','Drafts',drafts.length],['scheduled','Scheduled',scheduled.length],['posted','Published',posted.length]].map(([value,label,count]) => <button type="button" key={value} aria-pressed={tab === value} onClick={() => setTab(value)}>{label}{!error && <span aria-hidden="true">{count}{hasMore ? '+' : ''}</span>}</button>)}</div>}
       {!composing && tab !== 'assistant' && <div className="fl-content-connection"><Icon name="instagram" size={15}/><Link to="/settings">{igChecking ? 'Checking Instagram…' : igStatus?.needs_reconnect ? 'Reconnect Instagram' : igStatus?.connected === false ? 'Connect Instagram' : igStatus?.connected && igStatus?.token_valid === true ? 'Instagram connected' : 'Check Instagram connection'}<Icon name="chevron-right" size={13}/></Link></div>}
       {tab === 'ideas' && <Button variant="quiet" onClick={() => setTab('drafts')}><Icon name="arrow-left" size={16}/> Back to your posts</Button>}
@@ -811,7 +813,7 @@ export default function ContentAutopilot() {
         igStatus={igStatus} igChecking={igChecking} planning={planning} onPlan={handlePlanWeek} onPost={openPost}
         onCompose={({ type, treatment, brief }) => { startCompose(type, ''); setComposeTreatment(treatment || ''); setComposeBrief(brief || ''); }}
         onGallery={() => setTab('gallery')} onDrafts={() => setTab('drafts')} onCalendar={() => setTab('calendar')} onResults={() => setTab('results')} onRetry={() => loadAll()} note={planNote} blocked={planBlocked} />}
-      {tab !== 'ideas' && planNote && <p role="status" className="fl-studio-note">{planNote}</p>}
+      {tab !== 'ideas' && planNote && <p role="status" className="fl-studio-note"><PrivateText>{planNote}</PrivateText></p>}
 
       {/* Instagram is not connected, or its token is dead. Said once, at the
           top, because every publish and schedule button below it is about to
@@ -831,6 +833,7 @@ export default function ContentAutopilot() {
         </div>
       )}
 
+      <PrivateSection placeholder="Post photos, captions and private notes hidden">
       {generatingAI && <EffectFrame active><div className="fl-studio-ai-state" role="status"><FlorrieOrb state="composing" size={48} /><p><strong>Finding your words</strong>Using your treatment, brief and writing style.</p></div></EffectFrame>}
       {/* ═══ IDEAS TAB ═══ */}
       {tab === 'ideas' && (
@@ -1488,6 +1491,7 @@ export default function ContentAutopilot() {
       </details>}
         </details>
       </div>}
+      </PrivateSection>
     </div>
   );
 }

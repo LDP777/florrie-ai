@@ -1,3 +1,5 @@
+import './styles/client-privacy.css';
+import { ClientPrivacyProvider, ClientPrivacyToggle, ClientPrivacyStatus } from './contexts/ClientPrivacyContext.jsx';
 import { FlorrieOrb } from './components/ui/FlorrieEffects.jsx';
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
@@ -462,9 +464,8 @@ export default function App() {
 
   // Authenticated app
   const showNav = !isAuthRoute && !location.pathname.startsWith('/onboarding');
-  // One source of truth for the Back pill: it decides both whether the pill
-  // renders AND whether the scroll region reserves the 56px band it sits in.
-  // Two separate conditions is how the band got forgotten in the first place.
+  // The owner chrome reserves a top row on all workspace pages. Secondary
+  // pages also show Back at the left of that same row.
   const showBackPill = showNav
     && location.pathname !== '/calendar/full'
     && !ROOT_PATHS.has(location.pathname);
@@ -506,8 +507,9 @@ export default function App() {
 
   return (
     <ErrorBoundary>
+      <ClientPrivacyProvider>
       <CoachProvider>
-      <div style={styles.appShell} className="app-shell">
+      <div style={{ ...styles.appShell, '--client-privacy-toolbar-height': showNav ? '60px' : '0px' }} className="app-shell">
         {pastDue && !pastDueLocked && !isIOSNative() && (
           <div style={{ background: 'var(--danger, #9E2B32)', color: '#fff', textAlign: 'center', padding: '8px 16px', fontSize: 13, fontWeight: 500 }}>
             Your last payment did not go through.{' '}
@@ -531,36 +533,15 @@ export default function App() {
             under the composer. */}
         <div
           style={{ ...styles.pageContainer,
-            // The Back pill is position:fixed at safe-top + 12px and is 44px
-            // tall, so it occupies the first 56px of every secondary screen.
-            // Nothing reserved that band, so every page title in the app was
-            // rendered underneath it — "Settings" and "How Florrie helped" were
-            // both half-hidden behind the word Back.
-            //
-            // PageHeader padded 60px to dodge it, but only nine screens use
-            // PageHeader. There was also a PageScaffold component written to
-            // solve exactly this, whose docblock claimed App.jsx cooperated
-            // with it; nothing imported it and App.jsx did no such thing, so it
-            // was deleted rather than left to read like documentation of an
-            // architecture that never existed.
-            //
-            // Reserving the band once here fixes all sixty-odd screens and
-            // cannot drift, because the same condition that renders the pill
-            // reserves its space. check-chrome.mjs holds the two together.
-            //
-            // Root paths are excluded deliberately: they show only the More
-            // pill, top-RIGHT, and their headers are left-aligned, so there is
-            // nothing to clear and 60px there would just be a band of dead
-            // cream above the Hub greeting.
-            paddingTop: showBackPill
-              ? 'calc(var(--shell-top) + 60px)'
-              : 'var(--shell-top)',
+            // The eye and navigation pills share one reserved top row.
+            paddingTop: showNav ? 'calc(var(--shell-top) + 60px)' : 'var(--shell-top)',
             paddingBottom: (location.pathname === '/inbox' && /[?&]client=/.test(location.search || ''))
               ? 'var(--shell-bottom-nav)'
               : 'var(--shell-bottom)',
           }}
           id="app-scroll"
         >
+          {showNav && <ClientPrivacyStatus />}
           <MoreSectionNav />
           <Suspense fallback={<PageLoader />}>
             <Routes>
@@ -673,13 +654,17 @@ export default function App() {
 
       {showNav && <BottomNav current={location.pathname} session={session} />}
       {showBackPill && <FloatingBack current={location.pathname} />}
-      {showNav && location.pathname !== '/calendar/full'
-        && !(location.pathname === '/inbox' && location.search.includes('client='))
-        && <FloatingMore current={location.pathname} />}
+      {showNav && <div className="client-privacy-controls">
+        <ClientPrivacyToggle />
+        {location.pathname !== '/calendar/full'
+          && !(location.pathname === '/inbox' && location.search.includes('client='))
+          && <FloatingMore current={location.pathname} />}
+      </div>}
       {showNav && <FloatingMic />}
       <CoachNudge />
       </div>
       </CoachProvider>
+      </ClientPrivacyProvider>
     </ErrorBoundary>
   );
 }
@@ -960,9 +945,7 @@ function FloatingMore({ current }) {
     <button
       onClick={() => navigate('/more')}
       aria-label="More features"
-      style={{ position: 'fixed',
-        top: 'calc(env(safe-area-inset-top, 0px) + 12px)',
-        right: 14,
+      style={{ position: 'relative',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',

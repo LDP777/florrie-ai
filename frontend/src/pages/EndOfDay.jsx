@@ -1,3 +1,4 @@
+import { PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import { useState, useEffect, useMemo } from 'react';
 import { useBeautician, fetchRowsStrict, updateRow, insertRow } from '../lib/supabase.js';
@@ -8,6 +9,7 @@ import PageHeader from '../components/ui/PageHeader.jsx';
 import Button from '../components/ui/Button.jsx';
 
 export default function EndOfDay() {
+  const { hidden: clientDetailsHidden } = useClientPrivacy();
   const { beautician, loading: bLoading } = useBeautician();
   const [appointments, setAppointments] = useState([]);
   const [transactions, setTransactions] = useState([]);
@@ -316,7 +318,7 @@ export default function EndOfDay() {
                   <div style={styles.timelineTime}>{appt.time}</div>
                   <div style={styles.timelineDot(appt.status)} />
                   <div style={{ flex: 1 }}>
-                    <div style={styles.timelineClient}>{appt.client}</div>
+                    <div style={styles.timelineClient}><PrivateText placeholder="Client">{appt.client}</PrivateText></div>
                     <div style={styles.timelineTreatment}>{appt.treatment}</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
@@ -409,19 +411,19 @@ export default function EndOfDay() {
               {autoNotes.map((note, i) => (
                 <div key={i} style={styles.noteCard}>
                   <span style={{ fontSize: 14 }}>{'\uD83D\uDCCC'}</span>
-                  <span style={{ fontSize: 13, color: 'var(--text-secondary, #574A42)', lineHeight: 1.5 }}>{note}</span>
+                  <span style={{ fontSize: 13, color: 'var(--text-secondary, #574A42)', lineHeight: 1.5 }}><PrivateText placeholder="Hidden">{note}</PrivateText></span>
                 </div>
               ))}
 
               <div style={{ marginTop: 20 }}>
                 <label style={styles.inputLabel}>Closing notes</label>
-                <textarea
+                <PrivateText placeholder="Private field hidden"><textarea
                   value={closingNotes}
                   onChange={e => setClosingNotes(e.target.value)}
                   placeholder="Anything to note for tomorrow..."
                   rows={3}
                   style={styles.textarea}
-                />
+                /></PrivateText>
               </div>
             </div>
           )}
@@ -431,7 +433,7 @@ export default function EndOfDay() {
       {/* Close day button */}
       {!dayClosed && appointments.length > 0 && (
         <div style={styles.closeDayWrap}>
-          <Button variant="primary" size="lg" fullWidth disabled={saving} onClick={saveEndOfDay}>
+          <Button variant="primary" size="lg" fullWidth disabled={clientDetailsHidden || (saving)} onClick={saveEndOfDay}>
             {saving ? 'Closing…' : 'Close day'}
           </Button>
           {!isReconciled && (

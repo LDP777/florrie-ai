@@ -1,3 +1,4 @@
+import { PrivateText } from '../contexts/ClientPrivacyContext.jsx';
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useBeautician, supabase, insertRow } from '../lib/supabase.js';
@@ -298,7 +299,7 @@ export default function HoursExceptions() {
           <div style={S.nextCard}>
             <span style={S.nextTag}>Next time off</span>
             <span style={S.nextDate}>{formatRange(next.date, next.end_date)}</span>
-            {next.note && <span style={S.nextNote}>{next.note}</span>}
+            {next.note && <span style={S.nextNote}><PrivateText>{next.note}</PrivateText></span>}
             <span style={S.nextAway}>{daysAway(next.date)}</span>
           </div>
         );
@@ -500,7 +501,7 @@ export default function HoursExceptions() {
                   )}
                   <div style={S.excMeta}>
                     <span style={S.excAway}>{daysAway(exc.date)}</span>
-                    {exc.note && <span style={S.excNote}>{exc.note}</span>}
+                    {exc.note && <span style={S.excNote}><PrivateText>{exc.note}</PrivateText></span>}
                   </div>
                 </div>
                 <Button variant="quiet" size="sm" disabled={saving || !!deleting} aria-label={`Remove ${formatRange(exc.date, exc.end_date)}`} onClick={() => handleDelete(exc.id)} style={S.deleteBtn}>{deleting === exc.id ? 'Removing…' : <Icon name="x" size={15} />}</Button>
@@ -520,7 +521,7 @@ export default function HoursExceptions() {
                 <div style={{ ...S.excDotLarge, background: TYPE_CFG[exc.type]?.dot || '#ccc' }} />
                 <div style={{ flex: 1 }}>
                   <span style={S.excDate}>{formatRange(exc.date, exc.end_date)}</span>
-                  {exc.note && <span style={{ ...S.excNote, display: 'block', marginTop: 2 }}>{exc.note}</span>}
+                  {exc.note && <span style={{ ...S.excNote, display: 'block', marginTop: 2 }}><PrivateText>{exc.note}</PrivateText></span>}
                 </div>
               </div>
             ))}

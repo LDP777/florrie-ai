@@ -1,3 +1,4 @@
+import { useClientPrivacy, PrivateSection } from '../contexts/ClientPrivacyContext.jsx';
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
@@ -24,6 +25,7 @@ function checkBoard(data) {
 
 /** Read-only on entry. Preparing is explicit; publication keeps the existing approval flow. */
 export default function ContentAssistant({ owner, onPost, onPrepared, onPosts, onPhotos, onResults, onCompose }) {
+  const { hidden } = useClientPrivacy();
   const [board, setBoard] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -132,7 +134,7 @@ export default function ContentAssistant({ owner, onPost, onPrepared, onPosts, o
   }
 
   async function prepare() {
-    if (locked.current || !board || loading || blocked.current) return;
+    if (hidden || locked.current || !board || loading || blocked.current) return;
     const sequence = authGeneration.current, task = ++operation.current;
     locked.current = true; setBusy(true); setError(''); setNote(''); setAssetErrors({});
     setStage('Checking your sources and preparing up to three posts…');
@@ -156,7 +158,7 @@ export default function ContentAssistant({ owner, onPost, onPrepared, onPosts, o
     finally { if (current(sequence) && task === operation.current) { locked.current = false; setBusy(false); setStage(''); } }
   }
   async function retryDesign(item) {
-    if (locked.current || blocked.current) return;
+    if (hidden || locked.current || blocked.current) return;
     const sequence = authGeneration.current, task = ++operation.current;
     locked.current = true; setBusy(true); setStage('Saving your design…');
     try {
@@ -180,7 +182,7 @@ export default function ContentAssistant({ owner, onPost, onPrepared, onPosts, o
       <div className="fl-assistant-section-title"><h3>Over to you</h3><Button variant="quiet" onClick={onPosts}>All posts<Icon name="arrow-right" size={15}/></Button></div>
       {prepared.slice(0, 3).map((item, index) => {
         const post = item.post, needs = item.needs || [], local = localArtwork[item.post_id];
-        return <article key={item.post_id} className="fl-assistant-post" data-assistant-post={item.post_id}>
+        return <PrivateSection key={item.post_id} placeholder="Prepared post hidden"><article className="fl-assistant-post" data-assistant-post={item.post_id}>
           <div className="fl-assistant-preview">{local && !post.image_url ? <img src={local} alt="Prepared design, not yet saved"/> : post.image_url ? <PostPreview post={post}/> : <div className="fl-assistant-missing-art"><Icon name={item.artwork ? 'image' : 'camera'} size={30}/><span>{item.artwork ? 'Design ready to make' : 'Your photo goes here'}</span></div>}</div>
           <div className="fl-assistant-post-copy"><div className="fl-assistant-post-label"><span>{String(index + 1).padStart(2, '0')} / {sourceLabel(item.source?.type)}</span><span>{needs.length ? 'Needs a finishing touch' : 'Ready for review'}</span></div>
             <h3>{item.artwork?.title || (item.source?.type === 'gallery' ? 'Let your work do the talking.' : 'A post for your salon.')}</h3>
@@ -192,7 +194,7 @@ export default function ContentAssistant({ owner, onPost, onPrepared, onPosts, o
               {item.artwork && !post.image_url && <Button variant="quiet" disabled={busy} onClick={() => retryDesign(item)}>{assetErrors[item.post_id] ? 'Retry saving design' : 'Make the design'}</Button>}
             </div>
           </div>
-        </article>;
+        </article></PrivateSection>;
       })}
     </div>}
   </ContentTeam>;

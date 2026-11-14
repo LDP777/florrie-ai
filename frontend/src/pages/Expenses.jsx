@@ -1,3 +1,4 @@
+import { PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import MoreLoadError from '../components/MoreLoadError.jsx';
 /**
  * Expenses - Dedicated expense manager with budgets & recurring items.
@@ -36,6 +37,7 @@ const getCat = (v) => CATEGORIES.find(c => c.value === v) || CATEGORIES[9];
 const fmt = (cents) => `£${(Math.abs(cents) / 100).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function Expenses() {
+  const { hidden: clientDetailsHidden } = useClientPrivacy();
   const [loadError, setLoadError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [retry, setRetry] = useState(0);
@@ -281,8 +283,8 @@ export default function Expenses() {
             {monthExpenses.filter(e => e.recurring).map(e => (
               <div key={e.id} style={S.recurringRow}>
                 <div style={S.recurringInfo}>
-                  <span style={S.recurringVendor}>{e.vendor}</span>
-                  <span style={S.recurringDesc}>{e.description}</span>
+                  <span style={S.recurringVendor}><PrivateText>{e.vendor}</PrivateText></span>
+                  <span style={S.recurringDesc}><PrivateText>{e.description}</PrivateText></span>
                 </div>
                 <div style={S.recurringRight}>
                   <span style={S.recurringAmount}>{fmt(e.amount_cents)}</span>
@@ -293,7 +295,7 @@ export default function Expenses() {
           </div>
 
           {/* Export */}
-          <button style={S.exportBtn} onClick={exportCSV}><Icon name="download" size={16} /> Export {monthLabel()} as CSV</button>
+          <button disabled={clientDetailsHidden} style={S.exportBtn} onClick={exportCSV}><Icon name="download" size={16} /> Export {monthLabel()} as CSV</button>
         </>
       )}
 
@@ -308,8 +310,8 @@ export default function Expenses() {
                 <div style={S.expenseLeft}>
                   <span style={{ ...S.catIcon, background: meta.color + '22' }}><Icon name={meta.icon} size={17} /></span>
                   <div style={S.expenseInfo}>
-                    <span style={S.expenseVendor}>{e.vendor}</span>
-                    <span style={S.expenseDesc}>{e.description}</span>
+                    <span style={S.expenseVendor}><PrivateText>{e.vendor}</PrivateText></span>
+                    <span style={S.expenseDesc}><PrivateText>{e.description}</PrivateText></span>
                     <div style={S.expenseTags}>
                       <span style={S.tagDate}>{formatDate(e.date)}</span>
                       {e.recurring && <span style={S.tagRecurring}><Icon name="repeat" size={12} /> {e.recurring_interval}</span>}
@@ -320,8 +322,8 @@ export default function Expenses() {
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
                   <span style={S.expenseAmount}>{fmt(e.amount_cents)}</span>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button className="fl-tap" onClick={() => handleEditExpense(e)} style={{ background: 'none', border: 'none', fontSize: 11, color: 'var(--success, #386F52)', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>Edit</button>
-                    <button className="fl-tap" onClick={() => handleDeleteExpense(e.id)} style={{ background: 'none', border: 'none', fontSize: 11, color: 'var(--text-muted, var(--text-muted, #6B5D54))', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>Delete</button>
+                    <button disabled={clientDetailsHidden} className="fl-tap" onClick={() => handleEditExpense(e)} style={{ background: 'none', border: 'none', fontSize: 11, color: 'var(--success, #386F52)', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>Edit</button>
+                    <button disabled={clientDetailsHidden} className="fl-tap" onClick={() => handleDeleteExpense(e.id)} style={{ background: 'none', border: 'none', fontSize: 11, color: 'var(--text-muted, var(--text-muted, #6B5D54))', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>Delete</button>
                   </div>
                 </div>
               </div>
@@ -390,10 +392,10 @@ export default function Expenses() {
             <h2 style={S.modalTitle}>{editingExpense ? 'Edit Expense' : 'Add Expense'}</h2>
 
             <div style={S.fieldLabel}>Vendor</div>
-            <input style={S.input} placeholder="e.g. Sally Beauty" value={form.vendor} onChange={e => setForm(f => ({ ...f, vendor: e.target.value }))} />
+            <PrivateText><input style={S.input} placeholder="e.g. Sally Beauty" value={form.vendor} onChange={e => setForm(f => ({ ...f, vendor: e.target.value }))} /></PrivateText>
 
             <div style={S.fieldLabel}>Description</div>
-            <input style={S.input} placeholder="What was it for?" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+            <PrivateText><input style={S.input} placeholder="What was it for?" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></PrivateText>
 
             <div style={S.fieldLabel}>Amount (£)</div>
             <input style={S.input} type="number" step="0.01" placeholder="0.00" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} />
@@ -434,7 +436,7 @@ export default function Expenses() {
               </div>
             )}
 
-            <button style={{ ...S.saveBtn, opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={() => {
+            <button style={{ ...S.saveBtn, opacity: saving ? 0.6 : 1 }} disabled={clientDetailsHidden || (saving)} onClick={() => {
               if (editingExpense) {
                 handleSaveEditedExpense();
               } else {

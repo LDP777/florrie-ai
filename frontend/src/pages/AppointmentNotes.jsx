@@ -1,3 +1,4 @@
+import { PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 /**
  * Appointment Notes - Per-visit treatment notes, photos & flags.
  *
@@ -17,6 +18,7 @@ import Icon from '../components/ui/Icon';
 import PageHeader from '../components/ui/PageHeader.jsx';
 
 export default function AppointmentNotes() {
+  const { hidden: clientDetailsHidden } = useClientPrivacy();
   const { beautician, loading: bLoading } = useBeautician();
   const [allNotes, setAllNotes] = useState([]);
   const [clients, setClients] = useState([]);
@@ -148,13 +150,13 @@ export default function AppointmentNotes() {
             data.flags.length > 0 && (
               <div key={client} style={S.flagCard}>
                 <div style={S.flagCardHeader}>
-                  <div style={S.avatar}>{client[0]}</div>
-                  <span style={S.flagClient}>{client}</span>
+                  <div style={S.avatar}><PrivateText placeholder="•">{client[0]}</PrivateText></div>
+                  <span style={S.flagClient}><PrivateText placeholder="Client">{client}</PrivateText></span>
                   <span style={S.flagCount}>{data.count} visits</span>
                 </div>
                 <div style={S.flagTags}>
                   {data.flags.slice(0, 3).map((f, i) => (
-                    <span key={i} style={S.flagTag}>⚑ {f}</span>
+                    <span key={i} style={S.flagTag}>⚑ <PrivateText placeholder="Hidden">{f}</PrivateText></span>
                   ))}
                 </div>
               </div>
@@ -167,7 +169,7 @@ export default function AppointmentNotes() {
       <div style={S.filterRow}>
         {clientNames.map(c => (
           <button key={c} onClick={() => setSelectedClient(c)} style={{ ...S.filterChip, ...(selectedClient === c ? S.filterActive : {}) }}>
-            {c}
+            <PrivateText placeholder="Client">{c}</PrivateText>
           </button>
         ))}
       </div>
@@ -180,9 +182,9 @@ export default function AppointmentNotes() {
             <div key={note.id} style={S.noteCard} onClick={() => setExpandedNote(expanded ? null : note.id)}>
               <div style={S.noteHeader}>
                 <div style={S.noteLeft}>
-                  <div style={S.avatar}>{note.client[0]}</div>
+                  <div style={S.avatar}><PrivateText placeholder="•">{note.client[0]}</PrivateText></div>
                   <div style={S.noteInfo}>
-                    <span style={S.noteClient}>{note.client}</span>
+                    <span style={S.noteClient}><PrivateText placeholder="Client">{note.client}</PrivateText></span>
                     <span style={S.noteTreatment}>{note.treatment}</span>
                   </div>
                 </div>
@@ -194,13 +196,13 @@ export default function AppointmentNotes() {
 
               {/* Preview line */}
               {!expanded && (
-                <p style={S.notePreview}>{note.notes.slice(0, 80)}...</p>
+                <p style={S.notePreview}><PrivateText placeholder="Hidden">{note.notes.slice(0, 80)}</PrivateText>...</p>
               )}
 
               {/* Expanded */}
               {expanded && (
                 <div style={S.noteExpanded}>
-                  <p style={S.noteBody}>{note.notes}</p>
+                  <p style={S.noteBody}><PrivateText placeholder="Hidden">{note.notes}</PrivateText></p>
 
                   {/* Products */}
                   {note.products.length > 0 && (
@@ -208,7 +210,7 @@ export default function AppointmentNotes() {
                       <span style={S.sectionLabel}>Products Used</span>
                       <div style={S.chipRow}>
                         {note.products.map((p, i) => (
-                          <span key={i} style={S.productChip}>{p}</span>
+                          <span key={i} style={S.productChip}><PrivateText placeholder="Hidden">{p}</PrivateText></span>
                         ))}
                       </div>
                     </div>
@@ -220,7 +222,7 @@ export default function AppointmentNotes() {
                       <span style={S.sectionLabel}>Flags & Reminders</span>
                       <div style={S.chipRow}>
                         {note.flags.map((f, i) => (
-                          <span key={i} style={S.flagChip}>⚑ {f}</span>
+                          <span key={i} style={S.flagChip}>⚑ <PrivateText placeholder="Hidden">{f}</PrivateText></span>
                         ))}
                       </div>
                     </div>
@@ -233,8 +235,8 @@ export default function AppointmentNotes() {
                   </div>
 
                   <div style={S.actionRow}>
-                    <button style={S.actionBtn} onClick={(e) => { e.stopPropagation(); startEditNote(note); }}>Edit</button>
-                    <button style={{ ...S.actionBtn, color: 'var(--accent, #92405e)' }} onClick={(e) => { e.stopPropagation(); handleDeleteNote(note.id); }}>Delete</button>
+                    <button disabled={clientDetailsHidden} style={S.actionBtn} onClick={(e) => { e.stopPropagation(); startEditNote(note); }}>Edit</button>
+                    <button disabled={clientDetailsHidden} style={{ ...S.actionBtn, color: 'var(--accent, #92405e)' }} onClick={(e) => { e.stopPropagation(); handleDeleteNote(note.id); }}>Delete</button>
                   </div>
                 </div>
               )}
@@ -250,10 +252,10 @@ export default function AppointmentNotes() {
             <h2 style={S.modalTitle}>{editingNote ? 'Edit Note' : 'New Appointment Note'}</h2>
 
             <div style={S.fieldLabel}>Client</div>
-            <select style={S.select} value={addForm.client} onChange={e => setAddForm(f => ({ ...f, client: e.target.value }))}>
+            <PrivateText placeholder="Client selection hidden"><select style={S.select} value={addForm.client} onChange={e => setAddForm(f => ({ ...f, client: e.target.value }))}>
               <option value="">Select client</option>
               {clients.map(c => <option key={c.id} value={c.first_name}>{c.first_name} {c.last_name}</option>)}
-            </select>
+            </select></PrivateText>
 
             <div style={S.fieldLabel}>Treatment</div>
             <select style={S.select} value={addForm.treatment} onChange={e => setAddForm(f => ({ ...f, treatment: e.target.value }))}>
@@ -262,13 +264,13 @@ export default function AppointmentNotes() {
             </select>
 
             <div style={S.fieldLabel}>Notes</div>
-            <textarea style={S.textarea} rows={4} placeholder="What happened during the appointment..." value={addForm.notes} onChange={e => setAddForm(f => ({ ...f, notes: e.target.value }))} />
+            <PrivateText placeholder="Private field hidden"><textarea style={S.textarea} rows={4} placeholder="What happened during the appointment..." value={addForm.notes} onChange={e => setAddForm(f => ({ ...f, notes: e.target.value }))} /></PrivateText>
 
             <div style={S.fieldLabel}>Products Used (comma-separated)</div>
-            <input style={S.input} placeholder="e.g. Medium brown dye, Lash lift lotion" value={addForm.products} onChange={e => setAddForm(f => ({ ...f, products: e.target.value }))} />
+            <PrivateText placeholder="Private field hidden"><input style={S.input} placeholder="e.g. Medium brown dye, Lash lift lotion" value={addForm.products} onChange={e => setAddForm(f => ({ ...f, products: e.target.value }))} /></PrivateText>
 
             <div style={S.fieldLabel}>Flags / Reminders (comma-separated)</div>
-            <input style={S.input} placeholder="e.g. Allergic to latex, Wants darker shade next" value={addForm.flags} onChange={e => setAddForm(f => ({ ...f, flags: e.target.value }))} />
+            <PrivateText placeholder="Private field hidden"><input style={S.input} placeholder="e.g. Allergic to latex, Wants darker shade next" value={addForm.flags} onChange={e => setAddForm(f => ({ ...f, flags: e.target.value }))} /></PrivateText>
 
             <div style={S.fieldLabel}>Rating</div>
             <div style={S.ratingRow}>
@@ -277,7 +279,7 @@ export default function AppointmentNotes() {
               ))}
             </div>
 
-            <button style={{ ...S.saveBtn, opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={handleSaveNote}>
+            <button style={{ ...S.saveBtn, opacity: saving ? 0.6 : 1 }} disabled={clientDetailsHidden || (saving)} onClick={handleSaveNote}>
               {saving ? 'Saving…' : editingNote ? 'Update Note' : 'Save Note'}
             </button>
           </div>

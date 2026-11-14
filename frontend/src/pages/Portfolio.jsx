@@ -1,3 +1,4 @@
+import { PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 /**
  * Portfolio - Photo Gallery & Before/After showcase.
  *
@@ -29,6 +30,7 @@ const FILTER_TAGS = ['All', 'Brows', 'Lashes', 'Semi-permanent'];
 const PLACEHOLDER_COLOURS = ['#E8D5C4', '#D4C4B0', '#C4B5A0', '#B8A898', '#CDB4A0', '#D8C8B8', '#E0D0C0', '#C8B8A8', '#D0C0B0', '#DDD0C4'];
 
 export default function Portfolio() {
+  const { hidden: clientDetailsHidden } = useClientPrivacy();
   const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('gallery');
   const [filter, setFilter] = useState('All');
@@ -176,10 +178,10 @@ export default function Portfolio() {
               <div style={S.photoMeta}>
                 <span style={S.photoTreatment}>{p.treatment}</span>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={S.photoClient}>{p.client}</span>
+                  <span style={S.photoClient}><PrivateText placeholder="Client">{p.client}</PrivateText></span>
                   <div style={{ display: 'flex', gap: 4 }}>
                     <button onClick={(e) => handleEditPhoto(p, e)} style={{ ...S.deleteBtn, color: 'var(--accent, #92405e)' }}><Icon name="edit" size={15} /></button>
-                    <button onClick={(e) => { e.stopPropagation(); handleDeletePhoto(p.id); }} style={S.deleteBtn}>×</button>
+                    <button disabled={clientDetailsHidden} onClick={(e) => { e.stopPropagation(); handleDeletePhoto(p.id); }} style={S.deleteBtn}>×</button>
                   </div>
                 </div>
               </div>
@@ -222,13 +224,13 @@ export default function Portfolio() {
                     <span style={S.pairLabel}>After</span>
                   </div>
                 </div>
-                <div style={S.pairClient}>{after.client}</div>
+                <div style={S.pairClient}><PrivateText placeholder="Client">{after.client}</PrivateText></div>
 
                 {/* Expanded: share buttons */}
                 {selectedPair === i && (
                   <div style={S.shareRow}>
                     {['Instagram', 'WhatsApp', 'Copy Link'].map(ch => (
-                      <button key={ch} style={S.shareBtn} onClick={(e) => { e.stopPropagation(); handleSharePhoto(pair, ch); }}>{ch}</button>
+                      <button disabled={clientDetailsHidden} key={ch} style={S.shareBtn} onClick={(e) => { e.stopPropagation(); handleSharePhoto(pair, ch); }}>{ch}</button>
                     ))}
                   </div>
                 )}
@@ -273,9 +275,9 @@ export default function Portfolio() {
 
             {/* Client */}
             <div style={S.fieldLabel}>Client (optional)</div>
-            <input style={S.input} placeholder="Client name" value={uploadForm.client} onChange={e => setUploadForm(f => ({ ...f, client: e.target.value }))} />
+            <PrivateText placeholder="Private field hidden"><input style={S.input} placeholder="Client name" value={uploadForm.client} onChange={e => setUploadForm(f => ({ ...f, client: e.target.value }))} /></PrivateText>
 
-            <button style={{ ...S.saveBtn, opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={async () => {
+            <button style={{ ...S.saveBtn, opacity: saving ? 0.6 : 1 }} disabled={clientDetailsHidden || (saving)} onClick={async () => {
               if (!uploadForm.treatment) return;
               setSaving(true);
               try {
