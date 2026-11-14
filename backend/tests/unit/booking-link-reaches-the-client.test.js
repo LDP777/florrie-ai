@@ -329,6 +329,7 @@ describe('when the WhatsApp link follow-up fails', () => {
     expect(smsBodies()).toHaveLength(1);
     const body = smsBodies()[0];
     expect(body).toContain(CALENDAR_URL);
+    expect(body).toContain(`Manage your booking, patch test and consultation: https://florrie.ai/book/ellindigo/manage/${MANAGE_TOKEN}`);
     expect(body).toContain('Sophie');
     expect(body).toContain('Ellindigo');
     // House rule: no em or en dashes in anything a human reads.

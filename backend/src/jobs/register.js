@@ -5,6 +5,8 @@ import { reviewInstagramDataRequests } from '../services/instagram-privacy-revie
 import { reviewWhatsAppDataRequests } from '../services/whatsapp-privacy-review.js';
 import { retryReschedulePayments } from '../services/reschedule-payments.js';
 import { retryBookingConfirmedAlerts } from '../services/booking-confirmed-alert.js';
+import { retryClientCancellationAlerts } from '../services/booking-cancelled-alert.js';
+import { retryClientCancellationFees } from '../services/client-cancellation-fee.js';
 /**
  * Every background job, in one list.
  *
@@ -92,6 +94,13 @@ export const JOBS = [
     intervalMs: 5 * MINUTE,
     handler: retryBookingConfirmedAlerts,
   },
+  {
+    name: 'booking-cancellation-delivery',
+    description: 'retry unsuccessful client cancellation notifications',
+    intervalMs: 5 * MINUTE,
+    handler: retryClientCancellationAlerts,
+  },
+  { name: 'client-cancellation-payments', description: 'reconcile newly requested cancellation payments', intervalMs: 5 * MINUTE, handler: retryClientCancellationFees },
   {
     name: 'reminders',
     description: '24h appointment reminders',

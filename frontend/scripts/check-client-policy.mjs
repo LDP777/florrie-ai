@@ -122,11 +122,11 @@ try {
   await covered.page.getByRole('button', { name: 'Cancel appointment', exact: true }).click();
   assert.equal(await covered.page.getByText(/cancellation fee may be charged|fee on the card|late cancellation fee may apply/i).count(), 0, 'A zero calculated fee must not acquire a percent-only warning');
   await covered.page.getByRole('button', { name: 'Keep booking', exact: true }).click();
-  await covered.page.getByRole('button', { name: 'Reschedule appointment', exact: true }).click();
-  assert.equal(await covered.page.getByText(/Rescheduling now may result in/i).count(), 0, 'A zero calculated fee must not acquire a reschedule warning');
+  assert.equal(await covered.page.getByRole('button', { name: 'Reschedule appointment', exact: true }).count(), 0, 'A fully credited fee does not reopen rescheduling inside the notice period');
+  await covered.page.getByText(/Online rescheduling closes 48 hours/).waitFor();
   await assertReadOnly(covered);
   await covered.context.close();
-  console.log('✓ Manage booking: a calculated zero fee produces no charge warning in cancel or reschedule confirmation');
+  console.log('✓ Manage booking: a fully credited fee has no extra cancellation charge, while the reschedule cutoff still applies');
 
   for (const notice of [48, 0]) {
     const deposits = await fixture({ bookingPolicy: basePolicy,

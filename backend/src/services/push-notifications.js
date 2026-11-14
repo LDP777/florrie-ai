@@ -295,7 +295,7 @@ const ACTION_TITLES = {
   weekly_review: '🌸 Your week with Florrie',
 };
 
-export async function pushTeamUpdate(beauticianId, actionType, summary, { url, clientName, channels, newClient = false } = {}) {
+export async function pushTeamUpdate(beauticianId, actionType, summary, { url, clientName, channels, newClient = false, notificationId } = {}) {
   const agentId = ACTION_TO_AGENT[actionType] || 'front_desk';
   const agent = AGENT_PUSH[agentId] || AGENT_PUSH.front_desk;
 
@@ -313,7 +313,7 @@ export async function pushTeamUpdate(beauticianId, actionType, summary, { url, c
         : ACTION_TITLES[actionType] || `${agent.emoji} ${agent.name}`,
     body: summary,
     url: url || '/',
-    tag: `team-${agentId}-${Date.now()}`,
+    tag: notificationId || `team-${agentId}-${Date.now()}`,
     data: { agentId, actionType, clientName, ...(newClient ? { newClient: true } : {}) },
     sound: soundFor(actionType),
     channels,
@@ -385,14 +385,14 @@ export async function pushPatchTestBooked(beauticianId, clientName, dateStr, { a
   );
 }
 
-export async function pushClientCancelled(beauticianId, clientName, dateStr, { lateCancel = false, feeCents = 0 } = {}) {
+export async function pushClientCancelled(beauticianId, clientName, dateStr, { lateCancel = false, feeCents = 0, appointmentId = null, apptDate = null, channels, notificationId } = {}) {
   // A client cancelled via their manage link. Ellie was not being told at all.
   const tail = lateCancel
     ? (feeCents > 0 ? ` This was inside your notice window, so a \u00a3${(feeCents / 100).toFixed(2)} fee applies.` : ' This was inside your notice window.')
     : '';
   return pushTeamUpdate(beauticianId, 'booking_cancelled',
     `${clientName} cancelled their ${dateStr} appointment.${tail}`,
-    { url: '/calendar/week', clientName }
+    { url: appointmentId && apptDate ? `/calendar/week?date=${String(apptDate).slice(0,10)}&appt=${appointmentId}` : '/calendar/week', clientName, channels, notificationId }
   );
 }
 

@@ -54,6 +54,8 @@ export default function ClientManagePage() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [missingBooking, setMissingBooking] = useState(false);
+  const [cancelError, setCancelError] = useState(null);
   const [data, setData] = useState(null);
   const [preparation, setPreparation] = useState(null);
   const [cancelling, setCancelling] = useState(false);
@@ -174,7 +176,10 @@ export default function ClientManagePage() {
   const [rescheduleSlots, setRescheduleSlots] = useState(null);
   const [loadingReschedSlots, setLoadingReschedSlots] = useState(false);
   const [reschedSlotsError, setReschedSlotsError] = useState(null);
-  const [reschedHorizonDays, setReschedHorizonDays] = useState(28);
+  const [reschedMonth, setReschedMonth] = useState(null);
+  const [reschedBounds, setReschedBounds] = useState({ earliestMonth: null, latestMonth: null });
+  const [rescheduleBlocked, setRescheduleBlocked] = useState(null);
+  const rescheduleRequest = useRef(0);
 
   // Resend payment state
   const [resendingPayment, setResendingPayment] = useState(false);
@@ -219,7 +224,7 @@ export default function ClientManagePage() {
     // purpose, and the link in the confirmation text has already told her to
     // come here and book one; landing on a page with no picker on it would be
     // the same dead end from the other direction.
-    if (wantsPatch && (data.needsPatchTest || data.patchTest?.required)) {
+    if (wantsPatch && !data.readOnly && data.appointment?.status !== 'cancelled' && (data.needsPatchTest || data.patchTest?.required)) {
       deepLinkedPatch.current = true;
       // A returning client is shown nothing about patch tests, so if she has
       // followed a link that asks for the picker she would otherwise land on a
@@ -235,11 +240,13 @@ export default function ClientManagePage() {
   async function load() {
     setLoading(true);
     setError(null);
+    setMissingBooking(false);
     try {
       const res = await fetch(`${API_BASE}/api/booking/${slug}/manage/${token}`);
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Booking not found');
+        setMissingBooking(res.status === 404 || res.status === 410);
+        throw new Error(err.error || 'Could not load your booking');
       }
       setData(await res.json());
     } catch (err) {
@@ -251,6 +258,7 @@ export default function ClientManagePage() {
 
   async function handleCancel() {
     setCancelling(true);
+    setCancelError(null);
     try {
       const res = await fetch(`${API_BASE}/api/booking/${slug}/manage/${token}/cancel`, {
         method: 'POST',
@@ -259,9 +267,23 @@ export default function ClientManagePage() {
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || 'Cancellation failed');
       setCancelResult(result);
-      await load();
+      // The mutation succeeded. Preserve that receipt even if another read
+      // would now fail; asking the client to cancel again could confuse them
+      // about both the appointment and the pending payment.
+      rescheduleRequest.current += 1;
+      setShowReschedule(false);
+      setData(previous => ({
+        readOnly: true,
+        appointment: {
+          id: previous.appointment.id, status: 'cancelled',
+          startsAt: previous.appointment.startsAt, endsAt: previous.appointment.endsAt,
+          treatment: previous.appointment.treatment, treatments: previous.appointment.treatments,
+          beautician: previous.appointment.beautician,
+        },
+        policy: { canReschedule: false }, patchTests: [], pendingForms: [], needsPatchTest: false,
+      }));
     } catch (err) {
-      setError(err.message);
+      setCancelError(err.message);
     } finally {
       setCancelling(false);
       setCancelConfirm(false);
@@ -273,31 +295,47 @@ export default function ClientManagePage() {
     setRescheduleError(null);
     // Always fetch. Both modes are a list of real times now, so there is never
     // a state where opening the card means "start typing and hope".
-    loadRescheduleSlots();
+    const month = data?.appointment?.startsAt?.slice(0, 7) || new Date().toISOString().slice(0, 7);
+    loadRescheduleSlots(month);
   }
 
   function closeReschedule() {
+    rescheduleRequest.current += 1;
     setShowReschedule(false);
     setRescheduleError(null);
     setReschedSlotsError(null);
   }
 
-  async function loadRescheduleSlots() {
+  async function loadRescheduleSlots(requestedMonth = reschedMonth) {
+    const month = typeof requestedMonth === 'string' ? requestedMonth : reschedMonth;
+    if (!month || !/^\d{4}-\d{2}$/.test(month)) return;
+    const request = ++rescheduleRequest.current;
+    setReschedMonth(month);
     setLoadingReschedSlots(true);
     setReschedSlotsError(null);
-    // Clear first: a stale list under a spinner invites a tap on a slot that
-    // may already have gone.
     setRescheduleSlots(null);
     try {
-      const res = await fetch(`${API_BASE}/api/booking/${slug}/manage/${token}/reschedule/slots`);
+      const res = await fetch(`${API_BASE}/api/booking/${slug}/manage/${token}/reschedule/slots?month=${encodeURIComponent(month)}`);
       const result = await res.json();
-      if (!res.ok) throw new Error(result.error || 'Could not load available times');
+      if (request !== rescheduleRequest.current) return;
+      if ('earliestMonth' in result || 'latestMonth' in result) {
+        setReschedBounds({ earliestMonth: result.earliestMonth || null, latestMonth: result.latestMonth || null });
+      }
+      if (!res.ok) {
+        if (result.code === 'month_outside_booking_window') {
+          const validMonth = result.earliestMonth && month < result.earliestMonth ? result.earliestMonth
+            : result.latestMonth && month > result.latestMonth ? result.latestMonth : null;
+          if (validMonth && validMonth !== month) return loadRescheduleSlots(validMonth);
+        }
+        if (['reschedule_notice_window', 'reschedule_used', 'past', 'inactive', 'invalid_date'].includes(result.code)) setRescheduleBlocked(result.code);
+        throw new Error(result.error || 'Could not load available times');
+      }
       setRescheduleSlots(result.slots || []);
-      if (result.horizonDays) setReschedHorizonDays(result.horizonDays);
+      setReschedBounds({ earliestMonth: result.earliestMonth || null, latestMonth: result.latestMonth || null });
     } catch (err) {
-      setReschedSlotsError(err.message);
+      if (request === rescheduleRequest.current) setReschedSlotsError(err.message);
     } finally {
-      setLoadingReschedSlots(false);
+      if (request === rescheduleRequest.current) setLoadingReschedSlots(false);
     }
   }
 
@@ -318,7 +356,11 @@ export default function ClientManagePage() {
         body: JSON.stringify({ new_starts_at }),
       });
       const result = await res.json();
-      if (!res.ok) throw new Error(result.error || 'Reschedule failed');
+      if (!res.ok) {
+        const failure = new Error(result.error || 'Reschedule failed');
+        failure.code = result.code;
+        throw failure;
+      }
       setRescheduleResult(result);
       setShowReschedule(false);
       await load();
@@ -327,7 +369,10 @@ export default function ClientManagePage() {
       // Somebody else took it between the list loading and the tap. Refetch so
       // the times on screen are current; without this the same dead slot stays
       // tappable and the client is back to guessing.
-      loadRescheduleSlots().catch(() => {});
+      if (['reschedule_notice_window', 'reschedule_used', 'past', 'inactive', 'invalid_date'].includes(err.code)) {
+        setRescheduleBlocked(err.code);
+        setShowReschedule(false);
+      } else loadRescheduleSlots().catch(() => {});
     } finally {
       setRescheduling(false);
     }
@@ -407,12 +452,13 @@ export default function ClientManagePage() {
     <div style={S.page}>
       <div style={S.card}>
         <div style={{ fontSize: 40, textAlign: 'center', marginBottom: 12 }}><Icon name="search" size={40} /></div>
-        <h2 style={S.cardTitle}>Booking not found</h2>
+        <h2 style={S.cardTitle}>{missingBooking ? 'Booking link unavailable' : "Couldn't load your booking"}</h2>
         <p style={S.cardBody}>
-          {error === 'Booking not found'
+          {missingBooking
             ? "We couldn't find this booking. The link may have expired or been used already."
             : error}
         </p>
+        {!missingBooking && <Button onClick={load}>Try again</Button>}
       </div>
     </div>
   );
@@ -457,8 +503,30 @@ export default function ClientManagePage() {
   const patchTestReaction = patchTest.certainty === 'adverse';
   const apptDate = new Date(appointment.startsAt);
   const isCancelled = appointment.status === 'cancelled';
+  if (isCancelled) return (
+    <div style={S.page}>
+      <div style={{ ...S.header, borderBottom: `3px solid ${brand}` }}>
+        <div style={S.headerInner}><h1 style={{ ...S.businessName, color: brandInk }}>{appointment.beautician?.name}</h1><p style={S.headerSub}>Your booking</p></div>
+      </div>
+      <div style={S.content}>
+        <div style={S.card}>
+          <h2 style={S.cardTitle}>Appointment cancelled</h2>
+          <p style={S.cardBody}>This appointment is no longer in the diary. You do not need to cancel it again.</p>
+          <MetaRow icon="sparkles" label="Treatment" value={(appointment.treatments || [appointment.treatment]).filter(Boolean).map(t => t.name).join(' + ')} />
+          <MetaRow icon="calendar" label="Original date" value={new Date(`${appointment.startsAt.slice(0,10)}T12:00:00Z`).toLocaleDateString('en-GB', {day:'numeric', month:'long', year:'numeric', timeZone:'UTC'})} />
+          <MetaRow icon="clock" label="Original time" value={appointment.startsAt.slice(11,16)} />
+          {cancelResult && <p role="status" style={S.cardBody}>{cancellationOutcome(cancelResult)}</p>}
+          <a href={`/book/${slug}`} style={{ ...S.rescheduleBtn, display:'block', textAlign:'center', textDecoration:'none', marginTop:16 }}>Book another appointment</a>
+        </div>
+      </div>
+    </div>
+  );
   const isCompleted = appointment.status === 'completed';
   const isPast = apptDate < new Date() && !isCancelled;
+  const rescheduleUnavailable = rescheduleBlocked ||
+    (policy.reschedule_once && policy.alreadyRescheduled ? 'reschedule_used'
+      : policy.withinCancellationWindow ? 'reschedule_notice_window'
+        : policy.canReschedule === false ? 'unavailable' : null);
   // A client who knows perfectly well she needs one can still book it, from
   // any of these states. What changes is whether we DEMAND it of her.
   const canOfferPatchTest = patchTest.required && !patchTestBooked &&
@@ -517,7 +585,7 @@ export default function ClientManagePage() {
     // The card already says "Pick a new time" above it; the picker does not
     // need to say it twice.
     title: null,
-    emptyMessage: `There is nothing free in the next ${reschedHorizonDays} days for a ${appointment.totalDurationMinutes || appointment.treatment?.duration_minutes || 0}-minute appointment. ${salonName} can often fit something in that the diary will not show, so please get in touch.`,
+    emptyMessage: `No suitable times are available this month. Try another month or contact ${salonName}.`,
     emptyExtra: reachTheSalon,
     confirmLabel: 'Confirm my new time',
     confirmingLabel: 'Moving your booking...',
@@ -1122,122 +1190,37 @@ export default function ClientManagePage() {
           </div>
         )}
 
-        {/* Reschedule section */}
-        {!isCancelled && !isCompleted && !isPast && (
+        {/* Rescheduling follows the salon's notice period and booking horizon. */}
+        {!isCompleted && !isPast && (
           <div>
-            {policy.reschedule_once && policy.alreadyRescheduled ? (
+            {rescheduleUnavailable ? (
               <div style={S.reschedUsedNote}>
-                You've already moved this booking once. Please contact {appointment.beautician.name} directly if you need to change it again.
+                <p>{rescheduleUnavailable === 'reschedule_used'
+                  ? `You've already moved this booking once. Please contact ${salonName} directly if you need to change it again.`
+                  : rescheduleUnavailable === 'reschedule_notice_window'
+                    ? `Online rescheduling closes ${policy.cancellation_notice_hours} hours before your appointment. Please contact ${salonName} if you need to change it.`
+                    : `This booking can no longer be rescheduled online. Please contact ${salonName} if you need to change it.`}</p>
+                {reachTheSalon}
               </div>
             ) : !showReschedule ? (
-              <button onClick={openReschedule} style={S.rescheduleBtn}>
-                Reschedule appointment
-              </button>
+              <button onClick={openReschedule} style={S.rescheduleBtn}>Reschedule appointment</button>
             ) : (
               <div style={S.rescheduleCard}>
-                {policy.withinCancellationWindow && policy.lateCancelFeeCents > 0 && (
-                  <div style={{ ...S.warningBanner, marginBottom: 12 }}><Icon name="alert-triangle" size={14} inline /> You're within the {policy.cancellation_notice_hours}-hour window. Rescheduling now may result in a £{(policy.lateCancelFeeCents / 100).toFixed(2)} charge for this appointment after crediting your paid deposit.
-                  </div>
-                )}
-
-                {policy.reschedule_between_only ? (
-                  <>
-                    <p style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px', color: '#1a1a1a' }}>
-                      Pick a new time
-                    </p>
-                    <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.5 }}>
-                      These are the times that fit right before or after another booking.
-                    </p>
-                    {loadingReschedSlots ? (
-                      <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px' }}>Finding times…</p>
-                    ) : reschedSlotsError ? (
-                      <p style={{ fontSize: 13, color: 'var(--danger)', margin: '0 0 12px' }}>{reschedSlotsError}</p>
-                    ) : rescheduleSlots && rescheduleSlots.length > 0 ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
-                        {rescheduleSlots.map((slot) => (
-                          <button className="fl-tap"
-                            key={slot}
-                            onClick={() => handleReschedule(slot)}
-                            disabled={rescheduling}
-                            style={{ padding: '12px 14px', borderRadius: 10, border: '1.5px solid #E8E4DF',
-                              background: 'var(--bg-card)', fontSize: 13, fontWeight: 600, color: '#2D1B1B',
-                              cursor: rescheduling ? 'not-allowed' : 'pointer', opacity: rescheduling ? 0.5 : 1,
-                              textAlign: 'left', fontFamily: 'inherit', transition: 'all 0.2s',
-                            }}
-                            onMouseEnter={(e) => e.currentTarget.style.borderColor = brand}
-                            onMouseLeave={(e) => e.currentTarget.style.borderColor = '#E8E4DF'}
-                          >
-                            {slotLabel(slot)}
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <>
-                        <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.5 }}>
-                          No back-to-back times are free in the next {reschedHorizonDays} days. {appointment.beautician.name} can often fit something in that the diary will not show, so please get in touch.
-                        </p>
-                        {reachTheSalon}
-                      </>
-                    )}
-                    {rescheduleError && (
-                      <p style={{ fontSize: 13, color: 'var(--danger)', margin: '0 0 10px' }}>{rescheduleError}</p>
-                    )}
-                    <button onClick={closeReschedule} style={S.keepBtn}>
-                      Back
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    {/* THE DEFAULT. It used to be a date box, a time box and a
-                        client guessing, and every guess that missed came back
-                        as "that time is not available". Same real, pickable
-                        times the public booking page offers, minus this very
-                        appointment, which must not block its own replacement. */}
-                    <p style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px', color: '#1a1a1a' }}>
-                      Pick a new time
-                    </p>
-                    <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.5 }}>
-                      These are the times {appointment.beautician.name} has free. Anything you can tap here is yours.
-                    </p>
-
-                    {rescheduleError && (
-                      <p style={{ fontSize: 13, color: 'var(--danger)', margin: '0 0 10px', fontWeight: 600 }}>{rescheduleError}</p>
-                    )}
-
-                    {loadingReschedSlots ? (
-                      <>
-                        <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px' }}>Finding your available times…</p>
-                        <button onClick={closeReschedule} style={S.keepBtn}>Back</button>
-                      </>
-                    ) : reschedSlotsError ? (
-                      <>
-                        {/* A failed lookup is not an empty diary, and it must
-                            not read like one. Say so, and offer the retry. */}
-                        <p style={{ fontSize: 13, color: 'var(--danger)', margin: '0 0 12px', lineHeight: 1.5 }}>
-                          {reschedSlotsError} We could not load the diary just then, so this is not a list of everything that is free.
-                        </p>
-                        <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
-                          <button onClick={closeReschedule} style={S.keepBtn}>Back</button>
-                          <Button variant="secondary" onClick={loadRescheduleSlots} style={{ flex: 1 }}>
-                            Try again
-                          </Button>
-                        </div>
-                        {reachTheSalon}
-                      </>
-                    ) : (
-                      <SlotPicker
-                        slots={rescheduleSlots || []}
-                        {...reschedulePickerCopy}
-                        onPick={handleReschedule}
-                        confirming={rescheduling}
-                        error={null}
-                        onBack={closeReschedule}
-                        brand={brand}
-                        brandLight={brandLight}
-                      />
-                    )}
-                  </>
-                )}
+                <p style={{fontSize:14,fontWeight:600,margin:'0 0 4px'}}>Pick a new time</p>
+                <p style={{fontSize:13,color:'var(--text-secondary)',margin:'0 0 12px',lineHeight:1.5}}>
+                  {policy.reschedule_between_only ? 'These times fit immediately before or after another booking.' : 'Choose a date, then a time. Availability is checked again when you confirm.'}
+                </p>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,marginBottom:12}}>
+                  <Button variant="ghost" aria-label="Previous month" disabled={loadingReschedSlots || rescheduling || (reschedBounds.earliestMonth && reschedMonth <= reschedBounds.earliestMonth)} onClick={() => loadRescheduleSlots(adjacentMonth(reschedMonth, -1))}><Icon name="chevron-left" size={18}/></Button>
+                  <span aria-live="polite" style={{fontWeight:600}}>{new Date(`${reschedMonth}-01T12:00:00Z`).toLocaleDateString('en-GB',{month:'long',year:'numeric',timeZone:'UTC'})}</span>
+                  <Button variant="ghost" aria-label="Next month" disabled={loadingReschedSlots || rescheduling || (reschedBounds.latestMonth && reschedMonth >= reschedBounds.latestMonth)} onClick={() => loadRescheduleSlots(adjacentMonth(reschedMonth, 1))}><Icon name="chevron-right" size={18}/></Button>
+                </div>
+                {rescheduleError && <p role="alert" style={{fontSize:13,color:'var(--danger)'}}>{rescheduleError}</p>}
+                {loadingReschedSlots ? <><p role="status">Finding available times…</p><button onClick={closeReschedule} style={S.keepBtn}>Back</button></> : reschedSlotsError ? (
+                  <><p role="alert" style={{fontSize:13,color:'var(--danger)'}}>{reschedSlotsError} Please try again; this is not an empty diary.</p>
+                    <div style={{display:'flex',gap:10,marginBottom:10}}><button onClick={closeReschedule} style={S.keepBtn}>Back</button><Button variant="secondary" onClick={() => loadRescheduleSlots()}>Try again</Button></div>{reachTheSalon}</>
+                ) : <SlotPicker key={reschedMonth} slots={rescheduleSlots || []} {...reschedulePickerCopy} monthOverride={reschedMonth} onPick={handleReschedule} confirming={rescheduling} error={null} onBack={closeReschedule} brand={brand} brandLight={brandLight}/>
+                }
               </div>
             )}
           </div>
@@ -1246,8 +1229,9 @@ export default function ClientManagePage() {
         {/* Cancel button */}
         {!isCancelled && !isCompleted && !isPast && (
           <div style={{ marginTop: 8 }}>
+            {cancelError && <p role="alert" style={{fontSize:13,color:'var(--danger)'}}>{cancelError}</p>}
             {!cancelConfirm ? (
-              <button onClick={() => setCancelConfirm(true)} style={S.cancelBtn}>
+              <button onClick={() => { setCancelError(null); setCancelConfirm(true); }} style={S.cancelBtn}>
                 Cancel appointment
               </button>
             ) : (
@@ -1258,7 +1242,7 @@ export default function ClientManagePage() {
                 {policy.withinCancellationWindow && policy.lateCancelFeeCents > 0 ? (
                   <p style={{ fontSize: 13, color: 'var(--danger)', margin: '0 0 12px' }}>
                     {policy.cardOnFile
-                      ? `Cancelling within ${policy.cancellation_notice_hours} hours of your appointment means a £${(policy.lateCancelFeeCents / 100).toFixed(2)} fee on the card you used for your deposit.`
+                      ? `Cancelling within ${policy.cancellation_notice_hours} hours of your appointment means a £${(policy.lateCancelFeeCents / 100).toFixed(2)} fee on the card you used for your deposit. This is the remaining fee after crediting what you have already paid.`
                       : `Cancelling within ${policy.cancellation_notice_hours} hours of your appointment means a £${(policy.lateCancelFeeCents / 100).toFixed(2)} late cancellation fee may apply.`}
                   </p>
                 ) : policy.withinCancellationWindow && policy.late_cancel_charge_percent > 0 && policy.lateCancelFeeCents == null ? (
@@ -1271,7 +1255,7 @@ export default function ClientManagePage() {
                     Keep booking
                   </button>
                   <Button variant="danger" onClick={handleCancel} disabled={cancelling} style={{ flex: 1 }}>
-                    {cancelling ? 'Cancelling…' : 'Yes, cancel'}
+                    {cancelling ? 'Cancelling…' : policy.withinCancellationWindow && policy.cardOnFile && policy.lateCancelFeeCents > 0 ? `Cancel and pay £${(policy.lateCancelFeeCents / 100).toFixed(2)}` : 'Yes, cancel'}
                   </Button>
                 </div>
               </div>
@@ -1294,6 +1278,20 @@ export default function ClientManagePage() {
       </div>
     </div>
   );
+}
+
+function cancellationOutcome(result) {
+  const fee = Number(result.feeCents || 0);
+  const amount = `£${(fee / 100).toFixed(2)}`;
+  if (fee > 0 && result.feeCollection?.charged) return `Your appointment has been cancelled. The remaining ${amount} cancellation fee has been charged.`;
+  if (fee > 0 && result.feeCollection?.pending) return `Your appointment has been cancelled. Your ${amount} cancellation payment is awaiting confirmation. Please do not try paying again.`;
+  if (fee > 0 && result.feeCollection?.needsReview) return `Your appointment has been cancelled. The ${amount} cancellation payment needs the salon's attention. Please contact them to arrange payment.`;
+  return result.message || 'Your appointment has been cancelled.';
+}
+
+function adjacentMonth(month, offset) {
+  const [year, number] = month.split('-').map(Number);
+  return new Date(Date.UTC(year, number - 1 + offset, 1)).toISOString().slice(0, 7);
 }
 
 function slotLabel(iso) {
@@ -1331,7 +1329,7 @@ function SlotPicker({
   title, emptyMessage, emptyExtra = null, confirmLabel, confirmingLabel,
   // The reschedule card is already a card. Nesting a second identical one
   // inside it draws two borders round the same thing.
-  frameless = false,
+  frameless = false, monthOverride = null,
 }) {
   const byDay = useMemo(() => {
     const m = new Map();
@@ -1377,7 +1375,7 @@ function SlotPicker({
     );
   }
 
-  const shown = month || dayKeys[0].slice(0, 7);
+  const shown = monthOverride || month || dayKeys[0].slice(0, 7);
   const [yy, mm] = shown.split('-').map(Number);
   const firstOfMonth = new Date(Date.UTC(yy, mm - 1, 1));
   const daysInMonth = new Date(Date.UTC(yy, mm, 0)).getUTCDate();
@@ -1399,11 +1397,11 @@ function SlotPicker({
         </p>
       ) : null}
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+      {!monthOverride && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
         <button type="button" disabled={mIdx <= 0} onClick={() => setMonth(months[mIdx - 1])} style={navBtn(mIdx > 0)} aria-label="Previous month">{'\u2039'}</button>
         <span style={{ fontSize: 14, fontWeight: 700, color: '#2D1B1B' }}>{monthLabel}</span>
         <button type="button" disabled={mIdx >= months.length - 1} onClick={() => setMonth(months[mIdx + 1])} style={navBtn(mIdx < months.length - 1)} aria-label="Next month">{'\u203A'}</button>
-      </div>
+      </div>}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 4 }}>
         {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => (

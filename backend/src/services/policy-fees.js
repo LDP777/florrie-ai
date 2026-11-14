@@ -89,12 +89,14 @@ export function computePolicyFee(appointment, policy, kind) {
 
   // Deposit already paid counts towards the fee; never go negative.
   if (appointment.deposit_paid) {
-    feeCents = Math.max(0, feeCents - (appointment.deposit_cents || 0));
+    const paidCents = appointment.payment_type === 'full' ? priceCents
+      : (appointment.deposit_amount_cents ?? appointment.deposit_cents ?? 0);
+    feeCents = Math.max(0, feeCents - Math.max(0, Number(paidCents) || 0));
   }
   return { feeCents, percent };
 }
 
-export async function chargePolicyFee(appointmentId, kind) {
+export async function chargePolicyFee(appointmentId, kind, { recovery = null } = {}) {
   if (!KIND_LABELS[kind]) {
     logger.warn({ appointmentId, kind }, 'chargePolicyFee: unknown kind');
     return { charged: false, reason: 'unknown_kind' };
@@ -104,9 +106,9 @@ export async function chargePolicyFee(appointmentId, kind) {
     const { data: appt } = await supabase
       .from('appointments')
       .select(`
-        id, beautician_id, client_id, status, price_cents, deposit_cents,
-        deposit_paid, policy_snapshot, stripe_payment_method_id,
-        policy_fee_charged_at,
+        id, beautician_id, client_id, status, price_cents, deposit_cents, deposit_amount_cents,
+        deposit_paid, payment_type, policy_snapshot, stripe_payment_method_id,
+        policy_fee_charged_at, policy_fee_payment_intent_id,
         clients(id, first_name, last_name, stripe_customer_id),
         beauticians(id, business_name, first_name, booking_policy,
           stripe_account_id, stripe_onboarding_complete)
@@ -117,7 +119,7 @@ export async function chargePolicyFee(appointmentId, kind) {
     if (!appt) return { charged: false, reason: 'not_found' };
 
     // HARD RULE: never charge twice.
-    if (appt.policy_fee_charged_at) {
+    if (appt.policy_fee_charged_at && !recovery) {
       return { charged: false, reason: 'already_charged' };
     }
 
@@ -134,7 +136,13 @@ export async function chargePolicyFee(appointmentId, kind) {
       ? { ...snapshot, ...(snapshot.no_show_charge_percent === undefined && live.no_show_charge_percent !== undefined
             ? { no_show_charge_percent: live.no_show_charge_percent } : {}) }
       : live;
-    const { feeCents, percent } = computePolicyFee(appt, policy, kind);
+    const computed = computePolicyFee(appt, policy, kind);
+    const priorRequest = recovery?.request || null;
+    const feeCents = priorRequest?.params?.amount ?? computed.feeCents;
+    const percent = priorRequest?.percent ?? computed.percent;
+    if (!priorRequest && recovery?.expectedFeeCents != null && feeCents !== recovery.expectedFeeCents) {
+      return { charged: false, reason: 'fee_changed' };
+    }
 
     // Consent rule: no configured fee (or nothing left after the deposit) = no charge.
     // Stripe's GBP minimum is 30p; below that there is nothing chargeable.
@@ -145,7 +153,7 @@ export async function chargePolicyFee(appointmentId, kind) {
     if (!stripe) return { charged: false, reason: 'stripe_not_configured' };
 
     const b = appt.beauticians;
-    if (!b?.stripe_account_id || !b?.stripe_onboarding_complete) {
+    if (!priorRequest && !appt.policy_fee_payment_intent_id && (!b?.stripe_account_id || !b?.stripe_onboarding_complete)) {
       await logAction({
         appt, kind,
         actionType: 'policy_fee_uncollectable',
@@ -161,8 +169,8 @@ export async function chargePolicyFee(appointmentId, kind) {
       return { charged: false, reason: 'stripe_not_onboarded' };
     }
 
-    const customerId = appt.clients?.stripe_customer_id;
-    let paymentMethodId = appt.stripe_payment_method_id || null;
+    const customerId = priorRequest?.params?.customer || appt.clients?.stripe_customer_id;
+    let paymentMethodId = priorRequest?.params?.payment_method || appt.stripe_payment_method_id || null;
 
     if (customerId && !paymentMethodId) {
       // Fall back to the customer's most recent saved card (same as charge-no-show).
@@ -184,11 +192,11 @@ export async function chargePolicyFee(appointmentId, kind) {
     // Destination charge: the platform pays Stripe's processing fee, so the
     // application fee must recover it on top of Florrie's cut or this payment
     // loses the platform money (the arrears leak).
-    const platformFee = totalApplicationFee(feeCents);
+    const platformFee = priorRequest?.params?.application_fee_amount ?? totalApplicationFee(feeCents);
 
     let paymentIntent;
     try {
-      paymentIntent = await stripe.paymentIntents.create({
+      const params = priorRequest?.params || {
         amount: feeCents,
         currency: 'gbp',
         customer: customerId,
@@ -206,13 +214,28 @@ export async function chargePolicyFee(appointmentId, kind) {
           policy_fee_kind: kind,
           platform_fee_cents: platformFee,
         },
-      }, {
-        idempotencyKey: `policyfee_${appointmentId}_${kind}`,
-      });
+      };
+      const idempotencyKey = priorRequest?.idempotencyKey || `policyfee_${appointmentId}_${kind}`;
+      const knownIntent = priorRequest?.paymentIntentId || appt.policy_fee_payment_intent_id;
+      if (knownIntent) {
+        // A known payment is reconciled with GET. Never create a replacement
+        // because the provider is still processing it or our receipt write failed.
+        paymentIntent = await stripe.paymentIntents.retrieve(knownIntent);
+      } else {
+        // Stripe can prune API-v1 idempotency keys after 24 hours. Leave an
+        // hour of margin; an unknown older outcome needs the owner's review.
+        if (priorRequest && (!Number.isFinite(Date.parse(priorRequest.firstAttemptAt)) || Date.now() - Date.parse(priorRequest.firstAttemptAt) >= 23 * 3600000)) {
+          return { charged: false, reason: 'idempotency_expired' };
+        }
+        if (recovery && !priorRequest) await recovery.persist({ params, idempotencyKey, percent, firstAttemptAt: new Date().toISOString() });
+        paymentIntent = await stripe.paymentIntents.create(params, { idempotencyKey });
+      }
+      if (recovery) await recovery.persist({ ...(priorRequest || {}), params, idempotencyKey, percent,
+        firstAttemptAt: priorRequest?.firstAttemptAt || new Date().toISOString(), paymentIntentId: paymentIntent.id });
     } catch (err) {
       // Card declined / 3DS required: log it for the beautician, never throw.
       const declined = err?.code === 'authentication_required' || err?.type === 'StripeCardError';
-      await logAction({
+      if (declined || !recovery) await logAction({
         appt, kind,
         actionType: 'policy_fee_uncollectable',
         outcome: 'failed',
@@ -225,7 +248,12 @@ export async function chargePolicyFee(appointmentId, kind) {
       return { charged: false, reason: declined ? (err.code || 'card_declined') : 'stripe_error' };
     }
 
-    const succeeded = paymentIntent.status === 'succeeded' || paymentIntent.status === 'processing';
+    const succeeded = paymentIntent.status === 'succeeded';
+    if (paymentIntent.status === 'processing') {
+      const pending = await supabase.from('appointments').update({ policy_fee_payment_intent_id: paymentIntent.id }).eq('id', appointmentId);
+      if (pending.error) logger.error({ appointmentId, paymentIntentId: paymentIntent.id }, 'Could not save processing policy fee');
+      return { charged: false, reason: 'processing', pending: true, paymentIntentId: paymentIntent.id };
+    }
     if (!succeeded) {
       await logAction({
         appt, kind,
@@ -304,7 +332,7 @@ export async function chargePolicyFee(appointmentId, kind) {
       });
     }
 
-    await logAction({
+    if (!recovery) await logAction({
       appt, kind,
       actionType: 'policy_fee_charged',
       outcome: 'success',
@@ -313,7 +341,7 @@ export async function chargePolicyFee(appointmentId, kind) {
     });
 
     logger.info({ appointmentId, kind, feeCents, paymentIntentId: paymentIntent.id }, 'Policy fee charged');
-    return { charged: true, feeCents, paymentIntentId: paymentIntent.id };
+    return { charged: true, feeCents, paymentIntentId: paymentIntent.id, recorded: !apptErr && !txErr };
   } catch (err) {
     logger.error({ err, appointmentId, kind }, 'chargePolicyFee unexpected failure');
     return { charged: false, reason: 'error' };

@@ -180,13 +180,13 @@ describe('no new sender joins clients without the consent columns', () => {
     // (Previously 857 / 1572 / 2126 / 2392 / 2803, then 993 / 1708 / 2262 /
     // 2528 / 2939, then 994 / 1777 / 2331 / 2597 / 3008, then 1019 / 1846 /
     // 2400 / 2666 / 3077, then 1095 / 2032 / 2586 / 2852 / 3263.)
-    // Moved on 2 October 2026 by notice normalization and cancellation/
-    // reschedule response copy. All five joined-column lists are unchanged.
-    'src/routes/booking.js:1115',
-    'src/routes/booking.js:2056',
-    'src/routes/booking.js:2631',
-    'src/routes/booking.js:2929',
-    'src/routes/booking.js:3298',
+    // Moved on 14 November 2026 by public cancellation receipts and month
+    // navigation. The five joined client-column lists remain unchanged.
+    'src/routes/booking.js:1118',
+    'src/routes/booking.js:2084',
+    'src/routes/booking.js:2605',
+    'src/routes/booking.js:2903',
+    'src/routes/booking.js:3272',
     'src/routes/features.js:132',
     'src/routes/features.js:169',
     'src/routes/features.js:194',
@@ -225,8 +225,8 @@ describe('no new sender joins clients without the consent columns', () => {
     // booking of two treatments is confirmed as two.
     // (Previously 1236 / 1514, then 1393 / 1685, then 1526 / 1818, then
     // 1532 / 1824, then 1540 / 1845, then 1693 / 2008, then 1705 / 2020.)
-    'src/services/notifications.js:1750',
-    'src/services/notifications.js:2069',
+    'src/services/notifications.js:1753',
+    'src/services/notifications.js:2071',
   ]);
 
   function walk(dir) {

@@ -4,7 +4,8 @@ import preparationRouter from './booking-preparation.js';
 import { PATCH_TEST_LEAD_HOURS } from '../lib/patch-test-policy.js';
 import { requireBookingIdentity, exactEmailPattern } from '../lib/booking-identity.js';
 import { resolveBookingClient } from '../lib/booking-client.js';
-import { bookingManagementGuard } from '../lib/booking-management-access.js';
+import { bookingManagementGuard, isCancelledBooking } from '../lib/booking-management-access.js';
+import { bookingChangeAccess, rescheduleAccessError, rescheduleWindow } from '../lib/booking-self-service.js';
 import { performPaidReschedule } from '../services/reschedule-payments.js';
 import { insertPaymentReceipt } from '../lib/payment-receipt.js';
 import { Router } from 'express';
@@ -14,8 +15,10 @@ import * as Sentry from '@sentry/node';
 import { supabase } from '../config.js';
 import { isMissingColumnError } from '../lib/junk-classifier.js';
 import { notifyBookingConfirmed } from '../services/notifications.js';
-import { pushNewBooking, pushReschedule, pushPatchTestBooked, pushClientCancelled, pushTeamUpdate } from '../services/push-notifications.js';
+import { pushNewBooking, pushReschedule, pushPatchTestBooked, pushTeamUpdate } from '../services/push-notifications.js';
 import { announceBookingConfirmed } from '../services/booking-confirmed-alert.js';
+import { queueClientCancellation, announceClientCancellation } from '../services/booking-cancelled-alert.js';
+import { queueClientCancellationFee, settleClientCancellationFee } from '../services/client-cancellation-fee.js';
 import { refreshLiveActivity } from '../services/live-activity.js';
 import { sendConsultationFormSMS, recordBookingConsultation } from './consultation-forms.js';
 import { splitBookingSubmission } from '../lib/client-notes.js';
@@ -1107,19 +1110,33 @@ router.get('/:slug/manage/:token', async (req, res) => {
     const { data: appt } = await supabase
       .from('appointments')
       .select(`
-        id, starts_at, ends_at, status, management_token, rescheduled_at,
+        id, starts_at, ends_at, status, management_token, rescheduled_at, cancelled_at,
         payment_expires_at, policy_snapshot, client_email, extra_treatment_ids,
         price_cents, deposit_cents, deposit_amount_cents, deposit_paid, deposit_status,
         payment_type, stripe_payment_intent_id, stripe_payment_method_id,
         treatments(id, name, duration_minutes, price_cents, category, requires_patch_test),
         clients(id, first_name, last_name, email, phone, stripe_customer_id),
-        beauticians(id, first_name, business_name, phone, booking_policy, booking_slug, brand_color, patch_test_expiry_months, patch_test_block_booking, payment_settings)
+        beauticians(id, first_name, business_name, phone, timezone, booking_policy, booking_slug, brand_color, patch_test_expiry_months, patch_test_block_booking, payment_settings)
       `)
       .eq('management_token', req.params.token)
       .single();
 
     if (!appt || appt.beauticians?.booking_slug !== req.params.slug) {
       return res.status(404).json({ error: 'Booking not found' });
+    }
+
+    if (isCancelledBooking(appt)) {
+      return res.json({
+        readOnly: true,
+        appointment: {
+          id: appt.id, status: 'cancelled', startsAt: appt.starts_at, endsAt: appt.ends_at,
+          cancelledAt: appt.cancelled_at || null, treatment: appt.treatments,
+          treatments: [appt.treatments].filter(Boolean), totalPriceCents: appt.price_cents || 0,
+          beautician: { name: appt.beauticians?.business_name || appt.beauticians?.first_name,
+            brandColor: appt.beauticians?.brand_color, phone: appt.beauticians?.phone || null },
+        },
+        policy: { canReschedule: false }, patchTests: [], pendingForms: [], needsPatchTest: false,
+      });
     }
 
     // Fetch patch test status and pending consultation forms for this client
@@ -1305,10 +1322,8 @@ router.get('/:slug/manage/:token', async (req, res) => {
     const blockBooking = needsPatchTest && (appt.beauticians?.patch_test_block_booking === true);
 
     const policy = appt.policy_snapshot || appt.beauticians?.booking_policy || {};
-    const now = new Date();
-    const apptStart = new Date(appt.starts_at);
-    const hoursUntil = (apptStart - now) / (1000 * 60 * 60);
-    const withinCancellationWindow = isWithinCancellationWindow(hoursUntil, policy);
+    const changeAccess = bookingChangeAccess(appt);
+    const { hoursUntil, withinCancellationWindow } = changeAccess;
 
     // What a late cancellation would cost right now (percent of price minus
     // deposit already paid) and whether we hold a card we can charge it to.
@@ -1386,6 +1401,8 @@ router.get('/:slug/manage/:token', async (req, res) => {
         ...policy,
         cancellation_notice_hours: cancellationNoticeHours(policy),
         withinCancellationWindow,
+        canReschedule: changeAccess.canReschedule,
+        rescheduleDeadline: changeAccess.rescheduleDeadline,
         hoursUntil: Math.max(0, Math.round(hoursUntil)),
         lateCancelFeeCents,
         cardOnFile,
@@ -1437,7 +1454,7 @@ router.post('/:slug/manage/:token/cancel', async (req, res) => {
       // beautician_id is here because the cancellation push below passes it.
       // It was not in the select, so it was always undefined, pushClientCancelled
       // had nobody to send to, and Ellie was never told a client had cancelled.
-      .select('id, starts_at, status, policy_snapshot, client_id, beautician_id, price_cents, deposit_cents, deposit_paid, stripe_payment_method_id, clients(first_name, stripe_customer_id), beauticians(booking_policy, booking_slug)')
+      .select('id, starts_at, status, policy_snapshot, client_id, beautician_id, price_cents, deposit_cents, deposit_amount_cents, deposit_paid, payment_type, stripe_payment_method_id, clients(first_name, stripe_customer_id), beauticians(booking_policy, booking_slug, timezone)')
       .eq('management_token', req.params.token)
       .single();
 
@@ -1445,48 +1462,58 @@ router.post('/:slug/manage/:token/cancel', async (req, res) => {
       return res.status(404).json({ error: 'Booking not found' });
     }
 
+    if (isCancelledBooking(appt)) {
+      await announceClientCancellation(appt.id);
+      return res.json({ success: true, alreadyCancelled: true, message: 'Your appointment has already been cancelled.' });
+    }
     if (!['confirmed', 'pending'].includes(appt.status)) {
       return res.status(400).json({ error: 'This booking cannot be cancelled' });
     }
 
     const policy = appt.policy_snapshot || appt.beauticians?.booking_policy || {};
-    const hoursUntil = (new Date(appt.starts_at) - new Date()) / (1000 * 60 * 60);
+    const hoursUntil = bookingChangeAccess(appt).hoursUntil;
+    if (!Number.isFinite(hoursUntil) || hoursUntil <= 0) {
+      return res.status(409).json({ code: 'appointment_started', error: 'This appointment has already started. Please contact the salon.' });
+    }
     const noticeHours = cancellationNoticeHours(policy);
     const isLateCancel = isWithinCancellationWindow(hoursUntil, policy);
     const { feeCents } = computePolicyFee(appt, policy, 'late_cancel');
     const cardOnFile = !!(appt.clients?.stripe_customer_id &&
       (appt.stripe_payment_method_id || appt.deposit_paid));
 
-    const { error } = await supabase
+    try {
+      await queueClientCancellation(appt, { lateCancel: isLateCancel, feeCents: isLateCancel ? feeCents : 0 });
+      if (isLateCancel && feeCents > 0) await queueClientCancellationFee(appt, feeCents);
+    } catch (err) {
+      logger.error({ err, appointmentId: appt.id }, 'Cancellation notification could not be queued');
+      return res.status(503).json({ error: 'Your booking has not been cancelled. Please try again or contact the salon.' });
+    }
+
+    const { data: changed, error } = await supabase
       .from('appointments')
       .update({
         status: 'cancelled',
         cancelled_at: new Date().toISOString(),
         late_cancel_charged: isLateCancel && (policy.late_cancel_charge_percent || 0) > 0,
       })
-      .eq('id', appt.id);
+      .eq('id', appt.id).in('status', ['confirmed', 'pending']).select('id');
 
     if (error) {
       logger.error({ err: error }, 'Failed to cancel appointment');
       return res.status(500).json({ error: 'Something went wrong' });
     }
-
-    // Auto-charge the late cancellation fee to the saved card (fire-and-forget;
-    // chargePolicyFee is idempotent and only charges when the policy has a fee).
-    // A CLIENT cancel happens while Ellie may be asleep, so auto is right here
-    // (unlike a no-show she marks herself, which is one-tap).
-    if (isLateCancel && feeCents > 0) {
-      chargePolicyFee(appt.id, 'late_cancel').catch(err =>
-        logger.error({ err, appointmentId: appt.id }, 'late_cancel policy fee charge failed (non-fatal)')
-      );
+    if (!changed?.length) {
+      const current = await supabase.from('appointments').select('status').eq('id', appt.id).maybeSingle();
+      if (current.error || !isCancelledBooking(current.data)) return res.status(409).json({ error: 'This booking changed while you were cancelling. Please reload it.' });
+      await announceClientCancellation(appt.id);
+      return res.json({ success: true, alreadyCancelled: true, message: 'Your appointment has already been cancelled.' });
     }
 
-    // Tell Ellie a client cancelled - she was not being notified at all.
-    const cancelDateStr = appt.starts_at
-      ? new Date(`${String(appt.starts_at).slice(0, 19)}Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
-      : 'upcoming';
-    pushClientCancelled(appt.beautician_id, appt.clients?.first_name || 'A client', cancelDateStr, { lateCancel: isLateCancel, feeCents: isLateCancel ? feeCents : 0 })
-      .catch(err => logger.error({ err, appointmentId: appt.id }, 'client-cancel push failed'));
+    // Delivery is separate from cancellation: a failed push stays in the
+    // durable queue and retries without cancelling or charging again.
+    await announceClientCancellation(appt.id);
+    const feeCollection = isLateCancel && feeCents > 0
+      ? await settleClientCancellationFee(appt.id) : { charged: false, reason: 'no_fee_configured' };
 
     const willCharge = isLateCancel && feeCents > 0 && cardOnFile;
     res.json({
@@ -1494,6 +1521,7 @@ router.post('/:slug/manage/:token/cancel', async (req, res) => {
       isLateCancel,
       chargePercent: isLateCancel ? (policy.late_cancel_charge_percent || 0) : 0,
       feeCents: isLateCancel ? feeCents : 0,
+      feeCollection: { charged: !!feeCollection.charged, pending: !!feeCollection.pending || ['retry_pending', 'stripe_error', 'error', 'in_progress'].includes(feeCollection.reason), needsReview: !!feeCollection.needsReview },
       message: isLateCancel && feeCents > 0
         ? (willCharge
           ? `Cancelled. As this is within the ${noticeHours}-hour notice period, a £${(feeCents / 100).toFixed(2)} cancellation fee may be charged to the card you used for your deposit.`
@@ -2043,7 +2071,7 @@ router.post('/:slug/manage/:token/reschedule', async (req, res) => {
     }
     const newStart = new Date(`${new_starts_at}${String(new_starts_at).length === 16 ? ':00' : ''}Z`);
     if (isNaN(newStart.getTime())) return res.status(400).json({ error: 'Invalid date format' });
-    if (newStart <= nowInSalonWall()) return res.status(400).json({ error: 'New time must be in the future' });
+    if (newStart.toISOString().slice(0, 16) !== String(new_starts_at).slice(0, 16)) return res.status(400).json({ error: 'Invalid date format' });
 
     // Load current appointment
     const { data: appt } = await supabase
@@ -2051,7 +2079,7 @@ router.post('/:slug/manage/:token/reschedule', async (req, res) => {
       .select(`
         id, starts_at, ends_at, status, duration_minutes, buffer_minutes, extra_padding_minutes,
         policy_snapshot, client_email, client_id, beautician_id, treatment_id, rescheduled_at,
-        beauticians(id, booking_slug, booking_policy, business_name, first_name, working_hours),
+        beauticians(id, booking_slug, booking_policy, business_name, first_name, working_hours, timezone),
         treatments(name),
         clients(first_name, email)
       `)
@@ -2065,6 +2093,11 @@ router.post('/:slug/manage/:token/reschedule', async (req, res) => {
     if (!['confirmed', 'pending'].includes(appt.status)) {
       return res.status(400).json({ error: 'This booking cannot be rescheduled' });
     }
+
+    const changeAccess = bookingChangeAccess(appt);
+    if (!changeAccess.canReschedule) return res.status(409).json(rescheduleAccessError(changeAccess));
+    const nowWall = nowInSalonWall(appt.beauticians?.timezone || 'Europe/London');
+    if (newStart <= nowWall) return res.status(400).json({ error: 'New time must be in the future' });
 
     // Live reschedule controls (from the current beautician policy, not the
     // frozen snapshot).
@@ -2081,12 +2114,12 @@ router.post('/:slug/manage/:token/reschedule', async (req, res) => {
 
     const policy = appt.policy_snapshot || appt.beauticians?.booking_policy || {};
     const noticeHours = cancellationNoticeHours(policy);
-    const hoursUntilCurrent = (new Date(appt.starts_at) - new Date()) / (1000 * 60 * 60);
+    const hoursUntilCurrent = changeAccess.hoursUntil;
     const isLateReschedule = isWithinCancellationWindow(hoursUntilCurrent, policy);
 
     // Min booking hours check for the new time
     const minHours = policy.min_booking_hours || 0;
-    const hoursUntilNew = (newStart - new Date()) / (1000 * 60 * 60);
+    const hoursUntilNew = (newStart - nowWall) / (1000 * 60 * 60);
     if (minHours > 0 && hoursUntilNew < minHours) {
       return res.status(400).json({
         error: `Bookings must be made at least ${minHours} hour${minHours !== 1 ? 's' : ''} in advance`,
@@ -2094,10 +2127,9 @@ router.post('/:slug/manage/:token/reschedule', async (req, res) => {
     }
 
     // Max advance window check for the new time (0/unset = no limit).
-    const maxAdvanceDays = policy.max_advance_days || 0;
+    const { maxAdvanceDays } = rescheduleWindow({ policy, livePolicy, nowWall });
     if (maxAdvanceDays > 0) {
-      const horizon = new Date();
-      horizon.setDate(horizon.getDate() + maxAdvanceDays);
+      const horizon = new Date(nowWall.getTime() + maxAdvanceDays * 86400000);
       if (newStart > horizon) {
         return res.status(400).json({
           error: `Online bookings are only open up to ${maxAdvanceDays} days ahead. Please choose an earlier date.`,
@@ -2353,86 +2385,26 @@ router.post('/:slug/manage/:token/reschedule', async (req, res) => {
   }
 });
 
-/** How far ahead either reschedule mode will look. */
-const RESCHEDULE_HORIZON_DAYS = 28;
-/** Cap on the general list, same grain and same cap as the patch-test picker. */
-const RESCHEDULE_MAX_SLOTS = 800;
+/** A calendar month cannot contain 4096 quarter-hour starts. */
+const RESCHEDULE_MAX_SLOTS = 4096;
 
-/**
- * General availability for a client moving her own booking: every genuinely
- * free slot the public booking page would offer her, minus the one thing the
- * public page never has to think about.
- *
- * THE APPOINTMENT BEING MOVED MUST NOT BLOCK ITS OWN REPLACEMENT. Ellie's
- * client wanting to slide her 1pm to 1.30pm is sitting in the only booking
- * that overlaps 1.30, her own. getFreeSlots takes excludeAppointmentIds for
- * exactly this, and the back-to-back path excludes the same row through the
- * same helper, so both modes agree.
- *
- * Everything else comes off getFreeSlots: working hours, closures (date to
- * end_date), blocked ranges, the real diary and the wall-time convention. No
- * third availability implementation.
- *
- * The list is then passed through the SAME two policy predicates POST
- * .../reschedule applies before it will accept a time, in the same frames it
- * applies them in. Offering a slot the acceptor then refuses is the bug this
- * whole endpoint exists to end, so agreement matters more than elegance here.
- */
-async function generalRescheduleSlots(res, appt, { policy, livePolicy, workingHours, totalMinutes }) {
+async function generalRescheduleSlots(res, appt, { policy, workingHours, totalMinutes, window, nowWall }) {
   const timezone = appt.beauticians?.timezone || 'Europe/London';
-
-  // Lead time and horizon: read the way the POST reads them. The POST takes
-  // min_booking_hours and max_advance_days off `policy` (snapshot, falling
-  // back to live). Where the live policy is TIGHTER we honour that too, so a
-  // salon that has just shortened its booking window is not still handing out
-  // dates beyond it.
   const minHours = Math.max(0, Number(policy.min_booking_hours) || 0);
-  const advanceCandidates = [policy.max_advance_days, livePolicy.max_advance_days]
-    .map(n => Number(n) || 0)
-    .filter(n => n > 0);
-  const maxAdvanceDays = advanceCandidates.length ? Math.min(...advanceCandidates) : 0;
-
-  const days = maxAdvanceDays > 0
-    ? Math.min(RESCHEDULE_HORIZON_DAYS, maxAdvanceDays)
-    : RESCHEDULE_HORIZON_DAYS;
-
-  // getFreeSlots throws when it cannot read the diary or the closures, and the
-  // route's catch turns that into a 500. That is the right way round: an
-  // unreadable diary must never render as a page full of free time.
-  const free = await getFreeSlots(appt.beautician_id, {
-    workingHours,
-    timezone,
-    durationMinutes: totalMinutes,
-    fromWall: nowInSalonWall(timezone),
-    days,
-    leadHours: minHours,
-    maxSlots: RESCHEDULE_MAX_SLOTS,
-    excludeAppointmentIds: [appt.id],
-  });
-
-  // The POST's own guards, replayed. Both of them measure a wall-frame start
-  // against a real instant, which is an hour out in BST; replaying them rather
-  // than reasoning about them is what guarantees every offered time is one it
-  // will actually take.
-  const nowReal = new Date();
-  const horizon = maxAdvanceDays > 0 ? new Date(nowReal) : null;
-  if (horizon) horizon.setDate(horizon.getDate() + maxAdvanceDays);
-
-  const slots = [];
-  for (const s of free) {
-    // Zone-free wall string: this is the only shape POST .../reschedule accepts.
-    const wall = `${s.date}T${s.time}:00`;
-    const start = new Date(`${wall}Z`);
-    if (minHours > 0 && (start - nowReal) / (1000 * 60 * 60) < minHours) continue;
-    if (horizon && start > horizon) continue;
-    slots.push(wall);
-  }
-
+  const free = window.days > 0 ? await getFreeSlots(appt.beautician_id, {
+    workingHours, timezone, durationMinutes: totalMinutes,
+    fromWall: window.fromWall, days: window.days, leadHours: 0,
+    maxSlots: RESCHEDULE_MAX_SLOTS, excludeAppointmentIds: [appt.id],
+    acceptSlot: slot => {
+      const start = new Date(slot.iso);
+      return start < window.endWall && start > nowWall &&
+        (start - nowWall) / 3600000 >= minHours;
+    },
+  }) : [];
   return res.json({
-    mode: 'available',
-    slots,
-    durationMinutes: totalMinutes,
-    horizonDays: days,
+    mode: 'available', slots: free.map(slot => `${slot.date}T${slot.time}:00`),
+    durationMinutes: totalMinutes, horizonDays: window.days,
+    month: window.month, earliestMonth: window.earliestMonth, latestMonth: window.latestMonth,
   });
 }
 
@@ -2470,7 +2442,7 @@ router.get('/:slug/manage/:token/reschedule/slots', async (req, res) => {
       .from('appointments')
       .select(`
         id, starts_at, status, duration_minutes, buffer_minutes, extra_padding_minutes,
-        policy_snapshot, beautician_id,
+        policy_snapshot, beautician_id, rescheduled_at,
         beauticians(id, booking_slug, booking_policy, working_hours, timezone)
       `)
       .eq('management_token', req.params.token)
@@ -2483,10 +2455,16 @@ router.get('/:slug/manage/:token/reschedule/slots', async (req, res) => {
       return res.status(400).json({ error: 'This booking cannot be rescheduled' });
     }
 
+    const changeAccess = bookingChangeAccess(appt);
+    if (!changeAccess.canReschedule) return res.status(409).json(rescheduleAccessError(changeAccess));
     const policy = appt.policy_snapshot || appt.beauticians?.booking_policy || {};
     const livePolicy = appt.beauticians?.booking_policy || {};
     const workingHours = appt.beauticians?.working_hours || null;
     const totalMinutes = (appt.duration_minutes || 60) + (appt.buffer_minutes || 0) + (appt.extra_padding_minutes || 0);
+
+    const nowWall = nowInSalonWall(appt.beauticians?.timezone || 'Europe/London');
+    const window = rescheduleWindow({ month: req.query?.month, policy, livePolicy, nowWall });
+    if (window.error) return res.status(400).json(window);
 
     // ---------------------------------------------------------------- mode --
     // The POST route decides adjacency from the LIVE policy, so the list of
@@ -2494,22 +2472,17 @@ router.get('/:slug/manage/:token/reschedule/slots', async (req, res) => {
     // snapshot here would offer a back-to-back client the whole diary, or the
     // reverse.
     if (livePolicy.reschedule_between_only !== true) {
-      return await generalRescheduleSlots(res, appt, { policy, livePolicy, workingHours, totalMinutes });
+      return await generalRescheduleSlots(res, appt, { policy, workingHours, totalMinutes, window, nowWall });
     }
 
-    const HORIZON_DAYS = RESCHEDULE_HORIZON_DAYS;
-    const now = new Date();
+    const now = nowWall;
     const todayStr = now.toISOString().slice(0, 10);
-    const nowMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
-    const minHours = policy.min_booking_hours || 0;
-    const maxAdvanceDays = livePolicy.max_advance_days || policy.max_advance_days || 0;
-
-    const fromStr = todayStr;
-    const toDate = new Date(now.getTime() + HORIZON_DAYS * 24 * 3600 * 1000);
-    const toStr = toDate.toISOString().slice(0, 10);
+    const minHours = Math.max(0, Number(policy.min_booking_hours) || 0);
+    const fromStr = window.fromWall.toISOString().slice(0, 10);
+    const toStr = window.endWall.toISOString().slice(0, 10);
 
     // Existing live bookings (exclude the one being moved) + blocked time.
-    const [{ data: existing }, { data: exceptionRows }] = await Promise.all([
+    const [{ data: existing, error: busyError }, { data: exceptionRows, error: blockError }] = await Promise.all([
       supabase.from('appointments')
         .select('id, starts_at, ends_at')
         .eq('beautician_id', appt.beautician_id)
@@ -2518,11 +2491,13 @@ router.get('/:slug/manage/:token/reschedule/slots', async (req, res) => {
         .gte('starts_at', `${fromStr}T00:00:00`)
         .lte('starts_at', `${toStr}T23:59:59`),
       supabase.from('hours_exceptions')
-        .select('date, type, start_time, end_time')
+        .select('date, end_date, type, start_time, end_time')
         .eq('beautician_id', appt.beautician_id)
-        .gte('date', fromStr)
+        .gte('date', blockLookbackFrom(fromStr))
         .lte('date', toStr),
     ]);
+
+    if (busyError || blockError) throw new Error('Could not check the diary for rescheduling');
 
     const wm = (isoish) => {
       const t = String(isoish || '').slice(11, 16);
@@ -2546,10 +2521,10 @@ router.get('/:slug/manage/:token/reschedule/slots', async (req, res) => {
     const closedDays = new Set();
     for (const r of exceptionRows || []) {
       const isClosed = r.type ? r.type === 'closed' : true;
-      if (isClosed || !r.start_time || !r.end_time) { closedDays.add(r.date); continue; }
+      if (isClosed || !r.start_time || !r.end_time) { for (const day of blockDays(r, fromStr, toStr)) closedDays.add(day); continue; }
       const sm = parseInt(String(r.start_time).slice(0, 2), 10) * 60 + parseInt(String(r.start_time).slice(3, 5), 10);
       const em = parseInt(String(r.end_time).slice(0, 2), 10) * 60 + parseInt(String(r.end_time).slice(3, 5), 10);
-      (blocksByDay[r.date] = blocksByDay[r.date] || []).push([sm, em]);
+      for (const day of blockDays(r, fromStr, toStr)) (blocksByDay[day] = blocksByDay[day] || []).push([sm, em]);
     }
 
     const dayKeys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
@@ -2560,14 +2535,9 @@ router.get('/:slug/manage/:token/reschedule/slots', async (req, res) => {
 
     // Only days that ALREADY have a booking can host a back-to-back slot.
     const candidateDays = Object.keys(byDay).sort();
-    const horizonMax = maxAdvanceDays > 0
-      ? new Date(now.getTime() + maxAdvanceDays * 24 * 3600 * 1000).toISOString().slice(0, 10)
-      : null;
-
     for (const dateStr of candidateDays) {
       if (closedDays.has(dateStr)) continue;
       if (dateStr < todayStr) continue;
-      if (horizonMax && dateStr > horizonMax) continue;
 
       const dow = new Date(`${dateStr}T12:00:00Z`).getUTCDay();
       const wh = workingHours ? workingHours[dayKeys[dow]] : { start: '09:00', end: '17:00' };
@@ -2590,7 +2560,9 @@ router.get('/:slug/manage/:token/reschedule/slots', async (req, res) => {
         const endMin = startMin + totalMinutes;
         if (startMin < workStart || endMin > workEnd) continue;
         // Future + min-notice guard (only matters for today).
-        if (dateStr === todayStr && startMin < nowMinutes + minHours * 60) continue;
+        const candidate = new Date(`${dateStr}T${fmt(startMin)}:00Z`);
+        if (candidate < window.fromWall || candidate >= window.endWall || candidate <= nowWall) continue;
+        if ((candidate - nowWall) / 3600000 < minHours) continue;
         if (dateStr < todayStr) continue;
         // No overlap with an existing booking.
         const clashAppt = dayAppts.some(a => a.start != null && a.end != null && startMin < a.end && endMin > a.start);
@@ -2607,7 +2579,9 @@ router.get('/:slug/manage/:token/reschedule/slots', async (req, res) => {
     }
 
     slots.sort();
-    return res.json({ slots: slots.slice(0, 12) });
+    return res.json({ slots, durationMinutes: totalMinutes, horizonDays: window.days,
+      ...(window.month ? { mode: 'back_to_back' } : {}),
+      month: window.month, earliestMonth: window.earliestMonth, latestMonth: window.latestMonth });
   } catch (err) {
     logger.error({ err }, 'Reschedule slots fetch failed');
     return res.status(500).json({ error: 'Something went wrong' });

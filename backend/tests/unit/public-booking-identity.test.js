@@ -104,15 +104,26 @@ describe('public booking proof boundary', () => {
 });
 
 describe('management token lifetime and appointment scope', () => {
-  it('revokes cancelled links and expires links seven days after the appointment', async () => {
+  it('expires links seven days after the appointment', async () => {
     for (const appointment of [
-      { status: 'cancelled', starts_at: new Date(Date.now()+86400000).toISOString() },
+      { status: 'cancelled', starts_at: new Date(Date.now()-8*86400000).toISOString() },
       { status: 'completed', starts_at: new Date(Date.now()-8*86400000).toISOString() },
     ]) {
       state.rows.appointments = [{ ...appointment, id: 'old', management_token: 'old-token', beauticians: { booking_slug: 'test' } }];
       expect((await request('/api/booking/test/manage/old-token')).status).toBe(410);
       expect(state.queries.some(q => q.table === 'consultation_responses')).toBe(false);
     }
+  });
+  it('keeps a cancelled receipt readable while closing preparation, payment and change routes', async () => {
+    state.rows.appointments = [{ id: 'cancelled', status: 'cancelled', management_token: 'cancelled-token', starts_at: new Date(Date.now()+86400000).toISOString(), beauticians: { booking_slug: 'test', business_name: 'Demo' }, clients: { first_name: 'PRIVATE_CLIENT', email: 'private@example.test' }, treatments: { name: 'Brows' } }];
+    const receipt = await request('/api/booking/test/manage/cancelled-token');
+    expect(receipt.status).toBe(200);
+    expect(receipt.body).toMatchObject({readOnly:true,appointment:{status:'cancelled',treatment:{name:'Brows'}}});
+    expect(JSON.stringify(receipt.body)).not.toMatch(/PRIVATE_CLIENT|private@example/);
+    expect(state.queries.some(q => ['consultation_responses','patch_tests','transactions'].includes(q.table))).toBe(false);
+    for (const action of ['reschedule','add-treatment','resend-payment']) expect((await request(`/api/booking/test/manage/cancelled-token/${action}`, {})).status).toBe(410);
+    expect((await request('/api/booking/test/manage/cancelled-token/preparation')).status).toBe(410);
+    expect(state.writes).toBe(0);
   });
   it('expired tokens cannot reach manage mutations or resend actions', async () => {
     state.rows.appointments = [{ id: 'old', status: 'completed', starts_at: new Date(Date.now()-8*86400000).toISOString(), management_token: 'old-token', beauticians: { booking_slug: 'test' } }];

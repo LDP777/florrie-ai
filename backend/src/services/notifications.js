@@ -1649,7 +1649,7 @@ function emailTemplate({ bizName, brandColor, tagline, content, logoUrl, signOff
  * null, and null is loud: an error log AND a row a human can find.
  * ------------------------------------------------------------------------- */
 export async function sendBookingLink({
-  beauticianId, clientId, appointmentId, firstName, phone, bizName, url, isCalendarLink = false,
+  beauticianId, clientId, appointmentId, firstName, phone, bizName, url, isCalendarLink = false, manageUrl = null, calendarUrl = null,
 }) {
   const attempts = [];
   if (!url) return { delivered: null, attempts, reason: 'no_link' };
@@ -1664,9 +1664,12 @@ export async function sendBookingLink({
   // already ends by inviting her to reply if she wants to change or cancel
   // anything. Saying it here too gave her the same offer twice in four lines.
   // An approved body cannot be edited, so this is the half that moves.
-  const blurb = isCalendarLink
+  const bookingLinks = manageUrl
+    ? `Manage your booking, patch test and consultation: ${manageUrl}${calendarUrl ? ` Add to your calendar: ${calendarUrl}` : ''}`
+    : null;
+  const blurb = bookingLinks || (isCalendarLink
     ? `Here is your appointment, ready to add to your calendar: ${url}`
-    : `Here is everything about your appointment, including adding another treatment: ${url}`;
+    : `Here is everything about your appointment, including adding another treatment: ${url}`);
 
   const wa = await sendWhatsApp({
     to: phone,
@@ -1690,7 +1693,7 @@ export async function sendBookingLink({
     'Booking link: the WhatsApp follow-up did not send, falling back to SMS',
   );
 
-  const smsBody = isCalendarLink
+  const smsBody = bookingLinks ? `Hi ${firstName}, here's your booking with ${bizName || 'us'}. ${bookingLinks}` : isCalendarLink
     ? `Hi ${firstName}, here's your booking with ${bizName || 'us'}. Add it to your calendar, or change it if you need to: ${url}`
     : `Hi ${firstName}, here's your booking with ${bizName || 'us'}. You can view it, add another treatment, reschedule or cancel here: ${url}`;
 
@@ -1871,13 +1874,10 @@ export async function notifyBookingConfirmed(appointmentId) {
     logger.warn({ err, appointmentId }, 'Receipt line build failed (non-fatal)');
   }
 
-  // One link, and it leads with the calendar rather than with "manage".
-  // "Manage or reschedule" does not sound like the place you go to save the
-  // date, so nobody tapped it for that — they searched their inbox instead,
-  // and then messaged Ellie. The landing page carries change-or-cancel too.
-  const linkLine = calendarUrl
-    ? ` Add it to your calendar: ${calendarUrl}`
-    : (manageUrl ? ` Manage your booking, patch test and consultation: ${manageUrl}` : '');
+  // Give the client both destinations at confirmation, while changes are
+  // still within the salon's notice period. A calendar invitation alone did
+  // not make the management link discoverable until the 24-hour reminder.
+  const linkLine = `${manageUrl ? ` Manage your booking, patch test and consultation: ${manageUrl}` : ''}${calendarUrl ? ` Add it to your calendar: ${calendarUrl}` : ''}`;
   const textMsg = `Hi ${client.first_name}, your ${treatment.name} with ${bizName} is confirmed for ${shortDate} at ${timeStr}.${receiptLine ? ` ${receiptLine}` : ''}${linkLine}`;
 
   // SMS/WhatsApp — only if beautician has opted in
@@ -1940,6 +1940,8 @@ export async function notifyBookingConfirmed(appointmentId) {
           bizName,
           url: waLink,
           isCalendarLink: !!calendarUrl,
+          manageUrl,
+          calendarUrl,
         });
         // A text really was sent to her, so say so. `channels` is what the
         // caller reports and what the app shows; leaving the SMS out of it
@@ -2140,8 +2142,8 @@ export async function notifyReminder24h(appointmentId) {
   const treatmentName = treatment?.name || 'patch test';
 
   const changeLine = reminderManageUrl
-    ? ` Need to change it? ${reminderManageUrl}`
-    : ((biz?.whatsapp_phone_id || biz?.twilio_wa_sender) ? ' Reply here if you need to change anything.' : '');
+    ? ` View your booking and preparation: ${reminderManageUrl}`
+    : '';
   const textMsg = `Hi ${client.first_name}, just a reminder your ${treatmentName} with ${bizName} is tomorrow at ${timeStr}.${changeLine} See you then!`;
 
   // What actually reached her, filled in as each channel answers, and written
@@ -2207,6 +2209,7 @@ export async function notifyReminder24h(appointmentId) {
             <p style="margin:4px 0 0;color:#2d2a26;font-size:16px;font-weight:600">${treatment?.duration_minutes || appt.duration_minutes || 30} minutes</p>
           </td></tr>
         </table>
+        ${reminderManageUrl ? `<p style="margin:20px 0 0;font-size:14px"><a href="${reminderManageUrl}">View booking and preparation</a></p>` : ''}
         <p style="margin:20px 0 0;color:#6b6560;font-size:14px">If you can't make it, please let ${bizName} know as soon as possible.</p>
       `,
       });

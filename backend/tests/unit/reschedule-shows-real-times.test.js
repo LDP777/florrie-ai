@@ -196,7 +196,7 @@ function makeBuilder(table) {
     update(p) { pending = { op: 'update', payload: p }; return b; },
     upsert(p) { pending = { op: 'insert', payload: p }; return b; },
     delete() { pending = { op: 'delete' }; return b; },
-    eq(c, v) { filters.push(r => r[c] === v); return b; },
+    eq(c, v) { filters.push(r => c.includes('->') ? String(c.split(/->>?/).reduce((x,k)=>x?.[k],r)) === String(v) : r[c] === v); return b; },
     neq(c, v) { filters.push(r => r[c] !== v); return b; },
     in(c, v) { filters.push(r => v.includes(r[c])); return b; },
     is(c, v) { filters.push(r => (r[c] ?? null) === v); return b; },
@@ -256,7 +256,7 @@ const feeFixture = vi.hoisted(() => ({ feeCents: 0, useActual: false, charges: [
 vi.mock('../../src/services/policy-fees.js', async importOriginal => {
   const { computePolicyFee } = await importOriginal();
   return {
-  chargePolicyFee: async (...args) => { feeFixture.charges.push(args); return { charged: false }; },
+  chargePolicyFee: async (...args) => { feeFixture.charges.push(args.slice(0,2)); return { charged: false, reason: 'no_card_on_file' }; },
   computePolicyFee: (...args) => feeFixture.useActual ? computePolicyFee(...args) : ({ feeCents: feeFixture.feeCents }),
   chargeRescheduleDeposit: async () => ({ charged: false, reason: 'no_deposit' }),
   chargeRemainingBalance: async () => ({ charged: false }),
@@ -869,40 +869,61 @@ describe('manage, cancellation and rescheduling honour the agreed notice', () =>
     expect(feeFixture.charges).toEqual([]);
   });
 
-  it.each([
-    { percent: 0, deposit: 700, fee: 0 },
-    { percent: 100, deposit: 3500, fee: 0 },
-    { percent: 100, deposit: 700, fee: 2800 },
-  ])('describes only the effective remaining reschedule fee (%j)', async ({ percent, deposit, fee }) => {
-    seed({ policy: { cancellation_notice_hours: 48, late_cancel_charge_percent: percent } });
+  it.each([0, 100])('refuses late rescheduling before taking payment, even with a %i percent fee', async percent => {
+    seed({ policy: { cancellation_notice_hours: 48, late_cancel_charge_percent: percent, require_deposit_on_late_reschedule: true } });
     soon();
-    Object.assign(db.appointments[0], { price_cents: 3500, deposit_cents: deposit, deposit_paid: true });
-    feeFixture.useActual = true;
+    const before = JSON.stringify(db.appointments[0]);
     const slots = await getSlots();
-    const offered = slots.body.slots.find(slot => slot.slice(0, 10) === openDay(4));
-    expect(offered).toBeDefined();
-    const out = await run('post', '/:slug/manage/:token/reschedule', { params, body: { new_starts_at: offered } });
-    expect(out.status).toBe(200);
-    expect(out.body).toMatchObject({ success: true, isLateReschedule: true, newDepositCollected: false });
-    if (fee) expect(out.body.message).toContain('a £28.00 fee for the original appointment may be charged');
-    else expect(out.body.message).not.toMatch(/fee|may be charged|will be charged/i);
-    expect(out.body.message).not.toMatch(/100%|will be charged/i);
+    expect(slots.status).toBe(409);
+    expect(slots.body.code).toBe('reschedule_notice_window');
+    const out = await run('post', '/:slug/manage/:token/reschedule', { params, body: { new_starts_at: at(openDay(4),'12:00') } });
+    expect(out.status).toBe(409);
+    expect(out.body).toMatchObject({code:'reschedule_notice_window',cancellationNoticeHours:48});
+    expect(JSON.stringify(db.appointments[0])).toBe(before);
+    expect(feeFixture.charges).toEqual([]);
   });
 
-  it('reports a freshly collected reschedule deposit separately when the late fee is zero', async () => {
-    seed({ policy: { cancellation_notice_hours: 48, late_cancel_charge_percent: 0, require_deposit_on_late_reschedule: true } });
-    soon();
-    Object.assign(db.appointments[0], { price_cents: 3500, deposit_cents: 700, deposit_paid: true });
-    feeFixture.useActual = true;
-    feeFixture.paidMove = true;
-    const slots = await getSlots();
-    const offered = slots.body.slots.find(slot => slot.slice(0, 10) === openDay(4));
-    expect(offered).toBeDefined();
-    const out = await run('post', '/:slug/manage/:token/reschedule', { params, body: { new_starts_at: offered } });
-    expect(out.status).toBe(200);
-    expect(out.body).toMatchObject({ success: true, newDepositCollected: true });
-    expect(out.body.message).toContain('A fresh deposit has been taken for your new appointment.');
-    expect(out.body.message).not.toMatch(/fee|may be charged|will be charged/i);
-    expect(feeFixture.charges).toEqual([]);
+  it('does not repeat the cancellation fee when the same cancellation is submitted again', async () => {
+    seed({policy:{cancellation_notice_hours:48,late_cancel_charge_percent:100}});soon();feeFixture.feeCents=2800;
+    expect((await run('post','/:slug/manage/:token/cancel',{params})).status).toBe(200);
+    const replay=await run('post','/:slug/manage/:token/cancel',{params});
+    expect(replay.body).toMatchObject({success:true,alreadyCancelled:true});
+    expect(feeFixture.charges).toEqual([[APPT_ID,'late_cancel']]);
+  });
+
+  it('leaves the booking intact if its cancellation notification cannot be queued', async () => {
+    seed();failing.set('ai_actions',{code:'XX000',message:'unavailable'});
+    const out=await run('post','/:slug/manage/:token/cancel',{params});
+    expect(out.status).toBe(503);expect(db.appointments[0].status).toBe('confirmed');expect(feeFixture.charges).toEqual([]);
+  });
+  it('cannot turn a past confirmed appointment into a new automatic cancellation charge',async()=>{
+    seed({policy:{cancellation_notice_hours:48,late_cancel_charge_percent:100}});
+    db.appointments[0].starts_at=new Date(Date.now()-86400000).toISOString();
+    const out=await run('post','/:slug/manage/:token/cancel',{params});
+    expect(out.status).toBe(409);expect(out.body.code).toBe('appointment_started');
+    expect(db.appointments[0].status).toBe('confirmed');expect(feeFixture.charges).toEqual([]);
+  });
+});
+
+describe('moving between calendar months',()=>{
+  const monthly = month => run('get', SLOTS_PATH, {params:{slug:'ellindigo',token:TOKEN},query:{month}});
+  it('offers and accepts dates beyond the old 28-day scan',async()=>{
+    seed();const day=openDay(45);const month=day.slice(0,7);
+    const out=await monthly(month);expect(out.status).toBe(200);
+    expect(out.body.month).toBe(month);expect(out.body.latestMonth).toBe(null);
+    const slot=out.body.slots.find(s=>s.startsWith(day));expect(slot).toBeDefined();
+    const moved=await run('post','/:slug/manage/:token/reschedule',{params:{slug:'ellindigo',token:TOKEN},body:{new_starts_at:slot}});
+    expect(moved.status).toBe(200);
+  });
+  it('does not truncate later-month back-to-back choices after the first 12 slots',async()=>{
+    seed({policy:{reschedule_between_only:true}});const day=openDay(45),month=day.slice(0,7);
+    for(let n=1;n<=26;n++){const d=`${month}-${String(n).padStart(2,'0')}`;if(new Date(d+'T12:00:00Z').getUTCDay()!==0)otherBooking(d,'11:00','12:00');}
+    const out=await monthly(month);expect(out.status).toBe(200);expect(out.body.mode).toBe('back_to_back');
+    expect(out.body.slots.length).toBeGreaterThan(12);expect(out.body.slots.some(s=>s.slice(8,10)>='25')).toBe(true);
+  });
+  it('rejects months outside the configured advance window and invalid months',async()=>{
+    seed({policy:{max_advance_days:10}});
+    expect((await monthly(openDay(70).slice(0,7))).body.code).toBe('month_outside_booking_window');
+    expect((await monthly('2026-13')).body.code).toBe('invalid_month');
   });
 });
