@@ -199,10 +199,10 @@ describe('no new sender joins clients without the consent columns', () => {
     'src/routes/features.js:1044',
     'src/routes/features.js:1086',
     'src/routes/features.js:1116',
-    'src/routes/features.js:2566',
-    'src/routes/features.js:2792',
-    'src/routes/features.js:2833',
-    'src/routes/features.js:3318',
+    'src/routes/features.js:2577',
+    'src/routes/features.js:2803',
+    'src/routes/features.js:2844',
+    'src/routes/features.js:3329',
     // Both moved down again, by the 27 August 2026 template-parameter fix:
     // resolveTemplateForSend grew the refusal path and sendBookingLink's
     // comment was rewritten, both above these two joins. Then again by the
@@ -225,8 +225,10 @@ describe('no new sender joins clients without the consent columns', () => {
     // booking of two treatments is confirmed as two.
     // (Previously 1236 / 1514, then 1393 / 1685, then 1526 / 1818, then
     // 1532 / 1824, then 1540 / 1845, then 1693 / 2008, then 1705 / 2020.)
-    'src/services/notifications.js:1753',
-    'src/services/notifications.js:2071',
+    // Moved by the combined November booking-link and training email changes.
+    // The same two client joins remain; no new exception is added.
+    'src/services/notifications.js:1755',
+    'src/services/notifications.js:2073',
   ]);
 
   function walk(dir) {

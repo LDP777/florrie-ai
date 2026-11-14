@@ -39,6 +39,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
  * these bugs and nothing else.
  */
 const COLUMNS = {
+  reviews: ['id', 'beautician_id', 'client_id', 'rating', 'comment', 'is_public', 'created_at'],
   gift_vouchers: [
     'id', 'beautician_id', 'code', 'amount_cents', 'remaining_cents',
     'purchaser_name', 'purchaser_email', 'recipient_name', 'recipient_email',
@@ -74,11 +75,13 @@ const COLUMNS = {
 
 // Embedded resources: client_packages -> packages, waitlist -> clients.
 const RELATIONS = {
+  reviews: { clients: { table: 'clients', fk: 'client_id' } },
   client_packages: { packages: { table: 'packages', fk: 'package_id' } },
   waitlist: { clients: { table: 'clients', fk: 'client_id' } },
 };
 
 const db = {
+  reviews: [],
   beauticians: [], treatments: [], clients: [], appointments: [],
   hours_exceptions: [], gift_vouchers: [], promo_codes: [], packages: [],
   client_packages: [], waitlist: [], outbound_sends: [], ai_actions: [],
@@ -1267,5 +1270,21 @@ describe('the consent box is recorded on both booking branches', () => {
     });
     // The earlier date is the evidence; re-stamping it would erase the proof.
     expect(db.clients[0].marketing_consent_at).toBe('2026-01-01T00:00:00Z');
+  });
+});
+
+
+describe('public booking review consent', () => {
+  it('returns only the current salon’s published feedback, with first name and no contact details', async () => {
+    db.reviews.push(
+      { id: 'public-a', beautician_id: 'b1', client_id: 'c1', rating: 4, comment: 'Permitted exact words.', is_public: true, created_at: '2026-11-14' },
+      { id: 'private-a', beautician_id: 'b1', client_id: 'c1', rating: 1, comment: 'Private feedback must never appear.', is_public: false },
+      { id: 'foreign-a', beautician_id: 'b2', client_id: 'c1', rating: 5, comment: 'Other salon feedback.', is_public: true },
+    );
+    const result = await run(bookingRouter, 'get', '/:slug/reviews', { params: { slug: 'ellindigo' } });
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual({ count: 1, average: 4, recent: [{ rating: 4, comment: 'Permitted exact words.', first_name: 'Charlotte', created_at: '2026-11-14' }] });
+    expect(JSON.stringify(result.body)).not.toContain('charlotte@example.com');
+    expect(JSON.stringify(result.body)).not.toContain('Scott');
   });
 });

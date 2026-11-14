@@ -74,3 +74,11 @@ describe('announceEnrolment', () => {
     expect(pushes).toHaveLength(1);
   });
 });
+
+describe('Frozen, safe course confirmation payloads',()=>{
+ it('escapes user-entered HTML, encodes path components and keeps retries byte-identical',async()=>{
+  const input={beautician:{...beautician,business_name:'<Trainer & Salon>',booking_slug:'demo/unsafe?x=1',email:'trainer&name@example.test'},course:{...course,name:'<Course>',location:'<Place>',duration:'<7hrs>',includes:['<Kit>']},enrollment:{id:'stable',name:'<Student>',email:'student@example.test',notes:'<script>unsafe</script>',created_at:'2026-10-01T12:00:00Z',payment_status:'deposit_paid',amount_paid_cents:15000},paid:'deposit',emailIdempotencyKey:'course-confirmation-stable'};
+  await announceEnrolment(input);await new Promise(r=>setTimeout(r,5));await announceEnrolment(input);
+  expect(emails[0]).toEqual(emails[1]);expect(emails[0].html).not.toMatch(/<Student>|<Course>|<Place>|<Trainer|<Kit>|<script>/);expect(emails[0].html).toContain('&lt;Student&gt;');expect(emails[0].html).toContain('demo%2Funsafe%3Fx%3D1');expect(emails[0].text).toContain('<Trainer & Salon>');expect(emails[0].attachments[0].content).toContain('DTSTAMP:20261001T120000Z');expect(emails[0].idempotencyKey).toBe('course-confirmation-stable');
+ });
+});

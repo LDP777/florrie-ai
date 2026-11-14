@@ -1,3 +1,5 @@
+import { retryCourseNotices } from '../services/course-notice-delivery.js';
+import { reconcileDueCourseHolds } from '../services/course-checkout.js';
 import { runValueCoaching } from '../services/value-coaching.js';
 import { runClientIntelligenceRefresh } from '../services/client-intelligence.js';
 import { retryAccountDeletions } from '../services/account-deletion.js';
@@ -87,6 +89,18 @@ export const JOBS = [
     description: 'return deposits for reschedules that could not be completed',
     intervalMs: 5 * MINUTE,
     handler: retryReschedulePayments,
+  },
+  {
+    name: 'course-checkout-recovery',
+    description: 'reconcile expired training checkouts even when new bookings are closed',
+    intervalMs: 5 * MINUTE,
+    handler: reconcileDueCourseHolds,
+  },
+  {
+    name: 'course-confirmation-delivery',
+    description: 'retry pending training student emails and trainer notifications',
+    intervalMs: 5 * MINUTE,
+    handler: retryCourseNotices,
   },
   {
     name: 'booking-confirmation-delivery',

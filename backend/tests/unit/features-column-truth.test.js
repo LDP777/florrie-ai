@@ -72,6 +72,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
  * the comment beside it.
  */
 const COLUMNS = {
+  reviews: ['id', 'beautician_id', 'client_id', 'rating', 'comment', 'platform', 'is_public', 'created_at'],
   // 007_all_features.sql + 20260409_backend010_add_ons_extended.sql
   add_ons: [
     'id', 'beautician_id', 'name', 'description', 'price_cents',
@@ -188,6 +189,7 @@ const CHECKS = {
 };
 
 const RELATIONS = {
+  reviews: { clients: { table: 'clients', fk: 'client_id' } },
   client_packages: {
     packages: { table: 'packages', fk: 'package_id' },
     clients: { table: 'clients', fk: 'client_id' },
@@ -815,5 +817,35 @@ describe('waitlist notification acceptance', () => {
     expect(retried.body.delivered).toBe(true);
     expect(retried.body.waitlistEntry.status).toBe('notified');
     expect(retried.body.waitlistEntry.notify_count).toBe(1);
+  });
+});
+
+
+describe('owner-entered feedback publication', () => {
+  const feedback = () => ({ client_id: 'c1', rating: 4, review_text: '  Thoughtful advice and lovely brows.  ' });
+  it('saves exact feedback privately by default despite the legacy public database default', async () => {
+    const result = await run('post', '/reviews', { body: feedback() });
+    expect(result.status).toBe(201);
+    expect(result.body.review).toMatchObject({ client_id: 'c1', beautician_id: B, rating: 4, comment: 'Thoughtful advice and lovely brows.', platform: 'manual', is_public: false });
+    expect(result.body.review.clients.first_name).toBe('Shauna');
+  });
+  it('requires explicit public permission before publishing', async () => {
+    expect((await run('post', '/reviews', { body: { ...feedback(), is_public: true } })).status).toBe(400);
+    expect(db.reviews).toHaveLength(0);
+    const result = await run('post', '/reviews', { body: { ...feedback(), is_public: true, publication_permission: true } });
+    expect(result.status).toBe(201);
+    expect(result.body.review.is_public).toBe(true);
+  });
+  it.each([
+    { rating: '5' }, { rating: 0 }, { rating: 6 }, { rating: 2.5 },
+    { review_text: '' }, { review_text: 'a'.repeat(5001) }, { review_text: {} },
+    { platform: 'google' }, { is_public: 'false' }, { publication_permission: 'true' },
+  ])('rejects invalid or misleading feedback: %j', async patch => {
+    expect((await run('post', '/reviews', { body: { ...feedback(), ...patch } })).status).toBe(400);
+    expect(db.reviews).toHaveLength(0);
+  });
+  it('cannot attach another salon’s client or publish their identity', async () => {
+    expect((await run('post', '/reviews', { body: { ...feedback(), client_id: 'cX', is_public: true, publication_permission: true } })).status).toBe(404);
+    expect(db.reviews).toHaveLength(0);
   });
 });

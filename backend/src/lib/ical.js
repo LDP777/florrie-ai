@@ -100,7 +100,7 @@ export const VTIMEZONE_LONDON = [
  */
 export function appointmentIcs({
   id, startsAt, endsAt, treatmentName, businessName, location, manageUrl,
-  cancelled = false, sequence = 0,
+  cancelled = false, sequence = 0, generatedAt,
 }) {
   const summary = businessName ? `${treatmentName || 'Appointment'} at ${businessName}` : (treatmentName || 'Appointment');
   const description = [
@@ -125,7 +125,7 @@ export function appointmentIcs({
     // time seriously.
     fold(`UID:appt-${id}@florrie.ai`),
     `SEQUENCE:${Number(sequence) || 0}`,
-    `DTSTAMP:${utcStamp()}`,
+    `DTSTAMP:${utcStamp(generatedAt && Number.isFinite(Date.parse(generatedAt)) ? new Date(generatedAt) : undefined)}`,
     `DTSTART;TZID=Europe/London:${toICalLocal(startsAt)}`,
   ];
   if (endsAt) lines.push(`DTEND;TZID=Europe/London:${toICalLocal(endsAt)}`);

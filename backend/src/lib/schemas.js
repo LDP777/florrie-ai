@@ -509,6 +509,7 @@ export const waitlistSchema = z.object({
  * the body. This schema validates the student details the public page posts.
  */
 export const enrollCourseSchema = z.object({
+  request_id: z.string().uuid('Please reload this booking page and try again').optional(),
   name: z.string().trim().min(1, 'Please enter your name').max(120),
   email: z.string().trim().email('Please enter a valid email').max(200),
   phone: z.string().trim().max(40).optional().or(z.literal('')),

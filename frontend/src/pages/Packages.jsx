@@ -155,7 +155,7 @@ export default function Courses() {
   /* ------------------------------------------------------------ the form -- */
   const priceNum = Number(form.price);
   const depositNum = Number(form.deposit) || 0;
-  const heldOnEditedDate = editingItem ? Math.max(Number(editingItem.enrolled || 0), enrollments.filter(e => e.course_id === editingItem.id && holdsAPlace(e)).length) : 0;
+  const heldOnEditedDate = editingItem ? Math.max(Number(editingItem.enrolled || 0) + Number(editingItem.reserved_places || 0), enrollments.filter(e => e.course_id === editingItem.id && holdsAPlace(e)).length) : 0;
   const dateLocked = !!editingItem && (Number(editingItem.enrolled || 0) > 0 || enrollments.some(e => e.course_id === editingItem.id));
   const formProblem = (() => {
     if (!form.name.trim()) return 'Give the course a name.';
@@ -309,6 +309,7 @@ export default function Courses() {
   const reopenBookings = (course) => patchCourse(course.id, { status: 'active' }).then(r => r && say('Bookings open again for this date.'));
 
   const cancelCourse = async (course) => {
+    if (Number(course.reserved_places) > 0) return say('A payment is in progress. Close new bookings, then wait for checkout to finish or expire before cancelling this date.');
     const n = studentsOf(course.id).length;
     const ok = window.confirm(n
       ? `Cancel ${course.name} on ${course.date ? fmtDate(course.date) : 'the unconfirmed date'}? ${n} student${n === 1 ? '' : 's'} will keep their record here so you can refund and message them. Other offered dates stay available.`
@@ -320,7 +321,7 @@ export default function Courses() {
 
   const deleteCourse = async (course) => {
     if (course.course_group_id) { await cancelCourse(course); return; }
-    if (studentsOf(course.id).length) { say('This course has students. Cancel it instead, so their records stay.'); return; }
+    if (studentsOf(course.id).length || Number(course.reserved_places) > 0) { say('This course has students or payments in progress. Cancel it instead, so their records stay.'); return; }
     if (!window.confirm(`Delete this date for ${course.name}? This cannot be undone.`)) return;
     setBusyId(course.id);
     try {
@@ -354,18 +355,15 @@ export default function Courses() {
   };
 
   /* -------------------------------------------------------- student acts -- */
-  const bumpEnrolled = async (courseId, delta) => {
-    const course = courses.find(c => c.id === courseId);
-    if (!course) return;
-    const next = Math.max(0, Number(course.enrolled || 0) + delta);
-    const { data, error } = await supabase.from('courses').update({ enrolled: next }).eq('id', courseId).select().single();
+  const refreshCapacity = async (courseId) => {
+    const { data, error } = await supabase.from('courses').select('*').eq('id', courseId).single();
     if (error) throw error;
-    setCourses(prev => prev.map(c => (c.id === courseId ? data : c)));
+    setCourses(prev => prev.map(c => c.id === courseId ? data : c));
   };
 
   const markPaid = async (row, level) => {
     const course = courses.find(c => c.id === row.course_id);
-    if (!course) return;
+    if (!course || row.reservation_status === 'held') return;
     setBusyId(row.id);
     try {
       const cents = level === 'paid'
@@ -377,7 +375,7 @@ export default function Courses() {
       const { data, error } = await supabase.from('course_enrollments').update(patch).eq('id', row.id).select().single();
       if (error) throw error;
       setEnrollments(prev => prev.map(e => (e.id === row.id ? data : e)));
-      if (!holdsAPlace(row)) await bumpEnrolled(row.course_id, +1);
+      await refreshCapacity(row.course_id);
       say(level === 'paid' ? `${row.name} marked as paid in full.` : `${row.name}'s deposit recorded.`);
     } catch (err) {
       logger.error({ err }, 'Failed to update enrolment');
@@ -389,6 +387,7 @@ export default function Courses() {
   };
 
   const removeStudent = async (row) => {
+    if (row.reservation_status === 'held') return say('This place is held for payment. Wait for checkout to finish or expire.');
     const online = paidOnline(row);
     const ok = window.confirm(online
       ? `Remove ${row.name}? They paid £${(Number(row.amount_paid_cents) / 100).toFixed(2)} by card. Removing them here does not refund it; do that from Money if you owe it back.`
@@ -399,7 +398,7 @@ export default function Courses() {
       const { error } = await supabase.from('course_enrollments').delete().eq('id', row.id);
       if (error) throw error;
       setEnrollments(prev => prev.filter(e => e.id !== row.id));
-      if (holdsAPlace(row)) await bumpEnrolled(row.course_id, -1);
+      await refreshCapacity(row.course_id);
       say(`${row.name} removed. Their place is free again.`);
     } catch (err) {
       logger.error({ err }, 'Failed to remove enrolment');
@@ -432,14 +431,20 @@ export default function Courses() {
     <div style={s.page}>
       <PageHeader
         title="Courses"
-        subtitle="Sell training and masterclasses"
+        subtitle="Set aside training dates. Students choose and book."
         action={(
-          <Button disabled={clientDetailsHidden || (saving)} variant={showCreate ? 'secondary' : 'primary'} size="sm" onClick={() => { if (showCreate) resetForm(); setShowCreate(!showCreate); }}>
+          <Button disabled={saving || (clientDetailsHidden && !showCreate)} variant={showCreate ? 'secondary' : 'primary'} size="sm" onClick={() => { if (showCreate) resetForm(); setShowCreate(!showCreate); }}>
             {showCreate ? 'Close' : '+ New course'}
           </Button>
         )}
       />
 
+      {beautician?.booking_slug && <div style={{ ...s.formCard, marginBottom: 16 }}>
+        <strong>Your open training page</strong>
+        <p style={s.dateHelp}>Share one link for all your courses. Students choose from the dates you set aside for training.</p>
+        <a href={`/training/${beautician.booking_slug}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)', fontWeight: 600 }}>View training page ↗</a>
+        <Button variant="secondary" size="sm" onClick={async () => { try { await navigator.clipboard.writeText(`${window.location.origin}/training/${beautician.booking_slug}`); say('Training page link copied.'); } catch { say('Could not copy the link. Open your training page to share it.'); } }} style={{ marginLeft: 12 }}>Copy link</Button>
+      </div>}
       {loadError && <ErrorCard message={loadError} onDismiss={() => setLoadError('')} />}
       {notice && <div style={s.notice}><PrivateText>{notice}</PrivateText></div>}
 
@@ -470,10 +475,10 @@ export default function Courses() {
 
           </>}
           <div style={s.dateIntro}>
-            <strong>{editingItem ? 'Date and time' : 'Dates students can choose'}</strong>
+            <strong>{editingItem ? 'Date and time' : 'Set aside your training dates'}</strong>
             <p style={s.dateHelp}>{editingItem
               ? dateLocked ? 'This date has bookings or a checkout in progress, so its date and time stay fixed. Add another date to offer more choice.' : 'Changes apply to this date only.'
-              : 'Each student chooses one date. Places and payments stay with that date.'}</p>
+              : 'Choose the dates you want to teach. Students can book any of these dates themselves, up to the places you offer.'}</p>
             {addingTo && <><p style={s.dateHelp}>Based on {addingTo.date ? `${fmtDate(addingTo.date)}${addingTo.start_time ? ` at ${fmtTime(addingTo.start_time)}` : ''}` : 'the current course'}: <PrivateAmount>{pounds(addingTo.price)}</PrivateAmount> per student{Number(addingTo.deposit) > 0 ? <>, <PrivateAmount>{pounds(addingTo.deposit)}</PrivateAmount> deposit</> : ', no deposit'}. {addingTo.location || 'Location to confirm'}.</p><p style={s.dateHelp}>New dates keep those details, the duration and included items. Existing dates and students stay as they are.</p></>}
           </div>
           {form.dates.map((option, index) => (
@@ -495,7 +500,7 @@ export default function Courses() {
             </div>
           ))}
           {!editingItem && <Button variant="secondary" size="sm" disabled={saving || form.dates.length >= MAX_DATE_OPTIONS} onClick={() => setField('dates', [...form.dates, newDateOption()])}>+ Add another date</Button>}
-          {!editingItem && !addingTo && form.dates.length === 1 && <span style={s.hint}>Leave the date blank if you will confirm it later. Add dates when you are ready.</span>}
+          {!editingItem && !addingTo && form.dates.length === 1 && <span style={s.hint}>A course without a date stays off your public training page. Add dates when you are ready to take bookings.</span>}
           {!dateLocked && <span style={s.hint}>The selected date and start time appear in each student’s confirmation.</span>}
 
           {!addingTo && <>
@@ -648,16 +653,17 @@ export default function Courses() {
                       {course.description !== base.description && <p style={s.courseDesc}>{course.description}</p>}
                       {priceVaries && <p style={s.dateHelp}><PrivateAmount>{pounds(course.price)}</PrivateAmount> · {Number(course.deposit) > 0 ? <><PrivateAmount>{pounds(course.deposit)}</PrivateAmount> deposit</> : 'No deposit'}</p>}
                       <div style={s.spotsRow}>
-                        <div style={s.spotsBar}><div style={{ ...s.spotsBarFill, width: `${Math.min(100, (Number(course.enrolled || 0) / Math.max(1, Number(course.max_students || 1))) * 100)}%`, background: full ? 'var(--warning, #79581C)' : 'var(--accent, #92405e)' }} /></div>
-                        <span style={{ ...s.spotsLabel, color: full ? 'var(--warning, #79581C)' : 'var(--text-muted, #6B5D54)' }}>{full ? 'Full' : `${left} place${left !== 1 ? 's' : ''} left`} ({course.enrolled || 0}/{course.max_students}){takenHere > 0 && <> · <PrivateAmount>{pounds(takenHere)}</PrivateAmount> taken</>}</span>
+                        <div style={s.spotsBar}><div style={{ ...s.spotsBarFill, width: `${Math.min(100, ((Number(course.enrolled || 0) + Number(course.reserved_places || 0)) / Math.max(1, Number(course.max_students || 1))) * 100)}%`, background: full ? 'var(--warning, #79581C)' : 'var(--accent, #92405e)' }} /></div>
+                        <span style={{ ...s.spotsLabel, color: full ? 'var(--warning, #79581C)' : 'var(--text-muted, #6B5D54)' }}>{full ? 'Full' : `${left} place${left !== 1 ? 's' : ''} left`} ({course.enrolled || 0} booked{Number(course.reserved_places) > 0 ? `, ${course.reserved_places} awaiting payment` : ''} / {course.max_students}){takenHere > 0 && <> · <PrivateAmount>{pounds(takenHere)}</PrivateAmount> taken</>}</span>
                       </div>
+                      {Number(course.reserved_places) > 0 && <p style={s.dateHelp}>Payment in progress. You can close new bookings while checkout finishes; cancel this date after it settles or expires.</p>}
                       <div style={s.courseActions}>
                         {stage !== 'cancelled' && <Button variant="secondary" size="xs" style={s.actionBtn} disabled={saving} onClick={() => handleEdit(course)}>Edit date</Button>}
                         <Button variant="secondary" size="xs" style={s.actionBtn} onClick={() => { setExpandedCourse(expandedCourse === course.id ? null : course.id); setOpenStudent(null); }}>{expandedCourse === course.id ? 'Hide students' : `Students (${students.length})`}</Button>
                         {open && <Button variant="secondary" size="xs" style={s.actionBtn} disabled={busyId === course.id} onClick={() => closeBookings(course)}>Close bookings</Button>}
                         {stage === 'closed' && <Button variant="secondary" size="xs" style={s.actionBtn} disabled={busyId === course.id} onClick={() => reopenBookings(course)}>Reopen</Button>}
-                        {stage !== 'cancelled' && (students.length || course.course_group_id
-                          ? <Button variant="danger" size="xs" style={s.actionBtn} disabled={busyId === course.id} onClick={() => cancelCourse(course)}>Cancel date</Button>
+                        {stage !== 'cancelled' && (students.length || Number(course.reserved_places) > 0 || course.course_group_id
+                          ? <Button variant="danger" size="xs" style={s.actionBtn} disabled={busyId === course.id || Number(course.reserved_places) > 0} onClick={() => cancelCourse(course)}>Cancel date</Button>
                           : <Button variant="danger" size="xs" style={s.actionBtn} disabled={clientDetailsHidden || (busyId === course.id)} onClick={() => deleteCourse(course)}>Delete date</Button>)}
                       </div>
                       {expandedCourse === course.id && <div style={s.enrollList}>
@@ -740,16 +746,17 @@ function StudentRow({ row, course, open, busy, showCourse = false, onToggle, onM
       </button>
       {open && (
         <div style={s.studentActions}>
+          {row.reservation_status === 'held' && <p style={s.studentHint}>{row.checkout_attention_reason ? 'This payment needs a check before its place can be released. Contact Florrie support before taking another payment or removing the student.' : 'Their place is held while payment is in progress. Wait for checkout to finish or expire before recording another payment or removing them.'}</p>}
           {abandoned && <p style={s.studentHint}>They opened the card payment and did not finish, so no place is held. If they have paid you another way, record it below and the place is theirs.</p>}
           <div style={s.studentBtns}>
             {row.payment_status !== 'paid' && row.payment_status !== 'deposit_paid' && Number(course?.deposit) > 0 && (
-              <Button variant="tonal" size="xs" disabled={clientDetailsHidden || (busy)} onClick={onMarkDeposit}>Deposit paid</Button>
+              <Button variant="tonal" size="xs" disabled={clientDetailsHidden || busy || row.reservation_status === 'held'} onClick={onMarkDeposit}>Deposit paid</Button>
             )}
-            {row.payment_status !== 'paid' && <Button variant="tonal" size="xs" disabled={clientDetailsHidden || (busy)} onClick={onMarkPaid}>Paid in full</Button>}
+            {row.payment_status !== 'paid' && <Button variant="tonal" size="xs" disabled={clientDetailsHidden || busy || row.reservation_status === 'held'} onClick={onMarkPaid}>Paid in full</Button>}
             {row.email && <PrivateText placeholder="Contact hidden"><Button as="a" variant="secondary" size="xs" href={`mailto:${row.email}`}>Email</Button></PrivateText>}
             {wa && <PrivateText placeholder="Contact hidden"><Button as="a" variant="secondary" size="xs" href={wa} target="_blank" rel="noreferrer">WhatsApp</Button></PrivateText>}
             {row.phone && <PrivateText placeholder="Contact hidden"><Button as="a" variant="secondary" size="xs" href={`tel:${row.phone}`}>Call</Button></PrivateText>}
-            <Button variant="danger" size="xs" disabled={clientDetailsHidden || (busy)} onClick={onRemove}>{abandoned ? 'Clear' : 'Remove'}</Button>
+            <Button variant="danger" size="xs" disabled={clientDetailsHidden || busy || row.reservation_status === 'held'} onClick={onRemove}>{abandoned ? 'Clear' : 'Remove'}</Button>
           </div>
         </div>
       )}

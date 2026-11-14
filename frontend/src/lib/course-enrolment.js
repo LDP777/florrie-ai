@@ -1,26 +1,22 @@
-/**
- * What an enrolment row means. Mirrors backend/src/lib/course-enrolment.js,
- * and must keep agreeing with it: the backend decides whether a place is
- * held, this decides what the owner is shown about it.
- *
- * An `unpaid` row whose Stripe reference starts cs_ is a deposit checkout
- * that was opened and never finished. It holds no place and it is not a
- * student; it is shown so the owner understands why a name she recognises
- * is not in her count.
+/** Mirrors backend training state. Pending payment holds consume capacity but
+ * stay separate from confirmed students. Legacy cs_ rows retain their old label.
  */
 export const CHECKOUT_PREFIX = 'cs_';
 
 export function checkoutAbandoned(row) {
   if (!row) return false;
+  if (row.reservation_status) return row.reservation_status === 'released';
   const status = row.payment_status || 'unpaid';
   return status === 'unpaid' && String(row.stripe_payment_intent_id || '').startsWith(CHECKOUT_PREFIX);
 }
 
 export function holdsAPlace(row) {
-  return !!row && !checkoutAbandoned(row);
+  return !!row && (row.reservation_status ? row.reservation_status === 'confirmed' : !checkoutAbandoned(row));
 }
 
 export function enrolmentLabel(row) {
+  if (row?.reservation_status === 'held') return { text: 'Place held · payment in progress', tone: 'warning' };
+  if (row?.reservation_status === 'released') return { text: 'Checkout expired', tone: 'muted' };
   const status = row?.payment_status || 'unpaid';
   if (status === 'paid') return { text: 'Paid in full', tone: 'success' };
   if (status === 'deposit_paid') return { text: 'Deposit paid', tone: 'warning' };
@@ -29,7 +25,7 @@ export function enrolmentLabel(row) {
 }
 
 export function spotsLeft(course) {
-  return Math.max(0, Number(course?.max_students || 0) - Number(course?.enrolled || 0));
+  return Math.max(0, Number(course?.max_students || 0) - Number(course?.enrolled || 0) - Number(course?.reserved_places || 0));
 }
 
 export function balanceDue(course, row) {

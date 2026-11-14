@@ -56,7 +56,8 @@ export function courseWindow(course) {
  * @param {object} a.enrollment the course_enrollments row, after any payment update
  * @param {'paid'|'deposit'|'unpaid'} a.paid what has been paid
  */
-export async function announceEnrolment({ beautician, course, enrollment, paid }) {
+export async function announceEnrolment({ beautician, course, enrollment, paid, delivery = {}, onDelivered, emailIdempotencyKey }) {
+  const failures = [];
   const trainer = beautician?.business_name || beautician?.first_name || 'your trainer';
   const student = enrollment?.name || 'A student';
   const when = course?.date ? formatCourseDate(course.date) : 'date to be confirmed';
@@ -64,22 +65,36 @@ export async function announceEnrolment({ beautician, course, enrollment, paid }
   // The owner. Its own headline, because "New booking" is a treatment and this
   // is a student, and because at a glance she should know the money landed.
   try {
-    const money = paid === 'paid' ? 'Paid in full.'
-      : paid === 'deposit' ? `Deposit paid (£${(Number(enrollment?.amount_paid_cents || 0) / 100).toFixed(0)}).`
-      : Number(course?.deposit) > 0 ? `Deposit of £${Number(course.deposit).toFixed(0)} still to collect.` : '';
-    await pushTeamUpdate(beautician.id, 'course_enrolled',
-      `${student} booked onto ${course?.name || 'your course'}, ${when}. ${money}`.trim(),
-      { url: '/packages', clientName: student });
+    if (delivery.web !== false || delivery.apns !== false) {
+      const money = paid === 'paid' ? 'Paid in full.'
+        : paid === 'deposit' ? `Deposit paid (£${(Number(enrollment?.amount_paid_cents || 0) / 100).toFixed(0)}).`
+        : Number(course?.deposit) > 0 ? `Deposit of £${Number(course.deposit).toFixed(0)} still to collect.` : '';
+      const result = await pushTeamUpdate(beautician.id, 'course_enrolled',
+        `${student} booked onto ${course?.name || 'your course'}, ${when}. ${money}`.trim(),
+        { url: '/packages', clientName: student, ...(onDelivered ? { channels: { web: delivery.web !== false, apns: delivery.apns !== false } } : {}) });
+      if (onDelivered) {
+        if (delivery.web !== false) {
+          if (result && !result.web_failed) await onDelivered('web');
+          else failures.push('Web push unavailable');
+        }
+        if (delivery.apns !== false) {
+          if (result?.suppressed || result?.apns?.sent > 0 || result?.apns?.reason === 'no_device_registered') await onDelivered('apns');
+          else failures.push('iPhone push unavailable');
+        }
+      }
+    }
   } catch (err) {
+    failures.push('Trainer notification failed');
     logger.warn({ err, enrollmentId: enrollment?.id }, 'Course enrolment push failed (non-fatal)');
   }
 
   // The student. One email with everything she will otherwise message to ask.
-  if (!enrollment?.email) return;
+  if (delivery.email === false) return onDelivered ? { failures } : undefined;
+  if (!enrollment?.email) { if (onDelivered) await onDelivered('email'); return onDelivered ? { failures } : undefined; }
   try {
     const window = courseWindow(course);
     const due = balanceDue(course, enrollment);
-    const link = `${FRONTEND_URL}/training/${beautician.booking_slug || 'book'}/${course.id}`;
+    const link = `${FRONTEND_URL}/training/${encodeURIComponent(beautician.booking_slug || 'book')}/${encodeURIComponent(course.id)}`;
     const contact = [beautician?.email ? `email ${beautician.email}` : null, beautician?.phone ? `WhatsApp ${beautician.phone}` : null].filter(Boolean).join(' or ');
     const paidLine = paid === 'paid'
       ? 'You have paid in full. Nothing more to pay.'
@@ -89,31 +104,32 @@ export async function announceEnrolment({ beautician, course, enrollment, paid }
           ? `A deposit of £${Number(course.deposit).toFixed(2)} secures your place. ${trainer} will be in touch to arrange it. £${due.toFixed(2)} in total is still to pay.`
           : `£${due.toFixed(2)} is due on the day.`;
     const includes = Array.isArray(course?.includes) && course.includes.length
-      ? `<p><strong>Included:</strong> ${course.includes.map(labelFor).join(', ')}.</p>` : '';
+      ? `<p><strong>Included:</strong> ${course.includes.map(labelFor).map(escapeHtml).join(', ')}.</p>` : '';
     const timeLine = window
       ? (window.timeAssumed ? `${when}. ${trainer} will confirm the start time.` : `${when}, starting ${String(course.start_time).slice(0, 5)}.`)
       : `Date to be confirmed. ${trainer} will let you know.`;
 
     const html = `
-      <p>Hi ${enrollment.name?.split(' ')[0] || 'there'},</p>
-      <p>Your place on <strong>${course?.name || 'the course'}</strong> with ${trainer} is booked.</p>
-      <p><strong>When:</strong> ${timeLine}<br>
-      ${course?.duration ? `<strong>Length:</strong> ${course.duration}<br>` : ''}
-      ${course?.location ? `<strong>Where:</strong> ${course.location}<br>` : ''}
+      <p>Hi ${escapeHtml(enrollment.name?.split(' ')[0] || 'there')},</p>
+      <p>Your place on <strong>${escapeHtml(course?.name || 'the course')}</strong> with ${escapeHtml(trainer)} is booked.</p>
+      <p><strong>When:</strong> ${escapeHtml(timeLine)}<br>
+      ${course?.duration ? `<strong>Length:</strong> ${escapeHtml(course.duration)}<br>` : ''}
+      ${course?.location ? `<strong>Where:</strong> ${escapeHtml(course.location)}<br>` : ''}
       <strong>Price:</strong> £${Number(course?.price || 0).toFixed(2)}</p>
-      <p>${paidLine}</p>
+      <p>${escapeHtml(paidLine)}</p>
       ${includes}
       ${enrollment.notes ? `<p><strong>You told us:</strong> ${escapeHtml(enrollment.notes)}</p>` : ''}
-      <p>Questions? ${contact ? `Reply to this email, or ${contact}.` : 'Reply to this email.'}</p>
-      <p style="color:#999;font-size:12px;">Course page: <a href="${link}">${link}</a></p>
+      <p>Questions? ${contact ? `Reply to this email, or ${escapeHtml(contact)}.` : 'Reply to this email.'}</p>
+      <p style="color:#999;font-size:12px;">Course page: <a href="${escapeHtml(link)}">${escapeHtml(link)}</a></p>
     `;
-    const text = html.replace(/<[^>]+>/g, '').replace(/\n\s+/g, '\n').trim();
+    const text = html.replace(/<[^>]+>/g, '').replace(/&(amp|lt|gt|quot|#39);/g, entity => ({ '&amp;':'&', '&lt;':'<', '&gt;':'>', '&quot;':'"', '&#39;':"'" }[entity])).replace(/\n\s+/g, '\n').trim();
 
     // sendEmail base64-encodes attachment content itself; hand it the text.
     const attachments = window ? [{
       filename: 'course.ics',
       content: appointmentIcs({
         id: `course-${enrollment.id}`,
+        generatedAt: enrollment.created_at,
         startsAt: window.startsAt,
         endsAt: window.endsAt,
         treatmentName: course.name,
@@ -124,17 +140,24 @@ export async function announceEnrolment({ beautician, course, enrollment, paid }
       contentType: 'text/calendar; charset=utf-8; method=PUBLISH',
     }] : undefined;
 
-    await sendEmail({
+    const emailResult = await sendEmail({
       to: enrollment.email,
       subject: `Your place on ${course?.name || 'the course'} is booked`,
       html,
       text,
       attachments,
       replyTo: beautician?.email || undefined,
+      ...(emailIdempotencyKey ? { idempotencyKey: emailIdempotencyKey, timeoutMs: 15000 } : {}),
     });
+    if (onDelivered) {
+      if (emailResult?.id) await onDelivered('email');
+      else failures.push('Student email unavailable');
+    }
   } catch (err) {
+    failures.push('Student email failed');
     logger.warn({ err, enrollmentId: enrollment?.id }, 'Course enrolment email failed (non-fatal)');
   }
+  return onDelivered ? { failures } : undefined;
 }
 
 /** Load what announceEnrolment needs from ids, for the webhook. Never throws. */

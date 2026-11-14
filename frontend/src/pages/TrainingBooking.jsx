@@ -27,12 +27,23 @@ const INCLUDES_LABELS = {
   aftercare: 'Aftercare pack',
 };
 
+function savedRequest(slug, dateId) {
+  try {
+    const previous = JSON.parse(sessionStorage.getItem(`florrie:training-checkout:${slug}:${dateId}`) || 'null');
+    if (previous && typeof previous.name === 'string' && typeof previous.email === 'string'
+      && /^[0-9a-f-]{36}$/i.test(previous.id || '') && Number.isFinite(previous.createdAt)
+      && Date.now() >= previous.createdAt && Date.now() - previous.createdAt < 20 * 60 * 60 * 1000) return previous;
+  } catch { /* A fresh form still works when browser storage is unavailable. */ }
+  return null;
+}
+
 export default function TrainingBooking() {
   const { slug, courseId } = useParams();
   const [searchParams] = useSearchParams();
   const [baseCourse, setBaseCourse] = useState(null);
   const [dates, setDates] = useState([]);
   const [selectedId, setSelectedId] = useState('');
+  const [resumeRequest, setResumeRequest] = useState(null);
   const [beautician, setBeautician] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -45,6 +56,7 @@ export default function TrainingBooking() {
   const routeRef = useRef(currentKey);
   routeRef.current = currentKey;
   const submitRef = useRef(null);
+  const requestRef = useRef({ key: '', id: '' });
 
   const enrolledParam = searchParams.get('enrolled');
   const cancelledParam = searchParams.get('cancelled');
@@ -58,6 +70,7 @@ export default function TrainingBooking() {
     setError('');
     setSuccess(null);
     setSelectedId('');
+    setResumeRequest(null);
     setBaseCourse(null);
     setBeautician(null);
     setDates([]);
@@ -66,8 +79,14 @@ export default function TrainingBooking() {
     submitRef.current = null;
     async function load() {
       try {
-        const res = await fetch(`${API_BASE}/api/courses/${slug}/${courseId}`, { signal: controller.signal });
-        const data = await res.json().catch(() => ({}));
+        let res = await fetch(`${API_BASE}/api/courses/${slug}/${courseId}`, { signal: controller.signal });
+        let data = await res.json().catch(() => ({}));
+        const saved = savedRequest(slug, courseId);
+        if (!res.ok && saved) {
+          res = await fetch(`${API_BASE}/api/courses/${slug}/${courseId}/resume`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
+            body: JSON.stringify({ request_id: saved.id, name: saved.name, email: saved.email, open_payment: false }) });
+          data = await res.json().catch(() => ({}));
+        }
         if (!active || routeRef.current !== currentKey) return;
         if (!res.ok) {
           setError(data.error || 'Course not found');
@@ -84,8 +103,11 @@ export default function TrainingBooking() {
         // A shared link requires a choice; a cancelled checkout retains its dated occurrence.
         const returningDate = cancelledParam && available.find(d => d.id === courseId);
         const onlyDate = options.length === 1 && !data.date_selection_required && available[0];
-        setSelectedId(returningDate?.id || onlyDate?.id || '');
-        if (enrolledParam === 'true') {
+        const held = options.map(option => ({ option, request: savedRequest(slug, option.id) })).find(item => item.request && !item.option.in_the_past && !item.option.closed);
+        setSelectedId(held?.option.id || returningDate?.id || onlyDate?.id || '');
+        if (held) { setResumeRequest({ ...held.request, courseId: held.option.id }); setForm(previous => ({ ...previous, name: held.request.name, email: held.request.email })); }
+        if (data.confirmed === true) { setSuccess({ type: 'confirmed', name: saved?.name || 'Student', course: data.course }); }
+        else if (enrolledParam === 'true') {
           // A URL parameter is not proof that Stripe has completed a payment.
           setSuccess({
             type: 'submitted', name: enrolledName || 'Student',
@@ -118,12 +140,22 @@ export default function TrainingBooking() {
   const selectedCourse = dates.find(d => d.id === selectedId) || null;
   const course = success ? success.course : selectedCourse || baseCourse;
   const availableDates = dates.filter(d => !d.is_full && !d.in_the_past && !d.closed);
-  const canBook = selectedCourse && !selectedCourse.is_full && !selectedCourse.in_the_past && !selectedCourse.closed;
+  const canResume = resumeRequest?.courseId === selectedId && resumeRequest.name === form.name.trim() && resumeRequest.email === form.email.trim().toLowerCase();
+  const canBook = selectedCourse && (!selectedCourse.is_full || canResume) && !selectedCourse.in_the_past && !selectedCourse.closed;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (submitRef.current || !form.name.trim() || !form.email.trim() || !canBook || loadedKey !== currentKey) return;
     const chosenCourse = { ...selectedCourse };
+    const requestKey = `${slug}|${chosenCourse.id}|${form.name.trim()}|${form.email.trim().toLowerCase()}`;
+    if (requestRef.current.key !== requestKey) {
+      const storageKey = `florrie:training-checkout:${slug}:${chosenCourse.id}`;
+      const previous = savedRequest(slug, chosenCourse.id);
+      const reusable = previous?.key === requestKey && typeof previous.id === 'string'
+        && /^[0-9a-f-]{36}$/i.test(previous.id) && Date.now() - previous.createdAt < 20 * 60 * 60 * 1000;
+      requestRef.current = reusable ? previous : { key: requestKey, id: crypto.randomUUID(), createdAt: Date.now(), name: form.name.trim(), email: form.email.trim().toLowerCase() };
+      try { sessionStorage.setItem(storageKey, JSON.stringify(requestRef.current)); } catch { /* In-memory retries still work. */ }
+    }
     const controller = new AbortController();
     submitRef.current = controller;
     const key = currentKey;
@@ -132,15 +164,22 @@ export default function TrainingBooking() {
     setSubmitting(true);
     setError('');
     try {
-      const res = await fetch(`${API_BASE}/api/courses/${slug}/${courseId}/enroll`, {
+      const res = await fetch(`${API_BASE}/api/courses/${slug}/${canResume ? chosenCourse.id : courseId}/${canResume ? 'resume' : 'enroll'}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, email: form.email.trim().toLowerCase(), name: form.name.trim(), selected_course_id: chosenCourse.id }),
+        body: JSON.stringify({ ...form, ...(canResume ? { open_payment: true } : {}), request_id: requestRef.current.id, email: form.email.trim().toLowerCase(), name: form.name.trim(), selected_course_id: chosenCourse.id }),
         signal: controller.signal,
       });
       const data = await res.json().catch(() => ({}));
       if (!isCurrent()) return;
-      if (!res.ok) { setError(data.error || 'Enrollment failed'); return; }
+      if (!res.ok) {
+        if (data.code === 'checkout_expired') {
+          try { sessionStorage.removeItem(`florrie:training-checkout:${slug}:${chosenCourse.id}`); } catch {}
+          requestRef.current = { key: '', id: '' };
+          setResumeRequest(null);
+        }
+        setError(data.error || 'Enrollment failed'); return;
+      }
       if (data.selected_course_id && data.selected_course_id !== chosenCourse.id) {
         setError('We could not confirm your chosen date. Please check with the trainer before trying again.');
         return;
@@ -248,8 +287,8 @@ export default function TrainingBooking() {
     <div style={styles.page}>
       {/* Beautician header */}
       <div style={styles.trainerHeader}>
-        {beautician?.avatar_url && (
-          <img src={beautician.avatar_url} alt="" style={styles.trainerAvatar} />
+        {(beautician?.logo_url || beautician?.avatar_url) && (
+          <img src={beautician.logo_url || beautician.avatar_url} alt="" style={{ ...styles.trainerAvatar, ...(beautician.logo_url ? { width: 120, height: 72, objectFit: 'contain', borderRadius: 0 } : {}) }} />
         )}
         <div>
           <div style={styles.trainerName}>{beautician?.business_name || beautician?.first_name}</div>
@@ -266,7 +305,7 @@ export default function TrainingBooking() {
             <legend style={styles.dateLegend}>Choose your training date</legend>
             <p style={styles.dateHint}>Choose one date. Each date has its own places.</p>
             {dates.map(option => {
-              const unavailable = option.is_full || option.in_the_past || option.closed;
+              const unavailable = (option.is_full && resumeRequest?.courseId !== option.id) || option.in_the_past || option.closed;
               const chosen = option.id === selectedId;
               return (
                 <label key={option.id} style={{
@@ -370,7 +409,8 @@ export default function TrainingBooking() {
       )}
 
       {/* Enrollment form */}
-      {!availableDates.length ? (
+      {resumeRequest && <p role="status" style={{ ...styles.detailText, margin: '12px 0' }}>You have a payment in progress for this date. Resume it with the same name and email.</p>}
+      {!availableDates.length && !resumeRequest ? (
         <div style={styles.fullBanner}>
           <span style={{ fontSize: 20 }}>{<Icon name="alert-triangle" inline />}</span>
           <div>
@@ -440,6 +480,7 @@ export default function TrainingBooking() {
             >
               {submitting
                 ? 'Booking your place...'
+                : canResume ? 'Resume payment'
                 : !selectedCourse ? 'Choose a date to book'
                 : Number(course.deposit) > 0
                   ? (beautician?.stripe_ready ? `Book my place, pay £${Number(course.deposit).toFixed(2)} deposit` : 'Book my place')

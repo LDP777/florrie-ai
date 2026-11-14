@@ -1,3 +1,4 @@
+import { settleCourseCheckout } from '../services/course-checkout.js';
 import { discardDeletedAccountEvent } from '../services/deleted-account-events.js';
 import { handlesRescheduleRefund } from '../services/reschedule-payments.js';
 import { insertPaymentReceipt } from '../lib/payment-receipt.js';
@@ -1351,12 +1352,14 @@ router.post('/webhook', async (req, res) => {
   const bookingPayment = ['checkout.session.completed', 'checkout.session.async_payment_succeeded'].includes(event.type)
     && paymentSession?.mode === 'payment' && paymentSession.payment_status === 'paid'
     && !!paymentSession.metadata?.appointment_id;
+  const coursePayment = ['checkout.session.completed', 'checkout.session.async_payment_succeeded', 'checkout.session.expired'].includes(event.type)
+    && paymentSession?.metadata?.type === 'course_deposit';
   let paymentClaim;
-  if (bookingPayment) {
+  if (bookingPayment || coursePayment) {
     try {
       paymentClaim = await claimPaymentEvent(event);
       if (paymentClaim.duplicate) {
-        await announceBookingConfirmed(paymentSession.metadata.appointment_id, { source: 'stripe_webhook_retry', claim: false });
+        if (bookingPayment) await announceBookingConfirmed(paymentSession.metadata.appointment_id, { source: 'stripe_webhook_retry', claim: false });
         return res.json({ received: true, status: 'already_processed' });
       }
     } catch (err) {
@@ -1537,64 +1540,14 @@ router.post('/webhook', async (req, res) => {
         const enrollmentId = session.metadata?.enrollment_id;
         const isCourseDeposit = session.metadata?.type === 'course_deposit';
         if (isCourseDeposit && enrollmentId) {
-          const courseBeauticianId = session.metadata?.beautician_id;
-          const courseId = session.metadata?.course_id;
-
-          // Read the current status first so this stays idempotent. Stripe can
-          // deliver the same event more than once; we only count the spot and
-          // log the transaction on the first transition into deposit_paid.
-          const { data: priorEnrollment } = await supabase
-            .from('course_enrollments')
-            .select('payment_status')
-            .eq('id', enrollmentId)
-            .single();
-          const alreadyPaid = priorEnrollment?.payment_status === 'deposit_paid'
-            || priorEnrollment?.payment_status === 'paid';
-
-          // Mark enrollment as deposit_paid
-          await supabase.from('course_enrollments')
-            .update({
-              payment_status: 'deposit_paid',
-              amount_paid_cents: session.amount_total,
-              stripe_payment_intent_id: session.payment_intent,
-            })
-            .eq('id', enrollmentId);
-
-          // First confirmation: count the spot on the course. The enroll route
-          // deliberately defers this for the Stripe path so abandoned checkouts
-          // never eat a place.
-          if (!alreadyPaid && courseId) {
-            const { data: courseRow } = await supabase
-              .from('courses')
-              .select('enrolled')
-              .eq('id', courseId)
-              .single();
-            await supabase.from('courses')
-              .update({ enrolled: (courseRow?.enrolled || 0) + 1 })
-              .eq('id', courseId);
-          }
-
-          // Log the transaction (only once)
-          if (courseBeauticianId && !alreadyPaid) {
-            await insertPaymentReceipt(supabase, {
-              beautician_id: courseBeauticianId,
-              amount_cents: session.amount_total,
-              type: 'deposit',
-              status: 'completed',
-              stripe_payment_intent_id: session.payment_intent,
-              payment_method: 'card_online',
-            });
-          }
-
-          // Tell the trainer and the student, once: the place is really held
-          // now. Never throws (services/course-notifications.js).
-          if (!alreadyPaid) {
-            const { announceEnrolmentById } = await import('../services/course-notifications.js');
-            await announceEnrolmentById(enrollmentId, 'deposit');
-          }
-
-          logger.info({ enrollmentId, courseId, amount: session.amount_total }, 'Course deposit paid via Stripe');
+          await settleCourseCheckout(session);
+          logger.info({ enrollmentId, courseId: session.metadata.course_id, amount: session.amount_total }, 'Course deposit paid via Stripe');
         }
+        break;
+      }
+
+      case 'checkout.session.expired': {
+        if (event.data.object.metadata?.type === 'course_deposit') await settleCourseCheckout(event.data.object, { expired: true });
         break;
       }
 

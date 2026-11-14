@@ -85,7 +85,7 @@ const bundle = await build({
       if(!url.pathname.startsWith('/api/courses/'))throw Error('Unexpected fixture fetch '+url.pathname);
       const id=url.pathname.split('/')[4],record=s.public[id];
       if(!record)return json({error:'Course not found'},404);
-      const response=()=>method==='GET'?json(record.data,record.status||200):json(record.post||{confirmed:true},record.postStatus||200);
+      const response=()=>method==='GET'?json(record.data,record.status||200):url.pathname.endsWith('/resume') && body?.open_payment===false && record.resumeData?json(record.resumeData):json(record.post||{confirmed:true},record.postStatus||200);
       const holds=method==='GET'?s.holdGets:s.holdPosts;
       if(holds.includes(id)){
         return await new Promise((resolve,reject)=>{
@@ -162,7 +162,7 @@ async function fixture({ path = `/training/fictional/${ids.a}`, records = { [ids
 }
 const posts = page => page.evaluate(() => fixture.requests.filter(r => r.method === 'POST'));
 const writes = page => page.evaluate(() => fixture.writes);
-const bookButton = page => page.getByRole('button', { name: /^(Book my place|Choose a date to book|Booking your place)/ });
+const bookButton = page => page.getByRole('button', { name: /^(Book my place|Resume payment|Choose a date to book|Booking your place)/ });
 async function details(page) {
   await page.getByPlaceholder('Your name').fill('Fictional Student');
   await page.getByPlaceholder('you@email.com').fill('student@example.test');
@@ -543,6 +543,48 @@ try {
     await page.getByText(/bookings or a checkout in progress/).waitFor();
     assert.deepEqual(await writes(page), []);
     await close(); pass('A pending checkout protects its date/time before a place becomes fully confirmed.');
+  }
+  {
+    const record = { data: publicData([course()]), post: { error: 'Payment unavailable' }, postStatus: 503 };
+    const { page, close } = await fixture({ records: { [ids.a]: record } });
+    await details(page); await bookButton(page).click(); await page.getByText('Payment unavailable', { exact: true }).waitFor();
+    const first = (await posts(page))[0].body.request_id;
+    assert.match(first, /^[0-9a-f-]{36}$/);
+    await page.reload();
+    await page.evaluate(({ id, record }) => { fixture.public[id] = record; fixture.mount(); }, { id: ids.a, record });
+    await details(page); await bookButton(page).click(); await page.getByText('Payment unavailable', { exact: true }).waitFor();
+    assert.equal((await posts(page))[0].body.request_id, first);
+    await page.evaluate(id => { fixture.public[id].post = { code: 'checkout_expired', error: 'Checkout expired' }; fixture.public[id].postStatus = 409; }, ids.a);
+    await bookButton(page).click(); await page.getByText('Checkout expired', { exact: true }).waitFor();
+    await bookButton(page).click(); await page.getByText('Checkout expired', { exact: true }).waitFor();
+    assert.notEqual((await posts(page)).at(-1).body.request_id, first);
+    await close(); pass('Reloaded payment retries keep one request identity; proven expiry starts a fresh reservation.');
+  }
+  {
+    const original = publicData();
+    const record = { data: original, post: { error: 'Payment could not open' }, postStatus: 503 };
+    const { page, close } = await fixture({ records: { [ids.a]: record } });
+    await page.getByRole('radio').nth(1).check(); await details(page); await bookButton(page).click(); await page.getByText('Payment could not open', { exact: true }).waitFor();
+    const requestId = (await posts(page))[0].body.request_id;
+    const full = original.dates.map(d => ({ ...d, is_full: true, spots_left: 0, max_students: 1 }));
+    await page.goto(origin + '/training/fictional/' + ids.b + '?cancelled=true');
+    await page.evaluate(({ id, full, trainer }) => { fixture.public[id] = { data: { course: full[1], dates: full, beautician: trainer, date_selection_required: false }, post: { error: 'Synthetic retry accepted' }, postStatus: 503 }; fixture.mount(); }, { id: ids.b, full, trainer });
+    const resume = page.getByRole('button', { name: 'Resume payment', exact: true });
+    await resume.waitFor(); assert.equal(await resume.isDisabled(), false);
+    await resume.click(); await page.getByText('Synthetic retry accepted', { exact: true }).waitFor();
+    assert.equal((await posts(page))[0].body.request_id, requestId);assert.equal((await posts(page))[0].body.selected_course_id, ids.b);
+    await page.getByPlaceholder('you@email.com').fill('different@example.test');assert.equal(await bookButton(page).isDisabled(), true);
+    await close(); pass('The last held place resumes after Stripe returns to its selected date; different identity cannot bypass full capacity.');
+  }
+  {
+    const { page, close } = await fixture({ records: { [ids.a]: { data: publicData([course()]), post: { error: 'Payment unavailable' }, postStatus: 503 } } });
+    await details(page); await bookButton(page).click(); await page.getByText('Payment unavailable', { exact: true }).waitFor();
+    const requestId = (await posts(page))[0].body.request_id;
+    await page.reload();
+    await page.evaluate(({ id, course, trainer }) => { fixture.public[id] = { status: 410, data: { error: 'New bookings closed' }, resumeData: { beautician: trainer, course: { ...course, closed:false,is_full:true,can_resume:true }, dates: [{ ...course, closed:false,is_full:true,can_resume:true }] }, post: { error: 'Resume accepted' }, postStatus: 503 };fixture.mount(); }, { id: ids.a, course: course(), trainer });
+    await page.getByRole('button',{name:'Resume payment',exact:true}).click();await page.getByText('Resume accepted',{exact:true}).waitFor();
+    const requests=await posts(page);assert.equal(requests.length,2);assert.equal(requests[0].body.open_payment,false);assert.equal(requests[1].body.open_payment,true);assert.equal(requests[1].body.request_id,requestId);assert.match(requests[1].path,/\/resume$/);
+    await close();pass('Closing new bookings preserves identity-bound resume of an already held checkout.');
   }
   console.log(`Training date checks passed: ${passed} groups.`);
 } finally {

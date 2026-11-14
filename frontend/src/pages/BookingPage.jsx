@@ -184,6 +184,7 @@ export default function BookingPage() {
   const [monthClosures, setMonthClosures] = useState([]);
   const [monthBlocks, setMonthBlocks] = useState([]);
   const [reviewsData, setReviewsData] = useState(null);
+  const [hasTrainingDates, setHasTrainingDates] = useState(false);
   // "Booked before?" one-tap rebook path on step 0
   const [rebookState, setRebookState] = useState('idle'); // idle | looking | matched | nomatch
   const [rebookMatch, setRebookMatch] = useState(null);   // lookup payload when matched
@@ -893,6 +894,17 @@ export default function BookingPage() {
     })();
     return () => { cancelled = true; };
   }, [slug]);
+  useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    setHasTrainingDates(false);
+    fetch(`${API_BASE}/api/courses/${encodeURIComponent(slug)}`, { signal: controller.signal })
+      .then(async response => response.ok ? response.json() : null)
+      .then(data => { if (active) setHasTrainingDates(!!data?.courses?.length); })
+      .catch(() => {}).finally(() => clearTimeout(timeout));
+    return () => { active = false; clearTimeout(timeout); controller.abort(); };
+  }, [slug]);
   const closureSet = useMemo(() => new Set(monthClosures || []), [monthClosures]);
   // Partial-day blocks keyed by date, as taken minute-ranges (mirrors apptsByDay).
   const blocksByDay = useMemo(() => {
@@ -1333,7 +1345,7 @@ export default function BookingPage() {
       {/* Header */}
       <div style={{ ...styles.brandBand, background: `linear-gradient(160deg, ${brand}16 0%, ${brand}07 55%, transparent 100%)` }}>
         {logoUrl
-          ? <img src={logoUrl} alt={bizName} style={styles.brandLogo} />
+          ? <img src={logoUrl} alt={bizName} style={{ ...styles.brandLogo, ...(beautician.logo_url ? { width: 160, height: 80, objectFit: 'contain', borderRadius: 0 } : {}) }} />
           : <div style={{ ...styles.brandMonogram, background: brand }}>{monogram}</div>}
         <h1 style={styles.businessName}>{bizName}</h1>
         <p style={{ ...styles.subtitle, color: onBrandColour, opacity: 0.85 }}>{headerTagline}</p>
@@ -1397,6 +1409,7 @@ export default function BookingPage() {
                 )}
               </div>
             )}
+            {hasTrainingDates && <a href={`/training/${slug}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '14px 16px', marginBottom: 22, borderRadius: 16, border: `1px solid ${brand}`, color: brand, textDecoration: 'none' }}><span><strong>Looking for training?</strong><br /><span style={{ fontSize: 13 }}>Browse courses and choose a training date.</span></span><span aria-hidden="true">→</span></a>}
             <h2 style={styles.stepTitle}>Choose your treatment{selectedTreatments.length > 1 ? 's' : ''}</h2>
             {selectedTreatments.length === 0 && (
               <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '-12px 0 14px' }}>Tap multiple to book them together</p>

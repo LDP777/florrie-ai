@@ -1,18 +1,5 @@
-/**
- * Enrolling on a course, the parts that went wrong the first time anyone
- * tried it for real.
- *
- *   1. A student opened the deposit checkout, closed the tab, and came back.
- *      The duplicate check found her `unpaid` row and told her she was
- *      "already enrolled". She was not, and she could not book.
- *   2. The place was never held for a checkout that never finished, which is
- *      right, but the owner's page showed that row as "Unpaid" beside a
- *      student who really was paying by bank transfer.
- *   3. Nobody was told an enrolment happened. Not Ellie, not the student.
- *   4. Two enrolments from the same address, one typed with a capital letter.
- *
- * The fake database is the minimum the route touches. Everything asserted is
- * what reached the tables, the trainer's phone and the student's inbox.
+/** Real public router with fictional provider/storage adapters. Database locking
+ * and tenant rules are tested separately against PostgreSQL in course-reservations-sql.
  */
 import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import express from 'express';
@@ -48,6 +35,8 @@ function makeBuilder(table) {
     update(p) { pending = p; return b; },
     insert(p) { inserted = { id: `row-${nextId++}`, created_at: new Date().toISOString(), ...p }; db[table].push(inserted); return b; },
     eq(c, v) { if (c === 'course_group_id') groupRead = true; preds.push(r => r[c] === v); return b; },
+    in(c, values) { preds.push(r => values.includes(r[c])); return b; },
+    or() { return b; },
     order() { return b; },
     limit() { return b; },
     single() { const s = settle(); return Promise.resolve({ data: s.data?.[0] || null, error: s.data?.[0] ? null : { message: 'no rows' } }); },
@@ -55,7 +44,22 @@ function makeBuilder(table) {
   };
   return b;
 }
-const supabase = { from: (t) => makeBuilder(t) };
+const supabase = { from: (t) => makeBuilder(t), async rpc(name, p) {
+  if (name === 'reserve_course_place') {
+    const old = db.course_enrollments.find(e => e.request_id === p.p_id);
+    if (old && old.course_id !== p.p_course) return {error:{code:'22023',message:'Booking request changed'}};
+    if (old) return { data: { ...old, newly_created: false }, error: null };
+    const c = db.courses.find(c => c.id === p.p_course);
+    if (db.course_enrollments.some(e => e.course_id === p.p_course && e.email?.toLowerCase() === p.p_email && e.reservation_status !== 'released')) return { error: { code: '23505', message: 'You are already booked or have a payment in progress' } };
+    if (spotsLeft(c) <= 0) return { error: { code: 'P0001', message: 'This course is fully booked' } };
+    const e = { id:p.p_id,request_id:p.p_id,beautician_id:p.p_owner,course_id:p.p_course,name:p.p_name,email:p.p_email,phone:p.p_phone,notes:p.p_notes,payment_status:'unpaid',amount_paid_cents:0,reservation_status:p.p_checkout?'held':'confirmed',checkout_payload:p.p_checkout,checkout_expires_at:p.p_checkout?new Date(p.p_checkout.expires_at*1000).toISOString():null };
+    db.course_enrollments.push(e);
+    if(p.p_checkout)c.reserved_places=(c.reserved_places||0)+1;else c.enrolled++;
+    return {data:{...e,newly_created:true},error:null};
+  }
+  if(name==='attach_course_checkout') { const e=db.course_enrollments.find(e=>e.id===p.p_id);Object.assign(e,{checkout_session_id:p.p_session,stripe_payment_intent_id:p.p_session});return {data:e,error:null}; }
+  throw Error('Unexpected RPC '+name);
+} };
 
 vi.mock('../../src/config.js', () => ({ supabase, supabaseAdmin: supabase }));
 vi.mock('../../src/lib/logger.js', () => ({ default: { info() {}, warn() {}, error() {}, debug() {} } }));
@@ -68,11 +72,14 @@ vi.mock('../../src/services/course-notifications.js', () => ({
   announceEnrolmentById: async () => {},
 }));
 
+vi.mock('../../src/services/course-notice-delivery.js',()=>({deliverCourseNotice:async id=>{const enrollment=db.course_enrollments.find(e=>e.id===id);if(announced.some(a=>a.enrollment.id===id))return;announced.push({enrollment,course:db.courses.find(c=>c.id===enrollment.course_id),beautician:db.beauticians[0],paid:'unpaid'});}}));
+
 const sessions = [];
+let failStripe=false;
 vi.mock('stripe', () => ({
   default: class Stripe {
     constructor() {
-      this.checkout = { sessions: { create: async (opts) => { const s = { id: `cs_test_${sessions.length + 1}`, url: 'https://checkout.stripe.com/c/pay/x', opts }; sessions.push(s); return s; } } };
+      this.checkout = { sessions: { retrieve: async id => sessions.find(s => s.id === id), create: async (opts, request) => { if(failStripe)throw Error('Provider timeout'); const prior=sessions.find(s=>s.request.idempotencyKey===request.idempotencyKey);if(prior)return prior;const s = { id: `cs_test_${sessions.length + 1}`, status: 'open', request, url: 'https://checkout.stripe.com/c/pay/x', opts }; sessions.push(s); return s; } } };
     }
   },
 }));
@@ -98,11 +105,11 @@ function seed({ deposit = 150, stripeReady = true, enrolled = 0, max = 4, date =
   db.beauticians = [{ id: 'biz-1', booking_slug: 'ellindigo', first_name: 'Ellie', business_name: 'Ellindigo', email: 'ellie@example.com', phone: '07700900000', stripe_account_id: stripeReady ? 'acct_1' : null, stripe_onboarding_complete: stripeReady }];
   db.courses = [{ id: COURSE, beautician_id: 'biz-1', name: 'Ultimate Beginner Course', date, location: 'Ellindigo', duration: 'Full day (7hrs)', max_students: max, price: 750, deposit, includes: ['certificate', 'kit'], enrolled, status }];
   db.course_enrollments = [];
-  announced.length = 0; sessions.length = 0;
+  announced.length = 0; sessions.length = 0; failStripe=false;
   groupColumnPresent = false;
   failGroupRead = false;
 }
-const STUDENT = { name: 'Chloe Morgan', email: 'Chloe.Morgan@Example.com', phone: '07700900123', notes: 'Complete beginner' };
+const STUDENT = { request_id: '77777777-7777-4777-8777-777777777777', name: 'Chloe Morgan', email: 'Chloe.Morgan@Example.com', phone: '07700900123', notes: 'Complete beginner' };
 
 // These scenarios use October 2026 appointments; freeze Date, not HTTP timers.
 beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-10-01T12:00:00Z')); });
@@ -137,7 +144,7 @@ describe('lib/course-enrolment: what a row means', () => {
 
 /* ------------------------------------------------------------- the route -- */
 describe('POST /enroll with a deposit and Stripe ready', () => {
-  it('opens a checkout, remembers it on the row, holds no place yet, tells nobody yet', async () => {
+  it('reserves before opening checkout and tells nobody until payment completes', async () => {
     const r = await post(`/api/courses/ellindigo/${COURSE}/enroll`, STUDENT);
     expect(r.status).toBe(201);
     expect(r.body.checkout_url).toMatch(/stripe/);
@@ -145,17 +152,19 @@ describe('POST /enroll with a deposit and Stripe ready', () => {
     expect(row.email).toBe('chloe.morgan@example.com');
     expect(row.stripe_payment_intent_id).toBe('cs_test_1');
     expect(db.courses[0].enrolled).toBe(0);
+    expect(db.courses[0].reserved_places).toBe(1);
     expect(announced).toHaveLength(0);
   });
 
-  it('lets the same student try again after abandoning the checkout, on the same row', async () => {
+  it('reopens the same payment on a retry instead of issuing a second checkout', async () => {
     await post(`/api/courses/ellindigo/${COURSE}/enroll`, STUDENT);
     const again = await post(`/api/courses/ellindigo/${COURSE}/enroll`, { ...STUDENT, email: 'chloe.morgan@example.com', notes: 'Second go' });
     expect(again.status).toBe(201);
     expect(again.body.checkout_url).toBeTruthy();
     expect(db.course_enrollments).toHaveLength(1);
-    expect(db.course_enrollments[0].notes).toBe('Second go');
-    expect(db.course_enrollments[0].stripe_payment_intent_id).toBe('cs_test_2');
+    expect(db.course_enrollments[0].notes).toBe('Complete beginner');
+    expect(sessions).toHaveLength(1);
+    expect(db.course_enrollments[0].stripe_payment_intent_id).toBe('cs_test_1');
   });
 
   it('refuses a real duplicate, whatever the capitalisation', async () => {
@@ -322,8 +331,8 @@ describe('students choose one of the offered training dates', () => {
     const again = await post(`${datePath}/enroll`, { ...STUDENT, selected_course_id: SECOND });
     expect(again.status).toBe(201);
     expect(db.course_enrollments).toHaveLength(2);
-    expect(db.course_enrollments[1].stripe_payment_intent_id).toBe('cs_test_2');
-    expect((await post(`${datePath}/enroll`, { ...STUDENT, selected_course_id: FIRST })).status).toBe(409);
+    expect(db.course_enrollments[1].stripe_payment_intent_id).toBe('cs_test_1');
+    expect((await post(`${datePath}/enroll`, { ...STUDENT, selected_course_id: FIRST, request_id: '88888888-8888-4888-8888-888888888888' })).status).toBe(409);
   });
 
   it('fails safely if offered dates cannot be read instead of booking the anchor', async () => {
@@ -348,4 +357,17 @@ describe('students choose one of the offered training dates', () => {
     expect(view.body.dates.map(c => c.id)).toEqual([SECOND]);
     expect((await post(`${datePath}/enroll`, { ...STUDENT, selected_course_id: FIRST })).status).toBe(410);
   });
+});
+
+
+describe('course checkout failure and catalogue boundaries',()=>{
+ it('holds capacity and returns an error on ambiguous provider failure without manual confirmation',async()=>{seed();failStripe=true;const r=await post(`/api/courses/ellindigo/${COURSE}/enroll`,STUDENT);expect(r.status).toBe(503);expect(r.body.confirmed).toBeUndefined();expect(db.courses[0].reserved_places).toBe(1);expect(db.courses[0].enrolled).toBe(0);expect(announced).toHaveLength(0);failStripe=false;expect((await post(`/api/courses/ellindigo/${COURSE}/enroll`,STUDENT)).status).toBe(201);expect(db.course_enrollments).toHaveLength(1);});
+ it('returns each group once with only allocated open dates and no student data',async()=>{seedDates();db.courses.push({...db.courses[0],id:'undated',course_group_id:null,date:null},{...db.courses[0],id:'private',course_group_id:null,status:'draft'},{...db.courses[0],id:'foreign',beautician_id:'other',course_group_id:null});const r=await get('/api/courses/ellindigo');expect(r.status).toBe(200);expect(r.body.courses).toHaveLength(1);expect(r.body.courses[0].id).toBe(FIRST);expect(r.body.courses[0].dates.map(d=>d.id)).toEqual([FIRST,SECOND]);expect(JSON.stringify(r.body)).not.toMatch(/stripe_account_id|beautician_id|course_enrollments|fictional@example/i);});
+ it('does not take a booking against an undated draft',async()=>{seed({date:null});const r=await post(`/api/courses/ellindigo/${COURSE}/enroll`,STUDENT);expect(r.status).toBe(410);expect(sessions).toHaveLength(0);});
+ it('counts held checkout places when deciding whether a date is full',()=>{expect(spotsLeft({max_students:4,enrolled:2,reserved_places:2})).toBe(0);expect(enrolmentLabel({reservation_status:'held',payment_status:'unpaid'}).text).toMatch(/payment in progress/);expect(holdsAPlace({reservation_status:'released'})).toBe(false);});
+});
+
+describe('existing held checkout can resume when new bookings close',()=>{
+ it('requires the saved request and original identity, without creating another reservation',async()=>{await post(`/api/courses/ellindigo/${COURSE}/enroll`,STUDENT);db.courses[0].status='draft';expect((await get(`/api/courses/ellindigo/${COURSE}`)).status).toBe(410);const r=await post(`/api/courses/ellindigo/${COURSE}/resume`,{...STUDENT,open_payment:true});expect(r.status).toBe(200);expect(r.body.checkout_url).toBeTruthy();expect(db.course_enrollments).toHaveLength(1);expect(sessions).toHaveLength(1);expect((await post(`/api/courses/ellindigo/${COURSE}/resume`,{...STUDENT,email:'someone@example.test',open_payment:true})).status).toBe(404);expect((await post(`/api/courses/ellindigo/${COURSE}/resume`,{...STUDENT,request_id:'88888888-8888-4888-8888-888888888888',open_payment:true})).status).toBe(404);expect(db.course_enrollments).toHaveLength(1);});
+ it('does not resume a cancelled course',async()=>{await post(`/api/courses/ellindigo/${COURSE}/enroll`,STUDENT);db.courses[0].status='cancelled';expect((await post(`/api/courses/ellindigo/${COURSE}/resume`,{...STUDENT,open_payment:true})).status).toBe(410);});
 });

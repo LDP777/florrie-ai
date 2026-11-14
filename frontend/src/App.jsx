@@ -30,6 +30,7 @@ const Escalations = lazy(() => import('./pages/Escalations.jsx'));
 const ContentAutopilot = lazy(() => import('./pages/ContentAutopilot.jsx'));
 const MoneyTracker = lazy(() => import('./pages/MoneyTracker.jsx'));
 const BookingPage = lazy(() => import('./pages/BookingPage.jsx'));
+const TrainingCatalogue = lazy(() => import('./pages/TrainingCatalogue.jsx'));
 const TrainingBooking = lazy(() => import('./pages/TrainingBooking.jsx'));
 const ConsultationFormPublic = lazy(() => import('./pages/ConsultationFormPublic.jsx'));
 const ConsultationFormBuilder = lazy(() => import('./pages/ConsultationFormBuilder.jsx'));
@@ -398,6 +399,7 @@ export default function App() {
           <Route path="/book/:slug" element={<BookingPage />} />
           <Route path="/book/:slug/confirmed" element={<BookingPage />} />
           <Route path="/book/:slug/manage/:token" element={<ClientManagePage />} />
+          <Route path="/training/:slug" element={<TrainingCatalogue />} />
           <Route path="/training/:slug/:courseId" element={<TrainingBooking />} />
           <Route path="/form/:token" element={<ConsultationFormPublic />} />
           {/* The one privacy policy. A second component (PrivacyPage, April

@@ -47,6 +47,8 @@ export default function ClientPortal() {
       <h2 style={s.sectionTitle}>Prepare your page</h2>
       <p style={s.note}>Manage the details clients use when they book.</p>
       <div style={s.list}>{[
+        ['/business?tab=branding', 'camera', 'Logo & branding', 'Add the logo clients see at the top of your booking page.'],
+        ['/reviews', 'star', 'Reviews & feedback', 'Set up review requests and connect your Google reviews.'],
         ['/treatments', 'flower', 'Treatments & prices', 'Choose the services clients can book.'],
         ['/settings?section=hours', 'clock', 'Regular opening hours', 'Set your usual weekly availability.'],
         ['/hours', 'calendar', 'Holidays & closures', 'Add dates when your usual hours change.'],

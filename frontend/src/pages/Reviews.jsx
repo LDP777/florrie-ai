@@ -1,4 +1,5 @@
-import { PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
+import { PrivateText, PrivateSection, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
+import ClientLookup, { clientName } from '../components/ClientLookup.jsx';
 import GoogleReviews from '../components/GoogleReviews.jsx';
 import { API_BASE } from '../lib/config.js';
 import { contentRequest } from '../lib/content-workflow.js';
@@ -22,6 +23,12 @@ export default function Reviews() {
   return <ReviewsWorkspace key={beautician.id} beautician={beautician} refresh={refresh} />;
 }
 
+function normaliseReview(r) {
+  return { ...r, author: r.author || r.client_name || (r.clients ? clientName(r.clients) : 'Client'),
+    text: r.text || r.comment || '', reply: r.reply || r.response || '',
+    rating: r.rating !== null && r.rating !== '' && Number.isInteger(Number(r.rating)) && Number(r.rating) >= 1 && Number(r.rating) <= 5 ? Number(r.rating) : null };
+}
+
 function ReviewsWorkspace({ beautician, refresh }) {
   const { hidden: clientDetailsHidden } = useClientPrivacy();
   const [loadError, setLoadError] = useState(null);
@@ -32,6 +39,16 @@ function ReviewsWorkspace({ beautician, refresh }) {
   const [shareAllowed, setShareAllowed] = useState(false);
   const [shareSaving,setShareSaving]=useState(false);
   const [shareError,setShareError]=useState('');
+  const [adding, setAdding] = useState(false);
+  const [newClient, setNewClient] = useState(null);
+  const [newRating, setNewRating] = useState('');
+  const [newQuote, setNewQuote] = useState('');
+  const [publishNew, setPublishNew] = useState(false);
+  const [publicationPermission, setPublicationPermission] = useState(false);
+  const [reviewSaving, setReviewSaving] = useState(false);
+  const reviewSaveLock = useRef(false);
+  const [reviewError, setReviewError] = useState('');
+  const [reviewNotice, setReviewNotice] = useState('');
   const [tab, setTab] = useState('reviews');
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -51,16 +68,9 @@ function ReviewsWorkspace({ beautician, refresh }) {
     try {
         // Fetch reviews from DB. The table stores `comment` + `response`; the UI
         // reads `text`/`reply`/`author`, so normalise here.
-        const data = await fetchRowsStrict('reviews', beautician.id, { order: 'created_at', ascending: false });
+        const data = await fetchRowsStrict('reviews', beautician.id, { order: 'created_at', ascending: false, select: '*, clients(first_name, last_name)' });
         if (!active.current || run !== loadRun.current) return;
-        setReviews((data || []).map(r => ({
-          ...r,
-          author: r.author || r.client_name || 'Client',
-          text: r.text || r.comment || '',
-          reply: r.reply || r.response || '',
-          // Unknown ratings stay unrated and are excluded from the average.
-          rating: r.rating !== null && r.rating !== '' && Number.isInteger(Number(r.rating)) && Number(r.rating) >= 1 && Number(r.rating) <= 5 ? Number(r.rating) : null,
-        })));
+        setReviews((data || []).map(normaliseReview));
     } catch (err) {
       if (!active.current || run !== loadRun.current) return;
       logger.error('Load reviews error:', err);
@@ -69,6 +79,25 @@ function ReviewsWorkspace({ beautician, refresh }) {
     } finally {
       if (active.current && run === loadRun.current) setLoading(false);
     }
+  }
+
+  async function saveFeedback(event) {
+    event.preventDefault();
+    if (clientDetailsHidden || reviewSaveLock.current || !newClient?.id || !newRating || !newQuote.trim() || (publishNew && !publicationPermission)) return;
+    reviewSaveLock.current = true; setReviewSaving(true); setReviewError(''); setReviewNotice('');
+    const payload = { client_id: newClient.id, rating: Number(newRating), review_text: newQuote.trim(), platform: 'manual', is_public: publishNew, publication_permission: publicationPermission };
+    try {
+      const { data, error } = await supabase.auth.getSession();
+      if (!active.current) return;
+      if (error) throw new Error('Sign in again before saving. Your feedback is still here.');
+      const saved = await contentRequest(`${API_BASE}/api/features/reviews`, { token: data?.session?.access_token, method: 'POST', body: payload, timeoutMs: 20000 });
+      if (!active.current) return;
+      if (!saved.review?.id || saved.review.client_id !== payload.client_id || saved.review.is_public !== payload.is_public) throw new Error('The saved result could not be confirmed. Check your reviews before trying again.');
+      setReviews(previous => [normaliseReview({ ...saved.review, clients: saved.review.clients || newClient }), ...previous.filter(r => r.id !== saved.review.id)]);
+      setAdding(false); setNewClient(null); setNewRating(''); setNewQuote(''); setPublishNew(false); setPublicationPermission(false);
+      setReviewNotice(payload.is_public ? 'Review saved and shown on your booking page.' : 'Feedback saved privately. It is not shown on your booking page.');
+    } catch (error) { if (active.current) setReviewError(error.message || 'Could not save. Your feedback is still here.'); }
+    finally { reviewSaveLock.current = false; if (active.current) setReviewSaving(false); }
   }
 
   function startReply(review) {
@@ -94,7 +123,30 @@ function ReviewsWorkspace({ beautician, refresh }) {
 
   return (
     <div style={styles.page}>
-      <PageHeader title="Reviews" eyebrow="Your reputation" subtitle="Ask for feedback. Make the most of kind words." />
+      <PageHeader title="Reviews" eyebrow="Your reputation" subtitle="Ask for feedback. Make the most of kind words." action={<Button disabled={clientDetailsHidden || reviewSaving} size="sm" onClick={() => { setAdding(true); setReviewError(''); setReviewNotice(''); }}>Add client feedback</Button>} />
+      {reviewNotice && <p role="status" style={styles.settingHint}>{reviewNotice}</p>}
+      {adding && <section style={styles.reviewCard}>
+        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, margin: '0 0 8px' }}>Save client feedback</h2>
+        <p style={styles.requestDesc}>Use the client's own words and the rating they gave you. Saving here does not create a Google review.</p>
+        <PrivateSection placeholder="Client feedback editor hidden"><form onSubmit={saveFeedback} aria-label="Add client feedback">
+          <fieldset disabled={reviewSaving} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+            <ClientLookup value={newClient?.id || ''} onChange={setNewClient} label="Choose the client" />
+            <label style={{ display: 'block', marginTop: 14, fontSize: 13, fontWeight: 600 }}>Their rating
+              <select aria-label="Their rating" required value={newRating} onChange={event => setNewRating(event.target.value)} style={{ ...styles.replyTextarea, marginTop: 6, minHeight: 44 }}>
+                <option value="">Choose the rating they gave</option>{[1,2,3,4,5].map(n => <option key={n} value={n}>{n} {n === 1 ? 'star' : 'stars'}</option>)}
+              </select>
+            </label>
+            <label style={{ display: 'block', marginTop: 14, fontSize: 13, fontWeight: 600 }}>Their exact feedback
+              <textarea aria-label="Their exact feedback" required value={newQuote} maxLength={5000} onChange={event => setNewQuote(event.target.value)} rows={4} style={{ ...styles.replyTextarea, marginTop: 6 }} placeholder="Paste or type what the client said." />
+            </label>
+            <label style={{ display: 'flex', gap: 10, marginTop: 14, fontSize: 13, lineHeight: 1.5 }}><input type="checkbox" checked={publishNew} onChange={event => { setPublishNew(event.target.checked); setPublicationPermission(false); }} /> Show this review on my booking page</label>
+            {publishNew ? <label style={{ display: 'flex', gap: 10, marginTop: 12, fontSize: 13, lineHeight: 1.5 }}><input type="checkbox" checked={publicationPermission} onChange={event => setPublicationPermission(event.target.checked)} /> The client gave permission to show their first name, rating and these exact words publicly on my booking page.</label> : <p style={styles.settingHint}>Private by default. Only you can see this feedback in Florrie.</p>}
+            {reviewError && <div role="alert" style={{ marginTop: 12 }}><ErrorCard message={reviewError} /></div>}
+            <Button type="submit" disabled={!newClient?.id || !newRating || !newQuote.trim() || (publishNew && !publicationPermission)} style={{ marginTop: 14 }}>{reviewSaving ? 'Saving…' : publishNew ? 'Save & show on booking page' : 'Save privately'}</Button>
+          </fieldset>
+        </form></PrivateSection>
+        <Button variant="quiet" disabled={reviewSaving} onClick={() => setAdding(false)} style={{ marginTop: 10 }}>Cancel</Button>
+      </section>}
       <GoogleReviews ownerId={beautician.id} salonName={beautician.business_name} />
       <GoogleReviewSetup key={beautician.id} beautician={beautician} onSaved={refresh} />
 
@@ -191,6 +243,7 @@ function ReviewsWorkspace({ beautician, refresh }) {
                   </div>
                 </div>
 
+                <p style={styles.settingHint}>{review.is_public === true ? 'Shown on your booking page' : 'Private feedback'}</p>
                 <p style={styles.reviewText}><PrivateText placeholder="Hidden">{review.text}</PrivateText></p>
 
                 {review.treatment && (

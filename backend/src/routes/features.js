@@ -2275,10 +2275,18 @@ router.get('/reviews', requireAuth, async (req, res) => {
  * POST /api/features/reviews
  */
 router.post('/reviews', requireAuth, async (req, res) => {
-  const { client_id, rating, review_text, platform } = req.body;
-
-  if (!client_id || rating === undefined) {
-    return res.status(400).json({ error: 'client_id and rating are required' });
+  const { client_id, rating, review_text, platform = 'manual', is_public = false, publication_permission = false } = req.body || {};
+  if (typeof client_id !== 'string' || !client_id.trim()
+      || !Number.isInteger(rating) || rating < 1 || rating > 5
+      || typeof review_text !== 'string' || !review_text.trim() || review_text.trim().length > 5000) {
+    return res.status(400).json({ error: "Choose the client and their rating, then enter their exact feedback (up to 5,000 characters)." });
+  }
+  if (platform !== 'manual') {
+    return res.status(400).json({ error: 'Feedback entered here is saved as client feedback, not as a review imported from another platform.' });
+  }
+  if (typeof is_public !== 'boolean' || typeof publication_permission !== 'boolean'
+      || (is_public && publication_permission !== true)) {
+    return res.status(400).json({ error: 'Confirm the client gave permission before showing their feedback on the booking page.' });
   }
 
   // The backend uses the service key, so RLS is bypassed and this check is
@@ -2295,10 +2303,13 @@ router.post('/reviews', requireAuth, async (req, res) => {
       rating,
       // the column is 'comment' and 'website' fails the platform CHECK -
       // this insert never once succeeded
-      comment: review_text || null,
-      platform: platform || 'manual'
+      comment: review_text.trim(),
+      platform: 'manual',
+      // The legacy database default is public. Every new owner-created entry
+      // is explicitly private unless publication and permission were chosen.
+      is_public
     })
-    .select()
+    .select('*, clients(first_name, last_name)')
     .single();
 
   if (error) {

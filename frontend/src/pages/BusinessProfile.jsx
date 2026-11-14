@@ -3,14 +3,14 @@
  *
  * Sections:
  *   Info       - tagline (identity: name & contact edited in Settings)
- *   Branding   - brand colour, booking page accent, logo upload placeholder
+ *   Branding   - brand colour, booking page accent, logo upload
  *   Social     - Instagram, TikTok, Facebook, website links
  *   Booking    - booking page URL preview, share button
  *
  * Beautician profile data from Supabase.
  */
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useBeautician, updateRow } from '../lib/supabase.js';
 import { uploadFile, publicUrl, LOGO_BUCKET } from '../lib/storage.js';
 import { useTheme } from '../lib/theme.jsx';
@@ -39,7 +39,14 @@ export default function BusinessProfile() {
   const { dark } = useTheme();
   const navigate = useNavigate();
   const { beautician, loading: bLoading, refresh } = useBeautician();
-  const [tab, setTab] = useState('info');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get('tab');
+  const tab = ['info', 'branding', 'social', 'booking'].includes(requestedTab) ? requestedTab : 'info';
+  const setTab = value => setSearchParams(previous => {
+    const next = new URLSearchParams(previous);
+    next.set('tab', value);
+    return next;
+  });
 
   // Business name is read-only context here (identity is edited in Settings).
   const [businessName, setBusinessName] = useState('');
@@ -116,6 +123,7 @@ export default function BusinessProfile() {
   async function handleLogoUpload(e) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!['image/png','image/jpeg','image/webp'].includes(file.type)) { setLogoError('Choose a PNG, JPG or WebP image.'); return; }
     if (file.size > 2 * 1024 * 1024) { setLogoError('Image must be under 2MB'); return; }
     setLogoUploading(true);
     setLogoError(null);
@@ -131,8 +139,8 @@ export default function BusinessProfile() {
       if (!base) throw new Error('Logo saved, but its address could not be worked out. Please try again.');
       // Bust cache by appending timestamp: the object key never changes.
       const url = `${base}?t=${Date.now()}`;
-      setLogoPreview(url);
       await updateRow('beauticians', beautician.id, { logo_url: url });
+      setLogoPreview(url);
       await refresh();
     } catch (err) {
       logger.error('Logo upload error:', err);
@@ -184,7 +192,7 @@ export default function BusinessProfile() {
       <div style={{ ...s.heroCard, background: `linear-gradient(135deg, ${brandColor}, ${brandColor}CC)`, color: onBrand(brandColor) }}>
         <div style={s.heroLogo}>
           {logoPreview ? (
-            <img src={logoPreview} alt="Logo" style={{ width: 48, height: 48, borderRadius: 22, objectFit: 'cover' }} />
+            <img src={logoPreview} alt="Logo" style={{ width: 48, height: 48, objectFit: 'contain' }} />
           ) : (
             <span style={s.heroInitial}>{businessName[0] || 'F'}</span>
           )}
@@ -265,7 +273,7 @@ export default function BusinessProfile() {
             <div style={s.logoUpload}>
               <div style={s.logoPlaceholder}>
                 {logoPreview ? (
-                  <img src={logoPreview} alt="Logo" style={{ width: 64, height: 64, borderRadius: 10, objectFit: 'cover' }} />
+                  <img src={logoPreview} alt="Logo" style={{ width: 96, height: 64, objectFit: 'contain' }} />
                 ) : (
                   <span style={s.logoIcon}><Icon name="camera" size={15} /></span>
                 )}
@@ -285,7 +293,8 @@ export default function BusinessProfile() {
                 {logoUploading ? 'Uploading…' : 'Upload logo'}
               </button>
               {logoError && <span style={{ fontSize: 11, color: '#E57373' }}>{logoError}</span>}
-              <span style={s.uploadHint}>PNG or JPG, 512×512 recommended</span>
+              <span style={s.uploadHint}>PNG, JPG or WebP, up to 2MB. Your whole logo is shown.</span>
+              {beautician?.booking_slug && <a href={bookingUrl} target="_blank" rel="noopener noreferrer" style={{ ...s.cardDesc, color: 'var(--accent)', display: 'inline-flex', minHeight: 44, alignItems: 'center' }}>See your booking page ↗</a>}
             </div>
           </div>
 
@@ -373,6 +382,7 @@ export default function BusinessProfile() {
             <span style={s.cardLabel}>Booking page preview</span>
             <div style={s.bookingPreview}>
               <div style={{ ...s.bpHeader, background: `linear-gradient(135deg, ${brandColor}, ${brandColor}CC)`, color: onBrand(brandColor) }}>
+                {logoPreview && <img src={logoPreview} alt={`${businessName || 'Your business'} logo`} style={{ maxHeight: 64, maxWidth: 180, objectFit: 'contain', margin: '0 auto 12px', display: 'block' }} />}
                 <span style={s.bpName}>{businessName}</span>
                 {tagline && <span style={s.bpTagline}>{tagline}</span>}
               </div>
@@ -586,7 +596,7 @@ const s = {
     padding: '12px 0',
   },
   logoPlaceholder: {
-    width: 72,
+    width: 112,
     height: 72,
     borderRadius: 16,
     background: 'var(--bg, var(--bg, #FBF6F1))',
