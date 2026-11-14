@@ -1,4 +1,4 @@
-import { PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
+import { PrivateAmount, PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import { useState, useEffect, useRef } from 'react';
 import { useBeautician, supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
@@ -763,7 +763,7 @@ export default function PatchTests() {
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                 <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>£</span>
-                <input
+                <PrivateAmount><input
                   type="number" min="0" step="0.50"
                   disabled={settingsSaving}
                 value={settings.price_pounds}
@@ -775,7 +775,7 @@ export default function PatchTests() {
                     saveReminderSettings({ patch_test_price_cents: Math.round(pounds * 100) });
                   }}
                   style={{ ...styles.settingsSelect, width: 80, textAlign: 'right' }}
-                />
+                /></PrivateAmount>
               </div>
             </div>
           </div>

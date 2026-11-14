@@ -1,4 +1,4 @@
-import { PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
+import { PrivateAmount, PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 /**
  * Courses. Sell training courses and masterclasses.
  *
@@ -447,9 +447,9 @@ export default function Courses() {
       <div style={s.statsRow}>
         <div style={s.statCard}><span style={s.statValue}>{upcoming}</span><span style={s.statLabel}>Open courses</span></div>
         <div style={s.statCard}><span style={s.statValue}>{placesHeld}</span><span style={s.statLabel}>Students</span></div>
-        <div style={s.statCard}><span style={s.statValue}>{pounds(collected)}</span><span style={s.statLabel}>Collected</span></div>
+        <div style={s.statCard}><span style={s.statValue}><PrivateAmount>{pounds(collected)}</PrivateAmount></span><span style={s.statLabel}>Collected</span></div>
       </div>
-      {stillToCollect > 0 && <p style={s.statNote}>{pounds(stillToCollect)} still to collect on the day, across booked students.</p>}
+      {stillToCollect > 0 && <p style={s.statNote}><PrivateAmount>{pounds(stillToCollect)}</PrivateAmount> still to collect on the day, across booked students.</p>}
 
       {/* The builder */}
       {showCreate && (
@@ -474,7 +474,7 @@ export default function Courses() {
             <p style={s.dateHelp}>{editingItem
               ? dateLocked ? 'This date has bookings or a checkout in progress, so its date and time stay fixed. Add another date to offer more choice.' : 'Changes apply to this date only.'
               : 'Each student chooses one date. Places and payments stay with that date.'}</p>
-            {addingTo && <><p style={s.dateHelp}>Based on {addingTo.date ? `${fmtDate(addingTo.date)}${addingTo.start_time ? ` at ${fmtTime(addingTo.start_time)}` : ''}` : 'the current course'}: {pounds(addingTo.price)} per student{Number(addingTo.deposit) > 0 ? `, ${pounds(addingTo.deposit)} deposit` : ', no deposit'}. {addingTo.location || 'Location to confirm'}.</p><p style={s.dateHelp}>New dates keep those details, the duration and included items. Existing dates and students stay as they are.</p></>}
+            {addingTo && <><p style={s.dateHelp}>Based on {addingTo.date ? `${fmtDate(addingTo.date)}${addingTo.start_time ? ` at ${fmtTime(addingTo.start_time)}` : ''}` : 'the current course'}: <PrivateAmount>{pounds(addingTo.price)}</PrivateAmount> per student{Number(addingTo.deposit) > 0 ? <>, <PrivateAmount>{pounds(addingTo.deposit)}</PrivateAmount> deposit</> : ', no deposit'}. {addingTo.location || 'Location to confirm'}.</p><p style={s.dateHelp}>New dates keep those details, the duration and included items. Existing dates and students stay as they are.</p></>}
           </div>
           {form.dates.map((option, index) => (
             <div key={option.id} style={s.dateOption}>
@@ -531,23 +531,23 @@ export default function Courses() {
           <div style={s.row2}>
             <div style={{ flex: 1 }}>
               <label style={s.label}>Full price (£)</label>
-              <input aria-label="Full price (£)" type="number" inputMode="decimal" value={form.price} onChange={e => setField('price', e.target.value)} placeholder="750" style={s.input} min="0" step="1" />
+              <PrivateAmount><input aria-label="Full price (£)" type="number" inputMode="decimal" value={form.price} onChange={e => setField('price', e.target.value)} placeholder="750" style={s.input} min="0" step="1" /></PrivateAmount>
             </div>
             <div style={{ flex: 1 }}>
               <label style={s.label}>Deposit to book (£)</label>
-              <input aria-label="Deposit to book (£)" type="number" inputMode="decimal" value={form.deposit} onChange={e => setField('deposit', e.target.value)} placeholder="150" style={s.input} min="0" step="1" />
+              <PrivateAmount><input aria-label="Deposit to book (£)" type="number" inputMode="decimal" value={form.deposit} onChange={e => setField('deposit', e.target.value)} placeholder="150" style={s.input} min="0" step="1" /></PrivateAmount>
             </div>
           </div>
 
           {priceNum > 0 && depositNum > 0 && depositNum <= priceNum && (
             <div style={s.depositNote}>
-              Students pay <strong>£{depositNum}</strong> {beautician?.stripe_onboarding_complete ? 'by card when they book' : 'to secure their place'}.
-              Remaining <strong>£{priceNum - depositNum}</strong> due on the day.
+              Students pay <strong><PrivateAmount>£{depositNum}</PrivateAmount></strong> {beautician?.stripe_onboarding_complete ? 'by card when they book' : 'to secure their place'}.
+              Remaining <strong><PrivateAmount>£{priceNum - depositNum}</PrivateAmount></strong> due on the day.
               {!beautician?.stripe_onboarding_complete && ' Connect Stripe in Settings to take the deposit online.'}
             </div>
           )}
           {priceNum > 0 && depositNum === 0 && (
-            <div style={s.depositNote}>No deposit: students book with just their details and pay <strong>£{priceNum}</strong> on the day.</div>
+            <div style={s.depositNote}>No deposit: students book with just their details and pay <strong><PrivateAmount>£{priceNum}</PrivateAmount></strong> on the day.</div>
           )}
 
           <label style={s.label}>What's included</label>
@@ -610,8 +610,8 @@ export default function Courses() {
                     {base.duration && <div style={s.courseMeta}><Icon name="clock" inline /> {base.duration}</div>}
                   </div>
                   <div style={s.coursePrice}>
-                    <span style={s.coursePriceMain}>{priceVaries ? 'From ' : ''}{pounds(Math.min(...group.courses.map(c => Number(c.price || 0))))}</span>
-                    {!priceVaries && Number(base.deposit) > 0 && <span style={s.courseDeposit}>{pounds(base.deposit)} deposit</span>}
+                    <span style={s.coursePriceMain}>{priceVaries ? 'From ' : ''}<PrivateAmount>{pounds(Math.min(...group.courses.map(c => Number(c.price || 0))))}</PrivateAmount></span>
+                    {!priceVaries && Number(base.deposit) > 0 && <span style={s.courseDeposit}><PrivateAmount>{pounds(base.deposit)}</PrivateAmount> deposit</span>}
                   </div>
                 </div>
                 {base.description && <p style={s.courseDesc}>{base.description}</p>}
@@ -646,10 +646,10 @@ export default function Courses() {
                       {course.location !== base.location && <div style={s.courseMeta}>{course.location || 'Location to confirm'}</div>}
                       {course.duration !== base.duration && <div style={s.courseMeta}>{course.duration}</div>}
                       {course.description !== base.description && <p style={s.courseDesc}>{course.description}</p>}
-                      {priceVaries && <p style={s.dateHelp}>{pounds(course.price)} · {Number(course.deposit) > 0 ? `${pounds(course.deposit)} deposit` : 'No deposit'}</p>}
+                      {priceVaries && <p style={s.dateHelp}><PrivateAmount>{pounds(course.price)}</PrivateAmount> · {Number(course.deposit) > 0 ? <><PrivateAmount>{pounds(course.deposit)}</PrivateAmount> deposit</> : 'No deposit'}</p>}
                       <div style={s.spotsRow}>
                         <div style={s.spotsBar}><div style={{ ...s.spotsBarFill, width: `${Math.min(100, (Number(course.enrolled || 0) / Math.max(1, Number(course.max_students || 1))) * 100)}%`, background: full ? 'var(--warning, #79581C)' : 'var(--accent, #92405e)' }} /></div>
-                        <span style={{ ...s.spotsLabel, color: full ? 'var(--warning, #79581C)' : 'var(--text-muted, #6B5D54)' }}>{full ? 'Full' : `${left} place${left !== 1 ? 's' : ''} left`} ({course.enrolled || 0}/{course.max_students}){takenHere > 0 && <> · {pounds(takenHere)} taken</>}</span>
+                        <span style={{ ...s.spotsLabel, color: full ? 'var(--warning, #79581C)' : 'var(--text-muted, #6B5D54)' }}>{full ? 'Full' : `${left} place${left !== 1 ? 's' : ''} left`} ({course.enrolled || 0}/{course.max_students}){takenHere > 0 && <> · <PrivateAmount>{pounds(takenHere)}</PrivateAmount> taken</>}</span>
                       </div>
                       <div style={s.courseActions}>
                         {stage !== 'cancelled' && <Button variant="secondary" size="xs" style={s.actionBtn} disabled={saving} onClick={() => handleEdit(course)}>Edit date</Button>}
@@ -735,7 +735,7 @@ function StudentRow({ row, course, open, busy, showCourse = false, onToggle, onM
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
           <span style={{ ...s.enrollStatus, background: tone.bg, color: tone.color }}>{label.text}</span>
-          {!abandoned && due > 0 && <span style={s.dueLabel}>{pounds(due)} to collect</span>}
+          {!abandoned && due > 0 && <span style={s.dueLabel}><PrivateAmount>{pounds(due)}</PrivateAmount> to collect</span>}
         </div>
       </button>
       {open && (

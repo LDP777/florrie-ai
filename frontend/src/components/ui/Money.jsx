@@ -19,6 +19,8 @@
  *   <Money pence={-1250} signed />            −£12.50
  */
 
+import { useClientPrivacy } from '../../contexts/ClientPrivacyContext.jsx';
+
 const NBSP_MINUS = '−'; // a real minus, not a hyphen
 
 export function formatMoney(value, { round = false, signed = false, currency = '£' } = {}) {
@@ -53,6 +55,7 @@ export default function Money({
   className,
   ...rest
 }) {
+  const { hidden } = useClientPrivacy();
   const value = typeof pence === 'number' ? pence / 100 : (amount ?? 0);
 
   return (
@@ -71,9 +74,10 @@ export default function Money({
         lineHeight: 1.05,
         ...style,
       }}
-      {...rest}
+      {...(hidden ? {} : rest)}
+      {...(hidden ? { 'data-client-private': 'hidden', 'aria-label': 'Amount hidden' } : {})}
     >
-      {formatMoney(value, { round, signed, currency })}
+      {hidden ? '••••' : formatMoney(value, { round, signed, currency })}
     </Tag>
   );
 }

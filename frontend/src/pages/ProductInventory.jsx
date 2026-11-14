@@ -1,3 +1,4 @@
+import { PrivateAmount } from '../contexts/ClientPrivacyContext.jsx';
 /**
  * Product Inventory - Track stock, reorder points & supplier info.
  *
@@ -186,7 +187,7 @@ export default function ProductInventory() {
               <label style={S.fLabel}>Reorder Point</label>
               <input style={S.input} type="number" placeholder="5" value={newProduct.reorderAt || ''} onChange={e => setNewProduct(p => ({ ...p, reorderAt: e.target.value }))} />
               <label style={S.fLabel}>Cost per Unit (£)</label>
-              <input style={S.input} type="number" step="0.01" placeholder="8.50" value={newProduct.costPer || ''} onChange={e => setNewProduct(p => ({ ...p, costPer: e.target.value }))} />
+              <PrivateAmount><input style={S.input} type="number" step="0.01" placeholder="8.50" value={newProduct.costPer || ''} onChange={e => setNewProduct(p => ({ ...p, costPer: e.target.value }))} /></PrivateAmount>
               <label style={S.fLabel}>Uses per Unit</label>
               <input style={S.input} type="number" placeholder="12" value={newProduct.usesPerUnit || ''} onChange={e => setNewProduct(p => ({ ...p, usesPerUnit: e.target.value }))} />
               <label style={S.fLabel}>Supplier</label>
@@ -233,7 +234,7 @@ export default function ProductInventory() {
           <span style={S.summaryLabel}>Out</span>
         </div>
         <div style={S.summaryCard}>
-          <span style={S.summaryNum}>{fmt(totalValue)}</span>
+          <span style={S.summaryNum}><PrivateAmount>{fmt(totalValue)}</PrivateAmount></span>
           <span style={S.summaryLabel}>Value</span>
         </div>
       </div>
@@ -280,7 +281,7 @@ export default function ProductInventory() {
                 <div style={S.cardLeft}>
                   <div style={S.cardInfo}>
                     <span style={S.cardName}>{prod.name}</span>
-                    <span style={S.cardMeta}>{prod.qty} {prod.unit} · {fmt(costPerUse)}/use</span>
+                    <span style={S.cardMeta}>{prod.qty} {prod.unit} · <PrivateAmount>{fmt(costPerUse)}</PrivateAmount>/use</span>
                   </div>
                 </div>
                 <span style={{ ...S.statusBadge, background: st.bg, color: st.color }}>{st.label}</span>
@@ -299,7 +300,7 @@ export default function ProductInventory() {
                     </div>
                     <div style={S.detailItem}>
                       <span style={S.detailLabel}>Cost/Unit</span>
-                      <span style={S.detailValue}>{fmt(prod.costPer)}</span>
+                      <span style={S.detailValue}><PrivateAmount>{fmt(prod.costPer)}</PrivateAmount></span>
                     </div>
                     <div style={S.detailItem}>
                       <span style={S.detailLabel}>Uses/Unit</span>
@@ -316,7 +317,7 @@ export default function ProductInventory() {
                     {prod.retailPrice && (
                       <div style={S.detailItem}>
                         <span style={S.detailLabel}>Retail Price</span>
-                        <span style={{ ...S.detailValue, color: 'var(--accent, #92405e)' }}>{fmt(prod.retailPrice)}</span>
+                        <span style={{ ...S.detailValue, color: 'var(--accent, #92405e)' }}><PrivateAmount>{fmt(prod.retailPrice)}</PrivateAmount></span>
                       </div>
                     )}
                     {prod.retailPrice && (
@@ -373,7 +374,7 @@ export default function ProductInventory() {
               <label style={S.fLabel}>Reorder Point</label>
               <input style={S.input} type="number" placeholder="5" value={newProduct.reorderAt || ''} onChange={e => setNewProduct(p => ({ ...p, reorderAt: e.target.value }))} />
               <label style={S.fLabel}>Cost per Unit (£)</label>
-              <input style={S.input} type="number" step="0.01" placeholder="8.50" value={newProduct.costPer || ''} onChange={e => setNewProduct(p => ({ ...p, costPer: e.target.value }))} />
+              <PrivateAmount><input style={S.input} type="number" step="0.01" placeholder="8.50" value={newProduct.costPer || ''} onChange={e => setNewProduct(p => ({ ...p, costPer: e.target.value }))} /></PrivateAmount>
               <label style={S.fLabel}>Uses per Unit</label>
               <input style={S.input} type="number" placeholder="12" value={newProduct.usesPerUnit || ''} onChange={e => setNewProduct(p => ({ ...p, usesPerUnit: e.target.value }))} />
               <label style={S.fLabel}>Supplier</label>

@@ -1,3 +1,4 @@
+import { PrivateAmount } from '../contexts/ClientPrivacyContext.jsx';
 import MoreLoadError from '../components/MoreLoadError.jsx';
 /**
  * Add-ons & Upsells - Bolt-on extras to boost average order value.
@@ -210,7 +211,7 @@ export default function AddOns() {
                     </div>
                   </div>
                   <div style={S.addonRight}>
-                    <span style={S.addonPrice}>{fmt(priceCents)}</span>
+                    <span style={S.addonPrice}><PrivateAmount>{fmt(priceCents)}</PrivateAmount></span>
                     {addon.auto_suggest && <span style={S.autoTag}>Auto</span>}
                   </div>
                 </div>
@@ -265,7 +266,7 @@ export default function AddOns() {
                       <div style={{ ...S.rankBarFill, width: `${pct}%`, background: cat?.colour || 'var(--accent, #92405e)' }} />
                     </div>
                   </div>
-                  <span style={S.rankValue}>{fmt(addon.price_cents || addon.price || 0)}</span>
+                  <span style={S.rankValue}><PrivateAmount>{fmt(addon.price_cents || addon.price || 0)}</PrivateAmount></span>
                 </div>
               );
             })}
@@ -292,7 +293,7 @@ export default function AddOns() {
             <input style={S.input} placeholder="e.g. Lip Wax, Aftercare Kit" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
 
             <div style={S.fieldLabel}>Price (£)</div>
-            <input style={S.input} type="number" step="0.01" placeholder="0.00" value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} />
+            <PrivateAmount><input style={S.input} type="number" step="0.01" placeholder="0.00" value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} /></PrivateAmount>
 
             <div style={S.fieldLabel}>Duration (minutes, 0 for products)</div>
             <input style={S.input} type="number" placeholder="0" value={form.duration} onChange={e => setForm(f => ({ ...f, duration: e.target.value }))} />

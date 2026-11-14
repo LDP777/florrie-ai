@@ -1,4 +1,4 @@
-import { PrivateText, PrivateSection } from '../contexts/ClientPrivacyContext.jsx';
+import { PrivateText, PrivateSection, PrivateAmount } from '../contexts/ClientPrivacyContext.jsx';
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { ds, type } from '../lib/designSystem.js';
@@ -151,7 +151,7 @@ export default function SMSConfig() {
             ['Included remaining', usage.data.remaining],
             ['Extra message charges', `£${(usage.data.overage_total_pence / 100).toFixed(2)}`],
           ].map(([label, value]) => <div key={label} style={{ flex: '1 1 90px' }}>
-            <div style={{ ...type.heading, fontSize: 20 }}>{value}</div><div style={type.bodySmall}>{label}</div>
+            <div style={{ ...type.heading, fontSize: 20 }}>{label === 'Extra message charges' ? <PrivateAmount>{value}</PrivateAmount> : value}</div><div style={type.bodySmall}>{label}</div>
           </div>)}
         </div>
         <p style={type.bodySmall}>{usage.data.sms_sent} SMS · {usage.data.whatsapp_sent} WhatsApp · {new Date(usage.data.month).toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' })}</p>

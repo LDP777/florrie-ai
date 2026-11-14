@@ -1,3 +1,4 @@
+import { PrivateAmount } from '../contexts/ClientPrivacyContext.jsx';
 import { PATCH_TEST_LEAD_HOURS } from '../lib/patch-test-policy.js';
 import MoreLoadError from '../components/MoreLoadError.jsx';
 import { useState, useEffect, Fragment } from 'react';
@@ -263,8 +264,8 @@ export default function Treatments() {
           <span style={styles.treatmentName}>{t.name}</span>
         </span>
         <span style={styles.treatmentMeta}>
-          {t.duration_minutes} min{t.buffer_minutes > 0 && ` + ${t.buffer_minutes} buffer`} · {formatCurrency(t.price_cents)}
-          {t.deposit_percent > 0 ? ` · ${t.deposit_percent}% deposit` : t.deposit_cents > 0 ? ` · ${formatCurrency(t.deposit_cents)} deposit` : ''}
+          {t.duration_minutes} min{t.buffer_minutes > 0 && ` + ${t.buffer_minutes} buffer`} · <PrivateAmount>{formatCurrency(t.price_cents)}</PrivateAmount>
+          {t.deposit_percent > 0 ? ` · ${t.deposit_percent}% deposit` : t.deposit_cents > 0 ? <> · <PrivateAmount>{formatCurrency(t.deposit_cents)}</PrivateAmount> deposit</> : ''}
         </span>
         {t.requires_consultation && (
           <span style={styles.consultBadge}>
@@ -336,14 +337,14 @@ export default function Treatments() {
           <div style={styles.formRow}>
             <div style={styles.formGroup}>
               <label style={styles.formLabel}>Price (£)</label>
-              <input
+              <PrivateAmount><input
                 type="number"
                 step="0.01"
                 value={form.price_cents}
                 onChange={e => setForm(p => ({ ...p, price_cents: e.target.value }))}
                 placeholder="0.00"
                 style={styles.formInput}
-              />
+              /></PrivateAmount>
             </div>
             <div style={styles.formGroup}>
               <label style={styles.formLabel}>Duration (mins)</label>
@@ -359,7 +360,7 @@ export default function Treatments() {
           <div style={styles.formRow}>
             <div style={styles.formGroup}>
               <label style={styles.formLabel}>Deposit %</label>
-              <input
+              <PrivateAmount><input
                 type="number"
                 min="0"
                 max="100"
@@ -367,18 +368,18 @@ export default function Treatments() {
                 onChange={e => setForm(p => ({ ...p, deposit_percent: e.target.value, deposit_cents: '' }))}
                 placeholder="e.g. 50"
                 style={styles.formInput}
-              />
+              /></PrivateAmount>
             </div>
             <div style={styles.formGroup}>
               <label style={styles.formLabel}>or Flat (£)</label>
-              <input
+              <PrivateAmount><input
                 type="number"
                 step="0.01"
                 value={form.deposit_cents}
                 onChange={e => setForm(p => ({ ...p, deposit_cents: e.target.value, deposit_percent: '' }))}
                 placeholder="e.g. 20"
                 style={styles.formInput}
-              />
+              /></PrivateAmount>
             </div>
           </div>
           <span style={{ ...styles.formHint, display: 'block', marginTop: -8, marginBottom: 8 }}>Overrides the default deposit set in Settings → Payments</span>
@@ -517,14 +518,14 @@ export default function Treatments() {
           <div style={styles.formRow}>
             <div style={styles.formGroup}>
               <label style={styles.formLabel}>No-show fee (£)</label>
-              <input
+              <PrivateAmount><input
                 type="number"
                 step="0.01"
                 value={form.no_show_fee || ''}
                 onChange={e => setForm(p => ({ ...p, no_show_fee: e.target.value }))}
                 placeholder="Optional"
                 style={styles.formInput}
-              />
+              /></PrivateAmount>
               <span style={styles.formHint}>Charged if client doesn't show up</span>
             </div>
             <div style={styles.formGroup}>
@@ -603,7 +604,7 @@ export default function Treatments() {
                       <span style={styles.treatmentName}>{t.name}</span>
                     </span>
                     <span style={styles.treatmentMeta}>
-                      {t.duration_minutes} min · {formatCurrency(t.price_cents)}
+                      {t.duration_minutes} min · <PrivateAmount>{formatCurrency(t.price_cents)}</PrivateAmount>
                     </span>
                   </div>
                   <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>

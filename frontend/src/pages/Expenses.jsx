@@ -1,4 +1,4 @@
-import { PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
+import { PrivateAmount, PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import MoreLoadError from '../components/MoreLoadError.jsx';
 /**
  * Expenses - Dedicated expense manager with budgets & recurring items.
@@ -224,15 +224,15 @@ export default function Expenses() {
       {/* Summary cards */}
       <div style={S.summaryGrid}>
         <div style={S.summaryCard}>
-          <span style={{ ...S.summaryValue, color: 'var(--accent, #92405e)' }}>{fmt(totalMonth)}</span>
+          <span style={{ ...S.summaryValue, color: 'var(--accent, #92405e)' }}><PrivateAmount>{fmt(totalMonth)}</PrivateAmount></span>
           <span style={S.summaryLabel}>Total</span>
         </div>
         <div style={S.summaryCard}>
-          <span style={{ ...S.summaryValue, color: 'var(--text-secondary, #574A42)' }}>{fmt(recurringTotal)}</span>
+          <span style={{ ...S.summaryValue, color: 'var(--text-secondary, #574A42)' }}><PrivateAmount>{fmt(recurringTotal)}</PrivateAmount></span>
           <span style={S.summaryLabel}>Recurring</span>
         </div>
         <div style={S.summaryCard}>
-          <span style={{ ...S.summaryValue, color: 'var(--success, #386F52)' }}>{fmt(deductibleTotal)}</span>
+          <span style={{ ...S.summaryValue, color: 'var(--success, #386F52)' }}><PrivateAmount>{fmt(deductibleTotal)}</PrivateAmount></span>
           <span style={S.summaryLabel}>Deductible</span>
         </div>
       </div>
@@ -269,7 +269,7 @@ export default function Expenses() {
                     <div style={S.catBarBg}>
                       <div style={{ ...S.catBarFill, width: `${pct}%`, background: meta.color }} />
                     </div>
-                    <span style={S.catAmount}>{fmt(total)}</span>
+                    <span style={S.catAmount}><PrivateAmount>{fmt(total)}</PrivateAmount></span>
                   </div>
                 </div>
               );
@@ -287,7 +287,7 @@ export default function Expenses() {
                   <span style={S.recurringDesc}><PrivateText>{e.description}</PrivateText></span>
                 </div>
                 <div style={S.recurringRight}>
-                  <span style={S.recurringAmount}>{fmt(e.amount_cents)}</span>
+                  <span style={S.recurringAmount}><PrivateAmount>{fmt(e.amount_cents)}</PrivateAmount></span>
                   <span style={S.recurringInterval}>{e.recurring_interval}</span>
                 </div>
               </div>
@@ -320,7 +320,7 @@ export default function Expenses() {
                   </div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-                  <span style={S.expenseAmount}>{fmt(e.amount_cents)}</span>
+                  <span style={S.expenseAmount}><PrivateAmount>{fmt(e.amount_cents)}</PrivateAmount></span>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button disabled={clientDetailsHidden} className="fl-tap" onClick={() => handleEditExpense(e)} style={{ background: 'none', border: 'none', fontSize: 11, color: 'var(--success, #386F52)', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>Edit</button>
                     <button disabled={clientDetailsHidden} className="fl-tap" onClick={() => handleDeleteExpense(e.id)} style={{ background: 'none', border: 'none', fontSize: 11, color: 'var(--text-muted, var(--text-muted, #6B5D54))', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>Delete</button>
@@ -358,8 +358,8 @@ export default function Expenses() {
                     <div style={{ ...S.budgetBarFill, width: `${b.pct}%`, background: overBudget ? 'var(--accent, #92405e)' : meta.color }} />
                   </div>
                   <div style={S.budgetFooter}>
-                    <span style={S.budgetSpent}>{fmt(b.spent)} spent</span>
-                    <span style={S.budgetLimit}>of {fmt(b.monthly_limit_cents)}</span>
+                    <span style={S.budgetSpent}><PrivateAmount>{fmt(b.spent)}</PrivateAmount> spent</span>
+                    <span style={S.budgetLimit}>of <PrivateAmount>{fmt(b.monthly_limit_cents)}</PrivateAmount></span>
                   </div>
                 </div>
               );
@@ -376,7 +376,7 @@ export default function Expenses() {
               </select>
               {editBudget && (
                 <>
-                  <input style={S.input} type="number" placeholder="Monthly limit (£)" value={editBudget.amount} onChange={e => setEditBudget(b => ({ ...b, amount: e.target.value }))} />
+                  <PrivateAmount><input style={S.input} type="number" placeholder="Monthly limit (£)" value={editBudget.amount} onChange={e => setEditBudget(b => ({ ...b, amount: e.target.value }))} /></PrivateAmount>
                   <button style={S.saveBudgetBtn} onClick={handleSaveBudget}>Save</button>
                 </>
               )}
@@ -398,7 +398,7 @@ export default function Expenses() {
             <PrivateText><input style={S.input} placeholder="What was it for?" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></PrivateText>
 
             <div style={S.fieldLabel}>Amount (£)</div>
-            <input style={S.input} type="number" step="0.01" placeholder="0.00" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} />
+            <PrivateAmount><input style={S.input} type="number" step="0.01" placeholder="0.00" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} /></PrivateAmount>
 
             <div style={S.fieldLabel}>Category</div>
             <div style={S.catGrid}>

@@ -9,13 +9,15 @@ const root = new URL('../', import.meta.url).pathname;
 const bundle = await build({ stdin: { resolveDir: root, loader: 'jsx', contents: `
 import React from 'react';
 import {createRoot} from 'react-dom/client';
-import {ClientPrivacyProvider, ClientPrivacyToggle, ClientPrivacyStatus, PrivateText, PrivateSection} from './src/contexts/ClientPrivacyContext.jsx';
+import {ClientPrivacyProvider, ClientPrivacyToggle, ClientPrivacyStatus, PrivateText, PrivateSection, PrivateAmount} from './src/contexts/ClientPrivacyContext.jsx';
+import Money from './src/components/ui/Money.jsx';
 function Content() { const [tab,setTab]=React.useState(0); const [draft,setDraft]=React.useState('Private consultation note'); return <>
   <ClientPrivacyToggle/><ClientPrivacyStatus/>
   <button onClick={()=>setTab(n=>n+1)}>Navigate</button><h1>Diary {tab}</h1><p>10:30 · Brow lamination</p>
   <PrivateText title="Priya Secretson" aria-label="Priya Secretson" data-name="Priya Secretson" placeholder="Client">Priya Secretson</PrivateText>
   <PrivateText><a href="mailto:private@example.invalid">private@example.invalid</a></PrivateText>
   <PrivateSection><label>Note<input value={draft} onChange={e=>setDraft(e.target.value)}/></label><img src="/private-avatar.jpg" alt="Priya Secretson"/><button>Save client</button></PrivateSection>
+  <section aria-label="Payments"><p>Paid in full <Money pence={4567} title="Paid £45.67" aria-label="£45.67 paid" data-value="45.67"/></p><p>Deposit paid <PrivateAmount title="£9.13 deposit">£9.13</PrivateAmount></p><p>Unpaid <Money amount={71.29}/></p></section>
   <div className="unchanged"><PrivateText><strong>Original layout</strong></PrivateText></div>
 </> }
 createRoot(document.getElementById('root')).render(location.pathname==='/public' ? <Content/> : <ClientPrivacyProvider><Content/></ClientPrivacyProvider>);
@@ -47,6 +49,9 @@ try {
   assert.equal(await eye.evaluate(e=>e===document.activeElement),true);
   assert.ok(!secret.test(await page.locator('#root').innerHTML()),'secrets removed from DOM, values, URLs and accessible attributes');
   await page.getByText('10:30 · Brow lamination',{exact:true}).waitFor();
+  const payments=page.getByRole('region',{name:'Payments'});
+  assert.doesNotMatch(await payments.innerHTML(), /45\.67|9\.13|71\.29/, 'Amounts and their accessible attributes disappear');
+  for (const status of ['Paid in full','Deposit paid','Unpaid']) assert.ok((await payments.innerText()).includes(status),'Payment status remains visible: '+status);
   assert.equal(await page.getByRole('button',{name:'Save client',exact:true}).count(),0);
   await page.getByRole('button',{name:'Navigate',exact:true}).click();
   assert.ok(!secret.test(await page.locator('#root').innerHTML()),'navigation keeps privacy enabled');
@@ -55,14 +60,18 @@ try {
   assert.ok(!secret.test(await page.locator('#root').innerHTML()),'reload starts hidden');
   const second=await context.newPage();await second.goto(origin);await second.getByRole('heading',{name:'Diary 0'}).waitFor();
   await eye.click();
+  assert.match(await payments.innerText(), /£45\.67/);
+  assert.match(await payments.innerText(), /£9\.13/);
+  assert.match(await payments.innerText(), /£71\.29/);
   await second.waitForFunction(()=>document.querySelector('[aria-label="Hide client details"]').getAttribute('aria-pressed')==='false');
   await page.getByLabel('Note',{exact:true}).fill('Edited confidential');await eye.click();await eye.click();
   assert.equal(await page.getByLabel('Note',{exact:true}).inputValue(),'Edited confidential','toggle never rewrites form state');
   await eye.click();await page.goto(origin+'/public');await page.getByRole('heading',{name:'Diary 0'}).waitFor();
   assert.equal(await page.getByText('Priya Secretson',{exact:true}).count(),1,'public screens ignore owner display preference');
+  assert.match(await page.getByRole('region',{name:'Payments'}).innerText(), /£45\.67/, 'Public prices remain visible regardless of owner preference');
   const denied=await browser.newContext();await denied.addInitScript(()=>{Object.defineProperty(window,'localStorage',{get(){throw new Error('Storage denied');}});});
   const third=await denied.newPage();await third.goto(origin);await third.getByRole('button',{name:'Hide client details',exact:true}).click();
   assert.ok(!secret.test(await third.locator('#root').innerHTML()),'storage failure still allows concealment');
   assert.deepEqual(errors,[]);
-  console.log('PASS: 10 privacy contracts: reversible eye/keyboard/focus, DOM concealment, readonly private controls, unchanged records, navigation, reload, cross-tab preference, public isolation, denied storage and original layout.');
+  console.log('PASS: 12 privacy contracts: amount concealment with payment status retained, restored and public amounts, reversible eye/keyboard/focus, DOM concealment, readonly private controls, unchanged records, navigation, reload, cross-tab preference, public isolation, denied storage and original layout.');
 } finally { await browser?.close();await new Promise(resolve=>server.close(resolve)); }

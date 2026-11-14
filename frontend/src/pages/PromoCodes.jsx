@@ -1,3 +1,4 @@
+import { PrivateAmount, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 /**
  * Promo Codes - Create & track discount codes for marketing.
  *
@@ -19,6 +20,7 @@ const STATUS_CONFIG = {
 };
 
 export default function PromoCodes() {
+  const { hidden } = useClientPrivacy();
   const [tab, setTab] = useState('active');
   const [expanded, setExpanded] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
@@ -219,7 +221,7 @@ export default function PromoCodes() {
                   </div>
                   <div style={S.cardInfo}>
                     <span style={S.cardDiscount}>
-                      {code.type === 'percent' ? `${code.value}% off` : `${fmt(code.value)} off`}
+                      {code.type === 'percent' ? `${code.value}% off` : <><PrivateAmount>{fmt(code.value)}</PrivateAmount> off</>}
                     </span>
                     <span style={S.cardMeta}>{code.used} used{code.maxUses ? ` / ${code.maxUses}` : ''}</span>
                   </div>
@@ -239,7 +241,7 @@ export default function PromoCodes() {
                     {code.minSpend > 0 && (
                       <div style={S.detailItem}>
                         <span style={S.detailLabel}>Min Spend</span>
-                        <span style={S.detailValue}>{fmt(code.minSpend)}</span>
+                        <span style={S.detailValue}><PrivateAmount>{fmt(code.minSpend)}</PrivateAmount></span>
                       </div>
                     )}
                     <div style={S.detailItem}>
@@ -277,7 +279,7 @@ export default function PromoCodes() {
                   {code.status === 'active' && (
                     <div style={S.actionRow}>
                       <button style={S.actionBtn} onClick={() => navigator.clipboard.writeText(code.code)}>Copy Code</button>
-                      <button style={S.actionBtn} onClick={async () => {
+                      <button disabled={hidden} style={S.actionBtn} onClick={async () => {
                         const shareText = `Use code ${code.code} to get ${code.type === 'percent' ? `${code.value}% off` : `${fmt(code.value)} off`}! Book now.`;
                         if (navigator.share) {
                           try { await navigator.share({ title: 'Promo Code', text: shareText }); } catch {}
@@ -335,13 +337,13 @@ export default function PromoCodes() {
               </div>
 
               <label style={S.label}>Value</label>
-              <input
+              <PrivateAmount><input
                 style={S.input}
                 type="number"
                 placeholder="e.g. 20"
                 value={formData.discount_value}
                 onChange={(e) => setFormData({ ...formData, discount_value: parseInt(e.target.value) || '' })}
-              />
+              /></PrivateAmount>
 
               <label style={S.label}>Valid From</label>
               <input

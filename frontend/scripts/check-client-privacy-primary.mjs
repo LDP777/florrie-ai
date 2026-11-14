@@ -29,6 +29,19 @@ const fixture = calendarFixtureSource(bundleSupabaseUrl(dist), 'populated') + `
   const client = { id:'c1', beautician_id:'b1', first_name:'Priya', last_name:'Secretson', email:'privateclient@example.test', phone:'07700900987', instagram_username:'priya_secret_handle', has_instagram:true, has_whatsapp:true, has_phone:true, has_email:true, messaging_autonomy:null, notes:'SENSITIVE-NOTE client care information', preferences:{note:'SENSITIVE-CONSULTATION'}, total_visits:9, total_spend_cents:36000, last_visit_at:'2026-08-07T10:00:00Z', archived:false, archived_at:null };
   const message = {id:'11111111-1111-4111-8111-111111111111', client_id:'c1', direction:'inbound', body:'SENSITIVE-MESSAGE from Priya privateclient@example.test', content:'SENSITIVE-MESSAGE from Priya', created_at:'2026-08-08T08:59:00Z', channel:'whatsapp', status:'delivered', image_url:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==', can_teach:true, actions:[{id:'action-1',ok:true,summary:'SENSITIVE-NOTE appointment booked for Priya',created_at:'2026-08-08T08:58:00Z'}]};
   const appointment={id:'a2',client_id:'c1',beautician_id:'b1',treatment_id:'t4',starts_at:'2026-08-08T11:00:00Z',ends_at:'2026-08-08T12:00:00Z',duration_minutes:60,status:'confirmed',price_cents:4500,deposit_cents:900,deposit_paid:true,clients:client,treatments:{id:'t4',name:'Lash lift & tint',duration_minutes:60,price_cents:4500},beautician_notes:'SENSITIVE-NOTE private treatment notes',ai_booked:true};
+  const paymentState=new URLSearchParams(location.search).get('payment-state');
+  if(paymentState==='full')Object.assign(appointment,{payment_type:'full',deposit_paid:true,deposit_status:'paid'});
+  if(paymentState==='unpaid')Object.assign(appointment,{deposit_paid:false});
+  if(paymentState==='pending-full')Object.assign(appointment,{payment_type:'full',deposit_paid:false,status:'pending'});
+  if(paymentState==='refunded')Object.assign(appointment,{payment_type:'full',deposit_paid:true,deposit_status:'refunded'});
+  if(paymentState==='assumed')Object.assign(appointment,{status:'completed',deposit_paid:false});
+  const clientPayments={deposits_total_cents:5798,per_appointment:[
+    {appointment_id:'full-paid',starts_at:appointment.starts_at,treatment:'Lash lift & tint',status:'confirmed',paid_in_full:true,deposit_paid:true,deposit_cents:4499,balance_cents:0,balance_settled:true},
+    {appointment_id:'deposit-paid',starts_at:appointment.starts_at,treatment:'Brow tint',status:'confirmed',paid_in_full:false,deposit_paid:true,deposit_cents:1299,balance_cents:3200,balance_settled:false},
+    {appointment_id:'deposit-unpaid',starts_at:appointment.starts_at,treatment:'Brow lamination',status:'pending',paid_in_full:false,deposit_paid:false,deposit_cents:1799,balance_cents:4500,balance_settled:false},
+  ]};
+  const deposits=['held','awaiting','applied','refunded','forfeited'].map((status,i)=>({id:'deposit-'+i,status,client:'Priya Secretson',treatment:'Lash lift & tint',amount:[1299,1799,3199,4499,5199][i],takenDate:'2026-08-07',appointmentDate:'2026-08-08',appointmentTime:'11:00',method:'card'}));
+  const cancellations=[{...appointment,id:'cancel-unpaid',starts_at:'2026-08-07T11:00:00Z',status:'cancelled',cancellation_reason:'auto_cancelled_unpaid',deposit_paid:false,price_cents:5199,deposit_cents:1799},{...appointment,id:'cancel-paid',starts_at:'2026-08-07T14:00:00Z',status:'no_show',cancellation_reason:'SENSITIVE-NOTE',deposit_paid:true,price_cents:7499,deposit_cents:3199}];
   window.privacyFixture={client,message,appointment,writes:[],reads:[],flash:[],responseClient:JSON.stringify(client)};
   const inspectFrame=()=>{if(localStorage.getItem('florrie:hide-client-details:v1')==='true' && /Priya|Secretson|privateclient@example\\.test|SENSITIVE-/.test(document.body?.innerText||'')) privacyFixture.flash.push(document.body.innerText);requestAnimationFrame(inspectFrame);};requestAnimationFrame(inspectFrame);
   const json = (body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json'}});
@@ -37,7 +50,7 @@ const fixture = calendarFixtureSource(bundleSupabaseUrl(dist), 'populated') + `
     privacyFixture.reads.push({path:p,method});
     if(!['GET','HEAD','OPTIONS'].includes(method)) { privacyFixture.writes.push({path:p,method}); localStorage.setItem('privacy-test-writes',JSON.stringify([...JSON.parse(localStorage.getItem('privacy-test-writes')||'[]'),{path:p,method}])); return json({error:'Mutations disabled in privacy regression'},409); }
     if(p==='/rest/v1/clients')return json(u.searchParams.get('id')?client:[client]);
-    if(p==='/rest/v1/appointments')return json([appointment]);
+    if(p==='/rest/v1/appointments')return json(location.pathname==='/cancellations'?cancellations:[appointment]);
     if(p==='/rest/v1/messages')return json([message]);
     if(p==='/rest/v1/client_tag_assignments')return json([{client_id:'c1',tag_id:'tag-1',client_tags:{id:'tag-1',name:'SENSITIVE-CONSULTATION',color:'#92405e'}}]);
     if(p==='/rest/v1/loyalty_config')return json(null);
@@ -45,7 +58,8 @@ const fixture = calendarFixtureSource(bundleSupabaseUrl(dist), 'populated') + `
     if(p==='/api/appointments')return json({data:[appointment]});
     if(p==='/api/hours-exceptions')return json({exceptions:location.search.includes('blocked-time=1')?[{id:'private-block',date:'2026-08-08',type:'blocked',start_time:'13:00',end_time:'14:00',reason:'Priya Secretson',note:'SENSITIVE-NOTE private block'}]:[]});
     if(p==='/api/clients/inactive-review')return json({count:0,candidates:[]});
-    if(p==='/api/clients/c1/payments')return json({total_paid_cents:36000,appointments:[],transactions:[]});
+    if(p==='/api/clients/c1/payments')return json(clientPayments);
+    if(p==='/api/appointments/deposits')return json({deposits});
     if(p==='/api/inbox/threads')return json({threads:[{client_id:'c1',client_first_name:client.first_name,client_last_name:client.last_name,instagram_username:client.instagram_username,client_instagram_username:client.instagram_username,is_known_client:true,space:'clients',segment:'needs',unread_count:1,needs_attention:true,last_channel:'whatsapp',last_message_at:message.created_at,last_message_direction:'inbound',last_message_preview:message.body,last_inbound_preview:message.body,last_inbound_at:message.created_at,last_message_type:'client'}]});
     if(p==='/api/inbox/thread/c1')return json({client,messages:[message],meta:{visits:9,last_visit_at:'2026-08-07T10:00:00Z',next_appointment_at:appointment.starts_at},drafts:[{id:'draft-1',body:'SENSITIVE-DRAFT for Priya'}],default_channel:'whatsapp'});
     if(p==='/api/inbox/suggestions/c1')return json({suggestions:[{id:'suggestion-1',label:'SENSITIVE-DRAFT',text:'SENSITIVE-DRAFT to Priya'}]});
@@ -54,7 +68,7 @@ const fixture = calendarFixtureSource(bundleSupabaseUrl(dist), 'populated') + `
     if(p==='/api/activity/feed')return json({rows:[]});
     if(p==='/api/agents/counts')return json({inbox:1,approvals:0});
     if(p==='/api/appointments/a2/manage-link')return json({needs_patch_test:false,url:'https://example.test/privateclient@example.test'});
-    if(p==='/api/appointments/a2/card')return json({hasCard:true,last4:'4242',takings_readable:true,uncollected_cents:3600});
+    if(p==='/api/appointments/a2/card')return json({hasCard:true,last4:'4242',takings_readable:true,uncollected_cents:paymentState==='full'||paymentState==='pending-full'?0:3600,settled_cents:0,assumed_cents:paymentState==='assumed'?4500:0});
     if(p==='/api/appointments/a2/preparation')return json({appointment,checklist:[],summary:{}});
     if(p.startsWith('/api/clients/c1/'))return json({submissions:[],patch_tests:[]});
     return base(input,opts);
@@ -73,6 +87,7 @@ try {
   const noPII=async label=>{
     const exposed=await page.evaluate(()=>({text:document.body.innerText,attributes:[...document.querySelectorAll('*')].flatMap(e=>['title','aria-label','alt','href','src','value'].map(a=>e.getAttribute(a)||'')).join('\n'),inputs:[...document.querySelectorAll('input,textarea')].map(e=>e.value).join('\n')}));
     assert.ok(!sensitive.test(JSON.stringify(exposed)),label+' removes sensitive text, attributes and inputs');
+    assert.ok(!/[£$€]\s*[0-9]/.test(JSON.stringify(exposed)),label+' conceals money amounts in text, attributes and inputs');
     assert.ok(!sensitive.test(await page.locator('body').ariaSnapshot()),label+' removes sensitive accessible text');
     assert.deepEqual(await page.evaluate(()=>privacyFixture.flash),[],label+' has no frame with sensitive text while hidden');
   };
@@ -109,6 +124,8 @@ try {
   await page.getByRole('button',{name:/Client, 11:00, Lash lift/}).click();
   const sheet=page.getByRole('dialog',{name:'Booking details'});await sheet.waitFor();await noPII('Private booking sheet');
   assert.ok((await sheet.innerText()).includes('Lash lift & tint'));
+  await sheet.getByText('Deposit paid',{exact:true}).waitFor();
+  await snap('privacy-appointment-detail-mobile');
   assert.equal(await sheet.locator('textarea,input').count(),0);
   assert.equal(await sheet.getByRole('button',{name:/charge|send|copy|save/i}).count(),0);
   await page.keyboard.press('Escape');await sheet.waitFor({state:'hidden'});
@@ -136,6 +153,9 @@ try {
   assert.equal(await page.getByRole('button',{name:'More client actions'}).isDisabled(),true);
   await page.getByRole('button',{name:/^• Client/}).first().click();
   await page.getByText('Contact details, care records and messages hidden',{exact:false}).waitFor();await noPII('Private client profile');
+  const paymentSummary=page.locator('.client-payments-summary');
+  await paymentSummary.waitFor();
+  for(const status of ['Paid in full','Deposit paid','Deposit unpaid'])assert.ok((await paymentSummary.innerText()).includes(status),'Private profile keeps '+status);
   assert.equal(await page.locator('a[href^="tel:"],a[href^="mailto:"]').count(),0);
   await snap('privacy-client-profile-mobile');
   // Close the actual profile overlay before using the shell control.
@@ -191,6 +211,34 @@ try {
   pass('Today includes hidden initials and accessible names, including expanded appointments');
 
   await setHidden(true);
+  for(const [state,label] of [['full','Paid in full'],['unpaid','Deposit unpaid'],['pending-full','Deposit unpaid'],['refunded','Deposit refunded'],['assumed','Down as taken, not confirmed']]){
+    await open('/calendar/week?date=2026-08-08&view=day&payment-state='+state);
+    const booking=page.locator('.calendar-booking').first();await booking.waitFor();
+    if(state==='pending-full'||state==='refunded')assert.ok(!(await booking.innerText()).includes('Paid'),'Unpaid or refunded full-payment requests are not labelled paid');
+    await booking.click();const details=page.getByRole('dialog',{name:'Booking details'});await details.getByText(label,{exact:true}).waitFor();await noPII('Private '+state+' booking');
+  }
+  pass('Payment states stay visible; pending full-payment requests, refunds and assumed takings never appear Paid');
+
+  await open('/deposits');await page.getByText('Currently Held',{exact:true}).waitFor();await noPII('Deposits held');
+  await page.getByText('Held',{exact:true}).click();await page.getByText('Method',{exact:true}).waitFor();await noPII('Expanded deposit');
+  assert.ok((await page.locator('body').innerText()).includes('Awaiting payment'));
+  await page.getByRole('button',{name:/^History \(/}).click();
+  for(const status of ['Applied','Refunded','Kept (policy)'])assert.ok((await page.locator('body').innerText()).includes(status));
+  await noPII('Deposit history');await setHidden(false);await page.getByText('£31.99',{exact:true}).first().waitFor();await setHidden(true);
+  pass('Deposit totals and individual amounts hide while held, awaiting, applied, refunded and kept states remain');
+
+  await open('/cancellations');await page.getByText('Paid deposit:',{exact:false}).waitFor();await noPII('Cancellations');
+  assert.ok((await page.locator('body').innerText()).includes('Deposit unpaid'));
+  assert.ok((await page.locator('body').innerText()).includes('Paid deposit:'));
+  await page.getByRole('button',{name:'Insights',exact:true}).click();await noPII('Cancellation insights');
+  pass('Cancellation payment badges remain while lost value, deposits and insight totals hide');
+
+  await open('/client-timeline');await page.getByText('Total Spent',{exact:true}).waitFor();
+  await page.getByText('confirmed',{exact:true}).waitFor();await noPII('Client timeline');
+  await setHidden(false);await page.getByText('£360.00',{exact:true}).waitFor();await setHidden(true);await noPII('Client timeline restored privacy');
+  pass('Client timeline hides total spend and event amounts; reveal restores the original figures');
+
+  await open('/today');await page.locator('.today-next').waitFor();
   const boxes=await page.evaluate(()=>({eye:document.querySelector('.client-privacy-toggle')?.getBoundingClientRect().toJSON(),title:document.querySelector('.diary-hub-header h1')?.getBoundingClientRect().toJSON(),more:document.querySelector('[aria-label="More features"]')?.getBoundingClientRect().toJSON(),width:document.documentElement.clientWidth,scroll:document.documentElement.scrollWidth}));
   assert.ok(boxes.eye.width>=44&&boxes.eye.height>=44,'Eye is a 44px touch target');
   const overlaps=(a,b)=>a&&b&&a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top;

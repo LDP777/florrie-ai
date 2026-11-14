@@ -84,6 +84,7 @@ function markSeen(now = new Date()) {
 }
 
 export default function MorningCatchup({ beautician }) {
+  const { hidden } = useClientPrivacy();
   const [open, setOpen] = useState(false);
   const [data, setData] = useState(null);
 
@@ -134,7 +135,7 @@ export default function MorningCatchup({ beautician }) {
           <Row
             icon="calendar"
             label="Yesterday"
-            line={yesterdayLine(data)}
+            line={yesterdayLine(data, hidden)}
           />
           <Row
             icon="flower"
@@ -263,14 +264,14 @@ async function loadData(beautician) {
   };
 }
 
-function yesterdayLine(d) {
+function yesterdayLine(d, hidden = false) {
   if (!d) return 'Loading...';
   if (d.yesterdayRevenue === null && d.yesterdayNoShows === null) {
     return 'Quiet day on the books.';
   }
   const parts = [];
   if (d.yesterdayRevenue !== null) {
-    parts.push(`${formatGbp(d.yesterdayRevenue)} taken`);
+    parts.push(`${hidden ? '••••' : formatGbp(d.yesterdayRevenue)} taken`);
   }
   if (d.yesterdayNoShows !== null && d.yesterdayNoShows > 0) {
     parts.push(`${d.yesterdayNoShows} no-show${d.yesterdayNoShows === 1 ? '' : 's'}`);

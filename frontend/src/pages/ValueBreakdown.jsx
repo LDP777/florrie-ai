@@ -1,4 +1,4 @@
-import { PrivateText } from '../contexts/ClientPrivacyContext.jsx';
+import { PrivateAmount, PrivateText } from '../contexts/ClientPrivacyContext.jsx';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase.js';
@@ -93,7 +93,7 @@ export default function ValueBreakdown() {
         <div style={S.body}>
           <div style={S.heroCard}>
             <div style={S.heroEyebrow}>{monthName(data?.month)}</div>
-            <div style={S.heroAmount}>{pounds(total)}</div>
+            <div style={S.heroAmount}><PrivateAmount>{pounds(total)}</PrivateAmount></div>
             <div style={S.heroSub}>helped in by Florrie this month</div>
           </div>
 
@@ -121,7 +121,7 @@ export default function ValueBreakdown() {
                           <span style={S.reasonNote}><PrivateText placeholder="Hidden">{r.note}</PrivateText></span>
                         </div>
                       </div>
-                      <div style={S.itemAmount}>{pounds(it.amount_pence)}</div>
+                      <div style={S.itemAmount}><PrivateAmount>{pounds(it.amount_pence)}</PrivateAmount></div>
                     </div>
                   );
                 })}
@@ -136,7 +136,7 @@ export default function ValueBreakdown() {
 
           {deposits > 0 && (
             <div style={S.note}>
-              <strong>{pounds(deposits)} protected by deposits.</strong> Deposits taken on this
+              <strong><PrivateAmount>{pounds(deposits)}</PrivateAmount> protected by deposits.</strong> Deposits taken on this
               month's bookings , money that would be at risk from no-shows without one on file.
             </div>
           )}
@@ -162,7 +162,7 @@ function Part({ amount, label }) {
 
   return (
     <div style={S.part}>
-      <div style={S.partAmount}>{amount}</div>
+      <div style={S.partAmount}><PrivateAmount>{amount}</PrivateAmount></div>
       <div style={S.partLabel}>{label}</div>
     </div>
   );

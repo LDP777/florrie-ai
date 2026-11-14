@@ -1,3 +1,4 @@
+import { PrivateAmount } from '../contexts/ClientPrivacyContext.jsx';
 /**
  * Week in Review - the story-shaped, screenshot-worthy card.
  *
@@ -143,7 +144,7 @@ export default function WeekReview() {
             <div style={S.statList}>
               {lines.map((l, i) => (
                 <div key={l.key} style={i === lines.length - 1 ? { ...S.statRow, borderBottom: 'none' } : S.statRow}>
-                  <span style={S.statNum}>{l.num}</span>
+                  <span style={S.statNum}>{l.key === 'takings' ? <PrivateAmount>{l.num}</PrivateAmount> : l.num}</span>
                   <span style={S.statLabel}>{l.label}</span>
                 </div>
               ))}

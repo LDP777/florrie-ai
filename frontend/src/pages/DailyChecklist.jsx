@@ -759,7 +759,7 @@ export default function DailyChecklist() {
                 {todayInsights.apptCount === 0
                   ? 'No appointments today - great time to restock supplies, update your portfolio, or prep marketing content.'
                   : todayInsights.apptCount >= 4
-                    ? `Busy day ahead with ${todayInsights.apptCount} clients and £${(todayInsights.expectedRevenue / 100).toFixed(0)} on the books. Make sure supplies are prepped before your first at ${todayInsights.nextTime || 'soon'}.`
+                    ? `Busy day ahead with ${todayInsights.apptCount} clients${clientDetailsHidden ? '' : ` and £${(todayInsights.expectedRevenue / 100).toFixed(0)} on the books`}. Make sure supplies are prepped before your first at ${todayInsights.nextTime || 'soon'}.`
                     : `${todayInsights.apptCount} appointment${todayInsights.apptCount > 1 ? 's' : ''} today - you have time between clients to handle your tasks list.`
                 }
               </p>

@@ -256,10 +256,14 @@ function treatOptionLabel(t) {
   const mins = t.duration_minutes ? ` · ${t.duration_minutes}m` : '';
   return `${t.name}${price}${mins}`;
 }
+function confirmedFullPayment(appointment) {
+  return appointment.deposit_status !== 'refunded' && appointment.payment_type === 'full'
+    && (appointment.deposit_paid === true || appointment.deposit_status === 'paid');
+}
 function bookingStatusLabel(appointment) {
   const status = appointment.status;
   const dead = DEAD_STATUSES.includes(status);
-  const paid = appointment.payment_type === 'full';
+  const paid = confirmedFullPayment(appointment);
   const done = status === 'completed';
   return dead ? (status === 'no_show' ? 'No-show' : 'Cancelled')
     : paid ? 'Paid' : done ? 'Done'
@@ -268,7 +272,7 @@ function bookingStatusLabel(appointment) {
 }
 
 function CalendarBookingStatus({ appointment }) {
-  const positive = !DEAD_STATUSES.includes(appointment.status) && (appointment.payment_type === 'full' || appointment.status === 'completed');
+  const positive = !DEAD_STATUSES.includes(appointment.status) && (confirmedFullPayment(appointment) || appointment.status === 'completed');
   return <span className={`calendar-booking-status${positive ? ' calendar-booking-status--done' : ''}`}>{bookingStatusLabel(appointment)}</span>;
 }
 
@@ -2283,6 +2287,17 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
         <div style={styles.detailRow}><span style={styles.detailLabel}>Date</span><span>{String(appointment.starts_at || '').slice(0, 10)}</span></div>
         <div style={styles.detailRow}><span style={styles.detailLabel}>Time</span><span>{formatWallTime(appointment.starts_at)}</span></div>
         <div style={styles.detailRow}><span style={styles.detailLabel}>Status</span><CalendarBookingStatus appointment={appointment} /></div>
+        <div style={styles.detailRow}><span style={styles.detailLabel}>Payment</span><span className="calendar-payment-state">{
+          appointment.deposit_status === 'refunded' ? 'Deposit refunded'
+            : confirmedFullPayment(appointment) ? 'Paid in full'
+            : takingsKnown && (appointment.price_cents || 0) > 0
+              && ((cardInfo.settled_cents || 0) + (appointment.deposit_paid ? appointment.deposit_cents || 0 : 0)) >= appointment.price_cents ? 'Paid in full'
+            : assumedCents > 0 ? 'Down as taken, not confirmed'
+            : appointment.deposit_paid || appointment.deposit_status === 'paid' ? 'Deposit paid'
+            : (appointment.deposit_cents || 0) > 0 ? 'Deposit unpaid'
+            : 'Payment not recorded'
+        }</span></div>
+        <div style={styles.detailRow}><span style={styles.detailLabel}>Price</span><Money pence={appointment.price_cents || 0} /></div>
       </div>
       <PrivateSection placeholder="Client details, notes and payment controls hidden" />
     </div>

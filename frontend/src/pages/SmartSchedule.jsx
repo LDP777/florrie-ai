@@ -1,4 +1,4 @@
-import { useClientPrivacy, PrivateText } from '../contexts/ClientPrivacyContext.jsx';
+import { PrivateAmount, useClientPrivacy, PrivateText } from '../contexts/ClientPrivacyContext.jsx';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBeautician, supabase } from '../lib/supabase.js';
@@ -631,7 +631,7 @@ export default function SmartSchedule() {
               </div>
             ) : (
               <div style={styles.insightCard}>
-                <span style={styles.insightNum}>£{revenueAtRisk}</span>
+                <span style={styles.insightNum}><PrivateAmount>£{revenueAtRisk}</PrivateAmount></span>
                 <span style={styles.insightLabel}>Potential appointment value</span>
               </div>
             )}

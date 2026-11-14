@@ -1022,6 +1022,36 @@ export default function Clients() {
   );
 }
 
+/** Payment states remain useful in a demonstration; Money conceals the figures. */
+function ClientPayments({ payments }) {
+  if (!payments) return null;
+  return (
+    <div style={styles.paymentsCard} className="client-payments-summary">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <h4 style={{ ...styles.sectionLabel, margin: 0 }}>Payments</h4>
+        <span style={styles.paymentsTotal}><Money pence={payments.deposits_total_cents || 0} /> paid in deposits</span>
+      </div>
+      {(payments.per_appointment || []).length === 0 ? <p style={{ ...styles.noHistory, marginTop: 8 }}>No appointments yet</p>
+        : payments.per_appointment.slice(0, 5).map(pa => {
+          const day = String(pa.starts_at || '').slice(0, 10);
+          const time = String(pa.starts_at || '').slice(11, 16);
+          const dateLabel = day ? `${new Date(`${day}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} · ${time}` : '';
+          const dead = ['cancelled', 'cancelled_by_client', 'cancelled_by_beautician', 'no_show'].includes(pa.status);
+          return <div key={pa.appointment_id} style={styles.paymentRow}>
+            <div style={{ minWidth: 0 }}><span style={styles.paymentTreatment}>{pa.treatment}</span><span style={styles.paymentDate}>{dateLabel}</span></div>
+            <span style={{ ...styles.paymentStatus, color: pa.paid_in_full || pa.deposit_paid ? 'var(--accent)' : 'var(--text-muted)' }}>
+              {pa.paid_in_full ? <>Paid in full · <Money pence={pa.deposit_cents} /></>
+                : pa.deposit_paid ? <>Deposit paid · <Money pence={pa.deposit_cents} />
+                  {!dead && pa.balance_cents > 0 && !pa.balance_settled && <> · <Money pence={pa.balance_cents} /> due on the day</>}
+                  {dead && ` · ${pa.status === 'no_show' ? 'no show' : 'cancelled'}`}</>
+                : pa.deposit_cents > 0 ? <>Deposit unpaid · <Money pence={pa.deposit_cents} /></> : 'No deposit taken'}
+            </span>
+          </div>;
+        })}
+    </div>
+  );
+}
+
 /**
  * Enhanced client detail panel with tabs:
  * Overview: stats + tags + quick actions
@@ -1030,6 +1060,7 @@ export default function Clients() {
  * Messages: embedded conversation (Day 5)
  */
 function ClientDetailPanel({ detail, onClose, onNavigate, onChanged }) {
+  const { hidden } = useClientPrivacy();
   const [detailTab, setDetailTab] = useState('overview');
   const client = detail.client;
   const appointments = detail.appointments || [];
@@ -1204,6 +1235,7 @@ function ClientDetailPanel({ detail, onClose, onNavigate, onChanged }) {
           </div>
         </div>
 
+        {hidden && <ClientPayments payments={detail.payments} />}
         <PrivateSection placeholder="Contact details, care records and messages hidden">
         {/* Contact row */}
         <div style={styles.contactRow}>
@@ -1281,54 +1313,7 @@ function ClientDetailPanel({ detail, onClose, onNavigate, onChanged }) {
             {/* Payments. Ellie's ask, verbatim: "a clear part where it says
                 what deposit they've paid". Total deposits first, then the
                 recent appointments with what was paid and what is still due. */}
-            {detail.payments && (
-              <div style={styles.paymentsCard}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <h4 style={{ ...styles.sectionLabel, margin: 0 }}>Payments</h4>
-                  <span style={styles.paymentsTotal}>
-                    <Money pence={(detail.payments.deposits_total_cents || 0)} /> paid in deposits
-                  </span>
-                </div>
-                {(detail.payments.per_appointment || []).length === 0 ? (
-                  <p style={{ ...styles.noHistory, marginTop: 8 }}>No appointments yet</p>
-                ) : (
-                  (detail.payments.per_appointment || []).slice(0, 5).map(pa => {
-                    // Wall-time convention: starts_at holds salon wall time in a
-                    // UTC slot, so the time is read straight off the string.
-                    const day = String(pa.starts_at || '').slice(0, 10);
-                    const time = String(pa.starts_at || '').slice(11, 16);
-                    const dateLabel = day
-                      ? `${new Date(`${day}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} · ${time}`
-                      : '';
-                    // A cancelled or no-show visit has nothing "due on the
-                    // day": the day is not happening. Show what WAS paid and
-                    // leave the balance language off those rows.
-                    const dead = pa.status === 'cancelled' || pa.status === 'cancelled_by_client'
-                      || pa.status === 'cancelled_by_beautician' || pa.status === 'no_show';
-                    const line = pa.paid_in_full
-                      ? `Paid in full · £${(pa.deposit_cents / 100).toFixed(2)}`
-                      : pa.deposit_paid
-                      ? `Deposit £${(pa.deposit_cents / 100).toFixed(2)} paid${!dead && pa.balance_cents > 0 && !pa.balance_settled ? ` · £${(pa.balance_cents / 100).toFixed(2)} due on the day` : ''}${dead ? ` · ${pa.status === 'no_show' ? 'no show' : 'cancelled'}` : ''}`
-                      : pa.deposit_cents > 0
-                      ? `Deposit £${(pa.deposit_cents / 100).toFixed(2)} not paid yet`
-                      : 'No deposit taken';
-                    return (
-                      <div key={pa.appointment_id} style={styles.paymentRow}>
-                        <div style={{ minWidth: 0 }}>
-                          <span style={styles.paymentTreatment}>{pa.treatment}</span>
-                          <span style={styles.paymentDate}>{dateLabel}</span>
-                        </div>
-                        <span style={{ ...styles.paymentStatus,
-                          color: pa.paid_in_full || pa.deposit_paid ? 'var(--accent)' : 'var(--text-muted)',
-                        }}>
-                          {line}
-                        </span>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            )}
+            <ClientPayments payments={detail.payments} />
 
             {/* Consultation forms. She has been collecting allergy and medical
                 answers since April with nowhere to read them: the only

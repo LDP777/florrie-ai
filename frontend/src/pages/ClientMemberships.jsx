@@ -1,4 +1,4 @@
-import { PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
+import { PrivateAmount, PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import { useState, useEffect } from 'react';
 import { useBeautician, fetchRowsStrict, insertRow, updateRow } from '../lib/supabase.js';
 import PageLoader from '../components/PageLoader.jsx';
@@ -140,7 +140,7 @@ export default function ClientMemberships() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12 }}>
           <div>
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)', marginBottom: 4 }}>Active plan value</div>
-            <div style={{ fontSize: hasMissingPrice ? 20 : 28, fontWeight: 700, color: 'var(--bg-card, #FFFCF9)' }}>{hasMissingPrice ? 'Not available' : `£${activePlanValue.toFixed(2)}`}</div>
+            <div style={{ fontSize: hasMissingPrice ? 20 : 28, fontWeight: 700, color: 'var(--bg-card, #FFFCF9)' }}><PrivateAmount>{hasMissingPrice ? 'Not available' : `£${activePlanValue.toFixed(2)}`}</PrivateAmount></div>
           </div>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--bg-card, #FFFCF9)' }}>{activeMembers}</div>
@@ -181,7 +181,7 @@ export default function ClientMemberships() {
                   <div style={{ fontSize: 12, color: 'var(--text-muted, #6B5D54)' }}>{members.filter(m => m.plan === plan.id && m.status === 'active').length} members</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: plan.price == null ? 14 : 24, fontWeight: 700, color: plan.textColor }}>{plan.price == null ? 'Price not set' : `£${plan.price.toFixed(2)}`}</div>
+                  <div style={{ fontSize: plan.price == null ? 14 : 24, fontWeight: 700, color: plan.textColor }}><PrivateAmount>{plan.price == null ? 'Price not set' : `£${plan.price.toFixed(2)}`}</PrivateAmount></div>
                   <div style={{ fontSize: 12, color: 'var(--text-muted, #6B5D54)' }}>Plan price</div>
                 </div>
               </div>
@@ -206,7 +206,7 @@ export default function ClientMemberships() {
             <div style={s.formCard}>
               <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>New Membership Plan</div>
               <PrivateText placeholder="Private field hidden"><input type="text" aria-label="Plan name" placeholder="Plan name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} style={s.input} /></PrivateText>
-              <input type="number" min="0.01" step="0.01" aria-label="Plan price in pounds" placeholder="Plan price (£)" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} style={{ ...s.input, marginTop: 8 }} />
+              <PrivateAmount><input type="number" min="0.01" step="0.01" aria-label="Plan price in pounds" placeholder="Plan price (£)" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} style={{ ...s.input, marginTop: 8 }} /></PrivateAmount>
               <PrivateText placeholder="Private field hidden"><textarea aria-label="Perks, one per line" placeholder="Perks (one per line)" rows={3} value={form.perks} onChange={e => setForm({ ...form, perks: e.target.value })} style={{ ...s.input, marginTop: 8, resize: 'vertical' }} /></PrivateText>
               <p style={s.noticeText}>Saving a plan does not enrol clients or set up payments.</p>
               <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>

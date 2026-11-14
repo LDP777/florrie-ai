@@ -1,4 +1,4 @@
-import { PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
+import { PrivateAmount, PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 /**
  * WaitlistPro - the salon waitlist for treatment slots.
  *
@@ -245,7 +245,7 @@ export default function WaitlistPro() {
           { label: 'Avg wait', value: `${stats.avgWait}d`, colour: '#735C4E' },
         ].map(s => (
           <div key={s.label} style={S.statCard}>
-            <span style={{ ...S.statValue, color: s.colour }}>{s.value}</span>
+            <span style={{ ...S.statValue, color: s.colour }}>{s.label === 'Deposits' ? <PrivateAmount>{s.value}</PrivateAmount> : s.value}</span>
             <span style={S.statLabel}>{s.label}</span>
           </div>
         ))}

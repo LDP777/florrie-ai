@@ -1,4 +1,4 @@
-import { PrivateText } from '../contexts/ClientPrivacyContext.jsx';
+import { PrivateAmount, PrivateText } from '../contexts/ClientPrivacyContext.jsx';
 import MoreLoadError from '../components/MoreLoadError.jsx';
 /**
  * Deposit Tracker - every deposit taken, and what happened to it.
@@ -122,7 +122,7 @@ export default function DepositTracker() {
       <div style={S.summaryCard}>
         <div style={S.summaryMain}>
           <span style={S.summaryLabel}>Currently Held</span>
-          <span style={S.summaryValue}>{fmt(totalHeld)}</span>
+          <span style={S.summaryValue}><PrivateAmount>{fmt(totalHeld)}</PrivateAmount></span>
           <span style={S.summaryCount}>{heldCount} deposit{heldCount !== 1 ? 's' : ''}</span>
         </div>
         <div style={S.summaryBreakdown}>
@@ -133,7 +133,7 @@ export default function DepositTracker() {
             { label: 'Kept', value: totalForfeited, colour: 'var(--danger, #9E2B32)' },
           ].map(s => (
             <div key={s.label} style={S.summaryItem}>
-              <span style={{ ...S.summaryItemVal, color: s.colour }}>{fmt(s.value)}</span>
+              <span style={{ ...S.summaryItemVal, color: s.colour }}><PrivateAmount>{fmt(s.value)}</PrivateAmount></span>
               <span style={S.summaryItemLabel}>{s.label}</span>
             </div>
           ))}
@@ -173,7 +173,7 @@ export default function DepositTracker() {
                   </div>
                 </div>
                 <div style={S.depositRight}>
-                  <span style={S.depositAmount}>{fmt(d.amount)}</span>
+                  <span style={S.depositAmount}><PrivateAmount>{fmt(d.amount)}</PrivateAmount></span>
                   <span style={{ ...S.statusBadge, background: st.bg, color: st.color }}><Icon name={iconName(st.icon)} inline /> {st.label}</span>
                 </div>
               </div>

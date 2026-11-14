@@ -1,4 +1,4 @@
-import { PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
+import { PrivateAmount, PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 /**
  * Referrals - Refer-a-friend programme.
  *
@@ -314,13 +314,13 @@ export default function Referrals() {
             <div style={s.rewardBox}>
               <span style={s.rewardIcon}><Icon name="gift" size={15} /></span>
               <span style={s.rewardLabel}>Referrer gets</span>
-              <span style={s.rewardValue}>£{referrerReward} off</span>
+              <span style={s.rewardValue}><PrivateAmount>£{referrerReward}</PrivateAmount> off</span>
             </div>
             <div style={s.rewardArrow}>→</div>
             <div style={s.rewardBox}>
               <span style={s.rewardIcon}><Icon name="star" size={15} /></span>
               <span style={s.rewardLabel}>Friend gets</span>
-              <span style={s.rewardValue}>£{referrerReward} off</span>
+              <span style={s.rewardValue}><PrivateAmount>£{referrerReward}</PrivateAmount> off</span>
             </div>
           </div>
 
@@ -431,7 +431,7 @@ export default function Referrals() {
                     border: referrerReward === v ? '1px solid var(--accent, #92405e)' : '1px solid var(--border, #E8DDD4)',
                   }}
                 >
-                  £{v}
+                  <PrivateAmount>£{v}</PrivateAmount>
                 </button>
               ))}
             </div>

@@ -1,4 +1,4 @@
-import { PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
+import { PrivateAmount, PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import MoreLoadError from '../components/MoreLoadError.jsx';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
@@ -1167,7 +1167,7 @@ export default function MoneyTracker() {
       }}>
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', opacity: 0.85 }}>Revenue today</div>
-          <div style={{ fontFamily: '"Plus Jakarta Sans", -apple-system, sans-serif', fontSize: 38, fontWeight: 700, lineHeight: 1.05, marginTop: 2, fontVariantNumeric: 'tabular-nums', fontFeatureSettings: '"tnum" 1', letterSpacing: '-0.03em' }}>{fmt(Math.round(animatedToday))}</div>
+          <div style={{ fontFamily: '"Plus Jakarta Sans", -apple-system, sans-serif', fontSize: 38, fontWeight: 700, lineHeight: 1.05, marginTop: 2, fontVariantNumeric: 'tabular-nums', fontFeatureSettings: '"tnum" 1', letterSpacing: '-0.03em' }}><PrivateAmount>{fmt(Math.round(animatedToday))}</PrivateAmount></div>
           {todayRevenue === 0 && (
             <div style={{ fontSize: 11.5, opacity: 0.85, marginTop: 4, maxWidth: 220 }}>
               Tap a client and Mark complete to log their takings here.
@@ -1177,7 +1177,7 @@ export default function MoneyTracker() {
         {pulse && (
           <div style={{ textAlign: 'right', opacity: 0.92 }}>
             <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.85 }}>This week</div>
-            <div style={{ fontSize: 17, fontWeight: 700 }}>{fmt(pulse.thisWeek.income)}</div>
+            <div style={{ fontSize: 17, fontWeight: 700 }}><PrivateAmount>{fmt(pulse.thisWeek.income)}</PrivateAmount></div>
           </div>
         )}
       </div>
@@ -1194,17 +1194,17 @@ export default function MoneyTracker() {
           <div style={S.ytdRow}>
             <div style={S.ytdStat}>
               <span style={S.ytdLabel}>Income</span>
-              <span style={S.ytdValue}>{fmtNeat(ytd.current.income_cents)}</span>
+              <span style={S.ytdValue}><PrivateAmount>{fmtNeat(ytd.current.income_cents)}</PrivateAmount></span>
             </div>
             <div style={S.ytdStat}>
               <span style={S.ytdLabel}>Expenses</span>
-              <span style={S.ytdValue}>{fmtNeat(ytd.current.expenses_cents)}</span>
+              <span style={S.ytdValue}><PrivateAmount>{fmtNeat(ytd.current.expenses_cents)}</PrivateAmount></span>
             </div>
             <div style={S.ytdStat}>
               <span style={S.ytdLabel}>Profit</span>
               <span style={{ ...S.ytdValue,
                 color: ytd.current.profit_cents >= 0 ? 'var(--success)' : 'var(--danger)',
-              }}>{fmtNeat(ytd.current.profit_cents)}</span>
+              }}><PrivateAmount>{fmtNeat(ytd.current.profit_cents)}</PrivateAmount></span>
             </div>
           </div>
           {/* ^ Income / Expenses / Profit are stacked rows, not three side-by-side
@@ -1225,8 +1225,8 @@ export default function MoneyTracker() {
           <div style={S.ytdCompare}>
             <span>{ytd.previous.tax_year} to the same point</span>
             <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>
-              {fmtNeat(ytd.previous.income_cents)} in, {fmtNeat(ytd.previous.expenses_cents)} out,
-              {' '}{fmtNeat(ytd.previous.profit_cents)} profit
+              <PrivateAmount>{fmtNeat(ytd.previous.income_cents)}</PrivateAmount> in, <PrivateAmount>{fmtNeat(ytd.previous.expenses_cents)}</PrivateAmount> out,
+              {' '}<PrivateAmount>{fmtNeat(ytd.previous.profit_cents)}</PrivateAmount> profit
             </span>
           </div>
         </section>
@@ -1264,7 +1264,7 @@ export default function MoneyTracker() {
               <div style={S.reportsTitle}>Your numbers</div>
               <div style={S.reportsRow}>
                 <div style={S.reportStat}>
-                  <span style={S.reportValue}>{`\u00A3${Math.round((reports.revenue.this_month_cents || 0) / 100).toLocaleString('en-GB')}`}</span>
+                  <span style={S.reportValue}><PrivateAmount>{`\u00A3${Math.round((reports.revenue.this_month_cents || 0) / 100).toLocaleString('en-GB')}`}</PrivateAmount></span>
                   <span style={S.reportLabel}>
                     this month{reports.revenue.change_pct != null ? ` \u00B7 ${reports.revenue.change_pct >= 0 ? '+' : ''}${reports.revenue.change_pct}%` : ''}
                   </span>
@@ -1308,7 +1308,7 @@ export default function MoneyTracker() {
                       {period === 'today' ? 'Revenue Today' : period === 'month' ? 'Revenue This Month' : 'Revenue This Week'}
                     </span>
                   </div>
-                  <h2 style={S.heroValue}>{fmt(periodStats?.income || 0)}</h2>
+                  <h2 style={S.heroValue}><PrivateAmount>{fmt(periodStats?.income || 0)}</PrivateAmount></h2>
                   {changePct != null && (
                     <span style={{ ...S.changeBadge,
                       background: changePct >= 0 ? 'rgba(91,169,123,0.2)' : 'rgba(186,26,26,0.2)',
@@ -1357,7 +1357,7 @@ export default function MoneyTracker() {
                 <div style={{ ...S.bentoCard, background: 'rgba(255, 217, 226, 0.3)' }}>
                   <Icon name={iconName('content_cut')} size={20} inline style={{ color: 'var(--accent)' }} />
                   <span style={S.bentoLabel}>Treatments</span>
-                  <span style={{ ...S.bentoValue, color: 'var(--accent)' }}>{fmtShort(breakdown.treatments)}</span>
+                  <span style={{ ...S.bentoValue, color: 'var(--accent)' }}><PrivateAmount>{fmtShort(breakdown.treatments)}</PrivateAmount></span>
                 </div>
                 <div
                   onClick={() => setShowLogSale(s => !s)}
@@ -1365,7 +1365,7 @@ export default function MoneyTracker() {
                 >
                   <Icon name={iconName('shopping_bag')} size={20} inline style={{ color: 'var(--gold)' }} />
                   <span style={S.bentoLabel}>Products</span>
-                  <span style={{ ...S.bentoValue, color: 'var(--gold)' }}>{fmtShort(breakdown.products)}</span>
+                  <span style={{ ...S.bentoValue, color: 'var(--gold)' }}><PrivateAmount>{fmtShort(breakdown.products)}</PrivateAmount></span>
                   <span style={{ fontSize: 9, color: 'var(--gold)', opacity: 0.6, marginTop: -2 }}>+ log sale</span>
                 </div>
                 <div
@@ -1374,7 +1374,7 @@ export default function MoneyTracker() {
                 >
                   <Icon name={iconName('volunteer_activism')} size={20} inline style={{ color: 'var(--success)' }} />
                   <span style={S.bentoLabel}>Tips</span>
-                  <span style={{ ...S.bentoValue, color: 'var(--success)' }}>{fmtShort(breakdown.tips)}</span>
+                  <span style={{ ...S.bentoValue, color: 'var(--success)' }}><PrivateAmount>{fmtShort(breakdown.tips)}</PrivateAmount></span>
                   <span style={{ fontSize: 9, color: 'var(--success)', opacity: 0.6, marginTop: -2 }}>+ log tip</span>
                 </div>
               </section>
@@ -1387,13 +1387,13 @@ export default function MoneyTracker() {
                     <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Log a Tip</span>
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <input
+                    <PrivateAmount><input
                       type="number" step="0.01" placeholder="Amount (£)"
                       value={tipAmount}
                       onChange={e => setTipAmount(e.target.value)}
                       style={{ ...S.formInput, flex: 1 }}
                       autoFocus
-                    />
+                    /></PrivateAmount>
                     <button className="fl-tap" onClick={handleLogTip} style={{ ...S.btnPrimary, flex: 'none', padding: '11px 20px', background: 'var(--success, #386F52)' }}>
                       Save
                     </button>
@@ -1412,13 +1412,13 @@ export default function MoneyTracker() {
                     <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Log a Product Sale</span>
                   </div>
                   <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                    <input
+                    <PrivateAmount><input
                       type="number" step="0.01" placeholder="Amount (£)"
                       value={saleAmount}
                       onChange={e => setSaleAmount(e.target.value)}
                       style={{ ...S.formInput, flex: 1 }}
                       autoFocus
-                    />
+                    /></PrivateAmount>
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <PrivateText placeholder="Private field hidden"><input
@@ -1445,14 +1445,14 @@ export default function MoneyTracker() {
                 </div>
                 <div style={{ width: 1, height: 28, background: 'rgba(146, 64, 94, 0.1)' }} />
                 <div style={S.qStat}>
-                  <span style={S.qStatValue}>{fmt(periodStats?.expenses || 0)}</span>
+                  <span style={S.qStatValue}><PrivateAmount>{fmt(periodStats?.expenses || 0)}</PrivateAmount></span>
                   <span style={S.qStatLabel}>Expenses</span>
                 </div>
                 <div style={{ width: 1, height: 28, background: 'rgba(146, 64, 94, 0.1)' }} />
                 <div style={S.qStat}>
                   <span style={{ ...S.qStatValue,
                     color: (periodStats?.profit ?? 0) >= 0 ? 'var(--success)' : 'var(--danger)',
-                  }}>{fmt(periodStats?.profit || 0)}</span>
+                  }}><PrivateAmount>{fmt(periodStats?.profit || 0)}</PrivateAmount></span>
                   <span style={S.qStatLabel}>Profit</span>
                 </div>
               </section>
@@ -1512,7 +1512,7 @@ export default function MoneyTracker() {
                           <span style={{ fontSize: 14, fontWeight: 700,
                             color: assumed ? '#8A5A22' : isIncome ? 'var(--success)' : 'var(--danger)',
                           }}>
-                            {assumed ? '' : isIncome ? '+' : '-'}{fmt(tx.amount_cents)}
+                            {assumed ? '' : isIncome ? '+' : '-'}<PrivateAmount>{fmt(tx.amount_cents)}</PrivateAmount>
                           </span>
                         </div>
                       );
@@ -1524,12 +1524,12 @@ export default function MoneyTracker() {
               {/* ─── Last Week Comparison ─── */}
               <section style={{ ...S.compCard, marginTop: 24 }}>
                 <h4 style={S.compTitle}>Last Week</h4>
-                <div style={S.compRow}><span style={S.compLabel}>Income</span><span style={S.compValue}>{fmt(pulse.lastWeek.income)}</span></div>
-                <div style={S.compRow}><span style={S.compLabel}>Expenses</span><span style={S.compValue}>{fmt(pulse.lastWeek.expenses)}</span></div>
+                <div style={S.compRow}><span style={S.compLabel}>Income</span><span style={S.compValue}><PrivateAmount>{fmt(pulse.lastWeek.income)}</PrivateAmount></span></div>
+                <div style={S.compRow}><span style={S.compLabel}>Expenses</span><span style={S.compValue}><PrivateAmount>{fmt(pulse.lastWeek.expenses)}</PrivateAmount></span></div>
                 <div style={{ ...S.compRow, borderBottom: 'none' }}>
                   <span style={{ ...S.compLabel, fontWeight: 600 }}>Profit</span>
                   <span style={{ ...S.compValue, fontWeight: 700, color: pulse.lastWeek.profit >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-                    {fmt(pulse.lastWeek.profit)}
+                    <PrivateAmount>{fmt(pulse.lastWeek.profit)}</PrivateAmount>
                   </span>
                 </div>
               </section>
@@ -1560,12 +1560,12 @@ export default function MoneyTracker() {
               <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
                 <div style={{ flex: 1 }}>
                   <label style={S.formLabel}>Amount (£)</label>
-                  <input
+                  <PrivateAmount><input
                     type="number" step="0.01" placeholder="0.00"
                     value={newExpense.amount}
                     onChange={e => setNewExpense(p => ({ ...p, amount: e.target.value }))}
                     style={S.formInput}
-                  />
+                  /></PrivateAmount>
                 </div>
                 <div style={{ flex: 1 }}>
                   <label style={S.formLabel}>Date</label>
@@ -1757,12 +1757,12 @@ export default function MoneyTracker() {
                   <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
                     <div style={{ flex: 1 }}>
                       <label style={S.formLabel}>Amount (£)</label>
-                      <input
+                      <PrivateAmount><input
                         type="number" step="0.01" placeholder="0.00"
                         value={recurringForm.amount}
                         onChange={e => setRecurringForm(f => ({ ...f, amount: e.target.value }))}
                         style={S.formInput}
-                      />
+                      /></PrivateAmount>
                     </div>
                     <div style={{ flex: 1 }}>
                       <label style={S.formLabel}>What is it</label>
@@ -1983,7 +1983,7 @@ export default function MoneyTracker() {
                     /></PrivateText>
                   )}
                   <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--danger)', marginLeft: 12, whiteSpace: 'nowrap' }}>
-                    -{fmt(exp.amount_cents)}
+                    -<PrivateAmount>{fmt(exp.amount_cents)}</PrivateAmount>
                   </span>
                 </div>
               );
@@ -2049,9 +2049,9 @@ export default function MoneyTracker() {
               <span style={S.ledgerTotalLabel}>Running total</span>
               <span style={{ ...S.ledgerTotalValue,
                 color: ledger.summary.running_total_cents >= 0 ? 'var(--success)' : 'var(--danger)',
-              }}>{fmtNeat(ledger.summary.running_total_cents)}</span>
+              }}><PrivateAmount>{fmtNeat(ledger.summary.running_total_cents)}</PrivateAmount></span>
               <span style={S.ledgerTotalSub}>
-                {fmtNeat(ledger.summary.income_cents)} in, {fmtNeat(ledger.summary.expenses_cents)} out,
+                <PrivateAmount>{fmtNeat(ledger.summary.income_cents)}</PrivateAmount> in, <PrivateAmount>{fmtNeat(ledger.summary.expenses_cents)}</PrivateAmount> out,
                 {' '}across {ledger.summary.row_count} {ledger.summary.row_count === 1 ? 'entry' : 'entries'}
               </span>
               {ledger.truncated && (
@@ -2090,7 +2090,7 @@ export default function MoneyTracker() {
                     <span style={{ fontSize: 13, fontWeight: 600,
                       color: bucket.kind === 'expense' ? 'var(--danger)' : 'var(--success)',
                     }}>
-                      {bucket.kind === 'expense' ? '-' : '+'}{fmtNeat(bucket.total_cents)}
+                      {bucket.kind === 'expense' ? '-' : '+'}<PrivateAmount>{fmtNeat(bucket.total_cents)}</PrivateAmount>
                     </span>
                   </div>
                 ))}
@@ -2138,7 +2138,7 @@ export default function MoneyTracker() {
                       }}
                     />
                     <span style={{ fontSize: 10, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
-                      {fmtNeat(row.running_total_cents)}
+                      <PrivateAmount>{fmtNeat(row.running_total_cents)}</PrivateAmount>
                     </span>
                   </div>
                 </div>
@@ -2218,7 +2218,7 @@ export default function MoneyTracker() {
                   </p>
                 </div>
                 <span style={{ fontSize: 14, fontWeight: 700, color: assumed ? '#8A5A22' : 'var(--success)', marginLeft: 12 }}>
-                  {assumed ? '' : '+'}{fmt(tx.amount_cents)}
+                  {assumed ? '' : '+'}<PrivateAmount>{fmt(tx.amount_cents)}</PrivateAmount>
                 </span>
               </div>
             );
@@ -2253,7 +2253,7 @@ export default function MoneyTracker() {
                   <span style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                     {t.businessType === 'limited_co' ? 'Set aside (corp tax + dividends)' : 'Set aside this quarter'}
                   </span>
-                  <span style={{ fontSize: 32, fontWeight: 700, color: '#fff', margin: '6px 0' }}>{fmt(t.quarterlySetAside)}</span>
+                  <span style={{ fontSize: 32, fontWeight: 700, color: '#fff', margin: '6px 0' }}><PrivateAmount>{fmt(t.quarterlySetAside)}</PrivateAmount></span>
                   <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)' }}>
                     {t.businessType === 'limited_co'
                       ? 'Corp tax due 9 months after year end'
@@ -2266,17 +2266,17 @@ export default function MoneyTracker() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
                   <div style={S.taxCard}>
                     <span style={S.taxCardLabel}>Total Income</span>
-                    <span style={S.taxCardValue}>{fmt(t.totalIncome)}</span>
+                    <span style={S.taxCardValue}><PrivateAmount>{fmt(t.totalIncome)}</PrivateAmount></span>
                     <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t.transactionCount} transactions</span>
                   </div>
                   <div style={S.taxCard}>
                     <span style={S.taxCardLabel}>Deductible Expenses</span>
-                    <span style={S.taxCardValue}>{fmt(t.totalExpenses)}</span>
+                    <span style={S.taxCardValue}><PrivateAmount>{fmt(t.totalExpenses)}</PrivateAmount></span>
                     <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t.expenseCount} items</span>
                   </div>
                   <div style={{ ...S.taxCard, border: '1.5px solid rgba(146, 64, 94, 0.15)' }}>
                     <span style={S.taxCardLabel}>Taxable Profit</span>
-                    <span style={{ ...S.taxCardValue, color: 'var(--accent)' }}>{fmt(t.taxableProfit)}</span>
+                    <span style={{ ...S.taxCardValue, color: 'var(--accent)' }}><PrivateAmount>{fmt(t.taxableProfit)}</PrivateAmount></span>
                   </div>
                 </div>
 
@@ -2314,25 +2314,25 @@ export default function MoneyTracker() {
                           <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Output tax (VAT collected)</span>
                           <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block' }}>20% on your income</span>
                         </div>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{fmt(vatCollected)}</span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}><PrivateAmount>{fmt(vatCollected)}</PrivateAmount></span>
                       </div>
                       <div style={S.breakdownRow}>
                         <div>
                           <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Input tax (VAT on expenses)</span>
                           <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block' }}>Estimated - confirm with receipts</span>
                         </div>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>−{fmt(vatOnExpenses)}</span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>−<PrivateAmount>{fmt(vatOnExpenses)}</PrivateAmount></span>
                       </div>
                       <div style={{ ...S.breakdownRow, borderBottom: 'none', paddingTop: 12 }}>
                         <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent)' }}>VAT owed to HMRC</span>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent)' }}>{fmt(vatOwed)}</span>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent)' }}><PrivateAmount>{fmt(vatOwed)}</PrivateAmount></span>
                       </div>
                       <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 10, background: daysToVat <= 30 ? '#fef3c7' : '#f0fdf4', border: `1px solid ${daysToVat <= 30 ? '#fcd34d' : '#86efac'}` }}>
                         <span style={{ fontSize: 12, fontWeight: 600, color: daysToVat <= 30 ? '#92400e' : '#166534' }}>
                           {<Icon name="calendar" inline />} {nextVatDeadline.label} return due in {daysToVat} days ({nextVatDeadline.due.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })})
                         </span>
                         <span style={{ display: 'block', fontSize: 11, color: '#534247', marginTop: 2 }}>
-                          Set aside ~{fmt(vatOwedPerQuarter)} per quarter for VAT
+                          Set aside ~<PrivateAmount>{fmt(vatOwedPerQuarter)}</PrivateAmount> per quarter for VAT
                         </span>
                       </div>
                       <button className="fl-tap"
@@ -2356,7 +2356,7 @@ export default function MoneyTracker() {
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                       <div>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>{fmt(t.vat.rolling12Revenue)}</span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}><PrivateAmount>{fmt(t.vat.rolling12Revenue)}</PrivateAmount></span>
                         <span style={{ fontSize: 11, color: 'var(--text-muted)' }}> of £90,000 threshold (rolling 12 months)</span>
                       </div>
                       <span style={{ fontSize: 13, fontWeight: 700, color: t.vat.vatPct >= 75 ? '#ef4444' : 'var(--text-muted)' }}>{t.vat.vatPct}%</span>
@@ -2391,13 +2391,13 @@ export default function MoneyTracker() {
                         <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block' }}>{row.hint}</span>
                       </div>
                       <span style={{ fontSize: 13, fontWeight: 600, color: row.value === 0 ? 'var(--text-muted)' : 'var(--text-primary)' }}>
-                        {row.value === 0 ? '-' : fmt(row.value)}
+                        <PrivateAmount>{row.value === 0 ? '-' : fmt(row.value)}</PrivateAmount>
                       </span>
                     </div>
                   ))}
                   <div style={{ ...S.breakdownRow, borderBottom: 'none', paddingTop: 12 }}>
                     <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent)' }}>Total estimated liability</span>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent)' }}>{fmt(t.totalTaxLiability)}</span>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent)' }}><PrivateAmount>{fmt(t.totalTaxLiability)}</PrivateAmount></span>
                   </div>
                 </div>
 
@@ -2413,7 +2413,7 @@ export default function MoneyTracker() {
                             <span style={{ fontSize: 13, textTransform: 'capitalize', color: 'var(--text-secondary)' }}>{cat}</span>
                             <span style={{ fontSize: 11, color: 'var(--text-muted)' }}> ({data.count})</span>
                           </div>
-                          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{fmt(data.total_cents)}</span>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}><PrivateAmount>{fmt(data.total_cents)}</PrivateAmount></span>
                         </div>
                       ))
                     }
@@ -2432,7 +2432,7 @@ export default function MoneyTracker() {
                         return (
                           <div key={month} style={S.breakdownRow}>
                             <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{label}</span>
-                            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{fmt(cents)}</span>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}><PrivateAmount>{fmt(cents)}</PrivateAmount></span>
                           </div>
                         );
                       })
@@ -2496,7 +2496,7 @@ export default function MoneyTracker() {
             </p>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 16px' }}>
               <PrivateText>{confirmDeleteExp.vendor || getCategoryMeta(confirmDeleteExp.category).label}</PrivateText>
-              {' · '}-{fmt(confirmDeleteExp.amount_cents)}
+              {' · '}-<PrivateAmount>{fmt(confirmDeleteExp.amount_cents)}</PrivateAmount>
               {' · '}{new Date(confirmDeleteExp.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
             </p>
             <div style={{ display: 'flex', gap: 10 }}>

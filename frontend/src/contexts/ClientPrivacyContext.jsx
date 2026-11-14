@@ -47,6 +47,12 @@ export function PrivateText({ children, placeholder = 'Hidden', as, ...props }) 
   return <Tag className={props.className} style={props.style} data-client-private="hidden">{placeholder}</Tag>;
 }
 
+// Keep payment state outside this wrapper: “Paid”, “Deposit paid” and “Unpaid”
+// remain useful while the amount and identifying details are concealed.
+export function PrivateAmount({ children, ...props }) {
+  return <PrivateText {...props} placeholder="••••">{children}</PrivateText>;
+}
+
 export function PrivateSection({ children, placeholder = 'Client details hidden', className = '', style }) {
   const { hidden } = useClientPrivacy();
   if (!hidden) return children;

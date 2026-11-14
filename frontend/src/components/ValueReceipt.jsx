@@ -1,3 +1,4 @@
+import { PrivateAmount } from '../contexts/ClientPrivacyContext.jsx';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase.js';
@@ -57,9 +58,9 @@ export default function ValueReceipt() {
   if (recovered === 0 && deposits === 0 && voicePct == null) return null;
 
   const lines = [];
-  if (receipt.parts?.gap_fill_pence > 0) lines.push(`${pounds(receipt.parts.gap_fill_pence)} from gaps Florrie filled`);
-  if (receipt.parts?.rebook_pence > 0) lines.push(`${pounds(receipt.parts.rebook_pence)} from rebook nudges`);
-  if (deposits > 0) lines.push(`${pounds(deposits)} protected by deposits`);
+  if (receipt.parts?.gap_fill_pence > 0) lines.push(<><PrivateAmount>{pounds(receipt.parts.gap_fill_pence)}</PrivateAmount> from gaps Florrie filled</>);
+  if (receipt.parts?.rebook_pence > 0) lines.push(<><PrivateAmount>{pounds(receipt.parts.rebook_pence)}</PrivateAmount> from rebook nudges</>);
+  if (deposits > 0) lines.push(<><PrivateAmount>{pounds(deposits)}</PrivateAmount> protected by deposits</>);
   if (voicePct != null && voice.total >= 5) lines.push(`${voicePct}% of her drafts sent without an edit`);
 
   // Tappable only when there's a money story to break down.
@@ -77,13 +78,13 @@ export default function ValueReceipt() {
       <div style={S.eyebrow}>This month</div>
       <div style={S.headline}>
         {recovered > 0
-          ? <>Florrie helped bring in <span style={S.amount}>{pounds(recovered)}</span></>
+          ? <>Florrie helped bring in <span style={S.amount}><PrivateAmount>{pounds(recovered)}</PrivateAmount></span></>
           : 'Florrie, quietly at work'}
       </div>
       {lines.length > 0 && (
         <div style={S.lines}>
-          {lines.map((l) => (
-            <div key={l} style={S.line}>
+          {lines.map((l, i) => (
+            <div key={i} style={S.line}>
               <span style={S.dot} />
               {l}
             </div>

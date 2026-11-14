@@ -1,4 +1,4 @@
-import { PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
+import { PrivateAmount, PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import MoreLoadError from '../components/MoreLoadError.jsx';
 import { useState, useEffect, useMemo } from 'react';
 import { useBeautician, fetchRowsStrict } from '../lib/supabase.js';
@@ -377,7 +377,7 @@ export default function Analytics() {
               ) : (
                 <StatCard label="Utilisation" value={`${stats.utilizationRate}%`} sub="of available hours" color={stats.utilizationRate > 70 ? 'var(--success, #386F52)' : 'var(--warning, #79581C)'} />
               )}
-              <StatCard label="Expenses" value={`£${(stats.totalExpenses / 100).toFixed(0)}`} sub="total spend" color="var(--text-secondary, #574A42)" />
+              <StatCard label="Expenses" value={<PrivateAmount>{`£${(stats.totalExpenses / 100).toFixed(0)}`}</PrivateAmount>} sub="total spend" color="var(--text-secondary, #574A42)" />
             </div>
 
             {stats.busiestDay && stats.busiestDay.count > 0 && (

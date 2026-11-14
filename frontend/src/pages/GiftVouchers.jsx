@@ -1,4 +1,4 @@
-import { PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
+import { PrivateAmount, PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import { voucherIsActive } from './more-reliability.js';
 import { useState, useEffect } from 'react';
 import { useBeautician, fetchRowsStrict, insertRow, updateRow } from '../lib/supabase.js';
@@ -165,7 +165,7 @@ export default function GiftVouchers() {
         </div>
         <div style={styles.statDivider} />
         <div style={styles.statItem}>
-          <span style={styles.statNum}>{fmt(totalActive)}</span>
+          <span style={styles.statNum}><PrivateAmount>{fmt(totalActive)}</PrivateAmount></span>
           <span style={styles.statLabel}>Outstanding</span>
         </div>
         <div style={styles.statDivider} />
@@ -264,7 +264,7 @@ export default function GiftVouchers() {
                       borderColor: form.amount_cents === amt ? 'var(--accent, #92405e)' : 'var(--border, #E8DDD4)',
                     }}
                   >
-                    {fmt(amt)}
+                    <PrivateAmount>{fmt(amt)}</PrivateAmount>
                   </button>
                 ))}
               </div>
@@ -281,7 +281,7 @@ export default function GiftVouchers() {
               >
                 <option value="">Choose a treatment...</option>
                 {treatments.map(t => (
-                  <option key={t.id} value={t.id}>{t.name} - {fmt(t.price_cents)}</option>
+                  <option key={t.id} value={t.id}>{t.name} - {clientDetailsHidden ? '••••' : fmt(t.price_cents)}</option>
                 ))}
               </select>
             </div>
@@ -354,7 +354,7 @@ export default function GiftVouchers() {
             <div style={styles.previewAmount}>
               {form.type === 'treatment'
                 ? (treatments.find(t => t.id === form.treatment_id)?.name || 'Treatment voucher')
-                : fmt(form.amount_cents)
+                : <PrivateAmount>{fmt(form.amount_cents)}</PrivateAmount>
               }
             </div>
             <div style={styles.previewFor}>For: <PrivateText placeholder="Client">{form.recipient_name || '...'}</PrivateText></div>
@@ -413,7 +413,7 @@ export default function GiftVouchers() {
               <div style={styles.redeemFound}>
                 <div style={styles.redeemFoundHeader}>
                   <span style={styles.redeemFoundCode}><PrivateText placeholder="Hidden">{redeemSearch.code}</PrivateText></span>
-                  <span style={styles.redeemFoundAmount}>{fmt(redeemSearch.amount_cents)}</span>
+                  <span style={styles.redeemFoundAmount}><PrivateAmount>{fmt(redeemSearch.amount_cents)}</PrivateAmount></span>
                 </div>
                 <p style={styles.redeemFoundDetail}>
                   For: <PrivateText placeholder="Client">{redeemSearch.recipient_name}</PrivateText> · From: <PrivateText placeholder="Client">{redeemSearch.buyer_name}</PrivateText>
@@ -453,7 +453,7 @@ function VoucherCard({ voucher, onRedeem }) {
         </div>
         <div style={styles.voucherInfo}>
           <span style={styles.voucherAmount}>
-            {voucher.type === 'treatment' ? voucher.treatment_name : fmt(voucher.amount_cents)}
+            {voucher.type === 'treatment' ? voucher.treatment_name : <PrivateAmount>{fmt(voucher.amount_cents)}</PrivateAmount>}
           </span>
           <span style={styles.voucherFor}>
             For <PrivateText placeholder="Client">{voucher.recipient_name}</PrivateText> · from <PrivateText placeholder="Client">{voucher.buyer_name}</PrivateText>

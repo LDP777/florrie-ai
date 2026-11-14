@@ -1,4 +1,4 @@
-import { PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
+import { PrivateAmount, PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 /**
  * Client Timeline - Full chronological history per client.
  *
@@ -200,7 +200,7 @@ export default function ClientTimeline() {
               <span style={S.profileStatLabel}>Visits</span>
             </div>
             <div style={S.profileStat}>
-              <span style={S.profileStatVal}>{fmt(totalPaid || client.totalSpent)}</span>
+              <span style={S.profileStatVal}><PrivateAmount>{fmt(totalPaid || client.totalSpent)}</PrivateAmount></span>
               <span style={S.profileStatLabel}>Total Spent</span>
             </div>
             {avgRating && (
@@ -273,8 +273,8 @@ export default function ClientTimeline() {
                       <div style={{ ...S.eventCard, borderLeft: `3px solid ${cfg.colour}` }}>
                         <div style={S.eventHeader}>
                           <span style={S.eventIcon}><Icon name={iconName(cfg.icon)} inline /></span>
-                          <span style={S.eventTitle}><PrivateText placeholder="Hidden">{evt.title}</PrivateText></span>
-                          {evt.amount && <span style={{ ...S.eventAmount, color: cfg.colour }}>{fmt(evt.amount)}</span>}
+                          <span style={S.eventTitle}><PrivateText placeholder={evt.type === 'payment' ? 'Payment recorded' : 'Hidden'}>{evt.title}</PrivateText></span>
+                          {evt.amount && <span style={{ ...S.eventAmount, color: cfg.colour }}><PrivateAmount>{fmt(evt.amount)}</PrivateAmount></span>}
                         </div>
                         {(isExp || !evt.detail) ? null : (
                           <p style={S.eventPreview}><PrivateText placeholder="Hidden">{evt.detail.slice(0, 60)}</PrivateText>{evt.detail.length > 60 ? '...' : ''}</p>

@@ -1,3 +1,4 @@
+import { PrivateAmount, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 /**
  * Milestones - the moments worth a screenshot.
  *
@@ -31,6 +32,7 @@ function describe(m) {
 }
 
 export default function Milestones() {
+  const { hidden } = useClientPrivacy();
   const { beautician, loading: bLoading } = useBeautician();
   const [milestones, setMilestones] = useState(null);
   const [error, setError] = useState(false);
@@ -103,11 +105,11 @@ export default function Milestones() {
                 {new Date(m.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
               </span>
             </div>
-            <div style={S.big}>{d.big}</div>
-            <div style={S.label}>{d.label}</div>
+            <div style={S.big}>{m.key === 'first_1k_week' ? <PrivateAmount>{d.big}</PrivateAmount> : d.big}</div>
+            <div style={S.label}>{hidden && m.key === 'first_1k_week' ? 'Weekly income milestone' : d.label}</div>
             <div style={S.cardFooter}>
               <span style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.6)', letterSpacing: '0.04em' }}>florrie.ai</span>
-              <button onClick={() => share(m, i)} style={S.shareBtn}>
+              <button disabled={hidden} onClick={() => share(m, i)} style={S.shareBtn}>
                 {shared === i ? 'Shared 🌸' : 'Share'}
               </button>
             </div>

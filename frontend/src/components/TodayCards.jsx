@@ -1,4 +1,4 @@
-import { PrivateText, PrivateSection, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
+import { PrivateAmount, PrivateText, PrivateSection, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
@@ -130,8 +130,8 @@ export function TodaySummary({ beautician, onNav }) {
     </div>}
 
     <div className="today-totals">
-      <div><span className="today-muted">Completed value</span><strong>{money(day.completedValue)}</strong><small>{day.completed} of {day.diary.length} appointments</small></div>
-      <div><span className="today-muted">Potential today</span><strong>{money(day.potentialValue)}</strong><small>{day.pending ? 'Includes pending bookings' : 'On your diary'}</small></div>
+      <div><span className="today-muted">Completed value</span><strong><PrivateAmount>{money(day.completedValue)}</PrivateAmount></strong><small>{day.completed} of {day.diary.length} appointments</small></div>
+      <div><span className="today-muted">Potential today</span><strong><PrivateAmount>{money(day.potentialValue)}</PrivateAmount></strong><small>{day.pending ? 'Includes pending bookings' : 'On your diary'}</small></div>
     </div>
     {day.needsPrice > 0 && <Button variant="quiet" className="today-price-note" onClick={() => onNav(`/calendar/week?date=${day.date}`)}>
       <Icon name="tag" size={16} /> {day.needsPrice} {day.needsPrice === 1 ? 'booking is' : 'bookings are'} priced at £0

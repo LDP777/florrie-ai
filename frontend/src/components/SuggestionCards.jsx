@@ -1,4 +1,4 @@
-import { PrivateText, PrivateSection, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
+import { PrivateAmount, PrivateText, PrivateSection, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import Button from './ui/Button.jsx';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -133,7 +133,7 @@ function SuggestionCard({ card, onOpen, onEvidence, onDismiss, dismissing, dismi
     <article style={SC.card}>
       <div style={SC.cardHead}>
         <span style={SC.icon} aria-hidden><Icon name={iconName(card.icon)} size={17} /></span>
-        {impact && <span style={SC.impact}>{impact}</span>}
+        {impact && <span style={SC.impact}><PrivateAmount>{impact}</PrivateAmount></span>}
       </div>
 
       <p style={SC.summary}><PrivateText placeholder="Suggestion details hidden">{card.summary}</PrivateText></p>

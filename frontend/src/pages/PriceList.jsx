@@ -1,3 +1,4 @@
+import { PrivateAmount } from '../contexts/ClientPrivacyContext.jsx';
 /**
  * Price List Generator - Create & share a client-facing treatment menu.
  *
@@ -226,7 +227,7 @@ export default function PriceList() {
                         {item.description && showNotes && <span style={{ ...S.priceDesc, color: currentTheme.muted }}>{item.description}</span>}
                       </div>
                       <div style={S.priceRight}>
-                        <span style={{ ...S.priceAmount, color: currentTheme.accent }}>{fmt(item.price_cents)}</span>
+                        <span style={{ ...S.priceAmount, color: currentTheme.accent }}><PrivateAmount>{fmt(item.price_cents)}</PrivateAmount></span>
                         <span style={{ ...S.priceDuration, color: currentTheme.muted }}>{item.duration_minutes} min</span>
                       </div>
                     </div>
@@ -291,7 +292,7 @@ export default function PriceList() {
                   >
                     <span style={S.treatmentToggleName}>{item.name}</span>
                     <div style={S.treatmentToggleRight}>
-                      <span style={{ ...S.treatmentTogglePrice, color: 'var(--accent, #92405e)' }}>{fmt(item.price_cents)}</span>
+                      <span style={{ ...S.treatmentTogglePrice, color: 'var(--accent, #92405e)' }}><PrivateAmount>{fmt(item.price_cents)}</PrivateAmount></span>
                       <span style={{ fontSize: 14 }}>{isHidden ? '👁️‍🗨️' : '✓'}</span>
                     </div>
                   </button>

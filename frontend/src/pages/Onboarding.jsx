@@ -1,3 +1,4 @@
+import { PrivateAmount } from '../contexts/ClientPrivacyContext.jsx';
 import { useState, useEffect, useRef } from 'react';
 import { track } from '../lib/analytics.js';
 import { useBeautician, updateRow, supabase } from '../lib/supabase.js'
@@ -688,14 +689,14 @@ export default function Onboarding({ onComplete }) {
                 </div>
                 <div style={styles.formGroup}>
                   <label style={styles.formLabel}>Price (£)</label>
-                  <input
+                  <PrivateAmount><input
                     type="number"
                     step="0.01"
                     placeholder="0.00"
                     value={t.price_cents}
                     onChange={e => updateTreatment(idx, 'price_cents', e.target.value)}
                     style={styles.formInput}
-                  />
+                  /></PrivateAmount>
                 </div>
               </div>
               <p style={styles.priceHint}>Clients can only book treatments that have a price set.</p>

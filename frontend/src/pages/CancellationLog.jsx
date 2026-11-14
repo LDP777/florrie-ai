@@ -1,4 +1,4 @@
-import { PrivateText } from '../contexts/ClientPrivacyContext.jsx';
+import { PrivateAmount, PrivateText } from '../contexts/ClientPrivacyContext.jsx';
 import { useNavigate } from 'react-router-dom';
 import MoreLoadError from '../components/MoreLoadError.jsx';
 /**
@@ -139,7 +139,7 @@ export default function CancellationLog() {
       {/* Stats */}
       <div style={S.statsGrid}>
         <div style={{ ...S.statCard, borderLeft: '3px solid var(--danger, #9E2B32)' }}>
-          <span style={{ ...S.statValue, color: 'var(--danger, #9E2B32)' }}>{fmt(totalLost)}</span>
+          <span style={{ ...S.statValue, color: 'var(--danger, #9E2B32)' }}><PrivateAmount>{fmt(totalLost)}</PrivateAmount></span>
           <span style={S.statLabel}>Affected booking value</span>
         </div>
         <div style={{ ...S.statCard, borderLeft: '3px solid var(--warning, #79581C)' }}>
@@ -189,8 +189,8 @@ export default function CancellationLog() {
                   </div>
                   <div style={S.logMeta}>
                     {c.reason && <span style={S.reasonTag}>"<PrivateText placeholder="Hidden">{c.reason}</PrivateText>"</span>}
-                    {c.revenue_lost > 0 && <span style={S.lostTag}>-{fmt(c.revenue_lost)}</span>}
-                    {c.deposit > 0 && <span style={S.depositTag}>Paid deposit: {fmt(c.deposit)}</span>}
+                    {c.revenue_lost > 0 && <span style={S.lostTag}>-<PrivateAmount>{fmt(c.revenue_lost)}</PrivateAmount></span>}
+                    {c.deposit > 0 && <span style={S.depositTag}>Paid deposit: <PrivateAmount>{fmt(c.deposit)}</PrivateAmount></span>}
                     {c.notice && <span style={S.noticeTag}>{c.notice} notice</span>}
                     <button onClick={() => navigate('/calendar/full')} style={S.rebookBtn}>Open diary</button>
                   </div>
@@ -249,15 +249,15 @@ export default function CancellationLog() {
             <div style={S.impactGrid}>
               <div style={S.impactItem}>
                 <span style={S.impactLabel}>No-show booking value</span>
-                <span style={{ ...S.impactValue, color: 'var(--danger, #9E2B32)' }}>{fmt(filtered.filter(c => c.type === 'no-show').reduce((s, c) => s + c.revenue_lost, 0))}</span>
+                <span style={{ ...S.impactValue, color: 'var(--danger, #9E2B32)' }}><PrivateAmount>{fmt(filtered.filter(c => c.type === 'no-show').reduce((s, c) => s + c.revenue_lost, 0))}</PrivateAmount></span>
               </div>
               <div style={S.impactItem}>
                 <span style={S.impactLabel}>Late cancellation value</span>
-                <span style={{ ...S.impactValue, color: 'var(--warning, #79581C)' }}>{fmt(filtered.filter(c => c.type === 'late-cancel').reduce((s, c) => s + c.revenue_lost, 0))}</span>
+                <span style={{ ...S.impactValue, color: 'var(--warning, #79581C)' }}><PrivateAmount>{fmt(filtered.filter(c => c.type === 'late-cancel').reduce((s, c) => s + c.revenue_lost, 0))}</PrivateAmount></span>
               </div>
               <div style={S.impactItem}>
                 <span style={S.impactLabel}>Deposits paid (not refunded)</span>
-                <span style={{ ...S.impactValue, color: 'var(--success, #386F52)' }}>{fmt(filtered.reduce((s, c) => s + c.deposit, 0))}</span>
+                <span style={{ ...S.impactValue, color: 'var(--success, #386F52)' }}><PrivateAmount>{fmt(filtered.reduce((s, c) => s + c.deposit, 0))}</PrivateAmount></span>
               </div>
             </div>
           </div>

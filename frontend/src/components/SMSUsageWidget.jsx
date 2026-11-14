@@ -1,3 +1,4 @@
+import { PrivateAmount } from '../contexts/ClientPrivacyContext.jsx';
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { useBeautician } from '../lib/supabase.js';
@@ -119,7 +120,7 @@ export default function SMSUsageWidget() {
               {usage.surplusCount} surplus messages this month
             </p>
             <p style={styles.costText}>
-              Overage charges: {surplusStr}
+              Overage charges: <PrivateAmount>{surplusStr}</PrivateAmount>
             </p>
           </div>
         )}

@@ -1,4 +1,4 @@
-import { PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
+import { PrivateAmount, PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import { useState, useEffect, useMemo } from 'react';
 import { useBeautician, fetchRowsStrict, updateRow, insertRow } from '../lib/supabase.js';
@@ -216,7 +216,7 @@ export default function EndOfDay() {
       <div style={styles.heroCard}>
         <div style={styles.heroLabel}>Today's Revenue</div>
         <div style={styles.heroAmount}>
-          {d.totalRevenue > 0 ? `\u00A3${d.totalRevenue.toFixed(2)}` : '\u00A30.00'}
+          <PrivateAmount>{d.totalRevenue > 0 ? `\u00A3${d.totalRevenue.toFixed(2)}` : '\u00A30.00'}</PrivateAmount>
         </div>
         <div style={styles.heroBreakdown}>
           <span>{'\uD83D\uDCB3'} <Money amount={d.cardTaken} /></span>
@@ -242,7 +242,7 @@ export default function EndOfDay() {
             <div style={styles.heroStatLabel}>No-show</div>
           </div>
           <div style={styles.heroStat}>
-            <div style={styles.heroStatValue}>{d.avgTicket > 0 ? `\u00A3${d.avgTicket.toFixed(0)}` : '--'}</div>
+            <div style={styles.heroStatValue}><PrivateAmount>{d.avgTicket > 0 ? `\u00A3${d.avgTicket.toFixed(0)}` : '--'}</PrivateAmount></div>
             <div style={styles.heroStatLabel}>Avg ticket</div>
           </div>
         </div>
@@ -291,12 +291,12 @@ export default function EndOfDay() {
                 </div>
                 <div style={styles.statCard}>
                   <div style={styles.statIcon}>{'\uD83D\uDC9D'}</div>
-                  <div style={styles.statValue}>{d.tipsReceived > 0 ? `\u00A3${d.tipsReceived.toFixed(2)}` : '--'}</div>
+                  <div style={styles.statValue}><PrivateAmount>{d.tipsReceived > 0 ? `\u00A3${d.tipsReceived.toFixed(2)}` : '--'}</PrivateAmount></div>
                   <div style={styles.statLabel}>Tips</div>
                 </div>
                 <div style={styles.statCard}>
                   <div style={styles.statIcon}>{'\uD83D\uDCE4'}</div>
-                  <div style={styles.statValue}>{d.expenses > 0 ? `\u00A3${d.expenses.toFixed(2)}` : '--'}</div>
+                  <div style={styles.statValue}><PrivateAmount>{d.expenses > 0 ? `\u00A3${d.expenses.toFixed(2)}` : '--'}</PrivateAmount></div>
                   <div style={styles.statLabel}>Expenses</div>
                 </div>
                 {d.totalRevenue > 0 && (
@@ -359,14 +359,14 @@ export default function EndOfDay() {
                   <label style={styles.inputLabel}>Cash counted (optional)</label>
                   <div style={styles.cashInput}>
                     <span style={{ color: 'var(--text-muted, #6B5D54)', fontSize: 18 }}>£</span>
-                    <input
+                    <PrivateAmount><input
                       type="number"
                       value={cashCounted}
                       onChange={e => setCashCounted(e.target.value)}
                       placeholder="0.00"
                       style={styles.input}
                       step="0.01"
-                    />
+                    /></PrivateAmount>
                   </div>
                 </div>
                 {cashDiff !== null && (
@@ -374,10 +374,10 @@ export default function EndOfDay() {
                     background: parseFloat(cashDiff) === 0 ? 'var(--success-bg, #E9F0EB)' : 'var(--warning-bg, #F7EEDD)',
                     color: parseFloat(cashDiff) === 0 ? '#296e2c' : '#B33F00',
                   }}>
-                    {parseFloat(cashDiff) === 0
+                    <PrivateAmount>{parseFloat(cashDiff) === 0
                       ? '\u2705 Exact match'
                       : `${parseFloat(cashDiff) > 0 ? '\u2B06\uFE0F Over' : '\u2B07\uFE0F Under'} by \u00A3${Math.abs(parseFloat(cashDiff)).toFixed(2)}`
-                    }
+                    }</PrivateAmount>
                   </div>
                 )}
                 <div style={styles.cashupDivider} />

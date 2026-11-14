@@ -1,4 +1,4 @@
-import { PrivateText, PrivateSection } from '../contexts/ClientPrivacyContext.jsx';
+import { PrivateText, PrivateSection, PrivateAmount } from '../contexts/ClientPrivacyContext.jsx';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import WhatsAppSignup from '../components/WhatsAppSignup.jsx';
 import { templateDisplay, isClientTemplate } from '../lib/templates.js';
@@ -53,7 +53,7 @@ function UsageBar({ usage }) {
         </span>
         {isOver && overage_total_pence > 0 && (
           <span style={{ fontSize: 11, color: '#E85D75', fontWeight: 600 }}>
-            +{(overage_total_pence / 100).toFixed(2)} overage
+            <PrivateAmount>+{(overage_total_pence / 100).toFixed(2)}</PrivateAmount> overage
           </span>
         )}
       </div>
