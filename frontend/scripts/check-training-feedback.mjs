@@ -1,7 +1,7 @@
 // Actual routed pages; synthetic salon data; no external provider traffic.
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { mkdirSync,readFileSync,writeFileSync } from 'node:fs';
+import { existsSync,mkdirSync,readFileSync,writeFileSync } from 'node:fs';
 import { build } from 'esbuild';
 import { launch } from './lib/browser.mjs';
 const root=new URL('../',import.meta.url).pathname;
@@ -38,7 +38,9 @@ fixture.mount=()=>createRoot(document.getElementById('root')).render(<ThemeProvi
 'storage.js':`export const LOGO_BUCKET='logos';export const uploadFile=async args=>{fixture.writes.push({upload:args.path});return {path:args.path}};export const publicUrl=()=>fixture.owner.logo_url;`,
 }[path]}));}}]});
 const js=bundle.outputFiles.find(f=>f.path.endsWith('.js')).text;
-const css=readFileSync(root+'src/index.css','utf8').replace(/@import\s+url\([^;]+;/g,'');
+const builtIndex=existsSync(root+'dist/index.html')?readFileSync(root+'dist/index.html','utf8'):'';
+const builtStyle=builtIndex.match(/href="(\/assets\/[^\"]+\.css)"/)?.[1];
+const css=readFileSync(builtStyle?root+'dist'+builtStyle:root+'src/index.css','utf8').replace(/@import\s+url\([^;]+;/g,'');
 const tokens=[...readFileSync(root+'index.html','utf8').matchAll(/<style>([\s\S]*?)<\/style>/g)].map(m=>m[1]).join('\n');
 const server=http.createServer((req,res)=>{res.setHeader('content-type',req.url==='/fixture.js'?'text/javascript':'text/html');res.end(req.url==='/fixture.js'?js:`<!doctype html><html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><style>${tokens}${css}</style><div id=root></div><script src=/fixture.js></script></html>`);});
 await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin=`http://127.0.0.1:${server.address().port}`,browser=await launch();let checks=0;

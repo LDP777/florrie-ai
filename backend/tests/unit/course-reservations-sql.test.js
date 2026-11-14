@@ -7,7 +7,7 @@ let db;
 beforeAll(async()=>{
  db=new PGlite();
  await db.exec(`CREATE ROLE anon;CREATE ROLE authenticated;CREATE ROLE service_role;CREATE SCHEMA auth;CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;CREATE FUNCTION uuid_generate_v4() RETURNS uuid LANGUAGE sql AS $$SELECT gen_random_uuid()$$;CREATE TABLE beauticians(id uuid PRIMARY KEY,auth_id uuid NOT NULL);`);
- await db.exec(sql('042_courses.sql'));await db.exec(sql('20261020_course_date_choices.sql'));await db.exec('GRANT ALL ON courses,course_enrollments TO anon,authenticated');await db.exec(sql('20261114_course_reservations.sql'));await db.exec(sql('20261114_course_reservations.sql'));
+ await db.exec(sql('042_courses.sql'));await db.exec(sql('20261020_course_date_choices.sql'));await db.exec('GRANT ALL ON courses,course_enrollments TO anon,authenticated');await db.exec(sql('20261114180658_course_reservations.sql'));await db.exec(sql('20261114180658_course_reservations.sql'));
  await db.exec('GRANT USAGE ON SCHEMA public,auth TO authenticated,anon,service_role;GRANT SELECT ON beauticians TO authenticated;GRANT SELECT,INSERT,UPDATE,DELETE ON courses,course_enrollments TO authenticated;');
 },20000);
 afterAll(()=>db.close());

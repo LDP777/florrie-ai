@@ -12,7 +12,7 @@ name: CI
 
 on:
   push:
-    branches: [main, codex/training-dates-20261020, codex/content-release-20261020]
+    branches: [main, codex/training-dates-20261020, codex/content-release-20261020, codex/ellie-feedback-20261114]
   pull_request:
 
 # A second push to the same branch makes the first run pointless. Cancel it.
@@ -100,15 +100,18 @@ jobs:
       - run: npm run check:today:browser --workspace frontend
       - run: node scripts/check-calendar-navigation.mjs
         working-directory: frontend
+      - run: node scripts/check-calendar-block-edit.mjs
+        working-directory: frontend
       - run: node --test src/pages/smart-schedule-model.test.mjs && node scripts/check-smart-schedule.mjs
         working-directory: frontend
       - run: node scripts/check-knowledge-training.mjs
         working-directory: frontend
       - run: node scripts/check-training-dates.mjs
         working-directory: frontend
-      - run: node scripts/check-settings-policy.mjs
+      - run: node scripts/check-training-feedback.mjs
         working-directory: frontend
-      - run: node scripts/check-client-policy.mjs
+      - run: npm run check:booking:self-service --workspace frontend
+      - run: node scripts/check-settings-policy.mjs
         working-directory: frontend
 
       # The rest of the browser checks ride along free — chromium is already

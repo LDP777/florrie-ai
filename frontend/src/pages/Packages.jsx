@@ -826,7 +826,7 @@ const s = {
   linkText:     { fontSize: 11, color: 'var(--text-muted, #6B5D54)', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' },
 
   courseActions:{ display: 'flex', gap: 6, paddingTop: 10, borderTop: '1px solid var(--border, #E8DDD4)', flexWrap: 'wrap' },
-  actionBtn:    { flex: 1, minWidth: 70, whiteSpace: 'nowrap' },
+  actionBtn:    { flex: '1 0 auto', minWidth: 70, whiteSpace: 'nowrap' },
 
   enrollList:   { marginTop: 10, borderTop: '1px solid var(--border, #E8DDD4)', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 8 },
   enrollEmpty:  { fontSize: 13, color: 'var(--text-muted, #6B5D54)', textAlign: 'center', padding: '12px 0', margin: 0 },

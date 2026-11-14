@@ -105,7 +105,9 @@ const bundle = await build({
 });
 const js = bundle.outputFiles.find(file => file.path.endsWith('.js')).text;
 const tokens = [...readFileSync(join(root, 'index.html'), 'utf8').matchAll(/<style>([\s\S]*?)<\/style>/g)].map(m => m[1]).join('\n');
-const styles = readFileSync(join(root, 'src/index.css'), 'utf8').replace(/@import\s+url\([^;]+;/g, '');
+const builtIndex = existsSync(join(root, 'dist/index.html')) ? readFileSync(join(root, 'dist/index.html'), 'utf8') : '';
+const builtStyle = builtIndex.match(/href="(\/assets\/[^\"]+\.css)"/)?.[1];
+const styles = readFileSync(builtStyle ? join(root, 'dist', builtStyle) : join(root, 'src/index.css'), 'utf8').replace(/@import\s+url\([^;]+;/g, '');
 const fontDir = process.env.VISUAL_FONT_DIR;
 const fontCss = fontDir && existsSync(join(fontDir, 'fonts.css')) ? readFileSync(join(fontDir, 'fonts.css'), 'utf8') : '';
 const preview = process.env.KEEP_TRAINING_PREVIEW === '1';
@@ -406,6 +408,18 @@ try {
     assert.equal(new Set(attempts[1].body.map(row => row.id)).size, 2);
     assert.deepEqual(attempts[0].body, attempts[1].body, 'Retry must reuse the same occurrence identities');
     assert.equal(await page.getByText('Fictional multi-date course', { exact: true }).count(), 1, 'One course group card');
+    for (const width of [320, 390]) {
+      await page.setViewportSize({ width, height: 844 });
+      const actions = await page.getByRole('button', { name: /^(Edit date|Students \(0\)|Close bookings|Cancel date)$/ }).evaluateAll(buttons => buttons.map(button => {
+        const rect = button.getBoundingClientRect(), range = document.createRange();
+        range.selectNodeContents(button);
+        const text = range.getBoundingClientRect();
+        return { label: button.textContent, left: rect.left, right: rect.right, textLeft: text.left, textRight: text.right };
+      }));
+      assert.equal(actions.length, 8);
+      for (const action of actions) assert.ok(action.left >= 0 && action.right <= width && action.textLeft >= action.left + 6 && action.textRight <= action.right - 6,
+        `Training actions keep readable text inside their controls at ${width}px: ${JSON.stringify(action)}`);
+    }
     await fit(page); await shot(page, 'training-owner-course-dates-390');
     await close(); pass('Owner multi-date create is one atomic save; failure retains dates and stable identities; one grouped card.');
   }
