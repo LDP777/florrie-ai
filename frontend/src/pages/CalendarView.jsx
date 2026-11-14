@@ -335,12 +335,13 @@ export default function CalendarView({ initialView } = {}) {
   function changeCalendar(date = currentDate, nextView = view, { keepDetail = false } = {}) {
     setCurrentDate(prev => isSameDay(prev, date) ? prev : date);
     setView(nextView);
+    if (nextView === 'day') setDayFocusRequest(value => value + 1);
     if (!keepDetail) {
       // React Router may commit navigation after an in-flight read resolves.
       // Record the user's choice synchronously so that old link cannot win.
       dismissedLink.current = `${location.key}:${location.search}`;
       setSelectedAppointment(null);
-      requestAnimationFrame(() => document.getElementById('app-scroll')?.scrollTo({ top: 0 }));
+      if (nextView !== 'day') requestAnimationFrame(() => document.getElementById('app-scroll')?.scrollTo({ top: 0 }));
     }
     setLinkNotice(null);
     const params = new URLSearchParams(location.search);
@@ -484,6 +485,7 @@ export default function CalendarView({ initialView } = {}) {
   const [timeBlockError, setTimeBlockError] = useState(null);
   const [showBlockModal, setShowBlockModal] = useState(false);
   const [selectedBlock, setSelectedBlock] = useState(null); // existing block tapped
+  const [editingBlock, setEditingBlock] = useState(null);
   const [savingBlock, setSavingBlock] = useState(false);
   // Manual appointment modal (plus button). Inbox's "Book her in" arrives
   // via location.state with the client pre-picked and the sheet open.
@@ -499,6 +501,7 @@ export default function CalendarView({ initialView } = {}) {
   }, [saveNotice]);
   // Day grid scroll container + once-per-day auto-scroll tracking
   const gridScrollRef = useRef(null);
+  const [dayFocusRequest, setDayFocusRequest] = useState(0);
   // --- Drag-to-move (day view) ---------------------------------------------
   // Press and hold a card until it lifts (haptic cue), slide it up or down the
   // day, release to drop it on the new time, snapped to 5 minutes. The write
@@ -648,20 +651,29 @@ export default function CalendarView({ initialView } = {}) {
   useEffect(() => {
     if (beautician) loadTimeBlocks();
   }, [beautician]); // eslint-disable-line react-hooks/exhaustive-deps
-  // Auto-scroll the day grid so the first appointment (or 08:00 if none)
-  // sits near the top. Once per viewed day, not on every refresh.
+  // Each deliberate day selection finds now (today), the linked booking, or
+  // that day's first live booking. Background refreshes preserve manual scrolling.
   useEffect(() => {
     if (view !== 'day') { lastScrollKey.current = null; return; }
-    if (loading || !gridScrollRef.current) return;
-    const key = formatDate(currentDate);
+    if (loading || loadError || !gridScrollRef.current) return;
+    const day = formatDate(currentDate);
+    const range = loadedRange.current;
+    if (!range || range.owner !== beautician?.id || day < range.from || day > range.to) return;
+    const key = `${day}:${dayFocusRequest}`;
     if (lastScrollKey.current === key) return;
     lastScrollKey.current = key;
-    const dayAppts = getAppointmentsForDate(currentDate);
-    const targetMin = dayAppts.length > 0
-      ? Math.min(...dayAppts.map(a => wallMinutes(a.starts_at)))
-      : 8 * 60;
+    const dayAppts = getAppointmentsForDate(currentDate).filter(a => !DEAD_STATUSES.includes(a.status));
+    const linkedId = new URLSearchParams(location.search).get('appt');
+    const linked = dayAppts.find(a => a.id === linkedId || a.id === selectedAppointment?.id);
+    const now = new Date();
+    const opening = beautician?.working_hours?.[DAY_KEYS[currentDate.getDay()]]?.start;
+    const openingMinutes = opening ? Number(opening.slice(0, 2)) * 60 + Number(opening.slice(3, 5)) : 8 * 60;
+    const targetMin = linked ? wallMinutes(linked.starts_at)
+      : isToday(currentDate) ? now.getHours() * 60 + now.getMinutes()
+      : dayAppts.length ? Math.min(...dayAppts.map(a => wallMinutes(a.starts_at))) : openingMinutes;
     gridScrollRef.current.scrollTop = Math.max(0, ((targetMin - START_HOUR * 60) / 60) * HOUR_HEIGHT - 24);
-  }, [loading, currentDate, view, appointments]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (dayFocusRequest > 0 && !selectedAppointment) gridScrollRef.current.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [loading, loadError, currentDate, view, appointments, dayFocusRequest]); // eslint-disable-line react-hooks/exhaustive-deps
   // Restore the stashed page scroll after an in-place edit reload settles, so
   // setting a price / editing a time never throws Ellie to the bottom.
   useEffect(() => {
@@ -754,14 +766,15 @@ export default function CalendarView({ initialView } = {}) {
       setTimeBlockError('Blocked time could not be checked. Retry before offering an opening.');
     }
   }
-  async function createTimeBlock({ date, type, reason, note, start_time, end_time }) {
+  async function createTimeBlock({ date, end_date, type, reason, note, start_time, end_time }) {
+    if (hidden || savingBlock) return;
     setSavingBlock(true);
     try {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
       const res = await apiFetch(`${API_BASE}/api/hours-exceptions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ date, type, reason, note, start_time, end_time, notify_clients: false }),
+        body: JSON.stringify({ date, end_date, type, reason, note, start_time, end_time, notify_clients: false }),
       });
       if (!res.ok) throw new Error(apiErrorMessage(res, await res.json().catch(() => ({})), 'Could not block this time. Please try again.'));
       await loadTimeBlocks();
@@ -773,7 +786,26 @@ export default function CalendarView({ initialView } = {}) {
       setSavingBlock(false);
     }
   }
+  async function updateTimeBlock(values) {
+    if (hidden || savingBlock || !editingBlock) return;
+    setSavingBlock(true);
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const res = await apiFetch(`${API_BASE}/api/hours-exceptions/${editingBlock.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(values),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(apiErrorMessage(res, data, 'Could not save this block. Please try again.'));
+      if (!data.exception?.id) throw new Error('The updated block could not be confirmed. Please try again.');
+      setTimeBlocks(prev => prev.map(block => block.id === data.exception.id ? data.exception : block));
+      setEditingBlock(null);
+      setSelectedBlock(data.exception);
+    } finally { setSavingBlock(false); }
+  }
   async function deleteTimeBlock(blockId) {
+    if (hidden) return;
     try {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
       const res = await apiFetch(`${API_BASE}/api/hours-exceptions/${blockId}`, {
@@ -857,6 +889,7 @@ export default function CalendarView({ initialView } = {}) {
   const weekDays = getWeekDays();
   const visibleLive = (view === 'day' ? getAppointmentsForDate(currentDate) : appointments).filter(a => !DEAD_STATUSES.includes(a.status));
   const visibleValue = visibleLive.reduce((sum, a) => sum + (a.price_cents ?? a.treatments?.price_cents ?? 0), 0);
+  const dayBlocks = timeBlocks.filter(block => block.date <= formatDate(currentDate) && (block.end_date && block.end_date >= block.date ? block.end_date : block.date) >= formatDate(currentDate));
   return (
     <div className="calendar-page" style={styles.page}>
       <div style={styles.header}>
@@ -983,6 +1016,25 @@ export default function CalendarView({ initialView } = {}) {
           <span><Money pence={visibleValue} round /> on diary</span>
         </>}
       </div>
+      {view === 'day' && dayBlocks.length > 0 && (
+        <section aria-label="Blocked time" style={{ margin: '0 0 14px' }}>
+          <h3 style={{ margin: '0 0 8px', fontSize: 12, fontWeight: 700, color: COLORS.stone400 }}>Blocked time</h3>
+          <div style={{ display: 'grid', gap: 6 }}>
+            {dayBlocks.map(block => (
+              <button key={block.id} className="calendar-time-block" onClick={() => setSelectedBlock(block)}
+                aria-label={`${hidden ? 'Blocked time' : block.reason || 'Blocked time'}, ${blockTimeLabel(block)}`}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 48, width: '100%', padding: '10px 12px', border: `1px solid ${COLORS.outlineVariant}`, borderRadius: 12, background: 'var(--bg-card)', color: COLORS.onSurface, textAlign: 'left', fontFamily: 'inherit', cursor: 'pointer' }}>
+                <Icon name={iconName('event_busy')} size={18} style={{ flexShrink: 0, color: COLORS.primary }} />
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: 'block', fontSize: 13, fontWeight: 700, textTransform: 'capitalize' }}><PrivateText placeholder="Blocked time">{block.reason || 'Blocked time'}</PrivateText></span>
+                  <span style={{ display: 'block', fontSize: 12, color: COLORS.stone400 }}>{blockTimeLabel(block)}{block.note && ' · Note saved'}</span>
+                </span>
+                <span style={{ fontSize: 12, color: COLORS.primary, fontWeight: 600 }}>View <Icon name="chevron-right" size={14} inline /></span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
       {/* Day View with Timeline Grid */}
       {view === 'day' && (
         <div
@@ -991,7 +1043,7 @@ export default function CalendarView({ initialView } = {}) {
           // pan-y leaves the vertical scroll to the browser and hands us the
           // sideways movement, which is what makes a horizontal swipe here
           // possible at all without fighting the diary's own scrolling.
-          style={{ ...styles.dayGrid, touchAction: 'pan-y pinch-zoom' }}
+          style={{ ...styles.dayGrid, touchAction: 'pan-y pinch-zoom', scrollMarginTop: 'calc(var(--shell-top) + 68px)', scrollMarginBottom: 'var(--shell-bottom-nav)' }}
           onPointerDown={e => {
             gridSwipeGuard.current = false;
             gridSwipe.current = { x: e.clientX, y: e.clientY };
@@ -1059,7 +1111,7 @@ export default function CalendarView({ initialView } = {}) {
             ))}
             {/* Now-line indicator */}
             {isToday(currentDate) && getNowPosition() >= 0 && getNowPosition() <= (END_HOUR - START_HOUR) * HOUR_HEIGHT && (
-              <div style={{ ...styles.nowLine, top: getNowPosition() }}>
+              <div className="calendar-now-line" style={{ ...styles.nowLine, top: getNowPosition(), pointerEvents: 'none' }}>
                 <div style={styles.nowDot} />
               </div>
             )}
@@ -1124,9 +1176,7 @@ export default function CalendarView({ initialView } = {}) {
               </div>
             )}
             {/* Time block overlays */}
-            {timeBlocks
-              .filter(b => b.date <= formatDate(currentDate) && (b.end_date && b.end_date >= b.date ? b.end_date : b.date) >= formatDate(currentDate))
-              .map(block => {
+            {dayBlocks.map(block => {
                 let top = 0, height = (END_HOUR - START_HOUR) * HOUR_HEIGHT;
                 const isClosed = block.type ? block.type === 'closed' : !!block.is_closed;
                 if (!isClosed) {
@@ -1139,41 +1189,26 @@ export default function CalendarView({ initialView } = {}) {
                     height = ((eh * 60 + em - (sh * 60 + sm)) / 60) * HOUR_HEIGHT;
                   }
                 }
-                const label = isClosed ? 'CLOSED ALL DAY'
-                  : `🚫 ${hidden ? 'BLOCKED' : (block.reason || block.note || 'BLOCKED').toUpperCase()}`;
-                // The block used to be one big full-width button at zIndex 3, so it
-                // sat ON TOP of any appointment inside it and ate the taps: you
-                // could not open a booking that fell in a blocked hour. It is now
-                // a see-through backdrop (no pointer events, behind the cards) and
-                // only the little label chip is tappable.
+                // Existing appointments stay above this shaded interval. A separate
+                // 48px row above the grid keeps block details reachable even when
+                // bookings fill the whole interval; no label covers a client name.
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={block.id}
+                    className="calendar-block-shade"
+                    aria-label={`View blocked interval, ${blockTimeLabel(block)}`}
+                    onClick={() => setSelectedBlock(block)}
                     style={{ position: 'absolute', left: 0, right: 0,
                       top: Math.max(0, top),
-                      height: Math.max(height, 36),
+                      height: Math.max(height, 44), minHeight: 44,
                       background: 'repeating-linear-gradient(45deg, rgba(146,64,94,0.07) 0px, rgba(146,64,94,0.07) 5px, rgba(146,64,94,0.02) 5px, rgba(146,64,94,0.02) 10px)',
                       borderLeft: '3px solid rgba(146,64,94,0.5)',
                       borderRadius: 'var(--radius-xs)',
-                      zIndex: 1,
-                      pointerEvents: 'none',
+                      zIndex: 1, borderTop: 0, borderRight: 0, borderBottom: 0, padding: 0, cursor: 'pointer',
                     }}
                   >
-                    <button className="fl-tap"
-                      onClick={() => setSelectedBlock(block)}
-                      style={{ pointerEvents: 'auto',
-                        position: 'absolute', top: 4, left: 8,
-                        background: 'rgba(255,255,255,0.9)',
-                        border: 'none', borderRadius: 'var(--radius-xs)',
-                        padding: '3px 7px',
-                        fontSize: 11, fontWeight: 700, color: COLORS.primary,
-                        letterSpacing: '0.04em', cursor: 'pointer',
-                        fontFamily: 'inherit',
-                      }}
-                    >
-                      {label}
-                    </button>
-                  </div>
+                  </button>
                 );
               })
             }
@@ -1403,11 +1438,17 @@ export default function CalendarView({ initialView } = {}) {
           saving={savingBlock}
         />
       )}
-      {/* Existing block detail (tap to remove) */}
+      {editingBlock && (
+        <BlockTimeModal key={editingBlock.id} block={editingBlock} defaultDate={editingBlock.date}
+          onSave={updateTimeBlock} saving={savingBlock}
+          onClose={() => { if (!savingBlock) { setSelectedBlock(editingBlock); setEditingBlock(null); } }} />
+      )}
+      {/* Existing block details, edits and removal */}
       {selectedBlock && (
         <BlockDetailSheet
           block={selectedBlock}
           onDelete={() => deleteTimeBlock(selectedBlock.id)}
+          onEdit={() => { setEditingBlock(selectedBlock); setSelectedBlock(null); }}
           onClose={() => setSelectedBlock(null)}
         />
       )}
@@ -3261,18 +3302,25 @@ const BLOCK_REASONS = [
   { key: 'training', label: 'Training' },
   { key: 'other', label: 'Other' },
 ];
-function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
+function blockTimeLabel(block) {
+  if (block.type ? block.type === 'closed' : block.is_closed) return 'All day';
+  const start = String(block.start_time || block.custom_start || '').slice(0, 5);
+  const end = String(block.end_time || block.custom_end || '').slice(0, 5);
+  return start && end ? `${start}–${end}` : 'All day';
+}
+function BlockTimeModal({ defaultDate, block = null, onSave, onClose, saving }) {
   const { hidden } = useClientPrivacy();
   const now = new Date();
   const roundedMinute = Math.min(23 * 60 + 45, Math.ceil((now.getHours() * 60 + now.getMinutes()) / 15) * 15);
   const nowTime = minToHHMM(roundedMinute);
   const plusOneHour = minToHHMM(Math.min(23 * 60 + 59, roundedMinute + 60));
   const [date, setDate] = useState(defaultDate);
-  const [type, setType] = useState('amended'); // 'closed' = all day, 'amended' = time range
-  const [startTime, setStartTime] = useState(nowTime);
-  const [endTime, setEndTime] = useState(plusOneHour);
-  const [reason, setReason] = useState('personal');
-  const [note, setNote] = useState('');
+  const [endDate, setEndDate] = useState(block?.end_date || '');
+  const [type, setType] = useState(block?.type || (block?.is_closed ? 'closed' : 'amended'));
+  const [startTime, setStartTime] = useState(String(block?.start_time || block?.custom_start || nowTime).slice(0, 5));
+  const [endTime, setEndTime] = useState(String(block?.end_time || block?.custom_end || plusOneHour).slice(0, 5));
+  const [reason, setReason] = useState(block?.reason || 'personal');
+  const [note, setNote] = useState(block?.note || '');
   const [error, setError] = useState(null);
   const PRESETS = [
     {
@@ -3311,7 +3359,8 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
     },
   ];
   async function handleSave() {
-    if (saving) return;
+    if (hidden || saving) return;
+    if (endDate && endDate < date) { setError('The end date must be on or after the start date.'); return; }
     if (!date || (type !== 'closed' && (!startTime || !endTime || endTime <= startTime))) {
       setError('Choose a date and an end time after the start time.');
       return;
@@ -3319,11 +3368,12 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
     setError(null);
     try { await onSave({
       date,
+      end_date: endDate || null,
       type,
       reason,
-      note: note.trim() || undefined,
-      start_time: type === 'closed' ? undefined : startTime,
-      end_time: type === 'closed' ? undefined : endTime,
+      note: note.trim() || null,
+      start_time: type === 'closed' ? null : startTime,
+      end_time: type === 'closed' ? null : endTime,
     }); } catch (err) { setError(err.message || 'Could not block this time. Please try again.'); }
   }
   const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', alignItems: 'flex-end' };
@@ -3337,11 +3387,11 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
     </div>, document.body
   );
   return createPortal(
-    <div style={overlay} onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={sheet}>
+    <div style={overlay} onClick={e => e.target === e.currentTarget && !saving && onClose()}>
+      <div style={sheet} role="dialog" aria-modal="true" aria-label={block ? 'Edit blocked time' : 'Block time'} onKeyDown={e => { if (e.key === 'Escape' && !saving) { e.stopPropagation(); onClose(); } }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: COLORS.onSurface }}>Block time</h3>
-          <button onClick={onClose} disabled={saving} aria-label="Close block time" style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: COLORS.stone400 }}>×</button>
+          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: COLORS.onSurface }}>{block ? 'Edit blocked time' : 'Block time'}</h3>
+          <button onClick={onClose} disabled={saving} autoFocus aria-label={block ? 'Close edit blocked time' : 'Close block time'} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: COLORS.stone400 }}>×</button>
         </div>
         {/* Quick presets */}
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
@@ -3359,14 +3409,19 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
         <label style={{ fontSize: 12, fontWeight: 600, color: COLORS.stone400, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Date</label>
         <input
           type="date"
+          aria-label="Date"
           value={date}
           onChange={e => setDate(e.target.value)}
           style={{ minHeight: 44, display: 'block', width: '100%', marginTop: 4, marginBottom: 14, padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
         />
+        <label style={{ fontSize: 12, fontWeight: 600, color: COLORS.stone400, textTransform: 'uppercase', letterSpacing: '0.05em' }}>End date (optional)</label>
+        <input type="date" aria-label="End date (optional)" min={date} value={endDate} onChange={e => setEndDate(e.target.value)}
+          style={{ minHeight: 44, display: 'block', width: '100%', marginTop: 4, marginBottom: 14, padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
         {/* All day toggle */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
           <span style={{ fontSize: 14, fontWeight: 500, color: COLORS.onSurface }}>All day</span>
           <button className="fl-tap"
+            role="switch" aria-label="All day" aria-checked={type === 'closed'}
             onClick={() => setType(type === 'closed' ? 'amended' : 'closed')}
             style={{ width: 44, height: 24, borderRadius: 10, border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', padding: 0, background: type === 'closed' ? COLORS.primary : COLORS.outlineVariant }}
           >
@@ -3380,6 +3435,7 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
               <label style={{ fontSize: 12, fontWeight: 600, color: COLORS.stone400, textTransform: 'uppercase', letterSpacing: '0.05em' }}>From</label>
               <input
                 type="time"
+                aria-label="From"
                 value={startTime}
                 onChange={e => setStartTime(e.target.value)}
                 style={{ minHeight: 44, display: 'block', width: '100%', marginTop: 4, padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
@@ -3390,6 +3446,7 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
               <label style={{ fontSize: 12, fontWeight: 600, color: COLORS.stone400, textTransform: 'uppercase', letterSpacing: '0.05em' }}>To</label>
               <input
                 type="time"
+                aria-label="To"
                 value={endTime}
                 onChange={e => setEndTime(e.target.value)}
                 style={{ minHeight: 44, display: 'block', width: '100%', marginTop: 4, padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
@@ -3403,6 +3460,7 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
           {BLOCK_REASONS.map(r => (
             <button className="fl-tap"
               key={r.key}
+              aria-pressed={reason === r.key}
               onClick={() => setReason(r.key)}
               style={{ padding: '7px 12px', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
                 background: reason === r.key ? COLORS.primary : `${COLORS.outlineVariant}33`,
@@ -3415,19 +3473,22 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
         </div>
         {/* Note */}
         <label style={{ fontSize: 12, fontWeight: 600, color: COLORS.stone400, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Note (optional)</label>
-        <input
-          type="text"
+        <textarea
+          aria-label="Note (optional)"
+          rows={3}
+          maxLength={2000}
           value={note}
           onChange={e => setNote(e.target.value)}
           placeholder="e.g. School pickup, dentist..."
           style={{ minHeight: 44, display: 'block', width: '100%', marginTop: 4, marginBottom: 20, padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
         />
+        {block && <p style={{ fontSize: 12, color: COLORS.stone400 }}>Existing appointments stay in the diary. Editing this block does not move or cancel them.</p>}
         <button
           onClick={handleSave}
           disabled={saving}
           style={{ width: '100%', padding: '14px 0', borderRadius: 10, border: 'none', background: saving ? COLORS.stone400 : COLORS.primary, color: '#fff', fontSize: 15, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}
         >
-          {saving ? 'Saving…' : 'Block this time'}
+          {saving ? 'Saving…' : block ? 'Save changes' : 'Block this time'}
         </button>
         {error && <p role="alert">{error}</p>}
       </div>
@@ -3435,7 +3496,7 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
   , document.body);
 }
 // BlockDetailSheet - shows an existing block + remove option
-function BlockDetailSheet({ block, onDelete, onClose }) {
+function BlockDetailSheet({ block, onDelete, onEdit, onClose }) {
   const { hidden } = useClientPrivacy();
   const [confirming, setConfirming] = useState(false);
   const [removing, setRemoving] = useState(false);
@@ -3448,18 +3509,15 @@ function BlockDetailSheet({ block, onDelete, onClose }) {
     catch (err) { setError(err.message || 'Could not remove this block. Please try again.'); }
     finally { setRemoving(false); }
   }
-  const isClosed = block.type ? block.type === 'closed' : !!block.is_closed;
-  const timeRange = isClosed
-    ? 'All day'
-    : `${block.start_time || block.custom_start || '?'} → ${block.end_time || block.custom_end || '?'}`;
+  const timeRange = blockTimeLabel(block);
   const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', alignItems: 'flex-end' };
-  const sheet = { background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', padding: '20px 20px 40px', width: '100%', maxWidth: 480, margin: '0 auto', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif" };
+  const sheet = { background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', padding: '20px 20px 40px', width: '100%', maxWidth: 480, maxHeight: '90dvh', overflowY: 'auto', margin: '0 auto', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif" };
   return createPortal(
     <div style={overlay} onClick={e => e.target === e.currentTarget && !removing && onClose()}>
-      <div style={sheet}>
+      <div style={sheet} role="dialog" aria-modal="true" aria-label="Time block" onKeyDown={e => { if (e.key === 'Escape' && !removing) { e.stopPropagation(); onClose(); } }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: COLORS.onSurface }}>Time block</h3>
-          <button onClick={onClose} disabled={removing} aria-label="Close time block" style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: COLORS.stone400 }}>×</button>
+          <button onClick={onClose} disabled={removing} autoFocus aria-label="Close time block" style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: COLORS.stone400 }}>×</button>
         </div>
         <div style={{ background: `${COLORS.outlineVariant}22`, borderRadius: 10, padding: 14, marginBottom: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -3477,11 +3535,12 @@ function BlockDetailSheet({ block, onDelete, onClose }) {
           {block.note && (
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 12, color: COLORS.stone400 }}>Note</span>
-              <span style={{ fontSize: 13, fontWeight: 500, textAlign: 'right', maxWidth: '65%' }}><PrivateText placeholder="Hidden">{block.note}</PrivateText></span>
+              <span style={{ fontSize: 13, fontWeight: 500, textAlign: 'right', maxWidth: '65%', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}><PrivateText placeholder="Hidden">{block.note}</PrivateText></span>
             </div>
           )}
         </div>
         {error && <p role="alert"><PrivateText placeholder="Could not update blocked time.">{error}</PrivateText></p>}
+        {!confirming && <Button variant="secondary" disabled={hidden || removing} onClick={onEdit} style={{ width: '100%', marginBottom: 10 }}>Edit blocked time</Button>}
         {confirming ? (
           <div>
             <p style={{ fontSize: 14, color: COLORS.onSurface, marginBottom: 12, textAlign: 'center' }}>Remove this block?</p>

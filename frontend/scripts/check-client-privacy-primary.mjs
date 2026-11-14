@@ -141,7 +141,7 @@ try {
   pass('Full calendar masks hover labels and restores the original client');
 
   await setHidden(true);await open('/calendar/week?date=2026-08-08&view=day&blocked-time=1');
-  await page.getByRole('button',{name:'🚫 BLOCKED',exact:true}).click();await noPII('Private blocked time');
+  await page.getByRole('button',{name:'Blocked time, 13:00–14:00',exact:true}).click();await noPII('Private blocked time');
   assert.equal(await page.getByRole('button',{name:'Remove this block',exact:true}).isDisabled(),true);
   const closeBlock=page.getByRole('button',{name:'Close time block',exact:true});assert.equal(await closeBlock.isEnabled(),true);await closeBlock.click();
   await closeBlock.waitFor({state:'hidden'});await setHidden(false);

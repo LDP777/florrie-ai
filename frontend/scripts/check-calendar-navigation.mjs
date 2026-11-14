@@ -212,7 +212,7 @@ try {
   assert.equal(await note.inputValue(), 'Fictional test break');
   await page.evaluate(() => { calendarFixture.failSave = false; });
   await page.getByRole('button', { name: 'Block this time', exact: true }).click();
-  await page.getByRole('button', { name: /LUNCH/, exact: false }).click();
+  await page.getByRole('button', { name: /^lunch, /i, exact: false }).click();
   await page.getByRole('button', { name: 'Remove this block', exact: true }).click();
   await page.getByRole('button', { name: 'Remove', exact: true }).click();
   await page.getByRole('alert').filter({ hasText: 'Synthetic block removal failure' }).waitFor();
