@@ -24,8 +24,9 @@ function wallNow(timezone, now) {
 function eligible(appt, owner, client, now = Date.now()) {
   if (!appt || appt.beautician_id !== owner || appt.client_id !== client || appt.status !== 'completed'
     || appt.clients?.id !== client || appt.clients?.beautician_id !== owner) return false;
-  const end = Date.parse(appt.ends_at || appt.starts_at);
-  const age = wallNow(appt.beauticians?.timezone, now) - end;
+  // The owner may finish a treatment before its estimated end time. Her
+  // completed status confirms attendance; the start still rules out future visits.
+  const age = wallNow(appt.beauticians?.timezone, now) - Date.parse(appt.starts_at);
   return Number.isFinite(age) && age >= 0 && age <= 72 * HOUR;
 }
 async function appointment(owner, id) {
@@ -85,7 +86,8 @@ export async function processReviewRequests() {
     // Permanent claim: a crash during provider delivery must not cause a resend.
     const claim = await supabase.from('ai_actions').update({status:'processing', details:{...action.details,delivery_state:'processing',claimed_at:iso(Date.now())}})
       .eq('id',action.id).eq('beautician_id',action.beautician_id).eq('status','scheduled').select('id').maybeSingle();
-    if (claim.error || !claim.data) continue;
+    if (claim.error) throw claim.error;
+    if (!claim.data) continue;
     let attempted = false;
     try {
       if (!Number.isFinite(Date.parse(action.details?.expires_at)) || Date.parse(action.details.expires_at) <= Date.now()) {
