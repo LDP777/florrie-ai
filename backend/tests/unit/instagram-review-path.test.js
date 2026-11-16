@@ -425,6 +425,15 @@ describe('connect: every id the login reports is kept, not one guess', () => {
     return get(`/api/instagram/callback?code=abc123&state=${encodeURIComponent(state)}`);
   }
 
+  it('returns web setup to the signed connections destination only', async () => {
+    for (const [returnTo, expected] of [['connections', '/connections?from=instagram&ig=success'], ['https://other.test', '/settings?section=ai&ig=success']]) {
+      applyProposedColumns(); stubHappyOAuth(); db.beauticians = [{ id: 'b-ellie', first_name: 'Ellie' }];
+      const state = signOAuthState({ beauticianId: 'b-ellie', returnTo });
+      const res = await get(`/api/instagram/callback?code=abc123&state=${encodeURIComponent(state)}`);
+      expect(res.location).toBe(`https://florrie.test${expected}`);
+    }
+  });
+
   it('stores the id, the token and the real @handle', async () => {
     applyProposedColumns();
     stubHappyOAuth();
@@ -586,6 +595,12 @@ describe('status: the card tells the truth about the token and the handle', () =
     expect(res.body.connected).toBe(true);       // an id is on file
     expect(res.body.token_valid).toBe(false);
     expect(res.body.needs_reconnect).toBe(true); // and this is what the card reads
+  });
+
+  it.each([429, 500, 503])('keeps provider failure %i unknown instead of asking for a reconnect', async status => {
+    seedConnected(); graph['graph.instagram.com/v21.0/me'] = () => fail(status, { message: 'Temporary provider error' });
+    const res = await get('/api/instagram/status');
+    expect(res.body).toMatchObject({ connected: true, token_valid: null, needs_reconnect: false });
   });
 
   it('repairs a page name of "Instagram" from the live handle', async () => {

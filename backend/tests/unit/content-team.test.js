@@ -64,7 +64,7 @@ function memoryDb() {
   return state;
 }
 function response(stage, input) {
-  const source_refs = [`treatment:${TREATMENT}`];
+  const source_refs = [`treatment:${TREATMENT}`, ...(input?.sources || []).filter(source => source.type === 'campaign').map(source => source.id)];
   if (stage === 'strategy') return { summary: 'Explain the visit using the saved treatment details.', posts: ['feed', 'story', 'reel'].map((format, i) => ({ title: `A useful idea ${i + 1}`, angle: 'Explain the included consultation.', format, source_note: 'Your saved treatment description', source_refs })) };
   if (stage === 'writing') return { posts: input.strategy.posts.map(post => ({ id: post.id, caption: 'Your consultation is included. Ask us your questions before booking.', format: post.format })), hooks: ['A little about your brow visit'] };
   return { title: 'What your visit includes', hook: 'A little about your consultation', shots: [{ shot: 'Film your empty treatment chair.', spoken: 'A consultation is included.', on_screen: 'Your consultation' }, { shot: 'Film yourself inviting questions.', spoken: 'Ask us about your visit.', on_screen: 'Ask your questions' }], caption: 'Find out more about your visit.', needs: ['Your own salon footage'], source_refs };
@@ -387,5 +387,62 @@ describe('Content Team input and output boundary', () => {
     const plan = validateTeamOutput('reels', reels, context);
     expect(plan.caption).toBe(reels.caption); expect(plan.needs).toContain(reels.needs[0]);
     expect(plan.shots[0].shot).toBe(reels.shots[0].shot);
+  });
+});
+
+describe('campaigns grounded in current salon opportunities', () => {
+  const opportunity = { type: 'booking', source_id: 'current-diary' };
+  const diary = () => ({ prepared: [], unavailable: [], opportunities: [{ ...opportunity, treatment_id: TREATMENT, treatment: 'Signature brows', title: 'Invite clients to book', reason: 'Your diary has room for Signature brows.' }] });
+  it('resolves a diary campaign on the server and supplies it to every specialist', async () => {
+    board.mockImplementation(async () => diary());
+    await service.enqueue(OWNER, body({ opportunity })); await service.process();
+    expect(db.rows[TABLE][0].status).toBe('ready');
+    expect(model).toHaveBeenCalledTimes(3);
+    for (const [, input] of model.mock.calls) {
+      expect(input.sources.find(source => source.type === 'campaign')).toMatchObject({ id: 'campaign:booking:current-diary', treatment: 'Signature brows' });
+      expect(input.sources.find(source => source.type === 'campaign').purpose).toContain('no slot is reserved');
+    }
+    expect(board.mock.calls.every(([owner]) => owner.id === OWNER)).toBe(true);
+  });
+  it('refuses a disappeared diary opportunity before queuing work', async () => {
+    await expect(service.enqueue(OWNER, body({ opportunity }))).rejects.toMatchObject({ code: 'source_changed' });
+    expect(db.rows[TABLE]).toHaveLength(0); expect(model).not.toHaveBeenCalled();
+  });
+  it('does not save generated output after diary space disappears', async () => {
+    board.mockImplementation(async () => diary());
+    await service.enqueue(OWNER, body({ opportunity }));
+    model.mockImplementation(async (stage, input) => { board.mockResolvedValue({ opportunities: [], unavailable: [] }); return response(stage, input); });
+    await service.process();
+    expect(db.rows[TABLE][0]).toMatchObject({ status: 'failed', failure_code: 'source_changed' });
+    expect(db.rows[TABLE][0].stages[0].output).toBeNull(); expect(model).toHaveBeenCalledTimes(1);
+  });
+  it('does not use an unchecked diary or a treatment from another salon', async () => {
+    board.mockResolvedValue({ ...diary(), unavailable: ['diary'] });
+    await expect(service.enqueue(OWNER, body({ opportunity }))).rejects.toMatchObject({ code: 'source_unavailable' });
+    board.mockResolvedValue({ ...diary(), opportunities: [{ ...diary().opportunities[0], treatment_id: SECOND }] });
+    await expect(service.enqueue(OWNER, body({ opportunity, treatment_id: null }))).rejects.toMatchObject({ code: 'source_changed' });
+    expect(db.rows[TABLE]).toHaveLength(0);
+  });
+  it('includes a selected approved knowledge entry even when outside the default eight sources', async () => {
+    const id = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+    for (let i = 0; i < 9; i++) db.rows.knowledge_entries.push({ id: `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`, beautician_id: OWNER, is_active: true, category: 'faq', title: 'Earlier', content: 'Earlier guidance' });
+    db.rows.knowledge_entries.push({ id, beautician_id: OWNER, is_active: true, category: 'faq', title: 'The selected answer', content: 'Specific approved guidance.' });
+    board.mockResolvedValue({ opportunities: [{ type: 'knowledge', source_id: id, title: 'The selected answer', reason: 'Saved salon guidance.' }], unavailable: [] });
+    await service.enqueue(OWNER, body({ opportunity: { type: 'knowledge', source_id: id } })); await service.process();
+    expect(model.mock.calls[0][1].sources).toContainEqual(expect.objectContaining({ id: `knowledge:${id}`, text: 'Specific approved guidance.' }));
+  });
+  it('keeps generic ideas that ignore the selected campaign out of saved results', async () => {
+    board.mockImplementation(async () => diary());
+    model.mockImplementation((stage, input) => response(stage, { ...input, sources: input.sources.filter(source => source.type !== 'campaign') }));
+    await service.enqueue(OWNER, body({ opportunity })); await service.process();
+    expect(db.rows[TABLE][0]).toMatchObject({ status: 'failed', failure_code: 'invalid_output' });
+    expect(db.rows[TABLE][0].stages[0].output).toBeNull();
+  });
+  it('rejects an altered source on retry and client-supplied evidence', async () => {
+    board.mockImplementation(async () => diary());
+    await service.enqueue(OWNER, body({ opportunity }));
+    await expect(service.enqueue(OWNER, body({ opportunity: { type: 'gallery', source_id: REQUEST } }))).rejects.toMatchObject({ code: 'request_conflict' });
+    expect(() => contentTeamRequest(body({ opportunity: { ...opportunity, reason: 'Invented availability' } }))).toThrow();
+    expect(() => contentTeamRequest(body({ opportunity: { type: 'reviews', source_id: REQUEST } }))).toThrow();
   });
 });

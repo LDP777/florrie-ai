@@ -1,6 +1,6 @@
 // Open native OAuth through Capacitor's system browser. window.open after an
 // awaited session/API call can lose the user gesture and be blocked on iOS.
-export async function startInstagramConnection({ api, getToken, native, fetchImpl = fetch,
+export async function startInstagramConnection({ api, getToken, native, returnTo, fetchImpl = fetch,
   openNative = async url => { const { Browser } = await import('@capacitor/browser'); await Browser.open({ url }); },
   navigateWeb = url => { window.location.href = url; }, beforeOpen = async () => {}, timeoutMs = 15000,
 }) {
@@ -15,12 +15,12 @@ export async function startInstagramConnection({ api, getToken, native, fetchImp
   try {
     const token = await Promise.race([getToken(), deadline]);
     if (!token) throw new Error('Please sign in again to connect Instagram.');
-    const response = await Promise.race([fetchImpl(`${api}/api/instagram/connect${native ? '?platform=native' : ''}`, {
+    const response = await Promise.race([fetchImpl(`${api}/api/instagram/connect${native ? '?platform=native' : returnTo === 'connections' ? '?return_to=connections' : ''}`, {
       headers: { Authorization: `Bearer ${token}` }, signal: controller.signal,
     }), deadline]);
     const data = await Promise.race([response.json(), deadline]);
     if (!response.ok) throw new Error(response.status === 503
-      ? 'Instagram connection is unavailable right now. You can keep using Florrie and try again from Settings.'
+      ? 'Instagram connection is unavailable right now. You can keep using Florrie and try again from connections.'
       : data.error || 'Could not start the Instagram connection. Try again.');
     let url;
     try { url = new URL(data.url); } catch { throw new Error('Instagram returned an invalid connection link.'); }

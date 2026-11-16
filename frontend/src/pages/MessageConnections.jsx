@@ -9,6 +9,7 @@ import Button from '../components/ui/Button.jsx';
 import Icon from '../components/ui/Icon';
 import styles from './message-connections-style.js';
 import SalonEmailCard from '../components/SalonEmailCard.jsx';
+import SocialConnections from '../components/SocialConnections.jsx';
 
 export default function MessageConnections() {
   const { beautician } = useBeautician();
@@ -56,13 +57,10 @@ export default function MessageConnections() {
   const enabled = data?.providers?.some(p => p.available);
   return <main className="message-connections"><style>{styles}</style>
     <Link to="/more?group=business" className="mc-back">All tools</Link>
-    <PageHeader title="Your messages, together" eyebrow="Message connections" subtitle="Your salon email, with Florrie." />
-    <p className="mc-intro">Keep client enquiries beside your diary. Use your Florrie email, then add the other channels your clients use.</p>
-    <SalonEmailCard />
-    <section className="mc-card">
-      <div className="mc-heading"><span className="mc-icon"><Icon name="chat" size={23} /></span><div><h2>WhatsApp</h2><p>{beautician?.whatsapp_connected ? 'Your connection is saved. Check its status and reply settings.' : 'Let clients reach your salon on WhatsApp.'}</p></div></div>
-      <Link className="mc-action" to="/whatsapp">{beautician?.whatsapp_connected ? 'Manage WhatsApp' : 'Set up WhatsApp'} <span aria-hidden="true">→</span></Link>
-    </section>
+    <PageHeader title="Your messages, together" eyebrow="Message connections" subtitle="Connect once. Keep enquiries close." />
+    <p className="mc-intro">Bring the channels your clients use into Florrie, beside your diary and client history. Start with Instagram or WhatsApp.</p>
+    <SocialConnections owner={beautician}/>
+    <details className="mc-card mc-existing"><summary>Your Florrie email <span>For booking messages and client replies</span></summary><SalonEmailCard /></details>
     <details className="mc-card mc-existing" open={present || !!notice || !!error || params.get('email') === 'incomplete' || undefined}>
       <summary id="email-heading">Use your existing business email <span>Optional · Gmail, Outlook or Hotmail</span></summary>
       <p className="mc-detail">Already share another address with clients? Connect it here to receive those enquiries too.</p>

@@ -181,6 +181,7 @@ router.get('/connect', requireAuth, (req, res) => {
   const state = signOAuthState({
     beauticianId: String(req.beautician.id),
     ...(native ? { platform: 'native' } : {}),
+    ...(req.query.return_to === 'connections' ? { returnTo: 'connections' } : {}),
   });
 
   const url =
@@ -379,7 +380,10 @@ router.get('/callback', async (req, res) => {
   // rather than a dead end. It never decides whose row gets written.
   const isNative = peekOAuthStateClaims(rawState).platform === 'native'
     || /\|native$/.test(String(rawState || ''));
-  const redirectBase = `${FRONTEND_URL}/settings?section=ai`;
+  // Only a fixed internal destination is allowed, never a caller-supplied URL.
+  const claims = inspectOAuthState(rawState);
+  const redirectBase = claims.ok && claims.payload.returnTo === 'connections'
+    ? `${FRONTEND_URL}/connections?from=instagram` : `${FRONTEND_URL}/settings?section=ai`;
 
   // One place decides how this request ends, so no branch below can forget.
   const finish = (ok, detail) => (isNative
@@ -649,10 +653,10 @@ router.get('/status', requireAuth, async (req, res) => {
         // the same request either way, and it is the one thing a Meta reviewer
         // reads off this card to decide whether a real account is attached.
         const r = await fetch('https://graph.instagram.com/v21.0/me?fields=user_id,username', {
-          headers: { Authorization: `Bearer ${data.instagram_page_token}` },
+          headers: { Authorization: `Bearer ${data.instagram_page_token}` }, signal: AbortSignal.timeout(5000),
         });
         const body = await r.json().catch(() => ({}));
-        tokenValid = r.ok;
+        tokenValid = r.ok ? true : [401, 403].includes(r.status) || body?.error?.code === 190 ? false : null;
         if (!r.ok) tokenError = body?.error?.message || `HTTP ${r.status}`;
         else liveHandle = normaliseHandle(body?.username);
       } catch (err) {
@@ -692,7 +696,7 @@ router.get('/status', requireAuth, async (req, res) => {
     if (tokenValid) {
       try {
         const s = await fetch('https://graph.instagram.com/v21.0/me/subscribed_apps', {
-          headers: { Authorization: `Bearer ${data.instagram_page_token}` },
+          headers: { Authorization: `Bearer ${data.instagram_page_token}` }, signal: AbortSignal.timeout(5000),
         });
         const sBody = await s.json().catch(() => ({}));
         if (s.ok) {

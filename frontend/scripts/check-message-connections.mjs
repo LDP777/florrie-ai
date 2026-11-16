@@ -55,4 +55,33 @@ try {
     assert.equal(await page.getByText('Something went wrong', { exact: true }).count(), 0);
     console.log('PASS message connections: ' + mode); await context.close();
   }
+  for (const mode of ['verified', 'reconnect', 'partial', 'failed', 'malformed', 'unconnected']) {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    await context.route('**/*', route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
+    await context.addInitScript(fetchStubSource()); await context.addInitScript(sessionSeedSource(bundleSupabaseUrl(dist)));
+    await context.addInitScript(mode => {
+      const base = window.fetch; window.__socialWrites = [];
+      window.fetch = async (input, options = {}) => {
+        const url = String(input);
+        if (options.method && options.method !== 'GET') window.__socialWrites.push(url);
+        if (url.includes('/api/instagram/status')) return Response.json(mode === 'malformed' ? {} : { connected: mode !== 'unconnected', token_valid: mode === 'reconnect' ? false : true, needs_reconnect: mode === 'reconnect', webhook_subscribed: mode === 'partial' ? null : true, page_name: 'fictional_salon' }, { status: mode === 'failed' ? 503 : 200 });
+        if (url.includes('/api/whatsapp/status')) return Response.json({ connected: true });
+        if (url.includes('/api/whatsapp/embedded/availability')) return Response.json({ available: true, business_app_available: false });
+        if (url.includes('/api/email/status')) return Response.json({ error: 'Email unavailable' }, { status: 503 });
+        return base(input, options);
+      };
+    }, mode);
+    const page = await context.newPage(); await page.goto(`${origin}/connections`);
+    const ig = page.getByRole('region', { name: 'Instagram connection', exact: true });
+    const wa = page.getByRole('region', { name: 'WhatsApp connection', exact: true });
+    const label = { verified: 'Access verified', reconnect: 'Reconnect needed', partial: 'Check connection', failed: 'Couldn’t check', malformed: 'Couldn’t check', unconnected: 'Not connected' }[mode];
+    await ig.getByText(label, { exact: true }).waitFor(); await wa.getByText('Connection saved', { exact: true }).waitFor();
+    if (mode === 'verified') await ig.getByRole('link', { name: 'Open Inbox', exact: false }).waitFor();
+    else assert.equal(await ig.getByRole('button', { name: /Instagram$/ }).isEnabled(), !['failed', 'malformed'].includes(mode));
+    if (mode === 'unconnected') await ig.getByText('Access for new salons is awaiting Meta’s approval.', { exact: false }).waitFor();
+    assert.deepEqual(await page.evaluate(() => window.__socialWrites), [], 'Connection checks never change reply settings or send');
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    if (mode === 'verified' && process.env.CONNECTIONS_SCREENSHOT) await page.screenshot({ path: process.env.CONNECTIONS_SCREENSHOT, fullPage: true });
+    console.log('PASS social connections: ' + mode); await context.close();
+  }
 } finally { await browser.close(); server.close(); }

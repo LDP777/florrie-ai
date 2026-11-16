@@ -25,7 +25,7 @@ const plain = value => typeof value === 'string' ? value : '';
 const collection = value => Array.isArray(value) ? value : [];
 const sourceList = item => [...new Set(collection(item?.source_refs).map(source => {
   const type = (typeof source === 'string' ? source : source?.id || '').split(':')[0];
-  return ({ brief: 'Your brief', treatment: 'Treatment menu', knowledge: 'Saved salon knowledge', photo: 'Saved photo notes' })[type];
+  return ({ brief: 'Your brief', treatment: 'Treatment menu', knowledge: 'Saved salon knowledge', photo: 'Saved photo notes', campaign: 'Campaign opportunity' })[type];
 }).filter(Boolean))];
 
 function checkedRun(run) {
@@ -71,6 +71,7 @@ function ContentTeamForOwner({ owner, board, loading: sourcesLoading, busy: prep
   const [pending, setPending] = useState(initialPending.current), [briefOpen, setBriefOpen] = useState(!!initialPending.current);
   const [goal, setGoal] = useState(initialPending.current?.goal || 'show_work');
   const [focus, setFocus] = useState(initialPending.current?.focus || '');
+  const [opportunity, setOpportunity] = useState(initialPending.current?.opportunity || null);
   const [selected, setSelected] = useState('strategy');
   const [history, setHistory] = useState([]), [moreHistory, setMoreHistory] = useState(false), [nextOffset, setNextOffset] = useState(20);
   const [historyBusy, setHistoryBusy] = useState(false), [latest, setLatest] = useState(null), [viewId, setViewId] = useState('');
@@ -83,6 +84,9 @@ function ContentTeamForOwner({ owner, board, loading: sourcesLoading, busy: prep
   const selectedStage = run?.stages.find(stage => stage.id === selected);
   const selectedAgent = SPECIALISTS.find(agent => agent.id === selected);
   const savedPosts = collection(board?.prepared);
+  const suggestions = collection(board?.opportunities).filter(item => ['booking', 'gallery', 'knowledge', 'treatment'].includes(item.type) && typeof item.source_id === 'string')
+    .sort((a, b) => Number(b.type === 'booking') - Number(a.type === 'booking')).slice(0, 3);
+  const chosenSuggestion = suggestions.find(item => item.type === opportunity?.type && item.source_id === opportunity?.source_id);
   const completeSources = board && !collection(board.unavailable).includes('posts');
   const readyPosts = completeSources ? savedPosts.filter(item => !item.needs?.length).length : null;
   const campaignResults = board?.results?.available && Array.isArray(board.results.campaigns)
@@ -190,7 +194,15 @@ function ContentTeamForOwner({ owner, board, loading: sourcesLoading, busy: prep
 
   function openBrief() {
     if (hidden) return;
+    if (!pending) setOpportunity(null);
     setBriefOpen(true);
+    requestAnimationFrame(() => formRef.current?.scrollIntoView({ block: 'nearest', behavior: 'auto' }));
+  }
+  function planCampaign(source) {
+    if (hidden || pending || submitting || teamBusy || blocked.current) return;
+    setOpportunity({ type: source.type, source_id: source.source_id });
+    setGoal(source.type === 'booking' ? 'bookings' : source.type === 'gallery' ? 'show_work' : 'explain');
+    setFocus(source.title || ''); setBriefOpen(true);
     requestAnimationFrame(() => formRef.current?.scrollIntoView({ block: 'nearest', behavior: 'auto' }));
   }
   async function submit(event) {
@@ -199,7 +211,7 @@ function ContentTeamForOwner({ owner, board, loading: sourcesLoading, busy: prep
     lock.current = true; epoch.current++; setSubmitting(true); setError('');
     const sequence = epoch.current;
     // An uncertain response must reuse both the original request ID and brief.
-    const payload = pending || { request_id: crypto.randomUUID(), goal, focus: focus.trim(), treatment_id: null };
+    const payload = pending || { request_id: crypto.randomUUID(), goal, focus: focus.trim(), treatment_id: null, ...(opportunity ? { opportunity } : {}) };
     setPending(payload); pendingSave(owner.id, payload);
     try {
       const response = await request('/runs', { method: 'POST', body: payload });
@@ -247,8 +259,8 @@ function ContentTeamForOwner({ owner, board, loading: sourcesLoading, busy: prep
       <div className="fl-team-hero-copy">
         <span className="fl-team-eyebrow"><Icon name="flower" size={19}/> YOUR CREATIVE TEAM</span>
         <h2>More you.<br/><em>Less to do.</em></h2>
-        <p>A plan with purpose. Words that sound like you. A little direction for your next Reel.</p>
-        <div className="fl-team-hero-actions"><Button onClick={openBrief} disabled={hidden || teamBusy || submitting || checking || available !== true}><Icon name="plus" size={17}/>Brief my team</Button><button type="button" className="fl-team-text-button" onClick={() => workRef.current?.scrollIntoView({ block: 'start', behavior: 'auto' })}>See prepared posts<Icon name="arrow-down" size={15}/></button></div>
+        <p>Turn a quiet space in your diary, a treatment photo or useful advice into a campaign your clients can act on.</p>
+        <div className="fl-team-hero-actions"><Button onClick={() => suggestions[0] ? planCampaign(suggestions[0]) : openBrief()} disabled={hidden || teamBusy || submitting || checking || available !== true || !!pending}><Icon name={suggestions[0] ? "flower" : "plus"} size={17}/>{suggestions[0] ? "Plan my next campaign" : "Brief my team"}</Button>{suggestions[0] && <button type="button" className="fl-team-text-button" onClick={openBrief} disabled={hidden || teamBusy || submitting || checking || !!pending}>Write my own brief</button>}<button type="button" className="fl-team-text-button" onClick={() => workRef.current?.scrollIntoView({ block: 'start', behavior: 'auto' })}>See prepared posts<Icon name="arrow-down" size={15}/></button></div>
         <span className="fl-team-hero-note">One shared brief. You have the final say.</span>
       </div>
       <div className="fl-team-still-life" aria-hidden="true">
@@ -261,17 +273,32 @@ function ContentTeamForOwner({ owner, board, loading: sourcesLoading, busy: prep
 
     <div className="fl-team-context">
       <span><Icon name="link" size={15}/> Built around your salon</span>
-      <details><summary>What the team uses<Icon name="chevron-down" size={14}/></summary><p>Your active treatment menu and approved salon knowledge give the team its facts. Saved writing preferences guide the wording. Private conversations, clinical records and unapproved review quotes stay out of these briefs.</p><Link to="/knowledge">Update salon knowledge<Icon name="arrow-right" size={14}/></Link></details>
+      <details><summary>What the team uses<Icon name="chevron-down" size={14}/></summary><p>Your active treatment menu and approved salon knowledge give the team its facts. When you choose a campaign suggestion, the team also checks its diary opportunity or saved source before and during preparation. Saved writing preferences guide the wording. Private conversations, clinical records and unapproved review quotes stay out of these briefs.</p><Link to="/knowledge">Update salon knowledge<Icon name="arrow-right" size={14}/></Link></details>
     </div>
 
     {error && <div className="fl-team-notice" role="alert"><p><PrivateText>{error}</PrivateText></p><Button variant="quiet" disabled={checking || submitting} onClick={() => refresh()}>Check progress</Button></div>}
     {available === false && <div className="fl-team-notice"><Icon name="clock" size={18}/><div><strong>The new team is not available yet</strong><p><PrivateText>{reason || 'Your saved posts and photo preparation are still available below.'}</PrivateText></p></div><Button variant="quiet" disabled={checking} onClick={() => refresh()}>Check again</Button></div>}
 
+    <section className="fl-team-campaigns" aria-label="Campaign suggestions">
+      <div className="fl-team-section-heading"><div><span className="fl-team-eyebrow">A USEFUL PLACE TO START</span><h3>What could help your salon now?</h3></div><Button variant="quiet" onClick={onRefresh} disabled={sourcesLoading || preparing}>Refresh ideas</Button></div>
+      <PrivateSection placeholder="Campaign suggestions hidden">
+        {sourcesLoading ? <p role="status" className="fl-team-note">Checking your diary and saved content…</p> : suggestions.length ? <div className="fl-team-campaign-grid">{suggestions.map((source, index) => <article key={`${source.type}:${source.source_id}`} className={`fl-team-campaign ${index === 0 ? 'is-lead' : ''}`}>
+          <span className="fl-team-eyebrow"><Icon name={source.type === 'booking' ? 'calendar' : source.type === 'gallery' ? 'camera' : 'book-open'} size={17}/>{source.type === 'booking' ? 'FROM YOUR DIARY' : source.type === 'gallery' ? 'FROM YOUR PHOTOS' : 'FROM YOUR SALON KNOWLEDGE'}</span>
+          <h4>{source.type === 'booking' ? `Invite clients for ${source.treatment || 'a treatment'}` : source.title}</h4>
+          <p>{source.reason}</p>
+          <span className="fl-team-campaign-delivery">A connected plan · Captions · A Reel filming brief</span>
+          <Button variant={index === 0 ? 'primary' : 'secondary'} onClick={() => planCampaign(source)} disabled={hidden || teamBusy || submitting || checking || available !== true || !!pending}>Plan this campaign<Icon name="arrow-right" size={16}/></Button>
+        </article>)}</div> : <div className="fl-team-notice"><div><strong>{collection(board?.unavailable).length || prepareError ? 'Some sources could not be checked' : 'Give Florrie something real to work with'}</strong><p>{collection(board?.unavailable).length || prepareError ? 'Refresh ideas to try again. You can still write your own brief using verified salon facts.' : 'Add a treatment photo or save a useful answer in Knowledge. Your next campaign can start there.'}</p><Link to="/knowledge">Open salon knowledge</Link></div></div>}
+        <p className="fl-team-note">Nothing is posted automatically. After publishing, share each post’s tracked booking link to see the confirmed bookings it brings in.</p>
+      </PrivateSection>
+    </section>
+
     {briefOpen && <PrivateSection placeholder="Content brief hidden"><form ref={formRef} className="fl-team-brief" onSubmit={submit} aria-label="Content brief">
-      <div className="fl-team-section-heading"><div><span className="fl-team-eyebrow">START WITH A PURPOSE</span><h3>Give us a little direction.</h3></div><Button variant="quiet" type="button" disabled={submitting || !!pending} onClick={() => setBriefOpen(false)}>Close brief</Button></div>
+      <div className="fl-team-section-heading"><div><span className="fl-team-eyebrow">START WITH A PURPOSE</span><h3>{opportunity ? 'Your campaign, ready to brief.' : 'Give us a little direction.'}</h3></div><Button variant="quiet" type="button" disabled={submitting || !!pending} onClick={() => setBriefOpen(false)}>Close brief</Button></div>
+      {opportunity && <div className="fl-team-campaign-source"><Icon name="link" size={17}/><p>{chosenSuggestion?.reason || 'The team will recheck this saved campaign source before it starts.'}</p><Button variant="quiet" type="button" disabled={submitting || !!pending} onClick={() => setOpportunity(null)}>Use my own brief</Button></div>}
       <div className="fl-team-goals" role="group" aria-label="Content goal">{GOALS.map(([id,label,icon]) => <button type="button" key={id} aria-pressed={id === goal} disabled={submitting || !!pending || teamBusy} onClick={() => setGoal(id)}><Icon name={icon} size={19}/>{label}{goal === id && <Icon name="check" size={15}/>}</button>)}</div>
       <label className="fl-team-focus">What would you like to focus on?<textarea value={focus} maxLength={600} rows={3} disabled={submitting || !!pending || teamBusy} onChange={event => setFocus(event.target.value)} placeholder="A treatment you love, a question clients ask, or something you want to share…"/><span>Optional. The team checks this against your saved salon facts.</span></label>
-      <div className="fl-team-brief-actions"><Button type="submit" disabled={submitting || historyBusy || teamBusy || available !== true || checking}>{submitting ? 'Saving your brief…' : pending ? 'Retry this same brief' : 'Start content brief'}<Icon name="arrow-right" size={17}/></Button><small>{pending ? 'The previous response was interrupted. Check progress, or retry the same brief without making a duplicate.' : 'A saved plan, captions and a filming brief. Publication stays in your hands.'}</small></div>
+      <div className="fl-team-brief-actions"><Button type="submit" disabled={submitting || historyBusy || teamBusy || available !== true || checking}>{submitting ? 'Saving your brief…' : pending ? 'Retry this same brief' : opportunity ? 'Prepare my campaign' : 'Start content brief'}<Icon name="arrow-right" size={17}/></Button><small>{pending ? 'The previous response was interrupted. Check progress, or retry the same brief without making a duplicate.' : 'A saved plan, captions and a filming brief. Publication stays in your hands.'}</small></div>
     </form></PrivateSection>}
 
     <div className="fl-team-section-heading fl-team-specialist-heading"><div><span className="fl-team-eyebrow">A LITTLE EXPERTISE, WORKING TOGETHER</span><h3>Your team.</h3></div><span className="fl-team-saved-status">{checking && !run ? 'Checking saved work…' : active ? 'Working on your brief' : run?.status === 'ready' ? 'Your brief is ready' : 'Three specialists. One direction.'}</span></div>

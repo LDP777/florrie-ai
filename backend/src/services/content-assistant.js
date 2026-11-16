@@ -111,7 +111,7 @@ async function readAssistant(owner, options = {}) {
   });
   if (fittingTreatment && safeText(owner.booking_slug)) {
     const treatment = safeText(fittingTreatment.name, 150);
-    add({ type: 'booking', source_id: 'current-diary', title: 'Invite clients to book', reason: `Your diary has room for ${treatment || 'a treatment'}. Invite clients to check your booking page for the current times.`, needs: ['photo'], treatment }, `Treatment: ${treatment}. Booking page: https://florrie.ai/book/${encodeURIComponent(owner.booking_slug)}`);
+    add({ type: 'booking', source_id: 'current-diary', treatment_id: fittingTreatment.id, title: 'Invite clients to book', reason: `Your diary has room for ${treatment || 'a treatment'}. Invite clients to check your booking page for the current times.`, needs: ['photo'], treatment }, `Treatment: ${treatment}. Booking page: https://florrie.ai/book/${encodeURIComponent(owner.booking_slug)}`);
   }
 
   // A source already prepared this week does not become a new opportunity.

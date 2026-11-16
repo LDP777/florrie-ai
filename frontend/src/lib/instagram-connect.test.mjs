@@ -64,3 +64,13 @@ test('missing sessions, provider errors and untrusted destinations never open a 
     assert.equal(calls.length, 0);
   }
 });
+test('connections uses the fixed return destination while native keeps its system-browser ending', async () => {
+  for (const native of [false, true]) {
+    const { calls, options } = fixture({ returnTo: 'connections', native });
+    await startInstagramConnection(options);
+    assert.ok(calls[0].address.endsWith(native ? '?platform=native' : '?return_to=connections'));
+  }
+  const { calls, options } = fixture({ returnTo: 'https://untrusted.test/' });
+  await startInstagramConnection(options);
+  assert.ok(calls[0].address.endsWith('/api/instagram/connect'));
+});

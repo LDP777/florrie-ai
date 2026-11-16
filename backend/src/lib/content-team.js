@@ -70,9 +70,17 @@ export function contentTeamPagination(query = {}) {
 export const publicTeamSummary = row => ({ id: row.id, request_id: row.request_id, brief: row.brief, status: row.status, created_at: row.created_at, updated_at: row.updated_at });
 
 export function contentTeamRequest(body) {
-  if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some(key => !['request_id', 'goal', 'focus', 'treatment_id'].includes(key))) throw teamError('Choose a content goal and a short brief.', 400, 'invalid_request');
+  if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some(key => !['request_id', 'goal', 'focus', 'treatment_id', 'opportunity'].includes(key))) throw teamError('Choose a content goal and a short brief.', 400, 'invalid_request');
   if (!isTeamUuid(body.request_id) || !TEAM_GOALS.includes(body.goal) || typeof body.focus !== 'string' || body.focus.length > 600 || (body.treatment_id != null && !isTeamUuid(body.treatment_id))) throw teamError('Choose a valid goal, treatment and a brief of up to 600 characters.', 400, 'invalid_request');
-  return { request_id: body.request_id.toLowerCase(), brief: { goal: body.goal, focus: body.focus.trim(), treatment_id: body.treatment_id?.toLowerCase() || null } };
+  const selected = body.opportunity;
+  if (selected != null && (typeof selected !== 'object' || Array.isArray(selected)
+    || Object.keys(selected).some(key => !['type', 'source_id'].includes(key))
+    || !['booking', 'gallery', 'knowledge', 'treatment'].includes(selected.type)
+    || (selected.type === 'booking' ? selected.source_id !== 'current-diary' : !isTeamUuid(selected.source_id)))) {
+    throw teamError('Choose a current campaign suggestion from your salon.', 400, 'invalid_request');
+  }
+  return { request_id: body.request_id.toLowerCase(), brief: { goal: body.goal, focus: body.focus.trim(), treatment_id: body.treatment_id?.toLowerCase() || null,
+    ...(selected ? { opportunity: { type: selected.type, source_id: selected.source_id.toLowerCase() } } : {}) } };
 }
 export const emptyTeamStages = () => TEAM_STAGES.map(id => ({ id, status: 'waiting', output: null, attempts: 0 }));
 const text = (value, max, label) => {

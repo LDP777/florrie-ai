@@ -143,6 +143,18 @@ async function fits(page) {
 }
 
 try {
+  {
+    const {page,close}=await fixture({setup:()=>{fixture.board={prepared:[],unavailable:[],opportunities:[{type:'booking',source_id:'current-diary',treatment:'Signature brows',title:'Invite clients to book',reason:'Your diary has room for Signature brows.'}]};}});
+    await page.getByRole('button',{name:'Plan this campaign',exact:true}).click();
+    await page.getByRole('heading',{name:'Your campaign, ready to brief.'}).waitFor();
+    assert.equal(await page.getByRole('button',{name:'Fill my diary',exact:true}).getAttribute('aria-pressed'),'true');
+    await screenshot(page,'content-campaign-brief'); await fits(page);
+    await page.getByRole('button',{name:'Prepare my campaign',exact:true}).click();
+    await page.getByText('Your brief is saved and waiting for the team.',{exact:false}).waitFor();
+    const sent=await writes(page);assert.equal(sent.length,1);assert.deepEqual(sent[0].body.opportunity,{type:'booking',source_id:'current-diary'});
+    assert.equal(sent[0].body.goal,'bookings');assert.equal(sent[0].body.treatment_id,null);
+    await close();console.log('PASS diary suggestion creates an explicit, source-bound campaign without publishing');
+  }
   for(const width of [390,1024]) {
     const {page,close}=await fixture({width});
     await page.getByRole('button',{name:'Brief my team',exact:true}).waitFor();
