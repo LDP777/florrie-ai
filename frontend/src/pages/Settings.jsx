@@ -1,3 +1,4 @@
+import ReplySettingsSummary from '../components/ReplySettingsSummary.jsx';
 import { PrivateText, PrivateSection } from '../contexts/ClientPrivacyContext.jsx';
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -1449,6 +1450,7 @@ export default function Settings({ onLogout }) {
       {/* === AI SETTINGS === */}
       {section === 'ai' && (
         <div>
+          <ReplySettingsSummary owner={{ ...beautician, autonomy: pendingAutonomy ?? beautician.autonomy }} />
 
           {/* Florrie's autopilot: one control for what proactive messages Florrie
               sends and how. Each is Auto (sends for you), Ask first (waits in the
@@ -1534,6 +1536,7 @@ export default function Settings({ onLogout }) {
                           {MODES.map(opt => (
                             <button className="fl-tap"
                               key={opt.value}
+                              aria-label={`${item.label}: ${opt.label}`} aria-pressed={current === opt.value} disabled={saving}
                               onClick={() => setMode(item.key, opt.value)}
                               style={{ padding: '4px 9px', borderRadius: 'var(--radius-xs)', border: 'none', fontSize: 11, fontWeight: 600,
                                 cursor: 'pointer', fontFamily: 'inherit',
@@ -1620,7 +1623,7 @@ export default function Settings({ onLogout }) {
             );
           })()}
           <div style={styles.card}>
-            <h3 style={styles.cardTitle}>New enquiries</h3>
+            <h3 style={styles.cardTitle}>WhatsApp & SMS enquiries</h3>
             <p style={styles.cardDesc}>
               Let Florrie answer new enquiries when she has enough information.
               Booking-change requests can still receive service replies with this off, through
@@ -1631,6 +1634,7 @@ export default function Settings({ onLogout }) {
             <div style={styles.toggleRow}>
               <span style={styles.toggleLabel}>Reply to new enquiries</span>
               <button
+                aria-label="Reply to new enquiries" aria-pressed={!!beautician.auto_reply_enabled}
                 onClick={() => saveProfile({ auto_reply_enabled: !beautician.auto_reply_enabled })}
                 style={{ ...styles.toggle, background: beautician.auto_reply_enabled ? 'var(--accent)' : 'var(--border)' }}
               >
@@ -1652,21 +1656,22 @@ export default function Settings({ onLogout }) {
           </div>
 
           <div style={styles.card}>
-            <h3 style={styles.cardTitle}>How much Florrie handles</h3>
+            <h3 style={styles.cardTitle}>Default for proactive messages</h3>
             <p style={styles.cardDesc}>
-              Let Florrie act on her own for clients you know, or check with you first. New clients are always double-checked either way.
+              Choose the default for messages Florrie starts, such as rebooking nudges and gap offers. Individual Auto, Ask first or Off choices above take priority. This does not change incoming replies or booking confirmations.
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
               {[
-                { key: 'auto', label: 'Handle my regulars', hint: 'Florrie sends reminders, rebooks and gap offers to clients you know, then tells you. New clients still come to you.' },
-                { key: 'ask', label: 'Check with me first', hint: 'Florrie drafts everything and waits for your yes or no. Nothing goes out without you.' },
-                { key: 'off', label: 'Pause proactive messages', hint: 'Florrie stops reaching out for now. She still replies when a client messages first.' },
+                { key: 'auto', label: 'Send automatically', hint: 'Eligible proactive messages can send after Florrie’s consent and safety checks.' },
+                { key: 'ask', label: 'Check with me first', hint: 'Proactive messages using this default wait in Drafts & approvals for your decision.' },
+                { key: 'off', label: 'Turn the default off', hint: 'Stops proactive message types that use this default. Types with their own setting keep it.' },
               ].map(opt => {
-                const active = (beautician.autonomy?.proactive || 'ask') === opt.key;
+                const active = ((pendingAutonomy ?? beautician.autonomy)?.proactive || 'ask') === opt.key;
                 return (
                   <button
                     key={opt.key}
-                    onClick={() => saveProfile({ autonomy: { ...(beautician.autonomy || {}), proactive: opt.key } })}
+                    aria-pressed={active} disabled={saving}
+                    onClick={() => { const next = { ...(pendingAutonomy ?? beautician.autonomy ?? {}), proactive: opt.key }; setPendingAutonomy(next); saveProfile({ autonomy: next }).finally(() => setPendingAutonomy(null)); }}
                     style={{ textAlign: 'left', padding: '12px 14px', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit',
                       border: active ? '1.5px solid var(--accent)' : '1.5px solid var(--border)',
                       background: active ? 'rgba(146,64,94,0.06)' : 'var(--bg-card)',

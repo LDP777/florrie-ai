@@ -15,8 +15,8 @@ export const updateRow=async(table,id,changes)=>{if(window.fixture.failProfile)t
 const entry = `
 import React from 'react';import {createRoot} from 'react-dom/client';import {BrowserRouter,useLocation} from 'react-router-dom';
 import Onboarding from './src/pages/Onboarding.jsx';import Login from './src/pages/Login.jsx';import UpdatePassword from './src/pages/UpdatePassword.jsx';import {supabase} from './src/lib/supabase.js';
-import Settings from './src/pages/Settings.jsx';import Pricing from './src/pages/Pricing.jsx';
-function Harness(){const l=useLocation();return l.pathname==='/settings'?<Settings/>:l.pathname==='/pricing'?<Pricing/>:l.pathname==='/signup'?<Login supabase={supabase} initialMode="signup"/>:l.pathname==='/login'?<Login supabase={supabase}/>:l.pathname==='/update-password'?<UpdatePassword supabase={supabase}/>:<Onboarding onComplete={()=>{}}/>;}
+import More from './src/pages/More.jsx';import Settings from './src/pages/Settings.jsx';import Pricing from './src/pages/Pricing.jsx';
+function Harness(){const l=useLocation();return l.pathname==='/more'?<More/>:l.pathname==='/settings'?<Settings/>:l.pathname==='/pricing'?<Pricing/>:l.pathname==='/signup'?<Login supabase={supabase} initialMode="signup"/>:l.pathname==='/login'?<Login supabase={supabase}/>:l.pathname==='/update-password'?<UpdatePassword supabase={supabase}/>:<Onboarding onComplete={()=>{}}/>;}
 createRoot(document.getElementById('root')).render(<BrowserRouter><Harness/></BrowserRouter>);
 `;
 const bundle = await build({stdin:{contents:entry,resolveDir:root,loader:'jsx'},bundle:true,write:false,format:'iife',platform:'browser',jsx:'automatic',define:{'import.meta.env':JSON.stringify({VITE_API_URL:'http://fixture.invalid',VITE_SUPABASE_URL:'http://fixture.invalid',VITE_SUPABASE_ANON_KEY:'fixture'})},plugins:[{name:'fixture-stores',setup(b){
@@ -189,6 +189,43 @@ try {
  await page.getByRole('heading',{name:'Your notifications',exact:true}).waitFor();
  assert.equal(await page.getByRole('heading',{name:"Florrie's autopilot",exact:true}).count(),0);
  console.log('PASS: settings search, same-page navigation, reload and Back preserve sections; failed edits keep input and retry once');
+ // Read-only summary and changing the default preserve each saved override.
+ await page.evaluate(()=>sessionStorage.setItem('setup-profile',JSON.stringify({
+  id:'salon-fixture',first_name:'Alex',auto_reply_enabled:false,instagram_dm_mode:'ai',
+  autonomy:{proactive:'ask',grounded_replies:true,gap_fill:'off',review_request:'auto',promos_in_offers:true},
+ })));
+ await page.goto(`${origin}/settings?section=ai`);
+ const summary=page.getByRole('region',{name:'Your reply settings, at a glance'});
+ await summary.getByText('Automatic replies off',{exact:true}).waitFor();
+ await summary.getByText('AI replies enabled',{exact:true}).waitFor();
+ assert.match(await summary.innerText(),/2 message types have their own setting/);
+ assert.equal(await page.evaluate(()=>window.fixture.writes.length),0);
+ const defaults=page.getByRole('heading',{name:'Default for proactive messages',exact:true}).locator('..');
+ await defaults.getByRole('button',{name:/Turn the default off/}).click();
+ await defaults.getByRole('button',{name:/Turn the default off/,pressed:true}).waitFor();
+ assert.deepEqual(await page.evaluate(()=>window.fixture.writes),[{table:'beauticians',changes:{autonomy:{proactive:'off',grounded_replies:true,gap_fill:'off',review_request:'auto',promos_in_offers:true}}}]);
+ await page.reload();
+ await page.getByRole('region',{name:'Your reply settings, at a glance'}).getByText('Off',{exact:true}).waitFor();
+ assert.equal(await page.evaluate(()=>window.fixture.profile.instagram_dm_mode),'ai');
+ assert.equal(await page.evaluate(()=>window.fixture.profile.auto_reply_enabled),false);
+ console.log('PASS: reply summary is read-only; proactive default preserves channel and per-message choices');
+ await page.goto(`${origin}/more`);
+ await page.getByRole('heading',{name:'More',exact:true}).waitFor();
+ assert.equal(await page.getByRole('button',{name:/Team & locations/}).count(),0);
+ await page.getByRole('button',{name:'Working with a team? Show team tools',exact:true}).click();
+ await page.getByRole('button',{name:/Team & locations/}).click();
+ await page.getByRole('link',{name:/Team members/}).waitFor();
+ assert.equal(await page.getByRole('link',{name:/Team performance/}).count(),0);
+ await page.getByRole('button',{name:'Hide team tools',exact:true}).click();
+ await page.getByRole('searchbox',{name:'Search More tools'}).fill('staff');
+ await page.getByRole('link',{name:/Team members/}).waitFor();
+ await page.getByRole('searchbox',{name:'Search More tools'}).fill('whatsapp');
+ await page.getByRole('link',{name:/Message connections/}).waitFor();
+ assert.equal(await page.getByRole('link',{name:/WhatsApp.*Business messaging/}).count(),0);
+ assert.equal(await page.evaluate(()=>window.fixture.writes.length),0);
+ await page.goto(`${origin}/more?group=team`);
+ await page.getByRole('link',{name:/Team members/}).waitFor();
+ console.log('PASS: More keeps team tools optional and searchable; WhatsApp discovery leads to Connections');
  for (const [callback,section,title] of [
   ['ig=success&ig_detail=fixture-detail','connections','Connected apps'],
   ['gcal=error','calendar','Calendar sync'],

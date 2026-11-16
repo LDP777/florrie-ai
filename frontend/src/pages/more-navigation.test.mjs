@@ -19,16 +19,16 @@ const existingDestinations = [
   '/promos', '/cancellations', '/content', '/campaigns', '/rebook', '/team', '/rota',
   '/staff-performance', '/locations', '/insights',
 ];
-const expectedDestinations = [...existingDestinations, '/connections'];
+const expectedDestinations = [...existingDestinations.filter(path => !['/whatsapp', '/whatsapp/templates', '/staff-performance'].includes(path)), '/connections'];
 
-test('More retains existing destinations and adds the guided message connection route', () => {
+test('More consolidates connections and retains the routes for existing users', () => {
   const cataloguePaths = paths(getVisibleCategories());
   assert.equal(cataloguePaths.length, expectedDestinations.length);
   assert.equal(new Set(cataloguePaths).size, expectedDestinations.length, 'A duplicate must not hide a missing destination');
   assert.deepEqual([...cataloguePaths].sort(), [...expectedDestinations].sort());
   const app = readFileSync(new URL('../App.jsx', import.meta.url), 'utf8');
   const routes = new Set([...app.matchAll(/<Route\s+path="([^"]+)"/g)].map(match => match[1]));
-  for (const path of expectedDestinations) assert.ok(routes.has(path), `More destination has no route: ${path}`);
+  for (const path of [...existingDestinations, ...expectedDestinations]) assert.ok(routes.has(path), `More destination has no route: ${path}`);
 });
 
 test('clients can find renamed care tools using the old name or the task they need', () => {

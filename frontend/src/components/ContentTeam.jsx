@@ -78,7 +78,7 @@ function ContentTeamForOwner({ owner, board, loading: sourcesLoading, busy: prep
   const [sessionBlocked, setSessionBlocked] = useState(false), [artworkBusy, setArtworkBusy] = useState(false);
   const alive = useRef(false), epoch = useRef(0), lock = useRef(false), inRead = useRef(false);
   const authEpoch = useRef(0), blocked = useRef(false), viewed = useRef(''), viewGeneration = useRef(0), historyLock = useRef(false), artworkLock = useRef(false);
-  const formRef = useRef(null), workRef = useRef(null), outputRef = useRef(null);
+  const formRef = useRef(null), workRef = useRef(null), outputRef = useRef(null), ideasRef = useRef(null);
   const active = !!run && ACTIVE.has(run.status);
   const teamBusy = !!latest && ACTIVE.has(latest.status);
   const selectedStage = run?.stages.find(stage => stage.id === selected);
@@ -260,8 +260,11 @@ function ContentTeamForOwner({ owner, board, loading: sourcesLoading, busy: prep
         <span className="fl-team-eyebrow"><Icon name="flower" size={19}/> YOUR CREATIVE TEAM</span>
         <h2>More you.<br/><em>Less to do.</em></h2>
         <p>Turn a quiet space in your diary, a treatment photo or useful advice into a campaign your clients can act on.</p>
-        <div className="fl-team-hero-actions"><Button onClick={() => suggestions[0] ? planCampaign(suggestions[0]) : openBrief()} disabled={hidden || teamBusy || submitting || checking || available !== true || !!pending}><Icon name={suggestions[0] ? "flower" : "plus"} size={17}/>{suggestions[0] ? "Plan my next campaign" : "Brief my team"}</Button>{suggestions[0] && <button type="button" className="fl-team-text-button" onClick={openBrief} disabled={hidden || teamBusy || submitting || checking || !!pending}>Write my own brief</button>}<button type="button" className="fl-team-text-button" onClick={() => workRef.current?.scrollIntoView({ block: 'start', behavior: 'auto' })}>See prepared posts<Icon name="arrow-down" size={15}/></button></div>
-        <span className="fl-team-hero-note">One shared brief. You have the final say.</span>
+        <div className="fl-team-hero-actions">
+          {run || savedPosts.length ? <Button disabled={hidden} onClick={() => (run ? outputRef : workRef).current?.scrollIntoView({ block: 'start', behavior: 'auto' })}><Icon name={active ? 'clock' : 'arrow-right'} size={17}/>{run ? active ? 'See campaign progress' : run.status === 'failed' ? 'Continue saved campaign' : 'Review my campaign' : 'Review my saved posts'}</Button> : suggestions.length ? <Button disabled={hidden || checking || available !== true || !!pending} onClick={() => { ideasRef.current.open = true; ideasRef.current.scrollIntoView({ block: 'start', behavior: 'auto' }); }}><Icon name="flower" size={17}/>Choose my next campaign</Button> : null}
+          <Button variant={run || savedPosts.length || suggestions.length ? 'quiet' : 'primary'} onClick={openBrief} disabled={hidden || teamBusy || submitting || checking || available !== true || !!pending}><Icon name="plus" size={17}/>Brief my team</Button>
+        </div>
+        <span className="fl-team-hero-note">Choose a goal. Review the work. Schedule when you’re ready.</span>
       </div>
       <div className="fl-team-still-life" aria-hidden="true">
         <div className="fl-team-still-orbit"/>
@@ -271,6 +274,13 @@ function ContentTeamForOwner({ owner, board, loading: sourcesLoading, busy: prep
       </div>
     </div>
 
+    <nav className="fl-team-workflow" aria-label="Content workflow">
+      <button type="button" onClick={openBrief} disabled={hidden || teamBusy || submitting || checking || available !== true || !!pending}><span>01</span>Choose a goal</button>
+      <button type="button" onClick={() => (run ? outputRef : workRef).current?.scrollIntoView({ block: 'start', behavior: 'auto' })}><span>02</span>Review the work</button>
+      <button type="button" onClick={onPosts}><span>03</span>Schedule posts</button>
+      <button type="button" onClick={onResults}><span>04</span>See results</button>
+    </nav>
+
     <div className="fl-team-context">
       <span><Icon name="link" size={15}/> Built around your salon</span>
       <details><summary>What the team uses<Icon name="chevron-down" size={14}/></summary><p>Your active treatment menu and approved salon knowledge give the team its facts. When you choose a campaign suggestion, the team also checks its diary opportunity or saved source before and during preparation. Saved writing preferences guide the wording. Private conversations, clinical records and unapproved review quotes stay out of these briefs.</p><Link to="/knowledge">Update salon knowledge<Icon name="arrow-right" size={14}/></Link></details>
@@ -279,7 +289,8 @@ function ContentTeamForOwner({ owner, board, loading: sourcesLoading, busy: prep
     {error && <div className="fl-team-notice" role="alert"><p><PrivateText>{error}</PrivateText></p><Button variant="quiet" disabled={checking || submitting} onClick={() => refresh()}>Check progress</Button></div>}
     {available === false && <div className="fl-team-notice"><Icon name="clock" size={18}/><div><strong>The new team is not available yet</strong><p><PrivateText>{reason || 'Your saved posts and photo preparation are still available below.'}</PrivateText></p></div><Button variant="quiet" disabled={checking} onClick={() => refresh()}>Check again</Button></div>}
 
-    <section className="fl-team-campaigns" aria-label="Campaign suggestions">
+    <details ref={ideasRef} className="fl-team-campaigns fl-team-disclosure" aria-label="Campaign suggestions" open={!run && !savedPosts.length || undefined}>
+      <summary>Campaign ideas from your salon<Icon name="chevron-down" size={17}/></summary>
       <div className="fl-team-section-heading"><div><span className="fl-team-eyebrow">A USEFUL PLACE TO START</span><h3>What could help your salon now?</h3></div><Button variant="quiet" onClick={onRefresh} disabled={sourcesLoading || preparing}>Refresh ideas</Button></div>
       <PrivateSection placeholder="Campaign suggestions hidden">
         {sourcesLoading ? <p role="status" className="fl-team-note">Checking your diary and saved content…</p> : suggestions.length ? <div className="fl-team-campaign-grid">{suggestions.map((source, index) => <article key={`${source.type}:${source.source_id}`} className={`fl-team-campaign ${index === 0 ? 'is-lead' : ''}`}>
@@ -287,11 +298,11 @@ function ContentTeamForOwner({ owner, board, loading: sourcesLoading, busy: prep
           <h4>{source.type === 'booking' ? `Invite clients for ${source.treatment || 'a treatment'}` : source.title}</h4>
           <p>{source.reason}</p>
           <span className="fl-team-campaign-delivery">A connected plan · Captions · A Reel filming brief</span>
-          <Button variant={index === 0 ? 'primary' : 'secondary'} onClick={() => planCampaign(source)} disabled={hidden || teamBusy || submitting || checking || available !== true || !!pending}>Plan this campaign<Icon name="arrow-right" size={16}/></Button>
+          <Button variant="secondary" onClick={() => planCampaign(source)} disabled={hidden || teamBusy || submitting || checking || available !== true || !!pending}>Plan this campaign<Icon name="arrow-right" size={16}/></Button>
         </article>)}</div> : <div className="fl-team-notice"><div><strong>{collection(board?.unavailable).length || prepareError ? 'Some sources could not be checked' : 'Give Florrie something real to work with'}</strong><p>{collection(board?.unavailable).length || prepareError ? 'Refresh ideas to try again. You can still write your own brief using verified salon facts.' : 'Add a treatment photo or save a useful answer in Knowledge. Your next campaign can start there.'}</p><Link to="/knowledge">Open salon knowledge</Link></div></div>}
         <p className="fl-team-note">Nothing is posted automatically. After publishing, share each post’s tracked booking link to see the confirmed bookings it brings in.</p>
       </PrivateSection>
-    </section>
+    </details>
 
     {briefOpen && <PrivateSection placeholder="Content brief hidden"><form ref={formRef} className="fl-team-brief" onSubmit={submit} aria-label="Content brief">
       <div className="fl-team-section-heading"><div><span className="fl-team-eyebrow">START WITH A PURPOSE</span><h3>{opportunity ? 'Your campaign, ready to brief.' : 'Give us a little direction.'}</h3></div><Button variant="quiet" type="button" disabled={submitting || !!pending} onClick={() => setBriefOpen(false)}>Close brief</Button></div>
@@ -301,20 +312,12 @@ function ContentTeamForOwner({ owner, board, loading: sourcesLoading, busy: prep
       <div className="fl-team-brief-actions"><Button type="submit" disabled={submitting || historyBusy || teamBusy || available !== true || checking}>{submitting ? 'Saving your brief…' : pending ? 'Retry this same brief' : opportunity ? 'Prepare my campaign' : 'Start content brief'}<Icon name="arrow-right" size={17}/></Button><small>{pending ? 'The previous response was interrupted. Check progress, or retry the same brief without making a duplicate.' : 'A saved plan, captions and a filming brief. Publication stays in your hands.'}</small></div>
     </form></PrivateSection>}
 
-    <div className="fl-team-section-heading fl-team-specialist-heading"><div><span className="fl-team-eyebrow">A LITTLE EXPERTISE, WORKING TOGETHER</span><h3>Your team.</h3></div><span className="fl-team-saved-status">{checking && !run ? 'Checking saved work…' : active ? 'Working on your brief' : run?.status === 'ready' ? 'Your brief is ready' : 'Three specialists. One direction.'}</span></div>
-    <div className="fl-team-specialists">{SPECIALISTS.map((agent,index) => {
-      const step = run?.stages.find(item => item.id === agent.id);
-      return <button type="button" key={agent.id} className={`fl-team-specialist ${selected === agent.id && run ? 'is-selected' : ''}`} onClick={() => openOutput(agent.id)} aria-label={`Open ${agent.short}`}>
-        <span className="fl-team-specialist-top"><span className={`fl-team-agent-mark fl-team-agent-mark-${agent.id}`}><Icon name={agent.icon} size={22}/></span><span className="fl-team-agent-number">0{index+1}</span></span>
-        <span className="fl-team-agent-title">{agent.title}</span><strong>{agent.role}</strong><span className="fl-team-agent-description">{agent.detail}</span>
-        <span className={`fl-team-agent-status is-${step?.status || 'idle'}`}><i aria-hidden="true"/>{stageLabel(step,agent,available)}<Icon name="arrow-up-right" size={16}/></span>
-      </button>;
-    })}</div>
 
+    {run && <p className="fl-team-saved-status" role="status">{active ? 'Working on your brief' : run.status === 'ready' ? 'Your brief is ready' : 'Your saved campaign needs attention'}</p>}
     {history.length > 0 && <div className="fl-team-history"><label>Saved briefs<select aria-label="Saved briefs" value={viewId} disabled={historyBusy || submitting} onChange={event => chooseRun(event.target.value)}><option value="">Current brief</option>{history.map(item => <option key={item.id} value={item.id}>{new Date(item.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} · {hidden ? 'Content brief' : item.brief?.focus || GOALS.find(([id]) => id === item.brief?.goal)?.[1] || 'Content brief'}</option>)}</select></label>{moreHistory && <Button variant="quiet" disabled={historyBusy || submitting} onClick={loadOlder}>Load older briefs</Button>}{historyBusy && <span role="status">Opening saved work…</span>}</div>}
     {viewId && teamBusy && run?.id !== latest?.id && <p className="fl-team-note">Your current brief is still running. You can read this earlier work while it finishes.</p>}
     {artworkBusy && <p className="fl-team-note" role="status">Preparing your draft for review…</p>}
-    <div ref={outputRef} className="fl-team-output">
+    <div ref={outputRef} hidden={!run} className="fl-team-output">
       {run ? <>
         <div className="fl-team-output-heading"><div><span className="fl-team-eyebrow">{run.status === 'ready' ? 'THE TEAM’S WORK' : 'YOUR SAVED BRIEF'}</span><h3>{GOALS.find(([id]) => id === run.brief?.goal)?.[1] || 'Your content plan'}</h3>{run.brief?.focus && <p><PrivateText placeholder="Brief hidden">{run.brief.focus}</PrivateText></p>}</div><Button variant="quiet" onClick={() => refresh()} disabled={checking || submitting}>Check progress<Icon name="refresh" size={15}/></Button></div>
         {active && <p className="fl-team-run-status" role="status"><Icon name="flower" size={19}/>{run.status === 'queued' ? 'Your brief is saved and waiting for the team.' : 'The team is working through your brief.'}<span>You can leave this page. Check back here for saved progress.</span></p>}
@@ -328,13 +331,26 @@ function ContentTeamForOwner({ owner, board, loading: sourcesLoading, busy: prep
 
     <div ref={workRef} className="fl-team-prepared">
       <div className="fl-team-section-heading"><div><span className="fl-team-eyebrow">FROM YOUR PHOTOS & SALON NOTES</span><h3>Prepared for you.</h3></div><Button variant="quiet" onClick={onPosts}>See all posts<Icon name="arrow-right" size={15}/></Button></div>
-      <div className="fl-team-prepare-line"><p>{readyPosts === null ? 'Checking your saved posts…' : readyPosts ? `${readyPosts} ${readyPosts === 1 ? 'post has' : 'posts have'} pictures and words ready for review.` : 'Turn the photos and knowledge you already have into posts you can review.'}</p>{canPrepare ? <Button variant="secondary" disabled={hidden || preparing || sourcesLoading} onClick={onPrepare}>{preparing ? 'Preparing your content…' : needsArtwork ? 'Finish my prepared posts' : 'Prepare my next posts'}</Button> : <Button variant="secondary" disabled={hidden} onClick={onPhotos}><Icon name="camera" size={17}/>Add a photo</Button>}</div>
+      <details className="fl-team-disclosure fl-team-quick-posts" open={preparing || !!prepareError || needsArtwork || undefined}><summary>Make quick posts from saved photos & notes<Icon name="chevron-down" size={17}/></summary><div className="fl-team-prepare-line"><p>{readyPosts === null ? 'Checking your saved posts…' : readyPosts ? `${readyPosts} ${readyPosts === 1 ? 'post has' : 'posts have'} pictures and words ready for review.` : 'Turn the photos and knowledge you already have into posts you can review.'}</p>{canPrepare ? <Button variant="secondary" disabled={hidden || preparing || sourcesLoading} onClick={onPrepare}>{preparing ? 'Preparing your content…' : needsArtwork ? 'Finish my prepared posts' : 'Prepare my next posts'}</Button> : <Button variant="secondary" disabled={hidden} onClick={onPhotos}><Icon name="camera" size={17}/>Add a photo</Button>}</div>
+      </details>
       {preparing && <p className="fl-team-run-status" role="status"><PrivateText>{prepareStage}</PrivateText><span>Keep this page open while the pictures are made. Saved drafts stay in Your posts.</span></p>}
       {prepareError && <div role="alert" className="fl-team-notice"><p><PrivateText>{prepareError}</PrivateText></p><Button variant="quiet" disabled={hidden || preparing || sourcesLoading} onClick={onRefresh}>Refresh prepared work</Button></div>}
       {note && <p role="status" className="fl-team-note"><PrivateText>{note}</PrivateText></p>}
       {children}
       {!savedPosts.length && !sourcesLoading && <button className="fl-team-photo-invite" type="button" disabled={hidden} onClick={onPhotos}><span className="fl-team-photo-mark"><Icon name="camera" size={24}/></span><span><strong>Your work is the starting point.</strong><small>Add a photo you have permission to share. Florrie can help with the words.</small></span><Icon name="arrow-right" size={20}/></button>}
     </div>
+
+    <details className="fl-team-disclosure fl-team-about"><summary>Meet the team behind your content<Icon name="chevron-down" size={17}/></summary>
+    <div className="fl-team-section-heading fl-team-specialist-heading"><div><span className="fl-team-eyebrow">A LITTLE EXPERTISE, WORKING TOGETHER</span><h3>Your team.</h3></div></div>
+    <div className="fl-team-specialists">{SPECIALISTS.map((agent,index) => {
+      const step = run?.stages.find(item => item.id === agent.id);
+      return <button type="button" key={agent.id} className={`fl-team-specialist ${selected === agent.id && run ? 'is-selected' : ''}`} onClick={() => openOutput(agent.id)} aria-label={`Open ${agent.short}`}>
+        <span className="fl-team-specialist-top"><span className={`fl-team-agent-mark fl-team-agent-mark-${agent.id}`}><Icon name={agent.icon} size={22}/></span><span className="fl-team-agent-number">0{index+1}</span></span>
+        <span className="fl-team-agent-title">{agent.title}</span><strong>{agent.role}</strong><span className="fl-team-agent-description">{agent.detail}</span>
+        <span className={`fl-team-agent-status is-${step?.status || 'idle'}`}><i aria-hidden="true"/>{stageLabel(step,agent,available)}<Icon name="arrow-up-right" size={16}/></span>
+      </button>;
+    })}</div>
+    </details>
 
     <div className="fl-team-connected-heading"><span className="fl-team-eyebrow">THE REST OF THE PICTURE</span><p>Good content connects to the rest of your business.</p></div>
     <div className="fl-team-connections">

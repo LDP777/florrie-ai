@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { supabase } from '../config.js';
 import { generateCaption, imageUrlProblem } from './content-autopilot.js';
-import { currentGapCalendar } from '../lib/gap-availability.js';
+import { currentGapCalendar, treatmentFitsBookingGap } from '../lib/gap-availability.js';
 
 const PENDING = ['draft', 'approved', 'failed'];
 const TYPES = ['gallery', 'knowledge', 'treatment', 'booking'];
@@ -16,7 +16,7 @@ const SELECT_POST = 'id,beautician_id,caption,hashtags,image_url,post_type,media
 const safeText = (value, limit = 3000) => typeof value === 'string' ? value.trim().slice(0, limit) : '';
 const usableImage = value => !!value && !imageUrlProblem(value);
 const dependencies = options => ({ db: supabase, caption: generateCaption, calendar: currentGapCalendar, now: () => new Date(), ...options });
-const sourceFingerprint = source => createHash('sha256').update(JSON.stringify([source.type, source.source_id, source.title, source.facts, source.image_url || null])).digest('hex');
+const sourceFingerprint = source => createHash('sha256').update(JSON.stringify([source.type, source.source_id, source.title, source.facts, source.image_url || null, ...(source.type === 'booking' ? [source.treatment_id] : [])])).digest('hex');
 
 function artworkFor(source) {
   if (source.type === 'booking') return { kind: 'booking', title: 'A little time for you', body: `${source.treatment ? `${source.treatment}. ` : ''}Check my booking page for current appointments.` };
@@ -75,7 +75,7 @@ async function readAssistant(owner, options = {}) {
     read('assistant_posts', () => bounded(db.from('content_posts').select(SELECT_POST, { count: 'exact' }).eq('beautician_id', owner.id).in('status', PENDING).or('post_type.neq.gallery,post_type.is.null').gte('id', ASSISTANT_MIN_ID).lte('id', ASSISTANT_MAX_ID).order('created_at', { ascending: false }).limit(30))),
     read('ready_posts', () => bounded(db.from('content_posts').select(SELECT_POST).eq('beautician_id', owner.id).in('status', ['draft', 'approved']).or('post_type.neq.gallery,post_type.is.null').not('image_url', 'is', null).neq('caption', '').order('created_at', { ascending: false }).limit(3))),
     read('photos', () => bounded(db.from('content_posts').select('id,image_url,after_url,treatment_name,caption').eq('beautician_id', owner.id).eq('post_type', 'gallery').order('created_at', { ascending: false }).limit(12))),
-    read('treatments', () => bounded(db.from('treatments').select('id,name,description,duration_minutes,buffer_minutes').eq('beautician_id', owner.id).eq('is_active', true).order('name').limit(40))),
+    read('treatments', () => bounded(db.from('treatments').select('id,name,description,duration_minutes,buffer_minutes,booking_enabled,price_cents').eq('beautician_id', owner.id).eq('is_active', true).order('name').limit(40))),
     // Active Knowledge entries are the owner's saved/approved guidance. Never
     // query knowledge_suggestions, inbox messages, clinical photos or reviews.
     read('knowledge', () => bounded(db.from('knowledge_entries').select('id,title,content,category').eq('beautician_id', owner.id).eq('is_active', true).in('category', ['treatment', 'prep', 'aftercare', 'faq']).order('updated_at', { ascending: false }).limit(30))),
@@ -104,14 +104,11 @@ async function readAssistant(owner, options = {}) {
   for (const row of (treatments?.data || []).filter(row => safeText(row.description)).slice(0, 3)) {
     add({ type: 'treatment', source_id: row.id, title: `Introduce ${safeText(row.name, 120)}`, reason: 'Explain this active treatment using your saved description.', needs: ['photo'], treatment: safeText(row.name, 150) }, safeText(row.description));
   }
-  const fittingTreatment = (treatments?.data || []).find(treatment => {
-    const duration = Number(treatment.duration_minutes), buffer = Number(treatment.buffer_minutes ?? 0);
-    return duration > 0 && Number.isFinite(duration) && buffer >= 0 && Number.isFinite(buffer)
-      && calendar?.data?.gaps?.some(gap => gap.duration_minutes >= Math.max(30, duration + buffer));
-  });
-  if (fittingTreatment && safeText(owner.booking_slug)) {
+  const fittingTreatment = (treatments?.data || []).find(treatment => treatmentFitsBookingGap(treatment, calendar?.data, now));
+  const bookingSlug = safeText(calendar?.data?.beautician?.booking_slug);
+  if (fittingTreatment && bookingSlug) {
     const treatment = safeText(fittingTreatment.name, 150);
-    add({ type: 'booking', source_id: 'current-diary', treatment_id: fittingTreatment.id, title: 'Invite clients to book', reason: `Your diary has room for ${treatment || 'a treatment'}. Invite clients to check your booking page for the current times.`, needs: ['photo'], treatment }, `Treatment: ${treatment}. Booking page: https://florrie.ai/book/${encodeURIComponent(owner.booking_slug)}`);
+    add({ type: 'booking', source_id: 'current-diary', treatment_id: fittingTreatment.id, title: 'Invite clients to book', reason: `Your diary has room for ${treatment || 'a treatment'}. Invite clients to check your booking page for the current times.`, needs: ['photo'], treatment }, `Treatment: ${treatment}. Booking page: https://florrie.ai/book/${encodeURIComponent(bookingSlug)}`);
   }
 
   // A source already prepared this week does not become a new opportunity.
@@ -167,7 +164,11 @@ async function prepare(owner, selected, options) {
       if (!safeText(generated?.caption) || generated.caption.length > 2200) throw new Error('Florrie did not return a usable caption. Nothing was saved.');
       // Source access can change while the model is working. Recheck the
       // actual source, not a client-supplied URL or the earlier UI snapshot.
-      if (source.type !== 'booking') {
+      if (source.type === 'booking') {
+        const fresh = await readAssistant(owner, deps);
+        const current = fresh.sources.find(candidate => candidate.type === 'booking' && candidate.treatment_id === source.treatment_id);
+        if (!current || sourceFingerprint(current) !== sourceFingerprint(source)) throw new Error('The booking opportunity changed while preparing this post. Refresh before retrying.');
+      } else {
         const table = source.type === 'gallery' ? 'content_posts' : source.type === 'knowledge' ? 'knowledge_entries' : 'treatments';
         let query = deps.db.from(table).select('*').eq('beautician_id', owner.id).eq('id', source.source_id);
         query = source.type === 'gallery' ? query.eq('post_type', 'gallery') : query.eq('is_active', true);

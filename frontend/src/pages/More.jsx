@@ -13,15 +13,18 @@ export default function More() {
   const categories = useMemo(() => getVisibleCategories(isIOSNative()), []);
   const [params] = useSearchParams();
   const [query, setQuery] = useState('');
+  const [teamChoice, setTeamChoice] = useState(null);
+  const showTeam = teamChoice ?? (params.get('group') === 'team' || plan === 'florrie_team');
   const [expanded, setExpanded] = useState(() => new Set([categories.some(group => group.id === params.get('group')) ? params.get('group') : null].filter(Boolean)));
   const [recents, setRecents] = useState(() => readRecentPages(categories));
   const searchInput = useRef(null);
   const searching = Boolean(query.trim());
-  const filtered = useMemo(() => searchCategories(categories, query), [categories, query]);
+  const browseCategories = useMemo(() => categories.filter(category => showTeam || category.id !== 'team'), [categories, showTeam]);
+  const filtered = useMemo(() => searchCategories(searching ? categories : browseCategories, query), [categories, browseCategories, query, searching]);
   const resultCount = filtered.reduce((count, category) => count + category.items.length, 0);
   const items = categories.flatMap(category => category.items);
   const featured = ['/clients', '/compliance', '/consultation-forms', '/reviews', '/knowledge', '/portal'].map(path => items.find(item => item.path === path)).filter(Boolean);
-  const allExpanded = categories.every(category => expanded.has(category.id));
+  const allExpanded = browseCategories.every(category => expanded.has(category.id));
 
   function recordVisit(item) {
     const next = [item, ...readRecentPages(categories).filter(recent => recent.path !== item.path)].slice(0, 6);
@@ -47,11 +50,12 @@ export default function More() {
       </section>
       {recents.length > 0 && <section className="more-recents" aria-labelledby="more-recents-title"><h2 id="more-recents-title" className="more-eyebrow">Recently opened</h2><div className="more-recent-list">{recents.map(item => <Link key={item.path} to={item.path} onClick={() => recordVisit(item)} className="more-recent-link"><Icon name={iconName(item.matIcon)} size={16} /><span>{item.label}</span></Link>)}</div></section>}
     </>}
-    <div className="more-browse-heading"><div><h2>{searching ? 'Search results' : 'Everything else'}</h2><p role="status" aria-live="polite">{searching ? `${resultCount} ${resultCount === 1 ? 'tool' : 'tools'} found` : 'Open a section to find what you need'}</p></div>{!searching && <button type="button" className="more-text-button" onClick={() => setExpanded(allExpanded ? new Set() : new Set(categories.map(category => category.id)))}>{allExpanded ? 'Collapse all' : 'Expand all'}</button>}</div>
+    <div className="more-browse-heading"><div><h2>{searching ? 'Search results' : 'Everything else'}</h2><p role="status" aria-live="polite">{searching ? `${resultCount} ${resultCount === 1 ? 'tool' : 'tools'} found` : 'Open a section to find what you need'}</p></div>{!searching && <button type="button" className="more-text-button" onClick={() => setExpanded(allExpanded ? new Set() : new Set(browseCategories.map(category => category.id)))}>{allExpanded ? 'Collapse all' : 'Expand all'}</button>}</div>
     {searching && resultCount === 0 ? <div className="more-empty"><Icon name={iconName('search_off')} size={30} /><h3>No tools found</h3><p>Try “consent”, “messages” or “income”.</p><button type="button" className="more-text-button" onClick={clearSearch}>Clear search</button></div> : <div className="more-category-grid">{filtered.map(category => {
       const open = searching || expanded.has(category.id);
       return <section key={category.id} className={`more-category${open ? ' is-open' : ''}`} aria-labelledby={`more-heading-${category.id}`}><h3 id={`more-heading-${category.id}`} className="more-category-heading">{searching ? <div className="more-category-summary"><CategorySummary category={category} /></div> : <button type="button" className="more-category-toggle" aria-expanded={open} aria-controls={`more-items-${category.id}`} onClick={() => toggleCategory(category.id)}><CategorySummary category={category} /><span className="more-category-count" aria-label={`${category.items.length} tools`}>{category.items.length}</span><Icon name={iconName(open ? 'expand_less' : 'expand_more')} size={21} /></button>}</h3><div id={`more-items-${category.id}`} hidden={!open} className="more-items">{category.items.map(item => <ToolLink key={item.path} item={item} plan={plan} onVisit={recordVisit} />)}</div></section>;
     })}</div>}
+    {!searching && <button type="button" className="more-text-button more-team-toggle" aria-expanded={showTeam} onClick={() => setTeamChoice(!showTeam)}>{showTeam ? 'Hide team tools' : 'Working with a team? Show team tools'}</button>}
   </div>;
 }
 function CategorySummary({ category }) {
@@ -63,6 +67,7 @@ function ToolLink({ item, plan, onVisit }) {
 }
 const styles = `
 .more-page{max-width:1040px;margin:0 auto;padding:18px 20px var(--scroll-pad-bottom,100px);min-height:var(--shell-viewport,100vh);color:var(--text-primary,#241B17);font-family:'Plus Jakarta Sans',sans-serif}
+.more-team-toggle{margin-top:16px}
 .more-page *{box-sizing:border-box}.more-page a{color:inherit;text-decoration:none}.more-page button,.more-page input{font:inherit}.more-page button{cursor:pointer}
 .more-page :is(a,button,input):focus-visible{outline:3px solid var(--accent,#92405e);outline-offset:3px}
 .more-settings{display:flex;align-items:center;justify-content:center;width:46px;height:46px;border:1px solid var(--border,#e5d9d1);border-radius:50%;background:var(--surface,#fff)}

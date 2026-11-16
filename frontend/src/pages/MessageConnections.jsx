@@ -56,11 +56,12 @@ export default function MessageConnections() {
   const c = data?.connection, connected = c?.status === 'connected', present = c && c.status !== 'disconnected';
   const enabled = data?.providers?.some(p => p.available);
   return <main className="message-connections"><style>{styles}</style>
-    <Link to="/more?group=business" className="mc-back">All tools</Link>
+    <Link to="/more?group=messages" className="mc-back">All tools</Link>
     <PageHeader title="Your messages, together" eyebrow="Message connections" subtitle="Connect once. Keep enquiries close." />
     <p className="mc-intro">Bring the channels your clients use into Florrie, beside your diary and client history. Start with Instagram or WhatsApp.</p>
     <Link className="mc-action" to="/setup">Your launch checklist →</Link>
     <SocialConnections owner={beautician}/>
+    <details className="mc-card mc-existing"><summary>Sending tools <span>Text messages and WhatsApp templates</span></summary><p className="mc-detail">Manage the message formats and sending preferences for your connected accounts.</p><div className="mc-actions"><Link className="mc-action" to="/sms">SMS settings →</Link><Link className="mc-action" to="/whatsapp/templates">WhatsApp templates →</Link></div></details>
     <details className="mc-card mc-existing"><summary>Your Florrie email <span>For booking messages and client replies</span></summary><SalonEmailCard /></details>
     <details className="mc-card mc-existing" open={present || !!notice || !!error || params.get('email') === 'incomplete' || undefined}>
       <summary id="email-heading">Use your existing business email <span>Optional · Gmail, Outlook or Hotmail</span></summary>

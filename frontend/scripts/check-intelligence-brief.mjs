@@ -42,7 +42,7 @@ try {
   const page = await context.newPage();
   const failures = []; page.on('pageerror', error => failures.push(error.message));
   await page.goto(`http://127.0.0.1:${server.address().port}/insights`);
-  await page.getByText('Automatic replies are off.', { exact: false }).waitFor();
+  await page.getByText('WhatsApp and SMS new-enquiry replies are off.', { exact: false }).waitFor();
   await page.getByText('Some sources could not be checked.', { exact: false }).waitFor();
   await page.getByText('A client reply is ready for your review.', { exact: true }).waitFor();
   await page.getByRole('button', { name: 'Not now', exact: true }).click();

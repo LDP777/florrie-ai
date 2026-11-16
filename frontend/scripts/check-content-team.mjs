@@ -161,6 +161,8 @@ try {
     assert.deepEqual(await writes(page),[],'Opening Content never generates or writes');
     assert.match(await page.locator('.fl-team-hero h2').evaluate(el=>getComputedStyle(el).fontFamily),/Playfair Display/,'Existing display font is retained');
     assert.match(await page.locator('.fl-team-hero-copy > p').evaluate(el=>getComputedStyle(el).fontFamily),/Plus Jakarta Sans/,'Existing body font is retained');
+    assert.equal(await page.locator('.fl-team-about').getAttribute('open'),null);
+    assert.equal(await page.getByRole('navigation',{name:'Content workflow'}).getByRole('button').count(),4);
     await fits(page);await screenshot(page,`content-team-home-${width}`);
     await openBrief(page);
     assert.deepEqual(await writes(page),[],'Choosing a brief remains local until explicit save');
@@ -205,6 +207,7 @@ try {
     await page.evaluate(()=>fixture.leave());await page.getByText('Another page',{exact:true}).waitFor();
     await page.evaluate(()=>fixture.mount());
     await page.getByText('Your brief is ready',{exact:true}).waitFor();
+    await page.getByRole('button',{name:'Review my campaign',exact:true}).click();
     assert.equal((await writes(page)).length,0,'Remount recovers saved work without POST');
     await page.getByRole('tab',{name:'Strategy',exact:true}).focus();
     await page.keyboard.press('ArrowRight');
@@ -273,6 +276,7 @@ try {
     if(failure==='unavailable')await page.getByText('The new team is not available yet',{exact:true}).waitFor();
     else await page.getByRole('alert').waitFor();
     await page.getByRole('button',{name:'See all posts',exact:true}).click();
+    await page.getByText('Make quick posts from saved photos & notes',{exact:true}).click();
     await page.getByRole('button',{name:'Prepare my next posts',exact:true}).click();
     await page.getByText('Your work is the starting point.',{exact:true}).click();
     await page.getByText('Booking results could not be checked.',{exact:true}).waitFor();
@@ -406,6 +410,7 @@ try {
     });
     await page.getByRole('button',{name:'Check progress',exact:true}).click();
     await page.getByText('Your brief is ready',{exact:true}).waitFor();
+    await page.getByRole('button',{name:'Review my campaign',exact:true}).click();
     await page.getByText('Earlier unfinished campaign',{exact:true}).waitFor();
     assert.equal(await previous.inputValue(),'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','Completing older work cannot replace the selected brief');
     await page.getByRole('tab',{name:'Writing',exact:true}).click();

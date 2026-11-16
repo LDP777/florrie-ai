@@ -260,3 +260,18 @@
 @media(max-width:560px){.fl-team-campaign-grid{grid-template-columns:1fr}.fl-team-campaign{padding:20px}.fl-team-campaigns .fl-team-section-heading{align-items:flex-start}.fl-team-campaign h4{font-size:19px}}
 
 .fl-team-campaigns a{display:inline-flex;align-items:center;min-height:44px;color:var(--accent)}
+
+/* One route through the work; supporting tools stay within reach. */
+.fl-team-workflow { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); border-block:1px solid var(--team-line); margin:0 0 24px; }
+.fl-team-workflow button { display:flex; align-items:center; gap:9px; min-height:60px; padding:12px 8px; border:0; background:transparent; color:var(--text-primary); font:500 12px/1.5 var(--font-body); text-align:left; cursor:pointer; }
+.fl-team-workflow button span { color:var(--accent); font-size:10px; }
+.fl-team-workflow button:disabled { color:var(--text-secondary); opacity:.65; cursor:default; }
+.fl-team-disclosure { border-block:1px solid var(--team-line); margin:20px 0 28px; }
+.fl-team-disclosure > summary { display:flex; justify-content:space-between; align-items:center; gap:16px; min-height:58px; padding:14px 2px; cursor:pointer; list-style:none; color:var(--text-primary); font:600 13px/1.6 var(--font-body); }
+.fl-team-disclosure > summary::-webkit-details-marker { display:none; }
+.fl-team-disclosure[open] > summary { margin-bottom:16px; }
+.fl-team-disclosure[open] > summary > svg { transform:rotate(180deg); }
+.fl-team-quick-posts { margin:10px 0 20px; }
+.fl-team-quick-posts .fl-team-prepare-line { padding-bottom:18px; }
+.fl-team-about .fl-team-specialist-heading { display:none; }
+@media(max-width:600px) { .fl-team-workflow { grid-template-columns:repeat(2,minmax(0,1fr)); } .fl-team-workflow button { min-height:50px; } }

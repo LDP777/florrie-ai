@@ -20,10 +20,8 @@ export const MORE_CATEGORIES = [
   { id: 'messages', label: 'Messages', desc: 'Conversations and sending preferences', matIcon: 'forum', items: [
     { path: '/inbox',          label: 'Inbox',            matIcon: 'forum',                  desc: 'Every client message'         },
     { path: '/outbox',         label: 'Drafts & approvals',           matIcon: 'outbox',                 desc: 'Review messages before they send'    , keywords: 'outbox pending yes no' },
-    { path: '/connections', label: 'Message connections', matIcon: 'mail', desc: 'Connect and check Instagram, WhatsApp and email', keywords: 'instagram whatsapp gmail outlook hotmail inbox connect setup test' },
-    { path: '/whatsapp',           label: 'WhatsApp',          matIcon: 'smartphone',      desc: 'Business messaging',            gate: 'whatsapp' },
+    { path: '/connections', label: 'Message connections', matIcon: 'mail', desc: 'Connect and check Instagram, WhatsApp and email', keywords: 'instagram whatsapp templates gmail outlook hotmail inbox connect setup test' },
     { path: '/sms',                label: 'SMS',               matIcon: 'sms',             desc: 'Text reminders and replies'     , gate: 'sms' },
-    { path: '/whatsapp/templates', label: 'Message templates', matIcon: 'description',     desc: 'Manage your WhatsApp templates' , keywords: 'whatsapp replies messages' , gate: 'whatsapp' },
   ] },
   { id: 'services', label: 'Services & sales', desc: 'Treatments, extras and client offers', matIcon: 'spa', items: [
     { path: '/treatments',     label: 'Treatments',      matIcon: 'spa',                  desc: 'Services and prices'           },
@@ -48,15 +46,14 @@ export const MORE_CATEGORIES = [
     { path: '/rebook',      label: 'Rebook',            matIcon: 'replay',        desc: 'Bring clients back'         },
     { path: '/reviews',        label: 'Reviews & feedback',        matIcon: 'reviews',         desc: 'Google review link and client feedback'         , keywords: 'google feedback reputation testimonials' },
   ] },
-  { id: 'team', label: 'Team', desc: 'People, rotas and locations', matIcon: 'group', items: [
+  { id: 'team', label: 'Team & locations', desc: 'For salons working with others', matIcon: 'group', items: [
     { path: '/team',              label: 'Team members',            matIcon: 'group',              desc: 'Manage staff profiles',    gate: 'team_management' , keywords: 'people staff' },
     { path: '/rota',              label: 'Staff rota',      matIcon: 'calendar_view_week', desc: 'Plan your weekly staff schedule',   gate: 'staff_rota' , keywords: 'team availability' },
-    { path: '/staff-performance', label: 'Team performance',     matIcon: 'trending_up',        desc: 'Individual reports are not available yet',    keywords: 'staff analytics' },
     { path: '/locations',         label: 'Locations',  matIcon: 'location_city',      desc: 'Saved location names and addresses', gate: 'multi_location' , keywords: 'multi-location branch' },
   ] },
   { id: 'setup', label: 'Business setup', desc: 'Booking, automation and preferences', matIcon: 'settings', items: [
     { path: '/setup',              label: 'Setup guide',       matIcon: 'checklist',       desc: 'Your launch checklist and next step'        },
-    { path: '/settings',           label: 'Settings',          matIcon: 'settings',        desc: 'Connected apps, booking rules and preferences', keywords: 'instagram connections channels notifications ai tone voice account' },
+    { path: '/settings',           label: 'Settings',          matIcon: 'settings',        desc: 'Booking rules, reply controls and preferences', keywords: 'instagram connections channels notifications ai tone voice account' },
     { path: '/portal',             label: 'Booking page',      matIcon: 'open_in_browser', desc: 'Manage your public booking link'       , keywords: 'portal online bookings' },
     { path: '/automations',        label: 'Automations',       matIcon: 'bolt',            desc: 'Appointment follow-up sequences'        },
     { path: '/knowledge',          label: 'Florrie’s knowledge', matIcon: 'menu_book',     desc: 'Teach answers and practise client questions' , keywords: 'knowledge train teach answers questions business information ai' },

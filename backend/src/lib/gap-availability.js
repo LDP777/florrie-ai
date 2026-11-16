@@ -35,6 +35,28 @@ function salonWallNow(now, timezone) {
   return new Date(`${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}Z`);
 }
 
+/** A diary gap is not an online booking opportunity until the menu and notice
+ * rules also allow a start time. Keep comparisons in the salon's wall frame. */
+export function treatmentFitsBookingGap(treatment, calendar, now) {
+  if (treatment.booking_enabled !== true || !calendar?.beautician) return false;
+  const price = Number(treatment.price_cents);
+  const duration = Number(treatment.duration_minutes), buffer = Number(treatment.buffer_minutes ?? 0);
+  if (!Number.isSafeInteger(price) || price <= 0 || !Number.isFinite(duration) || duration <= 0
+    || !Number.isFinite(buffer) || buffer < 0) return false;
+  const policy = calendar.beautician.booking_policy || {};
+  const notice = Number(policy.min_booking_hours ?? 0), advance = Number(policy.max_advance_days ?? 0);
+  if (!Number.isFinite(notice) || notice < 0 || !Number.isFinite(advance) || advance < 0) return false;
+  let wallNow;
+  try { wallNow = salonWallNow(now, calendar.beautician.timezone).getTime(); } catch { return false; }
+  const earliest = wallNow + notice * 60 * MINUTE;
+  const latest = advance > 0 ? wallNow + advance * DAY : Infinity;
+  return (calendar.gaps || []).some(gap => {
+    const start = wallStamp(`${gap.date}T${gap.start}:00`), end = wallStamp(`${gap.date}T${gap.end}:00`);
+    const candidate = Math.ceil(Math.max(start, earliest) / (15 * MINUTE)) * 15 * MINUTE;
+    return Number.isFinite(candidate) && candidate <= latest && candidate + (duration + buffer) * MINUTE <= end;
+  });
+}
+
 function wallStamp(value) {
   if (!value) return NaN;
   const wall = String(value).slice(0, 19).replace(' ', 'T');
@@ -99,7 +121,7 @@ export function computeCalendarGaps(now, appointments, hours, timezone, blocks =
 export async function currentGapCalendar(beauticianId, now = new Date()) {
   try {
     const profile = await supabase.from('beauticians')
-      .select('working_hours, timezone, whatsapp_phone_id, client_reminder_prefs, booking_slug, autonomy')
+      .select('working_hours, timezone, whatsapp_phone_id, client_reminder_prefs, booking_slug, autonomy, booking_policy')
       .eq('id', beauticianId).single();
     if (profile.error || !profile.data) throw new Error('Working hours unavailable');
     const beautician = profile.data;

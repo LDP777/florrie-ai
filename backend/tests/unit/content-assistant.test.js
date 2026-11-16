@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../../src/config.js', () => ({ supabase: {} }));
 vi.mock('../../src/services/content-autopilot.js', () => ({ generateCaption: vi.fn(), imageUrlProblem: url => typeof url === 'string' && url.startsWith('https://') ? null : 'Invalid photo' }));
-vi.mock('../../src/lib/gap-availability.js', () => ({ currentGapCalendar: vi.fn() }));
+vi.mock('../../src/lib/gap-availability.js', async importOriginal => ({ ...(await importOriginal()), currentGapCalendar: vi.fn() }));
 import { assistantPostId, assistantPrepareOptions, buildContentAssistant, prepareContentAssistant } from '../../src/services/content-assistant.js';
 
 const OWNER = { id: 'owner', booking_slug: 'demo-salon' };
@@ -44,10 +44,10 @@ function query(table) {
   return q;
 }
 beforeEach(() => {
-  rows = { content_posts: [{ id: 'photo', beautician_id: 'owner', post_type: 'gallery', status: 'draft', after_url: 'https://media.example/salon/after.jpg', image_url: 'https://media.example/salon/after.jpg', treatment_name: 'Brows', caption: 'A soft shape.' }], knowledge_entries: [{ id: 'guide', beautician_id: 'owner', is_active: true, category: 'treatment', title: 'Brow consultation', content: 'A consultation is included before treatment.' }], treatments: [{ id: 'service', beautician_id: 'owner', is_active: true, name: 'Signature brows', description: 'A shape and tint appointment.', duration_minutes: 30, buffer_minutes: 15 }], ai_actions: [] };
+  rows = { content_posts: [{ id: 'photo', beautician_id: 'owner', post_type: 'gallery', status: 'draft', after_url: 'https://media.example/salon/after.jpg', image_url: 'https://media.example/salon/after.jpg', treatment_name: 'Brows', caption: 'A soft shape.' }], knowledge_entries: [{ id: 'guide', beautician_id: 'owner', is_active: true, category: 'treatment', title: 'Brow consultation', content: 'A consultation is included before treatment.' }], treatments: [{ id: 'service', beautician_id: 'owner', is_active: true, name: 'Signature brows', description: 'A shape and tint appointment.', duration_minutes: 30, buffer_minutes: 15, booking_enabled: true, price_cents: 3000 }], ai_actions: [] };
   calls = []; writes = []; fail = new Set(); uncertain = false; upsertFailure = false;
   caption = vi.fn(async () => ({ caption: 'Your prepared post.', hashtags: ['#brows'] }));
-  calendar = vi.fn(async () => ({ gaps: [{ duration_minutes: 60, date: '2026-09-30', start: '14:00', end: '15:00' }] }));
+  calendar = vi.fn(async () => ({ beautician: { booking_slug: 'demo-salon', timezone: 'Europe/London', booking_policy: {} }, gaps: [{ duration_minutes: 60, date: '2026-09-30', start: '14:00', end: '15:00' }] }));
   deps = { db: { from: query, rpc(name, input) { calls.push({ rpc: name, input }); return { abortSignal() { return this; }, then(resolve, reject) { return Promise.resolve(fail.has('results') ? { error: {} } : { data: [{ post_id: 'measured', confirmed: 2, pending: 1, booking_value_cents: 6000 }], error: null }).then(resolve, reject); } }; } }, caption, calendar, now: () => NOW };
 });
 
@@ -66,6 +66,26 @@ describe('Content assistant evidence and preparation', () => {
     expect(calls.map(call => call.table)).not.toContain('reviews');
     expect(calls.map(call => call.table)).not.toContain('knowledge_suggestions');
     expect(calendar).toHaveBeenCalledWith('owner', NOW);
+  });
+  it.each([
+    { booking_enabled: false }, { booking_enabled: null }, { price_cents: 0 },
+    { price_cents: null }, { price_cents: 'bad' }, { duration_minutes: 0 },
+  ])('keeps informational posts but never promotes unbookable treatment %j', async change => {
+    Object.assign(rows.treatments[0], change);
+    const board = await buildContentAssistant(OWNER, deps);
+    expect(board.opportunities.some(source => source.type === 'booking')).toBe(false);
+    expect(board.opportunities.some(source => source.type === 'treatment')).toBe(true);
+  });
+  it.each(['disabled', 'filled', 'notice', 'slug'])('rechecks booking eligibility after generation: %s', async change => {
+    caption.mockImplementation(async () => {
+      if (change === 'disabled') rows.treatments[0].booking_enabled = false;
+      else calendar.mockResolvedValue({ beautician: { timezone: 'Europe/London', booking_slug: change === 'slug' ? 'new-salon-link' : 'demo-salon', booking_policy: { min_booking_hours: change === 'notice' ? 72 : 0 } }, gaps: change === 'filled' ? [] : [{ date: '2026-09-30', start: '14:00', end: '15:00' }] });
+      return { caption: 'Your next appointment.', hashtags: [] };
+    });
+    const board = await prepareContentAssistant(OWNER, { sources: [{ type: 'booking', source_id: 'current-diary' }] }, deps);
+    expect(board.created_post_ids).toEqual([]);
+    expect(board.errors).toHaveLength(1);
+    expect(writes).toEqual([]);
   });
   it('shows readiness from saved work and ranks a complete draft before missing assets', async () => {
     rows.content_posts.push({ id: 'needs-photo', beautician_id: 'owner', status: 'draft', caption: 'Waiting' }, { id: 'ready', beautician_id: 'owner', status: 'draft', image_url: 'https://photo.example/ready.jpg', caption: 'Ready', media_kind: 'story', stream_id: 'campaign-one' });
