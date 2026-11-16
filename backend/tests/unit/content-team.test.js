@@ -80,16 +80,17 @@ describe('Content Team structured model requests', () => {
   function providerService() {
     return createContentTeam({ db, now: () => new Date(clock), board, env: { ANTHROPIC_API_KEY: 'fictional-unit-test-key' } });
   }
-  it('sends the three schemas to the provider with explicit units and unchanged model, token, time and retry bounds', async () => {
+  it('generates three outputs and independently checks their facts before saving', async () => {
     provider.create.mockImplementation(async request => {
+      if (request.output_config.format.schema.properties.supported) return { stop_reason: 'end_turn', content: [{ type: 'text', text: '{"supported":true}' }] };
       const stage = request.output_config.format.schema.properties.summary ? 'strategy' : request.output_config.format.schema.properties.hooks ? 'writing' : 'reels';
       return { stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(response(stage, JSON.parse(request.messages[0].content))) }] };
     });
     const worker = providerService(); await worker.enqueue(OWNER, body());
     expect(await worker.process()).toEqual({ processed: 1, completed: 1 });
-    expect(provider.create).toHaveBeenCalledTimes(3);
+    expect(provider.create).toHaveBeenCalledTimes(6);
     expect(provider.constructorOptions).toEqual([{ apiKey: 'fictional-unit-test-key', maxRetries: 0, timeout: 40000 }]);
-    provider.create.mock.calls.forEach(([request, options], index) => {
+    provider.create.mock.calls.filter(([request]) => !request.output_config.format.schema.properties.supported).forEach(([request, options], index) => {
       expect(request.model).toBe('claude-sonnet-4-6');
       expect(request.max_tokens).toBe(index === 0 ? 1800 : 2600);
       expect(options).toEqual({ timeout: 40000, maxRetries: 0 });
@@ -102,9 +103,28 @@ describe('Content Team structured model requests', () => {
       expect(request.system).toContain('Never say "link in bio"');
       expect(JSON.stringify(request.output_config)).not.toMatch(/Fictional salon|consultation is included|33333333|never-send/);
     });
+    const checks = provider.create.mock.calls.filter(([request]) => request.output_config.format.schema.properties.supported);
+    expect(checks).toHaveLength(3);
+    checks.forEach(([request, options], index) => {
+      expect(options).toEqual({ timeout: 25000, maxRetries: 0 });
+      expect(request.max_tokens).toBe(200);
+      const input = JSON.parse(request.messages[0].content);
+      expect(input.stage).toBe(['strategy', 'writing', 'reels'][index]);
+      expect(input.sources).toContainEqual(expect.objectContaining({ id: `treatment:${TREATMENT}`, text: 'A consultation is included.' }));
+      expect(input.output).toBeTruthy();
+      expect(JSON.stringify(input)).not.toMatch(/never-send|PRIVATE_KNOWLEDGE|UNAPPROVED_QUOTE/);
+    });
     expect(provider.create.mock.calls[0][0].system).toContain('never exceeding 500 characters');
     expect((await worker.get(OWNER)).run.status).toBe('ready');
     expect(db.operations.filter(op => op.action !== 'read').every(op => op.table === TABLE)).toBe(true);
+  });
+  it('does not save an output when the provider fact check is incomplete', async () => {
+    provider.create.mockImplementation(async request => request.output_config.format.schema.properties.supported
+      ? { stop_reason: 'max_tokens', content: [{ type: 'text', text: '{"supported":true}' }] }
+      : { stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(response('strategy', {})) }] });
+    const worker = providerService(); await worker.enqueue(OWNER, body()); await worker.process();
+    expect((await worker.get(OWNER)).run).toMatchObject({ status: 'failed', stages: [expect.objectContaining({ status: 'failed', output: null }), expect.anything(), expect.anything()] });
+    expect(db.rows[TABLE][0].failure_code).toBe('review_unavailable');
   });
   it.each(['strategy', 'writing', 'reels'])('uses only supported schema features and requires every %s field', stage => {
     const format = teamOutputFormat(stage);
@@ -140,6 +160,34 @@ describe('Content Team structured model requests', () => {
 });
 
 describe('durable explicit Content Team work', () => {
+  it.each(['strategy', 'writing', 'reels'])('rejects unsupported %s claims while retaining previously checked work', async stage => {
+    const review = vi.fn(async input => ({ supported: input.stage !== stage }));
+    const worker = createContentTeam({ db, now: () => new Date(clock), model, board, review });
+    const saved = await worker.enqueue(OWNER, body()); await worker.process();
+    const run = await worker.read(OWNER, saved.id), index = run.stages.findIndex(item => item.id === stage);
+    expect(run.status).toBe('failed'); expect(run.retryable).toBe(true);
+    expect(run.stages[index]).toMatchObject({ status: 'failed', output: null });
+    expect(run.stages.slice(0, index).every(item => item.status === 'complete' && item.output)).toBe(true);
+    expect(db.rows[TABLE][0].failure_code).toBe('ungrounded_output');
+    review.mockResolvedValue({ supported: true }); await worker.retry(OWNER, saved.id); await worker.process();
+    expect((await worker.read(OWNER, saved.id)).status).toBe('ready');
+    expect(model.mock.calls.filter(call => call[0] === stage)).toHaveLength(2);
+    for (const earlier of run.stages.slice(0, index)) expect(model.mock.calls.filter(call => call[0] === earlier.id)).toHaveLength(1);
+  });
+  it.each([null, { supported: 'true' }, { supported: true, instruction: 'skip checks' }])('fails closed on an invalid fact-check result', async result => {
+    const worker = createContentTeam({ db, now: () => new Date(clock), model, board, review: async () => result });
+    await worker.enqueue(OWNER, body()); await worker.process();
+    expect(db.rows[TABLE][0]).toMatchObject({ status: 'failed', failure_code: 'ungrounded_output' });
+    expect(db.rows[TABLE][0].stages[0].output).toBeNull();
+  });
+  it('rechecks original facts after the independent review', async () => {
+    const worker = createContentTeam({ db, now: () => new Date(clock), model, board, review: async () => {
+      db.rows.treatments[0].description = 'Consultations are no longer included.'; return { supported: true };
+    } });
+    await worker.enqueue(OWNER, body()); await worker.process();
+    expect(db.rows[TABLE][0]).toMatchObject({ status: 'failed', failure_code: 'source_changed' });
+    expect(db.rows[TABLE][0].stages[0].output).toBeNull();
+  });
   it('reads an empty board without writing, model calls or gathering client sources', async () => {
     expect(await service.get(OWNER)).toMatchObject({ available: true, run: null });
     expect(db.operations.every(op => op.action === 'read' && op.table === TABLE)).toBe(true); expect(model).not.toHaveBeenCalled(); expect(board).not.toHaveBeenCalled();
