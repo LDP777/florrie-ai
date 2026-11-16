@@ -421,7 +421,7 @@ describe("deleting a booking somebody may have paid for", () => {
 describe('owner cancellation-payment visibility', () => {
   const anchor = {policy_fee_charged_at:'2026-11-09T20:20:24Z',policy_fee_amount_cents:2400,policy_fee_payment_intent_id:'pi_private'};
   it('returns only the signed-in salon’s receipts without provider identifiers', async () => {
-    db.appointments.push({id:'ours',beautician_id:'b1',status:'cancelled',...anchor},{id:'theirs',beautician_id:'other',status:'cancelled',...anchor});
+    db.appointments.push({id:'ours',beautician_id:'b1',status:'cancelled',...anchor},{id:'theirs',beautician_id:'other',status:'cancelled',...anchor},{id:'no-show',beautician_id:'b1',status:'no_show',...anchor});
     const out=await run(appointmentsRouter,'get','/cancellation-payments',{beautician:{id:'b1'},params:{}});
     expect(out.status).toBe(200);expect(out.body.payments.map(r=>r.appointmentId)).toEqual(['ours']);
     expect(out.body.payments[0].payment.status).toBe('collected');

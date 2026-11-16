@@ -33,7 +33,7 @@ router.get('/cancellation-payments', requireAuth, async (req, res) => {
     const owner = req.beautician.id;
     const appointments = await supabase.from('appointments')
       .select(`id,beautician_id,starts_at,cancelled_at,${FEE_FIELDS},clients(first_name,last_name)`)
-      .eq('beautician_id', owner).or('status.like.cancelled%,policy_fee_charged_at.not.is.null')
+      .eq('beautician_id', owner).neq('status', 'no_show').or('status.like.cancelled%,late_cancel_charged.eq.true')
       .order('updated_at', { ascending: false }).limit(50);
     if (appointments.error) throw appointments.error;
     const ids = (appointments.data || []).map(a => a.id);
