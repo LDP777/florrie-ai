@@ -44,6 +44,9 @@ try {for(const width of [320,390,1024]){
  const page=await ctx.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
  if(width===390){
   await page.goto(`http://127.0.0.1:${server.address().port}/integrations`);
+  await page.getByText('Message connections',{exact:true}).click();
+  await page.getByRole('button',{name:'Open message connections',exact:true}).waitFor();
+  assert.equal(await page.getByText('In Reviews',{exact:true}).count(),1,'only Google Reviews uses the Reviews status and action');
   await page.getByText('Google Reviews',{exact:true}).click();
   await page.getByText('In Reviews',{exact:true}).waitFor();
   assert.equal(await page.getByRole('button',{name:'Connect Google Reviews →',exact:true}).count(),0,'the directory does not claim Google is ready to connect');

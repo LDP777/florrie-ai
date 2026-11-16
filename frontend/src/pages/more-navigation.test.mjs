@@ -19,15 +19,16 @@ const existingDestinations = [
   '/promos', '/cancellations', '/content', '/campaigns', '/rebook', '/team', '/rota',
   '/staff-performance', '/locations', '/insights',
 ];
+const expectedDestinations = [...existingDestinations, '/connections'];
 
-test('More retains all 45 existing destinations and each still has an application route', () => {
+test('More retains existing destinations and adds the guided message connection route', () => {
   const cataloguePaths = paths(getVisibleCategories());
-  assert.equal(cataloguePaths.length, 45);
-  assert.equal(new Set(cataloguePaths).size, 45, 'A duplicate must not hide a missing destination');
-  assert.deepEqual([...cataloguePaths].sort(), [...existingDestinations].sort());
+  assert.equal(cataloguePaths.length, expectedDestinations.length);
+  assert.equal(new Set(cataloguePaths).size, expectedDestinations.length, 'A duplicate must not hide a missing destination');
+  assert.deepEqual([...cataloguePaths].sort(), [...expectedDestinations].sort());
   const app = readFileSync(new URL('../App.jsx', import.meta.url), 'utf8');
   const routes = new Set([...app.matchAll(/<Route\s+path="([^"]+)"/g)].map(match => match[1]));
-  for (const path of existingDestinations) assert.ok(routes.has(path), `More destination has no route: ${path}`);
+  for (const path of expectedDestinations) assert.ok(routes.has(path), `More destination has no route: ${path}`);
 });
 
 test('clients can find renamed care tools using the old name or the task they need', () => {
@@ -39,8 +40,10 @@ test('clients can find renamed care tools using the old name or the task they ne
     ['photo consent', '/photo-consent'],
     ['outbox', '/outbox'],
     ['income', '/money'],
+    ['message connections', '/connections'],
+    ['gmail', '/connections'],
   ]) assert.ok(paths(searchCategories(catalogue, query)).includes(expected), `No useful result for ${query}`);
-  assert.equal(paths(searchCategories(catalogue, '   ')).length, 45);
+  assert.equal(paths(searchCategories(catalogue, '   ')).length, expectedDestinations.length);
   assert.deepEqual(searchCategories(catalogue, 'nonexistent-zebra-tool'), []);
 });
 
@@ -69,7 +72,7 @@ test('a pricing link saved on web stays hidden in iOS search and recent history'
   const savedOnWeb = storageWith([{ path: '/pricing' }, { path: '/settings' }]);
   assert.deepEqual(readRecentPages(getVisibleCategories(false), savedOnWeb).map(item => item.path), ['/pricing', '/settings']);
   const ios = getVisibleCategories(true);
-  assert.equal(paths(ios).length, 44);
+  assert.equal(paths(ios).length, expectedDestinations.length - 1);
   assert.ok(!paths(ios).includes('/pricing'));
   assert.ok(!paths(searchCategories(ios, 'billing')).includes('/pricing'));
   assert.deepEqual(readRecentPages(ios, savedOnWeb).map(item => item.path), ['/settings']);

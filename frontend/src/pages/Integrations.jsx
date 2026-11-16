@@ -95,7 +95,7 @@ const categories = ['All', 'Payments', 'Calendar', 'Social', 'Accounting', 'Revi
 
 function getIntegrationStatus(id, beautician, smsConfig, igStatus, igChecking) {
   switch (id) {
-    case 'email': return 'details';
+    case 'email': return 'guided_setup';
     case 'stripe':
       return beautician?.stripe_account_id && beautician?.stripe_onboarding_complete
         ? 'connected'
@@ -281,6 +281,7 @@ export default function Integrations() {
     checking: { bg: 'var(--bg-subtle)', color: 'var(--text-muted)', label: 'Checking…' },
     unknown: { bg: 'var(--bg-subtle)', color: 'var(--text-muted)', label: 'Could not check' },
     details: { bg: 'var(--bg-subtle)', color: 'var(--text-secondary)', label: 'In Reviews' },
+    guided_setup: { bg: 'var(--bg-subtle)', color: 'var(--text-secondary)', label: 'Guided setup' },
   };
 
   return (
@@ -414,6 +415,15 @@ export default function Integrations() {
                       onClick={e => { e.stopPropagation(); handleConnect(integ.id); }}
                       disabled={connecting === integ.id}
                     >{connecting === integ.id ? 'Connecting…' : `Connect ${integ.name} →`}</button>
+                  )}
+
+                  {integ.status === 'guided_setup' && integ.connectPath && (
+                    <>
+                      <p style={{ ...type.bodySmall, fontSize: 12, lineHeight: 1.5, margin: '0 0 10px' }}>
+                        Check which connections are ready, sign in with your provider and choose how Florrie handles your email.
+                      </p>
+                      <Button fullWidth onClick={e => { e.stopPropagation(); handleConnect(integ.id); }}>Open message connections</Button>
+                    </>
                   )}
 
                   {integ.status === 'details' && integ.connectPath && (

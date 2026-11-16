@@ -70,7 +70,8 @@ try {
         await page.locator('.more-tool').filter({hasText:'Reviews & feedback'}).waitFor();
         await page.getByLabel('Clear search').click();
         await page.getByRole('button',{name:'Expand all',exact:true}).click();
-        assert.equal(await page.locator('.more-tool:visible').count(),45);
+        assert.equal(await page.locator('.more-tool:visible').count(),46);
+        await page.locator('.more-tool').filter({hasText:'Message connections'}).waitFor();
         await page.getByRole('button',{name:'Collapse all',exact:true}).click();
       }
       if (route === 'voice') {
