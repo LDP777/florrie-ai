@@ -79,6 +79,11 @@ try {
     await page.getByRole('textbox',{name:'Reply via WhatsApp'}).fill('Keep my draft');
     await page.getByRole('tab',{name:'Email',exact:true}).click();
     assert.equal(await page.getByRole('textbox',{name:'Reply via Email'}).inputValue(),'Keep my draft');
+    await page.getByText('You send email replies. Florrie never sends them automatically.',{exact:true}).waitFor();
+    assert.equal(await page.locator('.fl-chat-settings summary').count(),0,'email must not offer automatic reply controls');
+    assert.equal(await page.getByRole('link',{name:'Email connection & draft settings',exact:true}).getAttribute('href'),'/connections');
+    await page.getByRole('tab',{name:'WhatsApp',exact:true}).click();
+    assert.equal(await page.getByRole('textbox',{name:'Reply via WhatsApp'}).inputValue(),'Keep my draft');
     await page.locator('.fl-chat-settings summary').click();
     await page.getByRole('tab',{name:'Me',exact:true}).waitFor();
     assert.equal(await page.evaluate(()=>window.__writes),0);

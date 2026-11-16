@@ -1620,7 +1620,13 @@ function ConvoHeader({ onBack, embedded, clientName, navigate, clientId, channel
           </button>
         </div>
       )}
-      {clientId && <ClientControls clientId={clientId} initialAutonomy={initialAutonomy} />}
+      {clientId && (channel === 'email' ? (
+        hidden ? <PrivateSection placeholder="Client controls hidden" /> :
+          <div className="fl-chat-settings" style={S.controlsWrap}>
+            <p style={{ margin: '8px 0', fontSize: 13 }}>You send email replies. Florrie never sends them automatically.</p>
+            <Link to="/connections" style={{ color: 'var(--accent)', fontSize: 13 }}>Email connection &amp; draft settings</Link>
+          </div>
+      ) : <ClientControls clientId={clientId} initialAutonomy={initialAutonomy} />)}
     </div>
   );
 }
