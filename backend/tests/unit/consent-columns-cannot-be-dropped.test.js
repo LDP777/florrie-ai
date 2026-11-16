@@ -227,8 +227,8 @@ describe('no new sender joins clients without the consent columns', () => {
     // 1532 / 1824, then 1540 / 1845, then 1693 / 2008, then 1705 / 2020.)
     // Moved by the combined November booking-link and training email changes.
     // The same two client joins remain; no new exception is added.
-    'src/services/notifications.js:1755',
-    'src/services/notifications.js:2073',
+    'src/services/notifications.js:1756',
+    'src/services/notifications.js:2074',
   ]);
 
   function walk(dir) {

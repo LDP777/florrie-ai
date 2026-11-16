@@ -95,7 +95,7 @@ function usableReplyTo(value) {
  * salon in hand keep working; skipped when it is not a plausible address so a
  * blank column cannot make Resend reject the whole send.
  */
-export async function sendEmail({ to, subject, html, text, attachments, replyTo, idempotencyKey, timeoutMs }) {
+export async function sendEmail({ to, subject, html, text, attachments, replyTo, idempotencyKey, timeoutMs, headers: emailHeaders }) {
   if (!RESEND_API_KEY) {
     logger.debug('Resend not configured, skipping email');
     return null;
@@ -127,6 +127,7 @@ export async function sendEmail({ to, subject, html, text, attachments, replyTo,
           subject,
           html,
           text,
+          ...(emailHeaders ? { headers: emailHeaders } : {}),
           ...(usableReplyTo(replyTo) ? { reply_to: usableReplyTo(replyTo) } : {}),
           ...(attachments?.length ? {
             attachments: attachments.map(a => ({

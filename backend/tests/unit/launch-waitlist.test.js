@@ -68,4 +68,9 @@ describe('launch mailing list capture', () => {
     expect((await fetch(origin+'/api/waitlist/unsubscribe?token=%22%3E%3Cscript%3E')).status).toBe(400);
     expect(state.writes).toBe(0);
   });
+  it('supports email-client one-click POST without allowing GET side effects',async()=>{
+    await submit({email:'oneclick@example.com',marketingConsent:true});const token=state.rows[0].unsubscribe_token;
+    const r=await fetch(origin+'/api/waitlist/unsubscribe?token='+token,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'List-Unsubscribe=One-Click'});
+    expect(r.status).toBe(200);expect(state.rows[0].unsubscribed_at).toBeTruthy();
+  });
 });

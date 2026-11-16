@@ -61,10 +61,22 @@
       }) });
       if (!response.success) throw new Error('We could not confirm your signup. Please try again.');
       saved = true;
-      show('Thanks for joining. We’ll keep you posted about Florrie’s launch.');
       for (const input of form.querySelectorAll('input')) input.disabled = true;
       button.textContent = 'Thank you';
-      result.focus({ preventScroll: true });
+      const success = document.getElementById('waitlist-success');
+      if (success) {
+        document.getElementById('waitlist-success-email').textContent = form.elements.email.value.trim().toLowerCase();
+        document.getElementById('waitlist-intro').hidden = true;
+        form.hidden = true;
+        result.hidden = true;
+        success.hidden = false;
+        document.getElementById('waitlist').classList.add('is-saved');
+        success.focus({ preventScroll: true });
+        success.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'nearest' });
+      } else {
+        show('Thanks for joining. We’ll keep you posted about Florrie’s launch.');
+        result.focus({ preventScroll: true });
+      }
     } catch (error) {
       if (captcha?.required && widget === null) captcha = null;
       show(error.name === 'AbortError' || error instanceof TypeError

@@ -1,4 +1,5 @@
 import { retryCourseNotices } from '../services/course-notice-delivery.js';
+import { processWaitlistWelcomes } from '../services/waitlist-welcome.js';
 import { reconcileDueCourseHolds } from '../services/course-checkout.js';
 import { runValueCoaching } from '../services/value-coaching.js';
 import { runClientIntelligenceRefresh } from '../services/client-intelligence.js';
@@ -79,6 +80,7 @@ const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
 export const JOBS = [
+  { name: 'waitlist-welcome-delivery', description: 'send queued launch waitlist welcome emails', intervalMs: MINUTE, leaseMs: 5 * MINUTE, handler: processWaitlistWelcomes },
   { name: 'value-coaching', description: 'derive weekly insights from completed bookings', intervalMs: HOUR, startupDelayMs: 4 * MINUTE, handler: runValueCoaching },
   { name: 'client-intelligence-refresh', description: 'refresh visit patterns from completed appointments', intervalMs: HOUR, startupDelayMs: 4 * MINUTE, leaseMs: 30 * MINUTE, handler: runClientIntelligenceRefresh },
   { name: 'account-deletion-cleanup', description: 'resume incomplete account deletion requests', intervalMs: 5 * MINUTE, handler: retryAccountDeletions },

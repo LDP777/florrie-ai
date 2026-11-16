@@ -51,8 +51,8 @@ router.post('/', signupLimiter, (req, res, next) => {
       logger.error({ code: error.code }, 'Waitlist signup storage failed');
       return res.status(503).json({ error: 'We could not confirm your signup. Please try again.' });
     }
-    // Capture is complete here. Email delivery must not delay or invalidate it.
-    // Launch campaigns are sent separately from the consented mailing list.
+    // The row's durable welcome queue is processed separately. Neither a
+    // provider timeout nor a process restart can invalidate this capture.
     return res.json({ success: true, message: 'Thanks for your interest in Florrie.' });
   } catch (err) {
     if (err.name === 'ZodError') return res.status(400).json({ error: (err.issues || err.errors)[0]?.message || 'Please check your details.' });
@@ -72,10 +72,12 @@ router.get('/unsubscribe', (req, res) => {
 });
 router.post('/unsubscribe', express.urlencoded({ extended: false, limit: '2kb' }), async (req, res) => {
   res.set({ 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' });
-  if (!validToken(req.body.token)) return res.status(400).send(page('Check your unsubscribe link', '<p>Please use the complete link in your email.</p>'));
+  // Email clients can POST the standard one-click body to the header URL.
+  const token = req.body.token || (req.body['List-Unsubscribe'] === 'One-Click' ? req.query.token : null);
+  if (!validToken(token)) return res.status(400).send(page('Check your unsubscribe link', '<p>Please use the complete link in your email.</p>'));
   try {
     const { error } = await supabase.from('waitlist_signups').update({ unsubscribed_at: new Date().toISOString() })
-      .eq('unsubscribe_token', req.body.token).is('unsubscribed_at', null).abortSignal(AbortSignal.timeout(7000));
+      .eq('unsubscribe_token', token).is('unsubscribed_at', null).abortSignal(AbortSignal.timeout(7000));
     if (error) throw new Error('storage_failed');
     res.send(page('You’re unsubscribed', '<p>You will not receive Florrie launch news or product updates from this list.</p>'));
   } catch {

@@ -29,6 +29,11 @@ const { sendEmail } = await import('../../src/services/notifications.js');
 beforeEach(() => { sent.length = 0; });
 
 describe('sendEmail forwards replyTo', () => {
+  it('forwards list-unsubscribe headers supplied by the welcome template', async () => {
+    const headers={'List-Unsubscribe':'<https://api.florrie.ai/api/waitlist/unsubscribe?token=test>','List-Unsubscribe-Post':'List-Unsubscribe=One-Click'};
+    await sendEmail({to:'test@example.com',subject:'Welcome',text:'Hello',headers});
+    expect(sent[0].headers).toEqual(headers);
+  });
   it('sends the salon address as reply_to and leaves From alone', async () => {
     await sendEmail({ to: 'client@example.com', subject: 'Confirmed', text: 'hi', html: '<p>hi</p>', replyTo: 'ellie@salon.example' });
     expect(sent).toHaveLength(1);
