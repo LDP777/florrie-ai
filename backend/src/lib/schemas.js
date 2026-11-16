@@ -492,9 +492,15 @@ export const updateLocationSchema = z.object({
  * @property {string} [source] - Signup source (optional, max 100 chars, default 'landing_page')
  */
 export const waitlistSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  name: z.string().max(200).optional().nullable().default(null),
-  source: z.string().max(100).optional().default('landing_page'),
+  email: z.string().trim().toLowerCase().email('Please enter a valid email address').max(254),
+  name: z.string().trim().max(200).optional().nullable().default(null),
+  marketingConsent: z.literal(true, { errorMap: () => ({ message: 'Please agree to receive Florrie launch news and product updates.' }) }),
+  website: z.string().max(200).optional().default(''),
+  attribution: z.object({
+    utm_source: z.string().max(100).optional(),
+    utm_medium: z.string().max(100).optional(),
+    utm_campaign: z.string().max(200).optional(),
+  }).optional().default({}),
 });
 
 

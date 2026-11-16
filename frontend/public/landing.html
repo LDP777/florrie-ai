@@ -422,6 +422,26 @@
     .rv, .hl { opacity: 1; translate: 0 0; }
   }
 </style>
+<style>
+  .waitlist-card { margin-top: 28px; max-width: 570px; scroll-margin-top: 100px; background: rgba(255,250,247,.07); border: 1px solid rgba(255,250,247,.2); border-radius: 24px; padding: 24px; }
+  .waitlist-card h2 { font-size: clamp(28px,3vw,36px); margin-bottom: 8px; }
+  .waitlist-card p { font-size: 15px; line-height: 1.55; }
+  .waitlist-card form { margin-top: 18px; }
+  .waitlist-card label { display: block; font-size: 14px; margin-bottom: 8px; }
+  .waitlist-fields { display: flex; gap: 10px; }
+  .waitlist-fields input { min-width: 0; width: 100%; flex: 1; border: 1px solid #e6d8d4; border-radius: 12px; background: #fffaf7; color: #30272a; padding: 15px; font: inherit; font-size: 16px; }
+  .waitlist-card :focus-visible { outline: 3px solid #e7a9bd; outline-offset: 3px; }
+  .waitlist-card .waitlist-consent { display: flex; gap: 10px; align-items: flex-start; margin: 16px 0 10px; cursor: pointer; line-height: 1.5; }
+  .waitlist-consent input { accent-color: #c26784; margin-top: 3px; width: 18px; height: 18px; flex: 0 0 18px; }
+  .waitlist-card .waitlist-small { font-size: 12px; opacity: .85; }
+  .waitlist-card a { text-decoration: underline; text-underline-offset: 3px; }
+  .waitlist-result { min-height: 0; margin-top: 12px; }
+  .waitlist-result:empty { display: none; }
+  .waitlist-result[data-state="error"] { color: #ffd4df; }
+  .waitlist-card button:disabled { opacity: .7; cursor: wait; }
+  @media(max-width: 560px) { .waitlist-card { padding: 20px; } .waitlist-fields { flex-direction: column; } .waitlist-fields button { width: 100%; justify-content: center; } }
+</style>
+<script src="/florrie-waitlist.js" defer></script>
 </head>
 <body>
 
@@ -434,7 +454,7 @@
     </a>
     <nav class="nav-links" aria-label="Account">
       <a class="signin" href="/login">Sign in</a>
-      <a class="btn btn-rose" href="/signup">Start free trial</a>
+      <a class="btn btn-rose" href="#waitlist">Join the waitlist</a>
     </nav>
   </div>
 </header>
@@ -448,10 +468,23 @@
       <h1 class="hl d1">Your whole front desk. <em>In one app.</em></h1>
       <p class="lede hl d2">Florrie is your AI assistant. She answers your clients in your voice, chases patch tests, helps fill diary gaps, takes payments and tracks your takings. Just ask her. Even at 11:47pm.</p>
       <div class="ctas hl d3">
-        <a class="btn btn-rose" href="/signup">Start your 14-day free trial <span class="arrow" aria-hidden="true">&rarr;</span></a>
+        <a class="btn btn-rose" href="#waitlist">Join the waitlist <span class="arrow" aria-hidden="true">&rarr;</span></a>
         <a class="btn btn-ghost-light" href="#demo">Watch Florrie</a>
       </div>
-      <p class="fine hl d3">£29 a month after your trial. Cancel anytime.</p>
+      <div id="waitlist" class="waitlist-card hl d3">
+        <h2>Be first to hear.</h2>
+        <p>Join the list for Florrie launch news and product updates.</p>
+        <form id="waitlist-form" aria-label="Join the Florrie waitlist">
+          <label for="waitlist-email">Your email</label>
+          <div class="waitlist-fields"><input id="waitlist-email" name="email" type="email" autocomplete="email" inputmode="email" maxlength="254" placeholder="you@yourbusiness.com" required><button class="btn btn-rose" type="submit">Join the waitlist</button></div>
+          <label class="waitlist-consent"><input name="consent" type="checkbox" required><span>Email me Florrie launch news and product updates.</span></label>
+          <div hidden aria-hidden="true"><label>Website <input name="website" type="text" tabindex="-1" autocomplete="off"></label></div>
+          <div id="waitlist-captcha"></div>
+          <p class="waitlist-small">Unsubscribe anytime. <a href="/privacy">Privacy policy</a>. Previously unsubscribed? <a href="mailto:levi@florrie.ai">Contact us to rejoin</a>.</p>
+        </form>
+        <p id="waitlist-result" class="waitlist-result" role="status" aria-live="polite" tabindex="-1"></p>
+        <noscript><p>Please enable JavaScript to join, or email <a href="mailto:levi@florrie.ai?subject=Join%20the%20Florrie%20waitlist">levi@florrie.ai</a>.</p></noscript>
+      </div>
     </div>
 
     <div class="hl d4">
@@ -631,7 +664,7 @@
         <div class="eyebrow" style="color:var(--muted)">Florrie</div>
         <div class="amount" style="margin-top:12px"><span id="amount2">£29</span><small id="per2">/month</small></div>
         <p class="terms">Start with a 14-day free trial. No card needed to begin. Choose a paid plan in the app when you’re ready to subscribe.</p>
-        <a class="btn btn-rose" href="/signup">Start your free trial <span class="arrow" aria-hidden="true">&rarr;</span></a>
+        <a class="btn btn-rose" href="#waitlist">Join the waitlist <span class="arrow" aria-hidden="true">&rarr;</span></a>
         <p class="terms">Extra WhatsApp messages: 5p each. Extra SMS: 6p each. Payment processing fees apply.</p>
         <p class="seats">Got a team? <a href="mailto:levi@florrie.ai?subject=Florrie%20team%20plans">Ask us about team plans.</a></p>
       </div>
@@ -687,10 +720,10 @@
   <div class="wrap">
     <h2 class="rv">Your admin, <em>handled.</em></h2>
     <div class="ctas rv d1">
-      <a class="btn btn-rose" href="/signup">Start your 14-day free trial <span class="arrow" aria-hidden="true">&rarr;</span></a>
+      <a class="btn btn-rose" href="#waitlist">Join the waitlist <span class="arrow" aria-hidden="true">&rarr;</span></a>
       <a class="btn btn-ghost-light" href="#demo">Watch Florrie</a>
     </div>
-    <p class="fine rv d2">£29 a month after your trial. Cancel anytime.</p>
+    <p class="fine rv d2">Leave your email and we’ll keep you posted.</p>
   </div>
 </section>
 </main>
@@ -714,8 +747,8 @@
 </footer>
 
 <div class="bar" id="bar" aria-hidden="true">
-  <span><b>£29</b> a month · 14 days free</span>
-  <a class="btn btn-rose" href="/signup" tabindex="-1">Start free trial</a>
+  <span>Be first to hear about launch</span>
+  <a class="btn btn-rose" href="#waitlist" tabindex="-1">Join the waitlist</a>
 </div>
 
 <script>

@@ -110,6 +110,8 @@ jobs:
         working-directory: frontend
       - run: node scripts/check-training-feedback.mjs
         working-directory: frontend
+      - run: node scripts/check-launch-waitlist.mjs
+        working-directory: frontend
       - run: npm run check:booking:self-service --workspace frontend
       - run: node scripts/check-settings-policy.mjs
         working-directory: frontend

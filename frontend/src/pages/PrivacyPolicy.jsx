@@ -4,7 +4,7 @@ export default function PrivacyPolicy() {
     <div style={s.container}>
       <article style={s.article}>
         <h1 style={s.h1}>Privacy Policy</h1>
-        <p style={s.meta}>Last updated: 15 September 2026</p>
+        <p style={s.meta}>Last updated: 16 November 2026</p>
 
         <section style={s.section}>
           <h2 style={s.h2}>Who we are</h2>
@@ -32,6 +32,12 @@ export default function PrivacyPolicy() {
           <p style={s.p}>Florrie uses this information to manage bookings and payments, provide the inbox, prepare for appointments, send updates, draft or publish content, and carry out the salon’s instructions. It also supports account administration, fraud prevention, troubleshooting and service reliability.</p>
           <p style={s.p}>For our own account and billing operations, we use information to provide the service under our contract, meet applicable legal obligations, and pursue our legitimate interests in security and reliability. Where a feature relies on consent, that consent can be withdrawn. The salon is responsible for explaining its basis for processing client information, including the additional requirements for health information.</p>
           <p style={s.p}>We do not sell personal data. Information is shared with the providers needed to deliver the features below, and where legally required. Marketing messages need the relevant permission; providing a phone number for a booking is not permission for unrelated marketing.</p>
+        </section>
+
+        <section id="launch-list" style={s.section}>
+          <h2 style={s.h2}>Florrie launch mailing list</h2>
+          <p style={s.p}>If you join our launch list, we store your email address, any name you provide, the signup date, your permission to receive updates and campaign tags from the link you followed. We use these records to send Florrie launch news and product updates with your consent. We keep this list separate from salon client records.</p>
+          <p style={s.p}>Use the unsubscribe link in a mailing, or email <a href="mailto:levi@florrie.ai" style={s.link}>levi@florrie.ai</a> to stop updates or request removal. We retain an unsubscribe record to prevent further mailings unless you ask to rejoin.</p>
         </section>
 
         <section id="ai" style={s.section}>

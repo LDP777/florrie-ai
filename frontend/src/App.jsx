@@ -427,7 +427,13 @@ export default function App() {
       if (isIOSNative()) {
         return <Navigate to="/login" replace />;
       }
-      window.location.replace('/landing.html');
+      const campaign = new URLSearchParams();
+      const incoming = new URLSearchParams(window.location.search);
+      for (const key of ['utm_source', 'utm_medium', 'utm_campaign']) {
+        if (incoming.get(key)) campaign.set(key, incoming.get(key).slice(0, 200));
+      }
+      const query = campaign.toString();
+      window.location.replace(`/landing.html${query ? `?${query}` : ''}${window.location.hash === '#waitlist' ? '#waitlist' : ''}`);
       return null;
     }
     return (
