@@ -1,3 +1,4 @@
+import { listReviewRequests } from '../services/review-requests.js';
 import { Router } from 'express';
 import Anthropic from '@anthropic-ai/sdk';
 import { supabase } from '../config.js';
@@ -9,6 +10,7 @@ const router=Router();
 router.use((req,res,next)=>{res.set('Cache-Control','no-store');next();});
 const service=createGoogleReviews({db:supabase});
 const handle=fn=>async(req,res)=>{try {res.json(await fn(req));}catch(error){res.status(error.status||503).json({error:error.status?error.message:'Google reviews could not be loaded. Try again.'});}};
+router.get('/requests',requireAuth,handle(req=>listReviewRequests(req.beautician.id)));
 router.get('/status',requireAuth,handle(req=>service.status(req.beautician.id)));
 router.get('/connect',requireAuth,handle(async req=>({url:await service.connect(req.beautician.id,req.query.platform==='native')})));
 router.get('/callback',async(req,res)=>{

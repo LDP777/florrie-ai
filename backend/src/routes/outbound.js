@@ -1,3 +1,4 @@
+import { beginReviewApproval, finishReviewApproval } from '../services/review-requests.js';
 /**
  * Florrie's Outbox API.
  *
@@ -209,7 +210,13 @@ async function deliverQueued(row, beauticianId) {
     };
   }
 
-  const result = await sendOnChannel({
+  let reviewAction;
+  try {
+    reviewAction = row.message_type === 'review_request' ? await beginReviewApproval(beauticianId,row.id) : null;
+  } catch (err) { return {ok:false,error:err.message || 'Could not check this review request.'}; }
+  let result;
+  try {
+  result = await sendOnChannel({
     beautician,
     clientId: row.client_id,
     channel: row.channel || 'whatsapp',
@@ -221,7 +228,12 @@ async function deliverQueued(row, beauticianId) {
     // costs her voice.
     authoredBy: AUTHOR.AI,
   });
-  if (!result.ok) return { ok: false, error: result.error || 'Send failed' };
+    await finishReviewApproval(reviewAction, !!result.ok);
+  } catch (err) {
+    if (!reviewAction) throw err;
+    return {ok:false,uncertain:true,error:'The send result could not be confirmed. Check the conversation before sending again.'};
+  }
+  if (!result.ok) return { ok: false, uncertain:!!reviewAction, error: result.error || 'Send failed' };
   return { ok: true };
 }
 
@@ -242,7 +254,7 @@ router.post('/:id/approve', async (req, res) => {
     out = { ok: false, error: 'Could not send that one' };
   }
   if (!out.ok) {
-    await releaseClaim(row.id, req.beautician.id);
+    if (!out.uncertain) await releaseClaim(row.id, req.beautician.id);
     return res.status(400).json({ error: out.error });
   }
   res.json({ ok: true });
@@ -287,7 +299,7 @@ router.post('/approve-all', async (req, res) => {
       sent++;
     } else {
       failed++;
-      await releaseClaim(row.id, req.beautician.id);
+      if (!out.uncertain) await releaseClaim(row.id, req.beautician.id);
     }
   }
   res.json({ ok: true, sent, failed });

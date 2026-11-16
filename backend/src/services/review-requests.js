@@ -1,219 +1,182 @@
+import { createHash } from 'node:crypto';
 import { googleReviewLink } from '../lib/google-review-link.mjs';
 import { supabase } from '../config.js';
-import { sendMessage } from './notifications.js';
-import { sendEmail } from './notifications.js';
-import { guardedSend } from '../lib/outbound-guard.js';
+import { sendOnChannel } from './messaging.js';
+import { evaluateOutbound, recordOutbound } from '../lib/outbound-guard.js';
 import logger from '../lib/logger.js';
+import { splitBillable } from '../lib/billable.js';
 
-/**
- * Review Request Service — nudges clients to leave a review after their appointment.
- *
- * Two channels:
- *   1. SMS/WhatsApp/Instagram (via sendMessage) — sent 2 hours after completion
- *   2. Email — sent alongside the SMS for clients who have an email on file
- *
- * Dedup: checks ai_actions to avoid sending multiple review requests per appointment.
- */
+const HOUR = 3600000;
+const VERSION = 'owner-completed-v2';
+const COLUMNS = '*, clients(id, beautician_id, first_name, phone, email, whatsapp_id, instagram_id, preferred_channel, marketing_consent, marketing_opted_out_at, messaging_autonomy), treatments(name), beauticians(*)';
+const retryable = new Set(['quiet_hours', 'frequency_unavailable', 'autonomy_unavailable', 'error_failsafe']);
+const iso = ms => new Date(ms).toISOString();
 
-/**
- * Schedule a review request for a completed appointment.
- * Called from the appointment completion handler.
- *
- * This doesn't send immediately — it inserts an ai_action with status='scheduled'
- * that the cron picks up after the delay.
- */
-export async function scheduleReviewRequest(beauticianId, appointmentId, clientId) {
-  // Dedup check
-  const { data: existing } = await supabase
-    .from('ai_actions')
-    .select('id')
-    .eq('beautician_id', beauticianId)
-    .eq('action_type', 'review_requested')
-    .eq('client_id', clientId)
-    .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
-    .maybeSingle();
-
-  if (existing) return; // Already sent a review request to this client recently
-
-  const sendAt = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 hours from now
-
-  await supabase.from('ai_actions').insert({
-    beautician_id: beauticianId,
-    action_type: 'review_requested',
-    digital_employee: 'marketing',
-    summary: 'Review request scheduled',
-    details: {
-      appointment_id: appointmentId,
-      send_at: sendAt.toISOString(),
-    },
-    client_id: clientId,
-    confidence: 0.95,
-    autonomous: true,
-    // status and outcome are two different axes and this row needs BOTH.
-    // outcome is the RESULT (success / pending / failed / escalated);
-    // status is where the row sits in the queue. This insert set only
-    // outcome, so status stayed NULL, and processReviewRequests below asks
-    // .eq('status', 'scheduled'), which never matches NULL. Every completed
-    // appointment has been scheduling a row that sits in ai_actions forever
-    // and no review request has ever gone out.
-    status: 'scheduled',
-    outcome: 'pending',
-  });
+function requestId(owner, appointment) {
+  const h = createHash('sha256').update(`review-request:${owner}:${appointment}`).digest('hex');
+  return `${h.slice(0,8)}-${h.slice(8,12)}-5${h.slice(13,16)}-a${h.slice(17,20)}-${h.slice(20,32)}`;
+}
+function wallNow(timezone, now) {
+  const parts = new Intl.DateTimeFormat('en-GB', { timeZone: timezone || 'Europe/London', year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23' }).formatToParts(new Date(now));
+  const p = Object.fromEntries(parts.map(x => [x.type,x.value]));
+  return Date.parse(`${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}Z`);
+}
+function eligible(appt, owner, client, now = Date.now()) {
+  if (!appt || appt.beautician_id !== owner || appt.client_id !== client || appt.status !== 'completed'
+    || appt.clients?.id !== client || appt.clients?.beautician_id !== owner) return false;
+  const end = Date.parse(appt.ends_at || appt.starts_at);
+  const age = wallNow(appt.beauticians?.timezone, now) - end;
+  return Number.isFinite(age) && age >= 0 && age <= 72 * HOUR;
+}
+async function appointment(owner, id) {
+  const result = await supabase.from('appointments').select(COLUMNS).eq('beautician_id', owner).eq('id', id).maybeSingle();
+  if (result.error) throw result.error;
+  return result.data;
 }
 
-/**
- * Process due review requests.
- * Called by the autonomous scheduler cron.
- */
+// Called only by owner completion routes. No scan of historic or assumed visits.
+export async function scheduleReviewRequest(owner, appointmentId, clientId) {
+  if (!clientId) return { scheduled:false };
+  const appt = await appointment(owner, appointmentId);
+  if (!eligible(appt, owner, clientId) || wallNow(appt.beauticians?.timezone, Date.now()) - Date.parse(appt.ends_at || appt.starts_at) > 48 * HOUR) return { scheduled:false };
+  const recent = await supabase.from('ai_actions').select('id').eq('beautician_id', owner)
+    .eq('action_type', 'review_requested').eq('client_id', clientId)
+    .gte('created_at', iso(Date.now() - 7 * 24 * HOUR)).limit(1);
+  if (recent.error) throw recent.error;
+  if (recent.data?.length) return { scheduled:false };
+  const now = Date.now();
+  const { error } = await supabase.from('ai_actions').insert({
+    id:requestId(owner, appointmentId), beautician_id:owner, appointment_id:appointmentId,
+    client_id:clientId, action_type:'review_requested', digital_employee:'marketing',
+    summary:'Review request scheduled after owner-confirmed visit', confidence:1, autonomous:true,
+    status:'scheduled', outcome:'pending',
+    details:{ version:VERSION, appointment_id:appointmentId, send_at:iso(now + 2 * HOUR), expires_at:iso(now + 48 * HOUR), delivery_state:'scheduled' },
+  });
+  if (error && error.code !== '23505') throw error;
+  return { scheduled:!error };
+}
+
+async function finish(action, state, reason, extra = {}) {
+  const { error } = await supabase.from('ai_actions').update({
+    status:'executed', outcome:state === 'sent' ? 'success' : state === 'approval' ? 'pending' : 'failed',
+    summary:`Review request: ${state}`, details:{ ...action.details, delivery_state:state, reason, ...extra },
+  }).eq('id',action.id).eq('beautician_id',action.beautician_id);
+  if (error) throw error;
+}
+async function defer(action, reason) {
+  const { error } = await supabase.from('ai_actions').update({ status:'scheduled', details:{...action.details,
+    delivery_state:'scheduled', reason, send_at:iso(Date.now() + (reason === 'quiet_hours' ? HOUR : 15 * 60000)) },
+  }).eq('id',action.id).eq('beautician_id',action.beautician_id);
+  if (error) throw error;
+}
+export function reviewChannel(client) {
+  const reachable = { sms:!!client.phone, email:!!client.email, whatsapp:!!(client.whatsapp_id || client.phone), instagram:!!client.instagram_id };
+  if (client.preferred_channel) return reachable[client.preferred_channel] ? client.preferred_channel : null;
+  return ['sms','email','whatsapp','instagram'].find(c => reachable[c]) || null;
+}
+
 export async function processReviewRequests() {
-  const now = new Date().toISOString();
-
-  const { data: due, error } = await supabase
-    .from('ai_actions')
-    .select('*')
-    .eq('action_type', 'review_requested')
-    .eq('status', 'scheduled')
-    .lte('details->>send_at', now)
-    .limit(20);
-
-  // ai_actions.status did not exist, so PostgREST rejected this whole select
-  // and `due` came back null on every run. Indistinguishable from "nothing due",
-  // which is why nobody noticed the review requests were never going out.
-  // The column is added by supabase/migrations/20260803_schema_drift_columns.sql.
-  if (error) {
-    logger.error({ err: error }, 'Review request queue query failed');
-    return { sent: 0 };
-  }
-
-  if (!due?.length) return { sent: 0 };
-
+  const due = await supabase.from('ai_actions').select('*').eq('action_type','review_requested')
+    .eq('status','scheduled').eq('details->>version',VERSION).lte('details->>send_at',iso(Date.now()))
+    .order('created_at',{ascending:true}).limit(20);
+  if (due.error) throw due.error;
   let sent = 0;
-
-  for (const action of due) {
+  for (const action of due.data || []) {
+    // Permanent claim: a crash during provider delivery must not cause a resend.
+    const claim = await supabase.from('ai_actions').update({status:'processing', details:{...action.details,delivery_state:'processing',claimed_at:iso(Date.now())}})
+      .eq('id',action.id).eq('beautician_id',action.beautician_id).eq('status','scheduled').select('id').maybeSingle();
+    if (claim.error || !claim.data) continue;
+    let attempted = false;
     try {
-      const appointmentId = action.details?.appointment_id;
-
-      // Fetch appointment + client + treatment + beautician
-      const { data: appt } = await supabase
-        .from('appointments')
-        .select('*, clients(id, beautician_id, first_name, phone, email, whatsapp_id, instagram_id, preferred_channel, marketing_consent, marketing_opted_out_at, messaging_autonomy), treatments(name), beauticians(first_name, business_name, brand_color, google_place_id, google_review_link)')
-        .eq('id', appointmentId)
-        .eq('beautician_id', action.beautician_id)
-        .single();
-
-      // Queue metadata is not proof of ownership. ai_actions can be written by
-      // its salon, and the sender trusts the client row supplied to it. Check
-      // both sides before even creating an approval draft for a review request.
-      if (!appt?.clients || appt.clients.beautician_id !== action.beautician_id || appt.clients.id !== action.client_id) {
-        // 'skipped' is not an allowed outcome: the CHECK on ai_actions.outcome
-        // is (success, pending, failed, escalated) and has never been widened.
-        // Writing 'skipped' here raised 23514, the update did nothing, the row
-        // stayed status='scheduled', and the next run picked it up again. That
-        // was invisible while the queue query was returning null; the moment
-        // the status fix above lets rows through it becomes an endless retry
-        // loop. The queue state lives in `status`; `outcome` records what came
-        // of it, and nothing came of it.
-        await supabase.from('ai_actions').update({ status: 'executed', outcome: 'failed' }).eq('id', action.id);
-        continue;
+      if (!Number.isFinite(Date.parse(action.details?.expires_at)) || Date.parse(action.details.expires_at) <= Date.now()) {
+        await finish(action,'held','expired'); continue;
       }
-
+      const appt = await appointment(action.beautician_id,action.details?.appointment_id);
+      if (!eligible(appt,action.beautician_id,action.client_id)) { await finish(action,'held','visit_not_eligible'); continue; }
+      if (!splitBillable([appt.beauticians]).billable.length) { await finish(action,'held','plan_inactive'); continue; }
+      if (appt.beauticians?.client_reminder_prefs?.paused === true) { await finish(action,'held','salon_paused'); continue; }
       const client = appt.clients;
-      const biz = appt.beauticians;
-      const treatmentName = appt.treatments?.name || 'your treatment';
-      const bizName = biz?.business_name || biz?.first_name || 'us';
-
-      // Build review URL — Google if available, otherwise generic
-      const googleUrl = googleReviewLink(biz);
-
-      // SMS/WhatsApp message
-      const smsBody = googleUrl
-        ? `Hey ${client.first_name}! Thanks for coming in for ${treatmentName}. If you have a moment, please share your experience on Google: ${googleUrl} xx`
-        : `Hey ${client.first_name}! Thanks for coming in for ${treatmentName}. I'd love to hear how your visit was. Reply here with any feedback xx`;
-
-      // Send via best channel — gated so review requests can't bypass
-      // consent / frequency caps / allowance.
-      let result = null;
-      const guard = await guardedSend({
-        beauticianId: action.beautician_id,
-        clientId: client.id,
-        messageType: 'review_request',
-        channel: client.preferred_channel || (client.whatsapp_id ? 'whatsapp' : 'sms'),
-        client,
-        body: smsBody,
-        send: async () => {
-          result = await sendMessage({
-            client,
-            body: smsBody,
-            beauticianId: action.beautician_id,
-          });
-          return result;
-        },
-      });
-
-      // If the gate didn't clear (queued for approval or blocked), don't
-      // also send the email — that would bypass the same gate. Mark and skip.
-      if (!guard.delivered) {
-        await supabase.from('ai_actions').update({
-          status: 'executed',
-          // Same CHECK as above: 'skipped' is not one of the four allowed
-          // outcomes. Held by the gate is a 'failed' send, and the reason is
-          // spelled out in the summary.
-          outcome: guard.decision === 'approve' ? 'pending' : 'failed',
-          summary: `Review request ${guard.decision === 'approve' ? 'queued for approval' : 'held'} for ${client.first_name} (${guard.reason})`,
-        }).eq('id', action.id);
+      const channel = reviewChannel(client);
+      if (!channel) { await finish(action,'held','no_contact'); continue; }
+      const verdict = await evaluateOutbound({beauticianId:action.beautician_id,clientId:client.id,
+        messageType:'review_request',channel,client,confirmedReviewVisit:true});
+      if (verdict.decision === 'block') {
+        if (retryable.has(verdict.reason)) await defer(action,verdict.reason);
+        else await finish(action,'held',verdict.reason);
         continue;
       }
-
-      // Keep the existing email accompaniment for message channels, but do not
-      // email again when sendMessage already delivered through its fallback.
-      if (client.email && result?.channel !== 'email') {
-        const color = biz?.brand_color || '#92405E';
-        await sendEmail({
-          to: client.email,
-          subject: `How was your ${treatmentName}?`,
-          text: smsBody,
-          html: `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#faf8f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#faf8f5;padding:32px 16px">
-<tr><td align="center">
-<table width="100%" style="max-width:520px;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06)">
-  <tr><td style="padding:28px 32px">
-    <h2 style="margin:0 0 12px;color:#2d2a26;font-size:20px;font-weight:700">How was your ${treatmentName}?</h2>
-    <p style="margin:0 0 20px;color:#6b6560;font-size:15px;line-height:1.6">
-      Hey ${client.first_name}, thanks for visiting ${bizName}. If you have a moment,
-      please share your experience:
-    </p>
-    ${googleUrl ? `<table cellpadding="0" cellspacing="0" style="margin:0 0 20px"><tr><td>
-      <a href="${googleUrl}" style="display:inline-block;padding:12px 28px;background:${color};color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px">Leave a review ⭐</a>
-    </td></tr></table>` : ''}
-    <p style="margin:0;color:#a09a93;font-size:13px">Not happy? Reply to this email and we'll make it right.</p>
-  </td></tr>
-  <tr><td style="padding:14px 32px;border-top:1px solid #f0eeeb">
-    <p style="margin:0;color:#a09a93;font-size:11px;text-align:center">${bizName}, powered by Florrie</p>
-  </td></tr>
-</table>
-</td></tr>
-</table>
-</body></html>`,
-        });
+      const url = googleReviewLink(appt.beauticians);
+      const body = `Hi ${client.first_name || 'there'}, thanks for visiting ${appt.beauticians?.business_name || 'us'} for ${appt.treatments?.name || 'your treatment'}. ${url ? `If you have a moment, please share your experience on Google: ${url}` : 'If you have a moment, reply with any feedback about your visit.'}`;
+      if (verdict.decision === 'approve') {
+        attempted = true; // Creating an approval is also a durable side effect.
+        const outboundId = await recordOutbound({beauticianId:action.beautician_id,clientId:client.id,messageType:'review_request',channel,
+          tier:'proactive',status:'pending_approval',reason:verdict.reason,body});
+        await finish(action,outboundId ? 'approval' : 'held',outboundId ? verdict.reason : 'approval_save_failed',{outbound_id:outboundId,channel});
+        continue;
       }
-
-      // Update action
-      await supabase.from('ai_actions').update({
-        status: 'executed',
-        outcome: 'success',
-        summary: `Review request sent to ${client.first_name} via ${result?.channel || 'email'}`,
-        notification_sent: true,
-        notification_text: `Asked ${client.first_name} for a review after their ${treatmentName}`,
-      }).eq('id', action.id);
-
-      sent++;
+      if (['instagram','whatsapp'].includes(channel)) {
+        const latest = await supabase.from('messages').select('created_at').eq('beautician_id',action.beautician_id)
+          .eq('client_id',client.id).eq('channel',channel).eq('direction','inbound').order('created_at',{ascending:false}).limit(1).maybeSingle();
+        if (latest.error) { await defer(action,'error_failsafe'); continue; }
+        if (!latest.data || Date.now() - Date.parse(latest.data.created_at) >= 24 * HOUR) {
+          await finish(action,'held','channel_window_closed',{channel}); continue;
+        }
+      }
+      attempted = true;
+      const result = await sendOnChannel({beautician:{...appt.beauticians,id:action.beautician_id},clientId:client.id,channel,body});
+      const outboundId = await recordOutbound({beauticianId:action.beautician_id,clientId:client.id,messageType:'review_request',channel,
+        tier:'proactive',status:result.ok ? 'sent':'blocked',reason:result.ok ? verdict.reason:'send_failed',body});
+      await finish(action,result.ok ? 'sent':'unconfirmed',result.ok ? 'provider_accepted':'send_not_confirmed',{outbound_id:outboundId,channel});
+      if (result.ok) sent++;
     } catch (err) {
-      logger.error({ err, actionId: action.id }, 'Review request send failed');
-      await supabase.from('ai_actions').update({ status: 'executed', outcome: 'failed' }).eq('id', action.id);
+      logger.error({err,actionId:action.id},'Review request processing failed');
+      // Only pre-send reads can be retried. A failed status write leaves the claim visible.
+      try { if (attempted) await finish(action,'unconfirmed','send_not_confirmed'); else await defer(action,'error_failsafe'); }
+      catch (saveError) { logger.error({err:saveError,actionId:action.id},'Review request needs manual inspection'); }
     }
   }
+  return {sent,total:due.data?.length || 0};
+}
 
-  return { sent, total: due.length };
+// An approval must recheck the visit and record its own provider result. Outbox's
+// optimistic claim is not evidence that a provider accepted the message.
+export async function beginReviewApproval(owner, outboundId) {
+  const row = await supabase.from('ai_actions').select('*').eq('beautician_id',owner).eq('action_type','review_requested')
+    .eq('details->>outbound_id',outboundId).limit(1).maybeSingle();
+  if (row.error) throw row.error;
+  if (!row.data || row.data.details?.version !== VERSION) return null;
+  const appt = await appointment(owner,row.data.details.appointment_id);
+  if (!(Date.parse(row.data.details.expires_at) > Date.now() && eligible(appt,owner,row.data.client_id))
+    || !appt.clients.marketing_consent || appt.clients.marketing_opted_out_at || appt.beauticians?.client_reminder_prefs?.paused
+    || appt.beauticians?.autonomy?.review_request === 'off') {
+    await finish(row.data,'held','visit_or_permission_changed');
+    throw new Error('This review request is no longer eligible. Skip this draft and check the visit and contact permissions.');
+  }
+  const claim = await supabase.from('ai_actions').update({status:'processing',details:{...row.data.details,delivery_state:'processing',claimed_at:iso(Date.now())}})
+    .eq('beautician_id',owner).eq('id',row.data.id).eq('details->>delivery_state','approval').select('id').maybeSingle();
+  if (claim.error) throw claim.error;
+  if (!claim.data) throw new Error('This request was already handled or its send result needs checking. Open the conversation before sending again.');
+  return row.data;
+}
+export async function finishReviewApproval(action, accepted) {
+  if (action) await finish(action,accepted ? 'sent':'unconfirmed',accepted ? 'provider_accepted':'send_not_confirmed');
+}
+
+export async function listReviewRequests(owner) {
+  const rows = await supabase.from('ai_actions').select('id,client_id,created_at,status,outcome,details,clients(beautician_id,first_name,last_name,marketing_consent,marketing_opted_out_at)')
+    .eq('beautician_id',owner).eq('action_type','review_requested').order('created_at',{ascending:false}).limit(25);
+  if (rows.error) throw rows.error;
+  const ids = (rows.data || []).map(r=>r.details?.outbound_id).filter(Boolean);
+  const outbound = ids.length ? await supabase.from('outbound_sends').select('id,status,reason').eq('beautician_id',owner).in('id',ids) : {data:[]};
+  if (outbound.error) throw outbound.error;
+  return {requests:(rows.data || []).map(row=>{
+    const details = row.details || {};
+    const linked = outbound.data?.find(r=>r.id === details.outbound_id);
+    let state = details.version === VERSION ? details.delivery_state : row.outcome === 'success' ? 'sent' : 'legacy';
+    if (state === 'processing' && Date.now() - Date.parse(details.claimed_at) > 10 * 60000) state = 'unconfirmed';
+    if (state === 'approval') state = !linked ? 'unconfirmed' : linked.status === 'sent' ? 'unconfirmed' : linked.status === 'pending_approval' ? 'approval' : 'held';
+    if (state === 'approval' && Date.parse(details.expires_at) <= Date.now()) state = 'held';
+    return {id:row.id,client_id:row.client_id,client_name:row.clients?.beautician_id === owner ? [row.clients.first_name,row.clients.last_name].filter(Boolean).join(' ') || 'Client' : 'Client',
+      created_at:row.created_at,send_at:details.send_at,state,reason:linked?.reason || details.reason || null,channel:details.channel || null};
+  })};
 }

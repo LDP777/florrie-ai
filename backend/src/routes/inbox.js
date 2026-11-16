@@ -1,3 +1,4 @@
+import { inboxHandoff } from '../lib/inbox-handoff.js';
 import { Router } from 'express';
 import { authorshipAvailable } from '../lib/authorship.js';
 import { supabase } from '../config.js';
@@ -125,6 +126,7 @@ const NEEDS_YOU_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
  * spoken since, nobody is waiting, whatever the old rows say.
  */
 function needsYou(bucket) {
+  if (Object.hasOwn(bucket, 'handoff')) return !!bucket.handoff;
   if (bucket.needs_appointment_decision) return true;
   if (bucket.last_message_direction !== 'inbound') return false;
   if (Date.now() - new Date(bucket.last_message_at).getTime() > NEEDS_YOU_WINDOW_MS) return false;
@@ -165,6 +167,7 @@ const THREAD_BASE_COLUMNS = `
         created_at,
         resolved,
         read_at,
+        send_status,
         ai_handled,
         escalated,
         escalated_reason,
@@ -319,6 +322,7 @@ async function computeThreads(beauticianId, limit) {
         if (row.is_junk) bucket._junkInbound += 1;
       }
 
+      (bucket._handoffMessages ||= []).push(row);
       // Unread = inbound, not read, not resolved.
       if (row.direction === 'inbound' && !row.read_at && !row.resolved) {
         bucket.unread_count += 1;
@@ -362,20 +366,7 @@ async function computeThreads(beauticianId, limit) {
           bucket._lastTextLocked = true;
         }
       }
-      if (row.escalated && !row.resolved) {
-        bucket.needs_attention = true;
-        if (String(row.escalated_reason || '').startsWith('appointment_change:')
-          && Date.now() - new Date(row.created_at).getTime() <= NEEDS_YOU_WINDOW_MS) {
-          bucket.needs_appointment_decision = true;
-        }
-        // Rows arrive newest-first, so the FIRST unresolved escalation we meet
-        // is the live one. Its draft is what the card offers her to send, so
-        // she can answer without opening the conversation at all.
-        if (!bucket.draft_reply && row.ai_response) {
-          bucket.draft_reply = row.ai_response;
-          bucket.draft_message_id = row.id;
-        }
-      }
+
     }
 
     // Guarantee no blank preview survives.
@@ -411,6 +402,13 @@ async function computeThreads(beauticianId, limit) {
       // named client is NOT a regular, and a webhook stranger with a real
       // profile name is not a returning one.
       t.is_known_client = isKnownClient;
+      t.handoff = inboxHandoff(t._handoffMessages || [], {replyOwed:replyIsOwed});
+      t.needs_attention = !!t.handoff?.reason;
+      t.needs_appointment_decision = !!t.handoff?.appointment_decision;
+      const liveDraft = t._handoffMessages?.find(m => m.id === t.handoff?.message_id && m.id === t._handoffMessages.find(x => x.direction === 'inbound')?.id);
+      t.draft_reply = liveDraft?.ai_response || null;
+      t.draft_message_id = t.draft_reply ? liveDraft.id : null;
+      delete t._handoffMessages;
       t.segment = segmentOf(t, {
         isJunk,
         isKnownClient,
@@ -701,6 +699,7 @@ router.get('/thread/:client_id', requireAuth, async (req, res) => {
         last_visit_at: completed.length ? completed[0].starts_at : null,
         next_appointment_at: upcoming.length ? upcoming[0].starts_at : null,
       },
+      handoff: inboxHandoff(data || [], {replyOwed:replyIsOwed}),
       drafts: draftRes.data || [],
       default_channel: defaultChannel,
       messages,

@@ -1,3 +1,4 @@
+import { explainHold } from '../lib/hold-reasons.js';
 import { useClientPrivacy, PrivateText, PrivateSection } from '../contexts/ClientPrivacyContext.jsx';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
@@ -97,14 +98,16 @@ function initialOf(name) {
 
 // How long a needs-you thread has been waiting on her. Amber chip fuel.
 function waitingLabel(t) {
-  const ts = t.last_inbound_at || (t.last_message_direction === 'inbound' ? t.last_message_at : null);
+  const ts = t.handoff?.waiting_since || t.waiting_since || t.last_inbound_at || (t.last_message_direction === 'inbound' ? t.last_message_at : null);
   if (!ts) return null;
-  const mins = Math.round((Date.now() - new Date(ts).getTime()) / 60000);
+  const stamp = Date.parse(ts);
+  if (!Number.isFinite(stamp)) return null;
+  const mins = Math.max(0, Math.floor((Date.now() - stamp) / 60000));
   if (mins < 2) return 'just now';
   if (mins < 60) return `waiting ${mins}m`;
-  const h = Math.round(mins / 60);
+  const h = Math.floor(mins / 60);
   if (h < 24) return `waiting ${h}h`;
-  return `waiting ${Math.round(h / 24)}d`;
+  return `waiting ${Math.floor(h / 24)}d`;
 }
 
 function formatTimeShort(iso, now = new Date()) {
@@ -198,6 +201,7 @@ function ChannelMark({ channel, size = 22 }) {
 // something, so a missing intent stays owed.
 const NEEDS_YOU_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 function needsYou(t) {
+  if (Object.hasOwn(t, 'handoff')) return !!t.handoff;
   // The BACKEND owns this decision now and sends it as thread.segment, so
   // there is one copy of the rule (replyIsOwed) rather than two that drift.
   //
@@ -948,7 +952,7 @@ function ThreadRow({ thread, active, onOpen, onDelete, muted = false, quiet = fa
           {owed && waitingLabel(thread) && (
             <span style={S.rowMetaRow}>
               <span style={S.waitChip}>{waitingLabel(thread)}</span>
-              {flagged && <span style={S.petalNote}>{'\u{1F337}'} needs your yes or no</span>}
+              {thread.handoff && <span style={S.petalNote}><PrivateText placeholder="Needs your attention">{thread.handoff.title}</PrivateText></span>}
             </span>
           )}
           {!hideTypeChip && !owed && !quiet && (
@@ -1202,6 +1206,7 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
         messages: (prev.messages || []).map(m => m.id === tempId ? { ...res.message, message_type: 'you' } : m),
       }));
       onSent?.();
+      load();
     } catch (err) {
       logger.error({ err }, 'inbox.send failed');
       setState(prev => ({
@@ -1241,6 +1246,8 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
   }
 
   const { client, messages = [], meta = null, drafts = [] } = state;
+  const holdExplanation = explainHold(state.handoff?.reason, 'They have asked a question. Read the latest messages before replying.');
+  const handoffExplanation = holdExplanation === state.handoff?.reason ? 'Florrie held this for you. Read the latest messages before replying.' : holdExplanation;
   const storedName = [client?.first_name, client?.last_name].filter(Boolean).join(' ');
   const igHandle = (client?.instagram_username || '').trim().replace(/^@/, '') || null;
   // Same rule as the list: when all we have is "Instagram User", the handle is
@@ -1340,6 +1347,20 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
           <DraftBubble key={d.id} draft={d} onDone={removeDraft} onSent={() => { removeDraft(d.id); load(); onSent?.(); }} />
         ))}
       </div>
+
+      {state.handoff && <PrivateSection placeholder="Show client details to see why this conversation needs you.">
+        <aside aria-label="Why this needs you" style={{margin:'8px 14px',padding:'12px 14px',border:'1px solid var(--border, #eaded6)',borderRadius:16,background:'var(--surface, #fffaf7)'}}>
+          <div style={{display:'flex',gap:8,justifyContent:'space-between',alignItems:'baseline',flexWrap:'wrap'}}>
+            <strong style={{fontSize:13}}>{state.handoff.title}</strong>
+            <span style={{fontSize:11,color:'var(--text-muted)'}}>{waitingLabel(state.handoff)}</span>
+          </div>
+          <p style={{fontSize:12,lineHeight:1.5,margin:'6px 0 10px',color:'var(--text-muted)'}}>{handoffExplanation}</p>
+          <div style={{display:'flex',gap:16,flexWrap:'wrap'}}>
+            {state.handoff.action === 'diary' && <Button variant="quiet" size="sm" onClick={() => navigate('/calendar/week')}>Check diary</Button>}
+            <Button variant="quiet" size="sm" onClick={() => composerRef.current?.focus()}>{state.handoff.action === 'diary' ? 'Write a reply' : state.handoff.action_label}</Button>
+          </div>
+        </aside>
+      </PrivateSection>}
 
       {showWaWindowHint && (
         <div style={S.waHint}>

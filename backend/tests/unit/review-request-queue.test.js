@@ -1,283 +1,59 @@
-/**
- * A review request that is scheduled and never sent.
- *
- * scheduleReviewRequest() is called from routes/appointments.js the moment an
- * appointment is marked complete. It writes an ai_actions row and sets
- * `outcome: 'pending'`. processReviewRequests(), two hours later, asks for
- * `.eq('status', 'scheduled')`.
- *
- * status and outcome are two different axes. outcome is the RESULT of an
- * action (success / pending / failed / escalated). status is where the row
- * sits in a queue (scheduled / pending_approval / executed / dismissed). The
- * insert set one and the query filtered on the other, and in PostgREST
- * `.eq('status', 'scheduled')` does not match NULL, so the queue query matched
- * nothing, forever. Every completed appointment since the feature shipped has
- * written a row that is still sitting in ai_actions.
- *
- * The second half of the same bug only becomes reachable once the first is
- * fixed. The CHECK on ai_actions.outcome allows exactly four values and
- * 'skipped' is not one of them (001_initial_schema.sql:370, never widened).
- * Two of the three update paths wrote 'skipped', which raises 23514, so the
- * row would never leave 'scheduled' and the next run would pick it up and try
- * to send it again. Harmless while nothing was ever selected; an endless
- * re-send loop the moment rows start flowing.
- */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-
-// The four values the CHECK constraint on ai_actions.outcome allows.
-const ALLOWED_OUTCOMES = ['success', 'pending', 'failed', 'escalated'];
-
-const db = { ai_actions: [], appointments: [] };
-const inserted = [];
-const deliveredBodies = [];
-const deliveredEmails = [];
-const guardedClients = [];
-const updated = [];
-let guardVerdict = { decision: 'send', delivered: true, tier: 'proactive', reason: 'trusted_auto' };
-let deliveryChannel = 'sms';
-
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+const state = vi.hoisted(()=>({db:{},calls:[],send:vi.fn(),verdict:{},failure:null,guard:vi.fn()}));
+const value=(r,c)=>c.includes('->>') ? String(r[c.split('->>')[0]]?.[c.split('->>')[1]] ?? '') : r[c];
 function builder(table) {
-  const filters = [];
-  let pending = null;
-  const rows = () => (db[table] || []).filter(r => filters.every(f => f(r)));
-  const settle = () => {
-    if (pending?.op === 'insert') {
-      const row = { id: `row_${inserted.length + 1}`, created_at: new Date().toISOString(), ...pending.payload };
-      // Behave like the real constraint: reject an outcome outside the CHECK.
-      if (row.outcome !== undefined && row.outcome !== null && !ALLOWED_OUTCOMES.includes(row.outcome)) {
-        return { data: null, error: { code: '23514', message: 'new row violates check constraint "ai_actions_outcome_check"' } };
-      }
-      db[table].push(row);
-      inserted.push({ table, payload: pending.payload });
-      return { data: [row], error: null };
+  const filters=[];let op=null, payload,maximum=Infinity,sort=null;
+  const q={select(){return q;},eq(c,v){filters.push(r=>value(r,c)===v);return q;},in(c,v){filters.push(r=>v.includes(value(r,c)));return q;},gte(c,v){filters.push(r=>value(r,c)>=v);return q;},lte(c,v){filters.push(r=>value(r,c)<=v);return q;},order(c,opts){sort=[c,opts.ascending];return q;},limit(n){maximum=n;return q;},insert(p){op='insert';payload=p;return q;},update(p){op='update';payload=p;return q;},maybeSingle(){return settle().then(r=>({...r,data:r.error?null:r.data?.[0]||null}));},then(a,b){return settle().then(a,b);}};
+  async function settle(){
+    state.calls.push({table,op,payload});
+    if (state.failure?.(table,op,payload)) return {error:{message:'database unavailable'},data:null};
+    const rows=state.db[table] ||= [];
+    if(op==='insert') {
+      if(rows.some(r=>r.id===payload.id))return {error:{code:'23505'}};
+      rows.push({...structuredClone(payload),created_at:new Date().toISOString()});return {data:[],error:null};
     }
-    if (pending?.op === 'update') {
-      const p = pending.payload;
-      if (p.outcome !== undefined && p.outcome !== null && !ALLOWED_OUTCOMES.includes(p.outcome)) {
-        updated.push({ table, payload: p, rejected: true });
-        return { data: null, error: { code: '23514', message: 'new row violates check constraint "ai_actions_outcome_check"' } };
-      }
-      const hit = rows();
-      for (const r of hit) Object.assign(r, p);
-      updated.push({ table, payload: p, ids: hit.map(r => r.id) });
-      return { data: hit, error: null };
-    }
-    return { data: rows(), error: null };
-  };
-  const b = {
-    select() { return b; },
-    insert(p) { pending = { op: 'insert', payload: p }; return b; },
-    update(p) { pending = { op: 'update', payload: p }; return b; },
-    eq(c, v) { filters.push(r => r[c] === v); return b; },
-    gte(c, v) { filters.push(r => String(r[c] ?? '') >= v); return b; },
-    lte(c, v) { filters.push(r => String(r[c] ?? '') <= v); return b; },
-    // details->>send_at, the JSON arrow form PostgREST accepts.
-    limit() { return b; },
-    maybeSingle() { const o = settle(); return Promise.resolve(o.error ? o : { data: (o.data || [])[0] || null, error: null }); },
-    single() { const o = settle(); return Promise.resolve(o.error ? o : { data: (o.data || [])[0] || null, error: null }); },
-    then(res, rej) { return Promise.resolve(settle()).then(res, rej); },
-  };
-  return b;
-}
-
-vi.mock('../../src/config.js', () => ({ supabase: { from: builder } }));
-vi.mock('../../src/lib/outbound-guard.js', () => ({
-  guardedSend: async ({ send, client }) => {
-    guardedClients.push(client);
-    if (guardVerdict.decision === 'send') await send();
-    return guardVerdict;
-  },
-}));
-vi.mock('../../src/services/notifications.js', () => ({
-  sendMessage: async (...args) => {
-    deliveredBodies.push(args);
-    if (deliveryChannel === 'email') deliveredEmails.push({to:args[0].client.email,text:args[0].body,source:'message-fallback'});
-    return { channel: deliveryChannel };
-  },
-  sendEmail: async (email) => { deliveredEmails.push(email); return true; },
-}));
-
-const { scheduleReviewRequest, processReviewRequests } =
-  await import('../../src/services/review-requests.js');
-
-beforeEach(() => {
-  db.ai_actions = [];
-  db.appointments = [];
-  inserted.length = 0;
-  deliveredBodies.length = 0;
-  deliveredEmails.length = 0;
-  guardedClients.length = 0;
-  updated.length = 0;
-  guardVerdict = { decision: 'send', delivered: true, tier: 'proactive', reason: 'trusted_auto' };
-  deliveryChannel = 'sms';
-});
-
-describe('scheduling a review request', () => {
-  it('puts the row IN the queue, by setting status', async () => {
-    await scheduleReviewRequest('b1', 'appt1', 'c1');
-
-    const row = inserted.find(i => i.table === 'ai_actions')?.payload;
-    expect(row).toBeTruthy();
-    // The assertion the bug is made of. Without this the row is invisible to
-    // the only thing that would ever send it.
-    expect(row.status).toBe('scheduled');
-  });
-
-  it('still records the outcome separately, because they are different axes', async () => {
-    await scheduleReviewRequest('b1', 'appt1', 'c1');
-    const row = inserted.find(i => i.table === 'ai_actions')?.payload;
-    expect(row.outcome).toBe('pending');
-    expect(ALLOWED_OUTCOMES).toContain(row.outcome);
-  });
-});
-
-describe('the round trip: what is written is what is read back', () => {
-  it('processReviewRequests finds the row scheduleReviewRequest just wrote', async () => {
-    db.appointments.push({
-      id: 'appt1', beautician_id: 'b1',
-      clients: { id: 'c1', beautician_id: 'b1', first_name: 'Shauna', phone: '+447700900000', preferred_channel: 'sms' },
-      treatments: { name: 'brow lamination' },
-      beauticians: { first_name: 'Ellie', business_name: 'Ellindigo' },
-    });
-
-    await scheduleReviewRequest('b1', 'appt1', 'c1');
-    // The row is due: send_at is two hours out, so pretend two hours passed.
-    db.ai_actions[0].details.send_at = new Date(Date.now() - 60_000).toISOString();
-
-    const result = await processReviewRequests();
-
-    expect(result.sent).toBe(1);
-  });
-});
-
-describe('every outcome written is one the constraint allows', () => {
-  it('does not write "skipped" when the gate holds the send', async () => {
-    db.appointments.push({
-      id: 'appt1', beautician_id: 'b1',
-      clients: { id: 'c1', beautician_id: 'b1', first_name: 'Shauna', phone: '+447700900000' },
-      treatments: { name: 'brow lamination' },
-      beauticians: { first_name: 'Ellie' },
-    });
-    guardVerdict = { decision: 'block', delivered: false, tier: 'proactive', reason: 'frequency_cap' };
-
-    await scheduleReviewRequest('b1', 'appt1', 'c1');
-    db.ai_actions[0].details.send_at = new Date(Date.now() - 60_000).toISOString();
-    await processReviewRequests();
-
-    const rejected = updated.filter(u => u.rejected);
-    expect(rejected).toHaveLength(0);
-    for (const u of updated) {
-      if (u.payload.outcome !== undefined) expect(ALLOWED_OUTCOMES).toContain(u.payload.outcome);
-    }
-  });
-
-  it('and having written a real outcome, the row leaves the queue instead of looping', async () => {
-    db.appointments.push({
-      id: 'appt1', beautician_id: 'b1',
-      clients: { id: 'c1', beautician_id: 'b1', first_name: 'Shauna', phone: '+447700900000' },
-      treatments: { name: 'brow lamination' },
-      beauticians: { first_name: 'Ellie' },
-    });
-    guardVerdict = { decision: 'block', delivered: false, tier: 'proactive', reason: 'frequency_cap' };
-
-    await scheduleReviewRequest('b1', 'appt1', 'c1');
-    db.ai_actions[0].details.send_at = new Date(Date.now() - 60_000).toISOString();
-    await processReviewRequests();
-
-    // Not still 'scheduled'. If the update had been rejected by the CHECK this
-    // row would be picked up again on the next pass, and the one after that.
-    expect(db.ai_actions[0].status).toBe('executed');
-  });
-});
-
-
-describe('the saved Google review link reaches the existing guarded request', () => {
-  it('uses the salon link and requests feedback without selecting happy clients', async () => {
-    db.appointments.push({id:'appt1',beautician_id:'b1',clients:{id:'c1',beautician_id:'b1',first_name:'Demo',phone:'+447700900000'},treatments:{name:'brows'},beauticians:{google_review_link:'https://g.page/r/demo-salon/review'}});
-    await scheduleReviewRequest('b1','appt1','c1');
-    db.ai_actions[0].details.send_at = new Date(Date.now()-60000).toISOString();
-    await processReviewRequests();
-    expect(JSON.stringify(deliveredBodies)).toContain('https://g.page/r/demo-salon/review');
-    expect(JSON.stringify(deliveredBodies)).toContain('please share your experience');
-    expect(JSON.stringify(deliveredBodies)).not.toContain('If you had a great');
-  });
-});
-
-describe('review requests cannot cross salon or client boundaries', () => {
-  it.each([
-    ['another salon’s appointment', 'b2', {id:'c1',beautician_id:'b2'}],
-    ['another salon’s appointment even with a mismatched local client join', 'b2', {id:'c1',beautician_id:'b1'}],
-    ['a client joined from another salon', 'b1', {id:'c1',beautician_id:'b2'}],
-    ['an appointment reassigned to another client', 'b1', {id:'c2',beautician_id:'b1'}],
-    ['a client whose owner is unavailable', 'b1', {id:'c1'}],
-  ])('does not send or queue approval for %s', async (_scenario, appointmentOwner, client) => {
-    db.appointments.push({
-      id:'appt1',beautician_id:appointmentOwner,
-      clients:{...client,first_name:'Fictional client',phone:'+447700900000',email:'demo@example.test',marketing_consent:true,marketing_opted_out_at:null},
-      treatments:{name:'brows'},beauticians:{business_name:'Fictional salon'},
-    });
-    await scheduleReviewRequest('b1','appt1','c1');
-    db.ai_actions[0].details.send_at=new Date(Date.now()-60000).toISOString();
-    expect(await processReviewRequests()).toMatchObject({sent:0});
-    expect(guardedClients).toEqual([]);
-    expect(deliveredBodies).toEqual([]);
-    expect(deliveredEmails).toEqual([]);
-    expect(db.ai_actions[0]).toMatchObject({status:'executed',outcome:'failed'});
-  });
-
-  it('keeps each salon’s valid review request on its own client and review link', async () => {
-    for(const suffix of ['1','2']) {
-      db.appointments.push({
-        id:`appt${suffix}`,beautician_id:`b${suffix}`,
-        clients:{id:`c${suffix}`,beautician_id:`b${suffix}`,first_name:`Client ${suffix}`,phone:`+44770090000${suffix}`,email:`client${suffix}@example.test`},
-        treatments:{name:'brows'},beauticians:{google_review_link:`https://g.page/r/salon-${suffix}/review`},
-      });
-      await scheduleReviewRequest(`b${suffix}`,`appt${suffix}`,`c${suffix}`);
-    }
-    for(const action of db.ai_actions) action.details.send_at=new Date(Date.now()-60000).toISOString();
-    expect(await processReviewRequests()).toMatchObject({sent:2});
-    for(const [index, suffix] of ['1','2'].entries()) {
-      expect(deliveredBodies[index][0]).toMatchObject({beauticianId:`b${suffix}`,client:{id:`c${suffix}`,beautician_id:`b${suffix}`}});
-      expect(deliveredBodies[index][0].body).toContain(`salon-${suffix}/review`);
-      expect(deliveredEmails[index].to).toBe(`client${suffix}@example.test`);
-      expect(deliveredEmails[index].text).toContain(`salon-${suffix}/review`);
-    }
-  });
-});
-
-describe('a review request does not duplicate its email fallback', () => {
-  async function dueRequest() {
-    db.appointments.push({
-      id:'appt1',beautician_id:'b1',clients:{id:'c1',beautician_id:'b1',first_name:'Demo',email:'client@example.test'},
-      treatments:{name:'brows'},beauticians:{google_review_link:'https://g.page/r/demo-salon/review'},
-    });
-    await scheduleReviewRequest('b1','appt1','c1');
-    db.ai_actions[0].details.send_at=new Date(Date.now()-60000).toISOString();
+    let selected=rows.filter(r=>filters.every(f=>f(r)));
+    if(sort)selected.sort((a,b)=>String(value(a,sort[0])).localeCompare(String(value(b,sort[0])))*(sort[1]?1:-1));
+    selected=selected.slice(0,maximum);
+    if(op==='update')for(const r of selected)Object.assign(r,structuredClone(payload));
+    return {data:structuredClone(selected),error:null};
   }
+  return q;
+}
+vi.mock('../../src/config.js',()=>({supabase:{from:builder}}));
+vi.mock('../../src/services/messaging.js',()=>({sendOnChannel:(args)=>state.send(args)}));
+vi.mock('../../src/lib/outbound-guard.js',()=>({evaluateOutbound:args=>{state.guard(args);return state.verdict;},recordOutbound:async args=>{const id=`out-${state.db.outbound_sends.length}`;state.db.outbound_sends.push({id,beautician_id:args.beauticianId,client_id:args.clientId,status:args.status,reason:args.reason});return id;}}));
+const {scheduleReviewRequest,processReviewRequests,listReviewRequests,beginReviewApproval,finishReviewApproval,reviewChannel}=await import('../../src/services/review-requests.js');
+const now=Date.parse('2026-11-16T14:00:00Z');
+function appt(overrides={}){return {id:'a1',beautician_id:'b1',client_id:'c1',status:'completed',starts_at:'2026-11-16T11:00:00Z',ends_at:'2026-11-16T12:00:00Z',clients:{id:'c1',beautician_id:'b1',first_name:'Test',phone:'fictional',preferred_channel:'sms',marketing_consent:true,marketing_opted_out_at:null},beauticians:{id:'b1',business_name:'Demo',timezone:'Europe/London',subscription_status:'active',google_review_link:'https://g.page/r/test/review'},treatments:{name:'Brows'},...overrides};}
+async function queue(){await scheduleReviewRequest('b1','a1','c1');vi.setSystemTime(now+2*3600000+1);return state.db.ai_actions[0];}
+beforeEach(()=>{vi.useFakeTimers({now,toFake:['Date']});state.db={ai_actions:[],appointments:[appt()],outbound_sends:[],messages:[]};state.calls=[];state.failure=null;state.verdict={decision:'send',reason:'trusted_auto'};state.send.mockReset().mockResolvedValue({ok:true});state.guard.mockClear();});
+afterEach(()=>vi.useRealTimers());
 
-  it('sends just one email when the best available channel delivered by email', async () => {
-    deliveryChannel='email';await dueRequest();
-    expect(await processReviewRequests()).toMatchObject({sent:1});
-    expect(deliveredBodies).toHaveLength(1);
-    expect(deliveredEmails).toHaveLength(1);
-    expect(deliveredEmails[0]).toMatchObject({to:'client@example.test',source:'message-fallback'});
-    expect(deliveredEmails[0].text).toContain('https://g.page/r/demo-salon/review');
-    expect(db.ai_actions[0]).toMatchObject({status:'executed',outcome:'success'});
-  });
-
-  it('keeps the existing single email accompaniment after a successful SMS', async () => {
-    await dueRequest();
-    expect(await processReviewRequests()).toMatchObject({sent:1});
-    expect(deliveredBodies).toHaveLength(1);
-    expect(deliveredEmails).toHaveLength(1);
-    expect(deliveredEmails[0]).toMatchObject({to:'client@example.test',subject:'How was your brows?'});
-    expect(deliveredEmails[0].text).toContain('https://g.page/r/demo-salon/review');
-  });
-
-  it('does not attempt either email path while the request awaits approval', async () => {
-    deliveryChannel='email';guardVerdict={decision:'approve',delivered:false,reason:'awaiting_approval'};await dueRequest();
-    expect(await processReviewRequests()).toMatchObject({sent:0});
-    expect(deliveredBodies).toEqual([]);expect(deliveredEmails).toEqual([]);
-    expect(db.ai_actions[0]).toMatchObject({status:'executed',outcome:'pending'});
-  });
+describe('new owner-confirmed review requests',()=>{
+  it('delays two hours and records a pending outcome separately from queue status',async()=>{await scheduleReviewRequest('b1','a1','c1');expect(state.db.ai_actions[0]).toMatchObject({status:'scheduled',outcome:'pending',details:{version:'owner-completed-v2',send_at:'2026-11-16T16:00:00.000Z'}});expect((await processReviewRequests()).sent).toBe(0);});
+  it('deduplicates concurrent completion requests using the appointment key',async()=>{await Promise.all([scheduleReviewRequest('b1','a1','c1'),scheduleReviewRequest('b1','a1','c1')]);expect(state.db.ai_actions).toHaveLength(1);expect(state.db.ai_actions[0].id).toMatch(/^[a-f0-9-]{36}$/);});
+  it('holds another request for the same client within seven days',async()=>{state.db.ai_actions.push({id:'previous',beautician_id:'b1',client_id:'c1',action_type:'review_requested',created_at:new Date().toISOString()});await scheduleReviewRequest('b1','a1','c1');expect(state.db.ai_actions).toHaveLength(1);});
+  it.each(['confirmed','cancelled','no_show'])('does not schedule %s appointments',async status=>{state.db.appointments[0].status=status;expect(await scheduleReviewRequest('b1','a1','c1')).toEqual({scheduled:false});});
+  it.each(['2026-11-01T12:00:00Z','2026-11-17T12:00:00Z'])('does not turn old or future visits into messages: %s',async ends_at=>{state.db.appointments[0].ends_at=ends_at;await scheduleReviewRequest('b1','a1','c1');expect(state.db.ai_actions).toHaveLength(0);});
+  it('fails closed on an unreadable dedup check',async()=>{state.failure=(t,op)=>t==='ai_actions'&&!op;await expect(scheduleReviewRequest('b1','a1','c1')).rejects.toBeTruthy();expect(state.db.ai_actions).toHaveLength(0);});
+  it('does not replay legacy requests',async()=>{state.db.ai_actions.push({id:'old',action_type:'review_requested',status:'scheduled',details:{send_at:'2026-01-01T00:00:00Z'}});await processReviewRequests();expect(state.send).not.toHaveBeenCalled();expect(state.db.ai_actions[0].status).toBe('scheduled');});
+});
+describe('delivery and approval safety',()=>{
+  it('two workers make one provider call; no second email accompanies it',async()=>{await queue();state.db.appointments[0].clients.email='fictional@example.test';await Promise.all([processReviewRequests(),processReviewRequests()]);expect(state.send).toHaveBeenCalledTimes(1);expect(state.send.mock.calls[0][0].channel).toBe('sms');expect(state.db.ai_actions[0].details.delivery_state).toBe('sent');expect(state.guard).toHaveBeenCalledWith(expect.objectContaining({confirmedReviewVisit:true}));});
+  it.each(['cancelled','no_show'])('rechecks %s visits when due',async status=>{await queue();state.db.appointments[0].status=status;await processReviewRequests();expect(state.send).not.toHaveBeenCalled();expect(state.db.ai_actions[0].details.reason).toBe('visit_not_eligible');});
+  it('rejects a client belonging to another salon',async()=>{await queue();state.db.appointments[0].clients.beautician_id='other';await processReviewRequests();expect(state.guard).not.toHaveBeenCalled();});
+  it('holds paused salons without contacting anyone',async()=>{await queue();state.db.appointments[0].beauticians.client_reminder_prefs={paused:true};await processReviewRequests();expect(state.send).not.toHaveBeenCalled();expect(state.db.ai_actions[0].details.reason).toBe('salon_paused');});
+  it('defers quiet hours without generating an approval or a provider call',async()=>{await queue();state.verdict={decision:'block',reason:'quiet_hours'};await processReviewRequests();expect(state.db.ai_actions[0].status).toBe('scheduled');expect(state.db.outbound_sends).toHaveLength(0);expect(state.send).not.toHaveBeenCalled();});
+  it('expires requests instead of catching up days later',async()=>{await queue();vi.setSystemTime(now+49*3600000);await processReviewRequests();expect(state.db.ai_actions[0].details.reason).toBe('expired');expect(state.send).not.toHaveBeenCalled();});
+  it('does not switch away from a missing preferred channel',()=>{expect(reviewChannel({preferred_channel:'email',phone:'fictional'})).toBe(null);});
+  it('does not send outside an Instagram reply window',async()=>{await queue();Object.assign(state.db.appointments[0].clients,{preferred_channel:'instagram',instagram_id:'fake'});await processReviewRequests();expect(state.db.ai_actions[0].details.reason).toBe('channel_window_closed');expect(state.send).not.toHaveBeenCalled();});
+  it('creates one approval and follows its confirmed send result',async()=>{const action=await queue();state.verdict={decision:'approve',reason:'awaiting_approval'};await processReviewRequests();await processReviewRequests();expect(state.db.outbound_sends).toHaveLength(1);expect(state.send).not.toHaveBeenCalled();expect((await listReviewRequests('b1')).requests[0].state).toBe('approval');const claimed=await beginReviewApproval('b1',action.details.outbound_id);await finishReviewApproval(claimed,true);expect((await listReviewRequests('b1')).requests[0].state).toBe('sent');});
+  it('rechecks cancelled visits before approval',async()=>{const action=await queue();state.verdict={decision:'approve'};await processReviewRequests();state.db.appointments[0].status='no_show';await expect(beginReviewApproval('b1',action.details.outbound_id)).rejects.toThrow('no longer eligible');expect(state.db.ai_actions[0].details.delivery_state).toBe('held');});
+  it('does not mistake Outbox’s optimistic claim for a sent message',async()=>{await queue();state.verdict={decision:'approve'};await processReviewRequests();state.db.outbound_sends[0].status='sent';expect((await listReviewRequests('b1')).requests[0].state).toBe('unconfirmed');});
+  it('an uncertain provider result is visible and never automatically retried',async()=>{await queue();state.send.mockRejectedValue(new Error('timeout'));await processReviewRequests();await processReviewRequests();expect(state.send).toHaveBeenCalledTimes(1);expect((await listReviewRequests('b1')).requests[0].state).toBe('unconfirmed');});
+  it('a status-write failure after a send never restores the queue',async()=>{await queue();state.failure=(t,op,p)=>t==='ai_actions'&&op==='update'&&p.status==='executed';await processReviewRequests();await processReviewRequests();expect(state.send).toHaveBeenCalledTimes(1);expect(state.db.ai_actions[0].status).toBe('processing');vi.setSystemTime(now+3*3600000);expect((await listReviewRequests('b1')).requests[0].state).toBe('unconfirmed');});
+  it('a status-write failure after creating an approval never queues a duplicate draft',async()=>{await queue();state.verdict={decision:'approve'};state.failure=(t,op,p)=>t==='ai_actions'&&op==='update'&&p.status==='executed';await processReviewRequests();await processReviewRequests();expect(state.db.outbound_sends).toHaveLength(1);});
+  it('never exposes a foreign client name through a forged action reference',async()=>{await queue();state.db.ai_actions[0].clients={beautician_id:'foreign',first_name:'Private name'};expect((await listReviewRequests('b1')).requests[0].client_name).toBe('Client');});
+  it('status reads are tenant isolated, including linked outbound rows',async()=>{await queue();await processReviewRequests();expect((await listReviewRequests('other')).requests).toEqual([]);});
 });

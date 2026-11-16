@@ -171,7 +171,7 @@ export async function clientAutonomyOverride(beauticianId, clientId, client = nu
  * Decide whether a proactive/transactional message may be sent right now.
  * Pass the client row if you already have it (saves a lookup).
  */
-export async function evaluateOutbound({ beauticianId, clientId, messageType, channel = 'whatsapp', client = null }) {
+export async function evaluateOutbound({ beauticianId, clientId, messageType, channel = 'whatsapp', client = null, confirmedReviewVisit = false }) {
   clientId ||= client?.id;
   const tier = classifyTier(messageType);
   if (tier === 'transactional') {
@@ -302,6 +302,9 @@ export async function evaluateOutbound({ beauticianId, clientId, messageType, ch
     // A client Ellie knows is a relationship she manages personally. Never auto-send
     // to them, even on 'auto': hold for her explicit yes/no so a proactive message
     // never lands out of context with someone she has a rapport with.
+    if (confirmedReviewVisit && messageType === 'review_request' && b.autonomy?.review_request === 'auto') {
+      return decision('send', tier, 'confirmed_visit_review');
+    }
     if (mode === 'auto' && await isKnownClient(beauticianId, clientId, c)) {
       return decision('approve', tier, 'known_client_review');
     }

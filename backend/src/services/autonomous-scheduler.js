@@ -1,7 +1,6 @@
 import { sendBookingPreparationReminder } from './booking-preparation-reminder.js';
 import { PATCH_TEST_LEAD_HOURS } from '../lib/patch-test-policy.js';
 import { nowInSalonWall } from '../lib/free-slots.js';
-import { processReviewRequests } from './review-requests.js';
 /**
  * Autonomous Scheduler — Florrie's proactive brain.
  *
@@ -76,13 +75,6 @@ export async function runAutonomousCycle() {
     }
 
     logger.info(`Autonomous scheduler: cycle complete for ${beauticians.length} beauticians`);
-    // Preserve the existing review-request trigger and messaging permissions.
-    try {
-      const reviewResult = await processReviewRequests();
-      if (reviewResult.sent > 0) logger.info(reviewResult, 'Review requests: sent');
-    } catch (err) {
-      logger.error({ err }, 'Review requests processing failed');
-    }
 
   } catch (err) {
     logger.error({ err }, 'Autonomous scheduler: fatal error');

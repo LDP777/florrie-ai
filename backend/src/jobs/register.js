@@ -1,3 +1,4 @@
+import { processReviewRequests } from '../services/review-requests.js';
 import { processWhatsAppBusinessApp } from '../services/whatsapp-business-app.js';
 import { processConnectedEmails } from '../services/email-connections.js';
 import { processSalonEmails } from '../services/salon-email.js';
@@ -198,6 +199,12 @@ export const JOBS = [
     handler: runVoiceProfileRefresh,
     startupDelayMs: 5 * MINUTE,
     leaseMs: 30 * MINUTE,
+  },
+  {
+    name: 'review-requests-v2',
+    description: 'review requests after owner-confirmed visits',
+    intervalMs: 10 * MINUTE, startupDelayMs: 2 * MINUTE, leaseMs: 15 * MINUTE,
+    handler: processReviewRequests,
   },
   {
     name: 'autonomous-cycle',

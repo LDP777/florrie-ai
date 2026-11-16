@@ -986,6 +986,8 @@ router.patch('/:id', requireAuth, async (req, res) => {
 
   // Fire-and-forget: award loyalty points when marked completed (idempotent)
   if (req.body.status === 'completed') {
+    scheduleReviewRequest(req.beautician.id, data.id, data.client_id).catch(err =>
+      logger.error({err, appointmentId:data.id}, 'Review request scheduling failed'));
     awardLoyaltyPoints(req.beautician.id, data).catch(() => {});
     // Count the visit and the spend. clients.total_spend_cents is what the
     // client profile's "spent" figure reads, and only /complete-day ever
@@ -1515,6 +1517,8 @@ router.post('/complete-day', requireAuth, validate(completeDaySchema), async (re
 
     // Update client stats, only for the rows this request flipped.
     for (const apt of flippedAppointments) {
+      scheduleReviewRequest(req.beautician.id, apt.id, apt.client_id).catch(err =>
+        logger.error({err, appointmentId:apt.id}, 'Review request scheduling failed'));
       if (apt.client_id) {
         // Supabase returns a thenable, not a Promise, so destructure the error
         // instead of .catch(). It WAS destructured here and then never read,

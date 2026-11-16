@@ -1,3 +1,4 @@
+import ReviewRequests from '../components/ReviewRequests.jsx';
 import { PrivateText, PrivateSection, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import ClientLookup, { clientName } from '../components/ClientLookup.jsx';
 import GoogleReviews from '../components/GoogleReviews.jsx';
@@ -149,6 +150,7 @@ function ReviewsWorkspace({ beautician, refresh }) {
       </section>}
       <GoogleReviews ownerId={beautician.id} salonName={beautician.business_name} />
       <GoogleReviewSetup key={beautician.id} beautician={beautician} onSaved={refresh} />
+      <ReviewRequests key={`requests-${beautician.id}`} ownerId={beautician.id} />
 
       {/* Rating hero */}
       {!loading && !loadError && <div style={styles.heroCard}>
@@ -330,7 +332,7 @@ function ReviewsWorkspace({ beautician, refresh }) {
             <span style={{ fontSize: 28, display: 'block', marginBottom: 8 }}><Icon name="phone" size={28} /></span>
             <h3 style={styles.requestTitle}>After an appointment</h3>
             <p style={styles.requestDesc}>
-              Florrie schedules review requests two hours after completion. Sending depends on consent, your approval settings, contact details and message allowance. A recent request can also prevent another being sent.
+              Florrie schedules requests two hours after you mark a recent visit complete. Sending depends on consent, your approval settings, contact details and message allowance. A recent request can also prevent another being sent.
             </p>
             <Link to="/settings?section=ai" style={styles.preferencesLink}>Review sending preferences</Link>
 
@@ -354,7 +356,7 @@ function ReviewsWorkspace({ beautician, refresh }) {
             <div style={styles.settingRow}>
               <div style={{ flex: 1 }}>
                 <span style={styles.settingLabel}>Auto-ask after appointments</span>
-                <span style={styles.settingHint}>Requests become eligible two hours after completion</span>
+                <span style={styles.settingHint}>Requests become eligible two hours after you mark a visit complete</span>
               </div>
               <span style={styles.settingValue}>Checks apply</span>
             </div>

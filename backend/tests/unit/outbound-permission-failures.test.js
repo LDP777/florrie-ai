@@ -123,3 +123,28 @@ describe('proactive delivery requires consent and readable frequency limits', ()
       .toMatchObject({ decision: 'send', reason: 'transactional' });
   });
 });
+
+describe('owner-confirmed review automation',()=>{
+  const review=()=>({...input,messageType:'review_request',client:{...client,messaging_autonomy:null},confirmedReviewVisit:true});
+  it('honours explicit review auto for a known client after a verified visit',async()=>{
+    state.results.appointments.count=3;
+    state.results.beauticians.data.autonomy={review_request:'auto'};
+    expect(await evaluateOutbound(review())).toMatchObject({decision:'send',reason:'confirmed_visit_review'});
+    expect((await evaluateOutbound({...review(),confirmedReviewVisit:false})).decision).toBe('approve');
+  });
+  it('does not widen the generic proactive auto setting',async()=>{
+    state.results.appointments.count=3;
+    expect((await evaluateOutbound(review())).decision).toBe('approve');
+  });
+  it.each(['drafts','just_me'])('preserves the client’s %s override',async messaging_autonomy=>{
+    state.results.beauticians.data.autonomy={review_request:'auto'};
+    expect((await evaluateOutbound({...review(),client:{...client,messaging_autonomy}})).decision).toBe('approve');
+  });
+  it('preserves off, consent and opt-out checks',async()=>{
+    state.results.beauticians.data.autonomy={review_request:'off'};
+    expect((await evaluateOutbound(review())).decision).toBe('block');
+    state.results.beauticians.data.autonomy.review_request='auto';
+    expect((await evaluateOutbound({...review(),client:{...client,marketing_consent:false}})).decision).toBe('block');
+    expect((await evaluateOutbound({...review(),client:{...client,marketing_opted_out_at:new Date().toISOString()}})).decision).toBe('block');
+  });
+});
