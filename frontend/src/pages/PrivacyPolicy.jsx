@@ -55,7 +55,7 @@ export default function PrivacyPolicy() {
             <li><strong>Anthropic:</strong> AI processing for the features described above.</li>
             <li><strong>Meta:</strong> Instagram and WhatsApp account connections, messaging and Instagram publishing.</li>
             <li><strong>Bird and configured SMS providers:</strong> SMS delivery and receipt.</li>
-            <li><strong>Resend:</strong> email delivery.</li>
+            <li><strong>Resend:</strong> transactional email delivery. <strong>Google and Microsoft:</strong> mailbox sign-in, email import and replies when the salon connects its Gmail or Outlook account.</li>
             <li><strong>Stripe:</strong> payments, subscriptions and connected payout accounts.</li>
             <li><strong>Apple and Google:</strong> device notifications, sign-in or calendar features where used; your device or browser provider may also process speech recognition.</li>
             <li><strong>Sentry:</strong> error and performance reports used to investigate problems.</li>
@@ -75,6 +75,14 @@ export default function PrivacyPolicy() {
           <h2 style={s.h2}>WhatsApp, SMS and email</h2>
           <p style={s.p}>Connected messaging services exchange client messages, confirmations, reminders and replies on the salon’s behalf. Florrie stores conversation and delivery records for the salon’s inbox and, where used, supplies relevant context to its AI features.</p>
           <p id="sms" style={s.p}>For SMS, clients can reply <strong>STOP</strong> to opt out or <strong>HELP</strong> for help. Message frequency depends on bookings and conversations. Mobile network charges may apply. Contact the salon if you want to change how it communicates with you.</p>
+        </section>
+
+        <section id="connected-email" style={s.section}>
+          <h2 style={s.h2}>Connected Gmail and Outlook inboxes</h2>
+          <p style={s.p}>Where available, you can connect your own mailbox in Message connections. Google or Microsoft asks you to authorise mailbox reading and sending. Florrie stores encrypted access credentials, your mailbox address and provider identifiers. It checks for new inbox messages after connection and stores imported sender details, subject lines, message text and thread identifiers in your salon account. By default, it imports only emails that match existing clients. You can include new enquiries when using a dedicated business inbox. Attachments remain in your email app.</p>
+          <p style={s.p}>Email drafts are optional and off by default. If you enable them, Florrie shares imported email text and relevant salon guidance with Anthropic to prepare a suggested answer. You approve each reply before Florrie sends it through your connected mailbox. We do not use connected mailbox data to train a general-purpose AI model or for advertising.</p>
+          <p style={s.p}>You can stop drafts or disconnect your mailbox in Message connections. Disconnecting stops syncing and removes Florrie’s saved access credentials. Existing imported conversations remain in your salon account until deleted. You can also revoke Florrie’s permission in your Google or Microsoft account settings. Contact us using the deletion instructions below to request removal of imported data.</p>
+          <p style={s.p}>Florrie’s use and transfer of information received from Google APIs follows the <a href="https://developers.google.com/terms/api-services-user-data-policy" style={s.link}>Google API Services User Data Policy</a>, including its Limited Use requirements.</p>
         </section>
 
         <section id="retention" style={s.section}>

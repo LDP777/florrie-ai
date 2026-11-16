@@ -1,4 +1,4 @@
-export async function startWhatsAppConnection({ api, getToken, native, fetchImpl = fetch,
+export async function startWhatsAppConnection({ api, getToken, native, mode = 'cloud_api', fetchImpl = fetch,
   openNative = async url => { const { Browser } = await import('@capacitor/browser'); await Browser.open({ url }); },
   navigateWeb = url => { window.location.assign(url); }, timeoutMs = 15000,
 }) {
@@ -12,7 +12,7 @@ export async function startWhatsAppConnection({ api, getToken, native, fetchImpl
     if (!token) throw new Error('Please sign in again to connect WhatsApp.');
     const response = await Promise.race([fetchImpl(`${api}/api/whatsapp/embedded/start`, {
       method:'POST', headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},
-      body:JSON.stringify({platform:native?'native':'web'}),signal:controller.signal,
+      body:JSON.stringify({platform:native?'native':'web',...(mode==='business_app'?{mode}:{})}),signal:controller.signal,
     }),deadline]);
     const result = await Promise.race([response.json(),deadline]);
     if (!response.ok) throw new Error(result.error || 'Could not start WhatsApp setup. Try again.');

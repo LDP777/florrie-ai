@@ -1,3 +1,4 @@
+import { sendOnChannel } from '../services/messaging.js';
 import { Router } from 'express';
 import { safeReply } from '../lib/reply-claims-guard.js';
 import { getFreeSlots } from '../lib/free-slots.js';
@@ -176,6 +177,12 @@ router.post('/:messageId/resolve', requireAuth, async (req, res) => {
   // messaged on Instagram should get her reply on Instagram, not a stray text (and
   // may have no phone at all). Mirrors the front desk's own channel routing.
   const channel = message.channel || client?.preferred_channel || 'sms';
+  if (channel === 'email') {
+    const result = await sendOnChannel({ beautician: req.beautician, clientId: message.client_id, channel, body: finalResponse, authoredBy: action === 'send_as_is' ? 'ai' : 'ai_edited', replyToMessageId: message.id });
+    if (!result.ok) return res.status(result.status || 503).json({ error: result.error });
+    await supabase.from('messages').update({ resolved: true, resolved_at: new Date().toISOString(), ai_response: finalResponse }).eq('id', message.id).eq('beautician_id', req.beautician.id);
+    return res.json({ success: true, sent: finalResponse });
+  }
   let sent = false;
   let sentChannel = channel;
   try {

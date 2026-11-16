@@ -11,6 +11,7 @@ export default function WhatsAppSignup({ onReturn }) {
   const [error,setError] = useState('');
   const [opening,setOpening] = useState(false);
   const [retry,setRetry] = useState(0);
+  const [mode,setMode] = useState('business_app');
   useEffect(()=>{
     let active=true;
     setError('');
@@ -31,18 +32,22 @@ export default function WhatsAppSignup({ onReturn }) {
   },[onReturn]);
   async function connect(){
     setOpening(true);setError('');
-    try{await startWhatsAppConnection({api:API_BASE,native:isNativeApp(),getToken:async()=>{
+    try{await startWhatsAppConnection({api:API_BASE,native:isNativeApp(),mode,getToken:async()=>{
       const {data:{session}}=await supabase.auth.getSession();return session?.access_token;
     }});}catch(e){setError(e.message);}finally{setOpening(false);}
   }
   return <section style={{background:'var(--surface, #FFFCF9)',border:'1px solid var(--border)',borderRadius:24,padding:24,marginTop:20}}>
     <h2 style={{fontFamily:'var(--font-serif)',margin:'0 0 12px'}}>Your WhatsApp, connected</h2>
     <p>Choose your business account and number with Meta, then return here. Your clients can message your salon from WhatsApp.</p>
-    <p style={{color:'var(--text-muted)'}}>For this setup, use a separate business number that can receive a verification text or call. Keep your existing WhatsApp account and chats.</p>
+    <fieldset style={{border:0,padding:0,margin:'16px 0'}}><legend>Which number do you want to use?</legend>
+      <label style={{display:'flex',gap:10,padding:'14px 0',minHeight:44}}><input type="radio" name="whatsapp-mode" checked={mode==='business_app'} onChange={()=>setMode('business_app')} />My existing WhatsApp Business app number</label>
+      <label style={{display:'flex',gap:10,padding:'14px 0',minHeight:44}}><input type="radio" name="whatsapp-mode" checked={mode==='cloud_api'} onChange={()=>setMode('cloud_api')} />A separate business number</label>
+    </fieldset>
+    <p style={{color:'var(--text-muted)'}}>{mode==='business_app'?'Keep using your WhatsApp Business app, number and chats. Personal WhatsApp accounts need a separate business setup.':'Use a separate business number that can receive a verification text or call. Keep your current WhatsApp account and chats.'}</p>
     {error&&<p role="alert">{error}</p>}
-    {availability?.available ? <Button onClick={connect} disabled={opening}>{opening?'Opening Meta…':'Continue with Meta'}</Button>
+    {(mode==='business_app'?availability?.business_app_available:availability?.available) ? <Button onClick={connect} disabled={opening}>{opening?'Opening Meta…':'Continue with Meta'}</Button>
       : error ? <Button variant="secondary" onClick={()=>setRetry(n=>n+1)}>Retry</Button>
-      : <p>{availability?'Self-service setup is being checked before release. You can keep using Florrie and return here when it is ready.':'Checking setup…'}</p>}
+      : <p>{availability?mode==='business_app'?'Connecting an existing WhatsApp Business app is being checked before release. Keep using your app; do not delete or move your number.':'Self-service setup is being checked before release. You can keep using Florrie and return here when it is ready.':'Checking setup…'}</p>}
     <p style={{fontSize:13,color:'var(--text-muted)',marginBottom:0}}>Replies use your current Florrie settings. Review whether Florrie drafts or sends replies before connecting.</p>
   </section>;
 }

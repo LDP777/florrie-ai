@@ -18,6 +18,7 @@ import { sendSMS, sendEmail } from './notifications.js';
 import { authorship } from '../lib/authorship.js';
 import { deDash } from '../lib/text.js';
 import { resolveWhatsAppCredentials } from '../lib/whatsapp-connection.js';
+import { emailConnections, emailErrorMessage } from './email-connections.js';
 
 const API_VER = process.env.WHATSAPP_API_VERSION || 'v21.0';
 const GRAPH = `https://graph.facebook.com/${API_VER}`;
@@ -128,7 +129,7 @@ async function sendInstagramText({ token, recipientId, body }) {
  *        and fed back into the voice profile. That mistake is the bug this
  *        parameter exists to end.
  */
-export async function sendOnChannel({ beautician, clientId, channel, body, authoredBy = AUTHOR.SYSTEM }) {
+export async function sendOnChannel({ beautician, clientId, channel, body, authoredBy = AUTHOR.SYSTEM, replyToMessageId }) {
   if (!beautician?.id) return { ok: false, status: 401, error: 'Missing beautician' };
   if (!clientId) return { ok: false, status: 400, error: 'client_id required' };
   if (!['whatsapp', 'sms', 'email', 'instagram'].includes(channel)) {
@@ -180,6 +181,22 @@ export async function sendOnChannel({ beautician, clientId, channel, body, autho
     result = sms ? { ok: true, message_id: sms?.id || sms?.sid || null } : { ok: false, error: 'SMS send failed' };
     extId = result.message_id;
   } else if (channel === 'email') {
+    // New mailbox replies never silently fall back to Florrie's shared sender.
+    if (replyToMessageId || process.env.EMAIL_GOOGLE_ENABLED === 'true' || process.env.EMAIL_MICROSOFT_ENABLED === 'true') {
+      let source = supabase.from('messages').select('id,external_message_id').eq('beautician_id', beautician.id).eq('client_id', client.id).eq('channel', 'email').eq('direction', 'inbound');
+      source = replyToMessageId ? source.eq('id', replyToMessageId) : source.order('created_at', { ascending: false }).limit(1);
+      const original = await source.maybeSingle();
+      if (original.error) return { ok: false, status: 503, error: 'Could not check the email thread. Try again.' };
+      if (original.data?.external_message_id?.startsWith('mailbox:')) {
+        if (!replyToMessageId || !['human', 'ai', 'ai_edited'].includes(authoredBy)) return { ok: false, status: 409, error: 'Email replies need approval in Inbox or Outbox.' };
+        try {
+          const row = await emailConnections.reply({ owner: beautician.id, clientId: client.id, messageId: original.data.id, body: trimmed, author: authoredBy });
+          return { ok: true, message: shapeMessage(row) };
+        } catch (e) { return { ok: false, status: e.status === 409 ? 409 : 503, error: emailErrorMessage(e.code) }; }
+      }
+      const connection = await supabase.from('email_connections').select('id').eq('beautician_id', beautician.id).neq('status', 'disconnected').maybeSingle();
+      if (connection.error || connection.data) return { ok: false, status: 409, error: 'Choose an imported email to reply in its original thread, or start a new email in your email app.' };
+    }
     if (!client.email) {
       return { ok: false, status: 400, error: 'Client has no email on file' };
     }
@@ -288,7 +305,7 @@ export function shapeMessage(row) {
     direction: row.direction,
     body: row.content,
     created_at: row.created_at,
-    status: row.send_status === 'failed' ? 'failed' : row.read_at ? 'read' : row.delivered_at ? 'delivered' : 'sent',
+    status: ['pending','unconfirmed'].includes(row.send_status) ? 'unconfirmed' : row.send_status === 'failed' ? 'failed' : row.read_at ? 'read' : row.delivered_at ? 'delivered' : 'sent',
     ai_generated: !!row.ai_handled,
     image_url: row.media_type === 'image' ? row.media_url : null,
     media_type: row.media_type || null,

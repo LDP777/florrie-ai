@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
-import { embeddedSignupEnabled, readWhatsAppConnection, tenantWhatsAppEnabled } from '../lib/whatsapp-connection.js';
+import { businessAppSignupEnabled, embeddedSignupEnabled, readWhatsAppConnection, tenantWhatsAppEnabled } from '../lib/whatsapp-connection.js';
 import { signupConfig, hashSignupSecret, completeWhatsAppSignup } from '../lib/whatsapp-signup.js';
 import { signupPage } from '../lib/whatsapp-signup-page.js';
 const router = Router();
@@ -22,8 +22,10 @@ router.post('/embedded/start',requireAuth,handled(async(req,res)=>{
   const config=signupConfig();
   if(!config || !embeddedSignupEnabled(req.beautician.id))return res.status(503).json({error:'WhatsApp self-service setup is not available for this account yet. Keep using Florrie and check back here.'});
   try{
+    const businessApp=req.body?.mode==='business_app';
+    if(businessApp&&!businessAppSignupEnabled(req.beautician.id))return res.status(503).json({error:'Keeping your existing WhatsApp Business app connected is still being checked. Keep using your app; do not delete or migrate your account.'});
     const secret=randomBytes(32).toString('hex');
-    const {data,error}=await supabase.rpc('start_whatsapp_signup',{p_salon:req.beautician.id,p_hash:hashSignupSecret(secret),p_platform:req.body?.platform==='native'?'native':'web'});
+    const {data,error}=await supabase.rpc(businessApp?'start_whatsapp_app_signup':'start_whatsapp_signup',{p_salon:req.beautician.id,p_hash:hashSignupSecret(secret),p_platform:req.body?.platform==='native'?'native':'web'});
     if(error||!data)return res.status(409).json({error:'Could not start a new setup. Check your existing WhatsApp connection and try again.'});
     return res.json({url:`${config.page}#${secret}`});
   }catch{return res.status(503).json({error:'Could not start WhatsApp setup. Try again shortly.'});}
@@ -31,9 +33,10 @@ router.post('/embedded/start',requireAuth,handled(async(req,res)=>{
 function readSecret(req){const value=req.body?.secret;return typeof value==='string'&&/^[a-f0-9]{64}$/.test(value)?hashSignupSecret(value):null;}
 router.post('/embedded/session',handled(async(req,res)=>{
   const hash=readSecret(req);if(!hash)return res.status(400).json({error:'Invalid setup link. Start again from Florrie.'});
-  const {data,error}=await supabase.from('whatsapp_signup_sessions').select('platform,beautician_id').eq('secret_hash',hash).eq('status','pending').gt('expires_at',new Date().toISOString()).maybeSingle();
+  const {data,error}=await supabase.from('whatsapp_signup_sessions').select('platform,beautician_id,signup_mode').eq('secret_hash',hash).eq('status','pending').gt('expires_at',new Date().toISOString()).maybeSingle();
   if(error||!data||!embeddedSignupEnabled(data.beautician_id))return res.status(410).json({error:'This setup link expired. Start again from Florrie.'});
-  return res.json({platform:data.platform});
+  if(data.signup_mode==='business_app'&&!businessAppSignupEnabled(data.beautician_id))return res.status(410).json({error:'This setup is not available. Return to Florrie.'});
+  return res.json({platform:data.platform,mode:data.signup_mode});
 }));
 router.post('/embedded/complete',handled(async(req,res)=>{
   const hash=readSecret(req),config=signupConfig();
@@ -41,6 +44,7 @@ router.post('/embedded/complete',handled(async(req,res)=>{
   const {data:session,error}=await supabase.rpc('claim_whatsapp_signup',{p_hash:hash});
   if(error||!session||!embeddedSignupEnabled(session.beautician_id))return res.status(410).json({error:'This setup expired or was already used. Return to Florrie to check your connection.'});
   try{
+    if(session.signup_mode==='business_app'&&!businessAppSignupEnabled(session.beautician_id))throw new Error('Business app signup disabled');
     const result=await completeWhatsAppSignup({db:supabase,session,code:req.body.code,wabaId:req.body.waba_id,phoneId:req.body.phone_number_id,config});
     return res.json(result);
   }catch(err){
@@ -53,7 +57,7 @@ router.post('/embedded/complete',handled(async(req,res)=>{
 router.get('/embedded/availability',requireAuth,handled(async(req,res)=>{
   try{
     const c=tenantWhatsAppEnabled()?await readWhatsAppConnection(req.beautician.id):null;
-    return res.json({available:!!signupConfig()&&embeddedSignupEnabled(req.beautician.id),tenant_mode:tenantWhatsAppEnabled(),connection_mode:c?.mode||null});
+    return res.json({available:!!signupConfig()&&embeddedSignupEnabled(req.beautician.id),business_app_available:!!signupConfig()&&businessAppSignupEnabled(req.beautician.id),tenant_mode:tenantWhatsAppEnabled(),connection_mode:c?.mode||null,business_app:c?.business_app===true,sync:c?.business_app?c.app_sync:null});
   }catch{return res.status(503).json({error:'Could not check WhatsApp setup. Your existing connection has not changed.'});}
 }));
 export default router;

@@ -93,6 +93,7 @@ const WhatsAppTemplates = lazy(() => import('./pages/WhatsAppTemplates.jsx'));
 const ClientPortal = lazy(() => import('./pages/ClientPortal.jsx'));
 const Compliance = lazy(() => import('./pages/Compliance.jsx'));
 const MultiLocation = lazy(() => import('./pages/MultiLocation.jsx'));
+const MessageConnections = lazy(() => import('./pages/MessageConnections.jsx'));
 const Integrations = lazy(() => import('./pages/Integrations.jsx'));
 const SMSConfig = lazy(() => import('./pages/SMSConfig.jsx'));
 const Messaging = lazy(() => import('./pages/Messaging.jsx'));
@@ -629,6 +630,7 @@ export default function App() {
             {/* Client-intelligence stack (ai-insights, client-intel, segments, churn, demand)
                 hidden 2026-06-16: orphaned + mock-heavy. Files kept, restore routes to revive. */}
             <Route path="/locations" element={<PlanGate feature="multi_location"><MultiLocation /></PlanGate>} />
+            <Route path="/connections" element={<MessageConnections />} />
             <Route path="/integrations" element={<Integrations />} />
             <Route path="/sms" element={<PlanGate feature="sms"><SMSConfig /></PlanGate>} />
             {/* /messaging kept: it is the target of Clients "Message all" + Integrations, not a true orphan */}

@@ -17,6 +17,11 @@ export function embeddedSignupEnabled(salonId) {
   const allow = (process.env.WHATSAPP_EMBEDDED_SIGNUP_SALONS || '').split(',').map(s => s.trim()).filter(Boolean);
   return !allow.length || allow.includes(salonId);
 }
+export function businessAppSignupEnabled(salonId) {
+  if (!embeddedSignupEnabled(salonId) || process.env.WHATSAPP_BUSINESS_APP_ENABLED !== 'true') return false;
+  const allow = (process.env.WHATSAPP_BUSINESS_APP_SALONS || '').split(',').map(s => s.trim()).filter(Boolean);
+  return allow.length > 0 && allow.includes(salonId);
+}
 export async function readWhatsAppConnection(salonId, db = supabase) {
   if (!salonId) return null;
   const { data, error } = await db.from('whatsapp_connections').select('*').eq('beautician_id', salonId).maybeSingle();

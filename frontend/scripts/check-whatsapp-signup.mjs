@@ -33,6 +33,7 @@ try {
       };
     },available);
     const page=await ctx.newPage(); await page.goto(`${origin}/whatsapp`);
+    await page.getByLabel('A separate business number',{exact:true}).check();
     if(!available){await page.getByText('Self-service setup is being checked before release.',{exact:false}).waitFor();assert.equal(await page.getByRole('button',{name:'Continue with Meta'}).count(),0);}
     else {await page.getByRole('button',{name:'Continue with Meta',exact:true}).click();await page.getByRole('alert').filter({hasText:'Setup is temporarily unavailable'}).waitFor();assert.equal(await page.getByRole('button',{name:'Continue with Meta'}).isEnabled(),true);}
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
@@ -40,11 +41,11 @@ try {
     await ctx.close();
   }
   console.log('PASS mobile settings: honest rollout, failed handoff recoverable, no account writes or horizontal overflow');
-  for(const mode of ['details-first','code-first','cancel','foreign-origin','expired','sdk-failure','account-only','business-app','grant-only','invalid-details','unconfirmed','code-without-details','details-without-code','login-throws','duplicate-events']){
+  for(const mode of ['details-first','code-first','cancel','foreign-origin','expired','sdk-failure','account-only','business-app','grant-only','invalid-details','unconfirmed','code-without-details','details-without-code','login-throws','duplicate-events','business-app-approved']){
     const ctx=await browser.newContext({viewport:{width:390,height:844}});let completions=0;
     await ctx.route('**/*',async route=>{
       const url=route.request().url();
-      if(url.endsWith('/embedded/session'))return route.fulfill({status:mode==='expired'?410:200,json:mode==='expired'?{error:'This setup link expired. Start again from Florrie.'}:{platform:'native'}});
+      if(url.endsWith('/embedded/session'))return route.fulfill({status:mode==='expired'?410:200,json:mode==='expired'?{error:'This setup link expired. Start again from Florrie.'}:{platform:'native',mode:mode==='business-app-approved'?'business_app':'cloud_api'}});
       if(url.endsWith('/embedded/complete')){completions++;return route.fulfill({json:mode==='unconfirmed'?{}:{connected:true}});}
       if(url.startsWith('https://connect.facebook.net/')){
         if(mode==='sdk-failure')return route.abort();
@@ -58,7 +59,10 @@ try {
     else if(mode==='sdk-failure'){await status.filter({hasText:'Meta could not load'}).waitFor();}
     else {
       await page.getByRole('button',{name:'Continue with Meta'}).click();
-      if(mode==='login-throws'){
+      if(mode==='business-app-approved'){
+        await page.evaluate(()=>{dispatchEvent(new MessageEvent('message',{origin:'https://www.facebook.com',data:{type:'WA_EMBEDDED_SIGNUP',event:'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING',data:{waba_id:'100'}}}));window.__metaCallback({authResponse:{code:'app-code'}});});
+        await status.filter({hasText:'WhatsApp connected.'}).waitFor();
+      }else if(mode==='login-throws'){
         await status.filter({hasText:'Meta could not open'}).waitFor();
       }else if(['account-only','business-app','grant-only','invalid-details'].includes(mode)){
         await page.evaluate(mode=>{
@@ -89,8 +93,8 @@ try {
         if(mode==='unconfirmed')await status.filter({hasText:'could not confirm this connection'}).waitFor();else if(mode!=='foreign-origin')await status.filter({hasText:'WhatsApp connected.'}).waitFor();
       }
     }
-    if(!['expired','sdk-failure'].includes(mode)){const options=await page.evaluate(()=>window.__metaOptions);assert.deepEqual(options.extras,{setup:{}});assert.equal(options.override_default_response_type,true);}
-    assert.equal(completions,['code-first','details-first','unconfirmed','duplicate-events'].includes(mode)?1:0,mode);
+    if(!['expired','sdk-failure'].includes(mode)){const options=await page.evaluate(()=>window.__metaOptions);assert.deepEqual(options.extras,mode==='business-app-approved'?{setup:{},featureType:'whatsapp_business_app_onboarding',sessionInfoVersion:'3'}:{setup:{}});assert.equal(options.override_default_response_type,true);}
+    assert.equal(completions,['code-first','details-first','unconfirmed','duplicate-events','business-app-approved'].includes(mode)?1:0,mode);
     assert.equal(new URL(page.url()).hash,'');
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
     console.log('PASS Meta bridge: '+mode);

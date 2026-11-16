@@ -1,3 +1,4 @@
+import { captureWhatsAppAppEvents, hasWhatsAppAppEvent } from '../services/whatsapp-business-app.js';
 import { Router } from 'express';
 import crypto from 'crypto';
 import { supabase } from '../config.js';
@@ -197,6 +198,12 @@ router.post('/whatsapp', async (req, res) => {
       logger.error('WhatsApp lifecycle event could not be saved');
       return res.status(503).json({ error: 'Account update could not be saved. Please retry.' });
     }
+  }
+
+  if (hasWhatsAppAppEvent(req.body)) {
+    if (!secret) return res.status(503).json({ error: 'Webhook not configured' });
+    try { await captureWhatsAppAppEvents(req.body); }
+    catch { return res.status(503).json({ error: 'WhatsApp app event could not be saved. Please retry.' }); }
   }
 
   recordWebhookHit({ ...hitBase, result: '200_accepted' });

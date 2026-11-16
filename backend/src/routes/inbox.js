@@ -720,7 +720,7 @@ router.get('/thread/:client_id', requireAuth, async (req, res) => {
  * reply, regardless of which channel the conversation started on.
  */
 router.post('/send', requireAuth, async (req, res) => {
-  const { client_id, channel, body, draft_text } = req.body || {};
+  const { client_id, channel, body, draft_text, reply_to_message_id } = req.body || {};
 
   // THE ONLY RELIABLE SOURCE OF HER OWN WRITING.
   // The inbox already knows whether it handed her a Florrie draft, so this is
@@ -736,6 +736,7 @@ router.post('/send', requireAuth, async (req, res) => {
     channel,
     body,
     authoredBy,
+    replyToMessageId: reply_to_message_id,
   });
 
   if (!result.ok) {

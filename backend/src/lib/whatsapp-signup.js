@@ -44,7 +44,8 @@ export async function metaJson(path, { token, body, fetchImpl = fetch, version =
 }
 
 export async function completeWhatsAppSignup({ db, session, code, wabaId, phoneId, config, fetchImpl = fetch }) {
-  if (typeof code !== 'string' || code.length < 8 || code.length > 8192 || !metaId(wabaId) || !metaId(phoneId)) {
+  const businessApp = session.signup_mode === 'business_app';
+  if (typeof code !== 'string' || code.length < 8 || code.length > 8192 || !metaId(wabaId) || (!businessApp && !metaId(phoneId)) || (phoneId && !metaId(phoneId))) {
     throw new SignupError('invalid_response','Meta did not return a complete connection. Start again from Florrie.');
   }
   const graph = (path, options={}) => metaJson(path,{version:config.version,fetchImpl,...options});
@@ -66,15 +67,28 @@ export async function completeWhatsAppSignup({ db, session, code, wabaId, phoneI
   // Prove ownership with this customer's token, never a platform credential.
   const waba = await graph(`${wabaId}?fields=id`,{token});
   if (String(waba.id) !== wabaId) throw new SignupError('wrong_account','This WhatsApp account was not authorised.');
+  if (businessApp) {
+    const subscriptions = await graph(`${config.appId}/subscriptions`, { token: `${config.appId}|${getAppSecret()}` });
+    const subscription = subscriptions.data?.find(s => s.object === 'whatsapp_business_account' && s.active !== false);
+    const fields = new Set(subscription?.fields?.map(f => typeof f === 'string' ? f : f.name));
+    if (['messages','account_update','history','smb_app_state_sync','smb_message_echoes'].some(f => !fields.has(f))) throw new SignupError('webhooks_incomplete', 'Florrie is still preparing the WhatsApp Business app connection. Keep using your app and try again later.', 503);
+  }
   let cursor = null, phone = null;
   for (let page=0;page<10 && !phone;page++) {
     const phones = await graph(`${wabaId}/phone_numbers?fields=id,display_phone_number,code_verification_status,status&limit=100${cursor ? `&after=${encodeURIComponent(cursor)}` : ''}`,{token});
+    if (businessApp && !phoneId) {
+      if (phones.data?.length !== 1 || phones.paging?.next) throw new SignupError('ambiguous_phone', 'Meta returned more than one number. Return to Florrie and choose one business number.');
+      phoneId = String(phones.data[0].id);
+    }
     phone = phones.data?.find(p=>String(p.id)===phoneId);
     cursor = phones.paging?.cursors?.after;
     if (!phones.paging?.next || !cursor) break;
   }
   if (!phone) throw new SignupError('wrong_phone','That number does not belong to the authorised WhatsApp account.');
-  if (phone.code_verification_status !== 'VERIFIED') throw new SignupError('unverified_phone','Finish verifying your phone number with Meta before connecting it.');
+  if (businessApp) {
+    const appPhone = await graph(`${phoneId}?fields=id,is_on_biz_app,platform_type`, { token });
+    if (String(appPhone.id) !== phoneId || appPhone.is_on_biz_app !== true || appPhone.platform_type !== 'CLOUD_API') throw new SignupError('app_link_pending', 'Finish linking Florrie in your WhatsApp Business app, then try again.', 409);
+  } else if (phone.code_verification_status !== 'VERIFIED') throw new SignupError('unverified_phone','Finish verifying your phone number with Meta before connecting it.');
   // Only Meta's verified token subject can route later privacy callbacks.
   const identity = await db.rpc('bind_whatsapp_signup_identity', {
     p_session: session.id,
@@ -85,19 +99,19 @@ export async function completeWhatsAppSignup({ db, session, code, wabaId, phoneI
   const reserved = await db.rpc('reserve_whatsapp_phone',{p_session:session.id,p_phone:phoneId});
   if (reserved.error) throw new SignupError('storage_unavailable','We could not save this connection. Return to Florrie and try again.',503);
   if (!reserved.data) throw new SignupError('phone_in_use','This number is already connected, or this setup has expired. Return to Florrie to check it.',409);
-  const pin = String(randomInt(100000,1000000));
-  if (phone.status !== 'CONNECTED') {
+  const pin = businessApp ? null : String(randomInt(100000,1000000));
+  if (!businessApp && phone.status !== 'CONNECTED') {
     await graph(`${phoneId}/register`,{token,body:{messaging_product:'whatsapp',pin}});
   }
   await graph(`${wabaId}/subscribed_apps`,{token,body:{}});
   const [live, subscriptions] = await Promise.all([
-    graph(`${phoneId}?fields=id,status`,{token}), graph(`${wabaId}/subscribed_apps`,{token}),
+    graph(`${phoneId}?fields=id,${businessApp ? 'is_on_biz_app,platform_type' : 'status'}`,{token}), graph(`${wabaId}/subscribed_apps`,{token}),
   ]);
-  if (live.status !== 'CONNECTED' || !subscriptions.data?.some(s=>String(s.whatsapp_business_api_data?.id || s.id)===config.appId)) {
+  if ((businessApp ? live.is_on_biz_app !== true || live.platform_type !== 'CLOUD_API' : live.status !== 'CONNECTED') || !subscriptions.data?.some(s=>String(s.whatsapp_business_api_data?.id || s.id)===config.appId)) {
     throw new SignupError('activation_pending','Meta is still activating your connection. Return to Florrie and try again shortly.',409);
   }
   const expiries = [d.expires_at,d.data_access_expires_at,exchange.expires_in ? Math.floor(Date.now()/1000)+exchange.expires_in : 0].filter(n=>Number(n)>0);
-  const credentials = encrypt({token,pin,beauticianId:session.beautician_id,phoneId,wabaId,
+  const credentials = encrypt({token,pin,businessApp,beauticianId:session.beautician_id,phoneId,wabaId,
     expiresAt:expiries.length ? new Date(Math.min(...expiries)*1000).toISOString() : null}, whatsAppEncryptionKey());
   const saved = await db.rpc('finish_whatsapp_signup',{p_session:session.id,p_phone:phoneId,p_waba:wabaId,p_display_phone:phone.display_phone_number,p_credentials:credentials});
   if (saved.error || !saved.data) throw new SignupError('save_failed','This setup changed or could not be saved. Return to Florrie to check the connection.',409);

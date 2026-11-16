@@ -1,3 +1,5 @@
+import { processWhatsAppBusinessApp } from '../services/whatsapp-business-app.js';
+import { processConnectedEmails } from '../services/email-connections.js';
 import { retryCourseNotices } from '../services/course-notice-delivery.js';
 import { processWaitlistWelcomes } from '../services/waitlist-welcome.js';
 import { reconcileDueCourseHolds } from '../services/course-checkout.js';
@@ -80,6 +82,8 @@ const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
 export const JOBS = [
+  { name: 'whatsapp-business-app-sync', description: 'import owner replies and approved WhatsApp history', intervalMs: MINUTE, leaseMs: 10 * MINUTE, handler: processWhatsAppBusinessApp },
+  { name: 'connected-email-inbox', description: 'check connected customer mailboxes', intervalMs: MINUTE, leaseMs: 15 * MINUTE, handler: processConnectedEmails },
   { name: 'waitlist-welcome-delivery', description: 'send queued launch waitlist welcome emails', intervalMs: MINUTE, leaseMs: 5 * MINUTE, handler: processWaitlistWelcomes },
   { name: 'value-coaching', description: 'derive weekly insights from completed bookings', intervalMs: HOUR, startupDelayMs: 4 * MINUTE, handler: runValueCoaching },
   { name: 'client-intelligence-refresh', description: 'refresh visit patterns from completed appointments', intervalMs: HOUR, startupDelayMs: 4 * MINUTE, leaseMs: 30 * MINUTE, handler: runClientIntelligenceRefresh },

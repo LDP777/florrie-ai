@@ -15,6 +15,7 @@ import PageHeader from '../components/ui/PageHeader.jsx';
 import Button from '../components/ui/Button.jsx';
 // Static integration catalog - connection status is computed dynamically from real data
 const CATALOG = [
+  { id: 'email', name: 'Message connections', icon: 'mail', category: 'Social', description: 'Guided WhatsApp and email setup', features: ['Sign in on your device', 'Email drafts for approval', 'Connection checks'], settingsPath: '/connections', connectPath: '/connections' },
   {
     id: 'stripe',
     name: 'Stripe',
@@ -94,6 +95,7 @@ const categories = ['All', 'Payments', 'Calendar', 'Social', 'Accounting', 'Revi
 
 function getIntegrationStatus(id, beautician, smsConfig, igStatus, igChecking) {
   switch (id) {
+    case 'email': return 'details';
     case 'stripe':
       return beautician?.stripe_account_id && beautician?.stripe_onboarding_complete
         ? 'connected'

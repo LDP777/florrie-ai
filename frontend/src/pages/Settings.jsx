@@ -1228,6 +1228,7 @@ export default function Settings({ onLogout }) {
       )}
 
       {section === 'connections' && <div>
+        <div style={styles.card}><h3 style={styles.cardTitle}>Message connections</h3><p>Set up WhatsApp and email, choose what Florrie imports, and review connection health.</p><Button variant="secondary" onClick={() => navigate('/connections')}>Set up your messages</Button></div>
           {/* ── Instagram Connect ── */}
           <div style={styles.card}>
             <div style={styles.calendarProviderRow}>

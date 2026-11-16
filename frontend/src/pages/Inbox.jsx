@@ -1193,7 +1193,8 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
     try {
       const res = await authFetch('/api/inbox/send', {
         method: 'POST',
-        body: JSON.stringify({ client_id: clientId, channel, body, draft_text: draftOrigin || undefined }),
+        body: JSON.stringify({ client_id: clientId, channel, body, draft_text: draftOrigin || undefined,
+          reply_to_message_id: channel === 'email' ? [...(state.messages || [])].reverse().find(m => m.channel === 'email' && m.direction === 'inbound')?.id : undefined }),
       });
       setDraftOrigin(null);
       setState(prev => ({
@@ -1818,6 +1819,7 @@ function Bubble({ msg, threadChannel, onRetry }) {
             {msg.channel && msg.channel !== threadChannel && <ChannelMark channel={msg.channel} size={13} />}
             <span>{formatBubbleTime(msg.created_at)}</span>
             {msg.status === 'sending' && <span>{'·'} sending</span>}
+            {msg.status === 'unconfirmed' && <span>Check Sent in your email app</span>}
           </div>
         </div>
         {!hidden && msg.can_teach && !failed && msg.status !== 'sending' && /^[0-9a-f-]{36}$/i.test(msg.id || '') && (

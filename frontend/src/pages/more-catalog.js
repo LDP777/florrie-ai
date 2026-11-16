@@ -20,6 +20,7 @@ export const MORE_CATEGORIES = [
   { id: 'messages', label: 'Messages', desc: 'Conversations and sending preferences', matIcon: 'forum', items: [
     { path: '/inbox',          label: 'Inbox',            matIcon: 'forum',                  desc: 'Every client message'         },
     { path: '/outbox',         label: 'Drafts & approvals',           matIcon: 'outbox',                 desc: 'Review messages before they send'    , keywords: 'outbox pending yes no' },
+    { path: '/connections', label: 'Message connections', matIcon: 'mail', desc: 'Set up WhatsApp and email', keywords: 'gmail outlook hotmail inbox connect setup' },
     { path: '/whatsapp',           label: 'WhatsApp',          matIcon: 'smartphone',      desc: 'Business messaging',            gate: 'whatsapp' },
     { path: '/sms',                label: 'SMS',               matIcon: 'sms',             desc: 'Text reminders and replies'     , gate: 'sms' },
     { path: '/whatsapp/templates', label: 'Message templates', matIcon: 'description',     desc: 'Manage your WhatsApp templates' , keywords: 'whatsapp replies messages' , gate: 'whatsapp' },

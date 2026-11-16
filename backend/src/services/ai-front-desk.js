@@ -192,6 +192,8 @@ export async function processInboundMessage(messageId, beautician, client, messa
   // matches it: the channel of the message, then the stored preference, then
   // sms. Callers that do not pass one are unchanged.
   const replyChannel = channel || client?.preferred_channel || 'sms';
+  // Connected mailboxes are approval-only, including recovery/retry callers.
+  if (replyChannel === 'email') return { skipped: true, reason: 'email_requires_approval' };
 
   try {
     // 0. PECR opt-out: STOP and friends are honoured instantly, on any channel,
