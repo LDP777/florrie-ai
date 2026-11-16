@@ -70,8 +70,14 @@ try {
         await page.locator('.more-tool').filter({hasText:'Reviews & feedback'}).waitFor();
         await page.getByLabel('Clear search').click();
         await page.getByRole('button',{name:'Expand all',exact:true}).click();
-        assert.equal(await page.locator('.more-tool:visible').count(),46);
+        assert.equal(await page.locator('.more-tool:visible').count(),40,'solo salons see the consolidated tools');
         await page.locator('.more-tool').filter({hasText:'Message connections'}).waitFor();
+        assert.equal(await page.locator('.more-tool:visible').filter({hasText:'Staff performance'}).count(),0);
+        await page.getByRole('button',{name:'Working with a team? Show team tools',exact:true}).click();
+        await page.getByRole('button',{name:'Expand all',exact:true}).click();
+        assert.equal(await page.locator('.more-tool:visible').count(),43,'team tools remain available on request');
+        await page.getByRole('button',{name:'Hide team tools',exact:true}).click();
+        assert.equal(await page.locator('.more-tool:visible').count(),40);
         await page.getByRole('button',{name:'Collapse all',exact:true}).click();
       }
       if (route === 'voice') {
