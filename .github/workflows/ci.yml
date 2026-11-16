@@ -199,3 +199,5 @@ jobs:
 
       - run: node scripts/check-salon-workspaces.mjs
         working-directory: frontend
+      - run: node scripts/check-salon-email.mjs
+        working-directory: frontend
