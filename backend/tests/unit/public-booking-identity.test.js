@@ -115,12 +115,18 @@ describe('management token lifetime and appointment scope', () => {
     }
   });
   it('keeps a cancelled receipt readable while closing preparation, payment and change routes', async () => {
-    state.rows.appointments = [{ id: 'cancelled', status: 'cancelled', management_token: 'cancelled-token', starts_at: new Date(Date.now()+86400000).toISOString(), beauticians: { booking_slug: 'test', business_name: 'Demo' }, clients: { first_name: 'PRIVATE_CLIENT', email: 'private@example.test' }, treatments: { name: 'Brows' } }];
+    state.rows.appointments = [{ id: 'cancelled', beautician_id: 'owner', status: 'cancelled', management_token: 'cancelled-token', starts_at: new Date(Date.now()+86400000).toISOString(), beauticians: { booking_slug: 'test', business_name: 'Demo' }, clients: { first_name: 'PRIVATE_CLIENT', email: 'private@example.test' }, treatments: { name: 'Brows' } }];
     const receipt = await request('/api/booking/test/manage/cancelled-token');
     expect(receipt.status).toBe(200);
     expect(receipt.body).toMatchObject({readOnly:true,appointment:{status:'cancelled',treatment:{name:'Brows'}}});
     expect(JSON.stringify(receipt.body)).not.toMatch(/PRIVATE_CLIENT|private@example/);
-    expect(state.queries.some(q => ['consultation_responses','patch_tests','transactions'].includes(q.table))).toBe(false);
+    expect(state.queries.some(q => ['consultation_responses','patch_tests'].includes(q.table))).toBe(false);
+    const feeRefundRead=state.queries.find(q=>q.table==='transactions');
+    expect(feeRefundRead?.filters).toEqual(expect.arrayContaining([['beautician_id','owner'],['appointment_id','cancelled'],['type','refund']]));
+    state.errors.ai_actions={message:'Unavailable'};
+    const unavailable=await request('/api/booking/test/manage/cancelled-token');
+    expect(unavailable.body).toMatchObject({readOnly:true,cancellationPayment:{status:'unavailable'}});
+    state.errors.ai_actions=null;
     for (const action of ['reschedule','add-treatment','resend-payment']) expect((await request(`/api/booking/test/manage/cancelled-token/${action}`, {})).status).toBe(410);
     expect((await request('/api/booking/test/manage/cancelled-token/preparation')).status).toBe(410);
     expect(state.writes).toBe(0);

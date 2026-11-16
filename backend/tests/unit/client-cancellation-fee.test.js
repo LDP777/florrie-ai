@@ -49,6 +49,13 @@ beforeEach(()=>{
   state.creates=[];state.retrieves=[];state.response={id:'pi_demo',status:'succeeded'};state.failAnchor=false;state.failReceipt=false;state.failRequest=false;state.nextId=0;
 });
 describe('prospective late-cancellation payment recovery',()=>{
+  it('describes an earlier collected fee without charging again or claiming it is pending',async()=>{
+    Object.assign(appointment(),{policy_fee_charged_at:'2026-11-09T20:20:24Z',policy_fee_amount_cents:2400,policy_fee_payment_intent_id:'pi_earlier'});
+    await queue();const result=await settleClientCancellationFee('a1');
+    expect(result).toMatchObject({reason:'already_charged',charged:false,feeCents:2400,collectedAt:'2026-11-09T20:20:24Z'});
+    expect(intent().summary).toBe('Cancellation fee already collected. No additional payment was taken.');
+    expect(intent().outcome).toBe('success');expect(state.creates).toEqual([]);expect(state.retrieves).toEqual([]);
+  });
   it('never charges a staged request activated by a different cancellation',async()=>{
     appointment().cancelled_at=null;await queue();appointment().cancelled_at='2026-11-14T18:00:00Z';
     await retryClientCancellationFees();expect(state.creates).toHaveLength(0);

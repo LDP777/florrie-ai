@@ -388,7 +388,7 @@ export async function pushPatchTestBooked(beauticianId, clientName, dateStr, { a
 export async function pushClientCancelled(beauticianId, clientName, dateStr, { lateCancel = false, feeCents = 0, appointmentId = null, apptDate = null, channels, notificationId } = {}) {
   // A client cancelled via their manage link. Ellie was not being told at all.
   const tail = lateCancel
-    ? (feeCents > 0 ? ` This was inside your notice window, so a \u00a3${(feeCents / 100).toFixed(2)} fee applies.` : ' This was inside your notice window.')
+    ? ' This was inside your notice window. Check the payment status in Money > Income.'
     : '';
   return pushTeamUpdate(beauticianId, 'booking_cancelled',
     `${clientName} cancelled their ${dateStr} appointment.${tail}`,

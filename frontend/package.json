@@ -17,7 +17,7 @@
     "preview": "vite preview",
     "test:e2e": "playwright test",
     "test:e2e:booking": "playwright test --project=booking",
-    "check:booking:self-service": "node scripts/check-client-policy.mjs && node scripts/check-booking-self-service.mjs",
+    "check:booking:self-service": "node scripts/check-client-policy.mjs && node scripts/check-booking-self-service.mjs && node scripts/check-cancellation-payments.mjs",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:debug": "playwright test --debug",
     "cap:sync": "node scripts/sync-native.cjs",

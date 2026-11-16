@@ -1,3 +1,4 @@
+import CancellationPayments from '../components/CancellationPayment.jsx';
 import { useClientPrivacy, PrivateText, PrivateSection } from '../contexts/ClientPrivacyContext.jsx';
 import AppointmentPreparation from '../components/AppointmentPreparation.jsx';
 import { PATCH_TEST_LEAD_HOURS } from '../lib/patch-test-policy.js';
@@ -2328,6 +2329,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
         <div style={styles.detailRow}><span style={styles.detailLabel}>Date</span><span>{String(appointment.starts_at || '').slice(0, 10)}</span></div>
         <div style={styles.detailRow}><span style={styles.detailLabel}>Time</span><span>{formatWallTime(appointment.starts_at)}</span></div>
         <div style={styles.detailRow}><span style={styles.detailLabel}>Status</span><CalendarBookingStatus appointment={appointment} /></div>
+        {(String(appointment.status).startsWith('cancelled') || appointment.policy_fee_charged_at) && <CancellationPayments appointmentId={appointment.id} />}
         <div style={styles.detailRow}><span style={styles.detailLabel}>Payment</span><span className="calendar-payment-state">{
           appointment.deposit_status === 'refunded' ? 'Deposit refunded'
             : confirmedFullPayment(appointment) ? 'Paid in full'

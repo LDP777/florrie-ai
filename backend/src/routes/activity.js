@@ -140,7 +140,9 @@ function shape(row) {
     id: row.id,
     type: row.action_type,
     digital_employee: row.digital_employee,
-    summary: row.summary || friendlySummary(row),
+    summary: row.action_type === 'client_cancellation_fee' && row.details?.result?.reason === 'already_charged'
+      ? 'Cancellation fee already collected. No additional payment was taken.'
+      : row.summary || friendlySummary(row),
     created_at: row.created_at,
     client_id: row.client_id,
     appointment_id: row.appointment_id,
@@ -221,6 +223,9 @@ function resolveLink(row) {
   }
 
   switch (row.action_type) {
+    case 'client_cancellation_fee':
+    case 'policy_fee_charged':
+    case 'policy_fee_uncollectable': return '/money?tab=income';
     // → the actual conversation
     case 'message_replied':
     case 'message_escalated':

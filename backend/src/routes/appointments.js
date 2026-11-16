@@ -1,4 +1,5 @@
 import { salonWallInstant } from '../lib/booking-preparation.js';
+import { FEE_FIELDS, cancellationPaymentStatus, readCancellationPaymentStatus } from '../services/cancellation-payment-status.js';
 import { announceBookingConfirmed } from '../services/booking-confirmed-alert.js';
 import { Router } from 'express';
 import { mapBounded } from '../lib/map-bounded.js';
@@ -25,6 +26,52 @@ import { guardedSend } from '../lib/outbound-guard.js';
 import Stripe from 'stripe';
 
 const router = Router();
+
+// Read-only payment receipts, scoped to the signed-in salon. No provider calls.
+router.get('/cancellation-payments', requireAuth, async (req, res) => {
+  try {
+    const owner = req.beautician.id;
+    const appointments = await supabase.from('appointments')
+      .select(`id,beautician_id,starts_at,cancelled_at,${FEE_FIELDS},clients(first_name,last_name)`)
+      .eq('beautician_id', owner).or('status.like.cancelled%,policy_fee_charged_at.not.is.null')
+      .order('updated_at', { ascending: false }).limit(50);
+    if (appointments.error) throw appointments.error;
+    const ids = (appointments.data || []).map(a => a.id);
+    if (!ids.length) return res.json({ payments: [] });
+    const [actions, refunds] = await Promise.all([
+      supabase.from('ai_actions').select('beautician_id,appointment_id,action_type,outcome,details,created_at')
+        .eq('beautician_id', owner).in('appointment_id', ids)
+        .in('action_type', ['client_cancellation_fee', 'policy_fee_charged', 'policy_fee_uncollectable'])
+        .order('created_at', { ascending: false }).limit(500),
+      supabase.from('transactions').select('appointment_id,type,status,amount_cents,stripe_payment_intent_id')
+        .eq('beautician_id', owner).in('appointment_id', ids).eq('type', 'refund'),
+    ]);
+    if (actions.error || refunds.error) throw new Error('Could not read cancellation receipts');
+    const payments = appointments.data.map(a => ({
+      appointmentId: a.id, startsAt: a.starts_at,
+      clientName: [a.clients?.first_name, a.clients?.last_name].filter(Boolean).join(' ') || 'Client',
+      payment: cancellationPaymentStatus(a, actions.data?.find(r => r.appointment_id === a.id),
+        refunds.data?.filter(r => r.appointment_id === a.id) || []),
+    })).filter(row => row.payment);
+    res.json({ payments });
+  } catch (err) {
+    logger.error({ err }, 'Could not load cancellation payments');
+    res.status(503).json({ error: 'Could not check cancellation payments. Try again.' });
+  }
+});
+
+router.get('/:id/cancellation-payment', requireAuth, async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('appointments').select(`id,beautician_id,${FEE_FIELDS}`)
+      .eq('id', req.params.id).eq('beautician_id', req.beautician.id).maybeSingle();
+    if (error) throw error;
+    if (!data) return res.status(404).json({ error: 'Booking not found' });
+    res.json({ payment: await readCancellationPaymentStatus(data) });
+  } catch (err) {
+    logger.error({ err }, 'Could not load cancellation payment');
+    res.status(503).json({ error: 'Could not check this cancellation payment. Try again.' });
+  }
+});
 
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
 

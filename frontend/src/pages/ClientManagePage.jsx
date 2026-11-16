@@ -1,3 +1,4 @@
+import { CancellationPaymentReceipt } from '../components/CancellationPayment.jsx';
 import BookingPreparation from '../components/BookingPreparation.jsx';
 import { PATCH_TEST_LEAD_HOURS } from '../lib/patch-test-policy.js';
 import { cancellationNoticeHours, policyFeePercent } from '../lib/booking-policy.js';
@@ -516,6 +517,7 @@ export default function ClientManagePage() {
           <MetaRow icon="calendar" label="Original date" value={new Date(`${appointment.startsAt.slice(0,10)}T12:00:00Z`).toLocaleDateString('en-GB', {day:'numeric', month:'long', year:'numeric', timeZone:'UTC'})} />
           <MetaRow icon="clock" label="Original time" value={appointment.startsAt.slice(11,16)} />
           {cancelResult && <p role="status" style={S.cardBody}>{cancellationOutcome(cancelResult)}</p>}
+          <CancellationPaymentReceipt payment={data.cancellationPayment || cancelResult?.cancellationPayment} publicReceipt />
           <a href={`/book/${slug}`} style={{ ...S.rescheduleBtn, display:'block', textAlign:'center', textDecoration:'none', marginTop:16 }}>Book another appointment</a>
         </div>
       </div>
@@ -1239,6 +1241,7 @@ export default function ClientManagePage() {
                 <p style={{ fontSize: 14, fontWeight: 600, margin: '0 0 12px', color: '#1a1a1a' }}>
                   Are you sure you want to cancel?
                 </p>
+                {policy.previousFee && <CancellationPaymentReceipt payment={policy.previousFee} publicReceipt />}
                 {policy.withinCancellationWindow && policy.lateCancelFeeCents > 0 ? (
                   <p style={{ fontSize: 13, color: 'var(--danger)', margin: '0 0 12px' }}>
                     {policy.cardOnFile
@@ -1281,6 +1284,11 @@ export default function ClientManagePage() {
 }
 
 function cancellationOutcome(result) {
+  if (result.feeCollection?.alreadyCollected) {
+    const at = result.feeCollection.collectedAt;
+    const date = at && Number.isFinite(Date.parse(at)) ? new Date(at).toLocaleDateString('en-GB', {day:'numeric',month:'long',year:'numeric',timeZone:'Europe/London'}) : null;
+    return `Your appointment has been cancelled. The fee was already collected${date ? ` on ${date}` : ''}. No additional payment was taken.`;
+  }
   const fee = Number(result.feeCents || 0);
   const amount = `£${(fee / 100).toFixed(2)}`;
   if (fee > 0 && result.feeCollection?.charged) return `Your appointment has been cancelled. The remaining ${amount} cancellation fee has been charged.`;

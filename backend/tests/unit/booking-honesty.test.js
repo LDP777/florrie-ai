@@ -416,3 +416,21 @@ describe("deleting a booking somebody may have paid for", () => {
     expect(db.appointments).toHaveLength(0);
   });
 });
+
+
+describe('owner cancellation-payment visibility', () => {
+  const anchor = {policy_fee_charged_at:'2026-11-09T20:20:24Z',policy_fee_amount_cents:2400,policy_fee_payment_intent_id:'pi_private'};
+  it('returns only the signed-in salon’s receipts without provider identifiers', async () => {
+    db.appointments.push({id:'ours',beautician_id:'b1',status:'cancelled',...anchor},{id:'theirs',beautician_id:'other',status:'cancelled',...anchor});
+    const out=await run(appointmentsRouter,'get','/cancellation-payments',{beautician:{id:'b1'},params:{}});
+    expect(out.status).toBe(200);expect(out.body.payments.map(r=>r.appointmentId)).toEqual(['ours']);
+    expect(out.body.payments[0].payment.status).toBe('collected');
+    expect(JSON.stringify(out.body)).not.toContain('pi_private');
+    expect((await run(appointmentsRouter,'get','/:id/cancellation-payment',{beautician:{id:'b1'},params:{id:'theirs'}})).status).toBe(404);
+  });
+  it('reports an unavailable check instead of an empty or collected status on a failed read', async () => {
+    db.appointments.push({id:'ours',beautician_id:'b1',...anchor});failing.set('ai_actions',{message:'private provider error'});
+    const out=await run(appointmentsRouter,'get','/:id/cancellation-payment',{beautician:{id:'b1'},params:{id:'ours'}});
+    expect(out.status).toBe(503);expect(JSON.stringify(out.body)).not.toMatch(/private provider|collected/);
+  });
+});

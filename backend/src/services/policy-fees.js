@@ -149,7 +149,7 @@ export async function chargePolicyFee(appointmentId, kind, { recovery = null } =
       .select(`
         id, beautician_id, client_id, status, price_cents, deposit_cents, deposit_amount_cents,
         deposit_paid, deposit_status, payment_type, policy_snapshot, stripe_payment_method_id,
-        policy_fee_charged_at, policy_fee_payment_intent_id,
+        policy_fee_charged_at, policy_fee_amount_cents, policy_fee_payment_intent_id,
         clients(id, first_name, last_name, stripe_customer_id),
         beauticians(id, business_name, first_name, booking_policy,
           stripe_account_id, stripe_onboarding_complete)
@@ -161,7 +161,7 @@ export async function chargePolicyFee(appointmentId, kind, { recovery = null } =
 
     // HARD RULE: never charge twice.
     if (appt.policy_fee_charged_at && !recovery?.request) {
-      return { charged: false, reason: 'already_charged' };
+      return { charged: false, reason: 'already_charged', feeCents: appt.policy_fee_amount_cents, collectedAt: appt.policy_fee_charged_at };
     }
 
     const clientName = `${appt.clients?.first_name || 'the client'} ${appt.clients?.last_name || ''}`.trim();

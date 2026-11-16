@@ -38,7 +38,7 @@ async function fixture(options = {}) {
       lateCancelFeeCents: options.late ? 3600 : 0, cardOnFile: options.cardOnFile !== false,
       reschedule_once: !!options.used, alreadyRescheduled: !!options.used,
       reschedule_between_only: options.mode === 'back_to_back', ...options.policy };
-    const booking = () => ({ readOnly: cancelled,
+    const booking = () => ({ readOnly: cancelled, cancellationPayment: options.cancellationPayment || null,
       appointment: { id: 'fixture-appointment', status: cancelled ? 'cancelled' : 'confirmed', startsAt,
         endsAt: startsAt.slice(0, 10) + 'T13:00:00', depositPaid: true,
         treatment, treatments: [treatment], totalPriceCents: 4500, totalDurationMinutes: 60,
@@ -219,6 +219,19 @@ try {
     await page.getByText('Booking link unavailable', { exact: true }).waitFor();
     assert.equal(await page.getByRole('button', { name: 'Try again', exact: true }).count(), 0);
     assert.deepEqual(await writes(page), []);
+  });
+  await check('Earlier collected fee survives reopening the cancellation receipt', { cancelled:true, cancellationPayment:{status:'collected',label:'Collected',amountCents:2400,collectedAt:'2026-11-09T20:20:24Z',message:'This fee was already collected. No additional payment was taken.'} }, async page => {
+    await page.getByText('Cancellation fee · Collected',{exact:true}).waitFor();
+    assert.match(await page.locator('body').innerText(), /£24.00[\s\S]*Collected on 9 November 2026/);
+    assert.equal(await page.getByRole('button',{name:/pay|cancel/i}).count(),0);
+    assert.deepEqual(await writes(page),[]);
+  });
+  await check('Earlier collected fee removes the misleading Cancel and pay button', {late:true,policy:{lateCancelFeeCents:0,previousFee:{status:'collected',label:'Collected',amountCents:2400,collectedAt:'2026-11-09T20:20:24Z',message:'This fee was already collected. No additional payment will be taken.'}}}, async page => {
+    await page.getByRole('button',{name:'Cancel appointment',exact:true}).click();
+    await page.getByText('Cancellation fee · Collected',{exact:true}).waitFor();
+    assert.equal(await page.getByRole('button',{name:/Cancel and pay/}).count(),0);
+    assert.equal(await page.getByRole('button',{name:'Yes, cancel',exact:true}).count(),1);
+    assert.deepEqual(await writes(page),[]);
   });
   console.log(`${groups} booking self-service browser groups passed.`);
 } finally {

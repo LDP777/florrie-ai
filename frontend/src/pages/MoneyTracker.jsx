@@ -1,8 +1,9 @@
+import CancellationPayments from '../components/CancellationPayment.jsx';
 import { PrivateAmount, PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import MoreLoadError from '../components/MoreLoadError.jsx';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useBeautician, supabase, insertRow } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
@@ -222,7 +223,9 @@ export default function MoneyTracker() {
   const [expenses, setExpenses] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [reports, setReports] = useState(null);
-  const [tab, setTab] = useState('pulse');
+  const [searchParams] = useSearchParams();
+  const [tab, setTab] = useState(searchParams.get('tab') === 'income' ? 'income' : 'pulse');
+  useEffect(() => { if (searchParams.get('tab') === 'income') setTab('income'); }, [searchParams]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showAddExpense, setShowAddExpense] = useState(false);
@@ -2178,6 +2181,7 @@ export default function MoneyTracker() {
       {/* ═══ INCOME TAB ═══ */}
       {tab === 'income' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <CancellationPayments />
           {transactions.length === 0 && (
             <EmptyState message="Payments from completed appointments will show here." icon="card" />
           )}
@@ -2198,7 +2202,7 @@ export default function MoneyTracker() {
             // the same green. They are different facts about her money, so they
             // get different words and the assumption does not get the green.
             const assumed = isAssumedPayment(tx);
-            const typeLabel = paymentStory(tx)
+            const typeLabel = (tx.type === 'late_cancel_fee' ? `Late cancellation fee · ${paymentStory(tx) || 'Payment not confirmed'}` : paymentStory(tx))
               || { payment: 'Payment', deposit: 'Deposit', no_show_fee: 'No-show fee', tip: 'Tip', product_sale: 'Product sale' }[tx.type]
               || tx.type;
             return (

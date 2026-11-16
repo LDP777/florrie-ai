@@ -817,6 +817,21 @@ describe('manage, cancellation and rescheduling honour the agreed notice', () =>
     db.appointments[0].ends_at = new Date(start + 3600_000).toISOString();
   };
 
+  it('shows an earlier fee collection instead of quoting or charging it again', async () => {
+    seed({policy:{cancellation_notice_hours:48,late_cancel_charge_percent:100}});soon();
+    Object.assign(db.appointments[0],{policy_fee_charged_at:'2026-11-09T20:20:24Z',policy_fee_amount_cents:2400,policy_fee_payment_intent_id:'pi_earlier'});
+    const manage=await run('get','/:slug/manage/:token',{params});
+    expect(manage.body.policy).toMatchObject({lateCancelFeeCents:0,previousFee:{status:'collected',amountCents:2400}});
+    const cancelled=await run('post','/:slug/manage/:token/cancel',{params});
+    expect(cancelled.body).toMatchObject({success:true,feeCents:0,cancellationPayment:{status:'collected'}});
+    expect(cancelled.body.message).toContain('already collected on 9 November 2026');
+    expect(feeFixture.charges).toEqual([]);
+    expect(db.ai_actions.filter(r=>r.action_type==='client_cancellation_fee')).toEqual([]);
+    const receipt=await run('get','/:slug/manage/:token',{params});
+    expect(receipt.body).toMatchObject({readOnly:true,cancellationPayment:{status:'collected',amountCents:2400}});
+    expect(JSON.stringify(receipt.body)).not.toContain('pi_earlier');
+  });
+
   it('does not require a fee ledger to view or freely cancel outside the notice period', async () => {
     seed({policy:{cancellation_notice_hours:48,late_cancel_charge_percent:100}});feeFixture.failQuote=true;
     const manage=await run('get','/:slug/manage/:token',{params});

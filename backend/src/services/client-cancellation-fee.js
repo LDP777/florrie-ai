@@ -69,7 +69,9 @@ export async function settleClientCancellationFee(appointmentId) {
     const review=!complete && !retry;
     const saved=await supabase.from('ai_actions').update({
       outcome:complete?'success':review?'escalated':'pending',
-      summary:complete && result.charged ? `Late-cancellation payment of £${(details.fee_cents/100).toFixed(2)} collected`
+      summary:result.reason === 'already_charged' ? 'Cancellation fee already collected. No additional payment was taken.'
+        : result.reason === 'no_fee_configured' ? 'No additional cancellation payment is due.'
+        : complete && result.charged ? `Late-cancellation payment of £${(details.fee_cents/100).toFixed(2)} collected`
         : review ? `Please review the £${(details.fee_cents/100).toFixed(2)} late-cancellation payment. ${REVIEW_REASON[result.reason] || 'The payment could not be confirmed.'}`
         : 'Late-cancellation payment is awaiting confirmation',
       details:{...details,result,lease_until:null,needs_review:review},
