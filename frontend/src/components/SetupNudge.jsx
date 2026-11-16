@@ -29,19 +29,8 @@ async function authedGet(path) {
 // imported list are extras: counting them meant "5 of 12 done" on the Today
 // page forever for any salon without Stripe.
 function countChecks(s) {
-  const ch = s?.channels || {};
-  const checks = [
-    !!s?.business?.name,
-    !!s?.business?.hours,
-    !!s?.business?.booking_slug,
-    (s?.services?.treatments_count || 0) > 0,
-    !!s?.services?.has_prices,
-    !!(ch.whatsapp || ch.instagram || ch.sms),
-    !!ch.auto_reply,
-    (s?.protection?.forms_built || 0) > 0,
-    (s?.protection?.forms_attached || 0) > 0,
-  ];
-  return { done: checks.filter(Boolean).length, total: checks.length };
+  if (!s?.readiness) return { done: 0, total: 0 };
+  return { done: s.readiness.done, total: s.readiness.total };
 }
 
 // Hidden for a week, not a session. Tapping the cross every morning is not a

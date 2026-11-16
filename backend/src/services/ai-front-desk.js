@@ -281,19 +281,6 @@ export async function processInboundMessage(messageId, beautician, client, messa
       return { handled: false, reason: 'inbound_budget_exhausted' };
     }
 
-    // A future plan/watch update needs no booking question. Check before the
-    // model and before any booking writes; retain it in the ordinary inbox.
-    if (isPassiveBookingInterest(messageContent) && !asksForHuman(messageContent, beautician.first_name)
-      && !needsAPerson(messageContent).yes && !doorstep) {
-      const { error } = await supabase.from('messages').update({
-        ai_handled: false, ai_response: null, ai_confidence: null,
-        ai_intent: 'general_question', escalated: false,
-        escalated_reason: null, digital_employee: 'front_desk',
-      }).eq('id', messageId).eq('beautician_id', beautician.id);
-      if (error) throw error;
-      return { handled: false, drafted: false, quiet: true, reason: 'no_booking_request' };
-    }
-
     // 1. Gather context
     const context = await gatherContext(beautician, client, messageContent, replyChannel);
     const turn = { ids: new Set(context.conversation.map(row => row.id)),
@@ -331,6 +318,19 @@ export async function processInboundMessage(messageId, beautician, client, messa
 
     // 2. Classify intent
     const questionScenario = clientQuestionScenario(messageContent, context.conversation);
+    // A standalone watch/update stays quiet. A follow-up to an unresolved
+    // story or diary question must retain that context and reach the owner.
+    if (!questionScenario && context.conversationReadable !== false && isPassiveBookingInterest(messageContent) && !asksForHuman(messageContent, beautician.first_name)
+      && !needsAPerson(messageContent).yes && !doorstep) {
+      const { error } = await supabase.from('messages').update({
+        ai_handled: false, ai_response: null, ai_confidence: null,
+        ai_intent: 'general_question', escalated: false,
+        escalated_reason: null, digital_employee: 'front_desk',
+      }).eq('id', messageId).eq('beautician_id', beautician.id);
+      if (error) throw error;
+      return { handled: false, drafted: false, quiet: true, reason: 'no_booking_request' };
+    }
+
     context.bookingContinuation = !questionScenario && context.conversationReadable !== false
       ? treatmentBookingContinuation({ message: messageContent, messageId, channel: replyChannel,
         conversation: context.conversation, treatments: context.treatments, ownerName: beautician.first_name })
@@ -672,7 +672,7 @@ export async function processInboundMessage(messageId, beautician, client, messa
       logger.info({ handled: sent, drafted: !sent, intent: classification.intent }, sent ? 'AI Front Desk sent reply' : 'AI Front Desk drafted reply for one-tap send');
       return { handled: sent, drafted: !sent, intent: classification.intent, response: result.response };
 
-    } else if (!convo && !resend?.escalate && !personNeeded?.yes
+    } else if (!questionScenario && !convo && !resend?.escalate && !personNeeded?.yes
       && !asksForHuman(messageContent, beautician.first_name)
       && !replyIsOwed(messageContent, classification)) {
       // 4c. Nothing is owed. She said thanks, or see you Tuesday, or sent a

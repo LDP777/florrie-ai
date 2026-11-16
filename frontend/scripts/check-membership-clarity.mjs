@@ -4,11 +4,12 @@ import http from 'node:http';
 import { mkdirSync } from 'node:fs';
 import { build } from 'esbuild';
 import { launch } from './lib/browser.mjs';
+import { setupChecklist, replySettings } from '../../backend/src/lib/setup-readiness.js';
 import { contrast } from '../src/lib/brand-colour.js';
 
 const root = new URL('../', import.meta.url).pathname;
 const store = `
-const owner = {id:'fictional-salon'};
+const owner = {id:'fictional-salon',auth_id:'fictional-user'};
 const initial = {
  plans:[{id:'basic',name:'Brow care',price_cents:3000,benefits:['Priority enquiries']},{id:'extra',name:'Extra care',price_cents:10000,benefits:[]}],
  members:[{id:'casey',membership_id:'basic',status:'active',clients:{first_name:'Casey',last_name:'Client'}},{id:'sam',membership_id:'extra',status:'paused',clients:{first_name:'Sam',last_name:'Client'}},{id:'unknown',membership_id:'extra',status:null,clients:{first_name:'Unknown',last_name:'Status'}}]
@@ -16,7 +17,7 @@ const initial = {
 window.fixture={...JSON.parse(sessionStorage.getItem('membership-records')||JSON.stringify(initial)),writes:[],failRead:false,failCreate:false,failUpdate:false};
 const persist=()=>sessionStorage.setItem('membership-records',JSON.stringify({plans:window.fixture.plans,members:window.fixture.members}));
 export const useBeautician=()=>({beautician:owner,loading:false});
-export const supabase={auth:{getSession:async()=>({data:{session:{access_token:'fixture'}}})}};
+export const supabase={auth:{getSession:async()=>({data:{session:{access_token:'fixture',user:{id:'fictional-user'}}}}),onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}})}};
 export const fetchRowsStrict=async(table,ownerId)=>{if(ownerId!==owner.id)throw Error('Wrong owner');if(window.fixture.failRead)throw Error('Synthetic load failure');return table==='client_memberships'?window.fixture.plans:window.fixture.members;};
 export const insertRow=async(table,input)=>{if(window.fixture.failCreate)throw Error('Synthetic create failure');if(table!=='client_memberships'||input.beautician_id!==owner.id)throw Error('Unexpected write');const row={id:'created-plan',...input};window.fixture.writes.push({table,input});window.fixture.plans.push(row);persist();return row;};
 export const updateRow=async(table,id,changes)=>{if(window.fixture.failUpdate)throw Error('Synthetic update failure');if(table!=='membership_subscriptions')throw Error('Unexpected write');window.fixture.writes.push({table,id,changes});const row=window.fixture.members.find(m=>m.id===id);Object.assign(row,changes);persist();return row;};
@@ -42,7 +43,7 @@ const server = http.createServer((req,res)=>{
  requests.push({url:req.url,method:req.method});
  if(req.url==='/api/setup/status'||req.url==='/api/whatsapp/meta-templates/starter-pack'){
   res.setHeader('content-type','application/json');
-  return res.end(JSON.stringify(req.url==='/api/setup/status'?{business:{},services:{},channels,clients:{},protection:{},money:{}}:{pack:[]}));
+  const status={business:{},services:{},channels,clients:{},protection:{},money:{},replies:replySettings({})};status.readiness=setupChecklist(status,{});return res.end(JSON.stringify(status));
  }
  const file=out.outputFiles.find(f=>f.path.endsWith(req.url));
  if(file){res.setHeader('content-type',req.url.endsWith('.css')?'text/css':'text/javascript');return res.end(file.text);}
@@ -144,13 +145,13 @@ try {
  console.log('PASS: empty and incomplete records show their limits; no payment or provider request is made');
 
  // The checklist itself chooses the destination; root separately tests Settings sections.
- const links=[['Business name','profile'],['Opening hours','hours'],['Booking page link','profile'],['Deposits switched on','policy'],['A way for clients to reach you','connections'],['Auto-reply','ai'],['Card payments connected','payments']];
+ const links=[['Business details','/business'],['Working hours','/settings?section=hours'],['Booking link','/business?tab=booking'],['Cancellation terms','/settings?section=policy'],['Connect & check an enquiry','/connections'],['Choose how Florrie replies','/settings?section=ai'],['Card payments','/settings?section=payments']];
  for(const channelState of [{},{sms:true},{whatsapp:true,instagram:true}]){
   channels=channelState;
   for(const [label,section] of links){
    await page.goto(`${origin}/setup`);
-   await page.getByRole('button',{name:new RegExp(`^${label},`)}).click();
-   assert.equal(new URL(page.url()).pathname+new URL(page.url()).search,`/settings?section=${section}`);
+   await page.locator('.su-row').filter({hasText:label}).click();
+   assert.equal(new URL(page.url()).pathname+new URL(page.url()).search,section);
   }
  }
  assert.deepEqual(errors,[]);

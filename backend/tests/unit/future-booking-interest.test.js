@@ -207,7 +207,8 @@ describe('the actual front desk stays quiet on future/watch statements', () => {
     fixture.db.messages.push(row('story', `This helped with December\n${INSTAGRAM_STORY_UNAVAILABLE_MARKER}`, { media_type: 'story_reply', escalated: true, escalated_reason: 'story_context:unavailable' }), row('inbound', SECOND));
     const result = await processInboundMessage('inbound', owner, client, SECOND, 'instagram');
     expect(result.error).toBeUndefined();
-    expect(result.quiet).toBe(true);
+    expect(result.handled).not.toBe(true);
+    expect(fixture.db.messages.find(m => m.id === 'inbound')).toMatchObject({ escalated: true, escalated_reason: 'story_context:unavailable' });
     expect(fixture.delivered).toHaveLength(0);
     expect(fixture.modelCalls).toHaveLength(0);
     expect(bookingWrites()).toEqual([]);

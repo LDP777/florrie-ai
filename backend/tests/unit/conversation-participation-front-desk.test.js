@@ -316,3 +316,64 @@ describe('completed service work remains visible when a newer message prevents i
     expect(fixture.pushes.some(push => push.kind === 'escalation')).toBe(true);
   });
 });
+
+describe('launch rehearsal: the whole receptionist handles the reported incidents', () => {
+  it('does not turn a bare hello into an arrival or booking action', async () => {
+    fixture.intent = 'greeting'; fixture.participation = { decision: 'service', evidence: 'Hey' };
+    fixture.writerResponse = "I'm ready, come through now";
+    const result = await receive('Hey');
+    expect(result.error).toBeUndefined();
+    expect(fixture.pushes.some(p => p.kind === 'arrival')).toBe(false);
+    expect(bookingWrites()).toEqual([]);
+    expect(fixture.delivered).toHaveLength(1);
+    expect(fixture.delivered[0].text).toMatch(/how can I help/i);
+    expect(fixture.delivered[0].text).not.toMatch(/ready|come through|coming|booked/i);
+  });
+
+  it.each([
+    ['When is December dates out!! Need to book in asap xx', 'diary'],
+  ])('holds an unconfirmed release question for the owner: %s', async (message) => {
+    // Even a misleading classifier/writer response must not open a booking.
+    fixture.intent = 'booking_request';
+    fixture.writerResponse = 'December is quite a way off, but I can get you in sooner.';
+    const result = await receive(message);
+    expect(result.error).toBeUndefined();
+    expect(result.handled).not.toBe(true);
+    expect(fixture.delivered).toEqual([]);
+    expect(bookingWrites()).toEqual([]);
+    expect(storedInbound().escalated).toBe(true);
+    expect(storedInbound().escalated_reason).toMatch(/diary|answer|training/);
+    expect(storedInbound().ai_response || '').not.toMatch(/sooner|which treatment|way off/i);
+  });
+  it('carries the unavailable story into a later December comment without inventing an offer', async () => {
+    const { INSTAGRAM_STORY_UNAVAILABLE_MARKER } = await import('../../src/lib/instagram-story-context.js');
+    fixture.db.messages.push(row('story', `When are December dates out?\n${INSTAGRAM_STORY_UNAVAILABLE_MARKER}`, { created_at:'2026-10-01T20:50:00Z' }));
+    fixture.db.messages.push(row('comment', 'Haven’t been able to find a time/date I can do in October but this has helped for what I’m booking December 😂xx', { created_at:'2026-10-01T20:51:00Z' }));
+    fixture.intent = 'booking_request';
+    const result = await receive('Keeping an eye out on December 7th 😂 xx');
+    expect(result.error).toBeUndefined();expect(result.handled).not.toBe(true);
+    expect(fixture.delivered).toEqual([]);expect(bookingWrites()).toEqual([]);
+    expect(storedInbound().escalated).toBe(true);
+    expect(storedInbound().escalated_reason).toMatch(/story/);
+  });
+  it('acknowledges a regular client’s last-minute cancellation and alerts the owner without changing or charging it', async () => {
+    fixture.db.appointments = [{ id:'booked',beautician_id:owner.id,client_id:client.id,status:'confirmed',starts_at:'2026-10-02T12:00:00Z',management_token:'fictional-only',policy_snapshot:{cancellation_notice_hours:48},treatments:{name:'Brow lamination'} }];
+    fixture.db.client_intelligence = [{client_id:client.id,beautician_id:owner.id,total_visits:50}];
+    const result = await receive('I need to cancel my appointment tomorrow please');
+    expect(result.error).toBeUndefined();
+    expect(storedInbound()).toMatchObject({escalated:true,escalated_reason:'appointment_change:short_notice'});
+    expect(fixture.pushes.some(p=>p.kind==='escalation')).toBe(true);
+    expect(fixture.delivered).toHaveLength(1);
+    expect(bookingWrites()).toEqual([]);
+    expect(fixture.db.appointments[0].status).toBe('confirmed');
+    expect(fixture.db.messages.filter(m=>m.direction==='outbound').at(-1).content).toMatch(/haven't changed or cancelled/);
+  });
+  it('gives the real management link outside the window without claiming the appointment is cancelled', async () => {
+    fixture.db.appointments = [{ id:'booked',beautician_id:owner.id,client_id:client.id,status:'confirmed',starts_at:'2026-10-09T12:00:00Z',management_token:'fictional-only',treatments:{name:'Brow lamination'} }];
+    const result = await receive('Please cancel my appointment');
+    expect(result.error).toBeUndefined();expect(fixture.delivered).toHaveLength(1);
+    const response=fixture.db.messages.filter(m=>m.direction==='outbound').at(-1).content;
+    expect(response).toContain('/manage/fictional-only');expect(response).toMatch(/stays in place/);
+    expect(bookingWrites()).toEqual([]);expect(fixture.db.appointments[0].status).toBe('confirmed');
+  });
+});

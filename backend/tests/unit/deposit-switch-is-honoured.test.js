@@ -95,6 +95,7 @@ function makeBuilder(table) {
     lte(c, v) { filters.push(r => String(r[c]) <= String(v)); return b; },
     gt(c, v) { filters.push(r => String(r[c]) > String(v)); return b; },
     lt(c, v) { filters.push(r => String(r[c]) < String(v)); return b; },
+    abortSignal() { return b; },
     order() { return b; },
     limit() { return b; },
     maybeSingle() { const o = settle(); return Promise.resolve(o.error ? o : { data: (o.data || [])[0] || null, error: null }); },

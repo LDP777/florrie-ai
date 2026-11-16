@@ -8,7 +8,7 @@ const store = `
 const initial = {id:'salon-fixture',first_name:'',business_name:'',timezone:'Europe/London'};
 window.fixture={profile:JSON.parse(sessionStorage.getItem('setup-profile')||JSON.stringify(initial)),rows:JSON.parse(sessionStorage.getItem('setup-rows')||'[]'),writes:[],failProfile:false,loseTreatmentResponse:false,authCalls:[]};
 const persist=()=>{sessionStorage.setItem('setup-profile',JSON.stringify(window.fixture.profile));sessionStorage.setItem('setup-rows',JSON.stringify(window.fixture.rows));};
-export const supabase={auth:{getSession:async()=>({data:{session:{access_token:'fixture',user:{id:'salon-fixture'}}}}),onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}}),signUp:async p=>{window.fixture.authCalls.push(['signup',p]);return {data:{user:{id:'new-user'},session:null}};},resetPasswordForEmail:async(...p)=>{window.fixture.authCalls.push(['reset',...p]);return {};},updateUser:async p=>{window.fixture.authCalls.push(['update',p]);return {data:{user:{id:'salon-fixture'}},error:null};},signOut:async()=>{window.fixture.authCalls.push(['signout']);return {error:null};}},from:table=>{const b={select:()=>b,eq:()=>b,then:r=>Promise.resolve({count:window.fixture.rows.length,error:null}).then(r),upsert:async rows=>{window.fixture.writes.push({table,rows});for(const row of rows){const old=window.fixture.rows.find(r=>r.id===row.id);if(old)Object.assign(old,row);else window.fixture.rows.push(row);}persist();if(window.fixture.loseTreatmentResponse){window.fixture.loseTreatmentResponse=false;throw Error('Synthetic lost response');}return {error:null};}};return b;}};
+export const supabase={auth:{getSession:async()=>({data:{session:{access_token:'fixture',user:{id:'salon-fixture'}}}}),onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}}),signUp:async p=>{window.fixture.authCalls.push(['signup',p]);return {data:{user:{id:'new-user'},session:null}};},resetPasswordForEmail:async(...p)=>{window.fixture.authCalls.push(['reset',...p]);return {};},updateUser:async p=>{window.fixture.authCalls.push(['update',p]);return {data:{user:{id:'salon-fixture'}},error:null};},signOut:async()=>{window.fixture.authCalls.push(['signout']);return {error:null};}},from:table=>{const b={select:()=>b,eq:()=>b,abortSignal:()=>b,then:r=>Promise.resolve({count:window.fixture.rows.length,error:null}).then(r),upsert:async rows=>{window.fixture.writes.push({table,rows});for(const row of rows){const old=window.fixture.rows.find(r=>r.id===row.id);if(old)Object.assign(old,row);else window.fixture.rows.push(row);}persist();if(window.fixture.loseTreatmentResponse){window.fixture.loseTreatmentResponse=false;throw Error('Synthetic lost response');}return {error:null};}};return b;}};
 export const useBeautician=()=>({beautician:window.fixture.profile,loading:false,refresh:async()=>{}});
 export const updateRow=async(table,id,changes)=>{if(window.fixture.failProfile)throw Error('Synthetic failed save');window.fixture.writes.push({table,changes});Object.assign(window.fixture.profile,changes);persist();return window.fixture.profile;};
 `;
@@ -59,6 +59,10 @@ try {
  await page.goto(`${origin}/onboarding`);
  await page.getByPlaceholder('e.g. Sophie', {exact:true}).fill('Alex');
  await page.getByPlaceholder('e.g. Sophie Lash Studio').fill('Fictional launch salon');
+ await page.reload();
+ await page.getByPlaceholder('e.g. Sophie', {exact:true}).waitFor();
+ assert.equal(await page.getByPlaceholder('e.g. Sophie', {exact:true}).inputValue(),'Alex');
+ assert.equal(await page.getByPlaceholder('e.g. Sophie Lash Studio').inputValue(),'Fictional launch salon');
  await page.evaluate(()=>{window.fixture.failProfile=true;});
  await page.getByRole('button',{name:'Next',exact:true}).click();
  await page.getByText('Failed to save. Please try again.',{exact:true}).waitFor();
@@ -71,10 +75,16 @@ try {
  await page.getByRole('button',{name:'+ Add another treatment',exact:true}).click();
  await page.getByPlaceholder('e.g. Brow Lamination').nth(1).fill('Brow wax');
  await page.getByPlaceholder('0.00').nth(1).fill('15');
+ await page.reload();
+ await page.getByRole('heading',{name:'Your treatments'}).waitFor();
+ assert.equal(await page.getByPlaceholder('e.g. Brow Lamination').count(),2);
+ assert.equal(await page.getByPlaceholder('0.00').nth(0).inputValue(),'35.25');
  await page.evaluate(()=>{window.fixture.loseTreatmentResponse=true;});
  await page.getByRole('button',{name:'Next',exact:true}).click();
  await page.getByText('Failed to save treatments. Please try again.',{exact:true}).waitFor();
  assert.equal(await page.evaluate(()=>window.fixture.rows.length),2);
+ await page.reload();
+ await page.getByRole('heading',{name:'Your treatments'}).waitFor();
  await page.getByRole('button',{name:'Next',exact:true}).click();
  await page.getByRole('heading',{name:'Working hours'}).waitFor();
  assert.deepEqual(await page.evaluate(()=>window.fixture.rows.map(r=>r.price_cents)),[3525,1500]);

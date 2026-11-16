@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { track } from '../lib/analytics.js';
 import { useBeautician, updateRow, supabase } from '../lib/supabase.js'
 import { saveSetupTreatments, setupWorkingHours } from '../lib/onboarding-setup.js';
+import { readSetupDraft, writeSetupDraft, clearSetupDraft } from '../lib/setup-draft.js';
 import { PLAN } from '../lib/subscription.js';
 import { registerPush, getPushStatus } from '../lib/push.js';
 import logger from '../lib/logger.js';
@@ -25,6 +26,7 @@ function detectBrowserTimezone() {
 }
 
 const API = import.meta.env.VITE_API_URL;
+function setupStorage() { try { return window.localStorage; } catch { return null; } }
 // Through the client, not by grepping localStorage for a key that may not
 // be there (native shells, private windows). A miss here used to send
 // `Bearer null` and show the owner a raw 401.
@@ -83,15 +85,23 @@ async function resolveResumeStep(beautician) {
   const { count, error } = await supabase
     .from('treatments')
     .select('id', { count: 'exact', head: true })
-    .eq('beautician_id', beautician.id);
+    .eq('beautician_id', beautician.id).abortSignal(AbortSignal.timeout(8000));
   if (!error && (count || 0) > 0) return 3;
   return 2;
 }
 
 export default function Onboarding({ onComplete }) {
-  const { beautician, loading: bLoading, refresh } = useBeautician();
+  const profile = useBeautician();
+  return <OnboardingDraft key={profile.beautician?.id || 'loading'} onComplete={onComplete} profile={profile}/>;
+}
+function OnboardingDraft({ onComplete, profile }) {
+  const { beautician, loading: bLoading, refresh } = profile;
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
+  const [igNote, setIgNote] = useState(null);
+  const [igConnecting, setIgConnecting] = useState(false);
+  const igConnectBusy = useRef(false);
+
   const [error, setError] = useState(null);
   // Step 1: Business info
   const [businessName, setBusinessName] = useState('');
@@ -164,9 +174,12 @@ export default function Onboarding({ onComplete }) {
   // got, so read it from there: a booking slug can only have been set on step
   // 4, a treatment can only have been added on step 2, a first name on step 1.
   const [resumed, setResumed] = useState(false);
+  const [draftReady, setDraftReady] = useState(false);
   useEffect(() => {
     if (resumed || bLoading || !beautician) return;
     setResumed(true);
+    let active = true;
+    const draft = readSetupDraft(setupStorage(), beautician.id);
 
     setFirstName(prev => prev || beautician.first_name || '');
     setBusinessName(prev => prev || beautician.business_name || '');
@@ -187,20 +200,32 @@ export default function Onboarding({ onComplete }) {
 
     (async () => {
       try {
-        const resumeStep = await resolveResumeStep(beautician);
-        if (resumeStep > 1) setStep(resumeStep);
+        const resumeStep = draft ? draft.step : await resolveResumeStep(beautician);
+        if (!active) return;
+        if (draft) {
+          setStep(draft.step); setFirstName(draft.firstName); setBusinessName(draft.businessName);
+          setTreatments(draft.treatments); setHours(draft.hours); setSlug(draft.slug);
+        } else if (resumeStep > 1) setStep(resumeStep);
         const { count } = await supabase
           .from('treatments')
           .select('id', { count: 'exact', head: true })
-          .eq('beautician_id', beautician.id);
-        setSavedTreatments(count || 0);
+          .eq('beautician_id', beautician.id).abortSignal(AbortSignal.timeout(8000));
+        if (active) setSavedTreatments(count ?? null);
       } catch (err) {
         logger.warn('Could not work out the resume step, starting at 1:', err);
-      }
+      } finally { if (active) setDraftReady(true); }
     })();
-  }, [beautician, bLoading, resumed]);
+    // This instance is keyed to the salon. A profile refresh must not restart
+    // hydration or discard the current draft.
+    return () => { active = false; };
+  }, [beautician?.id, bLoading]);
+  useEffect(() => {
+    if (draftReady && beautician?.id && !beautician.onboarding_completed_at) {
+      writeSetupDraft(setupStorage(), beautician.id, { step, businessName, firstName, treatments, hours, slug });
+    }
+  }, [draftReady, beautician?.id, beautician?.onboarding_completed_at, step, businessName, firstName, treatments, hours, slug]);
 
-  if (bLoading) {
+  if (bLoading || !draftReady) {
     return <p style={styles.loadingText}>Setting up your account...</p>;
   }
   async function saveBusinessInfo() {
@@ -410,6 +435,7 @@ export default function Onboarding({ onComplete }) {
         onboarding_completed_at: new Date().toISOString(),
       });
       try { track('onboarding_completed', { total_steps: totalSteps }); } catch { /* noop */ }
+      clearSetupDraft(setupStorage(), beautician.id);
       await refresh();
       return true;
     } catch (err) {
@@ -522,9 +548,6 @@ export default function Onboarding({ onComplete }) {
       setSmsSaving(false);
     }
   }
-  const [igNote, setIgNote] = useState(null);
-  const [igConnecting, setIgConnecting] = useState(false);
-  const igConnectBusy = useRef(false);
   async function connectInstagram() {
     if (igConnectBusy.current) return;
     igConnectBusy.current = true;
@@ -588,6 +611,7 @@ export default function Onboarding({ onComplete }) {
         <div style={{ ...styles.progressFill, width: `${progress}%` }} />
       </div>
       <div style={styles.stepIndicator}>Step {step} of {totalSteps}</div>
+      <p style={{ ...styles.stepDesc, fontSize: 12 }}>Completed steps are saved to your salon. Unfinished entries stay on this device.</p>
       {/* === STEP 1: Welcome === */}
       {step === 1 && (
         <div style={styles.stepContent}>
@@ -912,7 +936,9 @@ export default function Onboarding({ onComplete }) {
       {/* === STEP 6: You're All Set === */}
       {step === 6 && (
         <div style={styles.stepContent}>
-          <h1 style={styles.stepTitle}>You're all set</h1>
+          <h1 style={styles.stepTitle}>Your salon is taking shape</h1>
+          <p style={styles.stepDesc}>Next, review your cancellation terms, add your logo and check your messages.</p>
+          <Button variant="secondary" fullWidth onClick={() => finishOnboarding('/setup')}>Continue to your setup checklist</Button>
           {savedTreatments === 0 ? (
             <div style={{ background: 'var(--warning-bg, #F7EEDD)', borderRadius: 14, padding: '12px 14px', margin: '0 0 14px', textAlign: 'left' }}>
               <p style={{ fontSize: 13.5, fontWeight: 700, color: '#82580f', margin: '0 0 4px' }}>Your booking page is ready, but empty</p>
@@ -921,7 +947,7 @@ export default function Onboarding({ onComplete }) {
             </div>
           ) : (
             <p style={styles.stepDesc}>
-              Your booking page is live. Share this link and clients can book you in seconds.
+              Your booking link is saved. Check your treatments, hours and cancellation terms before sharing it.
             </p>
           )}
           <div style={{ background: 'var(--tone-1, #fbf1ea)', borderRadius: 16, padding: '14px 16px', margin: '0 0 14px', textAlign: 'left' }}>

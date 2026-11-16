@@ -6,6 +6,7 @@ import { isNativeApp } from '../lib/platform.js';
 import { readAuthenticatedJson } from '../lib/authenticated-json.js';
 import { startInstagramConnection } from '../lib/instagram-connect.js';
 import Button from './ui/Button.jsx';
+import ChannelProof from './ChannelProof.jsx';
 import Icon from './ui/Icon.jsx';
 
 export default function SocialConnections({ owner }) {
@@ -86,6 +87,7 @@ function ConnectionsForOwner({ owner }) {
         {ig?.connected && !igVerified && <p className="mc-note">{ig.needs_reconnect ? 'Instagram access has expired or been removed. Reconnect this account.' : 'We haven’t verified both account access and incoming messages. Check again or review the connection in Settings.'}</p>}
         {!ig?.connected && <p className="mc-detail">Access for new salons is awaiting Meta’s approval. If Meta says your account is not eligible yet, keep using Instagram and check back here.</p>}
         <div className="mc-actions">{igVerified ? <Link className="mc-action" to="/inbox">Open Inbox <span aria-hidden="true">→</span></Link> : <Button onClick={connectInstagram} disabled={busy || !channels.instagram || !!channels.instagram.error}>{busy ? 'Opening Instagram…' : ig?.connected ? 'Reconnect Instagram' : 'Connect Instagram'}</Button>}</div>
+        {ig?.connected && !blocked.current && <ChannelProof ownerId={owner.id} channel="instagram" auth={checkedAuth}/>}
         <Link className="mc-action" to="/settings?section=ai">Reply settings <span aria-hidden="true">→</span></Link>
       </section>
       <section className="mc-card" aria-label="WhatsApp connection">
@@ -94,6 +96,7 @@ function ConnectionsForOwner({ owner }) {
         <ol className="mc-steps"><li>Choose the number you use for your salon.</li><li>Sign in to Meta and follow the number check.</li><li>Check a test enquiry in your Florrie Inbox.</li></ol>
         {!wa?.connected && <p className="mc-note">{signup?.business_app_available ? 'Already use the WhatsApp Business app? Choose the option to keep using it during setup.' : 'Keeping an existing WhatsApp Business app connected is still being checked. Keep your account and chats. A separate, unused business number may be eligible.'}</p>}
         {signup && !signup.available && !wa?.connected && <p className="mc-detail">Self-service setup is not available for this salon yet. Your current WhatsApp keeps working.</p>}
+        {wa?.connected && !blocked.current && <ChannelProof ownerId={owner.id} channel="whatsapp" auth={checkedAuth}/>}
         <Link className="mc-action" to="/whatsapp">{wa?.connected ? 'Manage WhatsApp' : 'Check WhatsApp setup'} <span aria-hidden="true">→</span></Link>
       </section>
     </div>
