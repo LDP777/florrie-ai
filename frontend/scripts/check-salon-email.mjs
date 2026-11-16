@@ -25,6 +25,9 @@ try {
    };
   },mode);
   const page=await context.newPage();await page.goto(`${origin}/connections`);
+  const emailSection=page.locator('details').filter({has:page.locator('summary').filter({hasText:'Your Florrie email'})});
+  assert.equal(await emailSection.getAttribute('open'),null,'salon email starts secondary to social channels');
+  await emailSection.locator('summary').click();
   await page.getByRole('heading',{name:'Your salon email',exact:true}).waitFor();
   if(mode==='error') {await page.getByRole('alert').filter({hasText:'could not be checked'}).waitFor();await page.getByRole('button',{name:'Try again',exact:true}).click();}
   else if(mode==='unavailable')await page.getByText('We’re preparing Florrie email',{exact:false}).waitFor();

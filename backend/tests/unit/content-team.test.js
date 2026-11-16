@@ -270,6 +270,19 @@ describe('durable explicit Content Team work', () => {
     expect(db.rows[TABLE][0].failure_code).toBe('generation_failed');
     expect((await service.get(OWNER)).run.retryable).toBe(true);
   });
+  it('keeps provider request identifiers for diagnosis without logging private errors or source data', async () => {
+    const log = { warn: vi.fn() };
+    const worker = createContentTeam({ db, now: () => new Date(clock), model, board, log });
+    const run = await worker.enqueue(OWNER, body());
+    model.mockRejectedValue(Object.assign(new Error('PRIVATE_PROVIDER_DETAILS'), { name: 'RateLimitError', status: 429, request_id: 'req_Diagnostic123', headers: { authorization: 'PRIVATE_KEY' } }));
+    await worker.process();
+    expect(log.warn).toHaveBeenCalledWith({ runId: run.id, stage: 'strategy', providerStatus: 429, providerRequestId: 'req_Diagnostic123', providerErrorKind: 'RateLimitError' }, 'Content Team generation failed');
+    expect(JSON.stringify(log.warn.mock.calls)).not.toMatch(/PRIVATE_|consultation|Help new clients/);
+    model.mockRejectedValue(Object.assign(new Error('PRIVATE_PROVIDER_DETAILS'), { name: 'PRIVATE_NAME', status: 'PRIVATE_STATUS', request_id: 'PRIVATE_REQUEST' }));
+    await worker.retry(OWNER, run.id); await worker.process();
+    expect(log.warn.mock.lastCall[0]).toMatchObject({ providerStatus: null, providerRequestId: null, providerErrorKind: 'UnexpectedError' });
+    expect(JSON.stringify(log.warn.mock.calls)).not.toMatch(/PRIVATE_/);
+  });
   it('does not overwrite a completed stage when its save response is lost', async () => {
     await service.enqueue(OWNER, body());
     db.loseUpdateResponse = payload => payload.stages?.[0].status === 'complete';

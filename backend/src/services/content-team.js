@@ -5,6 +5,7 @@ import { withTrialWindow } from '../middleware/auth.js';
 import { requireActiveSubscription } from '../middleware/require-plan.js';
 import { buildContentAssistant } from './content-assistant.js';
 import { buildVoiceGuide } from './voice-profile.js';
+import logger from '../lib/logger.js';
 import { contentTeamPagination, contentTeamRequest, emptyTeamStages, isTeamUuid, publicTeamRun, publicTeamSummary, TEAM_ATTEMPT_LIMIT, TEAM_CAPABILITIES, teamError, teamOutputFormat, validateTeamOutput } from '../lib/content-team.js';
 
 const TABLE = 'content_team_runs';
@@ -35,7 +36,7 @@ function stagePrompt(stage) {
   return `${bounds} Turn the strategy reel idea into a filming plan, preferably three shots and always between two and six shots. Explain footage or facts the owner must supply only in shots and needs. The caption is finished CLIENT-FACING draft copy, never instructions to the owner. Spoken lines and on_screen text are also client-facing and must not assume a bio or profile booking link. No finished video exists. Target lengths in characters: title 60, hook 80, each shot 120, each spoken line 160, each on-screen phrase 50, caption 400, each filming need 100. Hard maximum lengths in characters: title 120, hook 200, shot 300, spoken line 500, on-screen text 180, caption 2200, each need 240. Include zero to five filming needs. Use no client faces or footage without permission. Do not prescribe unprovided treatment technique or safety advice.`;
 }
 
-export function createContentTeam({ db = supabase, now = () => new Date(), env = process.env, model, board = buildContentAssistant, allowOwner = subscriptionAllowed } = {}) {
+export function createContentTeam({ db = supabase, now = () => new Date(), env = process.env, model, board = buildContentAssistant, allowOwner = subscriptionAllowed, log = logger } = {}) {
   const bounded = query => query.abortSignal(AbortSignal.timeout(6000));
   const ready = () => !!(model || env.ANTHROPIC_API_KEY);
   let anthropic;
@@ -233,6 +234,14 @@ export function createContentTeam({ db = supabase, now = () => new Date(), env =
       return true;
     } catch (error) {
       if (error.code === 'lease_lost' || error.code === 'save_uncertain') return false;
+      // Provider messages may contain supplied content or credentials. Record only
+      // bounded diagnostic metadata, never the error object, prompt or response.
+      if (!error.isContentTeamError) {
+        const status = Number.isInteger(error.status) && error.status >= 400 && error.status <= 599 ? error.status : null;
+        const requestId = typeof error.request_id === 'string' && /^req_[A-Za-z0-9]{1,100}$/.test(error.request_id) ? error.request_id : null;
+        const kind = ['APIConnectionError', 'APIConnectionTimeoutError', 'AuthenticationError', 'PermissionDeniedError', 'RateLimitError', 'InternalServerError', 'BadRequestError', 'NotFoundError'].includes(error.name) ? error.name : 'UnexpectedError';
+        log.warn({ runId: row.id, stage: row.stages.find(stage => stage.status !== 'complete')?.id, providerStatus: status, providerRequestId: requestId, providerErrorKind: kind }, 'Content Team generation failed');
+      }
       const message = error.isContentTeamError ? error.message : 'This step could not finish. Your completed work is saved; retry the remaining step.';
       let failed = false;
       const stages = row.stages.map(stage => {
