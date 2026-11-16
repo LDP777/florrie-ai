@@ -25,6 +25,7 @@ import { authorship } from '../lib/authorship.js';
 import { deDash } from '../lib/text.js';
 import { appointmentIcs, googleCalendarUrl } from '../lib/ical.js';
 import { apiPublicBase } from '../lib/public-url.js';
+import { salonEmail } from './salon-email.js';
 
 /**
  * Where the booking pages live. Every other service in this directory falls
@@ -95,10 +96,17 @@ function usableReplyTo(value) {
  * salon in hand keep working; skipped when it is not a plausible address so a
  * blank column cannot make Resend reject the whole send.
  */
-export async function sendEmail({ to, subject, html, text, attachments, replyTo, idempotencyKey, timeoutMs, headers: emailHeaders }) {
+export async function sendEmail({ to, subject, html, text, attachments, replyTo, idempotencyKey, timeoutMs, headers: emailHeaders, salon }) {
   if (!RESEND_API_KEY) {
     logger.debug('Resend not configured, skipping email');
     return null;
+  }
+  // Only a verified, active address belonging to this salon can replace From.
+  // System codes, the launch mailing list and operator email keep their own sender.
+  let identity=null;
+  if(salon?.id) {
+    try {identity=await salonEmail.identity(salon);}
+    catch {logger.warn({owner:salon.id},'Salon email identity could not be checked'); return null;}
   }
 
   // House rule choke point: no em/en dashes in anything a human reads. Applied
@@ -122,13 +130,13 @@ export async function sendEmail({ to, subject, html, text, attachments, replyTo,
         },
         ...(timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
         body: JSON.stringify({
-          from: FROM_EMAIL,
+          from: identity?.from || FROM_EMAIL,
           to: [to],
           subject,
           html,
           text,
           ...(emailHeaders ? { headers: emailHeaders } : {}),
-          ...(usableReplyTo(replyTo) ? { reply_to: usableReplyTo(replyTo) } : {}),
+          ...(usableReplyTo(identity?.replyTo || replyTo) ? { reply_to: usableReplyTo(identity?.replyTo || replyTo) } : {}),
           ...(attachments?.length ? {
             attachments: attachments.map(a => ({
               filename: a.filename,
@@ -1753,7 +1761,7 @@ export async function notifyBookingConfirmed(appointmentId) {
     .from('appointments')
     // `address` is read further down for the calendar file's LOCATION. It was
     // never in this list, so every .ics ever attached had no venue.
-    .select('*, clients(first_name, phone, email), treatments(name, duration_minutes), beauticians(business_name, first_name, email, address, whatsapp_phone_id, twilio_wa_sender, client_reminder_prefs, brand_color, booking_slug, tagline, logo_url)')
+    .select('*, clients(first_name, phone, email, marketing_consent, marketing_opted_out_at, messaging_autonomy), treatments(name, duration_minutes), beauticians(business_name, first_name, email, address, whatsapp_phone_id, twilio_wa_sender, client_reminder_prefs, brand_color, booking_slug, tagline, logo_url)')
     .eq('id', appointmentId)
     .single();
 
@@ -2020,6 +2028,7 @@ export async function notifyBookingConfirmed(appointmentId) {
     });
 
     const emailResult = await sendEmail({
+      salon: { ...biz, id: appt.beautician_id },
       to: client.email,
       subject: `Confirmed: ${treatment.name}, ${shortDate} at ${timeStr}`,
       text: textMsg,
@@ -2071,7 +2080,7 @@ export async function notifyBookingConfirmed(appointmentId) {
 export async function notifyReminder24h(appointmentId) {
   const { data: appt } = await supabase
     .from('appointments')
-    .select('*, clients(first_name, phone, email), treatments(name, duration_minutes), beauticians(business_name, first_name, email, whatsapp_phone_id, twilio_wa_sender, client_reminder_prefs, brand_color, logo_url, tagline, booking_slug)')
+    .select('*, clients(first_name, phone, email, marketing_consent, marketing_opted_out_at, messaging_autonomy), treatments(name, duration_minutes), beauticians(business_name, first_name, email, whatsapp_phone_id, twilio_wa_sender, client_reminder_prefs, brand_color, logo_url, tagline, booking_slug)')
     .eq('id', appointmentId)
     .single();
 
@@ -2218,6 +2227,7 @@ export async function notifyReminder24h(appointmentId) {
       });
 
       await sendEmail({
+        salon: { ...biz, id: appt.beautician_id },
         to: client.email,
         subject: `Reminder: ${treatmentName} tomorrow at ${timeStr}`,
         text: textMsg,

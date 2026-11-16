@@ -21,6 +21,7 @@ try {
       window.fetch = async (input, options = {}) => {
         const url = String(input), path = url.split('/api/email/')[1];
         if (!path) return base(input, options);
+        if (path === 'salon/status') return Response.json({ available: false });
         if (path === 'status') return Response.json(mode === 'status-failed' ? { error: 'Connection unavailable. Try again.' } : { providers: [{ id: 'google', available: mode !== 'unavailable' }, { id: 'microsoft', available: mode !== 'unavailable' }], connection: c }, { status: mode === 'status-failed' ? 503 : 200 });
         window.__emailWrites.push({ path, body: JSON.parse(options.body || '{}') });
         if (path === 'start') return Response.json({ error: 'Sign-in could not start. Try again.' }, { status: 503 });
@@ -32,6 +33,7 @@ try {
     }, mode);
     const page = await context.newPage(); await page.goto(`${origin}/connections`);
     await page.getByRole('heading', { name: 'Your messages, together' }).waitFor();
+    if (['unavailable','available'].includes(mode)) await page.locator('summary').filter({hasText:'Use your existing business email'}).click();
     if (mode === 'status-failed') await page.getByRole('alert').filter({ hasText: 'Connection unavailable' }).waitFor();
     else if (mode === 'unavailable') { await page.getByText('Email sign-in is awaiting provider setup and approval.', { exact: false }).waitFor(); assert.equal(await page.getByRole('button', { name: 'Connect Gmail', exact: true }).isEnabled(), false); }
     else if (['available','reconnect'].includes(mode)) {

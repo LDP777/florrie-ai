@@ -1,4 +1,3 @@
-import emailConnectionRoutes from './routes/email-connections.js';
 // v0.1.1 , 2026-04-10 redeploy
 
 // THE PROCESS RUNS ON UTC, AND THAT IS NOT AN ACCIDENT ANY MORE.
@@ -13,6 +12,9 @@ import emailConnectionRoutes from './routes/email-connections.js';
 // Set here rather than in Railway's variables so it lives with the code that
 // depends on it, and before any import can construct a Date and cache the zone.
 process.env.TZ = 'UTC';
+
+import emailConnectionRoutes from './routes/email-connections.js';
+import salonEmailRoutes, { salonEmailWebhook } from './routes/salon-email.js';
 
 import * as Sentry from '@sentry/node';
 import express from 'express';
@@ -394,6 +396,8 @@ app.use('/api/setup', apiLimiter, setupRoutes);
 // before the WhatsApp settings router's catch-all authentication middleware.
 app.use('/api/whatsapp/privacy', webhookLimiter, whatsappPrivacyRoutes);
 app.use('/api/email', apiLimiter, emailConnectionRoutes);
+app.use('/api/email/salon', apiLimiter, salonEmailRoutes);
+app.post('/api/webhooks/salon-email', webhookLimiter, salonEmailWebhook);
 app.use('/api/whatsapp', apiLimiter, whatsappEmbeddedRoutes, whatsappConfigRoutes);
 app.use('/api/webhooks/instagram', webhookLimiter, instagramWebhookRoutes);
 app.use('/api/webhooks/twilio', webhookLimiter, twilioWebhookRoutes); // Twilio BSP WhatsApp inbound

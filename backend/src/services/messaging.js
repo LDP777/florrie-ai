@@ -19,6 +19,7 @@ import { authorship } from '../lib/authorship.js';
 import { deDash } from '../lib/text.js';
 import { resolveWhatsAppCredentials } from '../lib/whatsapp-connection.js';
 import { emailConnections, emailErrorMessage } from './email-connections.js';
+import { salonEmail } from './salon-email.js';
 
 const API_VER = process.env.WHATSAPP_API_VERSION || 'v21.0';
 const GRAPH = `https://graph.facebook.com/${API_VER}`;
@@ -182,11 +183,18 @@ export async function sendOnChannel({ beautician, clientId, channel, body, autho
     extId = result.message_id;
   } else if (channel === 'email') {
     // New mailbox replies never silently fall back to Florrie's shared sender.
-    if (replyToMessageId || process.env.EMAIL_GOOGLE_ENABLED === 'true' || process.env.EMAIL_MICROSOFT_ENABLED === 'true') {
+    if (replyToMessageId || process.env.SALON_EMAIL_ENABLED === 'true' || process.env.EMAIL_GOOGLE_ENABLED === 'true' || process.env.EMAIL_MICROSOFT_ENABLED === 'true') {
       let source = supabase.from('messages').select('id,external_message_id').eq('beautician_id', beautician.id).eq('client_id', client.id).eq('channel', 'email').eq('direction', 'inbound');
       source = replyToMessageId ? source.eq('id', replyToMessageId) : source.order('created_at', { ascending: false }).limit(1);
       const original = await source.maybeSingle();
       if (original.error) return { ok: false, status: 503, error: 'Could not check the email thread. Try again.' };
+      if (original.data?.external_message_id?.startsWith('salon-email:')) {
+        if (!replyToMessageId || !['human','ai','ai_edited'].includes(authoredBy)) return {ok:false,status:409,error:'Review this email in Inbox before replying.'};
+        try {
+          const row=await salonEmail.reply({beautician,clientId:client.id,messageId:original.data.id,body:trimmed,author:authoredBy});
+          return {ok:true,message:shapeMessage(row)};
+        } catch(e) {return {ok:false,status:409,error:e.message};}
+      }
       if (original.data?.external_message_id?.startsWith('mailbox:')) {
         if (!replyToMessageId || !['human', 'ai', 'ai_edited'].includes(authoredBy)) return { ok: false, status: 409, error: 'Email replies need approval in Inbox or Outbox.' };
         try {
@@ -201,6 +209,7 @@ export async function sendOnChannel({ beautician, clientId, channel, body, autho
       return { ok: false, status: 400, error: 'Client has no email on file' };
     }
     const email = await sendEmail({
+      salon: beautician,
       to: client.email,
       subject: `Message from ${beautician.business_name || beautician.first_name || 'your beautician'}`,
       text: trimmed,

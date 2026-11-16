@@ -8,6 +8,7 @@ import PageHeader from '../components/ui/PageHeader.jsx';
 import Button from '../components/ui/Button.jsx';
 import Icon from '../components/ui/Icon';
 import styles from './message-connections-style.js';
+import SalonEmailCard from '../components/SalonEmailCard.jsx';
 
 export default function MessageConnections() {
   const { beautician } = useBeautician();
@@ -55,14 +56,16 @@ export default function MessageConnections() {
   const enabled = data?.providers?.some(p => p.available);
   return <main className="message-connections"><style>{styles}</style>
     <Link to="/more?group=business" className="mc-back">All tools</Link>
-    <PageHeader title="Your messages, together" eyebrow="Message connections" subtitle="Connect the accounts your clients already know." />
-    <p className="mc-intro">Choose a channel, sign in with its provider, then check it here. You can set up one at a time.</p>
+    <PageHeader title="Your messages, together" eyebrow="Message connections" subtitle="Your salon email, with Florrie." />
+    <p className="mc-intro">Keep client enquiries beside your diary. Use your Florrie email, then add the other channels your clients use.</p>
+    <SalonEmailCard />
     <section className="mc-card">
       <div className="mc-heading"><span className="mc-icon"><Icon name="chat" size={23} /></span><div><h2>WhatsApp</h2><p>{beautician?.whatsapp_connected ? 'Your connection is saved. Check its status and reply settings.' : 'Let clients reach your salon on WhatsApp.'}</p></div></div>
       <Link className="mc-action" to="/whatsapp">{beautician?.whatsapp_connected ? 'Manage WhatsApp' : 'Set up WhatsApp'} <span aria-hidden="true">→</span></Link>
     </section>
-    <section className="mc-card" aria-labelledby="email-heading">
-      <div className="mc-heading"><span className="mc-icon"><Icon name="mail" size={23} /></span><div><h2 id="email-heading">Your email inbox</h2><p>Gmail, Outlook and Hotmail</p></div></div>
+    <details className="mc-card mc-existing" open={present || !!notice || !!error || params.get('email') === 'incomplete' || undefined}>
+      <summary id="email-heading">Use your existing business email <span>Optional · Gmail, Outlook or Hotmail</span></summary>
+      <p className="mc-detail">Already share another address with clients? Connect it here to receive those enquiries too.</p>
       {error && <div role="alert" className="mc-alert">{error} <button onClick={refresh} disabled={!!busy}>Check again</button></div>}
       {notice && <p role="status" className="mc-note">{notice}</p>}
       {params.get('email') === 'incomplete' && <p className="mc-note">Email setup didn’t finish. Your other connections are unchanged. You can try again below.</p>}
@@ -80,7 +83,7 @@ export default function MessageConnections() {
         {!enabled && !present && <p className="mc-note">Email sign-in is awaiting provider setup and approval. You can set up WhatsApp now and return for email when it is ready.</p>}
         {present && <div className="mc-disconnect">{confirmDisconnect ? <><p>Stop email syncing and remove this account’s saved access? Existing conversations will stay in Inbox.</p><Button variant="secondary" disabled={!!busy} onClick={() => act('disconnect')}>Disconnect email</Button> <button disabled={!!busy} onClick={() => setConfirmDisconnect(false)}>Keep connected</button></> : <button disabled={!!busy} onClick={() => setConfirmDisconnect(true)}>Disconnect email</button>}</div>}
       </>}
-    </section>
+    </details>
     <section className="mc-last"><Icon name="chat" size={23} /><div><h2>Ready for the next message</h2><p>After connecting, send a test enquiry from another account and check it in Inbox. Review drafts in Outbox before sending.</p><Link className="mc-action" to="/inbox">Open Inbox <span aria-hidden="true">→</span></Link></div></section>
   </main>;
 }

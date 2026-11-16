@@ -141,6 +141,7 @@ export async function announceEnrolment({ beautician, course, enrollment, paid, 
     }] : undefined;
 
     const emailResult = await sendEmail({
+      salon: beautician,
       to: enrollment.email,
       subject: `Your place on ${course?.name || 'the course'} is booked`,
       html,
