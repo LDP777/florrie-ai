@@ -4,6 +4,7 @@ import { clientQuestionScenario } from './client-question.js';
 import { appointmentChangeIntent } from './appointment-message-scenario.js';
 import { asksForHuman } from './grounded-reply.js';
 import { needsAPerson } from './needs-a-person.js';
+import { isShortServiceAnswer, recentFrontDeskReply } from './conversation-participation.js';
 
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const normalise = value => String(value || '').replace(/[’‘]/g, "'").trim();
@@ -13,6 +14,18 @@ function needsOtherHandling(message, ownerName) {
   return declinesBookingNow(message) || isPassiveBookingInterest(message)
     || asksForHuman(message, ownerName) || needsAPerson(message).yes
     || appointmentChangeIntent(message) || clientQuestionScenario(message);
+}
+
+/**
+ * Only the booking engine's delivered questions carry this outbound intent.
+ * A short choice can therefore return to the saved booking step without a
+ * classifier guessing what "yes" means. The booking engine still requires
+ * live state, resolves the choice and rechecks availability before any write.
+ */
+export function bookingChoiceContinuation(input) {
+  if (!isShortServiceAnswer(input.message) || needsOtherHandling(input.message, input.ownerName)) return null;
+  const question = recentFrontDeskReply(input);
+  return question?.ai_intent === 'booking_request' ? { questionMessageId: question.id } : null;
 }
 
 /** A menu choice after a question, not praise, a symptom or a policy question. */

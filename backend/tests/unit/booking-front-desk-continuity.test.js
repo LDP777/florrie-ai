@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const fixture = vi.hoisted(() => ({ db: {}, writes: [], modelCalls: [], delivered: [], slots: [], override: 'florrie', intent: 'general_question', reads: [] }));
+const fixture = vi.hoisted(() => ({ db: {}, writes: [], modelCalls: [], delivered: [], confirmed: [], slots: [], override: 'florrie', intent: 'general_question', reads: [] }));
 function builder(table) {
   fixture.reads.push(table);
   let action; let payload; let fields; let head = false; let order; let limit = Infinity;
@@ -59,11 +59,11 @@ vi.mock('../../src/lib/schema-probe.js', () => ({ hasColumn: async () => true })
 vi.mock('../../src/lib/inbound-budget.js', () => ({ inboundBudget: () => ({ allowed: true }) }));
 vi.mock('../../src/lib/outbound-guard.js', () => ({ clientAutonomyOverride: async () => fixture.override, guardedSend: async ({ send }) => { if (send) await send(); return { decision: 'allow', sent: true }; }, classifyTier: () => 'service' }));
 vi.mock('../../src/services/notifications.js', () => {
-  const send = async args => { fixture.delivered.push(args); return true; };
-  return { notifyBookingConfirmed: send, sendMessage: send, sendInstagramDM: send, sendWhatsAppText: send, sendSMS: send };
+  const send = async args => { fixture.delivered.push(args); vi.setSystemTime(Date.now() + 100); return true; };
+  return { notifyBookingConfirmed: async id => { fixture.confirmed.push(id); }, sendMessage: send, sendInstagramDM: send, sendWhatsAppText: send, sendSMS: send };
 });
 vi.mock('../../src/services/push-notifications.js', () => ({ pushEscalation: async () => true, pushTeamUpdate: async () => true, pushAtTheDoor: async () => true }));
-vi.mock('../../src/services/booking-confirmed-alert.js', () => ({ announceBookingConfirmed: async () => { throw new Error('No booking should be confirmed'); }, claimConfirmed: async () => ({ won: false }), BOOKING_CONFIRMED_ACTION: 'booking_confirmed' }));
+vi.mock('../../src/services/booking-confirmed-alert.js', () => ({ announceBookingConfirmed: async () => true, claimConfirmed: async () => ({ won: false }), BOOKING_CONFIRMED_ACTION: 'booking_confirmed' }));
 vi.mock('../../src/services/live-activity.js', () => ({ refreshLiveActivity: async () => true }));
 vi.mock('../../src/services/automations.js', () => ({ createBookingSuggestion: async () => { throw new Error('No booking suggestion allowed'); } }));
 vi.mock('../../src/services/loyalty.js', () => ({ getLoyaltyConfig: async () => null, getClientPoints: async () => 0, loyaltyProximity: () => null }));
@@ -87,20 +87,125 @@ function seedQuestion() {
   );
 }
 async function receive(text = ANSWER, salon = owner) {
-  fixture.db.messages.push(row('answer', text));
-  return processInboundMessage('answer', salon, client, text, 'instagram');
+  const id = `answer-${fixture.db.messages.length}`;
+  fixture.db.messages.push(row(id, text, { created_at: new Date().toISOString() }));
+  return processInboundMessage(id, salon, client, text, 'instagram');
 }
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(NOW);
   __setAuthorshipAvailable(true);
   fixture.db = { clients: [{ ...client }], treatments: structuredClone(treatments), messages: [], booking_conversations: [] };
-  fixture.writes = []; fixture.delivered = []; fixture.modelCalls = []; fixture.reads = [];
+  fixture.writes = []; fixture.delivered = []; fixture.confirmed = []; fixture.modelCalls = []; fixture.reads = [];
   fixture.override = 'florrie'; fixture.intent = 'general_question';
   fixture.slots = ['14:00', '16:30', '17:30'].map(time => ({ date: '2026-10-05', time, iso: `2026-10-05T${time}:00.000Z` }));
 });
 afterEach(() => { __setAuthorshipAvailable(false); vi.useRealTimers(); });
 
 describe('the front desk finishes the treatment question it actually asked', () => {
+  it('continues an actual two-choice question when the client says the second one', async () => {
+    fixture.db.treatments = [
+      { ...treatments[0], id: 'tint', name: 'Brow Lamination & tint' },
+      { ...treatments[0], id: 'hybrid', name: 'Brow Lamination & Hybrid stain' },
+    ];
+    fixture.intent = 'booking_request';
+    const opening = await receive('Can I book brow lamination this month after 4:30 please?');
+    expect(opening.handled).toBe(true);
+    expect(opening.response).toMatch(/did you mean/i);
+    const expectedTreatment = fixture.db.booking_conversations[0].offered[1].treatment_id;
+    vi.setSystemTime(new Date(NOW.getTime() + 1000));
+    // A short answer need not be correctly labelled by the language model.
+    fixture.intent = 'general_question';
+    const answer = await receive('The second one');
+    expect(answer.handled).toBe(true);
+    expect(fixture.delivered).toHaveLength(2);
+    expect(fixture.db.booking_conversations[0]).toMatchObject({ step: 'awaiting_pick', treatment_id: expectedTreatment });
+    expect(fixture.db.booking_conversations[0].offered.every(slot => slot.date.startsWith('2026-10-') && slot.time >= '16:30')).toBe(true);
+    expect(fixture.modelCalls).toHaveLength(1);
+    expect(fixture.writes.some(write => write.table === 'appointments')).toBe(false);
+  });
+  it('accepts yes after the actual single-treatment clarification', async () => {
+    fixture.db.treatments = [
+      { ...treatments[0], name: 'Brow Lamination & tint' },
+      { ...treatments[0], id: 'lash-tint', name: 'Lash tint only' },
+    ];
+    fixture.intent = 'booking_request';
+    const opening = await receive('Could I book a brow tint please?');
+    expect(opening.handled).toBe(true);
+    expect(opening.response).toMatch(/did you mean/i);
+    vi.setSystemTime(new Date(NOW.getTime() + 1000));
+    fixture.intent = 'general_question';
+    const answer = await receive('yes please x');
+    expect(answer.handled).toBe(true);
+    expect(fixture.db.booking_conversations[0].step).toBe('awaiting_pick');
+    expect(fixture.delivered).toHaveLength(2);
+    expect(fixture.modelCalls).toHaveLength(1);
+    expect(fixture.writes.some(write => write.table === 'appointments')).toBe(false);
+  });
+  it('finishes a time choice through the actual front desk and booking engine', async () => {
+    fixture.intent = 'booking_request';
+    expect((await receive('Can I book brow lamination please?')).handled).toBe(true);
+    const choice = fixture.db.booking_conversations[0].offered[1];
+    vi.setSystemTime(new Date(NOW.getTime() + 1000));
+    fixture.intent = 'general_question';
+    const answer = await receive('16:30');
+    expect(answer.handled).toBe(true);
+    expect(fixture.db.appointments).toHaveLength(1);
+    expect(fixture.db.appointments[0]).toMatchObject({ starts_at: choice.iso, treatment_id: 'lamination', status: 'confirmed' });
+    expect(fixture.confirmed).toEqual([fixture.db.appointments[0].id]);
+    expect(fixture.modelCalls).toHaveLength(1);
+    // A confirmation is not another outstanding booking question.
+    expect(fixture.db.messages.filter(message => message.direction === 'outbound').at(-1).ai_intent).toBeUndefined();
+  });
+  it('continues after rejecting the first offers and receiving new ones', async () => {
+    fixture.intent = 'booking_request';
+    expect((await receive('Can I book brow lamination please?')).handled).toBe(true);
+    fixture.slots.push(...['15:00', '16:00', '17:00'].map(time => ({ date: '2026-10-05', time, iso: `2026-10-05T${time}:00.000Z` })));
+    vi.setSystemTime(new Date(NOW.getTime() + 1000));
+    const alternatives = await receive('None of those work');
+    expect(alternatives.handled).toBe(true);
+    expect(alternatives.response).toMatch(/any good/i);
+    const choice = fixture.db.booking_conversations[0].offered[1];
+    vi.setSystemTime(new Date(NOW.getTime() + 2000));
+    fixture.intent = 'general_question';
+    const answer = await receive('The second one');
+    expect(answer.handled).toBe(true);
+    expect(fixture.db.appointments).toHaveLength(1);
+    expect(fixture.db.appointments[0]).toMatchObject({ starts_at: choice.iso, status: 'confirmed' });
+    expect(fixture.modelCalls).toHaveLength(2);
+  });
+  it.each(['just_me', 'drafts', 'paused', 'human', 'lost-state', 'slot-taken'])('does not book a short choice when %s intervenes', async blocker => {
+    fixture.intent = 'booking_request';
+    expect((await receive('Can I book brow lamination please?')).handled).toBe(true);
+    const writesBefore = fixture.writes.length;
+    if (['just_me', 'drafts'].includes(blocker)) fixture.override = blocker;
+    if (blocker === 'human') fixture.db.messages.push(row('owner-reply', 'I will check that for you', {
+      direction: 'outbound', authored_by: 'human', created_at: new Date(NOW.getTime() + 500).toISOString(),
+    }));
+    if (blocker === 'lost-state') fixture.db.booking_conversations = [];
+    if (blocker === 'slot-taken') fixture.slots = [];
+    vi.setSystemTime(new Date(NOW.getTime() + 1000));
+    fixture.intent = 'general_question';
+    const answer = await receive('16:30', blocker === 'paused' ? { ...owner, client_reminder_prefs: { paused: true } } : owner);
+    expect(answer.handled).not.toBe(true);
+    expect(fixture.writes.slice(writesBefore).some(write => write.table === 'appointments')).toBe(false);
+    expect(fixture.confirmed).toEqual([]);
+    expect(fixture.delivered).toHaveLength(1);
+  });
+  it('does not mark a guarded holding reply as a booking question', async () => {
+    fixture.db.treatments = [
+      { ...treatments[0], id: 'standard', name: 'Brow Tint 11:17' },
+      { ...treatments[0], id: 'deluxe', name: 'Brow Tint deluxe' },
+    ];
+    fixture.intent = 'booking_request';
+    const opening = await receive('Could I book a brow tint please?');
+    expect(opening.handled).toBe(true);
+    expect(opening.response).not.toContain('?');
+    expect(fixture.db.messages.filter(message => message.direction === 'outbound').at(-1).ai_intent).toBeUndefined();
+    vi.setSystemTime(new Date(NOW.getTime() + 1000));
+    expect((await receive('The second one')).handled).not.toBe(true);
+    expect(fixture.delivered).toHaveLength(1);
+    expect(fixture.writes.some(write => write.table === 'appointments')).toBe(false);
+  });
   it('recovers the exact two-turn exchange without a guessed classifier or a booking write', async () => {
     seedQuestion();
     const result = await receive();

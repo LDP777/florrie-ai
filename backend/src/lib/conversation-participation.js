@@ -29,6 +29,13 @@ const SERVICE_QUESTION = /\b(?:(?:which|what)\s+(?:treatment|service|time|date|d
 const OFFER_QUESTION = new RegExp(`\\bwould you like\\b.{0,100}\\b(?:book|appointment|slot|treatment|${DAYS}|\\d{1,2}(?::\\d{2})?\\s*(?:am|pm))\\b`, 'i');
 const MAX_ANSWER_AGE_MS = 24 * 60 * 60 * 1000;
 
+export function isShortServiceAnswer(message) {
+  const text = undecorated(message);
+  return ANSWER.test(text) || SLOT_ANSWER.test(text)
+    || /^(?:(?:the )?(?:first|second|third|1st|2nd|3rd)(?: one)?|that one|please|go on then)(?:[\s,!]*(?:please|thanks|x+))*[.!\s]*$/i.test(text)
+    || (!words(message) && CHOICE_EMOJI.test(message));
+}
+
 function fullSocialClosure(message, ownerName) {
   if (FRAME.test(message) || /[?？]/u.test(message) || /^\s*["“].+["”]\s*$/s.test(message)) return false;
   const text = words(message);
@@ -52,10 +59,10 @@ function fullSocialClosure(message, ownerName) {
  * question can ground an answer. Older deployments omitted send_status, but
  * saved AI front-desk rows only after a successful send.
  */
-function priorServiceQuestion({ message, conversation, messageId, channel, now }) {
-  if (!messageId || !channel || !Array.isArray(conversation) || !Number.isFinite(now)) return false;
+export function recentFrontDeskReply({ message, conversation, messageId, channel, now = Date.now() }) {
+  if (!messageId || !channel || !Array.isArray(conversation) || !Number.isFinite(now)) return null;
   const currentIndex = conversation.findIndex(row => row.id === messageId);
-  if (currentIndex < 1) return false;
+  if (currentIndex < 1) return null;
   const current = conversation[currentIndex];
   const last = conversation[currentIndex - 1];
   const currentAt = Date.parse(current?.created_at || '');
@@ -64,9 +71,14 @@ function priorServiceQuestion({ message, conversation, messageId, channel, now }
     || !Number.isFinite(currentAt) || !Number.isFinite(questionAt)
     || currentAt > now || questionAt > currentAt || now - questionAt > MAX_ANSWER_AGE_MS
     || last.direction !== 'outbound' || last.channel !== channel || last.authored_by !== 'ai'
-    || last.ai_handled !== true || last.digital_employee !== 'front_desk' || last.escalated === true) return false;
-  if (last.send_status && !['sent', 'delivered', 'read'].includes(String(last.send_status).toLowerCase())) return false;
-  return SERVICE_QUESTION.test(String(last.content || '')) || OFFER_QUESTION.test(String(last.content || ''));
+    || last.ai_handled !== true || last.digital_employee !== 'front_desk' || last.escalated === true) return null;
+  if (last.send_status && !['sent', 'delivered', 'read'].includes(String(last.send_status).toLowerCase())) return null;
+  return last;
+}
+
+function priorServiceQuestion(input) {
+  const last = recentFrontDeskReply(input);
+  return !!last && (SERVICE_QUESTION.test(String(last.content || '')) || OFFER_QUESTION.test(String(last.content || '')));
 }
 
 /**
@@ -81,8 +93,7 @@ export function participationDecision({ message, classification = null, conversa
   if (!text) return outcome('review', 'participation_invalid');
   const framed = FRAME.test(text) || /^\s*["“].+["”]\s*$/s.test(text);
   const acknowledgementQuestion = /[?？]/u.test(text) && fullSocialClosure(text.replace(/[?？]/gu, ''), ownerName);
-  const answerFragment = ANSWER.test(undecorated(text)) || SLOT_ANSWER.test(undecorated(text))
-    || treatmentAnswer(text) || (!words(text) && CHOICE_EMOJI.test(text));
+  const answerFragment = isShortServiceAnswer(text) || treatmentAnswer(text);
   const explicitAction = Boolean(bookingContinuation || asksForHuman(text, ownerName) || atTheDoorPhrase(text)
     || appointmentChangeIntent(text) || hasExplicitBookingRequest(text) || isBookingProblem(text)
     || needsAPerson(text).yes || DIRECT_REQUEST.test(text)

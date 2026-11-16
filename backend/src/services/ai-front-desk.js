@@ -37,7 +37,7 @@ import { isTrainingEnquiry, renderCoursesBlock } from '../lib/training-enquiry.j
 import { hasColumn } from '../lib/schema-probe.js';
 import { isReturningVersion, describeSlot } from '../lib/booking-rules.js';
 import { isPassiveBookingInterest } from '../lib/booking-request.js';
-import { treatmentBookingContinuation } from '../lib/booking-continuation.js';
+import { treatmentBookingContinuation, bookingChoiceContinuation } from '../lib/booking-continuation.js';
 import { participationDecision } from '../lib/conversation-participation.js';
 import { appointmentChangeIntent, planAppointmentChange } from '../lib/appointment-message-scenario.js';
 import { isBillable, billabilityEnforced } from '../lib/billable.js';
@@ -335,17 +335,19 @@ export async function processInboundMessage(messageId, beautician, client, messa
       ? treatmentBookingContinuation({ message: messageContent, messageId, channel: replyChannel,
         conversation: context.conversation, treatments: context.treatments, ownerName: beautician.first_name })
       : null;
+    const bookingChoice = !questionScenario && context.conversationReadable !== false
+      ? bookingChoiceContinuation(participationInput) : null;
     const changeIntent = questionScenario?.kind === 'training_enquiry' ? null : appointmentChangeIntent(messageContent);
     const classification = changeIntent
       ? { intent: changeIntent, confidence: 1, extracted: {} }
       : questionScenario
         ? { intent: INTENTS.GENERAL_QUESTION, confidence: 1, extracted: {} }
-        : context.bookingContinuation
+        : (context.bookingContinuation || bookingChoice)
           ? { intent: INTENTS.BOOKING_REQUEST, confidence: 1, extracted: {} }
         : await classifyIntent(messageContent, context);
     const appointmentPlan = planAppointmentChange({ message: messageContent, classification, context, beautician });
 
-    const participation = (changeIntent || questionScenario || context.bookingContinuation || doorstep
+    const participation = (changeIntent || questionScenario || context.bookingContinuation || bookingChoice || doorstep
       || asksForHuman(messageContent, beautician.first_name))
       ? { action: 'continue', reason: 'verified_service_scenario' }
       : participationDecision({ ...participationInput, classification, bookingContinuation: context.bookingContinuation });
@@ -628,7 +630,10 @@ export async function processInboundMessage(messageId, beautician, client, messa
       // Florrie never silently auto-sends a phantom message; if delivery does not
       // happen the reply is surfaced as a one-tap draft (the "every send is one
       // human tap" thesis), and we never record it as sent.
-      const sent = await sendResponse(beautician, client, outgoing, classification, messageId, replyChannel, turn);
+      // The claims guard may have replaced a question with a holding reply.
+      // Only the actual booking question, not its replacement, can ground a choice.
+      const bookingQuestionStep = result.response.includes('?') ? result.bookingStep : null;
+      const sent = await sendResponse(beautician, client, outgoing, classification, messageId, replyChannel, turn, bookingQuestionStep);
       if (classification.sendHold) {
         // A committed hold/booking or confirmation resend must remain visible
         // even if a later turn makes this automated reply inappropriate.
@@ -1105,7 +1110,7 @@ async function gatherContext(beautician, client, messageContent = '', channel = 
       // would reject the WHOLE select, and this select IS the conversation
       // history, so the failure would be Florrie answering with no context at
       // all: worse than the out-of-context replies it is here to prevent.
-      .select(`id, direction, content, channel, created_at, media_type, escalated_reason, escalated, send_status, ai_handled, digital_employee${authorshipAvailable() ? ', authored_by' : ''}`)
+      .select(`id, direction, content, channel, created_at, media_type, escalated_reason, escalated, send_status, ai_handled, ai_intent, digital_employee${authorshipAvailable() ? ', authored_by' : ''}`)
       .eq('client_id', client.id)
       .eq('beautician_id', beautician.id)
       .eq('channel', channel || client?.preferred_channel || 'sms')
@@ -2297,7 +2302,7 @@ async function changedReplyTurn({ beautician, client, messageId, channel, turn }
   }
 }
 
-async function sendResponse(beautician, client, responseText, classification, messageId, channel = null, turn = null) {
+async function sendResponse(beautician, client, responseText, classification, messageId, channel = null, turn = null, bookingStep = null) {
   // The channel the message ARRIVED on, passed down from processInboundMessage.
   // See the note on replyChannel there for why reading preferred_channel here
   // was sending Instagram replies out as texts on 31 August 2026. The fallback
@@ -2348,6 +2353,9 @@ async function sendResponse(beautician, client, responseText, classification, me
       content: responseText,
       ai_handled: true,
       ai_confidence: 1.0,
+      // Provenance for short booking answers: never copy a model's intent here.
+      // Only a delivered question produced by the booking state machine qualifies.
+      ...(['awaiting_treatment', 'awaiting_pick'].includes(bookingStep) ? { ai_intent: INTENTS.BOOKING_REQUEST } : {}),
       // Florrie's sentences, start to finish. This row must never come back as
       // training data for Florrie: see migration 20260805.
       ...authorship(AUTHOR.AI),
