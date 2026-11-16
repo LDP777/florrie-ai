@@ -265,7 +265,7 @@
   /* ── watch her work ────────────────────────────────── */
   .watch { padding: 70px 0 120px; }
   .watch .card {
-    border-radius: 36px; overflow: hidden; display: grid; grid-template-columns: .95fr 1.05fr; align-items: center;
+    border-radius: 36px; overflow: hidden; display: grid; grid-template-columns: 1fr auto; align-items: center;
     background: linear-gradient(135deg, #fff 0%, var(--cream-2) 100%);
     border: 1px solid var(--line);
   }
@@ -273,7 +273,8 @@
   .watch h2 { font-size: clamp(44px, 5.4vw, 72px); }
   .watch h2 em { color: var(--rose); }
   .watch .lede { margin-top: 20px; }
-  .watch video { width: 100%; height: 100%; max-height: 760px; object-fit: cover; background: var(--cream); }
+  /* The film is 9:16: its column is sized to it, so it is shown whole with no bars. */
+  .watch video { width: auto; height: 760px; height: min(760px, 86vh); aspect-ratio: 9 / 16; object-fit: cover; background: #1C1519; }
 
   /* ── price ─────────────────────────────────────────── */
   .price { padding: 120px 0; text-align: center; }
@@ -396,7 +397,7 @@
     .job:nth-child(even) .copy { order: 0; }
     .plan .l { border-right: 0; border-bottom: 1px solid var(--line); }
     .plan .l, .plan .r { padding: 30px 26px; }
-    .watch video { max-height: 640px; }
+    .watch video { width: min(100%, 420px); height: auto; justify-self: center; border-radius: 22px; margin-bottom: 36px; }
     .faq .grid { gap: 28px; }
     .bar { display: flex; }
     .nav .btn { display: none; }
@@ -416,6 +417,7 @@
     summary { font-size: 23px; }
     .dawn { padding: 110px 0 90px; }
     .jobs { padding-top: 90px; }
+    .watch video { width: 100%; border-radius: 0; margin-bottom: 0; }
   }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
@@ -647,11 +649,11 @@
       <div class="copy">
         <div class="eyebrow">Watch her work</div>
         <h2 style="margin-top:18px">Twenty seconds. <em>A whole evening of admin.</em></h2>
-        <p class="lede">A booking made, a patch test chased, a gap filled, a deposit taken and a reply waiting for your yes.</p>
+        <p class="lede">A reply in your voice, a gap offered, a deposit taken, a patch test chased and every pound tracked.</p>
       </div>
-      <video poster="/florrie-landing/florrie-demo-poster.jpg" muted loop playsinline controls preload="metadata" aria-label="Florrie app demo: the inbox, patch tests, diary, deposits and approvals, running on a phone.">
-        <source src="/florrie-landing/florrie-demo.mp4" type="video/mp4">
-        <source src="/florrie-landing/florrie-demo.webm" type="video/webm">
+      <video poster="/florrie-landing/florrie-layers-poster.jpg" muted loop playsinline controls preload="metadata" aria-label="Florrie, layer by layer: the app on a phone opens into its layers, showing replies in your voice, gap filling, deposits, patch test reminders and money tracking.">
+        <source src="/florrie-landing/florrie-layers-1080.mp4" type="video/mp4" media="(max-width: 600px)">
+        <source src="/florrie-landing/florrie-layers-4k.mp4" type="video/mp4">
       </video>
     </div>
   </div>
