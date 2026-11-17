@@ -57,7 +57,7 @@ try {
             id: command.task_id, title: command.text, checked_at: '2026-11-17T12:00:00Z',
             cards: [{ label: 'Recorded receipts after refunds', value: '£250.00' }, { label: 'Needs attention', value: '2' }],
             items: [{ label: 'Demo Client', value: '11:00 appointment', detail: 'Consultation still to complete', attention: true }],
-            suggestion: 'Review the consultation before the appointment.', sources: ['Demo diary', 'Demo payments'],
+            draft: command.task_id === 'reconnect' ? 'Hi Demo, would you like to book your next visit?' : null, suggestion: 'Review the consultation before the appointment.', sources: ['Demo diary', 'Demo payments'],
             limits: ['No client messages have been sent.'], next_prompt: 'Help me draft a message to Demo Client.', next_label: 'Prepare my next question',
           } });
           if (/^Prepare (?:another |unconfirmed )?demo message/.test(command.text)) {
@@ -146,6 +146,7 @@ try {
       assert.equal(await page.getByLabel('Message Florrie').inputValue(), 'My unfinished question', 'Suggested tasks preserve the unfinished composer');
       await page.getByText('£250.00', { exact: true }).waitFor();
       await page.getByText('Florrie’s suggestions', { exact: true }).waitFor();
+      if (taskId === 'reconnect') await page.getByText('Message draft · not sent', { exact: true }).waitFor();
       await noOverflow();
       assert.equal(await page.evaluate(() => __voiceDesign.executions), 0);
       if (width === 390 && taskId === 'tomorrow') await page.screenshot({ path: join(output, 'voice-task-result.png'), fullPage: true, animations: 'disabled' });

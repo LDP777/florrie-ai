@@ -384,6 +384,7 @@ function TaskResult({ task, onDraft, disabled }) {
     </div>)}</div>
     {task.suggestion ? <div className="fl-command-task-advice"><span><Icon name="sparkles" size={15} />Florrie’s suggestions</span><p>{task.suggestion}</p></div>
       : <p className="fl-command-task-unavailable">Your records are ready. AI suggestions are unavailable at the moment.</p>}
+    {task.draft && <div className="fl-command-task-advice"><span><Icon name="message" size={15} />Message draft · not sent</span><p>{task.draft}</p></div>}
     <details className="fl-command-task-sources"><summary>Sources & things to check</summary><p>{task.sources.join(' · ')}</p>{task.limits.map((limit, i) => <p key={i}>{limit}</p>)}</details>
     <button type="button" className="fl-command-task-next" disabled={disabled} onClick={() => onDraft(task.next_prompt)}>{task.next_label}<Icon name="edit" size={16} /></button>
     <p className="fl-command-task-footnote">Prepares a question for you to edit. Nothing is sent to a client.</p>

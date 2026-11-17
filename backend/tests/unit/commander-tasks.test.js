@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../../src/lib/logger.js', () => ({ default: { info() {}, warn() {} } }));
 vi.mock('../../src/lib/booking-preparation.js', () => ({ readBookingPreparation: vi.fn() }));
 import { readBookingPreparation } from '../../src/lib/booking-preparation.js';
-import { buildCommanderTask, processCommanderTask, returningCandidates, careItem, recordedIncome } from '../../src/services/commander-tasks.js';
+import { buildCommanderTask, processCommanderTask, returningCandidates, careItem, recordedIncome, readTaskSuggestion } from '../../src/services/commander-tasks.js';
 const now = new Date('2026-11-17T12:00:00Z'), owner = { id: 'b1', timezone: 'Europe/London' };
 
 function database(tables, { failTable, cap = 2 } = {}) {
@@ -79,11 +79,18 @@ describe('Commander fixed plans', () => {
     expect(out.limits[0]).toContain('not a list of bookable slots');
   });
   it('makes one bounded AI call with no tools, no proposals and no client writes', async()=>{
-    const ai={messages:{create:vi.fn().mockResolvedValue({stop_reason:'end_turn',content:[{type:'text',text:'Check your cash records before deciding what to set aside.'}],usage:{input_tokens:500,output_tokens:20}})}};
+    const ai={messages:{create:vi.fn().mockResolvedValue({stop_reason:'end_turn',content:[{type:'text',text:JSON.stringify({suggestion:'Check your cash records before deciding what to set aside.',draft:null})}],usage:{input_tokens:500,output_tokens:20}})}};
     const out=await processCommanderTask({taskId:'money',beautician:owner,supabase:database({}),now},{ai});
     expect(ai.messages.create).toHaveBeenCalledTimes(1);
     const sent=ai.messages.create.mock.calls[0][0]; expect(sent.tools).toBeUndefined(); expect(sent.max_tokens).toBe(500);
     expect(out.proposals).toEqual([]); expect(out.actions).toEqual([]); expect(out.task.suggestion).toContain('cash');
+  });
+  it('cleans model formatting, accepts a rebooking draft only for a real shortlist, and rejects incomplete output',()=>{
+    const response={stop_reason:'end_turn',content:[{type:'text',text:JSON.stringify({suggestion:'**Review** your preferences — first.',draft:'Hi Demo, would you like to book your next visit?'})}]};
+    expect(readTaskSuggestion(response,{id:'reconnect',items:[{label:'Demo'}]})).toEqual({suggestion:'Review your preferences, first.',draft:'Hi Demo, would you like to book your next visit?'});
+    expect(readTaskSuggestion(response,{id:'money',items:[]}).draft).toBeNull();
+    expect(readTaskSuggestion({...response,stop_reason:'max_tokens'},{id:'reconnect',items:[{}]}).suggestion).toBeNull();
+    expect(readTaskSuggestion({stop_reason:'end_turn',content:[{type:'text',text:'not JSON'}]},{id:'week',items:[]})).toEqual({suggestion:null,draft:null});
   });
   it('keeps verified records when AI is unavailable, and rejects unknown tasks before reading', async()=>{
     const ai={messages:{create:vi.fn().mockRejectedValue(new Error('provider down'))}};
