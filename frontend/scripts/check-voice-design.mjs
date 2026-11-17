@@ -74,11 +74,12 @@ try {
     page.setDefaultTimeout(10000);
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
-    const commandCount = () => page.evaluate(() => __voiceDesign.commands.length);
+    let commandOffset = 0;
+    const commandCount = async () => (await page.evaluate(() => __voiceDesign.commands.length)) - commandOffset;
     const fresh = async () => {
       await page.getByRole('button', { name: 'New conversation', exact: true }).click();
       await page.getByRole('button', { name: 'Start fresh', exact: true }).click();
-      await page.getByRole('navigation', { name: 'Your salon shortcuts' }).waitFor();
+      await page.getByRole('group', { name: 'Explore what Florrie can do' }).waitFor();
     };
     const chooseTopic = async name => {
       const explore = page.getByRole('button', { name: 'More ways to ask', exact: true });
@@ -91,12 +92,12 @@ try {
     };
     const noOverflow = async () => assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `No page overflow at ${width}`);
     await page.goto(`${origin}/voice`);
-    await page.getByRole('link', { name: 'Schedule. Today’s diary is unavailable', exact: true }).waitFor();
-    assert.equal(await page.getByRole('link', { name: 'Schedule. 0 appointments in your diary today', exact: true }).count(), 0, 'A failed diary read must not claim an empty day');
+    await page.getByText('Today’s diary count is unavailable', { exact: true }).waitFor();
+    assert.equal(await page.getByText('0 appointments in your diary today', { exact: true }).count(), 0, 'A failed diary read must not claim an empty day');
     assert.equal(await page.getByRole('button', { name: 'Tap to speak', exact: true }).isEnabled(), true, 'Diary failure does not block the commander');
     await page.evaluate(() => { __voiceDesign.failDiary = false; });
     await page.getByRole('button', { name: 'Retry diary summary', exact: true }).click();
-    await page.getByRole('link', { name: 'Schedule. 8 appointments in your diary today', exact: true }).waitFor();
+    await page.getByText('8 appointments in your diary today', { exact: true }).waitFor();
     assert.equal(await page.getByRole('button', { name: 'Retry diary summary', exact: true }).count(), 0, 'Retry replaces the unavailable state with the recovered count');
     await page.evaluate(() => document.fonts.ready);
     await noOverflow();
@@ -110,21 +111,55 @@ try {
     assert.equal(await page.getByRole('button', { name: 'Tap to speak', exact: true }).evaluate(el => el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }))), false);
     await page.screenshot({ path: join(output, `voice-${width}.png`), fullPage: true, animations: 'disabled' });
 
-    // The compact navigation uses real routes and carries no command side effects.
-    assert.equal(await page.getByRole('group', { name: 'Choose a topic', exact: true }).count(), 0, 'Task groups are available through the composer rather than occupying the default deck');
-    for (const [label, path] of [['Inbox', '/inbox'], ['Patch tests', '/patch-tests'], ['Schedule', '/calendar/week'], ['Money', '/money']]) {
-      const link = page.getByRole('navigation', { name: 'Your salon shortcuts' }).getByRole('link', { name: new RegExp(`^${label}\\b`) });
-      const target = new URL(await link.getAttribute('href'), origin);
-      assert.equal(target.pathname, path);
-      if (label === 'Schedule') {
-        assert.equal(target.searchParams.get('view'), 'day', 'The diary summary opens its day view');
-        assert.match(target.searchParams.get('date'), /^\d{4}-\d{2}-\d{2}$/, 'The diary summary includes its date');
-      }
-      await link.click();
-      await page.waitForURL(target.href);
-      await page.goBack();
-      await page.getByRole('navigation', { name: 'Your salon shortcuts' }).waitFor();
+    // Concealment also blocks the new exploration controls and engine calls.
+    const eye = page.getByRole('button', { name: 'Hide client details', exact: true }).first();
+    await eye.click();
+    await page.waitForFunction(() => document.querySelector('.client-privacy-toggle')?.getAttribute('aria-pressed') === 'true');
+    for (const button of await page.locator('.fl-command-shortcuts > button').all()) assert.ok(await button.isDisabled());
+    assert.equal(await commandCount(), 0);
+    await eye.click();
+    await page.waitForFunction(() => document.querySelector('.client-privacy-toggle')?.getAttribute('aria-pressed') === 'false');
+
+    // The four prominent entries explore AI tasks in place, preserving a draft.
+    assert.equal(await page.getByRole('group', { name: 'Choose a topic', exact: true }).count(), 0);
+    const starters = [
+      ['Help with messages', 'A hand with your messages', 'What needs my attention?', /latest Florrie brief/],
+      ['Get clients ready', 'Ready for the next client', 'Get me ready for tomorrow', /tomorrow.*patch test.*consultation form/],
+      ['Plan my diary', 'A little head start', 'Brief me on today', /schedule today/],
+      ['Understand my income', 'Know where you stand', 'Explain my week', /revenue this week with last week/],
+    ];
+    const ideas = () => page.getByRole('group', { name: 'Explore what Florrie can do' });
+    assert.equal(await ideas().getByRole('link').count(), 0);
+    for (const [label, heading, taskTitle, prompt] of starters) {
+      await page.getByLabel('Message Florrie').fill('My unfinished question');
+      const before = await commandCount();
+      await ideas().getByRole('button', { name: new RegExp(`^${label}`) }).click();
+      await page.getByRole('heading', { name: heading, exact: true }).waitFor();
+      assert.equal(new URL(page.url()).pathname, '/voice', 'Exploring stays in the commander');
+      assert.equal(await commandCount(), before, 'Opening a topic does not submit a request');
+      assert.equal(await page.getByLabel('Message Florrie').inputValue(), 'My unfinished question');
+      await page.waitForFunction(() => document.activeElement?.textContent === 'All ideas');
+      await noOverflow();
+      if (width === 390 && label === 'Get clients ready') await page.screenshot({ path: join(output, 'voice-care-ideas.png'), fullPage: true, animations: 'disabled' });
+      await page.getByRole('button', { name: 'All ideas', exact: true }).click();
+      await page.waitForFunction(label => document.activeElement?.textContent?.startsWith(label), label);
+      await page.getByLabel('Message Florrie').fill('');
+      await ideas().getByRole('button', { name: new RegExp(`^${label}`) }).click();
+      await page.getByRole('button', { name: new RegExp(`^${taskTitle}`) }).click();
+      await page.getByText('You have eight appointments today. Your diary, payments and brief are ready to open.', { exact: true }).waitFor();
+      assert.equal(await commandCount(), before + 1, 'Selecting a complete request calls the engine exactly once');
+      assert.match(await page.evaluate(() => __voiceDesign.commands.at(-1).text), prompt);
+      assert.equal(new URL(page.url()).pathname, '/voice', 'The answer appears in the same conversation');
+      assert.equal(await page.evaluate(() => __voiceDesign.executions), 0, 'Exploration never executes a proposed change');
+      await fresh();
     }
+    // The last care idea stays reachable on a small phone and asks for a name.
+    await ideas().getByRole('button', { name: /^Get clients ready/ }).click();
+    await page.getByRole('button', { name: /^Check a client’s form/ }).click();
+    assert.equal(await page.getByLabel('Message Florrie').inputValue(), 'Has this client completed their consultation form: ');
+    assert.equal(await commandCount(), starters.length, 'A form lookup template does not send an incomplete request');
+    await page.getByLabel('Message Florrie').fill('');
+    commandOffset = await page.evaluate(() => __voiceDesign.commands.length);
     for (const [label, draft] of [
       ['Ask about my day', 'What does today look like?'],
       ['Ask about my earnings', 'What did I earn this week?'],
@@ -135,7 +170,7 @@ try {
     }
     await page.getByLabel('Message Florrie').fill('');
     await chooseTopic('Business');
-    assert.equal(await page.getByRole('navigation', { name: 'Your salon shortcuts' }).count(), 0, 'The task picker replaces the shortcut deck');
+    assert.equal(await page.getByRole('group', { name: 'Explore what Florrie can do' }).count(), 0, 'The task picker replaces the shortcut deck');
     await page.getByRole('button', { name: /^Check outstanding payments/ }).waitFor();
     await chooseTopic('Clients');
     await page.getByRole('button', { name: /^Find a client/ }).click();
@@ -170,7 +205,7 @@ try {
     await page.getByRole('button', { name: /^Brief me on today/ }).click();
     await page.getByText('You have eight appointments today. Your diary, payments and brief are ready to open.', { exact: true }).waitFor();
     assert.equal(await commandCount(), 1);
-    assert.equal(await page.evaluate(() => __voiceDesign.commands[0].text), 'What is my schedule today, and what needs my attention?');
+    assert.equal(await page.evaluate(() => __voiceDesign.commands.at(-1).text), 'What is my schedule today, and what needs my attention?');
     const results = page.locator('.fl-command-result-links').getByRole('button');
     assert.deepEqual(await results.allTextContents(), ['Open this day', 'Open Money', 'Open Florrie’s brief']);
     await noOverflow();
@@ -272,6 +307,6 @@ try {
     await noOverflow();
     assert.deepEqual(errors, []);
     await ctx.close();
-    console.log(`✓ Voice ${width}px: scoped diary, task groups, working destinations, keyboard, voice/cancel, safe history and explicit action confirmation`);
+    console.log(`✓ Voice ${width}px: scoped diary, four AI starting points, in-place ideas and requests, retained workspace tools, keyboard, voice/cancel, safe history and explicit action confirmation`);
   }
 } finally { await browser.close(); server.close(); }

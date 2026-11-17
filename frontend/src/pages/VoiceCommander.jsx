@@ -1,7 +1,7 @@
 import { PrivateText, PrivateSection, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import { FlorrieOrb, EffectFrame } from '../components/ui/FlorrieEffects.jsx';
 import { useState, useRef, useEffect } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useBeautician, supabase } from '../lib/supabase.js'
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
@@ -334,12 +334,23 @@ const TOOL_TO_AGENT = {
   get_settings: 'general',
   change_setting: 'general',
 };
-// Each suggestion names a complete, supported task. Content opens its own workspace.
+// Prominent entries open AI ideas in place. Only the explicitly labelled Create
+// tasks open workspaces that the voice engine cannot operate yet.
 const TASK_GROUPS = [
+  { id: 'inbox', label: 'Messages', title: 'A hand with your messages', detail: 'Choose a question, or start a message you can make your own.', tasks: [
+    { title: 'What needs my attention?', detail: 'Check decisions waiting for you and Florrie’s recent work', icon: 'sparkles', prompt: 'Read my latest Florrie brief. Summarise decisions waiting for my approval, any problems with recent work, and what I should look at first. Say which information could not be checked. Do not send messages or change anything.' },
+    { title: 'Help me reconnect with clients', detail: 'Find five clients due a visit and suggest a rebooking opener', icon: 'heart', prompt: 'Find up to five clients I have not seen for at least 60 days. Using only their recorded details, suggest a short rebooking message I could adapt. Do not invent a treatment, available slot or offer, and do not send anything.' },
+    { title: 'Help me write a message', detail: 'Add a client and what you want to say', icon: 'message', draft: 'Help me draft a message to ', hint: 'Add the client’s name and what you want to say. Ask for a draft first.' },
+  ] },
+  { id: 'care', label: 'Client care', title: 'Ready for the next client', detail: 'Check the records before they arrive. Read sensitive answers on screen.', tasks: [
+    { title: 'Get me ready for tomorrow', detail: 'Bring tomorrow’s diary, patch tests and forms together', icon: 'calendar', prompt: 'Check tomorrow’s appointments, who still needs a patch test, and who still needs a consultation form. Give me a short preparation list based on those records. Do not infer that anyone is cleared for treatment, read medical answers aloud, or send anything.' },
+    { title: 'Check client care this week', detail: 'See who still needs a patch test or consultation form', icon: 'shield', prompt: 'Who needs a patch test or consultation form this week? Report the recorded status and anything that could not be checked. Do not send anything or claim someone is cleared for treatment.' },
+    { title: 'Check a client’s form', detail: 'See their form status and read their answers here', icon: 'file', draft: 'Has this client completed their consultation form: ', hint: 'Add the client’s name. Their answers stay on screen, rather than being read aloud.' },
+  ] },
   { id: 'day', label: 'My day', icon: 'calendar', title: 'A little head start', tasks: [
     { title: 'Brief me on today', detail: 'Your diary and anything needing attention', icon: 'sparkles', prompt: 'What is my schedule today, and what needs my attention?' },
     { title: 'Check client care', detail: 'Patch tests and consultation forms due this week', icon: 'shield', prompt: 'Who needs a patch test or consultation form this week?' },
-    { title: 'Find my busiest day', detail: 'See how the week is shaping up', icon: 'calendar', prompt: "What's my busiest day this week?" },
+    { title: 'Spot my busiest days', detail: 'Use recent booking patterns to help plan your week', icon: 'calendar', prompt: 'Which days of the week have been busiest over the last eight weeks? Use recorded bookings and explain what that suggests for planning my week. Do not invent future availability.' },
   ] },
   { id: 'clients', label: 'Clients', icon: 'heart', title: 'Keep the little things covered', tasks: [
     { title: 'Find a client', detail: 'Visit history, bookings and notes', icon: 'search', draft: 'Tell me about ', hint: 'Add the client’s name, then send.' },
@@ -347,7 +358,7 @@ const TASK_GROUPS = [
     { title: 'Prepare a client message', detail: 'Review the recipient and wording before sending', icon: 'message', draft: 'Prepare a message to ', hint: 'Add a client’s name and what you want to say.' },
   ] },
   { id: 'business', label: 'Business', icon: 'chart', title: 'Know where you stand', tasks: [
-    { title: 'How was my week?', detail: 'Income, appointments and the bigger picture', icon: 'chart', prompt: 'Summarise my revenue and appointments this week.' },
+    { title: 'Explain my week', detail: 'Compare recorded income with last week and show unpaid balances', icon: 'chart', prompt: 'Compare my recorded revenue this week with last week, and check outstanding payments. Explain the difference, noting that this week may be incomplete. Keep recorded income and outstanding balances separate. Do not charge anyone or send payment links.' },
     { title: 'Check outstanding payments', detail: 'See which payments still need attention', icon: 'pound', prompt: 'Which payments are still outstanding?' },
     { title: 'Review how Florrie is set up', detail: 'Check your current messaging settings', icon: 'settings', prompt: 'How are you set up at the moment?' },
   ] },
@@ -356,6 +367,12 @@ const TASK_GROUPS = [
     { title: 'Continue a content draft', detail: 'Pick up where you left off', icon: 'edit', path: '/content', state: { showDrafts: true } },
     { title: 'Work with your reviews', detail: 'Review replies and feedback permissions', icon: 'star', path: '/reviews' },
   ] },
+];
+const STARTING_POINTS = [
+  { group: 'inbox', title: 'Help with messages', detail: 'Priorities, drafts & rebooking', icon: 'message' },
+  { group: 'care', title: 'Get clients ready', detail: 'Patch tests & consultation forms', icon: 'shield' },
+  { group: 'day', title: 'Plan my diary', detail: 'Briefings & booking patterns', icon: 'calendar' },
+  { group: 'business', title: 'Understand my income', detail: 'Weekly picture & unpaid balances', icon: 'pound' },
 ];
 // Check Web Speech API support
 const SpeechRecognition = typeof window !== 'undefined'
@@ -395,11 +412,21 @@ export default function VoiceCommander() {
   const [showIdeas, setShowIdeas] = useState(false);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const ideaBackRef = useRef(null);
+  const startingPointRefs = useRef({});
+  const lastStartingPoint = useRef(null);
+  const moveIdeaFocus = useRef(false);
   const recognitionRef = useRef(null);
   const generationRef = useRef(0);
   const loadedOwnerRef = useRef(null);
   const ownerRef = useRef(beautician?.id);
   ownerRef.current = beautician?.id;
+  useEffect(() => {
+    if (!moveIdeaFocus.current) return;
+    moveIdeaFocus.current = false;
+    const target = showIdeas ? ideaBackRef.current : startingPointRefs.current[lastStartingPoint.current];
+    target?.focus({ preventScroll: true });
+  }, [showIdeas]);
 
   useEffect(() => {
     const sync = () => setVoiceOn(isVoiceEnabled());
@@ -682,6 +709,17 @@ export default function VoiceCommander() {
   const hasConversation = visibleMessages.some(m => m.id !== '0');
   const busy = hidden || isProcessing || executions > 0 || isRecording || micStarting || bLoading || !beautician?.id || historyOwner !== beautician?.id;
   const currentGroup = TASK_GROUPS.find(group => group.id === taskGroup) || TASK_GROUPS[0];
+  function exploreGroup(group) {
+    if (busy) return;
+    lastStartingPoint.current = group;
+    moveIdeaFocus.current = true;
+    setTaskGroup(group);
+    setShowIdeas(true);
+  }
+  function closeIdeas() {
+    moveIdeaFocus.current = true;
+    setShowIdeas(false);
+  }
   function chooseTask(task) {
     if (busy) return;
     if (task.path) { navigate(task.path, { state: task.state }); return; }
@@ -706,6 +744,9 @@ export default function VoiceCommander() {
   }
   const taskPicker = (
     <section className="fl-command-discover" aria-label="Things Florrie can help with">
+      <button ref={ideaBackRef} type="button" className="fl-command-ideas-back" onClick={closeIdeas} disabled={busy}>
+        <Icon name="chevron-left" size={15} />All ideas
+      </button>
       <div className="fl-command-categories" role="group" aria-label="Choose a topic">
         {TASK_GROUPS.map(group => <button type="button" key={group.id}
           aria-pressed={taskGroup === group.id} disabled={busy}
@@ -713,6 +754,7 @@ export default function VoiceCommander() {
       </div>
       <div className="fl-command-discover-heading">
         <h2>{currentGroup.title}</h2>
+        <p>{currentGroup.detail || 'Choose a request to ask Florrie, or add your own details.'}</p>
       </div>
       <div className="fl-command-tasks">
         {currentGroup.tasks.map(task => <button type="button" key={task.title} disabled={busy} onClick={() => chooseTask(task)}>
@@ -789,16 +831,18 @@ export default function VoiceCommander() {
         {composer}
         <div id="fl-command-ideas" className={`fl-command-deck ${showIdeas ? 'is-expanded' : ''}`}>
           {showIdeas ? taskPicker : <>
-            <nav className="fl-command-shortcuts" aria-label="Your salon shortcuts">
-              <Link to="/inbox"><Icon name="message" size={20} /><strong>Inbox</strong><span>Conversations</span><Icon name="chevron-right" size={14} /></Link>
-              <Link to="/patch-tests"><Icon name="shield" size={20} /><strong>Patch tests</strong><span>Client care</span><Icon name="chevron-right" size={14} /></Link>
-              <Link to={`/calendar/week?view=day&date=${today}`} aria-label={`Schedule. ${daySummary.status === 'ready'
-                ? `${daySummary.count} ${daySummary.count === 1 ? 'appointment' : 'appointments'} in your diary today`
-                : daySummary.status === 'loading' ? 'Checking today’s diary' : 'Today’s diary is unavailable'}`}>
-                <Icon name="calendar" size={20} /><strong>Schedule</strong><span>{daySummary.status === 'ready' ? `${daySummary.count} today` : daySummary.status === 'loading' ? 'Checking…' : 'Unavailable'}</span><Icon name="chevron-right" size={14} />
-              </Link>
-              <Link to="/money"><Icon name="pound" size={20} /><strong>Money</strong><span>Income & costs</span><Icon name="chevron-right" size={14} /></Link>
-            </nav>
+            <div className="fl-command-shortcuts" role="group" aria-label="Explore what Florrie can do">
+              {STARTING_POINTS.map(point => <button key={point.group} type="button" disabled={busy}
+                ref={node => { startingPointRefs.current[point.group] = node; }}
+                aria-expanded={false} aria-controls="fl-command-ideas" onClick={() => exploreGroup(point.group)}>
+                <Icon name={point.icon} size={20} />
+                <span><strong>{point.title}</strong><small>{point.detail}</small></span>
+                <Icon name="sparkles" size={15} />
+              </button>)}
+            </div>
+            <p className="fl-command-diary-count" role="status">{daySummary.status === 'ready'
+              ? `${daySummary.count} ${daySummary.count === 1 ? 'appointment' : 'appointments'} in your diary today`
+              : daySummary.status === 'loading' ? 'Checking today’s diary…' : 'Today’s diary count is unavailable'}</p>
             {daySummary.status === 'error' && <button className="fl-command-diary-retry" type="button" aria-label="Retry diary summary" onClick={() => setDayRefresh(value => value + 1)}>Retry diary summary<Icon name="refresh" size={14} /></button>}
           </>}
         </div>
