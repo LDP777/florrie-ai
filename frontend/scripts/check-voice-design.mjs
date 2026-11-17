@@ -53,6 +53,13 @@ try {
         if (url.includes('/api/voice/command')) {
           const command = JSON.parse(options.body);
           __voiceDesign.commands.push(command); remember();
+          if (command.task_id) return json({ reply: 'Your checked demo plan is ready.', actions: [], proposals: [], task: {
+            id: command.task_id, title: command.text, checked_at: '2026-11-17T12:00:00Z',
+            cards: [{ label: 'Recorded receipts after refunds', value: '£250.00' }, { label: 'Needs attention', value: '2' }],
+            items: [{ label: 'Demo Client', value: '11:00 appointment', detail: 'Consultation still to complete', attention: true }],
+            suggestion: 'Review the consultation before the appointment.', sources: ['Demo diary', 'Demo payments'],
+            limits: ['No client messages have been sent.'], next_prompt: 'Help me draft a message to Demo Client.', next_label: 'Prepare my next question',
+          } });
           if (/^Prepare (?:another |unconfirmed )?demo message/.test(command.text)) {
             return json({ reply: 'Review this demo message before sending.', proposals: [{ tool: 'send_message', input: { client_name: 'Demo Client', message: 'Demo only.' } }] });
           }
@@ -120,44 +127,49 @@ try {
     await eye.click();
     await page.waitForFunction(() => document.querySelector('.client-privacy-toggle')?.getAttribute('aria-pressed') === 'false');
 
-    // The four prominent entries explore AI tasks in place, preserving a draft.
+    // Main suggestions do useful work in place, with a fixed read-only task ID.
     assert.equal(await page.getByRole('group', { name: 'Choose a topic', exact: true }).count(), 0);
     const starters = [
-      ['Help with messages', 'A hand with your messages', 'What needs my attention?', /latest Florrie brief/],
-      ['Get clients ready', 'Ready for the next client', 'Get me ready for tomorrow', /tomorrow.*patch test.*consultation form/],
-      ['Plan my diary', 'A little head start', 'Brief me on today', /schedule today/],
-      ['Understand my income', 'Know where you stand', 'Explain my week', /revenue this week with last week/],
+      ['Get tomorrow ready', 'tomorrow'], ['Bring clients back', 'reconnect'],
+      ['Make a plan for my week', 'week'], ['Explain my takings', 'money'],
     ];
     const ideas = () => page.getByRole('group', { name: 'Explore what Florrie can do' });
     assert.equal(await ideas().getByRole('link').count(), 0);
-    for (const [label, heading, taskTitle, prompt] of starters) {
+    for (const [label, taskId] of starters) {
       await page.getByLabel('Message Florrie').fill('My unfinished question');
       const before = await commandCount();
       await ideas().getByRole('button', { name: new RegExp(`^${label}`) }).click();
-      await page.getByRole('heading', { name: heading, exact: true }).waitFor();
-      assert.equal(new URL(page.url()).pathname, '/voice', 'Exploring stays in the commander');
-      assert.equal(await commandCount(), before, 'Opening a topic does not submit a request');
-      assert.equal(await page.getByLabel('Message Florrie').inputValue(), 'My unfinished question');
-      await page.waitForFunction(() => document.activeElement?.textContent === 'All ideas');
+      await page.getByText('Your checked demo plan is ready.', { exact: true }).waitFor();
+      assert.equal(new URL(page.url()).pathname, '/voice');
+      assert.equal(await commandCount(), before + 1, 'A selected task makes exactly one request');
+      assert.equal(await page.evaluate(() => __voiceDesign.commands.at(-1).task_id), taskId);
+      assert.equal(await page.getByLabel('Message Florrie').inputValue(), 'My unfinished question', 'Suggested tasks preserve the unfinished composer');
+      await page.getByText('£250.00', { exact: true }).waitFor();
+      await page.getByText('Florrie’s suggestions', { exact: true }).waitFor();
       await noOverflow();
-      if (width === 390 && label === 'Get clients ready') await page.screenshot({ path: join(output, 'voice-care-ideas.png'), fullPage: true, animations: 'disabled' });
-      await page.getByRole('button', { name: 'All ideas', exact: true }).click();
-      await page.waitForFunction(label => document.activeElement?.textContent?.startsWith(label), label);
-      await page.getByLabel('Message Florrie').fill('');
-      await ideas().getByRole('button', { name: new RegExp(`^${label}`) }).click();
-      await page.getByRole('button', { name: new RegExp(`^${taskTitle}`) }).click();
-      await page.getByText('You have eight appointments today. Your diary, payments and brief are ready to open.', { exact: true }).waitFor();
-      assert.equal(await commandCount(), before + 1, 'Selecting a complete request calls the engine exactly once');
-      assert.match(await page.evaluate(() => __voiceDesign.commands.at(-1).text), prompt);
-      assert.equal(new URL(page.url()).pathname, '/voice', 'The answer appears in the same conversation');
-      assert.equal(await page.evaluate(() => __voiceDesign.executions), 0, 'Exploration never executes a proposed change');
+      assert.equal(await page.evaluate(() => __voiceDesign.executions), 0);
+      if (width === 390 && taskId === 'tomorrow') await page.screenshot({ path: join(output, 'voice-task-result.png'), fullPage: true, animations: 'disabled' });
+      await page.getByRole('button', { name: 'Prepare my next question', exact: true }).click();
+      assert.equal(await commandCount(), before + 1, 'Follow-on prepares an editable prompt, without sending');
+      assert.equal(await page.getByLabel('Message Florrie').inputValue(), 'My unfinished question\n\nHelp me draft a message to Demo Client.');
+      if (taskId === 'money') {
+        await page.reload();
+        await page.getByRole('button', { name: 'New conversation', exact: true }).waitFor();
+        assert.equal(await page.locator('.fl-command-task-result').count(), 0, 'Old evidence and drafts are not restored as live results');
+        assert.equal(await commandCount(), before + 1, 'Reload never reruns a task');
+        await page.getByText('Client details are not kept in conversation history. Ask again to see the latest information.', { exact: true }).waitFor();
+      }
       await fresh();
     }
-    // The last care idea stays reachable on a small phone and asks for a name.
-    await ideas().getByRole('button', { name: /^Get clients ready/ }).click();
+    // Topic browsing remains free, keeps drafts, and templates ask for missing details.
+    const beforeBrowse = await commandCount();
+    await page.getByLabel('Message Florrie').fill('Keep this thought');
+    await chooseTopic('Client care');
+    assert.equal(await page.getByLabel('Message Florrie').inputValue(), 'Keep this thought');
+    assert.equal(await commandCount(), beforeBrowse);
     await page.getByRole('button', { name: /^Check a client’s form/ }).click();
     assert.equal(await page.getByLabel('Message Florrie').inputValue(), 'Has this client completed their consultation form: ');
-    assert.equal(await commandCount(), starters.length, 'A form lookup template does not send an incomplete request');
+    assert.equal(await commandCount(), starters.length, 'Incomplete form requests do not send');
     await page.getByLabel('Message Florrie').fill('');
     commandOffset = await page.evaluate(() => __voiceDesign.commands.length);
     for (const [label, draft] of [

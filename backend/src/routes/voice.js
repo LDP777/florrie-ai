@@ -13,12 +13,24 @@ import { executeTool } from '../services/voice-tools.js';
 import { requireAuth } from '../middleware/auth.js';
 import { processVoiceCommand, CONFIRM_REQUIRED } from '../services/voice-orchestrator.js';
 import logger from '../lib/logger.js';
+import { COMMANDER_TASKS, processCommanderTask } from '../services/commander-tasks.js';
 import { supabase } from '../config.js';
 
 const router = Router();
 
 router.post('/command', requireAuth, async (req, res) => {
-  const { audio_base64, text, mime_type } = req.body;
+  const { audio_base64, text, mime_type, task_id } = req.body || {};
+
+  if (task_id != null) {
+    if (typeof task_id !== 'string' || !Object.hasOwn(COMMANDER_TASKS, task_id)) return res.status(400).json({ error: 'Unknown Commander task' });
+    res.set('Cache-Control', 'no-store');
+    try {
+      return res.json(await processCommanderTask({ taskId: task_id, beautician: req.beautician, supabase }));
+    } catch (err) {
+      logger.warn({ taskId: task_id, message: err.message }, 'Commander task read failed');
+      return res.status(503).json({ error: 'I could not check all the records for this task. Nothing was changed. Please try again.' });
+    }
+  }
 
   if (!audio_base64 && !text) {
     return res.status(400).json({ error: 'Either audio_base64 or text is required' });

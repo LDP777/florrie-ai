@@ -2,6 +2,14 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {sendVoiceCommand} from './voice-command.js';
 const auth={getSession:async()=>({data:{session:{access_token:'test'}}})};
+test('a suggested task includes its explicit ID in one authenticated request',async()=>{
+ let calls=0;
+ const result=await sendVoiceCommand({auth,url:'/command',text:'Explain my takings',taskId:'money',request:async(url,options)=>{
+   calls++; assert.equal(options.headers.Authorization,'Bearer test'); assert.deepEqual(JSON.parse(options.body),{text:'Explain my takings',task_id:'money'});
+   return new Response(JSON.stringify({reply:'Checked records',task:{id:'money'},actions:[],proposals:[]}));
+ }});
+ assert.equal(calls,1);assert.equal(result.task.id,'money');
+});
 test('an expired session cannot produce a simulated success or send a command',async()=>{
  let calls=0;
  await assert.rejects(sendVoiceCommand({auth:{getSession:async()=>({data:{session:null}})},url:'/voice',text:'Book it',request:async()=>{calls++;}}),/Sign in again/);

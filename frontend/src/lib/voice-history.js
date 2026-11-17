@@ -47,7 +47,7 @@ function safeMessage(message) {
   // Notes must survive another save/load, without accepting arbitrary metadata.
   const earlierNote = typeof message.historyNote === 'string' ? message.historyNote : '';
   const hadProposal = hasItems(message.proposals) || earlierNote.includes(PROPOSAL_NOTE);
-  const hadPrivateCards = hasItems(message.consultation) || hasItems(message.needed) || earlierNote.includes(PRIVATE_NOTE);
+  const hadPrivateCards = hasItems(message.consultation) || hasItems(message.needed) || hasItems(message.task) || earlierNote.includes(PRIVATE_NOTE);
   if (hadProposal && /^\s*(?:please\s+)?review(?:\s+(?:the\s+)?(?:proposed\s+)?actions?)?\s+below[.!]?\s*$/i.test(safe.text)) {
     safe.text = 'An action was proposed in this conversation.';
   }

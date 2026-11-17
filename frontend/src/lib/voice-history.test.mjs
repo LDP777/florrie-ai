@@ -16,6 +16,13 @@ function message(id, text = 'What does today look like?') {
   return { id, role: 'user', text, timestamp: '2026-09-29T10:00:00.000Z', isVoice: true };
 }
 
+test('task evidence and next prompts do not become a stale or executable saved result',()=>{
+ const storage=memoryStorage();
+ saveVoiceHistory(storage,'owner',[{id:'task',role:'assistant',text:'Your checked plan is below.',task:{items:[{label:'Private client'}],next_prompt:'Private draft',suggestion:'Private suggestion'}}]);
+ const stored=JSON.stringify([...storage.data.values()]);assert.doesNotMatch(stored,/Private client|Private draft|Private suggestion/);
+ const restored=loadVoiceHistory(storage,'owner')[0];assert.equal(restored.task,undefined);assert.match(restored.historyNote,/Ask again/);
+});
+
 test('each salon restores only its own transcript and clears only its own history', () => {
   const storage = memoryStorage();
   assert.equal(saveVoiceHistory(storage, 'ellie', [message('e', 'My diary')]), true);

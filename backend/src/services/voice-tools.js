@@ -26,6 +26,7 @@ import {
 } from './voice-consultation.js';
 import { totalApplicationFee } from '../lib/platform-fees.js';
 import logger from '../lib/logger.js';
+import { recordedIncome, loadReturningCandidates } from './commander-tasks.js';
 import { SETTINGS, byId, readSetting, coerceValue, describeValue, renderCatalogue, buildUpdate } from '../lib/app-settings.js';
 
 const stripe = process.env.STRIPE_SECRET_KEY
@@ -243,7 +244,7 @@ export const TOOL_DEFINITIONS = [
 
   {
     name: 'get_revenue_summary',
-    description: 'Get revenue stats for a period. Use for "how much did I make last month", "what\'s my revenue this week".',
+    description: 'Read reconciled recorded receipts after refunds and logged costs, using the same records as Money. Unconfirmed takings are excluded and are not necessarily debts. These are not appointment prices or bank balances. Use for "how much did I make last month", "what\'s my revenue this week".',
     input_schema: {
       type: 'object',
       properties: {
@@ -948,50 +949,12 @@ async function toolGetClientInfo({ client_name }, beautician, supabase) {
 }
 
 async function toolGetLapsedClients({ days_since_last_visit = 60, limit = 10 }, beautician, supabase) {
-  const cutoff = new Date(Date.now() - days_since_last_visit * 86400000).toISOString();
-
-  // Get client IDs with a completed appointment after the cutoff (not lapsed)
-  const { data: recentAppts } = await supabase
-    .from('appointments')
-    .select('client_id')
-    .eq('beautician_id', beautician.id)
-    .eq('status', 'completed')
-    .gte('starts_at', cutoff);
-
-  const recentClientIds = new Set((recentAppts || []).map(a => a.client_id));
-
-  // Get all clients. There is no clients.is_active column and there never was:
-  // the flag this filter wanted is archived_at, which is how the rest of the
-  // codebase (routes/clients.js, routes/florrie-thinks.js) says "still on the
-  // books". Filtering on status = 'active' would have been wrong in the other
-  // direction, because a lapsed client is exactly the one whose status has
-  // already drifted to 'dormant'.
-  const { data: clients, error: clientsErr } = await supabase
-    .from('clients')
-    .select('id, first_name, last_name, phone, email')
-    .eq('beautician_id', beautician.id)
-    .is('archived_at', null)
-    .limit(200);
-
-  // Read the error. With the unknown column name PostgREST rejected the whole
-  // select, clients came back null, and this tool answered "everyone's been in
-  // recently" every single time.
-  if (clientsErr) {
-    logger.error({ err: clientsErr, beauticianId: beautician.id }, 'Lapsed clients query failed');
-    return { result: 'I could not read your client list just now. Try again in a moment.' };
-  }
-
-  const lapsed = (clients || []).filter(c => !recentClientIds.has(c.id)).slice(0, limit);
-
-  if (!lapsed.length) {
-    return { result: `Everyone's been in recently. No lapsed clients found in the last ${days_since_last_visit} days.` };
-  }
-
-  const names = lapsed.map(c => `${c.first_name} ${c.last_name || ''}`.trim()).join(', ');
-  return {
-    result: `${lapsed.length} client${lapsed.length !== 1 ? 's' : ''} haven't visited in ${days_since_last_visit}+ days: ${names}`,
-    data: { clients: lapsed },
-  };
+  const candidates = await loadReturningCandidates(supabase, beautician, new Date(), days_since_last_visit);
+  const selected = candidates.slice(0, Math.min(50, Math.max(1, Math.round(Number(limit) || 10))));
+  return { result: candidates.length
+    ? `${candidates.length} past clients have no upcoming booking recorded and have not visited for at least ${Math.min(3650, Math.max(1, Math.round(Number(days_since_last_visit) || 60)))} days. Showing ${selected.length}:\n${selected.map(c => `${c.name}, last recorded visit ${c.last}`).join('\n')}\nThis is a shortlist, not permission to send marketing. Check their preferences before contacting them.`
+    : 'No clients match that visit history and upcoming-booking check.',
+    data: { clients: selected, count: candidates.length } };
 }
 
 async function toolAddClientNote({ client_name, note }, beautician, supabase) {
@@ -1197,67 +1160,11 @@ async function toolSendRebookReminder({ client_name, treatment }, beautician, su
   return { result: `Rebook reminder sent to ${client.first_name}.` };
 }
 
-async function toolGetRevenueSummary({ period = 'this_month', from_date, to_date }, beautician, supabase) {
-  const now = new Date();
-  let from, to;
-
-  switch (period) {
-    case 'today':
-      from = now.toISOString().slice(0, 10);
-      to = from;
-      break;
-    case 'this_week': {
-      const d = new Date(now);
-      d.setDate(d.getDate() - d.getDay() + 1);
-      from = d.toISOString().slice(0, 10);
-      const e = new Date(d); e.setDate(d.getDate() + 6);
-      to = e.toISOString().slice(0, 10);
-      break;
-    }
-    case 'last_week': {
-      const d = new Date(now);
-      d.setDate(d.getDate() - d.getDay() - 6);
-      from = d.toISOString().slice(0, 10);
-      const e = new Date(d); e.setDate(d.getDate() + 6);
-      to = e.toISOString().slice(0, 10);
-      break;
-    }
-    case 'this_month':
-      from = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-      to = now.toISOString().slice(0, 10);
-      break;
-    case 'last_month': {
-      const d = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      from = d.toISOString().slice(0, 10);
-      const e = new Date(now.getFullYear(), now.getMonth(), 0);
-      to = e.toISOString().slice(0, 10);
-      break;
-    }
-    case 'this_year':
-      from = `${now.getFullYear()}-01-01`;
-      to = now.toISOString().slice(0, 10);
-      break;
-    default:
-      from = from_date || now.toISOString().slice(0, 10);
-      to = to_date || from;
-  }
-
-  const { data: appts } = await supabase
-    .from('appointments')
-    .select('price_cents, status')
-    .eq('beautician_id', beautician.id)
-    .eq('status', 'completed')
-    .gte('starts_at', `${from}T00:00:00`)
-    .lte('starts_at', `${to}T23:59:59`);
-
-  const total = (appts || []).reduce((s, a) => s + (a.price_cents || 0), 0);
-  const count = appts?.length || 0;
-  const avg = count > 0 ? total / count : 0;
-
-  const periodLabel = period.replace('_', ' ');
+async function toolGetRevenueSummary(input, beautician, supabase) {
+  const { totals, start, end } = await recordedIncome(supabase, beautician, input);
   return {
-    result: `Revenue ${periodLabel}: £${(total / 100).toFixed(2)} from ${count} appointment${count !== 1 ? 's' : ''} (avg £${(avg / 100).toFixed(2)}).`,
-    data: { total_pence: total, count, avg_pence: avg, from, to },
+    result: `Recorded receipts after refunds from ${start} to ${end}: £${(totals.income_cents / 100).toFixed(2)} across ${totals.transaction_count} payment records. Logged costs: £${(totals.expenses_cents / 100).toFixed(2)}. Unconfirmed takings excluded: £${(totals.assumed_cents / 100).toFixed(2)}; these are not necessarily client debt. Duplicate and conflicting payment records are excluded. Unlogged cash, transfers, fees and costs may be missing. This is not a bank balance or tax bill.`,
+    data: { total_pence: totals.income_cents, count: totals.transaction_count, from: start, to: end, ...totals },
   };
 }
 

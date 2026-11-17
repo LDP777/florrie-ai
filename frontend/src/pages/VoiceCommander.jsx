@@ -339,11 +339,11 @@ const TOOL_TO_AGENT = {
 const TASK_GROUPS = [
   { id: 'inbox', label: 'Messages', title: 'A hand with your messages', detail: 'Choose a question, or start a message you can make your own.', tasks: [
     { title: 'What needs my attention?', detail: 'Check decisions waiting for you and Florrie’s recent work', icon: 'sparkles', prompt: 'Read my latest Florrie brief. Summarise decisions waiting for my approval, any problems with recent work, and what I should look at first. Say which information could not be checked. Do not send messages or change anything.' },
-    { title: 'Help me reconnect with clients', detail: 'Find five clients due a visit and suggest a rebooking opener', icon: 'heart', prompt: 'Find up to five clients I have not seen for at least 60 days. Using only their recorded details, suggest a short rebooking message I could adapt. Do not invent a treatment, available slot or offer, and do not send anything.' },
+    { taskId: 'reconnect', title: 'Help me reconnect with clients', detail: 'Find five clients due a visit and suggest a rebooking opener', icon: 'heart', prompt: 'Find up to five clients I have not seen for at least 60 days. Using only their recorded details, suggest a short rebooking message I could adapt. Do not invent a treatment, available slot or offer, and do not send anything.' },
     { title: 'Help me write a message', detail: 'Add a client and what you want to say', icon: 'message', draft: 'Help me draft a message to ', hint: 'Add the client’s name and what you want to say. Ask for a draft first.' },
   ] },
   { id: 'care', label: 'Client care', title: 'Ready for the next client', detail: 'Check the records before they arrive. Read sensitive answers on screen.', tasks: [
-    { title: 'Get me ready for tomorrow', detail: 'Bring tomorrow’s diary, patch tests and forms together', icon: 'calendar', prompt: 'Check tomorrow’s appointments, who still needs a patch test, and who still needs a consultation form. Give me a short preparation list based on those records. Do not infer that anyone is cleared for treatment, read medical answers aloud, or send anything.' },
+    { taskId: 'tomorrow', title: 'Get me ready for tomorrow', detail: 'Bring tomorrow’s diary, patch tests and forms together', icon: 'calendar', prompt: 'Check tomorrow’s appointments, who still needs a patch test, and who still needs a consultation form. Give me a short preparation list based on those records. Do not infer that anyone is cleared for treatment, read medical answers aloud, or send anything.' },
     { title: 'Check client care this week', detail: 'See who still needs a patch test or consultation form', icon: 'shield', prompt: 'Who needs a patch test or consultation form this week? Report the recorded status and anything that could not be checked. Do not send anything or claim someone is cleared for treatment.' },
     { title: 'Check a client’s form', detail: 'See their form status and read their answers here', icon: 'file', draft: 'Has this client completed their consultation form: ', hint: 'Add the client’s name. Their answers stay on screen, rather than being read aloud.' },
   ] },
@@ -358,7 +358,7 @@ const TASK_GROUPS = [
     { title: 'Prepare a client message', detail: 'Review the recipient and wording before sending', icon: 'message', draft: 'Prepare a message to ', hint: 'Add a client’s name and what you want to say.' },
   ] },
   { id: 'business', label: 'Business', icon: 'chart', title: 'Know where you stand', tasks: [
-    { title: 'Explain my week', detail: 'Compare recorded income with last week and show unpaid balances', icon: 'chart', prompt: 'Compare my recorded revenue this week with last week, and check outstanding payments. Explain the difference, noting that this week may be incomplete. Keep recorded income and outstanding balances separate. Do not charge anyone or send payment links.' },
+    { taskId: 'money', title: 'Explain my week', detail: 'Compare recorded income with last week and show unpaid balances', icon: 'chart', prompt: 'Compare my recorded revenue this week with last week, and check outstanding payments. Explain the difference, noting that this week may be incomplete. Keep recorded income and outstanding balances separate. Do not charge anyone or send payment links.' },
     { title: 'Check outstanding payments', detail: 'See which payments still need attention', icon: 'pound', prompt: 'Which payments are still outstanding?' },
     { title: 'Review how Florrie is set up', detail: 'Check your current messaging settings', icon: 'settings', prompt: 'How are you set up at the moment?' },
   ] },
@@ -369,11 +369,26 @@ const TASK_GROUPS = [
   ] },
 ];
 const STARTING_POINTS = [
-  { group: 'inbox', title: 'Help with messages', detail: 'Priorities, drafts & rebooking', icon: 'message' },
-  { group: 'care', title: 'Get clients ready', detail: 'Patch tests & consultation forms', icon: 'shield' },
-  { group: 'day', title: 'Plan my diary', detail: 'Briefings & booking patterns', icon: 'calendar' },
-  { group: 'business', title: 'Understand my income', detail: 'Weekly picture & unpaid balances', icon: 'pound' },
+  { id: 'tomorrow', title: 'Get tomorrow ready', detail: 'A plan for your diary, patch tests & forms', icon: 'shield' },
+  { id: 'reconnect', title: 'Bring clients back', detail: 'People to reconnect with & a thoughtful opener', icon: 'heart' },
+  { id: 'week', title: 'Make a plan for my week', detail: 'See the workload. Make time for yourself.', icon: 'calendar' },
+  { id: 'money', title: 'Explain my takings', detail: 'Understand what came in & what needs checking', icon: 'pound' },
 ];
+
+function TaskResult({ task, onDraft, disabled }) {
+  return <section className="fl-command-task-result" aria-label={`${task.title} results`}>
+    <div className="fl-command-task-stamp"><Icon name="check" size={14} />Checked records<span>{new Date(task.checked_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span></div>
+    <div className="fl-command-task-figures">{task.cards.map((card, i) => <div key={i}><small>{card.label}</small><strong>{card.value}</strong>{card.detail && <p>{card.detail}</p>}</div>)}</div>
+    <div className="fl-command-task-records">{task.items.map((item, i) => <div key={i} className={item.attention ? 'needs-attention' : ''}>
+      <strong>{item.label}</strong><span>{item.value}</span><p>{item.detail}</p>
+    </div>)}</div>
+    {task.suggestion ? <div className="fl-command-task-advice"><span><Icon name="sparkles" size={15} />Florrie’s suggestions</span><p>{task.suggestion}</p></div>
+      : <p className="fl-command-task-unavailable">Your records are ready. AI suggestions are unavailable at the moment.</p>}
+    <details className="fl-command-task-sources"><summary>Sources & things to check</summary><p>{task.sources.join(' · ')}</p>{task.limits.map((limit, i) => <p key={i}>{limit}</p>)}</details>
+    <button type="button" className="fl-command-task-next" disabled={disabled} onClick={() => onDraft(task.next_prompt)}>{task.next_label}<Icon name="edit" size={16} /></button>
+    <p className="fl-command-task-footnote">Prepares a question for you to edit. Nothing is sent to a client.</p>
+  </section>;
+}
 // Check Web Speech API support
 const SpeechRecognition = typeof window !== 'undefined'
   ? (window.SpeechRecognition || window.webkitSpeechRecognition)
@@ -413,8 +428,7 @@ export default function VoiceCommander() {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const ideaBackRef = useRef(null);
-  const startingPointRefs = useRef({});
-  const lastStartingPoint = useRef(null);
+  const exploreRef = useRef(null);
   const moveIdeaFocus = useRef(false);
   const recognitionRef = useRef(null);
   const generationRef = useRef(0);
@@ -424,7 +438,7 @@ export default function VoiceCommander() {
   useEffect(() => {
     if (!moveIdeaFocus.current) return;
     moveIdeaFocus.current = false;
-    const target = showIdeas ? ideaBackRef.current : startingPointRefs.current[lastStartingPoint.current];
+    const target = showIdeas ? ideaBackRef.current : exploreRef.current;
     target?.focus({ preventScroll: true });
   }, [showIdeas]);
 
@@ -617,7 +631,7 @@ export default function VoiceCommander() {
       timestamp: new Date().toISOString(),
     }]);
   }
-  async function processMessage(text, isVoice = false) {
+  async function processMessage(text, isVoice = false, taskId = null) {
     if (privacyRef.current) return;
     if (!text.trim() || processingRef.current || executions > 0 || !beautician?.id || ownerRef.current !== beautician.id || historyOwner !== beautician.id) return;
     const requestOwner = beautician.id;
@@ -635,10 +649,10 @@ export default function VoiceCommander() {
       timestamp: new Date().toISOString(),
     };
     setMessages(prev => [...prev, userMsg]);
-    setTextInput('');
+    if (!taskId) setTextInput('');
     setIsProcessing(true);
     try {
-      const data = await sendVoiceCommand({ auth: supabase.auth, url: `${API_BASE}/api/voice/command`, text: text.trim(), canSend: isCurrent });
+      const data = await sendVoiceCommand({ auth: supabase.auth, url: `${API_BASE}/api/voice/command`, text: text.trim(), taskId, canSend: isCurrent });
       if (!isCurrent()) return;
       // Determine agent from which tools were called
       const toolsUsed = (data.actions || []).map(a => a.tool);
@@ -672,6 +686,7 @@ export default function VoiceCommander() {
         actions,
         multiStep,
         toolCount: toolsUsed.length,
+        task: data.task || null,
         // Consequential actions come back as proposals: nothing has happened
         // yet, the confirm card below is what makes it real.
         proposals: Array.isArray(data.proposals) ? data.proposals : [],
@@ -709,19 +724,13 @@ export default function VoiceCommander() {
   const hasConversation = visibleMessages.some(m => m.id !== '0');
   const busy = hidden || isProcessing || executions > 0 || isRecording || micStarting || bLoading || !beautician?.id || historyOwner !== beautician?.id;
   const currentGroup = TASK_GROUPS.find(group => group.id === taskGroup) || TASK_GROUPS[0];
-  function exploreGroup(group) {
-    if (busy) return;
-    lastStartingPoint.current = group;
-    moveIdeaFocus.current = true;
-    setTaskGroup(group);
-    setShowIdeas(true);
-  }
   function closeIdeas() {
     moveIdeaFocus.current = true;
     setShowIdeas(false);
   }
   function chooseTask(task) {
     if (busy) return;
+    if (task.taskId) { processMessage(task.title, false, task.taskId); return; }
     if (task.path) { navigate(task.path, { state: task.state }); return; }
     if (task.prompt) { processMessage(task.prompt); return; }
     setTextInput(task.draft);
@@ -778,7 +787,7 @@ export default function VoiceCommander() {
             placeholder={hidden ? 'Show client details to ask Florrie' : isRecording ? 'Go on, I’m listening…' : 'Show me what you can do'}
             disabled={busy} autoComplete="off" maxLength={2000} />
           <div className="fl-command-toolbar">
-            <button type="button" className="fl-command-tool fl-command-explore" aria-label="More ways to ask"
+            <button type="button" ref={exploreRef} className="fl-command-tool fl-command-explore" aria-label="More ways to ask"
               aria-expanded={showIdeas} aria-controls="fl-command-ideas" disabled={busy}
               onClick={() => setShowIdeas(value => !value)}><Icon name={showIdeas ? 'x' : 'plus'} size={19} /></button>
             <button type="button" className="fl-command-tool" aria-label="Ask about my day" disabled={busy}
@@ -831,10 +840,10 @@ export default function VoiceCommander() {
         {composer}
         <div id="fl-command-ideas" className={`fl-command-deck ${showIdeas ? 'is-expanded' : ''}`}>
           {showIdeas ? taskPicker : <>
+            <div className="fl-command-task-intro"><span>Let me help with that</span><small>Choose something to take off your list</small></div>
             <div className="fl-command-shortcuts" role="group" aria-label="Explore what Florrie can do">
-              {STARTING_POINTS.map(point => <button key={point.group} type="button" disabled={busy}
-                ref={node => { startingPointRefs.current[point.group] = node; }}
-                aria-expanded={false} aria-controls="fl-command-ideas" onClick={() => exploreGroup(point.group)}>
+              {STARTING_POINTS.map(point => <button key={point.id} type="button" disabled={busy}
+                onClick={() => processMessage(point.title, false, point.id)}>
                 <Icon name={point.icon} size={20} />
                 <span><strong>{point.title}</strong><small>{point.detail}</small></span>
                 <Icon name="sparkles" size={15} />
@@ -881,6 +890,7 @@ export default function VoiceCommander() {
                 </span>
               )}
               <p style={styles.msgText}>{msg.text}</p>
+              {msg.task && <TaskResult task={msg.task} disabled={busy || !isCurrentConversation()} onDraft={draft => { setTextInput(previous => previous.trim() ? `${previous}\n\n${draft}` : draft); setDraftHint('Edit your question, then send it to Florrie.'); inputRef.current?.focus(); }} />}
               {msg.historyNote && <p className="fl-command-history-note">{msg.historyNote}</p>}
               {msg.isVoice && msg.role === 'user' && (
                 <span style={styles.voiceBadge}>

@@ -1,6 +1,6 @@
 // Commands are never retried automatically: the server may have acted even
 // when the connection drops before its response reaches the phone.
-export async function sendVoiceCommand({ auth, url, text, request = fetch, timeoutMs = 45000, canSend = () => true }) {
+export async function sendVoiceCommand({ auth, url, text, taskId, request = fetch, timeoutMs = 45000, canSend = () => true }) {
   const controller = new AbortController();
   let timer;
   const deadline = new Promise((_, reject) => {
@@ -19,7 +19,7 @@ export async function sendVoiceCommand({ auth, url, text, request = fetch, timeo
       const response = await request(url, {
         method: 'POST', signal: controller.signal,
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, ...(taskId ? { task_id: taskId } : {}) }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data?.error || 'Florrie could not complete that request.');

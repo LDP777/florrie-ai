@@ -181,6 +181,29 @@
 .fl-command-shortcuts small { margin-top: 2px; font-size: 10px; line-height: 1.5; }
 .fl-command-shortcuts > button > svg:last-child { color: var(--accent); opacity: .65; }
 .fl-command-shortcuts > button:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.fl-command-task-intro { padding: 4px 10px 10px; }
+.fl-command-task-intro > span { display: block; color: var(--accent); font-size: 11px; font-weight: 600; letter-spacing: .04em; }
+.fl-command-task-intro > small { display: block; font-size: 10px; color: var(--text-secondary); margin-top: 3px; }
+.fl-command-task-result { margin-top: 16px; min-width: 0; }
+.fl-command-task-stamp { display: flex; gap: 6px; align-items: center; color: var(--accent); font-size: 11px; }
+.fl-command-task-stamp > span { margin-left: auto; color: var(--text-secondary); }
+.fl-command-task-figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin: 10px 0; }
+.fl-command-task-figures > div { padding: 12px; border: 1px solid var(--border); border-radius: 14px; background: var(--tone-1); }
+.fl-command-task-figures small { display: block; color: var(--text-secondary); font-size: 11px; line-height: 1.5; }
+.fl-command-task-figures strong { display: block; font-size: 23px; color: var(--accent); margin-top: 5px; overflow-wrap: anywhere; }
+.fl-command-task-figures p, .fl-command-task-records p { margin: 4px 0 0; font-size: 12px; line-height: 1.5; color: var(--text-secondary); }
+.fl-command-task-records > div { padding: 12px 0; border-bottom: 1px solid var(--border); }
+.fl-command-task-records > .needs-attention { border-left: 2px solid var(--accent); padding-left: 10px; }
+.fl-command-task-records strong, .fl-command-task-records span { display: block; font-size: 13px; line-height: 1.5; }
+.fl-command-task-records span { color: var(--text-secondary); }
+.fl-command-task-advice { margin-top: 16px; padding: 14px; border-radius: 16px; background: var(--tone-2); }
+.fl-command-task-advice > span { display: flex; gap: 6px; align-items: center; font-size: 12px; font-weight: 600; color: var(--accent); }
+.fl-command-task-advice p { white-space: pre-wrap; font-size: 13px; line-height: 1.65; margin: 8px 0 0; }
+.fl-command-task-sources { margin-top: 12px; font-size: 11px; color: var(--text-secondary); line-height: 1.6; }
+.fl-command-task-sources summary { cursor: pointer; padding-block: 8px; }
+.fl-command-task-sources p { margin: 4px 0 8px; }
+.fl-command-task-next { margin-top: 12px; display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; width: 100%; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--accent); background: transparent; color: var(--accent); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.fl-command-task-footnote, .fl-command-task-unavailable { color: var(--text-secondary); font-size: 11px; line-height: 1.5; margin: 8px 0; }
 .fl-command-diary-count { margin: 9px 0 2px; text-align: center; color: var(--text-secondary); font-size: 10px; line-height: 1.5; }
 .fl-command-diary-retry { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 44px; border: 0; border-top: 1px solid var(--border-light); background: transparent; color: var(--accent); font: 500 11px var(--font-body); cursor: pointer; }
 .fl-command-draft-hint, .fl-command-history-note { color: var(--text-secondary); font-size: 11px; line-height: 1.6; }
