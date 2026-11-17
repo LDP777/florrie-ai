@@ -3044,7 +3044,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
           {isCompleted && (
             <div className="booking-correction">
               <span style={{ fontSize: 12, color: COLORS.stone400, fontWeight: 500 }}>
-                {appointment.payment_method ? 'Visit marked complete' : 'Completed automatically'}
+                {appointment.payment_method ? 'Visit marked complete' : 'Done (assumed)'}
               </span>
               <button className="fl-tap" onClick={() => { hapticTap(); handleMarkNoShow(); }} disabled={saving}
                 style={{ ...bookingEditStyle, background: 'transparent' }}>
