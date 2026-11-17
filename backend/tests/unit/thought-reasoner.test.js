@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest';
-import { createThoughtReasoner } from '../../src/services/thought-reasoner.js';
+import { createThoughtReasoner, safeConsideration } from '../../src/services/thought-reasoner.js';
 const owner = { id: 'salon' }, cards = [{ id: 'holiday', type: 'holiday_habit', summary: 'Two recorded bank holidays off.', evidence: { facts: ['Two explicit closures'] }, action: { kind: 'protect_time', date: '2026-12-25' } }];
 const good = { thoughts: [{ id: 'holiday', reason: 'Would you like to protect the next one too?', related_ids: [] }] };
 it('returns facts immediately, adds only reviewed thinking, and caches separately for each salon', async () => {
@@ -34,4 +34,20 @@ it('never attaches an old interpretation after its summary or evidence changes',
 it('does not call a provider when AI is unavailable', () => {
   const generate = vi.fn(); const enrich = createThoughtReasoner({ generate, enabled: () => false });
   expect(enrich(owner, cards)).toEqual({ cards, thinking: false }); expect(generate).not.toHaveBeenCalled();
+});
+it.each([
+  'They are likely overdue based on that visit gap.',
+  'Today is an immediately available option worth mentioning.',
+  'Today is a concrete option you could offer them straight away.',
+  'You can book them today at 10:30.',
+])('rejects unsupported fit or personal cadence even if a model reviewer would accept it: %s', async reason => {
+  expect(safeConsideration(reason)).toBe(false);
+  const review = vi.fn(async () => ({ supported: true }));
+  const enrich = createThoughtReasoner({ generate: async () => ({ thoughts: [{ ...good.thoughts[0], reason }] }), review, enabled: () => true });
+  enrich(owner,cards); await enrich.wait(owner.id);
+  expect(enrich(owner,cards).cards).toEqual(cards);
+  expect(review).not.toHaveBeenCalled();
+});
+it('allows helpful connections that retain the missing checks', () => {
+  expect(safeConsideration('A warm draft could be useful before your closure. Check their contact preferences and treatment length before suggesting a time.')).toBe(true);
 });
