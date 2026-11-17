@@ -21,7 +21,7 @@ try {
   await context.addInitScript(() => {
     const base = window.fetch;
     const json = (data, status = 200) => Promise.resolve(new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json' } }));
-    window.__brief = { failDismiss: true, voices: 0 };
+    window.__brief = { failDismiss: true, dismissed: false, choices: [], voices: 0 };
     window.fetch = (input, options = {}) => {
       const url = String(input);
       if (url.includes('/api/agents/brief')) return json({
@@ -33,8 +33,13 @@ try {
         insights: [{ id: 'pair', title: 'Two treatments clients book together', summary: 'Brows and lashes appeared together in 4 client visits.', evidence: 'Same client, same day', link_to: '/treatments', action_label: 'Review treatments' }],
         agents: [{ id: 'front_desk', name: 'Front Desk', statusLine: 'Latest action awaits review', actionsThisWeek: 4, checks: [{ name: 'reminders', state: 'unknown', last_success_at: null }], link_to: '/inbox' }],
       });
-      if (url.includes('/api/florrie-thinks')) return json({ cards: [{ id: 'test-lead', type: 'lead', summary: 'A client reply is ready for your review.', action_label: 'Open thread', link_to: '/inbox?client=fixture', evidence: { label: 'Asked this morning', link_to: '/inbox?client=fixture' } }] });
-      if (url.includes('/api/suggestions/respond')) return window.__brief.failDismiss ? json({ error: 'Offline' }, 503) : json({ ok: true });
+      if (url.includes('/api/florrie-thinks')) return json({ cards: window.__brief.dismissed ? [] : [{ id: 'test-lead', type: 'lead', summary: 'A client reply is ready for your review.', action_label: 'Open thread', link_to: '/inbox?client=fixture', evidence: { label: 'Asked this morning', link_to: '/inbox?client=fixture' } }] });
+      if (url.includes('/api/suggestions/respond')) {
+        window.__brief.choices.push(JSON.parse(options.body));
+        if (window.__brief.failDismiss) return json({ error: 'Could not save your choice. Please try again.' }, 503);
+        window.__brief.dismissed = true;
+        return json({ ok: true });
+      }
       if (url.includes('/api/voice/') && options.method === 'POST') window.__brief.voices++;
       return base(input, options);
     };
@@ -45,12 +50,17 @@ try {
   await page.getByText('WhatsApp and SMS new-enquiry replies are off.', { exact: false }).waitFor();
   await page.getByText('Some sources could not be checked.', { exact: false }).waitFor();
   await page.getByText('A client reply is ready for your review.', { exact: true }).waitFor();
-  await page.getByRole('button', { name: 'Not now', exact: true }).click();
-  await page.getByRole('alert').filter({ hasText: 'Could not save that choice' }).waitFor();
+  const thoughts = page.getByRole('region', { name: 'Florrie thinks', exact: true });
+  await thoughts.locator('summary').filter({ hasText: 'Not now' }).click();
+  await thoughts.getByRole('button', { name: 'Remind me in 4 hours', exact: true }).click();
+  await thoughts.getByRole('alert').filter({ hasText: 'Could not save your choice' }).waitFor();
   assert.equal(await page.getByText('A client reply is ready for your review.', { exact: true }).count(), 1);
   await page.evaluate(() => window.__brief.failDismiss = false);
-  await page.getByRole('button', { name: 'Not now', exact: true }).click();
-  await page.getByText('No priorities found', { exact: false }).waitFor();
+  await thoughts.getByRole('button', { name: 'Remind me in 4 hours', exact: true }).click();
+  await thoughts.getByText('No new suggestions from the records checked.', { exact: true }).waitFor();
+  assert.deepEqual(await page.evaluate(() => window.__brief.choices.map(({ suggestion_id, choice }) => ({ suggestion_id, choice }))), [
+    { suggestion_id: 'test-lead', choice: 'later' }, { suggestion_id: 'test-lead', choice: 'later' },
+  ], 'A failed snooze remains retryable for the same suggestion and choice');
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Insights fits a phone');
   await page.getByRole('tab', { name: 'The team', exact: true }).click();
   await page.getByText('Background checks', { exact: true }).click();
