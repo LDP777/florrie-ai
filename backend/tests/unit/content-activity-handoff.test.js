@@ -7,12 +7,18 @@ vi.mock('../../src/lib/logger.js', () => ({ default: { error: vi.fn() } }));
 vi.mock('../../src/config.js', () => ({ supabase: { from(table) {
   if (table !== 'ai_actions') throw new Error('Unexpected table');
   const predicates = [];
+  let first = 0, last = Infinity;
   const query = {
     select() { return query; },
     eq(key, value) { predicates.push(row => row[key] === value); return query; },
+    or() { predicates.push(row => !row.details?.heartbeat); return query; },
+    gte(key, value) { predicates.push(row => row[key] >= value); return query; },
+    lte(key, value) { predicates.push(row => row[key] <= value); return query; },
+    abortSignal() { return query; },
     order() { return query; },
-    limit() { return query; },
-    then(resolve) { return Promise.resolve({ data: state.rows.filter(row => predicates.every(match => match(row))), error: null }).then(resolve); },
+    limit(n) { last = n - 1; return query; },
+    range(a,b) { first = a; last = b; return query; },
+    then(resolve) { const rows = state.rows.filter(row => predicates.every(match => match(row))); return Promise.resolve({ data: rows.slice(first, last+1), count: rows.length, error: null }).then(resolve); },
   };
   return query;
 } } }));
@@ -34,6 +40,19 @@ async function feed() {
 
 beforeEach(() => { state.rows = []; });
 describe('Content activity opens the saved work', () => {
+  it('background checks cannot crowd out work and the day receipt is not capped at 50 feed entries', async () => {
+    const created_at = new Date().toISOString();
+    state.rows = [
+      ...Array.from({length:60},(_,i) => ({ id: `check-${i}`, beautician_id: 'owner', action_type: 'message_replied', outcome: 'success', details: { heartbeat: true }, created_at })),
+      ...Array.from({length:73},(_,i) => ({ id: `work-${i}`, beautician_id: 'owner', action_type: 'appointment_reminder', outcome: 'success', details: {}, created_at })),
+      { id: 'yesterday', beautician_id: 'owner', action_type: 'appointment_reminder', outcome: 'success', created_at: new Date(Date.now()-86400000).toISOString() },
+    ];
+    const { body } = await feed();
+    expect(body.rows).toHaveLength(50);
+    expect(body.rows[0].id).toBe('work-0');
+    expect(body.receipt).toEqual([{ icon: 'clock', text: '73 reminders sent' }]);
+    expect(body.receipt_unavailable).toBe(false);
+  });
   it.each([
     ['content_drafted', 'drafts'], ['gap_post', 'drafts'], ['content_posted', 'posted'],
   ])('opens the exact post for %s', async (action_type, view) => {

@@ -41,6 +41,7 @@ router.get('/feed', requireAuth, async (req, res) => {
       appointments ( starts_at )
     `)
     .eq('beautician_id', req.beautician.id)
+    .or('details->>heartbeat.is.null,details->>heartbeat.eq.false')
     .order('created_at', { ascending: false })
     .limit(limit);
 
@@ -56,7 +57,8 @@ router.get('/feed', requireAuth, async (req, res) => {
   try {
     const midnight = salonWallInstant(`${today}T00:00:00`, req.beautician.timezone || 'Europe/London');
     const dayRows = await readAllMoney(() => supabase.from('ai_actions').select('id,action_type,outcome,details', { count: 'exact' })
-      .eq('beautician_id', req.beautician.id).gte('created_at', midnight).lte('created_at', new Date().toISOString()).order('id').abortSignal(AbortSignal.timeout(6000)), { maxRows: 50000 });
+      .eq('beautician_id', req.beautician.id).or('details->>heartbeat.is.null,details->>heartbeat.eq.false')
+      .gte('created_at', midnight).lte('created_at', new Date().toISOString()).order('id').abortSignal(AbortSignal.timeout(6000)), { maxRows: 50000 });
     receipt = activityReceipt(dayRows);
   } catch { /* A partial recent feed must never masquerade as the day's total. */ }
   res.json({ rows, count: rows.length, receipt, receipt_day: today, receipt_unavailable: receipt === null });
