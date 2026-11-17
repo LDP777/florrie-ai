@@ -99,6 +99,7 @@ jobs:
         working-directory: frontend
       - run: npm run check:today:browser --workspace frontend
       - run: node scripts/check-calendar-navigation.mjs
+      - run: node scripts/check-booking-sheet.mjs
         working-directory: frontend
       - run: node scripts/check-calendar-block-edit.mjs
         working-directory: frontend

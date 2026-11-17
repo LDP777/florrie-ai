@@ -213,11 +213,11 @@ const treatSelectStyle = {
   background: 'var(--bg-card)',
   maxWidth: '100%',
 };
-const dashedBtnStyle = {
+const bookingEditStyle = {
   minHeight: TAP,
   minWidth: TAP,
-  background: 'none',
-  border: `1px dashed ${COLORS.outlineVariant}`,
+  background: 'var(--bg-input, #F4EDE6)',
+  border: 'none',
   borderRadius: 10,
   padding: '3px 10px',
   color: COLORS.primary,
@@ -1466,6 +1466,7 @@ function BookingDetailSheet({ children, view, onClose, onWeek }) {
   useEffect(() => {
     const dialog = ref.current;
     dialog.showModal();
+    dialog.focus({ preventScroll: true });
     return () => {
       dialog.close();
       requestAnimationFrame(() => {
@@ -1479,14 +1480,17 @@ function BookingDetailSheet({ children, view, onClose, onWeek }) {
   // The native dialog keeps keyboard focus inside the booking and makes the
   // diary inert. Its top layer also clears the floating More and petal buttons.
   return createPortal(
-    <dialog ref={ref} className="calendar-booking-sheet" aria-label="Booking details"
+    <dialog ref={ref} className="calendar-booking-sheet" aria-label="Booking details" tabIndex={-1}
       style={{ fontFamily: styles.page.fontFamily }}
       onCancel={event => { event.preventDefault(); onClose(); }}>
       <header className="calendar-booking-sheet-nav">
-        <button autoFocus onClick={onClose} style={{ ...styles.toggleBtn, flex: 'initial', background: 'transparent', color: COLORS.primary }}>
+        <Button variant="quiet" size="sm" onClick={onClose}>
           <Icon name="chevron-left" size={16} /> Back to {view === 'week' ? 'week' : 'day'}
-        </button>
-        {view !== 'week' && <button onClick={onWeek} style={{ ...styles.toggleBtn, flex: 'initial', background: 'transparent', color: COLORS.primary }}>Week view</button>}
+        </Button>
+        <div className="booking-nav-actions">
+          {view !== 'week' && <Button variant="quiet" size="sm" onClick={onWeek}>Week view</Button>}
+          <Button variant="quiet" size="icon" icon aria-label="Close booking details" onClick={onClose}><Icon name="x" size={19} /></Button>
+        </div>
       </header>
       {children}
     </dialog>, document.body,
@@ -2319,10 +2323,9 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
     ? (cardInfo.uncollected_cents ?? localOutstandingCents)
     : (cardInfo?.outstanding_cents ?? localOutstandingCents);
   if (hidden) return (
-    <div className="calendar-booking-detail" style={styles.detailPanel}>
+    <div className="calendar-booking-detail booking-detail-refined" style={styles.detailPanel}>
       <div style={styles.detailHeader}>
         <h3 style={styles.detailTitle}>Client</h3>
-        <button onClick={onClose} aria-label="Close booking details" style={styles.detailClose}>×</button>
       </div>
       <div style={styles.detailGrid}>
         <div style={styles.detailRow}><span style={styles.detailLabel}>Treatment</span><span>{baseLabel(appointment) || 'Appointment'}</span></div>
@@ -2346,10 +2349,16 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
     </div>
   );
   return (
-    <div className="calendar-booking-detail" style={styles.detailPanel}>
+    <div className="calendar-booking-detail booking-detail-refined" style={styles.detailPanel}>
       <div style={styles.detailHeader}>
         <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="booking-heading-line">
           <h3 style={styles.detailTitle}>{appointment.clients?.first_name} {appointment.clients?.last_name || ''}</h3>
+            <span className="booking-status" style={{ background: getStatusColor(appointment.status) + '20', color: getStatusColor(appointment.status) }}>{appointment.status?.replace(/_/g, ' ')}</span>
+          </div>
+          <p className="booking-date">{appointment.starts_at && Number.isFinite(Date.parse(appointment.starts_at))
+            ? new Date(appointment.starts_at).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
+            : 'Appointment details'}</p>
           {appointment.client_id && onViewClient && (
             <button className="fl-tap"
               onClick={() => { onClose(); onViewClient(appointment.client_id); }}
@@ -2359,18 +2368,17 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
             </button>
           )}
         </div>
-        <button onClick={onClose} aria-label="Close booking details" style={styles.detailClose}>×</button>
       </div>
       {mode === 'detail' && (
         <>
-          <div style={styles.detailGrid}>
+          <div className="booking-section booking-overview" style={styles.detailGrid}>
             {/* The treatments ON this booking, not just the one it was booked
                 as. A patch test sits at the top with no remove control (there
                 would be no appointment left), and every extra she has added
                 gets its own line she can take back off. */}
-            <div style={{ ...styles.detailRow, alignItems: 'flex-start' }}>
+            <div className="booking-treatment" style={{ ...styles.detailRow, alignItems: 'flex-start' }}>
               <span style={styles.detailLabel}>{extraIds.length > 0 ? 'Treatments' : 'Treatment'}</span>
-              <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, maxWidth: '72%' }}>
+              <span className="booking-treatment-values">
                 {treatEditing ? (
                   <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, maxWidth: '100%' }}>
                     <select
@@ -2392,7 +2400,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                     <span style={styles.detailValue}>{baseTreatName || 'Not set'}</span>
                     <button
                       onClick={() => { setAddingTreat(false); setTreatEditing(true); loadTreatList(); }}
-                      style={dashedBtnStyle}
+                      style={bookingEditStyle}
                     >
                       Change
                     </button>
@@ -2433,7 +2441,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                   <button
                     onClick={() => { setTreatEditing(false); setAddingTreat(true); loadTreatList(); }}
                     disabled={treatSaving}
-                    style={dashedBtnStyle}
+                    style={bookingEditStyle}
                   >
                     {treatSaving ? 'Saving...' : '+ Add treatment'}
                   </button>
@@ -2451,7 +2459,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                 )}
               </span>
             </div>
-            <div style={styles.detailRow}>
+            <div className={timeEditing ? 'booking-time-editing' : undefined} style={styles.detailRow}>
               <span style={styles.detailLabel}>Time</span>
               {timeEditing ? (
                 <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5 }}>
@@ -2477,7 +2485,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                 <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={styles.detailValue}>{formatWallTime(appointment.starts_at)}{appointment.ends_at ? ` - ${formatWallTime(appointment.ends_at)}` : ''}</span>
                   <button className="fl-tap" onClick={openTimeEdit}
-                    style={{ background: 'none', border: `1.5px dashed ${COLORS.outlineVariant}`, borderRadius: 10, padding: '3px 9px', fontSize: 11, fontWeight: 600, color: COLORS.primary, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    style={bookingEditStyle}>
                     Move
                   </button>
                 </span>
@@ -2507,7 +2515,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               ) : (
                 <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={styles.detailValue}>{appointment.duration_minutes ? durationLabel(appointment.duration_minutes) : 'Not set'}</span>
-                  <button className="fl-tap" onClick={() => setDurEditing(true)} style={{ background: 'none', border: `1px dashed ${COLORS.outlineVariant}`, borderRadius: 10, padding: '3px 8px', color: COLORS.primary, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Change</button>
+                  <button className="fl-tap" onClick={() => setDurEditing(true)} style={bookingEditStyle}>Change</button>
                 </span>
               )}
             </div>
@@ -2537,91 +2545,58 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                   )}
                   <button className="fl-tap"
                     onClick={() => { setPriceInput(appointment.price_cents > 0 ? (appointment.price_cents / 100).toFixed(2) : ''); setPriceEditing(true); }}
-                    style={{ background: 'none', border: `1.5px dashed ${COLORS.outlineVariant}`, borderRadius: 10, padding: '4px 10px', fontSize: 12, fontWeight: 600, color: COLORS.primary, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    style={bookingEditStyle}>
                     {appointment.price_cents > 0 ? 'Edit' : 'Set price'}
                   </button>
                 </span>
               )}
             </div>
-            <div style={styles.detailRow}>
-              <span style={styles.detailLabel}>Status</span>
-              <span style={{ ...styles.statusBadge, background: getStatusColor(appointment.status) + '20', color: getStatusColor(appointment.status) }}>{appointment.status?.replace(/_/g, ' ')}</span>
-            </div>
-            {owesCents > 0 && (
-              <div style={styles.detailRow}>
-                <span style={styles.detailLabel}>Outstanding balance</span>
-                <span style={{ ...styles.detailValue, color: 'var(--accent, #92405e)' }}><Money pence={owesCents} /> from before</span>
-              </div>
-            )}
-            {paymentReviewSources.length > 0 && (
-              <div style={{ ...styles.detailRow, display: 'block' }}>
-                <span style={styles.detailLabel}>Payment records to check</span>
-                {paymentReviewSources.map(source => (
-                  <div key={source.appointment_id} style={{ ...styles.detailValue, marginTop: 6 }}>
-                    {source.starts_at && Number.isFinite(Date.parse(source.starts_at))
-                      ? new Date(source.starts_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
-                      : 'Previous appointment'}: <Money pence={source.cents} /> needs checking
-                  </div>
-                ))}
-                <p style={{ ...styles.detailLabel, margin: '8px 0 0', lineHeight: 1.5 }}>
-                  A payment record is missing. This does not confirm money is owed. Check the visit and any cash or bank payment before collecting anything.
-                </p>
-              </div>
-            )}
             {appointment.buffer_minutes > 0 && (
               <div style={styles.detailRow}><span style={styles.detailLabel}>Buffer</span><span style={styles.detailValue}>{appointment.buffer_minutes} min cleanup</span></div>
             )}
-            {appointment.ai_booked && <div style={styles.detailRow}><span style={styles.detailLabel}>Booked by</span><span style={styles.aiTag}>Florrie</span></div>}
-            {/* Booking audit trail: when it was made + how, and when the client
-                was confirmed. This is Ellie's evidence in a no-show dispute. */}
-            {appointment.created_at && (
-              <div style={styles.detailRow}>
-                <span style={styles.detailLabel}>Booked</span>
-                <span style={styles.detailValue}>
-                  {new Date(appointment.created_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                  {appointment.booked_via === 'booking_page' ? ' · online' : appointment.booked_via === 'manual' ? ' · by you' : ''}
-                </span>
-              </div>
-            )}
-            {/* Sent, or NOT sent — and either way she can do something about
-                it from here. A client messaged Ellie the evening before her
-                appointment ("all my other booking dates show up but not
-                tomorrow's") and there was nothing on this sheet but silence:
-                no row when nothing had gone, and no way to send it. */}
-            <div style={styles.detailRow}>
-              <span style={styles.detailLabel}>Confirmation</span>
-              <span style={styles.detailValue}>
-                {appointment.confirmation_sent_at
-                  ? `Sent ${new Date(appointment.confirmation_sent_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`
-                  : 'Never sent'}
-              </span>
-            </div>
           </div>
 
-          <div style={{ marginTop: 8 }}>
-            <Button
-              variant={appointment.confirmation_sent_at ? 'secondary' : 'primary'}
-              size="sm"
-              disabled={resending}
-              onClick={() => { hapticTap(); resendConfirmation(); }}
-              style={{ width: '100%' }}
-            >
-              {resending ? 'Sending…'
-                : appointment.confirmation_sent_at ? 'Send the confirmation again' : 'Send the confirmation now'}
-            </Button>
-            {resendResult && (
-              <p style={{ fontSize: 11.5, lineHeight: 1.5, margin: '6px 2px 0',
-                color: resendResult.ok ? 'var(--success, #386F52)' : 'var(--danger, #9E2B32)' }}>
-                {resendResult.text}
-              </p>
-            )}
-          </div>
+          {/* Finishing, calling it off, or moving it. Only for a booking that
+              has not happened yet: none of these three mean anything on one
+              that is already done. */}
+          {canComplete && (
+            <div className="booking-visit-actions">
+              <button onClick={handleQuickComplete} disabled={saving} style={{ ...styles.completeBtn, opacity: saving ? 0.7 : 1 }}>
+                {saving ? 'Saving…' : 'Mark as complete'}
+              </button>
+              <button onClick={() => { hapticTap(); handleMarkNoShow(); }} disabled={saving}
+                className="booking-no-show fl-tap" style={bookingEditStyle}>
+                No-show
+              </button>
+              {/* Reschedule: move the client to another day/time instead of
+                  marking them a no-show (traffic, swapped to Friday, etc.). */}
+              <button className="fl-tap" onClick={openTimeEdit} disabled={saving}
+                style={{ ...styles.completeBtn, marginTop: 0, background: 'var(--bg-input, #F4EDE6)', color: COLORS.primary, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 13, padding: '10px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                <Icon name={iconName('event_repeat')} size={16} inline />
+                Reschedule
+              </button>
+              {/* STAYS behind canComplete, unlike everything below it. It leads
+                  to setMode('completing'), and that screen's save re-PATCHes
+                  status:'completed', which the backend answers by calling
+                  increment_client_visit again. On an appointment that is already
+                  completed that would count the visit twice and add the price to
+                  the client's lifetime spend a second time. Correcting a wrongly
+                  recorded payment method after the fact is worth having, but not
+                  at the cost of inventing visits, so it waits for a guarded
+                  complete path. */}
+              <button className="fl-tap" onClick={() => setMode('completing')}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted, #6B5D54)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: '2px 0' }}>
+                Add a payment note or photo
+              </button>
+            </div>
+          )}
+          <section className="booking-care" aria-label="Booking preparation">
           <AppointmentPreparation appointmentId={appointment.id} clientId={appointment.client_id} />
           {/* Consultation form. Two states worth a line on this sheet: there
               is one on file (read it here, in place), or the treatment needs
               one and there is nothing (say so BEFORE the client arrives). */}
           {consultation && (consultation.response || consultation.requires_consultation) && (
-            <div style={{ marginTop: 14, border: `1.5px solid ${COLORS.outlineVariant}`, borderRadius: 10, padding: '10px 12px' }}>
+            <div className="booking-consultation">
               <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #574A42)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>Consultation</div>
 
               {consultation.response ? (
@@ -2717,6 +2692,30 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               )}
             </div>
           )}
+          </section>
+          {(canTakeMoney || owesCents > 0 || paymentReviewSources.length > 0 || paymentLinkUrl) && <section className="booking-section booking-payments" aria-label="Payments">
+            <h4 className="booking-section-title">Payments</h4>
+            {owesCents > 0 && (
+              <div style={styles.detailRow}>
+                <span style={styles.detailLabel}>Outstanding balance</span>
+                <span style={{ ...styles.detailValue, color: 'var(--accent, #92405e)' }}><Money pence={owesCents} /> from before</span>
+              </div>
+            )}
+            {paymentReviewSources.length > 0 && (
+              <div style={{ ...styles.detailRow, display: 'block' }}>
+                <span style={styles.detailLabel}>Payment records to check</span>
+                {paymentReviewSources.map(source => (
+                  <div key={source.appointment_id} style={{ ...styles.detailValue, marginTop: 6 }}>
+                    {source.starts_at && Number.isFinite(Date.parse(source.starts_at))
+                      ? new Date(source.starts_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
+                      : 'Previous appointment'}: <Money pence={source.cents} /> needs checking
+                  </div>
+                ))}
+                <p style={{ ...styles.detailLabel, margin: '8px 0 0', lineHeight: 1.5 }}>
+                  A payment record is missing. This does not confirm money is owed. Check the visit and any cash or bank payment before collecting anything.
+                </p>
+              </div>
+            )}
           {/* Payments, all in one place: the plain sum for THIS booking (total,
               paid, left to collect) plus what card fees would take. Outstanding
               and fees come from the same /card endpoint the charge buttons use,
@@ -2738,8 +2737,8 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
             const assumedOnly = assumedCents > 0;
             const fees = cardInfo?.fees;
             return (
-              <div style={{ marginTop: 14, border: `1.5px solid ${COLORS.outlineVariant}`, borderRadius: 10, padding: '10px 12px' }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #574A42)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>Payments</div>
+              <div className="booking-payment-summary">
+
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', fontSize: 13 }}>
                   <span>Total</span>
                   <span style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}><Money pence={(appointment.price_cents || 0)} /></span>
@@ -2793,64 +2792,6 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               </div>
             );
           })()}
-          {/* Persistent notes - always visible, save without completing */}
-          <div style={{ marginTop: 14 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #574A42)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Notes</span>
-              {notes !== (appointment.beautician_notes || '') && (
-                <button className="fl-tap" onClick={handleSaveNote}
-                  style={{ fontSize: 11, padding: '3px 10px', borderRadius: 'var(--radius-xs)', border: 'none', background: noteSaved ? 'var(--success-bg, #E9F0EB)' : 'var(--accent)', color: noteSaved ? 'var(--success, #386F52)' : '#fff', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, transition: 'all 0.15s' }}>
-                  {noteSaved ? 'Saved' : 'Save'}
-                </button>
-              )}
-              {noteSaved && notes === (appointment.beautician_notes || '') && (
-                <span style={{ fontSize: 11, color: 'var(--success, #386F52)', fontWeight: 600 }}><Icon name="check" size={14} inline /> Saved</span>
-              )}
-            </div>
-            <textarea
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              placeholder="Colour mix, skin notes, preferences, anything worth remembering..."
-              rows={3}
-              style={{ minHeight: 44, width: '100%', padding: '9px 11px', borderRadius: 10, border: '1.5px solid var(--border, #E8DDD4)', fontSize: 13, fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box', color: 'var(--text, #241B17)', background: 'var(--bg-input, #F4EDE6)' }}
-              onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); handleSaveNote(); } }}
-            />
-            <p style={{ fontSize: 11, color: 'var(--text-muted, #6B5D54)', margin: '4px 0 0' }}>⌘S to save · notes shown next time this client books</p>
-          </div>
-          {/* Finishing, calling it off, or moving it. Only for a booking that
-              has not happened yet: none of these three mean anything on one
-              that is already done. */}
-          {canComplete && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
-              <button onClick={handleQuickComplete} disabled={saving} style={{ ...styles.completeBtn, opacity: saving ? 0.7 : 1 }}>
-                {saving ? 'Saving…' : 'Mark as complete'}
-              </button>
-              <button className="fl-tap" onClick={() => { hapticTap(); handleMarkNoShow(); }} disabled={saving}
-                style={{ ...styles.completeBtn, marginTop: 0, background: 'var(--danger)', fontSize: 12, padding: '8px 0' }}>
-                No-show
-              </button>
-              {/* Reschedule: move the client to another day/time instead of
-                  marking them a no-show (traffic, swapped to Friday, etc.). */}
-              <button className="fl-tap" onClick={openTimeEdit} disabled={saving}
-                style={{ ...styles.completeBtn, marginTop: 0, background: 'var(--bg-input, #F4EDE6)', color: COLORS.primary, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 13, padding: '10px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                <Icon name={iconName('event_repeat')} size={16} inline />
-                Reschedule
-              </button>
-              {/* STAYS behind canComplete, unlike everything below it. It leads
-                  to setMode('completing'), and that screen's save re-PATCHes
-                  status:'completed', which the backend answers by calling
-                  increment_client_visit again. On an appointment that is already
-                  completed that would count the visit twice and add the price to
-                  the client's lifetime spend a second time. Correcting a wrongly
-                  recorded payment method after the fact is worth having, but not
-                  at the cost of inventing visits, so it waits for a guarded
-                  complete path. */}
-              <button className="fl-tap" onClick={() => setMode('completing')}
-                style={{ background: 'none', border: 'none', color: 'var(--text-muted, #6B5D54)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: '2px 0' }}>
-                Add a payment note or photo
-              </button>
-            </div>
-          )}
           {/* MONEY, on its own predicate. 27 August 2026: all of this used to
               live inside canComplete, so the moment Ellie marked a booking
               complete every way of collecting for it disappeared. She asked her
@@ -2875,7 +2816,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               {appointment.payment_type !== 'full' && collectableCents >= 30 && (
                 <button className="fl-tap" onClick={() => { hapticTap(); handleChargeBalance(); }} disabled={chargingBalance}
                   style={{ ...styles.completeBtn, marginTop: 0, background: 'var(--bg-input, #F4EDE6)', color: COLORS.primary, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 13, padding: '10px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                  <Icon name={iconName('credit_card')} size={16} inline />
+                  <Icon name="card" size={16} inline />
                   {chargingBalance ? 'Charging...' : `Charge £${(collectableCents / 100).toFixed(2)} balance to card`}
                 </button>
               )}
@@ -2946,7 +2887,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                 </div>
               )}
               {cardInfo && !cardInfo.hasCard && cardInfo.reason === 'no_card_on_file' && (
-                <div style={{ border: `1px dashed ${COLORS.outlineVariant}`, borderRadius: 10, padding: '10px 12px' }}>
+                <div className="booking-card-on-file">
                   <p style={{ fontSize: 12, color: COLORS.stone400, margin: '0 0 8px', lineHeight: 1.45 }}>
                     No card on file for this client, so there's nothing to charge if they don't turn up.
                     Send them a link to add one. It saves the card, it doesn't take any money.
@@ -2964,50 +2905,43 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               )}
             </div>
           )}
-          {/* Delete a mistaken booking. Destructive, confirmed, and the backend
-              refuses (409) if a deposit/fee is attached. */}
-          <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${COLORS.outlineVariant}33` }}>
-            <button className="fl-tap" onClick={() => { hapticTap(); handleDeleteAppointment(); }} disabled={deleting}
-              style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: '1px solid #FECACA', background: '#FEF2F2', color: '#B91C1C', fontSize: 13, fontWeight: 600, cursor: deleting ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: deleting ? 0.6 : 1 }}>
-              <Icon name={iconName('delete')} size={16} inline />
-              {deleting ? 'Deleting…' : 'Delete appointment'}
-            </button>
-          </div>
-          {/* No-show fee: one-tap charge, or a clear reason she can't. */}
-          {noShowCharging && (
-            <div style={{ marginTop: 12, padding: 12, borderRadius: 10, background: 'var(--danger-bg)', border: '1px solid var(--danger)' }}>
-              {noShowFeeInfo?.can_charge ? (
-                <>
-                  <p style={{ fontSize: 13, color: 'var(--danger-text)', margin: '0 0 8px' }}>Charge {appointment.clients?.first_name || 'this client'} a no-show fee?</p>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button className="fl-tap" onClick={handleChargeNoShow} disabled={saving}
-                      style={{ flex: 1, padding: '8px', borderRadius: 10, border: 'none', background: 'var(--danger)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                      {saving ? 'Charging...' : `Charge £${((noShowFeeInfo.amount_cents || 0) / 100).toFixed(2)}`}
-                    </button>
-                    <button className="fl-tap" onClick={() => setNoShowCharging(false)}
-                      style={{ flex: 1, padding: '8px', borderRadius: 10, border: '1px solid var(--border-light)', background: 'var(--bg-card)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
-                      Not this time
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <p style={{ fontSize: 13, color: 'var(--danger-text)', margin: '0 0 4px', fontWeight: 600 }}>Can't charge a no-show fee</p>
-                  <p style={{ fontSize: 12, color: 'var(--danger-text)', margin: '0 0 8px', lineHeight: 1.45 }}>
-                    {noShowFeeInfo?.reason === 'no_card'
-                      ? 'There\u2019s no card saved for this client, so there\u2019s nothing to charge. To protect yourself against no-shows, turn on deposits (card required at booking) in Settings.'
-                      : 'Your cancellation policy has no no-show fee set, so there\u2019s nothing to charge. You can set one in Settings > Policy.'}
-                  </p>
-                  <button className="fl-tap" onClick={() => setNoShowCharging(false)}
-                    style={{ width: '100%', padding: '8px', borderRadius: 10, border: '1px solid var(--border-light)', background: 'var(--bg-card)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
-                    Got it
-                  </button>
-                </>
-              )}
+          {/* Payment link result */}
+          {paymentLinkUrl && (
+            <div style={{ marginTop: 12, padding: 12, borderRadius: 10, background: 'var(--success-bg)', border: '1px solid #C6F6D5' }}>
+              <p style={{ fontSize: 13, color: 'var(--success-text)', margin: '0 0 8px', fontWeight: 600 }}>Payment link ready</p>
+              <input readOnly value={paymentLinkUrl} style={{ minHeight: 44, width: '100%', padding: '8px', borderRadius: 'var(--radius-xs)', border: '1px solid #C6F6D5', fontSize: 12, boxSizing: 'border-box' }}
+                onClick={e => { e.target.select(); navigator.clipboard?.writeText?.(paymentLinkUrl); }} />
+              <p style={{ fontSize: 11, color: 'var(--success-text)', margin: '6px 0 0' }}>Tap to copy. Send to client via WhatsApp or SMS.</p>
             </div>
           )}
+          </section>}
+          {/* Persistent notes - always visible, save without completing */}
+          <div className="booking-section booking-notes">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #574A42)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Notes</span>
+              {notes !== (appointment.beautician_notes || '') && (
+                <button className="fl-tap" onClick={handleSaveNote}
+                  style={{ fontSize: 11, padding: '3px 10px', borderRadius: 'var(--radius-xs)', border: 'none', background: noteSaved ? 'var(--success-bg, #E9F0EB)' : 'var(--accent)', color: noteSaved ? 'var(--success, #386F52)' : '#fff', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, transition: 'all 0.15s' }}>
+                  {noteSaved ? 'Saved' : 'Save'}
+                </button>
+              )}
+              {noteSaved && notes === (appointment.beautician_notes || '') && (
+                <span style={{ fontSize: 11, color: 'var(--success, #386F52)', fontWeight: 600 }}><Icon name="check" size={14} inline /> Saved</span>
+              )}
+            </div>
+            <textarea
+              aria-label="Appointment notes"
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="Colour mix, skin notes, preferences, anything worth remembering..."
+              rows={3}
+              style={{ minHeight: 44, width: '100%', padding: '9px 11px', borderRadius: 10, border: '1.5px solid var(--border, #E8DDD4)', fontSize: 13, fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box', color: 'var(--text, #241B17)', background: 'var(--bg-input, #F4EDE6)' }}
+              onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); handleSaveNote(); } }}
+            />
+            <p style={{ fontSize: 11, color: 'var(--text-muted, #6B5D54)', margin: '4px 0 0' }}>Notes shown next time this client books. <span className="booking-keyboard-hint">⌘S to save.</span></p>
+          </div>
           {/* Client booking-management link: copy to paste anywhere, or text it */}
-          <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${COLORS.outlineVariant}55` }}>
+          <div className="booking-section booking-client-links">
             <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: COLORS.stone400, marginBottom: 8 }}>
               {needsPatchTest ? 'Patch test + booking link' : 'Booking link for the client'}
             </div>
@@ -3045,15 +2979,53 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                 : 'The link they use to view, reschedule or cancel. Copy it to paste into WhatsApp, or send it to them.'}
             </p>
           </div>
-          {/* Payment link result */}
-          {paymentLinkUrl && (
-            <div style={{ marginTop: 12, padding: 12, borderRadius: 10, background: 'var(--success-bg)', border: '1px solid #C6F6D5' }}>
-              <p style={{ fontSize: 13, color: 'var(--success-text)', margin: '0 0 8px', fontWeight: 600 }}>Payment link ready</p>
-              <input readOnly value={paymentLinkUrl} style={{ minHeight: 44, width: '100%', padding: '8px', borderRadius: 'var(--radius-xs)', border: '1px solid #C6F6D5', fontSize: 12, boxSizing: 'border-box' }}
-                onClick={e => { e.target.select(); navigator.clipboard?.writeText?.(paymentLinkUrl); }} />
-              <p style={{ fontSize: 11, color: 'var(--success-text)', margin: '6px 0 0' }}>Tap to copy. Send to client via WhatsApp or SMS.</p>
+          <details className="booking-history" open={!appointment.confirmation_sent_at}>
+            <summary>Booking history & confirmation</summary>
+            {appointment.ai_booked && <div style={styles.detailRow}><span style={styles.detailLabel}>Booked by</span><span style={styles.aiTag}>Florrie</span></div>}
+            {/* Booking audit trail: when it was made + how, and when the client
+                was confirmed. This is Ellie's evidence in a no-show dispute. */}
+            {appointment.created_at && (
+              <div style={styles.detailRow}>
+                <span style={styles.detailLabel}>Booked</span>
+                <span style={styles.detailValue}>
+                  {new Date(appointment.created_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  {appointment.booked_via === 'booking_page' ? ' · online' : appointment.booked_via === 'manual' ? ' · by you' : ''}
+                </span>
+              </div>
+            )}
+            {/* Sent, or NOT sent — and either way she can do something about
+                it from here. A client messaged Ellie the evening before her
+                appointment ("all my other booking dates show up but not
+                tomorrow's") and there was nothing on this sheet but silence:
+                no row when nothing had gone, and no way to send it. */}
+            <div style={styles.detailRow}>
+              <span style={styles.detailLabel}>Confirmation</span>
+              <span style={styles.detailValue}>
+                {appointment.confirmation_sent_at
+                  ? `Sent ${new Date(appointment.confirmation_sent_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`
+                  : 'Never sent'}
+              </span>
             </div>
-          )}
+          <div style={{ marginTop: 8 }}>
+            <Button
+              variant={appointment.confirmation_sent_at ? 'secondary' : 'primary'}
+              size="sm"
+              disabled={resending}
+              onClick={() => { hapticTap(); resendConfirmation(); }}
+              style={{ width: '100%' }}
+            >
+              {resending ? 'Sending…'
+                : appointment.confirmation_sent_at ? 'Send the confirmation again' : 'Send the confirmation now'}
+            </Button>
+            {resendResult && (
+              <p style={{ fontSize: 11.5, lineHeight: 1.5, margin: '6px 2px 0',
+                color: resendResult.ok ? 'var(--success, #386F52)' : 'var(--danger, #9E2B32)' }}>
+                {resendResult.text}
+              </p>
+            )}
+          </div>
+          </details>
+          <section className="booking-other-actions" aria-label="Appointment actions">
           {/* Show status for already no-show or completed */}
           {appointment.status === 'no_show' && (
             <div style={{ marginTop: 12, padding: 10, borderRadius: 10, background: 'var(--danger-bg)', textAlign: 'center' }}>
@@ -3070,16 +3042,59 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               no-show at the end of the day - the backend reverses the takings
               and charges the policy fee, so the Money tab updates. */}
           {isCompleted && (
-            <div style={{ marginTop: 12, padding: 10, borderRadius: 10, background: 'var(--success-bg, #E9F0EB)', textAlign: 'center' }}>
-              <span style={{ fontSize: 13, color: 'var(--success-text, #386F52)', fontWeight: 600 }}>
-                {appointment.payment_method ? 'Completed' : 'Done (assumed)'}
+            <div className="booking-correction">
+              <span style={{ fontSize: 12, color: COLORS.stone400, fontWeight: 500 }}>
+                {appointment.payment_method ? 'Visit marked complete' : 'Completed automatically'}
               </span>
               <button className="fl-tap" onClick={() => { hapticTap(); handleMarkNoShow(); }} disabled={saving}
-                style={{ ...styles.completeBtn, marginTop: 8, background: 'var(--bg-input, #F4EDE6)', color: COLORS.primary, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 12, padding: '8px 0' }}>
+                style={{ ...bookingEditStyle, background: 'transparent' }}>
                 Actually a no-show
               </button>
             </div>
           )}
+          {/* No-show fee: one-tap charge, or a clear reason she can't. */}
+          {noShowCharging && (
+            <div style={{ marginTop: 12, padding: 12, borderRadius: 10, background: 'var(--danger-bg)', border: '1px solid var(--danger)' }}>
+              {noShowFeeInfo?.can_charge ? (
+                <>
+                  <p style={{ fontSize: 13, color: 'var(--danger-text)', margin: '0 0 8px' }}>Charge {appointment.clients?.first_name || 'this client'} a no-show fee?</p>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button className="fl-tap" onClick={handleChargeNoShow} disabled={saving}
+                      style={{ flex: 1, padding: '8px', borderRadius: 10, border: 'none', background: 'var(--danger)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      {saving ? 'Charging...' : `Charge £${((noShowFeeInfo.amount_cents || 0) / 100).toFixed(2)}`}
+                    </button>
+                    <button className="fl-tap" onClick={() => setNoShowCharging(false)}
+                      style={{ flex: 1, padding: '8px', borderRadius: 10, border: '1px solid var(--border-light)', background: 'var(--bg-card)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      Not this time
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p style={{ fontSize: 13, color: 'var(--danger-text)', margin: '0 0 4px', fontWeight: 600 }}>Can't charge a no-show fee</p>
+                  <p style={{ fontSize: 12, color: 'var(--danger-text)', margin: '0 0 8px', lineHeight: 1.45 }}>
+                    {noShowFeeInfo?.reason === 'no_card'
+                      ? 'There\u2019s no card saved for this client, so there\u2019s nothing to charge. To protect yourself against no-shows, turn on deposits (card required at booking) in Settings.'
+                      : 'Your cancellation policy has no no-show fee set, so there\u2019s nothing to charge. You can set one in Settings > Policy.'}
+                  </p>
+                  <button className="fl-tap" onClick={() => setNoShowCharging(false)}
+                    style={{ width: '100%', padding: '8px', borderRadius: 10, border: '1px solid var(--border-light)', background: 'var(--bg-card)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    Got it
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+          {/* Delete a mistaken booking. Destructive, confirmed, and the backend
+              refuses (409) if a deposit/fee is attached. */}
+          <div className="booking-delete">
+            <button className="fl-tap" onClick={() => { hapticTap(); handleDeleteAppointment(); }} disabled={deleting}
+              style={{ ...bookingEditStyle, width: '100%', background: 'transparent', color: 'var(--danger)', opacity: deleting ? 0.6 : 1 }}>
+              <Icon name={iconName('delete')} size={16} inline />
+              {deleting ? 'Deleting…' : 'Delete appointment'}
+            </button>
+          </div>
+          </section>
         </>
       )}
       {mode === 'completing' && (
