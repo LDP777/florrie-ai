@@ -16,9 +16,16 @@ async function check(hidden=false,fail=false){
  await context.route('**/*',r=>new URL(r.request().url()).origin===origin&&r.request().method()==='GET'?r.continue():r.abort());
  await context.addInitScript(calendarFixtureSource(bundleSupabaseUrl(dist),'populated'));
  await context.addInitScript(({hidden,fail})=>{
+  // The calendar fixture freezes August; these payment examples are November.
+  // Align the clock so a recorded fee is not correctly rejected as future income.
+  const CalendarDate=Date;
+  window.Date=class extends CalendarDate {
+   constructor(...args){super(...(args.length?args:['2026-11-17T12:00:00Z']));}
+   static now(){return new CalendarDate('2026-11-17T12:00:00Z').getTime();}
+  };
   localStorage.setItem('florrie:hide-client-details:v1',String(hidden));
   const old=window.fetch;let reads=0;window.__feeWrites=[];
-  const json=(v,status=200)=>new Response(JSON.stringify(v),{status,headers:{'content-type':'application/json'}});
+  const json=(v,status=200)=>new Response(JSON.stringify(v),{status,headers:{'content-type':'application/json',...(Array.isArray(v)?{'content-range':`0-${Math.max(0,v.length-1)}/${v.length}`}:{})}});
   const payments=[
    {appointmentId:'paid',clientName:'Fictional Alex',startsAt:'2026-11-17T12:45:00Z',payment:{status:'collected',label:'Collected',amountCents:2400,collectedAt:'2026-11-09T20:20:24Z',message:'This fee is recorded as collected. No further payment has been taken for this cancellation.'}},
    {appointmentId:'pending',clientName:'Fictional Morgan',startsAt:'2026-11-18T11:00:00Z',payment:{status:'pending',label:'Pending',amountCents:1200,message:'Payment is awaiting confirmation. Do not collect it again while this is being checked.'}},
