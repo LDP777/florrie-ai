@@ -47,7 +47,7 @@ export default function More() {
     {!searching && <>
       <section className="more-shortcuts" aria-labelledby="more-shortcuts-title">
         <div className="more-shortcuts-heading"><h2 id="more-shortcuts-title">Close to hand</h2></div>
-        <div className="more-shortcut-grid">{featured.map(item => <Link key={item.path} to={item.path} onClick={() => recordVisit(item)} className="more-shortcut"><span className="more-shortcut-icon"><Icon name={iconName(item.matIcon)} size={22} /></span><span><strong>{item.label}</strong></span><Icon name={iconName('arrow_forward')} size={17} /></Link>)}</div>
+        <div className="more-shortcut-grid">{featured.map(item => <Link key={item.path} to={item.path} onClick={() => recordVisit(item)} className="more-shortcut"><span className="more-shortcut-icon"><Icon name={iconName(item.matIcon)} size={22} /></span><span><strong>{item.label}</strong></span></Link>)}</div>
       </section>
       {recentTools.length > 0 && <section className="more-recents" aria-labelledby="more-recents-title"><h2 id="more-recents-title" className="more-eyebrow">Recently opened</h2><div className="more-recent-list">{recentTools.map(item => <Link key={item.path} to={item.path} onClick={() => recordVisit(item)} className="more-recent-link"><Icon name={iconName(item.matIcon)} size={16} /><span>{item.label}</span></Link>)}</div></section>}
     </>}

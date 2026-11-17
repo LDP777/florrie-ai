@@ -122,6 +122,7 @@ try {
    }
    if(kind==='more') {
     assert.equal(await page.locator('.more-shortcut').count(),6);
+    assert.ok(await page.locator('.more-shortcut').evaluateAll(cards=>cards.every(card=>[...card.querySelectorAll('strong,svg')].every(el=>el.getBoundingClientRect().right<=card.getBoundingClientRect().right-8 && el.scrollWidth<=el.clientWidth+1))),'Shortcut labels and icons stay inside their own cards');
     assert.equal(await page.locator('.more-recent-link[href="/clients"]').count(),0,'Recent pages do not duplicate a shortcut');
     assert.equal(await page.locator('.more-recent-link[href="/hours"]').count(),1,'Other recent pages stay available');
     const search=page.getByRole('searchbox',{name:'Search More tools'});
