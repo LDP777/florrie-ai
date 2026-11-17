@@ -155,14 +155,18 @@ try {
     assert.equal(sent[0].body.goal,'bookings');assert.equal(sent[0].body.treatment_id,null);
     await close();console.log('PASS diary suggestion creates an explicit, source-bound campaign without publishing');
   }
-  for(const width of [390,1024]) {
+  for(const width of [320,390,1024]) {
     const {page,close}=await fixture({width});
     await page.getByRole('button',{name:'Brief my team',exact:true}).waitFor();
     assert.deepEqual(await writes(page),[],'Opening Content never generates or writes');
     assert.match(await page.locator('.fl-team-hero h2').evaluate(el=>getComputedStyle(el).fontFamily),/Playfair Display/,'Existing display font is retained');
     assert.match(await page.locator('.fl-team-hero-copy > p').evaluate(el=>getComputedStyle(el).fontFamily),/Plus Jakarta Sans/,'Existing body font is retained');
     assert.equal(await page.locator('.fl-team-about').getAttribute('open'),null);
-    assert.equal(await page.getByRole('navigation',{name:'Content workflow'}).getByRole('button').count(),4);
+    assert.equal(await page.getByRole('navigation',{name:'More content tools'}).getByRole('link',{name:'Inbox',exact:true}).getAttribute('href'),'/inbox');
+    assert.equal(await page.getByRole('navigation',{name:'More content tools'}).getByRole('link',{name:'Reviews',exact:true}).getAttribute('href'),'/reviews');
+    await page.getByRole('button',{name:/^Booking results/}).click();
+    await page.getByRole('button',{name:'See all posts',exact:true}).click();
+    assert.deepEqual(await page.evaluate(()=>fixture.callbacks.map(item=>item.type)),['results','posts'],'Results and saved posts remain one action away');
     await fits(page);await screenshot(page,`content-team-home-${width}`);
     await openBrief(page);
     assert.deepEqual(await writes(page),[],'Choosing a brief remains local until explicit save');
@@ -276,9 +280,8 @@ try {
     if(failure==='unavailable')await page.getByText('The new team is not available yet',{exact:true}).waitFor();
     else await page.getByRole('alert').waitFor();
     await page.getByRole('button',{name:'See all posts',exact:true}).click();
-    await page.getByText('Make quick posts from saved photos & notes',{exact:true}).click();
     await page.getByRole('button',{name:'Prepare my next posts',exact:true}).click();
-    await page.getByText('Your work is the starting point.',{exact:true}).click();
+    await page.getByRole('button',{name:/^Add a treatment photo/}).click();
     await page.getByText('Booking results could not be checked.',{exact:true}).waitFor();
     assert.equal(await page.getByText(/0 confirmed through tracked post links/).count(),0,'Missing results cannot become zero bookings');
     assert.equal(await page.getByText('Your brief is ready',{exact:true}).count(),0,'Unavailable/malformed work cannot claim readiness');

@@ -336,14 +336,13 @@ function threadMatches(t, q) {
     || (handle ? handle.toLowerCase().includes(q) : false);
 }
 
-// Chip order, left to right, and the order the All view stacks its sections:
-// urgent first, then people she knows, then strangers, then the fluff.
+// Keep the default filter visible on small phones; section ordering stays urgent first.
 const SEGMENT_TABS = [
+  { key: 'all', label: 'All' },
   { key: 'needs', label: 'Needs you' },
   { key: 'client', label: 'Clients' },
   { key: 'new', label: 'New' },
   { key: 'social', label: 'Social' },
-  { key: 'all', label: 'All' },
 ];
 const SECTION_TITLES = { needs: 'Needs you', client: 'Clients', new: 'New', social: 'Social' };
 
@@ -641,7 +640,7 @@ function ThreadList({ sections, visibleCount, error, search, onSearch, onOpen, o
   return (
     <>
       <div style={S.headerWrap}>
-        <PageHeader title="Inbox" subtitle="One thread per client. Florrie keeps the quiet ones tidy." />
+        <PageHeader title="Inbox" />
       </div>
 
       {/* The two spaces. Clients wears its waiting count; Instagram wears its
@@ -684,6 +683,7 @@ function ThreadList({ sections, visibleCount, error, search, onSearch, onOpen, o
         <Icon name={iconName('search')} inline style={S.searchIcon} />
         <input
           type="search"
+          aria-label="Search conversations"
           value={hidden ? '' : search}
           disabled={hidden}
           onChange={e => onSearch(e.target.value)}
@@ -696,7 +696,7 @@ function ThreadList({ sections, visibleCount, error, search, onSearch, onOpen, o
           chips: it is pre-triaged into leads and a foldaway pile, not a
           filterable list to work through. */}
       {inClients && (
-        <div className="inbox-seg-row" style={S.filterRow}>
+        <div className="inbox-seg-row" role="group" aria-label="Filter conversations" style={S.filterRow}>
           {SEGMENT_TABS.map(tab => (
             <FilterChip
               key={tab.key}
@@ -1375,16 +1375,14 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
 
       {showWaWindowHint && (
         <div style={S.waHint}>
-          WhatsApp is outside the 24h window. Send a template or switch channels.
+          WhatsApp’s reply window has closed. Use a template or another channel.
           <Link to="/whatsapp" style={S.waHintLink}>Go to templates</Link>
         </div>
       )}
 
       {showIgWindowHint && (
         <div style={S.waHint}>
-          Instagram has closed this conversation. Instagram only lets you reply for 24
-          hours after someone messages you, and there are no templates to get round it,
-          so this will not send until she messages you again. Try another channel.
+          Instagram’s 24-hour reply window has closed. Use another channel, or wait for a new message.
         </div>
       )}
 
@@ -1600,19 +1598,11 @@ function nextApptLabel(iso) {
 
 function ConvoHeader({ onBack, embedded, clientName, navigate, clientId, channel = null, meta = null, initialAutonomy = null, handle = null }) {
   const { hidden } = useClientPrivacy();
-  const metaBits = [];
-  // The handle leads the meta line, directly under the name, so she can place
-  // an Instagram contact without opening their profile.
-  if (handle && !hidden) metaBits.push(handle);
-  if (meta) {
-    if (meta.visits >= 3) metaBits.push('Regular');
-    metaBits.push(`${meta.visits} visit${meta.visits === 1 ? '' : 's'}`);
-    // "last in" + relDays produced "last in 26 days ago", and "last in today"
-    // and "last in yesterday" for the recent cases. relDays already carries the
-    // preposition, so the label must not add a second one.
-    if (meta.last_visit_at) metaBits.push(`last visit ${relDays(meta.last_visit_at)}`);
-
-  }
+  // Keep the next useful detail beside the name. Full visit history is in Profile.
+  const visitSummary = meta?.next_appointment_at
+    ? `Next: ${nextApptLabel(meta.next_appointment_at)}`
+    : meta?.last_visit_at ? `Last visit ${relDays(meta.last_visit_at)}`
+    : Number.isFinite(meta?.visits) ? `${meta.visits} visit${meta.visits === 1 ? '' : 's'}` : null;
   return (
     <div className="fl-chat-header" style={S.convoHeader}>
       <div style={S.convoTopRow}>
@@ -1629,17 +1619,15 @@ function ConvoHeader({ onBack, embedded, clientName, navigate, clientId, channel
             <span style={S.convoName}><PrivateText placeholder="Client">{clientName}</PrivateText></span>
             {channel && <ChannelMark channel={channel} size={16} />}
           </span>
-          {metaBits.length > 0 && (
-            <span style={S.metaLine}>{metaBits.join(' \u00B7 ')}</span>
-          )}
+          {handle && !hidden && <span style={S.metaLine}>{handle}</span>}
+          {visitSummary && !hidden && <span className="fl-chat-visit" style={S.metaLine}>{visitSummary}</span>}
         </div>
         {clientId && (
-          <button onClick={() => navigate('/clients', { state: { clientId } })} style={S.viewProfileBtn}>
-            View profile
+          <button onClick={() => navigate('/clients', { state: { clientId } })} style={S.viewProfileBtn} aria-label="View profile">
+            Profile
           </button>
         )}
       </div>
-      {meta?.next_appointment_at && <div className="fl-chat-next"><Icon name="calendar" size={14} /><span>Next visit</span><strong>{nextApptLabel(meta.next_appointment_at)}</strong></div>}
       {clientId && meta && !meta.next_appointment_at && (
         <div style={S.headerActions}>
           <button
@@ -1654,9 +1642,9 @@ function ConvoHeader({ onBack, embedded, clientName, navigate, clientId, channel
       )}
       {clientId && (channel === 'email' ? (
         hidden ? <PrivateSection placeholder="Client controls hidden" /> :
-          <div className="fl-chat-settings" style={S.controlsWrap}>
-            <p style={{ margin: '8px 0', fontSize: 13 }}>You send email replies. Florrie never sends them automatically.</p>
-            <Link to="/connections" style={{ color: 'var(--accent)', fontSize: 13 }}>Email connection &amp; draft settings</Link>
+          <div className="fl-chat-settings fl-chat-email-settings" style={S.controlsWrap}>
+            <span><Icon name="user" size={14}/> You send email replies</span>
+            <Link to="/connections" aria-label="Email connection & draft settings">Email settings<Icon name="chevron-right" size={13}/></Link>
           </div>
       ) : <ClientControls clientId={clientId} initialAutonomy={initialAutonomy} />)}
     </div>
@@ -2262,7 +2250,7 @@ const S = {
   },
   viewProfileBtn: {
     background: 'var(--tone-2, #f6e7dd)', border: 'none', color: 'var(--accent, #92405e)',
-    fontSize: 11, fontWeight: 700, padding: '6px 12px', minHeight: 30, borderRadius: 999,
+    fontSize: 11, fontWeight: 700, padding: '6px 10px', minHeight: 44, borderRadius: 999,
     display: 'inline-flex', alignItems: 'center', cursor: 'pointer', fontFamily: 'inherit',
     whiteSpace: 'nowrap', flexShrink: 0, WebkitTapHighlightColor: 'transparent',
   },

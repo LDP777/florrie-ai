@@ -259,12 +259,11 @@ function ContentTeamForOwner({ owner, board, loading: sourcesLoading, busy: prep
       <div className="fl-team-hero-copy">
         <span className="fl-team-eyebrow"><Icon name="flower" size={19}/> YOUR CREATIVE TEAM</span>
         <h2>More you.<br/><em>Less to do.</em></h2>
-        <p>Turn a quiet space in your diary, a treatment photo or useful advice into a campaign your clients can act on.</p>
+        <p>Plans, captions and Reel ideas for your salon. You choose what goes out.</p>
         <div className="fl-team-hero-actions">
           {run || savedPosts.length ? <Button disabled={hidden} onClick={() => (run ? outputRef : workRef).current?.scrollIntoView({ block: 'start', behavior: 'auto' })}><Icon name={active ? 'clock' : 'arrow-right'} size={17}/>{run ? active ? 'See campaign progress' : run.status === 'failed' ? 'Continue saved campaign' : 'Review my campaign' : 'Review my saved posts'}</Button> : suggestions.length ? <Button disabled={hidden || checking || available !== true || !!pending} onClick={() => { ideasRef.current.open = true; ideasRef.current.scrollIntoView({ block: 'start', behavior: 'auto' }); }}><Icon name="flower" size={17}/>Choose my next campaign</Button> : null}
           <Button variant={run || savedPosts.length || suggestions.length ? 'quiet' : 'primary'} onClick={openBrief} disabled={hidden || teamBusy || submitting || checking || available !== true || !!pending}><Icon name="plus" size={17}/>Brief my team</Button>
         </div>
-        <span className="fl-team-hero-note">Choose a goal. Review the work. Schedule when you’re ready.</span>
       </div>
       <div className="fl-team-still-life" aria-hidden="true">
         <div className="fl-team-still-orbit"/>
@@ -274,38 +273,11 @@ function ContentTeamForOwner({ owner, board, loading: sourcesLoading, busy: prep
       </div>
     </div>
 
-    <nav className="fl-team-workflow" aria-label="Content workflow">
-      <button type="button" onClick={openBrief} disabled={hidden || teamBusy || submitting || checking || available !== true || !!pending}><span>01</span>Choose a goal</button>
-      <button type="button" onClick={() => (run ? outputRef : workRef).current?.scrollIntoView({ block: 'start', behavior: 'auto' })}><span>02</span>Review the work</button>
-      <button type="button" onClick={onPosts}><span>03</span>Schedule posts</button>
-      <button type="button" onClick={onResults}><span>04</span>See results</button>
-    </nav>
-
-    <div className="fl-team-context">
-      <span><Icon name="link" size={15}/> Built around your salon</span>
-      <details><summary>What the team uses<Icon name="chevron-down" size={14}/></summary><p>Your active treatment menu and approved salon knowledge give the team its facts. When you choose a campaign suggestion, the team also checks its diary opportunity or saved source before and during preparation. Saved writing preferences guide the wording. Private conversations, clinical records and unapproved review quotes stay out of these briefs.</p><Link to="/knowledge">Update salon knowledge<Icon name="arrow-right" size={14}/></Link></details>
-    </div>
-
     {error && <div className="fl-team-notice" role="alert"><p><PrivateText>{error}</PrivateText></p><Button variant="quiet" disabled={checking || submitting} onClick={() => refresh()}>Check progress</Button></div>}
     {available === false && <div className="fl-team-notice"><Icon name="clock" size={18}/><div><strong>The new team is not available yet</strong><p><PrivateText>{reason || 'Your saved posts and photo preparation are still available below.'}</PrivateText></p></div><Button variant="quiet" disabled={checking} onClick={() => refresh()}>Check again</Button></div>}
 
-    <details ref={ideasRef} className="fl-team-campaigns fl-team-disclosure" aria-label="Campaign suggestions" open={!run && !savedPosts.length || undefined}>
-      <summary>Campaign ideas from your salon<Icon name="chevron-down" size={17}/></summary>
-      <div className="fl-team-section-heading"><div><span className="fl-team-eyebrow">A USEFUL PLACE TO START</span><h3>What could help your salon now?</h3></div><Button variant="quiet" onClick={onRefresh} disabled={sourcesLoading || preparing}>Refresh ideas</Button></div>
-      <PrivateSection placeholder="Campaign suggestions hidden">
-        {sourcesLoading ? <p role="status" className="fl-team-note">Checking your diary and saved content…</p> : suggestions.length ? <div className="fl-team-campaign-grid">{suggestions.map((source, index) => <article key={`${source.type}:${source.source_id}`} className={`fl-team-campaign ${index === 0 ? 'is-lead' : ''}`}>
-          <span className="fl-team-eyebrow"><Icon name={source.type === 'booking' ? 'calendar' : source.type === 'gallery' ? 'camera' : 'book-open'} size={17}/>{source.type === 'booking' ? 'FROM YOUR DIARY' : source.type === 'gallery' ? 'FROM YOUR PHOTOS' : 'FROM YOUR SALON KNOWLEDGE'}</span>
-          <h4>{source.type === 'booking' ? `Invite clients for ${source.treatment || 'a treatment'}` : source.title}</h4>
-          <p>{source.reason}</p>
-          <span className="fl-team-campaign-delivery">A connected plan · Captions · A Reel filming brief</span>
-          <Button variant="secondary" onClick={() => planCampaign(source)} disabled={hidden || teamBusy || submitting || checking || available !== true || !!pending}>Plan this campaign<Icon name="arrow-right" size={16}/></Button>
-        </article>)}</div> : <div className="fl-team-notice"><div><strong>{collection(board?.unavailable).length || prepareError ? 'Some sources could not be checked' : 'Give Florrie something real to work with'}</strong><p>{collection(board?.unavailable).length || prepareError ? 'Refresh ideas to try again. You can still write your own brief using verified salon facts.' : 'Add a treatment photo or save a useful answer in Knowledge. Your next campaign can start there.'}</p><Link to="/knowledge">Open salon knowledge</Link></div></div>}
-        <p className="fl-team-note">Nothing is posted automatically. After publishing, share each post’s tracked booking link to see the confirmed bookings it brings in.</p>
-      </PrivateSection>
-    </details>
-
     {briefOpen && <PrivateSection placeholder="Content brief hidden"><form ref={formRef} className="fl-team-brief" onSubmit={submit} aria-label="Content brief">
-      <div className="fl-team-section-heading"><div><span className="fl-team-eyebrow">START WITH A PURPOSE</span><h3>{opportunity ? 'Your campaign, ready to brief.' : 'Give us a little direction.'}</h3></div><Button variant="quiet" type="button" disabled={submitting || !!pending} onClick={() => setBriefOpen(false)}>Close brief</Button></div>
+      <div className="fl-team-section-heading"><div><h3>{opportunity ? 'Your campaign, ready to brief.' : 'Give us a little direction.'}</h3></div><Button variant="quiet" type="button" disabled={submitting || !!pending} onClick={() => setBriefOpen(false)}>Close brief</Button></div>
       {opportunity && <div className="fl-team-campaign-source"><Icon name="link" size={17}/><p>{chosenSuggestion?.reason || 'The team will recheck this saved campaign source before it starts.'}</p><Button variant="quiet" type="button" disabled={submitting || !!pending} onClick={() => setOpportunity(null)}>Use my own brief</Button></div>}
       <div className="fl-team-goals" role="group" aria-label="Content goal">{GOALS.map(([id,label,icon]) => <button type="button" key={id} aria-pressed={id === goal} disabled={submitting || !!pending || teamBusy} onClick={() => setGoal(id)}><Icon name={icon} size={19}/>{label}{goal === id && <Icon name="check" size={15}/>}</button>)}</div>
       <label className="fl-team-focus">What would you like to focus on?<textarea value={focus} maxLength={600} rows={3} disabled={submitting || !!pending || teamBusy} onChange={event => setFocus(event.target.value)} placeholder="A treatment you love, a question clients ask, or something you want to share…"/><span>Optional. The team checks this against your saved salon facts.</span></label>
@@ -319,7 +291,7 @@ function ContentTeamForOwner({ owner, board, loading: sourcesLoading, busy: prep
     {artworkBusy && <p className="fl-team-note" role="status">Preparing your draft for review…</p>}
     <div ref={outputRef} hidden={!run} className="fl-team-output">
       {run ? <>
-        <div className="fl-team-output-heading"><div><span className="fl-team-eyebrow">{run.status === 'ready' ? 'THE TEAM’S WORK' : 'YOUR SAVED BRIEF'}</span><h3>{GOALS.find(([id]) => id === run.brief?.goal)?.[1] || 'Your content plan'}</h3>{run.brief?.focus && <p><PrivateText placeholder="Brief hidden">{run.brief.focus}</PrivateText></p>}</div><Button variant="quiet" onClick={() => refresh()} disabled={checking || submitting}>Check progress<Icon name="refresh" size={15}/></Button></div>
+        <div className="fl-team-output-heading"><div><h3>{GOALS.find(([id]) => id === run.brief?.goal)?.[1] || 'Your content plan'}</h3>{run.brief?.focus && <p><PrivateText placeholder="Brief hidden">{run.brief.focus}</PrivateText></p>}</div><Button variant="quiet" onClick={() => refresh()} disabled={checking || submitting}>Check progress<Icon name="refresh" size={15}/></Button></div>
         {active && <p className="fl-team-run-status" role="status"><Icon name="flower" size={19}/>{run.status === 'queued' ? 'Your brief is saved and waiting for the team.' : 'The team is working through your brief.'}<span>You can leave this page. Check back here for saved progress.</span></p>}
         {run.status === 'failed' && <div className="fl-team-notice" role="alert"><p><PrivateText>{plain(run.error) || 'The team couldn’t finish this brief. Completed work is saved below.'}</PrivateText></p>{run.retryable && <Button variant="secondary" disabled={hidden || submitting || checking || historyBusy || teamBusy} onClick={retry}>Retry unfinished work</Button>}</div>}
         <div className="fl-team-output-tabs" role="tablist" aria-label="Team work">{SPECIALISTS.map(agent => <button key={agent.id} type="button" role="tab" id={`content-team-tab-${agent.id}`} aria-controls="content-team-panel" aria-selected={selected === agent.id} tabIndex={selected === agent.id ? 0 : -1} onClick={() => setSelected(agent.id)} onKeyDown={event => { const index = SPECIALISTS.findIndex(item => item.id === selected); const next = event.key === 'ArrowRight' ? (index+1)%3 : event.key === 'ArrowLeft' ? (index+2)%3 : event.key === 'Home' ? 0 : event.key === 'End' ? 2 : null; if(next !== null) { event.preventDefault(); setSelected(SPECIALISTS[next].id); event.currentTarget.parentElement.children[next].focus(); } }}><Icon name={agent.icon} size={17}/>{agent.short}{run.stages.find(stage => stage.id === agent.id)?.status === 'complete' && <Icon name="check" size={14}/>}</button>)}</div>
@@ -330,19 +302,31 @@ function ContentTeamForOwner({ owner, board, loading: sourcesLoading, busy: prep
     </div>
 
     <div ref={workRef} className="fl-team-prepared">
-      <div className="fl-team-section-heading"><div><span className="fl-team-eyebrow">FROM YOUR PHOTOS & SALON NOTES</span><h3>Prepared for you.</h3></div><Button variant="quiet" onClick={onPosts}>See all posts<Icon name="arrow-right" size={15}/></Button></div>
-      <details className="fl-team-disclosure fl-team-quick-posts" open={preparing || !!prepareError || needsArtwork || undefined}><summary>Make quick posts from saved photos & notes<Icon name="chevron-down" size={17}/></summary><div className="fl-team-prepare-line"><p>{readyPosts === null ? 'Checking your saved posts…' : readyPosts ? `${readyPosts} ${readyPosts === 1 ? 'post has' : 'posts have'} pictures and words ready for review.` : 'Turn the photos and knowledge you already have into posts you can review.'}</p>{canPrepare ? <Button variant="secondary" disabled={hidden || preparing || sourcesLoading} onClick={onPrepare}>{preparing ? 'Preparing your content…' : needsArtwork ? 'Finish my prepared posts' : 'Prepare my next posts'}</Button> : <Button variant="secondary" disabled={hidden} onClick={onPhotos}><Icon name="camera" size={17}/>Add a photo</Button>}</div>
-      </details>
+      <div className="fl-team-section-heading"><div><h3>Prepared for you.</h3></div><Button variant="quiet" onClick={onPosts}>See all posts<Icon name="arrow-right" size={15}/></Button></div>
+      {(canPrepare || sourcesLoading || savedPosts.length > 0) && <div className="fl-team-prepare-line"><p>{readyPosts === null ? 'Checking your saved posts…' : readyPosts ? `${readyPosts} ${readyPosts === 1 ? 'post is' : 'posts are'} ready to review.` : 'Make posts from your saved photos and salon notes.'}</p>{canPrepare ? <Button variant="secondary" disabled={hidden || preparing || sourcesLoading} onClick={onPrepare}>{preparing ? 'Preparing your content…' : needsArtwork ? 'Finish my prepared posts' : 'Prepare my next posts'}</Button> : <Button variant="secondary" disabled={hidden} onClick={onPhotos}><Icon name="camera" size={17}/>Add a photo</Button>}</div>}
       {preparing && <p className="fl-team-run-status" role="status"><PrivateText>{prepareStage}</PrivateText><span>Keep this page open while the pictures are made. Saved drafts stay in Your posts.</span></p>}
       {prepareError && <div role="alert" className="fl-team-notice"><p><PrivateText>{prepareError}</PrivateText></p><Button variant="quiet" disabled={hidden || preparing || sourcesLoading} onClick={onRefresh}>Refresh prepared work</Button></div>}
       {note && <p role="status" className="fl-team-note"><PrivateText>{note}</PrivateText></p>}
       {children}
-      {!savedPosts.length && !sourcesLoading && <button className="fl-team-photo-invite" type="button" disabled={hidden} onClick={onPhotos}><span className="fl-team-photo-mark"><Icon name="camera" size={24}/></span><span><strong>Your work is the starting point.</strong><small>Add a photo you have permission to share. Florrie can help with the words.</small></span><Icon name="arrow-right" size={20}/></button>}
+      {!savedPosts.length && !sourcesLoading && <button className="fl-team-photo-invite" type="button" disabled={hidden} onClick={onPhotos}><span className="fl-team-photo-mark"><Icon name="camera" size={24}/></span><span><strong>Add a treatment photo</strong><small>Choose a photo you have permission to share.</small></span><Icon name="arrow-right" size={20}/></button>}
     </div>
 
+    <details ref={ideasRef} className="fl-team-campaigns fl-team-disclosure" aria-label="Campaign suggestions" open={!run && !savedPosts.length && suggestions.length > 0 || undefined}>
+      <summary>Campaign ideas<Icon name="chevron-down" size={17}/></summary>
+      <div className="fl-team-section-heading"><p className="fl-team-ideas-intro">From your diary, photos and salon knowledge.</p><Button variant="quiet" onClick={onRefresh} disabled={sourcesLoading || preparing}>Refresh ideas</Button></div>
+      <PrivateSection placeholder="Campaign suggestions hidden">
+        {sourcesLoading ? <p role="status" className="fl-team-note">Checking your diary and saved content…</p> : suggestions.length ? <div className="fl-team-campaign-grid">{suggestions.map((source, index) => <article key={`${source.type}:${source.source_id}`} className={`fl-team-campaign ${index === 0 ? 'is-lead' : ''}`}>
+          <span className="fl-team-eyebrow"><Icon name={source.type === 'booking' ? 'calendar' : source.type === 'gallery' ? 'camera' : 'book-open'} size={17}/>{source.type === 'booking' ? 'FROM YOUR DIARY' : source.type === 'gallery' ? 'FROM YOUR PHOTOS' : 'FROM YOUR SALON KNOWLEDGE'}</span>
+          <h4>{source.type === 'booking' ? `Invite clients for ${source.treatment || 'a treatment'}` : source.title}</h4>
+          <p>{source.reason}</p>
+          <Button variant="secondary" onClick={() => planCampaign(source)} disabled={hidden || teamBusy || submitting || checking || available !== true || !!pending}>Plan this campaign<Icon name="arrow-right" size={16}/></Button>
+        </article>)}</div> : <div className="fl-team-notice"><div><strong>{collection(board?.unavailable).length || prepareError ? 'Some sources could not be checked' : 'Give Florrie something real to work with'}</strong><p>{collection(board?.unavailable).length || prepareError ? 'Refresh ideas to try again. You can still write your own brief using verified salon facts.' : 'Add a treatment photo or save a useful answer in Knowledge. Your next campaign can start there.'}</p><Link to="/knowledge">Open salon knowledge</Link></div></div>}
+        <p className="fl-team-note">Review before publishing. Share the tracked booking link to measure results.</p>
+      </PrivateSection>
+    </details>
+
     <details className="fl-team-disclosure fl-team-about"><summary>Meet the team behind your content<Icon name="chevron-down" size={17}/></summary>
-    <div className="fl-team-section-heading fl-team-specialist-heading"><div><span className="fl-team-eyebrow">A LITTLE EXPERTISE, WORKING TOGETHER</span><h3>Your team.</h3></div></div>
-    <div className="fl-team-specialists">{SPECIALISTS.map((agent,index) => {
+        <div className="fl-team-specialists">{SPECIALISTS.map((agent,index) => {
       const step = run?.stages.find(item => item.id === agent.id);
       return <button type="button" key={agent.id} className={`fl-team-specialist ${selected === agent.id && run ? 'is-selected' : ''}`} onClick={() => openOutput(agent.id)} aria-label={`Open ${agent.short}`}>
         <span className="fl-team-specialist-top"><span className={`fl-team-agent-mark fl-team-agent-mark-${agent.id}`}><Icon name={agent.icon} size={22}/></span><span className="fl-team-agent-number">0{index+1}</span></span>
@@ -350,15 +334,18 @@ function ContentTeamForOwner({ owner, board, loading: sourcesLoading, busy: prep
         <span className={`fl-team-agent-status is-${step?.status || 'idle'}`}><i aria-hidden="true"/>{stageLabel(step,agent,available)}<Icon name="arrow-up-right" size={16}/></span>
       </button>;
     })}</div>
+    <div className="fl-team-context">
+      <h4>What the team uses</h4>
+      <p>Your treatments, approved salon knowledge and saved writing preferences. Campaign suggestions also use the diary opportunity or saved photo you choose. Private conversations, clinical records and unapproved review quotes stay out of briefs.</p>
+      <Link to="/knowledge">Update salon knowledge<Icon name="arrow-right" size={14}/></Link>
+    </div>
     </details>
 
-    <div className="fl-team-connected-heading"><span className="fl-team-eyebrow">THE REST OF THE PICTURE</span><p>Good content connects to the rest of your business.</p></div>
-    <div className="fl-team-connections">
-      <Link to="/inbox"><span className="fl-team-connection-icon"><Icon name="message" size={22}/></span><span><strong>Your community</strong><small>Keep real conversations in your inbox.</small></span><Icon name="arrow-up-right" size={16}/></Link>
-      <Link to="/reviews"><span className="fl-team-connection-icon"><Icon name="star" size={22}/></span><span><strong>Your reputation</strong><small>Review requests and permission to share.</small></span><Icon name="arrow-up-right" size={16}/></Link>
-      <button type="button" onClick={onResults}><span className="fl-team-connection-icon"><Icon name="trending-up" size={22}/></span><span><strong>What brings bookings</strong><small>{campaignResults === null ? 'Booking results could not be checked.' : campaignResults.length ? `${bookings} confirmed through tracked post links in 90 days.` : 'Track the appointments that follow a post.'}</small></span><Icon name="arrow-up-right" size={16}/></button>
-    </div>
-    <p className="fl-team-bottom-note"><Icon name="flower" size={15}/>A little creative help. Still unmistakably you.</p>
+    <nav className="fl-team-connections" aria-label="More content tools">
+      <Link to="/inbox"><span className="fl-team-connection-icon"><Icon name="message" size={22}/></span><span><strong>Inbox</strong></span><Icon name="arrow-up-right" size={16}/></Link>
+      <Link to="/reviews"><span className="fl-team-connection-icon"><Icon name="star" size={22}/></span><span><strong>Reviews</strong></span><Icon name="arrow-up-right" size={16}/></Link>
+      <button type="button" onClick={onResults}><span className="fl-team-connection-icon"><Icon name="trending-up" size={22}/></span><span><strong>Booking results</strong><small>{campaignResults === null ? 'Booking results could not be checked.' : campaignResults.length ? `${bookings} confirmed through tracked post links in 90 days.` : 'View tracked bookings'}</small></span><Icon name="arrow-up-right" size={16}/></button>
+    </nav>
   </section>;
 }
 

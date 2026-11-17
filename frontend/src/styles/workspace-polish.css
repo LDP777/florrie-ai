@@ -45,8 +45,10 @@
 .fl-idea-grid .fl-idea-card p { font-size: 14px; font-weight: 400; }
 .fl-idea-grid .fl-idea-card > span { display: flex; justify-content: space-between; align-items: center; padding-top: 12px; border-top: 1px solid var(--border-light); }
 .fl-chat-header { padding: 14px 16px 8px !important; background: var(--bg-card) !important; border-bottom: 1px solid var(--border-light) !important; }
-.fl-chat-next { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; font-size: 11px; color: var(--text-secondary); padding: 8px 12px; border-radius: 10px; background: var(--tone-1); margin-top: 5px; }
-.fl-chat-next strong { color: var(--text-primary); font-weight: 600; }
+.fl-chat-visit { white-space: normal !important; overflow: visible !important; }
+.fl-chat-email-settings { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; font-size:11px; color:var(--text-secondary); }
+.fl-chat-email-settings > span { display:inline-flex; align-items:center; gap:6px; }
+.fl-chat-email-settings > a { display:inline-flex; align-items:center; gap:5px; min-height:44px; color:var(--accent); }
 .fl-chat-settings { border-top: 1px solid var(--border-light); margin-top: 6px !important; }
 .fl-chat-settings > summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; cursor: pointer; list-style: none; font-size: 11px; color: var(--text-secondary); }
 .fl-chat-settings > summary > span:first-child { display: inline-flex; align-items: center; gap: 6px; color: var(--accent); font-weight: 600; }

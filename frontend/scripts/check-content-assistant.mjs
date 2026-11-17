@@ -165,7 +165,6 @@ try {
   } else {
   for(const width of [320,390,1024]) {
     const {context,page,errors}=await fixture({width});
-    await page.getByText('Make quick posts from saved photos & notes',{exact:true}).click();
     const prepare=page.getByRole('button',{name:'Prepare my next posts',exact:true});await prepare.waitFor();
     assert.equal(await page.getByRole('button',{name:'For you',exact:true}).getAttribute('aria-pressed'),'true');
     assert.deepEqual(await page.evaluate(()=>window.__assistantCheck.writes),[],'Opening Content does not invoke AI or write');
@@ -193,7 +192,6 @@ try {
   {
     const {context,page}=await fixture({saveError:true,partial:true});
     await page.getByText('Some sources couldn’t be checked',{exact:true}).waitFor();
-    await page.locator('.fl-team-quick-posts').evaluate(el=>el.open=true);
     await page.getByRole('button',{name:'Prepare my next posts',exact:true}).click();
     await page.getByRole('button',{name:'Retry saving design',exact:true}).waitFor();
     assert.equal(await page.evaluate(()=>window.__assistantCheck.uploads.length),2);
@@ -204,7 +202,6 @@ try {
   }
   {
     const {context,page}=await fixture({delay:true});
-    await page.locator('.fl-team-quick-posts').evaluate(el=>el.open=true);
     await page.getByRole('button',{name:'Prepare my next posts',exact:true}).click();
     await page.waitForFunction(()=>!!window.__assistantCheck.release);
     await page.getByRole('button',{name:'Your posts',exact:true}).first().click();

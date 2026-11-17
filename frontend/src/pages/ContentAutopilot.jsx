@@ -791,7 +791,7 @@ export default function ContentAutopilot() {
       {error && !composing && <Button variant="secondary" onClick={() => loadAll()}>Retry posts</Button>}
       {handoffError && <div role="alert" className="fl-content-origin"><span><PrivateText placeholder="Could not open this post.">{handoffError}</PrivateText></span><Button variant="quiet" onClick={() => setHandoffRetry(value => value + 1)}>Retry opening post</Button><Button variant="quiet" onClick={() => {setHandoffError(null);navigate('/content',{replace:true,state:null});}}>View other posts</Button></div>}
       <header className="fl-content-heading">
-        <div><h1>{composing ? <>Create a <em>post.</em></> : <>Your <em>content.</em></>}</h1>{tab !== 'assistant' && <p>{composing ? 'Add a photo and a caption. Save it when you’re ready.' : 'Your saved work, ready when you are.'}</p>}</div>
+        <div><h1>{composing ? <>Create a <em>post.</em></> : <>Your <em>content.</em></>}</h1>{composing && <p>Add a photo and a caption. Save it when you’re ready.</p>}</div>
         {!composing && tab !== 'assistant' && <Button disabled={hidden} onClick={() => startCompose('before_after', '')}><Icon name="plus" size={17} /> Create a post</Button>}
       </header>
       {!composing && <div className="fl-studio-tabs" aria-label="Content views">
@@ -826,8 +826,7 @@ export default function ContentAutopilot() {
               {igStatus?.needs_reconnect ? 'Instagram has signed you out' : 'Instagram is not connected'}
             </span>
             <p style={{ margin: '2px 0 0', fontSize: 12, lineHeight: 1.5, color: 'var(--text-secondary, #574A42)' }}>
-              You can still write and save drafts. Nothing can be posted or scheduled until
-              you connect Instagram in Settings.
+              Connect Instagram to publish or schedule. Your drafts stay saved.
             </p>
           </div>
         </div>
