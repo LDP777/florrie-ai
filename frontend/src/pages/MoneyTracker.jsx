@@ -1,4 +1,7 @@
 import Button from '../components/ui/Button.jsx';
+import { MoneyTax } from '../components/MoneyTax.jsx';
+import { parseMoneyInput } from '../lib/money-view.js';
+import { moneyApi, saveMoneyEntry, boundedMoneyRequest } from '../lib/money-requests.js';
 import { readAllMoney } from '../../../backend/src/lib/read-all-money.js';
 import { moneyDate, moneyTotals, reconcileTransactions, reportingYear, reportingBounds, shiftDate, periodWindow, sumMoney, taxReport } from '../../../backend/src/lib/money-reporting.js';
 import CancellationPayments from '../components/CancellationPayment.jsx';
@@ -7,11 +10,10 @@ import MoreLoadError from '../components/MoreLoadError.jsx';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useBeautician, supabase, insertRow } from '../lib/supabase.js';
+import { useBeautician, supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
-import ErrorCard from '../components/ErrorCard.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import { hapticTap, hapticSuccess } from '../lib/native.js';
@@ -31,7 +33,7 @@ import Money from '../components/ui/Money';
  *   - Breakdown bento grid (Treatments, Products, Tips)
  *   - Recent Transactions list
  *
- * Four tabs preserved: Pulse, Expenses, Income, Tax
+ * Five tabs preserved: Pulse, Expenses, Ledger, Income, Tax
  * All data from Supabase: expenses + transactions tables.
  */
 
@@ -208,18 +210,7 @@ const emptyRecurringForm = () => {
 };
 
 async function apiFetch(path, options = {}) {
-  const token = (await supabase.auth.getSession())?.data?.session?.access_token;
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-      ...(options.headers || {}),
-    },
-  });
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(body.error || 'Something went wrong');
-  return body;
+  return moneyApi({ auth: supabase.auth, url: `${API_BASE}${path}`, options });
 }
 
 
@@ -232,20 +223,23 @@ export default function MoneyTracker() {
   const [incomeVisible, setIncomeVisible] = useState(100);
   const timezone = beautician?.timezone || 'Europe/London';
   const [reports, setReports] = useState(null);
-  const [searchParams] = useSearchParams();
-  const [tab, setTab] = useState(searchParams.get('tab') === 'income' ? 'income' : 'pulse');
-  useEffect(() => { if (searchParams.get('tab') === 'income') setTab('income'); }, [searchParams]);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = ['pulse', 'expenses', 'ledger', 'income', 'tax'].includes(searchParams.get('tab')) ? searchParams.get('tab') : 'pulse';
+  const setTab = value => setSearchParams(p => { p.set('tab', value); return p; });
+  const [taxYear, setTaxYear] = useState('');
+  const [exporting, setExporting] = useState(false);
+  const [savingEntry, setSavingEntry] = useState(null);
+  const entryIds = useRef({}), saveLock = useRef(false);
+  const [incomeFilter, setIncomeFilter] = useState('all');
+  const [ledgerRevision, setLedgerRevision] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [period, setPeriod] = useState('week');
 
-  // Year to date, the ledger and the regular costs all come from the backend
-  // rather than being recomputed here: the tax-year boundary and the running
-  // total have to agree with the CSV export and the tax summary, and three
-  // implementations of a rule is how they drift.
-  const [ytd, setYtd] = useState(null);
+  // The ledger and regular costs come from the API. Local totals use the
+  // same reporting functions as that API and the accountant export.
   const [recurring, setRecurring] = useState([]);
   const [recurringOff, setRecurringOff] = useState(false); // migration not applied yet
   const [ledger, setLedger] = useState(null);
@@ -257,7 +251,7 @@ export default function MoneyTracker() {
   const [ledgerPage, setLedgerPage] = useState(1);
 
   // A one-line problem that must NOT take the page away. The page-level
-  // `error` state renders an ErrorCard instead of everything else, which is
+  // `error` state renders a retry screen instead of everything else, which is
   // right for "your money would not load" and much too heavy for "that pause
   // did not save".
   const [notice, setNotice] = useState(null);
@@ -337,14 +331,14 @@ export default function MoneyTracker() {
         .select('id');
       if (delErr || !data?.length) {
         logger.error({ err: delErr }, 'Expense delete failed');
-        setError('Could not delete that expense, try again.');
+        setNotice('Could not confirm the deletion. Refresh your records before trying again.');
       } else {
         hapticSuccess();
         setExpenses(prev => prev.filter(e => e.id !== exp.id));
       }
     } catch (err) {
       logger.error({ err }, 'Expense delete threw');
-      setError('Could not delete that expense, try again.');
+      setNotice('Could not confirm the deletion. Refresh your records before trying again.');
     } finally {
       setDeleting(false);
       setConfirmDeleteExp(null);
@@ -372,15 +366,7 @@ export default function MoneyTracker() {
       const allTransactions = reconcileTransactions(rawTransactions, now);
       setExpenses(allExpenses);
       setTransactions(allTransactions);
-      const year = reportingYear(today), bounds = reportingBounds(year);
-      const previousYear = `${Number(year.slice(0, 4)) - 1}-${year.slice(2, 4)}`;
-      const previousBounds = reportingBounds(previousYear);
-      const previousAsAt = `${Number(today.slice(0, 4)) - 1}${today.slice(4)}`.replace(/-02-29$/, '-02-28');
-      setYtd({
-        current: { tax_year: year, as_at: today, ...moneyTotals({ transactions: allTransactions, expenses: allExpenses, ...bounds, timezone, now }) },
-        previous: { tax_year: previousYear, as_at: previousAsAt, ...moneyTotals({ transactions: allTransactions, expenses: allExpenses, start: previousBounds.start, end: previousAsAt, timezone, now }) },
-      });
-      setLedgerYear(prev => prev || year);
+      setLedgerYear(prev => prev || reportingYear(today));
       setReports(null);
 
       setLoading(false);
@@ -430,6 +416,7 @@ export default function MoneyTracker() {
 
     (async () => {
       setLedgerLoading(true);
+      setLedger(null);
       setLedgerError(null);
       try {
         const params = new URLSearchParams({ page: String(ledgerPage), page_size: '50' });
@@ -443,7 +430,7 @@ export default function MoneyTracker() {
         // dropdown and the numbers cannot disagree.
         if (!ledgerYear && data.tax_years?.length) setLedgerYear(data.tax_years[0]);
       } catch (err) {
-        if (!cancelled) setLedgerError('Could not load your ledger. Pull down and try again.');
+        if (!cancelled) setLedgerError('Could not load these records. Please try again.');
         logger.error({ err }, 'Ledger load failed');
       } finally {
         if (!cancelled) setLedgerLoading(false);
@@ -451,7 +438,7 @@ export default function MoneyTracker() {
     })();
 
     return () => { cancelled = true; };
-  }, [beautician, tab, ledgerYear, ledgerCategory, ledgerType, ledgerPage, transactions, expenses]);
+  }, [beautician, tab, ledgerYear, ledgerCategory, ledgerType, ledgerPage, transactions, expenses, ledgerRevision]);
 
   async function reloadRecurring() {
     try {
@@ -570,26 +557,30 @@ export default function MoneyTracker() {
    *  authed, so a plain href downloads an error page. */
   async function handleExportLedgerCSV(selectedYear) {
     const year = typeof selectedYear === 'string' ? selectedYear : ledgerYear && ledgerYear !== 'all' ? ledgerYear : ytd?.current?.tax_year;
-    if (!year) return;
+    if (!year || exporting || clientDetailsHidden) return;
+    setExporting(true);
     try {
-      const token = (await supabase.auth.getSession())?.data?.session?.access_token;
-      const res = await fetch(`${API_BASE}/api/exports/tax-quarterly?year=${encodeURIComponent(year)}`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const blob = await boundedMoneyRequest(async signal => {
+        const token = (await supabase.auth.getSession())?.data?.session?.access_token;
+        if (signal.aborted || !token) throw new Error('Please sign in again before exporting.');
+        const res = await fetch(`${API_BASE}/api/exports/tax-quarterly?year=${encodeURIComponent(year)}`, {
+          signal, headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error('Export failed');
+        return res.blob();
       });
-      if (!res.ok) throw new Error('Export failed');
-      const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = `florrie-${year}.csv`;
       document.body.appendChild(a);
       a.click();
-      window.URL.revokeObjectURL(url);
+      setTimeout(() => window.URL.revokeObjectURL(url), 1000);
       document.body.removeChild(a);
     } catch (err) {
       logger.error({ err }, 'Ledger export failed');
       setNotice('Could not build that export. Try again in a moment.');
-    }
+    } finally { setExporting(false); }
   }
 
   function computePulse() {
@@ -603,7 +594,7 @@ export default function MoneyTracker() {
     };
   }
 
-  function computeTax() { return taxReport({ transactions, expenses, beautician }); }
+
 
   async function handleReceiptScan(e) {
     const file = e.target.files?.[0];
@@ -758,12 +749,15 @@ export default function MoneyTracker() {
   }
 
   async function handleAddExpense() {
-    if (!newExpense.amount || !newExpense.date || !beautician) return;
-
+    if (saveLock.current || clientDetailsHidden || attachingReceipt || !beautician) return;
+    saveLock.current = true; setSavingEntry('expense'); setNotice(null);
     try {
-      const row = await insertRow('expenses', {
+      const cents = parseMoneyInput(newExpense.amount);
+      if (!newExpense.date || !/^\d{4}-\d{2}-\d{2}$/.test(newExpense.date)) throw new Error('Choose the expense date.');
+      const row = await saveMoneyEntry({ db: supabase, table: 'expenses', row: {
+        id: entryIds.current.expense ||= crypto.randomUUID(),
         beautician_id: beautician.id,
-        amount_cents: Math.round(parseFloat(newExpense.amount) * 100),
+        amount_cents: cents,
         vendor: newExpense.vendor.trim(),
         description: newExpense.description.trim(),
         category: newExpense.category,
@@ -772,12 +766,14 @@ export default function MoneyTracker() {
         // The storage path, not a URL. It was computed on every scan and then
         // dropped on the floor here, so no expense has ever kept its receipt.
         receipt_url: newExpense.receipt_url || null,
-      });
-      setExpenses(prev => [row, ...prev]);
+      } });
+      setExpenses(prev => [row, ...prev.filter(e => e.id !== row.id)]);
+      delete entryIds.current.expense;
+      setNotice('Expense saved. Your totals are up to date.');
 
       // "This repeats": the expense she just logged IS this month's, so the
       // rule is anchored on its date and first_date tells the backend to start
-      // from the NEXT occurrence. Without that she would be charged twice for
+      // from the NEXT occurrence. Without that the expense would be logged twice for
       // the month she is standing in.
       if (repeats) {
         const [ry, rm, rd] = newExpense.date.split('-').map(Number);
@@ -785,7 +781,7 @@ export default function MoneyTracker() {
           await apiFetch('/api/recurring-expenses', {
             method: 'POST',
             body: JSON.stringify({
-              amount_cents: Math.round(parseFloat(newExpense.amount) * 100),
+              amount_cents: cents,
               vendor: newExpense.vendor.trim() || null,
               description: newExpense.description.trim() || null,
               category: newExpense.category,
@@ -818,53 +814,45 @@ export default function MoneyTracker() {
       setShowAddExpense(false);
     } catch (err) {
       logger.error({ err }, 'Add expense error');
-      setNotice('Could not save that expense. Try again.');
-    }
+      setNotice(err.message || 'Could not save that expense. Your details are still here.');
+    } finally { saveLock.current = false; setSavingEntry(null); }
   }
 
-  async function handleLogTip() {
-    const cents = Math.round(parseFloat(tipAmount) * 100);
-    if (!cents || cents <= 0 || !beautician) return;
+  async function logManualIncome(type) {
+    if (saveLock.current || clientDetailsHidden || !beautician) return;
+    saveLock.current = true; setSavingEntry(type); setNotice(null);
     try {
-      const payload = {
-        beautician_id: beautician.id,
-        type: 'tip',
-        amount_cents: cents,
-        description: 'Tip',
-      };
-      const row = await insertRow('transactions', payload);
-      // Ensure created_at exists for breakdown computation (dev mode doesn't set it)
-      const enriched = { ...row, created_at: row.created_at || new Date().toISOString() };
-      setTransactions(prev => [enriched, ...prev]);
-      hapticSuccess();
-      setTipAmount('');
-      setShowLogTip(false);
+      const row = await saveMoneyEntry({ db: supabase, table: 'transactions', row: {
+        id: entryIds.current[type] ||= crypto.randomUUID(), beautician_id: beautician.id,
+        type, status: 'completed', amount_cents: parseMoneyInput(type === 'tip' ? tipAmount : saleAmount),
+        description: type === 'tip' ? 'Tip' : saleDesc.trim() || 'Product sale',
+      } });
+      setTransactions(prev => reconcileTransactions([row, ...prev.filter(t => t.id !== row.id)]));
+      delete entryIds.current[type]; hapticSuccess();
+      if (type === 'tip') { setTipAmount(''); setShowLogTip(false); }
+      else { setSaleAmount(''); setSaleDesc(''); setShowLogSale(false); }
+      setNotice(`${type === 'tip' ? 'Tip' : 'Product sale'} saved. Your totals are up to date.`);
     } catch (err) {
-      logger.error({ err }, 'Log tip error');
-    }
+      logger.error({ err }, 'Manual money entry failed');
+      setNotice(err.message || 'Could not confirm the save. Your details are still here.');
+    } finally { saveLock.current = false; setSavingEntry(null); }
   }
+  const handleLogTip = () => logManualIncome('tip');
+  const handleLogSale = () => logManualIncome('product_sale');
 
-  async function handleLogSale() {
-    const cents = Math.round(parseFloat(saleAmount) * 100);
-    if (!cents || cents <= 0 || !beautician) return;
-    try {
-      const payload = {
-        beautician_id: beautician.id,
-        type: 'product_sale',
-        amount_cents: cents,
-        description: saleDesc.trim() || 'Product sale',
-      };
-      const row = await insertRow('transactions', payload);
-      const enriched = { ...row, created_at: row.created_at || new Date().toISOString() };
-      setTransactions(prev => [enriched, ...prev]);
-      hapticSuccess();
-      setSaleAmount('');
-      setSaleDesc('');
-      setShowLogSale(false);
-    } catch (err) {
-      logger.error({ err }, 'Log product sale error');
-    }
-  }
+  const ytd = useMemo(() => {
+    const today = moneyDate(new Date(), timezone), year = reportingYear(today);
+    const previousYear = `${Number(year.slice(0, 4)) - 1}-${year.slice(2, 4)}`;
+    const previousAsAt = `${Number(today.slice(0, 4)) - 1}${today.slice(4)}`.replace(/-02-29$/, '-02-28');
+    return { current: { tax_year: year, as_at: today, ...moneyTotals({ transactions, expenses, ...reportingBounds(year), timezone }) },
+      previous: { tax_year: previousYear, as_at: previousAsAt, ...moneyTotals({ transactions, expenses, start: reportingBounds(previousYear).start, end: previousAsAt, timezone }) } };
+  }, [transactions, expenses, timezone]);
+  const taxYears = useMemo(() => {
+    const current = reportingYear(moneyDate(new Date(), timezone));
+    return [...new Set([current, ...transactions.filter(t => t.created_at).map(t => reportingYear(moneyDate(t.created_at, timezone))), ...expenses.filter(e => e.date).map(e => reportingYear(e.date))])].filter(y => y <= current).sort().reverse();
+  }, [transactions, expenses, timezone]);
+  const tax = useMemo(() => taxReport({ transactions, expenses, beautician: beautician || {}, year: taxYear || undefined }), [transactions, expenses, beautician, taxYear]);
+  const shownIncome = useMemo(() => incomeFilter === 'review' ? transactions.filter(t => ['assumed','review'].includes(t.reporting_status)) : transactions, [transactions, incomeFilter]);
 
   const pulse = useMemo(() => !loading ? computePulse() : null, [loading, expenses, transactions]);
 
@@ -926,9 +914,10 @@ export default function MoneyTracker() {
   return (
     <div style={S.page}>
       {/* ─── Page Title ─── */}
-      <PageHeader title="Money & Revenue" />
+      <PageHeader title="Money" />
 
-      {/* Today's takings, always visible at the top of the page */}
+      {tab !== 'tax' && <>
+      {/* Today's takings */}
       <div style={{ background: 'var(--gradient-hero)',
         borderRadius: 16, padding: '16px 18px', color: '#fff',
         boxShadow: 'var(--elev-2)', marginBottom: 14,
@@ -1010,11 +999,13 @@ export default function MoneyTracker() {
         </section>
       )}
 
+      </>}
       {/* ─── Tab Bar (pill style) ─── */}
       <div style={S.tabBar}>
         {['pulse', 'expenses', 'ledger', 'income', 'tax'].map(t => (
           <button
             key={t}
+            aria-pressed={tab === t}
             onClick={() => setTab(t)}
             style={{ ...S.tab,
               ...(tab === t ? S.tabActive : {}),
@@ -1172,7 +1163,7 @@ export default function MoneyTracker() {
                       style={{ ...S.formInput, flex: 1 }}
                       autoFocus
                     /></PrivateAmount>
-                    <button className="fl-tap" onClick={handleLogTip} style={{ ...S.btnPrimary, flex: 'none', padding: '11px 20px', background: 'var(--success, #386F52)' }}>
+                    <button className="fl-tap" disabled={clientDetailsHidden || !!savingEntry} onClick={handleLogTip} style={{ ...S.btnPrimary, flex: 'none', padding: '11px 20px', background: 'var(--success, #386F52)' }}>
                       Save
                     </button>
                     <button onClick={() => { setShowLogTip(false); setTipAmount(''); }} style={{ ...S.btnGhost, flex: 'none' }}>
@@ -1205,7 +1196,7 @@ export default function MoneyTracker() {
                       onChange={e => setSaleDesc(e.target.value)}
                       style={{ ...S.formInput, flex: 1 }}
                     /></PrivateText>
-                    <button className="fl-tap" onClick={handleLogSale} style={{ ...S.btnPrimary, flex: 'none', padding: '11px 20px', background: 'var(--gold)' }}>
+                    <button className="fl-tap" disabled={clientDetailsHidden || !!savingEntry} onClick={handleLogSale} style={{ ...S.btnPrimary, flex: 'none', padding: '11px 20px', background: 'var(--gold)' }}>
                       Save
                     </button>
                     <button onClick={() => { setShowLogSale(false); setSaleAmount(''); setSaleDesc(''); }} style={{ ...S.btnGhost, flex: 'none' }}>
@@ -1495,7 +1486,7 @@ export default function MoneyTracker() {
                       </div>
                       <p style={S.repeatHint}>
                         Florrie will log this again by itself. The next one is due after
-                        {' '}{prettyDate(newExpense.date) || 'the date above'}, so you will not be charged twice for this one.
+                        {' '}{prettyDate(newExpense.date) || 'the date above'}, so it will not be logged twice. This does not make a payment.
                       </p>
                     </>
                   )}
@@ -1503,7 +1494,7 @@ export default function MoneyTracker() {
               )}
 
               <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={handleAddExpense} style={S.btnPrimary}>Save Expense</button>
+                <button disabled={clientDetailsHidden || !!savingEntry || attachingReceipt} onClick={handleAddExpense} style={S.btnPrimary}>{savingEntry === 'expense' ? 'Saving…' : 'Save Expense'}</button>
                 <button onClick={() => setShowAddExpense(false)} style={S.btnGhost}>Cancel</button>
               </div>
             </div>
@@ -1788,7 +1779,7 @@ export default function MoneyTracker() {
             </select>
             <select
               value={ledgerCategory}
-              onChange={e => { setLedgerCategory(e.target.value); setLedgerPage(1); }}
+              onChange={e => { setLedgerCategory(e.target.value); if (e.target.value) setLedgerType('expense'); setLedgerPage(1); }}
               style={S.ledgerSelect}
             >
               <option value="">All categories</option>
@@ -1840,7 +1831,7 @@ export default function MoneyTracker() {
             </section>
           )}
 
-          {ledgerError && <ErrorCard message={ledgerError} onDismiss={() => setLedgerError(null)} />}
+          {ledgerError && <div role="alert" style={S.formCard}><p>{ledgerError}</p><Button variant="secondary" onClick={() => setLedgerRevision(n => n + 1)}>Try records again</Button></div>}
 
           {ledgerLoading && !ledger && (
             <p style={S.ledgerNote}>Adding it all up...</p>
@@ -1869,7 +1860,7 @@ export default function MoneyTracker() {
                     <span style={{ fontSize: 13, fontWeight: 600,
                       color: bucket.kind === 'expense' ? 'var(--danger)' : 'var(--success)',
                     }}>
-                      {bucket.kind === 'expense' ? '-' : '+'}<PrivateAmount>{fmtNeat(bucket.total_cents)}</PrivateAmount>
+                      <PrivateAmount>{fmtNeat(bucket.kind === 'expense' ? -Math.abs(bucket.total_cents) : bucket.total_cents)}</PrivateAmount>
                     </span>
                   </div>
                 ))}
@@ -1947,7 +1938,7 @@ export default function MoneyTracker() {
             </div>
           )}
 
-          <button disabled={clientDetailsHidden} onClick={handleExportLedgerCSV} style={S.exportBtn}>
+          <button disabled={clientDetailsHidden || exporting} onClick={handleExportLedgerCSV} style={S.exportBtn}>
             <Icon name={iconName('download')} size={16} inline style={{ marginRight: 6, verticalAlign: 'middle' }} />
             Export {ledgerYear && ledgerYear !== 'all' ? ledgerYear : 'this year'} as CSV
           </button>
@@ -1958,6 +1949,7 @@ export default function MoneyTracker() {
       {tab === 'income' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <CancellationPayments />
+          <select aria-label="Income records" value={incomeFilter} onChange={e => { setIncomeFilter(e.target.value); setIncomeVisible(100); }} style={S.formInput}><option value="all">All payments</option><option value="review">Needs checking</option></select>
           {transactions.length === 0 && (
             <EmptyState message="Payments from completed appointments will show here." icon="card" />
           )}
@@ -1968,7 +1960,7 @@ export default function MoneyTracker() {
               without a confirmed payment method. Check your cash and bank records before taking any further payment.
             </p>
           )}
-          {transactions.slice(0, incomeVisible).map(tx => {
+          {shownIncome.slice(0, incomeVisible).map(tx => {
             const isTipOrSale = tx.type === 'tip' || tx.type === 'product_sale';
             const name = isTipOrSale ? (tx.description || (tx.type === 'tip' ? 'Tip' : 'Product Sale')) : (tx.appointments?.clients?.first_name || 'Payment');
             const treatment = isTipOrSale ? '' : (tx.appointments?.treatments?.name || '');
@@ -2005,148 +1997,9 @@ export default function MoneyTracker() {
         </div>
       )}
 
-      {tab === 'income' && incomeVisible < transactions.length && <Button variant="secondary" size="sm" fullWidth onClick={() => setIncomeVisible(n => n + 100)}>Show more records ({incomeVisible} of {transactions.length})</Button>}
+      {tab === 'income' && incomeVisible < shownIncome.length && <Button variant="secondary" size="sm" fullWidth onClick={() => setIncomeVisible(n => n + 100)}>Show more records ({incomeVisible} of {shownIncome.length})</Button>}
 
-      {/* ═══ TAX TAB ═══ */}
-      {tab === 'tax' && (
-        <div>
-          {(() => {
-            const t = computeTax();
-            return (
-              <>
-                {/* Header */}
-                <div style={{ marginBottom: 20 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                    <Icon name={iconName('receipt_long')} size={18} inline style={{ color: 'var(--accent)' }} />
-                    <h3 style={S.sectionHeading}>Tax Year {t.period.start.slice(0, 4)}/{t.period.end.slice(0, 4)}</h3>
-                  </div>
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{prettyDate(t.period.start)} to {prettyDate(t.period.end)}</span>
-
-                  {/* Year progress bar */}
-                  <div style={{ marginTop: 10, background: 'var(--border, #E8DDD4)', borderRadius: 'var(--radius-xs)', height: 6, overflow: 'hidden' }}>
-                    <div style={{ width: `${Math.round(t.yearProgress * 100)}%`, height: '100%', background: 'var(--accent, #92405e)', borderRadius: 'var(--radius-xs)', transition: 'width 0.3s ease' }} />
-                  </div>
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>{Math.round(t.yearProgress * 100)}% through tax year</span>
-                </div>
-
-                <div style={S.setAsideCard}>
-                  <span style={{ fontSize: 12, color: '#fff', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Your tax position</span>
-                  <strong style={{ fontSize: 24, color: '#fff', margin: '8px 0' }}>{t.assumedCount || t.reviewCount ? 'Check receipts first' : 'Based on your records'}</strong>
-                  <span style={{ fontSize: 12, lineHeight: 1.5, color: '#fff' }}>Your final bill and payments on account cannot be worked out from salon receipts alone.</span>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
-                  <div style={S.taxCard}>
-                    <span style={S.taxCardLabel}>Recorded receipts after refunds</span>
-                    <span style={S.taxCardValue}><PrivateAmount>{fmt(t.totalIncome)}</PrivateAmount></span>
-                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t.transactionCount} counted transactions, through {prettyDate(t.asAt)}</span>
-                  </div>
-                  <div style={S.taxCard}>
-                    <span style={S.taxCardLabel}>Logged deductible expenses</span>
-                    <span style={S.taxCardValue}><PrivateAmount>{fmt(t.totalExpenses)}</PrivateAmount></span>
-                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t.expenseCount} items marked deductible</span>
-                  </div>
-                  <div style={S.taxCard}>
-                    <span style={S.taxCardLabel}>Receipts less deductible costs</span>
-                    <span style={{ ...S.taxCardValue, color: 'var(--accent)' }}><PrivateAmount>{fmt(t.taxableProfit)}</PrivateAmount></span>
-                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Before missing receipts, costs and tax adjustments.</span>
-                  </div>
-                  {t.assumedCount > 0 && <div style={S.taxCard}>
-                    <span style={S.taxCardLabel}>Needs payment confirmation</span>
-                    <span style={S.taxCardValue}><PrivateAmount>{fmt(t.assumedIncome)}</PrivateAmount></span>
-                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t.assumedCount} records excluded from the figures above. This does not mean clients owe this amount.</span>
-                  </div>}
-                </div>
-                <div style={S.breakdownCard}>
-                  <h4 style={S.breakdownTitle}>{t.vat.registered ? 'VAT records' : 'VAT registration watch'}</h4>
-                  {t.vat.registered ? <p style={{ fontSize: 13, lineHeight: 1.6 }}>A VAT return needs the actual VAT on each sale and receipt, your VAT scheme and return dates. Florrie does not yet hold enough information to calculate VAT owed.</p> : <>
-                    <p style={{ fontSize: 13 }}><PrivateAmount>{fmt(t.vat.rolling12Revenue)}</PrivateAmount> in recorded receipts over the rolling 12 months.</p>
-                    <p style={{ fontSize: 12, lineHeight: 1.6, color: 'var(--text-secondary)' }}>The registration threshold is £90,000 of taxable turnover. Receipts are not a complete measure of taxable turnover: unconfirmed payments, sales not yet paid and sales outside Florrie may change your position. Also check whether you expect to exceed £90,000 in the next 30 days.</p>
-                    <a href="https://www.gov.uk/register-for-vat" target="_blank" rel="noreferrer" style={{ color: 'var(--accent)', fontSize: 12 }}>Check HMRC's VAT rules</a>
-                  </>}
-                  <Button variant="secondary" size="sm" onClick={() => navigate('/settings?section=tax')} style={S.exportBtn}>Update VAT settings</Button>
-                </div>
-                <div style={S.breakdownCard}>
-                  <h4 style={S.breakdownTitle}>Tax illustration</h4>
-                  {t.illustration ? <>
-                    <p style={{ fontSize: 12, lineHeight: 1.6, color: 'var(--text-secondary)' }}>Uses only the recorded profit above, England/Wales/Northern Ireland rates, no other income or reliefs, and the personal allowance with its high-income taper. Scottish rates differ. This is not a forecast, tax bill or quarterly savings target.</p>
-                    <details>
-                      <summary style={{ cursor: 'pointer', fontSize: 13, padding: '10px 0', color: 'var(--accent)' }}>Show illustration and assumptions</summary>
-                      {[
-                        ['Income Tax', t.illustration.incomeTax],
-                        ['Compulsory Class 2 NI', 0],
-                        ['Class 4 NI', t.illustration.niClass4],
-                        ['Illustration total', t.illustration.total],
-                      ].map(([label, value]) => <div key={label} style={S.breakdownRow}><span style={{ fontSize: 13 }}>{label}</span><PrivateAmount>{fmt(value)}</PrivateAmount></div>)}
-                      <p style={{ fontSize: 12, lineHeight: 1.6 }}>Class 2 is no longer compulsory. Voluntary contributions may apply at low profits. Class 4 is 6% on profits from £12,570 to £50,270, then 2%. Missing receipts and expenses can materially change these figures.</p>
-                      <a href="https://www.gov.uk/self-employed-national-insurance-rates" target="_blank" rel="noreferrer" style={{ color: 'var(--accent)', fontSize: 12 }}>HMRC National Insurance rates</a>
-                    </details>
-                  </> : <p style={{ fontSize: 13, lineHeight: 1.6 }}>{t.businessType !== 'sole_trader' ? 'Company tax needs your accounting period, adjusted profits, payroll and dividends. Use the records export with your accountant.' : 'A tax illustration is unavailable for this tax year or VAT setup. Use the records export with your accountant.'}</p>}
-                  <p style={{ fontSize: 12, lineHeight: 1.6 }}>Payments on account depend on your previous Self Assessment bill and tax already paid. Check the amounts and due dates in your HMRC account.</p>
-                  <a href="https://www.gov.uk/understand-self-assessment-bill/payments-on-account" target="_blank" rel="noreferrer" style={{ color: 'var(--accent)', fontSize: 12 }}>How payments on account work</a>
-                </div>
-
-                {/* Expense breakdown by category */}
-                {Object.keys(t.expensesByCategory).length > 0 && (
-                  <div style={S.breakdownCard}>
-                    <h4 style={S.breakdownTitle}>Expenses by Category</h4>
-                    {Object.entries(t.expensesByCategory)
-                      .sort(([, a], [, b]) => b.total_cents - a.total_cents)
-                      .map(([cat, data]) => (
-                        <div key={cat} style={S.breakdownRow}>
-                          <div>
-                            <span style={{ fontSize: 13, textTransform: 'capitalize', color: 'var(--text-secondary)' }}>{cat}</span>
-                            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}> ({data.count})</span>
-                          </div>
-                          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}><PrivateAmount>{fmt(data.total_cents)}</PrivateAmount></span>
-                        </div>
-                      ))
-                    }
-                  </div>
-                )}
-
-                {/* Monthly income */}
-                {Object.keys(t.monthlyIncome).length > 0 && (
-                  <div style={S.breakdownCard}>
-                    <h4 style={S.breakdownTitle}>Recorded receipts by month</h4>
-                    {Object.entries(t.monthlyIncome)
-                      .sort(([a], [b]) => a.localeCompare(b))
-                      .map(([month, cents]) => {
-                        const [y, m] = month.split('-');
-                        const label = new Date(y, parseInt(m) - 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
-                        return (
-                          <div key={month} style={S.breakdownRow}>
-                            <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{label}</span>
-                            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}><PrivateAmount>{fmt(cents)}</PrivateAmount></span>
-                          </div>
-                        );
-                      })
-                    }
-                  </div>
-                )}
-
-                {/* Export for accountant */}
-                <button disabled={clientDetailsHidden}
-                  onClick={() => handleExportLedgerCSV(t.taxYear)}
-                  style={{ width: '100%', padding: '14px 0', borderRadius: 10,
-                    border: 'none', background: 'var(--accent)', color: '#fff',
-                    fontSize: 14, fontWeight: 600, cursor: 'pointer',
-                    fontFamily: 'inherit', marginBottom: 12,
-                  }}
-                >
-                  <Icon name={iconName('download')} size={16} inline style={{ marginRight: 6, verticalAlign: 'middle' }} />
-                  Export for Accountant
-                </button>
-
-                <p style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center',
-                  padding: '16px 20px', lineHeight: 1.5, fontStyle: 'italic',
-                }}>
-                  Estimate only. Consult an accountant for your specific situation.
-                </p>
-              </>
-            );
-          })()}
-        </div>
-      )}
+      {tab === 'tax' && <MoneyTax report={tax} years={taxYears} exporting={exporting} onYear={setTaxYear} onExport={handleExportLedgerCSV} onSettings={() => navigate('/settings?section=profile')} onReview={() => { setIncomeFilter('review'); setIncomeVisible(100); setTab('income'); }} />}
 
       {/* Long-press delete confirm sheet. PORTALED to <body>: the page's
           ancestors create a stacking context (backdrop filters etc.), so an

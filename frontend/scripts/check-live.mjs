@@ -48,7 +48,7 @@ if (!ROUTES.length) ROUTES.push(
   // Routes are cheap here — about two seconds each — and the whole point is
   // that a screen nobody has looked at closely is exactly where an unreadable
   // colour survives.
-  '/', '/inbox', '/content', '/money', '/more',
+  '/', '/inbox', '/content', '/money', '/money?tab=tax', '/more',
   '/calendar', '/calendar/week', '/clients', '/treatments', '/price-list',
   '/expenses', '/deposits', '/analytics', '/end-of-day', '/checklist',
   '/campaigns', '/automations', '/aftercare', '/loyalty', '/packages',

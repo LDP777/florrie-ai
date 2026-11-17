@@ -528,7 +528,7 @@ export default function Settings({ onLogout }) {
       {section === 'profile' && (
         <div style={styles.card}>
           <div style={styles.cardTitle}>Tax profile</div>
-          <p style={{ ...styles.cardDesc, marginBottom: 8 }}>Used to calculate your estimated liability correctly on the Tax tab.</p>
+          <p style={{ ...styles.cardDesc, marginBottom: 8 }}>Used for the tax estimate and your records export.</p>
 
           {/* Business type */}
           <div style={{ ...styles.fieldRow, alignItems: 'flex-start', paddingTop: 12 }}>

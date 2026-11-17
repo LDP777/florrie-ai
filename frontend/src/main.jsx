@@ -1,3 +1,4 @@
+import './styles/money-tax.css';
 import './styles/thoughts.css';
 import './styles/reviews-results.css';
 import { StrictMode } from 'react';

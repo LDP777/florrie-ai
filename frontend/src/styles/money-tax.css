@@ -1,0 +1,5 @@
+.money-tax-details > summary { list-style: none; }
+.money-tax-details > summary::-webkit-details-marker { display: none; }
+.money-tax-details > summary > svg { flex-shrink: 0; }
+.money-tax-details[open] > summary > svg { transform: rotate(180deg); }
+.money-tax-details > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
