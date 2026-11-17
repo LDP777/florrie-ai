@@ -35,6 +35,7 @@ import {
 const assumedRow = (over = {}) => ({
   id: 'tx_assumed',
   type: 'payment',
+  status: 'completed',
   amount_cents: 4500,
   payment_method: null,
   stripe_payment_intent_id: null,
@@ -45,6 +46,7 @@ const assumedRow = (over = {}) => ({
 const cardRow = (over = {}) => ({
   id: 'tx_card',
   type: 'payment',
+  status: 'completed',
   amount_cents: 4500,
   payment_method: 'card_online',
   stripe_payment_intent_id: 'pi_real',
@@ -227,15 +229,15 @@ describe('the ledger she reads at tax time', () => {
     expect(rows.every(r => r.assumed === false)).toBe(true);
   });
 
-  it('still adds up to the same running total either way', () => {
-    // The flag is a label, not a filter. Hiding assumed money from her totals
-    // would be its own lie, and a different one.
+  it('keeps assumed takings separate from the received running total', () => {
+    // Assumptions remain visible but cannot inflate confirmed income.
     const { summary } = buildLedger({
       transactions: [
         { ...assumedRow(), created_at: '2026-08-27T10:00:00.000Z' },
         { ...cardRow({ id: 'tx_card2', amount_cents: 1000 }), created_at: '2026-08-27T11:00:00.000Z' },
       ],
     });
-    expect(summary.income_cents).toBe(5500);
+    expect(summary.income_cents).toBe(1000);
+    expect(summary.assumed_cents).toBe(4500);
   });
 });

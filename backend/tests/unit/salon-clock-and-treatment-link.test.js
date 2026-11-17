@@ -192,7 +192,7 @@ function makeBuilder(table) {
   const b = {
     select(spec = '*', opts) {
       selectError = parseSelect(table, spec);
-      wantCount = opts?.count === 'exact';
+      wantCount = opts?.head === true;
       return b;
     },
     update(p) { pending = { op: 'update', payload: p }; return b; },
@@ -219,6 +219,7 @@ function makeBuilder(table) {
     lt(c, v) { guard(c); filters.push(r => String(r[c]) < String(v)); return b; },
     order(c) { guard(c); return b; },
     limit() { return b; },
+    range(from, to) { const out = settle(); return Promise.resolve({ ...out, data: out.data?.slice(from, to + 1) }); },
     maybeSingle() { const o = settle(); return Promise.resolve(o.error ? o : { data: (o.data || [])[0] || null, error: null }); },
     single() { const o = settle(); return Promise.resolve(o.error ? o : { data: (o.data || [])[0] || null, error: null }); },
     then(res, rej) { return Promise.resolve(settle()).then(res, rej); },
@@ -466,7 +467,7 @@ describe('GET /api/money/pulse in British Summer Time', () => {
     // week. Forcing the week boundary to plain UTC pushed it into last week.
     db.transactions.push({
       id: 'tx1', beautician_id: B, amount_cents: 4000, type: 'payment',
-      status: 'completed', created_at: '2026-08-16T23:30:00Z',
+      status: 'completed', payment_method: 'cash', created_at: '2026-08-16T23:30:00Z',
     });
     const out = await run(moneyRouter, 'get', '/pulse');
     expect(out.body.thisWeek.income).toBe(4000);
@@ -501,5 +502,31 @@ describe('GET /api/money/reports in British Summer Time', () => {
     expect(out.body.no_show_rate.total).toBe(2);
     expect(out.body.no_show_rate.no_shows).toBe(1);
     expect(out.body.no_show_rate.pct).toBe(50);
+  });
+});
+
+describe('Money API totals agree on complete owner-scoped records', () => {
+  beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date('2026-11-17T12:00:00Z')); });
+  it('reconciles >1000 receipts consistently in Tax, Ledger and year-to-date', async () => {
+    for (let i = 0; i < 1200; i++) db.transactions.push({ id: `receipt-${i}`, beautician_id: B, type: 'deposit', status: 'completed', payment_method: 'card_online', stripe_payment_intent_id: `pi_${i}`, amount_cents: 100, created_at: '2026-08-01T12:00:00Z' });
+    db.transactions.push(
+      { ...db.transactions[0], id: 'repeat', created_at: '2026-08-02T12:00:00Z' },
+      { id: 'assumed', beautician_id: B, type: 'payment', status: 'completed', amount_cents: 4500, created_at: '2026-08-01T12:00:00Z' },
+      { id: 'other-salon', beautician_id: 'another-owner', type: 'deposit', status: 'completed', amount_cents: 999999, created_at: '2026-08-01T12:00:00Z' },
+    );
+    db.expenses.push({ id: 'expense', beautician_id: B, amount_cents: 600, tax_deductible: true, category: 'products', date: '2026-08-01' });
+    const tax = await run(moneyRouter, 'get', '/tax-summary');
+    const ledger = await run(moneyRouter, 'get', '/ledger');
+    const ytd = await run(moneyRouter, 'get', '/year-to-date');
+    expect([tax.status, ledger.status, ytd.status]).toEqual([200, 200, 200]);
+    expect(tax.body).toMatchObject({ totalIncome: 120000, totalExpenses: 600, taxableProfit: 119400, assumedIncome: 4500, duplicateCount: 1 });
+    expect(ledger.body.summary).toMatchObject({ income_cents: 120000, net_cents: 119400, assumed_cents: 4500 });
+    expect(ytd.body.current).toMatchObject({ income_cents: 120000, profit_cents: 119400, duplicate_count: 1 });
+  });
+  it('returns an error when a source read fails instead of returning a zero tax bill', async () => {
+    failing.set('expenses', { message: 'Unavailable' });
+    expect((await run(moneyRouter, 'get', '/tax-summary')).status).toBe(500);
+    expect((await run(moneyRouter, 'get', '/ledger')).status).toBe(500);
+    expect((await run(moneyRouter, 'get', '/year-to-date')).status).toBe(500);
   });
 });

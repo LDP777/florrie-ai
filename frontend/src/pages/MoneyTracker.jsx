@@ -1,3 +1,6 @@
+import Button from '../components/ui/Button.jsx';
+import { readAllMoney } from '../../../backend/src/lib/read-all-money.js';
+import { moneyDate, moneyTotals, reconcileTransactions, reportingYear, reportingBounds, shiftDate, periodWindow, sumMoney, taxReport } from '../../../backend/src/lib/money-reporting.js';
 import CancellationPayments from '../components/CancellationPayment.jsx';
 import { PrivateAmount, PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import MoreLoadError from '../components/MoreLoadError.jsx';
@@ -40,8 +43,8 @@ const fmt = (cents) => {
 
 const fmtShort = (cents) => {
   const pounds = Math.abs(cents) / 100;
-  if (pounds >= 1000) return `£${(pounds / 1000).toFixed(1)}k`;
-  return `£${pounds.toFixed(0)}`;
+  if (pounds >= 1000) return `${cents < 0 ? '-' : ''}£${(pounds / 1000).toFixed(1)}k`;
+  return `${cents < 0 ? '-' : ''}£${pounds.toFixed(0)}`;
 };
 
 const CATEGORIES = [
@@ -86,6 +89,10 @@ export function isAssumedPayment(tx) {
 
 /** What actually happened to this money, in her words rather than the schema's. */
 function paymentStory(tx) {
+  if (tx?.reporting_status === 'duplicate') return 'Duplicate record · excluded from totals';
+  if (tx?.reporting_status === 'review') return 'Conflicting payment records · excluded pending review';
+  if (tx?.reporting_status === 'excluded') return `${tx?.status || 'Unverified'} · excluded from totals`;
+  if (tx?.type === 'refund') return tx.amount_cents > 0 ? 'Dispute reversal' : 'Refund / chargeback';
   if (isAssumedPayment(tx)) return 'Assumed, not confirmed';
   if (tx?.stripe_payment_intent_id) return 'Paid by card';
   if (tx?.payment_method === 'cash') return 'Paid in cash';
@@ -222,6 +229,8 @@ export default function MoneyTracker() {
   const { beautician, loading: bLoading } = useBeautician();
   const [expenses, setExpenses] = useState([]);
   const [transactions, setTransactions] = useState([]);
+  const [incomeVisible, setIncomeVisible] = useState(100);
+  const timezone = beautician?.timezone || 'Europe/London';
   const [reports, setReports] = useState(null);
   const [searchParams] = useSearchParams();
   const [tab, setTab] = useState(searchParams.get('tab') === 'income' ? 'income' : 'pulse');
@@ -351,25 +360,30 @@ export default function MoneyTracker() {
     setError(null);
     try {
 
-      const [expRes, txRes] = await Promise.all([
-        supabase.from('expenses')
-          .select('*')
-          .eq('beautician_id', beautician.id)
-          .order('date', { ascending: false })
-          .limit(200),
-        supabase.from('transactions')
-          .select('*, appointments(id, starts_at, client_id, clients(first_name, last_name), treatments(name))')
-          .eq('beautician_id', beautician.id)
-          .order('created_at', { ascending: false })
-          .limit(200),
+      const now = new Date();
+      const today = moneyDate(now, timezone);
+      const [allExpenses, rawTransactions] = await Promise.all([
+        readAllMoney(() => supabase.from('expenses').select('*', { count: 'exact' })
+          .eq('beautician_id', beautician.id).order('date', { ascending: false }).order('id')),
+        readAllMoney(() => supabase.from('transactions')
+          .select('*, appointments(id, starts_at, client_id, clients(first_name, last_name), treatments(name))', { count: 'exact' })
+          .eq('beautician_id', beautician.id).lte('created_at', now.toISOString()).order('created_at', { ascending: false }).order('id')),
       ]);
+      const allTransactions = reconcileTransactions(rawTransactions, now);
+      setExpenses(allExpenses);
+      setTransactions(allTransactions);
+      const year = reportingYear(today), bounds = reportingBounds(year);
+      const previousYear = `${Number(year.slice(0, 4)) - 1}-${year.slice(2, 4)}`;
+      const previousBounds = reportingBounds(previousYear);
+      const previousAsAt = `${Number(today.slice(0, 4)) - 1}${today.slice(4)}`.replace(/-02-29$/, '-02-28');
+      setYtd({
+        current: { tax_year: year, as_at: today, ...moneyTotals({ transactions: allTransactions, expenses: allExpenses, ...bounds, timezone, now }) },
+        previous: { tax_year: previousYear, as_at: previousAsAt, ...moneyTotals({ transactions: allTransactions, expenses: allExpenses, start: previousBounds.start, end: previousAsAt, timezone, now }) },
+      });
+      setLedgerYear(prev => prev || year);
+      setReports(null);
 
-      if (expRes.error) throw expRes.error;
-      if (txRes.error) throw txRes.error;
-
-      setExpenses(expRes.data || []);
-      setTransactions(txRes.data || []);
-
+      setLoading(false);
       // Reports: revenue MoM, rebooking + no-show rate, one insight (server-computed)
       try {
         const token = (await supabase.auth.getSession())?.data?.session?.access_token;
@@ -394,16 +408,6 @@ export default function MoneyTracker() {
     let cancelled = false;
 
     (async () => {
-      try {
-        const data = await apiFetch('/api/money/year-to-date');
-        if (cancelled) return;
-        setYtd(data);
-        // Start the Ledger on the tax year we are in, so its first request is
-        // already scoped and the year picker is never briefly blank.
-        setLedgerYear(prev => prev || data.current.tax_year);
-      } catch (err) {
-        logger.warn({ err }, 'Year to date unavailable');
-      }
       try {
         const data = await apiFetch('/api/recurring-expenses');
         if (cancelled) return;
@@ -447,7 +451,7 @@ export default function MoneyTracker() {
     })();
 
     return () => { cancelled = true; };
-  }, [beautician, tab, ledgerYear, ledgerCategory, ledgerType, ledgerPage]);
+  }, [beautician, tab, ledgerYear, ledgerCategory, ledgerType, ledgerPage, transactions, expenses]);
 
   async function reloadRecurring() {
     try {
@@ -564,8 +568,8 @@ export default function MoneyTracker() {
    *  from the ledger where somebody looking at a full history would go for it.
    *  Fetched with the session token rather than as a bare link: the endpoint is
    *  authed, so a plain href downloads an error page. */
-  async function handleExportLedgerCSV() {
-    const year = ledgerYear || ytd?.current?.tax_year;
+  async function handleExportLedgerCSV(selectedYear) {
+    const year = typeof selectedYear === 'string' ? selectedYear : ledgerYear && ledgerYear !== 'all' ? ledgerYear : ytd?.current?.tax_year;
     if (!year) return;
     try {
       const token = (await supabase.auth.getSession())?.data?.session?.access_token;
@@ -589,204 +593,17 @@ export default function MoneyTracker() {
   }
 
   function computePulse() {
-    const now = new Date();
-    const thisWeekStart = startOfWeek(now);
-    const lastWeekStart = new Date(thisWeekStart);
-    lastWeekStart.setDate(lastWeekStart.getDate() - 7);
-
-    const thisWeekIncome = transactions
-      .filter(t => new Date(t.created_at) >= thisWeekStart)
-      .reduce((sum, t) => sum + (t.amount_cents || 0), 0);
-
-    const lastWeekIncome = transactions
-      .filter(t => {
-        const d = new Date(t.created_at);
-        return d >= lastWeekStart && d < thisWeekStart;
-      })
-      .reduce((sum, t) => sum + (t.amount_cents || 0), 0);
-
-    const thisWeekExpenses = expenses
-      .filter(e => new Date(e.date) >= thisWeekStart)
-      .reduce((sum, e) => sum + (e.amount_cents || 0), 0);
-
-    const lastWeekExpenses = expenses
-      .filter(e => {
-        const d = new Date(e.date);
-        return d >= lastWeekStart && d < thisWeekStart;
-      })
-      .reduce((sum, e) => sum + (e.amount_cents || 0), 0);
-
-    const expenseByCategory = {};
-    expenses
-      .filter(e => new Date(e.date) >= thisWeekStart)
-      .forEach(e => {
-        expenseByCategory[e.category] = (expenseByCategory[e.category] || 0) + (e.amount_cents || 0);
-      });
-
-    const incomeChange = lastWeekIncome > 0
-      ? Math.round(((thisWeekIncome - lastWeekIncome) / lastWeekIncome) * 100)
-      : null;
-
-    const thisWeekAppts = transactions.filter(t => new Date(t.created_at) >= thisWeekStart && t.type === 'payment').length;
-
+    const today = moneyDate(new Date(), timezone);
+    const window = periodWindow('week', today);
+    const current = moneyTotals({ transactions, expenses, ...window, timezone });
+    const previous = moneyTotals({ transactions, expenses, start: shiftDate(window.start, -7), end: shiftDate(window.start, -1), timezone });
     return {
-      thisWeek: {
-        income: thisWeekIncome,
-        expenses: thisWeekExpenses,
-        profit: thisWeekIncome - thisWeekExpenses,
-        appointments: thisWeekAppts,
-        noShows: 0,
-        noShowRate: 0,
-        expenseByCategory,
-      },
-      lastWeek: {
-        income: lastWeekIncome,
-        expenses: lastWeekExpenses,
-        profit: lastWeekIncome - lastWeekExpenses,
-      },
-      incomeChange,
+      thisWeek: { income: current.income_cents, expenses: current.expenses_cents, profit: current.profit_cents },
+      lastWeek: { income: previous.income_cents, expenses: previous.expenses_cents, profit: previous.profit_cents },
     };
   }
 
-  function computeTax() {
-    const now = new Date();
-    const year = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
-    const start = new Date(year, 3, 6);
-    const end = new Date(year + 1, 3, 5);
-
-    const yearTx = transactions.filter(t => {
-      const d = new Date(t.created_at);
-      return d >= start && d <= end;
-    });
-    const yearExp = expenses.filter(e => {
-      const d = new Date(e.date);
-      return d >= start && d <= end && e.tax_deductible;
-    });
-
-    const totalIncome = yearTx.reduce((sum, t) => sum + (t.amount_cents || 0), 0);
-    const totalExpenses = yearExp.reduce((sum, e) => sum + (e.amount_cents || 0), 0);
-
-    const expensesByCategory = {};
-    yearExp.forEach(e => {
-      if (!expensesByCategory[e.category]) expensesByCategory[e.category] = { total_cents: 0, count: 0 };
-      expensesByCategory[e.category].total_cents += e.amount_cents || 0;
-      expensesByCategory[e.category].count += 1;
-    });
-
-    const monthlyIncome = {};
-    yearTx.forEach(t => {
-      const d = new Date(t.created_at);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      monthlyIncome[key] = (monthlyIncome[key] || 0) + (t.amount_cents || 0);
-    });
-
-    const taxableProfit = totalIncome - totalExpenses;
-    const profitPounds = taxableProfit / 100;
-
-    const businessType = beautician?.business_type || 'sole_trader';
-    const personalAllowance = 12_570;
-    const basicBand = 50_270;
-
-    let incomeTax = 0, niClass2 = 0, niClass4 = 0;
-    let corpTax = 0, dividendTax = 0;
-    let taxBreakdown = [];
-
-    if (businessType === 'sole_trader') {
-      // UK Income Tax 2025/26 bands
-      if (profitPounds > personalAllowance) {
-        const taxable = profitPounds - personalAllowance;
-        const basicPortion = Math.min(taxable, basicBand - personalAllowance);
-        const higherPortion = Math.max(0, taxable - basicPortion);
-        incomeTax = basicPortion * 0.20 + higherPortion * 0.40;
-      }
-      // NI Class 2 (£3.45/week if profit > £12,570)
-      niClass2 = profitPounds > personalAllowance ? 3.45 * 52 : 0;
-      // NI Class 4 (6% on £12,570–£50,270, 2% above)
-      if (profitPounds > personalAllowance) {
-        const band1 = Math.min(profitPounds, basicBand) - personalAllowance;
-        const band2 = Math.max(0, profitPounds - basicBand);
-        niClass4 = band1 * 0.06 + band2 * 0.02;
-      }
-      taxBreakdown = [
-        { label: 'Income Tax', hint: '20% basic rate (over £12,570)', value: Math.round(incomeTax * 100) },
-        { label: 'NI Class 2', hint: '£3.45/week if profit over threshold', value: Math.round(niClass2 * 100) },
-        { label: 'NI Class 4', hint: '6% on £12,570–£50,270', value: Math.round(niClass4 * 100) },
-      ];
-    } else {
-      // Limited company: corporation tax + dividend extraction model
-      // Corp tax: 19% (≤£50k), marginal relief £50k–£250k, 25% above
-      if (profitPounds <= 50_000) {
-        corpTax = profitPounds * 0.19;
-      } else if (profitPounds <= 250_000) {
-        // Marginal relief: effective rate rises from 19% to 25%
-        // Marginal relief fraction = (250,000 - profit) / 200,000 * 3/200
-        const marginalRelief = (250_000 - profitPounds) * (3 / 200);
-        corpTax = profitPounds * 0.25 - marginalRelief;
-      } else {
-        corpTax = profitPounds * 0.25;
-      }
-      // Director salary: £9,100 (NI threshold, tax-free under personal allowance)
-      // Post-tax profit extracted as dividends
-      const afterTax = profitPounds - corpTax;
-      const dividendAllowance = 500;
-      const taxableDividends = Math.max(0, afterTax - dividendAllowance);
-      dividendTax = taxableDividends * 0.0875; // 8.75% basic rate
-      taxBreakdown = [
-        { label: 'Corporation Tax', hint: `${profitPounds <= 50_000 ? '19%' : 'marginal rate'} on company profit`, value: Math.round(corpTax * 100) },
-        { label: 'Dividend Tax', hint: '8.75% basic rate (over £500 allowance)', value: Math.round(dividendTax * 100) },
-        { label: 'Director salary', hint: '£9,100 - within personal allowance, no tax', value: 0 },
-      ];
-    }
-
-    const totalTaxLiability = businessType === 'sole_trader'
-      ? incomeTax + niClass2 + niClass4
-      : corpTax + dividendTax;
-    const quarterlySetAside = totalTaxLiability / 4;
-
-    // VAT threshold tracking - rolling 12 months of gross income
-    const twelveMonthsAgo = new Date();
-    twelveMonthsAgo.setFullYear(twelveMonthsAgo.getFullYear() - 1);
-    const rolling12Revenue = transactions
-      .filter(t => new Date(t.created_at || t.date) >= twelveMonthsAgo)
-      .reduce((sum, t) => sum + (t.amount_cents || 0), 0);
-    const vatThreshold = 90_000 * 100; // in cents
-    const vatPct = Math.min(100, Math.round((rolling12Revenue / vatThreshold) * 100));
-
-    // Days until next payment deadline
-    const now2 = new Date();
-    const deadlines = [
-      { label: 'Payment on account 1', date: new Date(year + 1, 0, 31) },
-      { label: 'Payment on account 2', date: new Date(year + 1, 6, 31) },
-      { label: 'Balancing payment', date: new Date(year + 2, 0, 31) },
-    ];
-    const nextDeadline = deadlines.find(d => d.date > now2) || deadlines[deadlines.length - 1];
-    const daysUntilDeadline = Math.max(0, Math.ceil((nextDeadline.date - now2) / (1000 * 60 * 60 * 24)));
-
-    // Progress through tax year (for progress bar)
-    const yearProgress = Math.min(1, Math.max(0, (now2 - start) / (end - start)));
-
-    return {
-      taxYear: `${year}/${year + 1}`,
-      period: {
-        start: start.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
-        end: end.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
-      },
-      totalIncome,
-      totalExpenses,
-      taxableProfit,
-      transactionCount: yearTx.length,
-      expenseCount: yearExp.length,
-      expensesByCategory,
-      monthlyIncome,
-      taxBreakdown,
-      businessType,
-      totalTaxLiability: Math.round(totalTaxLiability * 100),
-      quarterlySetAside: Math.round(quarterlySetAside * 100),
-      nextDeadline: { label: nextDeadline.label, daysLeft: daysUntilDeadline },
-      yearProgress,
-      vat: { rolling12Revenue, vatThreshold, vatPct, registered: beautician?.vat_registered, vatNumber: beautician?.vat_number },
-    };
-  }
+  function computeTax() { return taxReport({ transactions, expenses, beautician }); }
 
   async function handleReceiptScan(e) {
     const file = e.target.files?.[0];
@@ -1057,75 +874,28 @@ export default function MoneyTracker() {
   // each compared against the equivalent previous period.
   const periodStats = useMemo(() => {
     if (loading) return null;
-    const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    let cur, prev, compareLabel;
-    if (period === 'today') {
-      cur = startOfToday;
-      prev = new Date(startOfToday.getTime() - 86400000);
-      compareLabel = 'yesterday';
-    } else if (period === 'month') {
-      cur = new Date(now.getFullYear(), now.getMonth(), 1);
-      prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      compareLabel = 'last month';
-    } else {
-      cur = startOfWeek(now);
-      prev = new Date(cur);
-      prev.setDate(prev.getDate() - 7);
-      compareLabel = 'last week';
-    }
-    const txBetween = (a, b) => transactions.filter(t => {
-      const d = new Date(t.created_at);
-      return d >= a && (!b || d < b);
-    });
-    const expBetween = (a, b) => expenses.filter(e => {
-      const d = new Date(e.date);
-      return d >= a && (!b || d < b);
-    });
-    const sumTx = rows => rows.reduce((s, t) => s + (t.amount_cents || 0), 0);
-    const sumExp = rows => rows.reduce((s, e) => s + (e.amount_cents || 0), 0);
-
-    const curTx = txBetween(cur, null);
-    const income = sumTx(curTx);
-    const prevIncome = sumTx(txBetween(prev, cur));
-    const expensesSum = sumExp(expBetween(cur, null));
-    const completed = curTx.filter(t => t.type === 'payment').length;
-    const changePct = prevIncome > 0 ? Math.round(((income - prevIncome) / prevIncome) * 100) : null;
+    const window = periodWindow(period, moneyDate(new Date(), timezone));
+    const current = moneyTotals({ transactions, expenses, ...window, timezone });
+    const previous = moneyTotals({ transactions, expenses, start: window.previousStart, end: window.previousEnd, timezone });
+    const received = transactions.filter(t => t.reporting_status === 'received' && moneyDate(t.created_at, timezone) >= window.start && moneyDate(t.created_at, timezone) <= window.end);
     return {
-      income,
-      expenses: expensesSum,
-      profit: income - expensesSum,
-      completed,
-      changePct,
-      compareLabel,
-      curStart: cur,
-      // full_payment and refund belong here too: a client who paid the whole
-      // treatment at booking is treatment income, and a refund is treatment
-      // income going back out (its amount_cents is negative, so it nets off).
-      // Their absence made this line disagree with the income total above.
-      treatments: curTx.filter(t => ['service', 'payment', 'payment_link', 'full_payment', 'deposit', 'no_show_fee', 'late_cancel_fee', 'refund'].includes(t.type)).reduce((s, t) => s + (t.amount_cents || 0), 0),
-      products: curTx.filter(t => t.type === 'product_sale').reduce((s, t) => s + (t.amount_cents || 0), 0),
-      tips: curTx.filter(t => t.type === 'tip').reduce((s, t) => s + (t.amount_cents || 0), 0),
+      income: current.income_cents, expenses: current.expenses_cents, profit: current.profit_cents,
+      completed: current.transaction_count,
+      changePct: previous.income_cents > 0 ? Math.round((current.income_cents - previous.income_cents) / previous.income_cents * 100) : null,
+      compareLabel: period === 'today' ? 'yesterday' : period === 'week' ? 'last week through the same day' : 'the same dates last month',
+      treatments: sumMoney(received.filter(t => !['tip', 'product_sale'].includes(t.type))),
+      products: sumMoney(received.filter(t => t.type === 'product_sale')),
+      tips: sumMoney(received.filter(t => t.type === 'tip')),
     };
-  }, [loading, period, transactions, expenses]);
+  }, [loading, period, transactions, expenses, timezone]);
 
-  const dailyRevenue = useMemo(() => {
-    const days = [];
-    const now = new Date();
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - i);
-      const dayStr = localDateStr(d);
-      const label = d.toLocaleDateString('en-GB', { weekday: 'short' }).charAt(0);
-      const total = transactions
-        .filter(t => t.created_at?.slice(0, 10) === dayStr)
-        .reduce((sum, t) => sum + (t.amount_cents || 0), 0);
-      days.push({ label, total, dayStr });
-    }
-    return days;
-  }, [transactions]);
+  const dailyRevenue = useMemo(() => Array.from({ length: 7 }, (_, i) => {
+    const dayStr = shiftDate(moneyDate(new Date(), timezone), i - 6);
+    const label = new Date(`${dayStr}T12:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short' }).charAt(0);
+    return { dayStr, label, total: moneyTotals({ transactions, start: dayStr, end: dayStr, timezone }).income_cents };
+  }), [transactions, timezone]);
 
-  const maxDayRevenue = useMemo(() => Math.max(...dailyRevenue.map(d => d.total), 1), [dailyRevenue]);
+  const maxDayRevenue = useMemo(() => Math.max(...dailyRevenue.map(d => Math.abs(d.total)), 1), [dailyRevenue]);
 
   // Breakdown by real transaction types, following the selected period.
   const breakdown = useMemo(() => {
@@ -1141,12 +911,8 @@ export default function MoneyTracker() {
 
   // Today's takings, surfaced at the very top so the number Ellie wants is the
   // first thing on the Money page (was buried inside the Pulse tab).
-  const todayRevenue = useMemo(() => {
-    const todayStr = todayLocal();
-    return transactions
-      .filter(t => t.created_at?.slice(0, 10) === todayStr)
-      .reduce((sum, t) => sum + (t.amount_cents || 0), 0);
-  }, [transactions]);
+  const todayRevenue = useMemo(() => moneyTotals({ transactions, start: moneyDate(new Date(), timezone), timezone }).income_cents, [transactions, timezone]);
+  const reconciliation = useMemo(() => moneyTotals({ transactions, timezone }), [transactions, timezone]);
 
   // Roll today's takings up when the Money page opens (Monzo-style).
   const animatedToday = useCountUp(todayRevenue);
@@ -1169,11 +935,11 @@ export default function MoneyTracker() {
         display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12,
       }}>
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', opacity: 0.85 }}>Revenue today</div>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', opacity: 0.85 }}>Recorded receipts today</div>
           <div style={{ fontFamily: '"Plus Jakarta Sans", -apple-system, sans-serif', fontSize: 38, fontWeight: 700, lineHeight: 1.05, marginTop: 2, fontVariantNumeric: 'tabular-nums', fontFeatureSettings: '"tnum" 1', letterSpacing: '-0.03em' }}><PrivateAmount>{fmt(Math.round(animatedToday))}</PrivateAmount></div>
           {todayRevenue === 0 && (
             <div style={{ fontSize: 11.5, opacity: 0.85, marginTop: 4, maxWidth: 220 }}>
-              Tap a client and Mark complete to log their takings here.
+              Confirmed payments appear here. Finishing a booking does not confirm payment.
             </div>
           )}
         </div>
@@ -1184,6 +950,15 @@ export default function MoneyTracker() {
           </div>
         )}
       </div>
+
+      <details style={{ ...S.breakdownCard, marginBottom: 14 }} aria-label="How money totals are calculated">
+        <summary style={{ fontSize: 13, cursor: 'pointer', color: 'var(--accent)' }}>What counts as received{reconciliation.assumed_count > 0 ? ` · ${reconciliation.assumed_count} records to check` : ''}</summary>
+        <p style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--text-secondary)' }}>Completed recorded payments, less refunds. Card fees reduce profit only when logged as expenses. This is not your bank balance.</p>
+        {reconciliation.assumed_count > 0 && <p style={{ fontSize: 12 }}><PrivateAmount>{fmt(reconciliation.assumed_cents)}</PrivateAmount> across {reconciliation.assumed_count} assumed takings needs checking and is excluded.</p>}
+        {reconciliation.duplicate_count > 0 && <p style={{ fontSize: 12 }}>{reconciliation.duplicate_count} duplicate payment records excluded: <PrivateAmount>{fmt(reconciliation.duplicate_cents)}</PrivateAmount>.</p>}
+        {reconciliation.review_count > 0 && <p style={{ fontSize: 12 }}>{reconciliation.review_count} conflicting records need review and are excluded.</p>}
+        {(reconciliation.assumed_count + reconciliation.duplicate_count + reconciliation.review_count > 0) && <Button variant="secondary" size="sm" onClick={() => setTab('income')} style={S.exportBtn}>Review income records</Button>}
+      </details>
 
       {/* Year to date, on the UK TAX year (6 April to 5 April), with the same
           slice of last year beside it. Every other number on this page is a
@@ -1308,7 +1083,7 @@ export default function MoneyTracker() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                     <Icon name={iconName('payments')} size={16} filled inline style={{ color: 'rgba(255,255,255,0.8)' }} />
                     <span style={S.heroLabel}>
-                      {period === 'today' ? 'Revenue Today' : period === 'month' ? 'Revenue This Month' : 'Revenue This Week'}
+                      {period === 'today' ? 'Receipts Today' : period === 'month' ? 'Receipts This Month' : 'Receipts This Week'}
                     </span>
                   </div>
                   <h2 style={S.heroValue}><PrivateAmount>{fmt(periodStats?.income || 0)}</PrivateAmount></h2>
@@ -1329,17 +1104,17 @@ export default function MoneyTracker() {
               {/* ─── Mini Bar Chart ─── */}
               <section style={S.chartCard}>
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, height: 80 }}>
-                  {!dailyRevenue.some(d => d.total > 0) ? (
+                  {!dailyRevenue.some(d => d.total !== 0) ? (
                     <div style={{ flex: 1, alignSelf: 'center', textAlign: 'center', fontSize: 12, color: 'var(--text-muted)' }}>No takings logged this week yet</div>
                   ) : dailyRevenue.map((d, i) => {
                     const isToday = i === dailyRevenue.length - 1;
-                    const h = Math.max(4, (d.total / maxDayRevenue) * 72);
+                    const h = Math.max(4, (Math.abs(d.total) / maxDayRevenue) * 72);
                     return (
-                      <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                      <div key={i} title={clientDetailsHidden ? undefined : `${d.dayStr}: ${fmt(d.total)}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
                         <div style={{ width: '100%',
                           height: h,
                           borderRadius: 'var(--radius-xs)',
-                          background: isToday
+                          background: d.total < 0 ? 'var(--danger)' : isToday
                             ? 'linear-gradient(180deg, #B9466D 0%, #92405e 100%)'
                             : 'rgba(146, 64, 94, 0.15)',
                           transition: 'height 0.3s ease',
@@ -1444,7 +1219,7 @@ export default function MoneyTracker() {
               <section style={S.quickStats}>
                 <div style={S.qStat}>
                   <span style={S.qStatValue}>{periodStats?.completed ?? 0}</span>
-                  <span style={S.qStatLabel}>Completed</span>
+                  <span style={S.qStatLabel}>Receipts</span>
                 </div>
                 <div style={{ width: 1, height: 28, background: 'rgba(146, 64, 94, 0.1)' }} />
                 <div style={S.qStat}>
@@ -1515,7 +1290,7 @@ export default function MoneyTracker() {
                           <span style={{ fontSize: 14, fontWeight: 700,
                             color: assumed ? '#8A5A22' : isIncome ? 'var(--success)' : 'var(--danger)',
                           }}>
-                            {assumed ? '' : isIncome ? '+' : '-'}<PrivateAmount>{fmt(tx.amount_cents)}</PrivateAmount>
+                            <PrivateAmount>{fmt(tx.amount_cents)}</PrivateAmount>
                           </span>
                         </div>
                       );
@@ -2049,7 +1824,7 @@ export default function MoneyTracker() {
           {/* The carry-over. This is the number that was never on any screen. */}
           {ledger?.summary && (
             <section style={S.ledgerTotalCard}>
-              <span style={S.ledgerTotalLabel}>Running total</span>
+              <span style={S.ledgerTotalLabel}>Recorded net total</span>
               <span style={{ ...S.ledgerTotalValue,
                 color: ledger.summary.running_total_cents >= 0 ? 'var(--success)' : 'var(--danger)',
               }}><PrivateAmount>{fmtNeat(ledger.summary.running_total_cents)}</PrivateAmount></span>
@@ -2077,6 +1852,7 @@ export default function MoneyTracker() {
 
           {/* Category totals, so "where did it go" is one glance rather than
               mental arithmetic down the list. */}
+          {ledger?.summary?.excluded_count > 0 && <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>{ledger.summary.excluded_count} unconfirmed, duplicate or excluded records are shown for review but do not change the running total.</p>}
           {ledger?.summary && Object.keys(ledger.summary.by_category).length > 0 && (
             <section style={S.breakdownCard}>
               <h4 style={S.breakdownTitle}>By category</h4>
@@ -2127,7 +1903,7 @@ export default function MoneyTracker() {
                       {prettyDate(row.date)}
                       {isExpense
                         ? ` · ${meta.label}`
-                        : assumed ? ' · Assumed, not confirmed' : ` · ${INCOME_LABELS[row.category] || row.category}`}
+                        : row.reporting_status !== 'received' ? ` · ${row.reporting_status === 'assumed' ? 'Assumed, not confirmed' : row.reporting_status} · excluded from total` : ` · ${INCOME_LABELS[row.category] || row.category}`}
                       {row.recurring_expense_id ? ' · repeats' : ''}
                     </p>
                   </div>
@@ -2188,12 +1964,11 @@ export default function MoneyTracker() {
           {transactions.some(isAssumedPayment) && (
             <p style={{ fontSize: 12, color: '#6B4E2E', background: '#FDF3E7', border: '1px solid #E9D3B4',
               borderRadius: 10, padding: '10px 12px', margin: '0 0 4px', lineHeight: 1.5 }}>
-              <strong>Assumed means nobody confirmed it.</strong> Florrie counts a booking's price as taken when you
-              finish it, so if a client walked out without paying it is still sitting in here. Open the booking to
-              charge their card, or mark it as a no-show.
+              <strong>Assumed takings are excluded from totals.</strong> These rows were created when bookings finished,
+              without a confirmed payment method. Check your cash and bank records before taking any further payment.
             </p>
           )}
-          {transactions.map(tx => {
+          {transactions.slice(0, incomeVisible).map(tx => {
             const isTipOrSale = tx.type === 'tip' || tx.type === 'product_sale';
             const name = isTipOrSale ? (tx.description || (tx.type === 'tip' ? 'Tip' : 'Product Sale')) : (tx.appointments?.clients?.first_name || 'Payment');
             const treatment = isTipOrSale ? '' : (tx.appointments?.treatments?.name || '');
@@ -2221,14 +1996,16 @@ export default function MoneyTracker() {
                     {' · '}{typeLabel}
                   </p>
                 </div>
-                <span style={{ fontSize: 14, fontWeight: 700, color: assumed ? '#8A5A22' : 'var(--success)', marginLeft: 12 }}>
-                  {assumed ? '' : '+'}<PrivateAmount>{fmt(tx.amount_cents)}</PrivateAmount>
+                <span style={{ fontSize: 14, fontWeight: 700, color: tx.reporting_status !== 'received' ? '#8A5A22' : tx.amount_cents < 0 ? 'var(--danger)' : 'var(--success)', marginLeft: 12 }}>
+                  <PrivateAmount>{fmt(tx.amount_cents)}</PrivateAmount>
                 </span>
               </div>
             );
           })}
         </div>
       )}
+
+      {tab === 'income' && incomeVisible < transactions.length && <Button variant="secondary" size="sm" fullWidth onClick={() => setIncomeVisible(n => n + 100)}>Show more records ({incomeVisible} of {transactions.length})</Button>}
 
       {/* ═══ TAX TAB ═══ */}
       {tab === 'tax' && (
@@ -2241,9 +2018,9 @@ export default function MoneyTracker() {
                 <div style={{ marginBottom: 20 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                     <Icon name={iconName('receipt_long')} size={18} inline style={{ color: 'var(--accent)' }} />
-                    <h3 style={S.sectionHeading}>Tax Year {t.taxYear}</h3>
+                    <h3 style={S.sectionHeading}>Tax Year {t.period.start.slice(0, 4)}/{t.period.end.slice(0, 4)}</h3>
                   </div>
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t.period.start} to {t.period.end}</span>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{prettyDate(t.period.start)} to {prettyDate(t.period.end)}</span>
 
                   {/* Year progress bar */}
                   <div style={{ marginTop: 10, background: 'var(--border, #E8DDD4)', borderRadius: 'var(--radius-xs)', height: 6, overflow: 'hidden' }}>
@@ -2252,157 +2029,60 @@ export default function MoneyTracker() {
                   <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>{Math.round(t.yearProgress * 100)}% through tax year</span>
                 </div>
 
-                {/* Set aside hero card */}
                 <div style={S.setAsideCard}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                    {t.businessType === 'limited_co' ? 'Set aside (corp tax + dividends)' : 'Set aside this quarter'}
-                  </span>
-                  <span style={{ fontSize: 32, fontWeight: 700, color: '#fff', margin: '6px 0' }}><PrivateAmount>{fmt(t.quarterlySetAside)}</PrivateAmount></span>
-                  <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)' }}>
-                    {t.businessType === 'limited_co'
-                      ? 'Corp tax due 9 months after year end'
-                      : `${t.nextDeadline.label} - ${t.nextDeadline.daysLeft} days away`
-                    }
-                  </span>
+                  <span style={{ fontSize: 12, color: '#fff', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Your tax position</span>
+                  <strong style={{ fontSize: 24, color: '#fff', margin: '8px 0' }}>{t.assumedCount || t.reviewCount ? 'Check receipts first' : 'Based on your records'}</strong>
+                  <span style={{ fontSize: 12, lineHeight: 1.5, color: '#fff' }}>Your final bill and payments on account cannot be worked out from salon receipts alone.</span>
                 </div>
-
-                {/* Profit + Tax summary */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
                   <div style={S.taxCard}>
-                    <span style={S.taxCardLabel}>Total Income</span>
+                    <span style={S.taxCardLabel}>Recorded receipts after refunds</span>
                     <span style={S.taxCardValue}><PrivateAmount>{fmt(t.totalIncome)}</PrivateAmount></span>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t.transactionCount} transactions</span>
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t.transactionCount} counted transactions, through {prettyDate(t.asAt)}</span>
                   </div>
                   <div style={S.taxCard}>
-                    <span style={S.taxCardLabel}>Deductible Expenses</span>
+                    <span style={S.taxCardLabel}>Logged deductible expenses</span>
                     <span style={S.taxCardValue}><PrivateAmount>{fmt(t.totalExpenses)}</PrivateAmount></span>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t.expenseCount} items</span>
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t.expenseCount} items marked deductible</span>
                   </div>
-                  <div style={{ ...S.taxCard, border: '1.5px solid rgba(146, 64, 94, 0.15)' }}>
-                    <span style={S.taxCardLabel}>Taxable Profit</span>
+                  <div style={S.taxCard}>
+                    <span style={S.taxCardLabel}>Receipts less deductible costs</span>
                     <span style={{ ...S.taxCardValue, color: 'var(--accent)' }}><PrivateAmount>{fmt(t.taxableProfit)}</PrivateAmount></span>
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Before missing receipts, costs and tax adjustments.</span>
                   </div>
+                  {t.assumedCount > 0 && <div style={S.taxCard}>
+                    <span style={S.taxCardLabel}>Needs payment confirmation</span>
+                    <span style={S.taxCardValue}><PrivateAmount>{fmt(t.assumedIncome)}</PrivateAmount></span>
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t.assumedCount} records excluded from the figures above. This does not mean clients owe this amount.</span>
+                  </div>}
                 </div>
-
-                {/* VAT section - registered users get full quarterly view, unregistered get threshold tracker */}
-                {t.vat.registered ? (() => {
-                  // VAT-registered: standard rate 20% on taxable supplies
-                  // Beauty treatments are generally standard-rated (cosmetic) unless medical
-                  const vatRate = 0.20;
-                  const vatCollected = Math.round(t.totalIncome * vatRate); // output tax
-                  const vatOnExpenses = Math.round(t.totalExpenses * vatRate * 0.5); // rough input tax (not all expenses have VAT)
-                  const vatOwed = Math.max(0, vatCollected - vatOnExpenses);
-                  const vatOwedPerQuarter = Math.round(vatOwed / 4);
-
-                  // MTD quarterly return deadlines (1 month + 7 days after quarter end)
-                  const now3 = new Date();
-                  const vatDeadlines = [
-                    { label: 'Q1 Apr–Jun', due: new Date(now3.getFullYear(), 7, 7) },   // 7 Aug
-                    { label: 'Q2 Jul–Sep', due: new Date(now3.getFullYear(), 10, 7) },  // 7 Nov
-                    { label: 'Q3 Oct–Dec', due: new Date(now3.getFullYear() + 1, 1, 7) }, // 7 Feb
-                    { label: 'Q4 Jan–Mar', due: new Date(now3.getFullYear() + 1, 4, 7) }, // 7 May
-                  ];
-                  const nextVatDeadline = vatDeadlines.find(d => d.due > now3) || vatDeadlines[vatDeadlines.length - 1];
-                  const daysToVat = Math.max(0, Math.ceil((nextVatDeadline.due - now3) / 86400000));
-
-                  return (
-                    <div style={{ ...S.breakdownCard, border: '1.5px solid #22c55e30' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                        <h4 style={{ ...S.breakdownTitle, margin: 0 }}>VAT (registered)</h4>
-                        <span style={{ fontSize: 11, fontWeight: 600, color: '#147739', background: '#f0fdf4', padding: '2px 8px', borderRadius: 10 }}>
-                          {t.vat.vatNumber || 'No VAT number set'}
-                        </span>
-                      </div>
-                      <div style={S.breakdownRow}>
-                        <div>
-                          <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Output tax (VAT collected)</span>
-                          <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block' }}>20% on your income</span>
-                        </div>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}><PrivateAmount>{fmt(vatCollected)}</PrivateAmount></span>
-                      </div>
-                      <div style={S.breakdownRow}>
-                        <div>
-                          <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Input tax (VAT on expenses)</span>
-                          <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block' }}>Estimated - confirm with receipts</span>
-                        </div>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>−<PrivateAmount>{fmt(vatOnExpenses)}</PrivateAmount></span>
-                      </div>
-                      <div style={{ ...S.breakdownRow, borderBottom: 'none', paddingTop: 12 }}>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent)' }}>VAT owed to HMRC</span>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent)' }}><PrivateAmount>{fmt(vatOwed)}</PrivateAmount></span>
-                      </div>
-                      <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 10, background: daysToVat <= 30 ? '#fef3c7' : '#f0fdf4', border: `1px solid ${daysToVat <= 30 ? '#fcd34d' : '#86efac'}` }}>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: daysToVat <= 30 ? '#92400e' : '#166534' }}>
-                          {<Icon name="calendar" inline />} {nextVatDeadline.label} return due in {daysToVat} days ({nextVatDeadline.due.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })})
-                        </span>
-                        <span style={{ display: 'block', fontSize: 11, color: '#534247', marginTop: 2 }}>
-                          Set aside ~<PrivateAmount>{fmt(vatOwedPerQuarter)}</PrivateAmount> per quarter for VAT
-                        </span>
-                      </div>
-                      <button className="fl-tap"
-                        onClick={() => { window.location.href = '/settings?section=tax'; }}
-                        style={{ marginTop: 8, padding: '6px 12px', borderRadius: 10, border: '1px solid var(--border)', background: 'none', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'inherit' }}
-                      >
-                        Update VAT number in Settings →
-                      </button>
-                    </div>
-                  );
-                })() : (
-                  <div style={S.breakdownCard}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                      <h4 style={{ ...S.breakdownTitle, margin: 0 }}>VAT Threshold</h4>
-                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Not registered</span>
-                    </div>
-                    <div style={{ background: 'var(--border, #E8DDD4)', borderRadius: 'var(--radius-xs)', height: 8, overflow: 'hidden', marginBottom: 6 }}>
-                      <div style={{ width: `${t.vat.vatPct}%`, height: '100%', borderRadius: 'var(--radius-xs)', transition: 'width 0.4s ease',
-                        background: t.vat.vatPct >= 90 ? '#ef4444' : t.vat.vatPct >= 75 ? '#f59e0b' : '#22c55e',
-                      }} />
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                      <div>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}><PrivateAmount>{fmt(t.vat.rolling12Revenue)}</PrivateAmount></span>
-                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}> of £90,000 threshold (rolling 12 months)</span>
-                      </div>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: t.vat.vatPct >= 75 ? '#ef4444' : 'var(--text-muted)' }}>{t.vat.vatPct}%</span>
-                    </div>
-                    {t.vat.vatPct >= 75 && (
-                      <div style={{ marginTop: 10, padding: '8px 10px', borderRadius: 10, background: '#fef3c7', border: '1px solid #fcd34d' }}>
-                        <span style={{ fontSize: 12, color: '#92400e', fontWeight: 500 }}><Icon name="alert-triangle" size={14} inline /> You're {t.vat.vatPct}% of the way to the VAT threshold. HMRC requires registration within 30 days of exceeding £90,000.
-                        </span>
-                      </div>
-                    )}
-                    <button className="fl-tap"
-                      onClick={() => { window.location.href = '/settings'; }}
-                      style={{ marginTop: 8, padding: '6px 12px', borderRadius: 10, border: '1px solid var(--border)', background: 'none', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'inherit' }}
-                    >
-                      Update VAT status in Settings →
-                    </button>
-                  </div>
-                )}
-
-                {/* Tax breakdown */}
                 <div style={S.breakdownCard}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                    <h4 style={{ ...S.breakdownTitle, margin: 0 }}>Tax Breakdown</h4>
-                    <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', background: 'var(--border-light)', padding: '2px 8px', borderRadius: 10 }}>
-                      {t.businessType === 'limited_co' ? 'Ltd company' : 'Sole trader'}
-                    </span>
-                  </div>
-                  {t.taxBreakdown.map((row, i) => (
-                    <div key={i} style={S.breakdownRow}>
-                      <div>
-                        <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{row.label}</span>
-                        <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block' }}>{row.hint}</span>
-                      </div>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: row.value === 0 ? 'var(--text-muted)' : 'var(--text-primary)' }}>
-                        <PrivateAmount>{row.value === 0 ? '-' : fmt(row.value)}</PrivateAmount>
-                      </span>
-                    </div>
-                  ))}
-                  <div style={{ ...S.breakdownRow, borderBottom: 'none', paddingTop: 12 }}>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent)' }}>Total estimated liability</span>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent)' }}><PrivateAmount>{fmt(t.totalTaxLiability)}</PrivateAmount></span>
-                  </div>
+                  <h4 style={S.breakdownTitle}>{t.vat.registered ? 'VAT records' : 'VAT registration watch'}</h4>
+                  {t.vat.registered ? <p style={{ fontSize: 13, lineHeight: 1.6 }}>A VAT return needs the actual VAT on each sale and receipt, your VAT scheme and return dates. Florrie does not yet hold enough information to calculate VAT owed.</p> : <>
+                    <p style={{ fontSize: 13 }}><PrivateAmount>{fmt(t.vat.rolling12Revenue)}</PrivateAmount> in recorded receipts over the rolling 12 months.</p>
+                    <p style={{ fontSize: 12, lineHeight: 1.6, color: 'var(--text-secondary)' }}>The registration threshold is £90,000 of taxable turnover. Receipts are not a complete measure of taxable turnover: unconfirmed payments, sales not yet paid and sales outside Florrie may change your position. Also check whether you expect to exceed £90,000 in the next 30 days.</p>
+                    <a href="https://www.gov.uk/register-for-vat" target="_blank" rel="noreferrer" style={{ color: 'var(--accent)', fontSize: 12 }}>Check HMRC's VAT rules</a>
+                  </>}
+                  <Button variant="secondary" size="sm" onClick={() => navigate('/settings?section=tax')} style={S.exportBtn}>Update VAT settings</Button>
+                </div>
+                <div style={S.breakdownCard}>
+                  <h4 style={S.breakdownTitle}>Tax illustration</h4>
+                  {t.illustration ? <>
+                    <p style={{ fontSize: 12, lineHeight: 1.6, color: 'var(--text-secondary)' }}>Uses only the recorded profit above, England/Wales/Northern Ireland rates, no other income or reliefs, and the personal allowance with its high-income taper. Scottish rates differ. This is not a forecast, tax bill or quarterly savings target.</p>
+                    <details>
+                      <summary style={{ cursor: 'pointer', fontSize: 13, padding: '10px 0', color: 'var(--accent)' }}>Show illustration and assumptions</summary>
+                      {[
+                        ['Income Tax', t.illustration.incomeTax],
+                        ['Compulsory Class 2 NI', 0],
+                        ['Class 4 NI', t.illustration.niClass4],
+                        ['Illustration total', t.illustration.total],
+                      ].map(([label, value]) => <div key={label} style={S.breakdownRow}><span style={{ fontSize: 13 }}>{label}</span><PrivateAmount>{fmt(value)}</PrivateAmount></div>)}
+                      <p style={{ fontSize: 12, lineHeight: 1.6 }}>Class 2 is no longer compulsory. Voluntary contributions may apply at low profits. Class 4 is 6% on profits from £12,570 to £50,270, then 2%. Missing receipts and expenses can materially change these figures.</p>
+                      <a href="https://www.gov.uk/self-employed-national-insurance-rates" target="_blank" rel="noreferrer" style={{ color: 'var(--accent)', fontSize: 12 }}>HMRC National Insurance rates</a>
+                    </details>
+                  </> : <p style={{ fontSize: 13, lineHeight: 1.6 }}>{t.businessType !== 'sole_trader' ? 'Company tax needs your accounting period, adjusted profits, payroll and dividends. Use the records export with your accountant.' : 'A tax illustration is unavailable for this tax year or VAT setup. Use the records export with your accountant.'}</p>}
+                  <p style={{ fontSize: 12, lineHeight: 1.6 }}>Payments on account depend on your previous Self Assessment bill and tax already paid. Check the amounts and due dates in your HMRC account.</p>
+                  <a href="https://www.gov.uk/understand-self-assessment-bill/payments-on-account" target="_blank" rel="noreferrer" style={{ color: 'var(--accent)', fontSize: 12 }}>How payments on account work</a>
                 </div>
 
                 {/* Expense breakdown by category */}
@@ -2427,7 +2107,7 @@ export default function MoneyTracker() {
                 {/* Monthly income */}
                 {Object.keys(t.monthlyIncome).length > 0 && (
                   <div style={S.breakdownCard}>
-                    <h4 style={S.breakdownTitle}>Monthly Income</h4>
+                    <h4 style={S.breakdownTitle}>Recorded receipts by month</h4>
                     {Object.entries(t.monthlyIncome)
                       .sort(([a], [b]) => a.localeCompare(b))
                       .map(([month, cents]) => {
@@ -2446,12 +2126,7 @@ export default function MoneyTracker() {
 
                 {/* Export for accountant */}
                 <button disabled={clientDetailsHidden}
-                  onClick={() => {
-                    const a = document.createElement('a');
-                    a.href = `/api/exports/tax-quarterly?year=${t.taxYear.replace('/', '-')}`;
-                    a.download = '';
-                    a.click();
-                  }}
+                  onClick={() => handleExportLedgerCSV(t.taxYear)}
                   style={{ width: '100%', padding: '14px 0', borderRadius: 10,
                     border: 'none', background: 'var(--accent)', color: '#fff',
                     fontSize: 14, fontWeight: 600, cursor: 'pointer',

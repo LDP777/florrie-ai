@@ -297,7 +297,7 @@ export function fetchStubSource() {
         if (new RegExp(ROUTES[i]).test(url)) { body = BODIES[i]; break; }
       }
       return Promise.resolve(new Response(JSON.stringify(body), {
-        status: 200, headers: { 'content-type': 'application/json' },
+        status: 200, headers: { 'content-type': 'application/json', ...(Array.isArray(body) ? { 'content-range': '0-' + Math.max(0, body.length - 1) + '/' + body.length } : {}) },
       }));
     };
   `;

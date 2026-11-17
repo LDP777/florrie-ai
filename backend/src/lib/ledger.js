@@ -20,7 +20,7 @@
  * their own with no special case.
  */
 import { getTaxYear } from './time-utils.js';
-import { isAssumedTakingsRow } from './money-guards.js';
+import { moneyDate, reportableTransactions, moneyTotals, reportingBounds } from './money-reporting.js';
 
 /**
  * The UK tax year runs 6 April to 5 April, NOT the calendar year. Every "year
@@ -31,13 +31,7 @@ import { isAssumedTakingsRow } from './money-guards.js';
  * @returns {{taxYear: string, start: string, end: string}} inclusive dates
  */
 export function taxYearBounds(taxYear) {
-  const startYear = Number(String(taxYear).split('-')[0]);
-  if (!Number.isFinite(startYear)) throw new Error(`Not a tax year: ${taxYear}`);
-  return {
-    taxYear: `${startYear}-${String(startYear + 1).slice(2)}`,
-    start: `${startYear}-04-06`,
-    end: `${startYear + 1}-04-05`,
-  };
+  return reportingBounds(taxYear);
 }
 
 /**
@@ -101,11 +95,9 @@ export function samePointLastYear(dateStr) {
   return `${y - 1}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
-/** Income rows carry a timestamp, expenses carry a DATE. Both reduce to a
- *  calendar date by string slicing, never by Date parsing, which is what turns
- *  a 23:30 BST payment into yesterday. */
-function dateOf(row) {
-  return String(row?.date || row?.created_at || '').slice(0, 10);
+/** Transaction timestamps are real instants; expense dates are calendar dates. */
+function dateOf(row, timezone = 'Europe/London') {
+  return row?.date || moneyDate(row?.created_at, timezone);
 }
 
 /**
@@ -119,7 +111,7 @@ function dateOf(row) {
  *   is how the screen reads, but running_total_cents was accumulated oldest
  *   first so the top row carries the grand total.
  */
-export function buildLedger({ expenses = [], transactions = [] } = {}) {
+export function buildLedger({ expenses = [], transactions = [], timezone = 'Europe/London' } = {}) {
   const entries = [];
 
   for (const e of expenses) {
@@ -138,11 +130,11 @@ export function buildLedger({ expenses = [], transactions = [] } = {}) {
     });
   }
 
-  for (const t of transactions) {
+  for (const t of reportableTransactions(transactions)) {
     entries.push({
       id: t.id,
       kind: 'income',
-      date: dateOf(t),
+      date: dateOf(t, timezone),
       // Left as stored: a refund is already negative and must stay negative.
       amount_cents: Number(t.amount_cents) || 0,
       category: t.type || 'payment',
@@ -151,7 +143,9 @@ export function buildLedger({ expenses = [], transactions = [] } = {}) {
       // the same ink as a card charge that really happened. The tax year total
       // she reads off the bottom of this screen is the last place that should
       // be quietly optimistic. See isAssumedTakingsRow.
-      assumed: isAssumedTakingsRow(t),
+      assumed: t.reporting_status === 'assumed',
+      reporting_status: t.reporting_status,
+      included: t.reporting_status === 'received',
       vendor: null,
       description: t.description || null,
       recurring_expense_id: null,
@@ -175,26 +169,30 @@ export function buildLedger({ expenses = [], transactions = [] } = {}) {
   const byCategory = {};
 
   for (const entry of entries) {
-    running += entry.amount_cents;
+    const included = entry.kind === 'expense' || entry.included;
+    if (included) running += entry.amount_cents;
     entry.running_total_cents = running;
     delete entry.sort_key;
 
     if (entry.kind === 'expense') {
       expensesCents += Math.abs(entry.amount_cents);
-    } else {
+    } else if (included) {
       incomeCents += entry.amount_cents;
     }
 
+    if (!included) continue;
     const bucket = byCategory[entry.category] || (byCategory[entry.category] = {
       kind: entry.kind, total_cents: 0, count: 0,
     });
-    bucket.total_cents += Math.abs(entry.amount_cents);
+    bucket.total_cents += entry.kind === 'expense' ? Math.abs(entry.amount_cents) : entry.amount_cents;
     bucket.count += 1;
   }
 
   return {
     rows: entries.reverse(),
     summary: {
+      assumed_cents: entries.filter(e => e.assumed).reduce((n, e) => n + e.amount_cents, 0),
+      excluded_count: entries.filter(e => e.kind === 'income' && !e.included).length,
       income_cents: incomeCents,
       expenses_cents: expensesCents,
       net_cents: incomeCents - expensesCents,
@@ -228,22 +226,7 @@ export function paginate(rows, page = 1, pageSize = 50) {
  * a comparison. Showing this year's nine months against last year's twelve is a
  * number that always looks like a collapse.
  */
-export function periodTotals({ expenses = [], transactions = [], start, end }) {
-  const within = (d) => (!start || d >= start) && (!end || d <= end);
-
-  let incomeCents = 0;
-  for (const t of transactions) {
-    if (within(dateOf(t))) incomeCents += Number(t.amount_cents) || 0;
-  }
-
-  let expenseCents = 0;
-  for (const e of expenses) {
-    if (within(dateOf(e))) expenseCents += Math.abs(Number(e.amount_cents) || 0);
-  }
-
-  return {
-    income_cents: incomeCents,
-    expenses_cents: expenseCents,
-    profit_cents: incomeCents - expenseCents,
-  };
+export function periodTotals(input) {
+  const { income_cents, expenses_cents, profit_cents } = moneyTotals(input);
+  return { income_cents, expenses_cents, profit_cents };
 }

@@ -1,4 +1,7 @@
 import { Router } from 'express';
+import { readAllMoney } from '../lib/read-all-money.js';
+import { loadMoneyRecords } from '../lib/money-records.js';
+import { moneyDate, moneyTotals, periodWindow, taxReport, reportingYear } from '../lib/money-reporting.js';
 import { INCOME_TYPES } from '../lib/money-guards.js';
 import { z } from 'zod';
 import { supabase } from '../config.js';
@@ -17,7 +20,6 @@ import {
   buildLedger,
   currentTaxYear,
   paginate,
-  periodTotals,
   samePointLastYear,
   taxYearBounds,
   taxYearsFrom,
@@ -104,82 +106,18 @@ router.get('/pulse', requireAuth, async (req, res) => {
 
     // The same two boundaries as real instants, for the columns that hold one.
     const weekStart = fromSalonWall(weekStartWall);
-    const lastWeekStart = fromSalonWall(lastWeekStartWall);
 
-    // This week's income
-    const { data: thisWeekIncome, error: err1 } = await supabase
-      .from('transactions')
-      .select('amount_cents')
-      .eq('beautician_id', req.beautician.id)
-      .in('type', INCOME_TYPES)
-      .eq('status', 'completed')
-      .gte('created_at', weekStart.toISOString());
-
-    if (err1) {
-      logger.error({ err: err1 }, 'Failed to fetch this week income');
-      return res.status(500).json({ error: 'Something went wrong' });
-    }
-
-    // Last week's income
-    const { data: lastWeekIncome, error: err2 } = await supabase
-      .from('transactions')
-      .select('amount_cents')
-      .eq('beautician_id', req.beautician.id)
-      .in('type', INCOME_TYPES)
-      .eq('status', 'completed')
-      .gte('created_at', lastWeekStart.toISOString())
-      .lt('created_at', weekStart.toISOString());
-
-    if (err2) {
-      logger.error({ err: err2 }, 'Failed to fetch last week income');
-      return res.status(500).json({ error: 'Something went wrong' });
-    }
-
-    // This week's expenses
-    const { data: thisWeekExpenses, error: err3 } = await supabase
-      .from('expenses')
-      .select('amount_cents, category')
-      .eq('beautician_id', req.beautician.id)
-      .gte('date', wallDay(weekStartWall));
-
-    if (err3) {
-      logger.error({ err: err3 }, 'Failed to fetch this week expenses');
-      return res.status(500).json({ error: 'Something went wrong' });
-    }
-
-    // Last week's expenses
-    const { data: lastWeekExpenses, error: err4 } = await supabase
-      .from('expenses')
-      .select('amount_cents')
-      .eq('beautician_id', req.beautician.id)
-      .gte('date', wallDay(lastWeekStartWall))
-      .lt('date', wallDay(weekStartWall));
-
-    if (err4) {
-      logger.error({ err: err4 }, 'Failed to fetch last week expenses');
-      return res.status(500).json({ error: 'Something went wrong' });
-    }
-
-    // This week's appointments
-    const { data: thisWeekAppts, error: err5 } = await supabase
-      .from('appointments')
-      .select('id, status')
-      .eq('beautician_id', req.beautician.id)
-      // starts_at is wall time, so both bounds are wall time. This is the line
-      // that lost the appointment she had just finished.
-      .gte('starts_at', weekStartWall.toISOString())
-      .lt('starts_at', nowWall.toISOString());
-
-    if (err5) {
-      logger.error({ err: err5 }, 'Failed to fetch this week appointments');
-      return res.status(500).json({ error: 'Something went wrong' });
-    }
-
-    const sumCents = (arr) => (arr || []).reduce((sum, r) => sum + (r.amount_cents || 0), 0);
-    const thisIncome = sumCents(thisWeekIncome);
-    const lastIncome = sumCents(lastWeekIncome);
-    const thisExpense = sumCents(thisWeekExpenses);
-    const lastExpense = sumCents(lastWeekExpenses);
+    const records = await loadMoneyRecords(supabase, req.beautician);
+    const timezone = req.beautician.timezone || SALON_TZ;
+    const window = periodWindow('week', moneyDate(records.now, timezone));
+    const current = moneyTotals({ ...records, ...window, timezone });
+    const previous = moneyTotals({ ...records, start: wallDay(lastWeekStartWall), end: new Date(weekStartWall.getTime() - 86400000).toISOString().slice(0, 10), timezone });
+    const comparison = moneyTotals({ ...records, start: window.previousStart, end: window.previousEnd, timezone });
+    const thisWeekAppts = await readAllMoney(() => supabase.from('appointments').select('id, status', { count: 'exact' })
+      .eq('beautician_id', req.beautician.id).gte('starts_at', weekStartWall.toISOString()).lt('starts_at', nowWall.toISOString()).order('id'));
+    const thisWeekExpenses = records.expenses.filter(e => e.date >= window.start && e.date <= window.end);
+    const thisIncome = current.income_cents, lastIncome = previous.income_cents;
+    const thisExpense = current.expenses_cents, lastExpense = previous.expenses_cents;
 
     const completedAppts = (thisWeekAppts || []).filter(a => a.status === 'completed').length;
     const noShows = (thisWeekAppts || []).filter(a => a.status === 'no_show').length;
@@ -191,18 +129,19 @@ router.get('/pulse', requireAuth, async (req, res) => {
       expenseByCategory[e.category] = (expenseByCategory[e.category] || 0) + e.amount_cents;
     });
 
-    const incomeChange = lastIncome > 0
-      ? Math.round(((thisIncome - lastIncome) / lastIncome) * 100)
+    const incomeChange = comparison.income_cents > 0
+      ? Math.round(((thisIncome - comparison.income_cents) / comparison.income_cents) * 100)
       : null;
 
     res.json({
       thisWeek: {
         income: thisIncome,
+        assumed_cents: current.assumed_cents,
         expenses: thisExpense,
         profit: thisIncome - thisExpense,
         appointments: completedAppts,
         noShows,
-        noShowRate: totalAppts > 0 ? Math.round((noShows / totalAppts) * 100) : 0,
+        noShowRate: totalAppts > 0 ? Math.round((noShows / totalAppts) * 100) : null,
         expenseByCategory
       },
       lastWeek: {
@@ -229,131 +168,8 @@ router.get('/pulse', requireAuth, async (req, res) => {
  */
 router.get('/tax-summary', requireAuth, async (req, res) => {
   try {
-    const taxYear = req.query.year || getCurrentTaxYear();
-    const [startYear] = taxYear.split('-').map(Number);
-
-    // UK tax year: 6 April to 5 April
-    const periodStart = `${startYear}-04-06`;
-    const periodEnd = `${startYear + 1}-04-05`;
-
-    // Total income
-    const { data: income, error: incomeError } = await supabase
-      .from('transactions')
-      .select('amount_cents, type, created_at')
-      .eq('beautician_id', req.beautician.id)
-      .eq('status', 'completed')
-      .gte('created_at', `${periodStart}T00:00:00Z`)
-      .lte('created_at', `${periodEnd}T23:59:59Z`);
-
-    if (incomeError) {
-      logger.error({ err: incomeError }, 'Failed to fetch tax year income');
-      return res.status(500).json({ error: 'Something went wrong' });
-    }
-
-    // All expenses
-    const { data: expenses, error: expenseError } = await supabase
-      .from('expenses')
-      .select(await selectable(supabase, 'expenses',
-          ['amount_cents', 'category', 'vendor', 'date', 'tax_deductible'],
-          ['hmrc_category']))
-      .eq('beautician_id', req.beautician.id)
-      .gte('date', periodStart)
-      .lte('date', periodEnd);
-
-    if (expenseError) {
-      logger.error({ err: expenseError }, 'Failed to fetch tax year expenses');
-      return res.status(500).json({ error: 'Something went wrong' });
-    }
-
-    const totalIncome = (income || []).reduce((s, t) => s + t.amount_cents, 0);
-    const deductible = (expenses || []).filter(e => e.tax_deductible);
-    const totalExpenses = deductible.reduce((s, e) => s + e.amount_cents, 0);
-
-    // Group expenses by category
-    const expensesByCategory = {};
-    deductible.forEach(e => {
-      if (!expensesByCategory[e.category]) {
-        expensesByCategory[e.category] = { total_cents: 0, count: 0, items: [] };
-      }
-      expensesByCategory[e.category].total_cents += e.amount_cents;
-      expensesByCategory[e.category].count += 1;
-      expensesByCategory[e.category].items.push({
-        amount: e.amount_cents,
-        vendor: e.vendor,
-        date: e.date
-      });
-    });
-
-    // Group by HMRC category
-    const expensesByHmrc = {};
-    deductible.forEach(e => {
-      const hcat = e.hmrc_category || 'other_expenses';
-      if (!expensesByHmrc[hcat]) expensesByHmrc[hcat] = { total_cents: 0, count: 0 };
-      expensesByHmrc[hcat].total_cents += e.amount_cents;
-      expensesByHmrc[hcat].count += 1;
-    });
-
-    // Monthly income breakdown
-    const monthlyIncome = {};
-    (income || []).forEach(t => {
-      const month = new Date(t.created_at).toISOString().slice(0, 7); // YYYY-MM
-      monthlyIncome[month] = (monthlyIncome[month] || 0) + t.amount_cents;
-    });
-
-    const taxableProfit = totalIncome - totalExpenses;
-    const profitPounds = taxableProfit / 100;
-
-    const personalAllowance = 12_570;
-    const basicBand = 50_270;
-    let incomeTax = 0;
-    if (profitPounds > personalAllowance) {
-      const taxable = profitPounds - personalAllowance;
-      const basicPortion = Math.min(taxable, basicBand - personalAllowance);
-      const higherPortion = Math.max(0, taxable - basicPortion);
-      incomeTax = basicPortion * 0.20 + higherPortion * 0.40;
-    }
-
-    const niClass2Weekly = 3.45;
-    const weeksInYear = 52;
-    const niClass2 = profitPounds > personalAllowance ? niClass2Weekly * weeksInYear : 0;
-
-    let niClass4 = 0;
-    if (profitPounds > personalAllowance) {
-      const band1 = Math.min(profitPounds, basicBand) - personalAllowance;
-      const band2 = Math.max(0, profitPounds - basicBand);
-      niClass4 = band1 * 0.06 + band2 * 0.02;
-    }
-
-    const totalTaxLiability = incomeTax + niClass2 + niClass4;
-
-    // UK payment on account deadlines: 31 Jan (first) + 31 Jul (second)
-    const quarterlySetAside = totalTaxLiability / 4;
-
-    const deadlines = [
-      { label: 'Payment on account 1', date: `${startYear + 1}-01-31` },
-      { label: 'Payment on account 2', date: `${startYear + 1}-07-31` },
-      { label: 'Balancing payment', date: `${startYear + 2}-01-31` },
-    ];
-
-    res.json({
-      taxYear,
-      period: { start: periodStart, end: periodEnd },
-      totalIncome,
-      totalExpenses,
-      taxableProfit,
-      expensesByCategory,
-      expensesByHmrc,
-      monthlyIncome,
-      transactionCount: (income || []).length,
-      expenseCount: (expenses || []).length,
-      // Tax calculations (all in pence for consistency)
-      incomeTax: Math.round(incomeTax * 100),
-      niClass2: Math.round(niClass2 * 100),
-      niClass4: Math.round(niClass4 * 100),
-      totalTaxLiability: Math.round(totalTaxLiability * 100),
-      quarterlySetAside: Math.round(quarterlySetAside * 100),
-      deadlines,
-    });
+    const records = await loadMoneyRecords(supabase, req.beautician);
+    res.json(taxReport({ ...records, beautician: req.beautician, year: req.query.year }));
   } catch (err) {
     logger.error({ err }, 'Unexpected error in tax summary');
     res.status(500).json({ error: 'Something went wrong' });
@@ -613,40 +429,18 @@ router.get('/reports', requireAuth, async (req, res) => {
     // transactions.created_at and left in the wall frame for starts_at.
     const nowWall = nowInSalonWall(SALON_TZ);
 
-    const startOfMonthWall = new Date(nowWall.getTime());
-    startOfMonthWall.setUTCDate(1);
-    startOfMonthWall.setUTCHours(0, 0, 0, 0);
-    const startOfLastMonthWall = new Date(startOfMonthWall.getTime());
-    startOfLastMonthWall.setUTCMonth(startOfLastMonthWall.getUTCMonth() - 1);
-
-    const startOfMonth = fromSalonWall(startOfMonthWall);
-    const startOfLastMonth = fromSalonWall(startOfLastMonthWall);
-
     const ninetyAgoWall = new Date(nowWall.getTime() - 90 * 24 * 60 * 60 * 1000);
 
-    // Revenue: this month vs last month
-    const { data: tx } = await supabase
-      .from('transactions')
-      .select('amount_cents, created_at')
-      .eq('beautician_id', req.beautician.id)
-      .eq('status', 'completed')
-      .in('type', INCOME_TYPES)
-      .gte('created_at', startOfLastMonth.toISOString());
-
-    let thisMonth = 0, lastMonth = 0;
-    for (const t of tx || []) {
-      const d = new Date(t.created_at);
-      if (d >= startOfMonth) thisMonth += t.amount_cents || 0;
-      else if (d >= startOfLastMonth) lastMonth += t.amount_cents || 0;
-    }
+    const records = await loadMoneyRecords(supabase, req.beautician);
+    const timezone = req.beautician.timezone || SALON_TZ;
+    const window = periodWindow('month', moneyDate(records.now, timezone));
+    const thisMonth = moneyTotals({ ...records, ...window, timezone }).income_cents;
+    const lastMonth = moneyTotals({ ...records, start: window.previousStart, end: window.previousEnd, timezone }).income_cents;
     const changePct = lastMonth > 0 ? Math.round(((thisMonth - lastMonth) / lastMonth) * 100) : null;
-
-    // Appointments: last 90 days + all future (future bookings prove rebooking)
-    const { data: appts } = await supabase
-      .from('appointments')
-      .select('id, client_id, starts_at, status')
-      .eq('beautician_id', req.beautician.id)
-      .gte('starts_at', ninetyAgoWall.toISOString());
+    const tx = records.transactions.filter(t => t.reporting_status === 'received');
+    const appts = await readAllMoney(() => supabase.from('appointments')
+      .select('id, client_id, starts_at, status', { count: 'exact' })
+      .eq('beautician_id', req.beautician.id).gte('starts_at', ninetyAgoWall.toISOString()).order('id'));
 
     const all = appts || [];
     // starts_at against a wall-frame now, never against a real instant: in BST
@@ -655,18 +449,18 @@ router.get('/reports', requireAuth, async (req, res) => {
     const past = all.filter(a => new Date(a.starts_at) <= nowWall);
 
     // No-show rate over the last 90 days of terminal appointments
-    const terminal = past.filter(a => ['completed', 'no_show', 'cancelled', 'rescheduled'].includes(a.status));
+    const terminal = past.filter(a => ['completed', 'no_show'].includes(a.status));
     const noShows = terminal.filter(a => a.status === 'no_show').length;
     const noShowRate = terminal.length > 0 ? Math.round((noShows / terminal.length) * 100) : null;
 
     // Rebooking rate: of completed appts, % whose client has a later booking
-    const completed = past.filter(a => a.status === 'completed');
+    const completed = [...new Map(past.filter(a => a.status === 'completed' && a.client_id).sort((a, b) => a.starts_at.localeCompare(b.starts_at)).map(a => [a.client_id, a])).values()];
     let rebooked = 0;
     for (const a of completed) {
       const t = new Date(a.starts_at).getTime();
       if (all.some(b => b.client_id === a.client_id && b.id !== a.id
           && new Date(b.starts_at).getTime() > t
-          && ['confirmed', 'completed', 'pending'].includes(b.status))) {
+          && ['confirmed', 'completed'].includes(b.status))) {
         rebooked++;
       }
     }
@@ -675,13 +469,13 @@ router.get('/reports', requireAuth, async (req, res) => {
     // One plain-English insight, rule-based so the numbers are never invented
     let insight;
     if (terminal.length >= 5 && noShowRate != null && noShowRate >= 10) {
-      insight = `${noShowRate}% of your appointments were no-shows over the last 90 days. Taking a deposit on booking would cut that.`;
+      insight = `${noShowRate}% of your appointments were no-shows over the last 90 days. Review your deposit settings if needed.`;
     } else if (completed.length >= 5 && rebookingRate != null && rebookingRate < 50) {
       insight = `Only ${rebookingRate}% of clients rebook. A quick nudge after each visit could lift that.`;
     } else if (changePct != null && changePct >= 5) {
-      insight = `You are up ${changePct}% on last month. Nice work.`;
+      insight = `You are up ${changePct}% against the same dates last month.`;
     } else if (changePct != null && changePct <= -5) {
-      insight = `You are down ${Math.abs(changePct)}% on last month. Filling a couple of gaps would close it.`;
+      insight = `You are down ${Math.abs(changePct)}% against the same dates last month.`;
     } else if ((tx || []).length === 0 && all.length === 0) {
       insight = `Once you have logged a few appointments, Florrie will spot patterns here.`;
     } else {
@@ -699,20 +493,6 @@ router.get('/reports', requireAuth, async (req, res) => {
     res.status(500).json({ error: 'Something went wrong' });
   }
 });
-
-/**
- * Nothing is allowed to read the whole table without a ceiling. A solo salon's
- * tax year is a few thousand rows, but a filter of "everything, ever" on an
- * imported history is not, and a running total is computed in memory.
- */
-const MAX_LEDGER_ROWS = 3000;
-
-/** Today as a plain calendar date. Expenses are a DATE column, so this is a
- *  date question, not a wall-time one. */
-function todayDateStr() {
-  const now = new Date();
-  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')}`;
-}
 
 /** The oldest thing this salon has on the books, for the tax-year picker. Two
  *  one-row reads rather than scanning either table. */
@@ -786,58 +566,14 @@ router.get('/ledger', requireAuth, async (req, res) => {
     const wantExpenses = type !== 'income';
     const wantIncome = type !== 'expense' && !category;
 
+    const records = await loadMoneyRecords(supabase, req.beautician);
+    const timezone = req.beautician.timezone || SALON_TZ;
+    const within = date => (!from || date >= from) && (!to || date <= to);
     let expenses = [];
-    if (wantExpenses) {
-      let q = supabase
-        .from('expenses')
-        .select(await selectable(supabase, 'expenses',
-          ['id', 'amount_cents', 'vendor', 'description', 'category', 'date',
-           'tax_deductible', 'recurring_expense_id', 'created_at'],
-          ['hmrc_category']))
-        .eq('beautician_id', beauticianId)
-        .order('date', { ascending: false })
-        .limit(MAX_LEDGER_ROWS);
-      if (from) q = q.gte('date', from);
-      if (to) q = q.lte('date', to);
-      if (category) q = q.eq('category', category);
+    if (wantExpenses) expenses = records.expenses.filter(e => within(e.date) && (!category || e.category === category));
+    const transactions = wantIncome ? records.transactions.filter(t => within(moneyDate(t.created_at, timezone))) : [];
 
-      const { data, error } = await q;
-      if (error) {
-        logger.error({ err: error }, 'Ledger: failed to fetch expenses');
-        return res.status(500).json({ error: 'Something went wrong' });
-      }
-      expenses = data || [];
-    }
-
-    let transactions = [];
-    if (wantIncome) {
-      let q = supabase
-        // payment_method and stripe_payment_intent_id are what separate money
-        // that really landed from the row completion writes on an assumption
-        // (27 August 2026). buildLedger turns them into one `assumed` flag so
-        // the year total she reads here is not quietly optimistic.
-        .from('transactions')
-        .select('id, amount_cents, type, description, created_at, payment_method, stripe_payment_intent_id')
-        .eq('beautician_id', beauticianId)
-        .eq('status', 'completed')
-        // INCOME_TYPES, never a hand-written list. Four copies of this list is
-        // how refunds stopped coming off her totals on some screens and not
-        // others. Refund rows are negative, so including the type nets them off.
-        .in('type', INCOME_TYPES)
-        .order('created_at', { ascending: false })
-        .limit(MAX_LEDGER_ROWS);
-      if (from) q = q.gte('created_at', `${from}T00:00:00.000Z`);
-      if (to) q = q.lte('created_at', `${to}T23:59:59.999Z`);
-
-      const { data, error } = await q;
-      if (error) {
-        logger.error({ err: error }, 'Ledger: failed to fetch transactions');
-        return res.status(500).json({ error: 'Something went wrong' });
-      }
-      transactions = data || [];
-    }
-
-    const { rows, summary } = buildLedger({ expenses, transactions });
+    const { rows, summary } = buildLedger({ expenses, transactions, timezone });
     const page = paginate(rows, req.query.page, req.query.page_size);
 
     const oldest = await oldestDatedRow(beauticianId);
@@ -851,7 +587,7 @@ router.get('/ledger', requireAuth, async (req, res) => {
       },
       tax_years: taxYearsFrom(oldest),
       // Says so rather than quietly returning a total that is missing rows.
-      truncated: expenses.length >= MAX_LEDGER_ROWS || transactions.length >= MAX_LEDGER_ROWS,
+      truncated: false,
     });
   } catch (err) {
     logger.error({ err }, 'Ledger failed');
@@ -872,10 +608,9 @@ router.get('/ledger', requireAuth, async (req, res) => {
  */
 router.get('/year-to-date', requireAuth, async (req, res) => {
   try {
-    const beauticianId = req.beautician.id;
-    const today = todayDateStr();
+    const today = moneyDate(new Date(), req.beautician.timezone || SALON_TZ);
 
-    const current = taxYearBounds(req.query.year || currentTaxYear());
+    const current = taxYearBounds(req.query.year || reportingYear(today));
     const previousStartYear = Number(current.taxYear.split('-')[0]) - 1;
     const previous = taxYearBounds(`${previousStartYear}-${String(previousStartYear + 1).slice(2)}`);
 
@@ -883,38 +618,8 @@ router.get('/year-to-date', requireAuth, async (req, res) => {
     const asAt = today < current.end ? today : current.end;
     const previousAsAt = today < current.end ? samePointLastYear(asAt) : previous.end;
 
-    // One read per table across both years, then split in memory. Four queries
-    // would be four chances for an unchecked error object.
-    const [expenseResult, incomeResult] = await Promise.all([
-      supabase
-        .from('expenses')
-        .select('amount_cents, date, category')
-        .eq('beautician_id', beauticianId)
-        .gte('date', previous.start)
-        .lte('date', current.end)
-        .limit(MAX_LEDGER_ROWS),
-      supabase
-        .from('transactions')
-        .select('amount_cents, created_at, type')
-        .eq('beautician_id', beauticianId)
-        .eq('status', 'completed')
-        .in('type', INCOME_TYPES)
-        .gte('created_at', `${previous.start}T00:00:00.000Z`)
-        .lte('created_at', `${current.end}T23:59:59.999Z`)
-        .limit(MAX_LEDGER_ROWS),
-    ]);
-
-    if (expenseResult.error) {
-      logger.error({ err: expenseResult.error }, 'Year to date: failed to fetch expenses');
-      return res.status(500).json({ error: 'Something went wrong' });
-    }
-    if (incomeResult.error) {
-      logger.error({ err: incomeResult.error }, 'Year to date: failed to fetch income');
-      return res.status(500).json({ error: 'Something went wrong' });
-    }
-
-    const expenses = expenseResult.data || [];
-    const transactions = incomeResult.data || [];
+    const { expenses, transactions } = await loadMoneyRecords(supabase, req.beautician);
+    const timezone = req.beautician.timezone || SALON_TZ;
 
     res.json({
       current: {
@@ -922,7 +627,7 @@ router.get('/year-to-date', requireAuth, async (req, res) => {
         start: current.start,
         end: current.end,
         as_at: asAt,
-        ...periodTotals({ expenses, transactions, start: current.start, end: asAt }),
+        ...moneyTotals({ expenses, transactions, timezone, start: current.start, end: asAt }),
       },
       previous: {
         tax_year: previous.taxYear,
@@ -930,8 +635,8 @@ router.get('/year-to-date', requireAuth, async (req, res) => {
         end: previous.end,
         as_at: previousAsAt,
         // The like-for-like number the UI should show next to this year.
-        ...periodTotals({ expenses, transactions, start: previous.start, end: previousAsAt }),
-        full_year: periodTotals({ expenses, transactions, start: previous.start, end: previous.end }),
+        ...moneyTotals({ expenses, transactions, timezone, start: previous.start, end: previousAsAt }),
+        full_year: moneyTotals({ expenses, transactions, timezone, start: previous.start, end: previous.end }),
       },
     });
   } catch (err) {

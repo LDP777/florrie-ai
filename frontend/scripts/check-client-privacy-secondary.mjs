@@ -43,8 +43,8 @@ const bundle = await build({
     window.fixture={owner,tables,requests:[],writes:[],copies:[],snapshot:JSON.stringify(tables),
       session(){return {access_token:'fictional-token',user:{id:'user-a'}};},
       query(table){
-        const q={then(resolve,reject){return Promise.resolve({data:tables[table]||[],error:null}).then(resolve,reject);}};
-        for(const key of ['select','eq','in','order','limit','gte','lte','maybeSingle','single','is','not'])q[key]=()=>q;
+        const q={then(resolve,reject){return Promise.resolve({data:tables[table]||[],count:(tables[table]||[]).length,error:null}).then(resolve,reject);}};
+        for(const key of ['select','eq','in','order','range','limit','gte','lte','maybeSingle','single','is','not'])q[key]=()=>q;
         for(const key of ['insert','update','delete','upsert'])q[key]=()=>{fixture.writes.push({table,method:key});throw Error('Unexpected table write');};
         return q;
       },

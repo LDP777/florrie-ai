@@ -86,8 +86,8 @@ describe('buildLedger', () => {
     { id: 'e2', amount_cents: 2500, category: 'products', date: '2026-08-03', vendor: 'Sally' },
   ];
   const transactions = [
-    { id: 't1', amount_cents: 6000, type: 'payment', created_at: '2026-08-02T10:00:00.000Z' },
-    { id: 't2', amount_cents: -1000, type: 'refund', created_at: '2026-08-04T10:00:00.000Z' },
+    { id: 't1', amount_cents: 6000, type: 'payment', status: 'completed', payment_method: 'cash', created_at: '2026-08-02T10:00:00.000Z' },
+    { id: 't2', amount_cents: -1000, type: 'refund', status: 'completed', created_at: '2026-08-04T10:00:00.000Z' },
   ];
 
   it('returns expenses negative and income positive so the total is a balance', () => {
@@ -124,14 +124,14 @@ describe('buildLedger', () => {
     expect(summary.row_count).toBe(4);
   });
 
-  it('reads a timestamp as its calendar date by slicing, never by parsing', () => {
+  it('reads payment instants on the salon calendar, including BST', () => {
     // A 23:30 BST payment parsed as UTC lands on the previous day. Slicing the
     // stored string keeps it where the salon thinks it happened.
     const { rows } = buildLedger({
       expenses: [],
-      transactions: [{ id: 'late', amount_cents: 100, type: 'payment', created_at: '2026-08-02T23:30:00' }],
+      transactions: [{ id: 'late', amount_cents: 100, type: 'payment', status: 'completed', payment_method: 'cash', created_at: '2026-08-02T23:30:00Z' }],
     });
-    expect(rows[0].date).toBe('2026-08-02');
+    expect(rows[0].date).toBe('2026-08-03');
   });
 
   it('is stable when two rows share a date, so the total does not move between loads', () => {
@@ -186,8 +186,8 @@ describe('periodTotals', () => {
     { amount_cents: 2000, date: '2026-08-01' },
   ];
   const transactions = [
-    { amount_cents: 5000, created_at: '2025-08-01T09:00:00.000Z' },
-    { amount_cents: 9000, created_at: '2026-08-01T09:00:00.000Z' },
+    { amount_cents: 5000, type: 'payment', status: 'completed', payment_method: 'cash', created_at: '2025-08-01T09:00:00.000Z' },
+    { amount_cents: 9000, type: 'payment', status: 'completed', payment_method: 'cash', created_at: '2026-08-01T09:00:00.000Z' },
   ];
 
   it('counts only what falls inside the window', () => {
