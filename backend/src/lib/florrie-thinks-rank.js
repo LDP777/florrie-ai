@@ -3,10 +3,8 @@
  * unit tested without a database. The feed's contract is deliberately small:
  *
  *   - Florrie thinks, she does not nag: at most MAX_CARDS surface per fetch.
- *   - Money first: cards are ordered by estimated pounds at stake, because a
- *     £45 uncollected balance matters more than a quiet-diary nudge.
- *   - Urgency breaks ties: two cards worth the same pounds are ordered by how
- *     soon the moment passes (a gap today beats a lapsed regular).
+ *   - Client care and waiting enquiries first, then urgency, evidence-checked
+ *     consideration, and finally estimated money.
  *   - Nothing stale ever renders: every card carries its own expires_at and
  *     anything past that stamp is dropped server side at fetch time. This is
  *     the rule that killed the old cards' "book a June date in August" bug.
@@ -45,13 +43,18 @@ export function dropExpired(cards, { nowUtcMs, nowWallMs }) {
 }
 
 /**
- * Order by estimated money at stake (desc), then urgency (desc), and cap the
- * feed. Missing figures count as zero so a card can never win a slot by
- * omitting its numbers. Input is not mutated.
+ * Order by importance and urgency before AI consideration and money.
+ * Missing money is zero. Input is not mutated.
  */
 export function rankCards(cards, { max = MAX_CARDS } = {}) {
   return [...(cards || [])]
     .sort((a, b) => {
+      const band = (a?.priority_band ?? 2) - (b?.priority_band ?? 2);
+      if (band) return band;
+      const urgency = (Number(b?.urgency) || 0) - (Number(a?.urgency) || 0);
+      if (urgency) return urgency;
+      const reasoning = (a.thought_order ?? 99) - (b.thought_order ?? 99);
+      if (reasoning) return reasoning;
       const money = (Number(b?.impact_pence) || 0) - (Number(a?.impact_pence) || 0);
       if (money !== 0) return money;
       return (Number(b?.urgency) || 0) - (Number(a?.urgency) || 0);

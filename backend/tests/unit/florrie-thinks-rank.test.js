@@ -1,6 +1,6 @@
 /**
  * The Florrie-thinks feed's two gate functions, tested pure. Ranking decides
- * which three cards earn Ellie's attention (money first, urgency second);
+ * which three cards earn Ellie's attention (care first, then urgency);
  * dropExpired is the rule that killed the old cards' "book a June date in
  * August" failure, so its frame handling (wall vs utc) matters as much as the
  * comparison itself.
@@ -15,6 +15,14 @@ const card = (over = {}) => ({
 });
 
 describe('rankCards', () => {
+  it('puts urgent client care ahead of optional revenue and uses reviewed reasoning within equal urgency', () => {
+    const out = rankCards([
+      card({ id: 'revenue', impact_pence: 50000, urgency: 90, priority_band: 2 }),
+      card({ id: 'care', impact_pence: 0, urgency: 10, priority_band: 0 }),
+      card({ id: 'thoughtful', impact_pence: 0, urgency: 90, priority_band: 2, thought_order: 0 }),
+    ]);
+    expect(out.map(c => c.id)).toEqual(['care', 'thoughtful', 'revenue']);
+  });
   it('orders by money at stake, highest first', () => {
     const out = rankCards([
       card({ id: 'small', impact_pence: 500 }),

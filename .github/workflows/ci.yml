@@ -51,6 +51,7 @@ jobs:
       - run: npm run check:node
 
       - run: npm test --workspace backend
+      - run: node backend/tests/thoughtful-time-sql.mjs
 
   frontend-build:
     name: Frontend build
@@ -98,6 +99,8 @@ jobs:
       - run: node --test src/lib/booking-auth-fetch.test.mjs
         working-directory: frontend
       - run: npm run check:today:browser --workspace frontend
+      - run: node scripts/check-thoughtful-suggestions.mjs
+        working-directory: frontend
       - run: node scripts/check-calendar-navigation.mjs
         working-directory: frontend
       - run: node scripts/check-money-audit.mjs

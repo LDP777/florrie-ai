@@ -1,3 +1,4 @@
+import './styles/thoughts.css';
 import './styles/reviews-results.css';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';

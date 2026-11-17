@@ -51,60 +51,16 @@ function iconFor(type) {
 // heartbeat "watched your inbox" scan rows never make the receipt, and 15
 // pending offers for one slot collapse into a single line. Reads like a
 // receipt, not a log.
-const GAP_TYPES = ['gap_fill', 'gap_fill_waitlist', 'gap_fill_rebook', 'gap_fill_dormant', 'gap_fill_rebook_overdue', 'cancellation_filled', 'waitlist_offered'];
-
-function moneyFrom(text) {
-  const m = /£\s?([\d,]+(?:\.\d{1,2})?)/.exec(String(text || ''));
-  return m ? parseFloat(m[1].replace(/,/g, '')) : 0;
-}
-
 export function buildReceipt(rows) {
+  const ok = rows.filter(r => r.outcome === 'success');
   const lines = [];
-  const by = t => rows.filter(r => r.type === t);
-  const plural = (n, one, many) => `${n} ${n === 1 ? one : (many || one + 's')}`;
-
-  // Gaps actually closed, with the money where it is visible on the row.
-  const wins = rows.filter(r => GAP_TYPES.includes(r.type) && r.outcome === 'success');
-  if (wins.length) {
-    const money = wins.reduce((sum, r) => sum + moneyFrom(r.summary), 0);
-    const moneyStr = money ? ` (+£${money % 1 ? money.toFixed(2) : money})` : '';
-    lines.push({ icon: 'sparkles', text: `Closed ${plural(wins.length, 'gap')}${moneyStr}` });
-  }
-
-  // Pending gap offers, collapsed to distinct clients x distinct slots.
-  const offers = rows.filter(r => GAP_TYPES.includes(r.type) && r.outcome !== 'success');
-  if (offers.length) {
-    const clients = new Set(offers.map(r => r.client_id || r.id)).size;
-    const slots = new Set(offers.map(r => (/→\s*(.+?)\s*\(/.exec(r.summary || '') || [])[1] || 'slot')).size;
-    lines.push({ icon: 'flower', text: `Invited ${plural(clients, 'client')} to fill ${slots === 1 ? 'an open slot' : `${slots} open slots`}` });
-  }
-
-  const replied = by('message_replied').length;
-  if (replied) lines.push({ icon: 'message', text: `Replied to ${plural(replied, 'client message')}` });
-
-  const held = by('message_escalated').length;
-  if (held) lines.push({ icon: 'pause', text: `Queued ${plural(held, 'reply', 'replies')} for your yes or no` });
-
-  const booked = by('booking_created').length;
-  if (booked) lines.push({ icon: 'calendar', text: `Took ${plural(booked, 'booking')}` });
-
-  const moved = by('booking_rescheduled').length;
-  if (moved) lines.push({ icon: 'refresh', text: `Moved ${plural(moved, 'booking')}` });
-
-  const reminders = by('appointment_reminder').length + by('prearrival_reminder').length;
-  if (reminders) lines.push({ icon: 'clock', text: `Sent ${plural(reminders, 'reminder')}` });
-
-  const nudges = by('predictive_nudge').length + by('rebook_nudge').length + by('client_reactivated').length;
-  if (nudges) lines.push({ icon: 'heart', text: `Nudged ${plural(nudges, 'client')} to rebook` });
-
-  const released = by('booking_auto_cancelled').length;
-  if (released) lines.push({ icon: 'sparkles', text: `Released ${plural(released, 'unpaid slot')}` });
-
-  const reviews = by('review_requested').length;
-  if (reviews) lines.push({ icon: 'star', text: `Asked ${plural(reviews, 'client')} for a review` });
-
-  // Cap the length: a receipt, not a scroll.
-  return lines.slice(0, 5);
+  const add = (types, icon, text) => { const n = ok.filter(r => types.includes(r.type)).length; if (n) lines.push({ icon, text: `${n} ${text}` }); };
+  add(['message_replied'], 'message', 'client replies sent');
+  add(['appointment_reminder', 'prearrival_reminder'], 'clock', 'reminders sent');
+  add(['booking_created'], 'calendar', 'bookings or holds created');
+  add(['cancellation_filled'], 'sparkles', 'cancelled slots filled');
+  add(['review_requested'], 'star', 'review requests sent');
+  return lines;
 }
 
 function startOfDay(d) {
@@ -115,10 +71,6 @@ function startOfDay(d) {
 
 function bucketFor(when, now = new Date()) {
   const t = new Date(when).getTime();
-  // Anything within the last 12h reads as "just happened", so keep it under
-  // Today even if it crossed midnight - otherwise a "6h ago" row sits under a
-  // Yesterday header and looks broken.
-  if (now.getTime() - t < 12 * 60 * 60 * 1000) return 'today';
   const today = startOfDay(now).getTime();
   const yesterday = today - 24 * 60 * 60 * 1000;
   if (t >= today) return 'today';
@@ -178,8 +130,8 @@ export default function ActivityFeed({ limit = 50, compact = false }) {
     let cancelled = false;
     setState({ status: 'loading', rows: [] });
     readActivity({ auth: supabase.auth,
-      url: `${API_BASE}/api/activity/feed?limit=${limit}` })
-      .then(rows => { if (!cancelled) setState({ status: 'ready', rows }); })
+      url: `${API_BASE}/api/activity/feed?limit=${limit}`, withSummary: true })
+      .then(data => { if (!cancelled) setState({ status: 'ready', rows: data.rows.filter(r => !r.background_check), checks: data.rows.filter(r => r.background_check).length, receipt: data.receipt, receiptDay: data.receipt_day, receiptUnavailable: data.receipt_unavailable }); })
       .catch(error => {
         if (!cancelled) setState({ status: 'error', rows: [], message: error.message });
       });
@@ -222,8 +174,7 @@ export default function ActivityFeed({ limit = 50, compact = false }) {
         <div style={F.emptyState}>
           <div style={F.emptyIcon}><Icon name="flower" size={30} /></div>
           <p style={F.emptyText}>
-            Florrie just started. Once she sends a message or spots a gap,
-            you'll see it here.
+            No recent work to show yet. Completed work and anything that could not finish will appear here.
           </p>
         </div>
       </section>
@@ -257,11 +208,11 @@ export default function ActivityFeed({ limit = 50, compact = false }) {
       </div>
 
       {(() => {
-        const receipt = buildReceipt(groups.today);
+        const receipt = state.receipt || [];
         if (!receipt.length) return renderGroup('Today', groups.today, navigate, now);
         return (
           <div style={F.group}>
-            <div style={F.groupLabel}>While you were with clients today</div>
+            <div style={F.groupLabel}>Today’s recorded work {state.receiptDay && `· ${state.receiptDay}`}</div>
             <ul style={F.list}>
               {receipt.map((l, i) => (
                 <li key={i} style={F.receiptLine}>
@@ -282,6 +233,8 @@ export default function ActivityFeed({ limit = 50, compact = false }) {
           </div>
         );
       })()}
+      {state.receiptUnavailable && <p style={F.errorText}>The day’s totals could not be checked. Showing recent updates only.</p>}
+      {!!state.checks && <p style={F.errorText}>{state.checks} background checks in the recent activity.</p>}
       {renderGroup('Yesterday', groups.yesterday, navigate, now)}
       {showEarlier
         ? renderGroup('Earlier', groups.earlier, navigate, now)
@@ -326,7 +279,7 @@ function ActivityRow({ row, now, navigate }) {
         }}
       >
         <span style={F.icon} aria-hidden><Icon name={iconFor(row.type)} size={17} /></span>
-        <span style={F.summary}><PrivateText placeholder="Activity details hidden">{deDash(row.summary)}</PrivateText></span>
+        <span style={F.summary}><PrivateText placeholder="Activity details hidden">{deDash(row.summary)}</PrivateText><span style={{ display: 'block', fontSize: 11, marginTop: 4, color: row.outcome === 'failed' ? 'var(--danger, #a52d40)' : 'var(--text-muted)' }}>{row.state_label || (row.outcome === 'success' ? 'Completed' : row.outcome === 'failed' ? 'Could not finish' : row.outcome === 'pending' ? 'Not yet confirmed' : 'Recorded update')}</span></span>
         <span style={F.time}>{relativeTime(row.created_at, now)}</span>
         {clickable && (
           <Icon name={iconName('chevron_right')} inline style={F.chev} />

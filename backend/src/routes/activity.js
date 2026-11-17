@@ -3,6 +3,10 @@ import { computeWeekReview } from '../services/week-in-review.js';
 import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
+import { readAllMoney } from '../lib/read-all-money.js';
+import { activityReceipt } from '../lib/activity-receipt.js';
+import { moneyDate } from '../lib/money-reporting.js';
+import { salonWallInstant } from '../lib/booking-preparation.js';
 
 const router = Router();
 
@@ -47,11 +51,15 @@ router.get('/feed', requireAuth, async (req, res) => {
 
   const rows = (data || []).map(shape);
 
-  // Dedupe by summary: the heartbeat can log the same line repeatedly.
-  const seen = new Set();
-  const deduped = rows.filter(r => (seen.has(r.summary) ? false : (seen.add(r.summary), true)));
-
-  res.json({ rows: deduped, count: deduped.length });
+  let receipt = null;
+  const today = moneyDate(new Date(), req.beautician.timezone || 'Europe/London');
+  try {
+    const midnight = salonWallInstant(`${today}T00:00:00`, req.beautician.timezone || 'Europe/London');
+    const dayRows = await readAllMoney(() => supabase.from('ai_actions').select('id,action_type,outcome,details', { count: 'exact' })
+      .eq('beautician_id', req.beautician.id).gte('created_at', midnight).lte('created_at', new Date().toISOString()).order('id').abortSignal(AbortSignal.timeout(6000)), { maxRows: 50000 });
+    receipt = activityReceipt(dayRows);
+  } catch { /* A partial recent feed must never masquerade as the day's total. */ }
+  res.json({ rows, count: rows.length, receipt, receipt_day: today, receipt_unavailable: receipt === null });
 });
 
 /**
@@ -148,12 +156,15 @@ function shape(row) {
     appointment_id: row.appointment_id,
     link_to: resolveLink(row),
     outcome: row.outcome || null,
+    background_check: row.details?.heartbeat === true,
+    state_label: row.details?.heartbeat ? 'Background check' : row.outcome === 'success' ? 'Completed' : row.outcome === 'failed' ? 'Could not finish' : row.outcome === 'pending' ? 'Not yet confirmed' : row.outcome === 'escalated' ? 'Handed to you' : 'Recorded update',
   };
 }
 
 function friendlySummary(row) {
   const who = clientName(row);
   switch (row.action_type) {
+    case 'time_protected': return 'Protected time in your diary';
     case 'message_replied':       return `Florrie replied to ${who || 'a client'}`;
     case 'message_escalated':     return `Florrie escalated a message to you`;
     case 'booking_created':       return who ? `Booked ${who}` : 'New booking created';
@@ -223,6 +234,7 @@ function resolveLink(row) {
   }
 
   switch (row.action_type) {
+    case 'time_protected': return row.details?.date ? `/calendar/week?date=${row.details.date}&view=day` : '/calendar/week';
     case 'client_cancellation_fee':
     case 'policy_fee_charged':
     case 'policy_fee_uncollectable': return '/money?tab=income';

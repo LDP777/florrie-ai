@@ -98,13 +98,19 @@ router.post('/respond', requireAuth, async (req, res) => {
   // mark acted_on when the card was actually carried out (the UI passes acted: true
   // after a successful execute), so a plain 'yes' with no side effect still logs.
   const actedOn = response === 'yes' && req.body.acted === true;
+  const payload = { ...(suggestion_payload || {}) };
+  if (['later', 'not_useful', 'keep_open'].includes(req.body.choice)) {
+    payload.choice = req.body.choice;
+    // The server owns snooze duration. A quiet choice never claims execution.
+    if (req.body.choice !== 'keep_open') payload.snooze_until = new Date(Date.now() + (req.body.choice === 'later' ? 4 * 3600000 : 7 * 86400000)).toISOString();
+  }
 
   const { data, error } = await supabase
     .from('florrie_decisions')
     .insert({
       beautician_id: beauticianId,
       suggestion_type,
-      suggestion_payload: suggestion_payload || {},
+      suggestion_payload: payload,
       response,
       tweak_payload: response === 'tweak' ? (tweak || null) : null,
       acted_on: actedOn,

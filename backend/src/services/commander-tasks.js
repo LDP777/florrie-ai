@@ -49,8 +49,7 @@ export function careItem(appt, prep, owner) {
     attention: pending > 0 || review > 0 || !!prep.missing_template || !['not_required', 'ready'].includes(prep.patch?.state) };
 }
 
-async function tomorrowPlan(db, b, now) {
-  const day = shiftDate(moneyDate(now, b.timezone || 'Europe/London'), 1);
+export async function careDayPlan(db, b, now, day = shiftDate(moneyDate(now, b.timezone || 'Europe/London'), 1)) {
   const appts = await diary(db, b.id, day, day);
   const items = [];
   // Bound the work on very busy multi-person diaries; describe the coverage.
@@ -64,7 +63,7 @@ async function tomorrowPlan(db, b, now) {
   }
   return {
     intro: appts.length ? `Your plan for ${dayLabel(day)} is below. Start with the items marked for attention.` : `There are no active appointments recorded for ${dayLabel(day)}.`,
-    cards: [{ label: 'Appointments tomorrow', value: String(appts.length) }, { label: 'Checks needing attention', value: String(items.filter(i => i.attention).length), detail: `Across ${items.length} checked bookings` }], items,
+    cards: [{ label: `Appointments ${dayLabel(day)}`, value: String(appts.length) }, { label: 'Checks needing attention', value: String(items.filter(i => i.attention).length), detail: `Across ${items.length} checked bookings` }], items,
     limits: ['These are recorded preparation steps, not clearance to perform a treatment.', ...(appts.length > selected.length ? [`Preparation checked for the first ${selected.length} of ${appts.length} bookings.`] : [])],
     next_prompt: `Help me draft a preparation message for a client booked on ${day}. The client is `,
     next_label: 'Draft a preparation message', sources: ['Diary', 'Patch-test records', 'Booking consultations'],
@@ -83,14 +82,14 @@ export function returningCandidates(clients, visits, upcoming, today, days = 60)
     // Imported visit history counts, but never invent a prior visit for a lead.
     const imported = c.last_visit_at && String(c.last_visit_at).slice(0, 10);
     const last = [latest.get(c.id), imported && imported <= today ? imported : null].filter(Boolean).sort().at(-1);
-    return !c.archived_at && !booked.has(c.id) && last && last <= cutoff ? [{ id: c.id, name: name(c), last }] : [];
+    return !c.archived_at && !c.blocked_at && !booked.has(c.id) && last && last <= cutoff ? [{ id: c.id, name: name(c), last }] : [];
   }).sort((a, b) => b.last.localeCompare(a.last) || a.id.localeCompare(b.id));
 }
 
 export async function loadReturningCandidates(db, b, now = new Date(), days = 60) {
   const today = moneyDate(now, b.timezone || 'Europe/London');
   const [clients, visits, upcoming] = await Promise.all([
-    all(() => db.from('clients').select('id, first_name, last_name, archived_at, last_visit_at', { count: 'exact' }).eq('beautician_id', b.id).is('archived_at', null).order('id')),
+    all(() => db.from('clients').select('id, first_name, last_name, archived_at, blocked_at, last_visit_at', { count: 'exact' }).eq('beautician_id', b.id).is('archived_at', null).order('id')),
     all(() => db.from('appointments').select('id, client_id, starts_at, status', { count: 'exact' }).eq('beautician_id', b.id).eq('status', 'completed').lt('starts_at', `${shiftDate(today, 1)}T00:00:00`).order('id')),
     all(() => db.from('appointments').select('id, client_id', { count: 'exact' }).eq('beautician_id', b.id).in('status', ACTIVE).gte('starts_at', `${today}T00:00:00`).order('id')),
   ]);
@@ -165,7 +164,7 @@ async function moneyPlan(db, b, now) {
   };
 }
 
-const builders = { tomorrow: tomorrowPlan, reconnect: reconnectPlan, week: weekPlan, money: moneyPlan };
+const builders = { tomorrow: careDayPlan, reconnect: reconnectPlan, week: weekPlan, money: moneyPlan };
 export function readTaskSuggestion(response, task) {
   if (response.stop_reason !== 'end_turn') return { suggestion: null, draft: null };
   const raw = response.content.filter(c => c.type === 'text').map(c => c.text).join('\n').trim();

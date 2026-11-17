@@ -1,7 +1,7 @@
 import { explainHold } from '../lib/hold-reasons.js';
 import { useClientPrivacy, PrivateText, PrivateSection } from '../contexts/ClientPrivacyContext.jsx';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { supabase, useBeautician } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
@@ -1120,6 +1120,8 @@ function EmptyConvoPlaceholder() {
 function Conversation({ clientId, onBack, onSent, embedded = false }) {
   const { hidden } = useClientPrivacy();
   const navigate = useNavigate();
+  const location = useLocation();
+  const insertedDraft = useRef(null);
   const [state, setState] = useState({ status: 'loading' });
   const [composer, setComposer] = useState('');
   const [channel, setChannel] = useState(null);
@@ -1129,6 +1131,15 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
   const [draftOrigin, setDraftOrigin] = useState(null);
   const scrollerRef = useRef(null);
   const composerRef = useRef(null);
+
+  useEffect(() => {
+    const prepared = location.state?.preparedDraft;
+    if (hidden || state.status !== 'ready' || state.client?.id !== clientId || insertedDraft.current === location.key || prepared?.clientId !== clientId || typeof prepared.text !== 'string') return;
+    insertedDraft.current = location.key;
+    const text = prepared.text.slice(0, 2000);
+    setComposer(previous => previous.trim() ? `${previous}\n\n${text}` : text);
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: { ...location.state, preparedDraft: undefined } });
+  }, [clientId, hidden, state.status, state.client?.id, location.key, location.state, location.pathname, location.search, navigate]);
 
   const load = async () => {
     try {

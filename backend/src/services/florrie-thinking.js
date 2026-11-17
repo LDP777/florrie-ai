@@ -1,19 +1,25 @@
+import { readAllMoney } from '../lib/read-all-money.js';
 import { briefCache } from '../lib/brief-cache.js';
 import { supabase as database } from '../config.js';
 import logger from '../lib/logger.js';
 import { getFreeSlots, nowInSalonWall } from '../lib/free-slots.js';
 import { isSocialLead, clientsEverBooked, hasContactIdentity } from '../lib/inbox-space.js';
 import { getGapFillSuggestions } from '../services/gap-fill-engine.js';
-import { clientNeedsPatchTest } from '../routes/appointments.js';
+import { readBookingPreparation } from '../lib/booking-preparation.js';
+import { loadPersonalThoughts } from './personal-thoughts.js';
+import { enrichThoughts } from './thought-reasoner.js';
+import { loadReturningCandidates } from './commander-tasks.js';
 import { rankCards, dropExpired } from '../lib/florrie-thinks-rank.js';
 import { PRICE_SETTLED_TYPES, isAssumedTakingsRow, isSettledPriceRow } from '../lib/money-guards.js';
 
 
 // Bound source reads so a missing recommendation cannot hold the page open.
 const supabase = { from: table => ({ select: (...args) => database.from(table).select(...args).abortSignal(AbortSignal.timeout(6000)) }) };
-export const getFlorrieThoughts = briefCache(buildFlorrieThoughts);
+const cachedCandidates = briefCache(readThoughtCandidates);
+export const getFlorrieThoughts = buildFlorrieThoughts;
+getFlorrieThoughts.invalidate = id => cachedCandidates.invalidate(id);
 
-async function buildFlorrieThoughts(beautician) {
+export async function readThoughtCandidates(beautician) {
   const beauticianId = beautician.id;
   const timezone = beautician.timezone || 'Europe/London';
   const wallNow = nowInSalonWall(timezone);
@@ -21,10 +27,11 @@ async function buildFlorrieThoughts(beautician) {
   const results = await Promise.allSettled([
     leadCard(beauticianId, timezone),
     moneyCard(beauticianId, wallNow),
-    patchTestCard(beauticianId, wallNow),
+    patchTestCard(beautician, wallNow),
     gapCard(beauticianId, beautician, wallNow),
     setPricesCard(beauticianId, wallNow),
     lapsedRegularCard(beauticianId, wallNow),
+    loadPersonalThoughts(database, beautician),
   ]);
 
   let cards = [];
@@ -43,10 +50,14 @@ async function buildFlorrieThoughts(beautician) {
   // time frame for each stamp.
   cards = dropExpired(cards, { nowUtcMs: Date.now(), nowWallMs: wallNow.getTime() });
 
-  // Rule 5: money first, urgency second, three at most.
-  cards = rankCards(cards);
-
   return { cards, count: cards.length, checked_at: new Date().toISOString(), partial: dismissalUnavailable || results.some(r => r.status === 'rejected') };
+}
+
+async function buildFlorrieThoughts(beautician) {
+  const result = await cachedCandidates(beautician);
+  const reasoned = enrichThoughts(beautician, result.cards);
+  const cards = rankCards(reasoned.cards);
+  return { ...result, cards, count: cards.length, thinking: reasoned.thinking };
 }
 
 // ============================================================
@@ -107,7 +118,9 @@ async function leadCard(beauticianId, timezone) {
         person,
         summary: `${person} ${asked} ${when}. ${nextStep}`,
         evidence: { label: `asked ${when}`, link_to: threadLink },
-        action_label: 'Open thread',
+        action_label: 'Review this enquiry',
+        priority_band: 0,
+        action: { kind: 'thread_draft', client_id: row.client_id, message_id: row.id },
         link_to: threadLink,
         impact_pence: impact,
         urgency: 90,
@@ -182,6 +195,7 @@ async function moneyCard(beauticianId, wallNow) {
     const { data: paid, error: txErr } = await supabase
       .from('transactions')
       .select('appointment_id, type, amount_cents, payment_method, stripe_payment_intent_id')
+      .eq('beautician_id', beauticianId)
       .in('appointment_id', candidates.map(a => a.id))
       .in('type', PRICE_SETTLED_TYPES);
     if (txErr) throw txErr;
@@ -210,9 +224,11 @@ async function moneyCard(beauticianId, wallNow) {
       type: 'money',
       icon: '\u{1F4B7}',
       person: first,
-      summary: `${first}'s ${pounds(cents)} balance from ${dayLabel} is uncollected. Card on file.`,
+      summary: `${first}'s visit from ${dayLabel} needs a payment check. The records do not confirm the remaining ${pounds(cents)} was received.`,
       evidence: { label: `completed ${dayLabel} at ${friendlyTime(String(appt.starts_at).slice(11, 16))}`, link_to: sheetLink },
-      action_label: 'Open booking',
+      action_label: 'Check recorded takings',
+      action: { kind: 'commander', task_id: 'money' },
+      priority_band: 1,
       link_to: sheetLink,
       impact_pence: cents,
       urgency: 70,
@@ -233,33 +249,35 @@ async function moneyCard(beauticianId, wallNow) {
  * appointment sheet uses (which is where the Send patch test link button
  * lives, so the tap-through lands exactly where she fixes it).
  */
-async function patchTestCard(beauticianId, wallNow) {
+async function patchTestCard(beautician, wallNow) {
+  const beauticianId = beautician.id;
   try {
     const untilWall = new Date(wallNow.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString();
     const { data, error } = await supabase
       .from('appointments')
-      .select('id, client_id, starts_at, price_cents, clients(first_name, archived_at, blocked_at), treatments(name)')
+      .select('id, beautician_id, client_id, starts_at, ends_at, status, treatment_id, extra_treatment_ids, price_cents, clients(first_name, archived_at, blocked_at), treatments(name)')
       .eq('beautician_id', beauticianId)
       .gte('starts_at', wallNow.toISOString())
       .lte('starts_at', untilWall)
-      .not('status', 'in', '(cancelled,cancelled_by_client,cancelled_by_beautician,no_show)')
+      .in('status', ['pending', 'confirmed', 'in_progress'])
       .not('client_id', 'is', null)
       .order('starts_at', { ascending: true })
       .limit(50);
     if (error) throw error;
     if (!data || !data.length) return [];
 
-    // Soonest first, one lookup per distinct client, capped so a busy diary
-    // cannot turn one card into a query storm.
-    const seen = new Set();
+    // Check bookings, not unique clients: the same person may have different
+    // treatment requirements on their next visit. All checks share one deadline.
+    const signal = AbortSignal.timeout(6000);
+    const bounded = { from: table => ({ select: (...args) => database.from(table).select(...args).abortSignal(signal) }) };
+    let checked = 0;
     for (const appt of data) {
       const c = appt.clients;
       if (!c || !c.first_name || c.archived_at || c.blocked_at) continue;
-      if (seen.has(appt.client_id)) continue;
-      seen.add(appt.client_id);
-      if (seen.size > 10) break;
+      if (++checked > 10) break;
 
-      const needs = await clientNeedsPatchTest(beauticianId, appt.client_id);
+      const prep = await readBookingPreparation(bounded, { ...appt, beauticians: beautician });
+      const needs = !['not_required', 'ready'].includes(prep.patch?.state) || prep.missing_template || prep.forms?.some(f => f.status !== 'received' || f.review_required);
       if (!needs) continue;
 
       const first = c.first_name.trim();
@@ -273,9 +291,11 @@ async function patchTestCard(beauticianId, wallNow) {
         type: 'patch_test',
         icon: '\u{1FA79}',
         person: first,
-        summary: `${first}'s ${bookingPhrase(dayLabel)} needs a patch test she has not booked.`,
+        summary: `${first}'s ${bookingPhrase(dayLabel)} has preparation that needs checking. Let’s check the patch-test timing and consultation together.`,
         evidence: { label: `booked for ${dayLabel} at ${friendlyTime(String(appt.starts_at).slice(11, 16))}`, link_to: sheetLink },
-        action_label: 'Open booking',
+        action_label: 'Check preparation',
+        priority_band: daysAway <= 3 ? 0 : 1,
+        action: { kind: 'care_day', date },
         link_to: sheetLink,
         // The whole booking is at risk if the test never happens, so the
         // booking's own price is the money at stake.
@@ -425,95 +445,15 @@ async function setPricesCard(beauticianId, wallNow) {
  * Ellie's to send from there.
  */
 async function lapsedRegularCard(beauticianId, wallNow) {
-  try {
-    const { data: appts, error } = await supabase
-      .from('appointments')
-      .select('client_id, starts_at, status')
-      .eq('beautician_id', beauticianId)
-      .not('client_id', 'is', null)
-      .order('starts_at', { ascending: true })
-      .limit(5000);
-    if (error) throw error;
-    if (!appts || !appts.length) return [];
-
-    // Everything in the wall frame: starts_at is a wall stamp, so "now" must
-    // be the wall clock too or every gap is an hour out in BST.
-    const nowMs = wallNow.getTime();
-    const byClient = new Map();
-    for (const a of appts) {
-      let c = byClient.get(a.client_id);
-      if (!c) { c = { past: [], hasUpcoming: false }; byClient.set(a.client_id, c); }
-      const t = new Date(`${String(a.starts_at).slice(0, 19)}Z`).getTime();
-      if (Number.isNaN(t)) continue;
-      if (t > nowMs) {
-        if (!['cancelled', 'cancelled_by_client', 'cancelled_by_beautician', 'no_show'].includes(a.status)) c.hasUpcoming = true;
-      } else if (a.status === 'completed') {
-        c.past.push(t);
-      }
-    }
-
-    const week = 7 * 24 * 60 * 60 * 1000;
-    const drifting = [];
-    for (const [clientId, c] of byClient.entries()) {
-      if (c.hasUpcoming || c.past.length < 2) continue;
-      const gaps = [];
-      for (let i = 1; i < c.past.length; i++) gaps.push(c.past[i] - c.past[i - 1]);
-      const avgGap = gaps.reduce((x, y) => x + y, 0) / gaps.length;
-      if (!avgGap) continue;
-      const last = c.past[c.past.length - 1];
-      if (nowMs - last > avgGap * 2) {
-        drifting.push({ clientId, last, avgGap, overdueMs: nowMs - last - avgGap });
-      }
-    }
-    if (!drifting.length) return [];
-
-    const { data: clients, error: cErr } = await supabase
-      .from('clients')
-      .select('id, first_name, archived_at, blocked_at, total_spend_cents, total_visits')
-      .eq('beautician_id', beauticianId)
-      .in('id', drifting.slice(0, 50).map(d => d.clientId));
-    if (cErr) throw cErr;
-    if (!clients || !clients.length) return [];
-
-    const byId = new Map(clients.map(c => [c.id, c]));
-    const named = drifting
-      .map((d) => {
-        const c = byId.get(d.clientId);
-        if (!c || !c.first_name || c.archived_at || c.blocked_at) return null;
-        const visits = c.total_visits || 0;
-        const avgSpend = (visits > 0 && c.total_spend_cents) ? Math.round(c.total_spend_cents / visits) : 0;
-        return { ...d, first: c.first_name.trim(), avgSpend };
-      })
-      .filter(Boolean)
-      // Their own average spend is the money at stake, so the most valuable
-      // drifting regular is the one Florrie mentions.
-      .sort((a, b) => b.avgSpend - a.avgSpend);
-    if (!named.length) return [];
-
-    const top = named[0];
-    const weeksPast = Math.max(1, Math.round(top.overdueMs / week));
-    const lastDate = new Date(top.last).toISOString().slice(0, 10);
-
-    return [{
-      id: `lapsed-${top.clientId}`,
-      type: 'lapsed_regular',
-      icon: '\u{1F495}',
-      person: top.first,
-      summary: `${top.first} is ${weeksPast} week${weeksPast === 1 ? '' : 's'} past her usual visit.`,
-      evidence: { label: `last in ${shortDate(lastDate)}`, link_to: '/clients', link_state: { clientId: top.clientId } },
-      action_label: 'Open profile',
-      link_to: '/clients',
-      link_state: { clientId: top.clientId },
-      impact_pence: top.avgSpend,
-      urgency: 40,
-      // Recomputed fresh every fetch; a week is just the stamp rule 2 demands.
-      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-      expires_frame: 'utc',
-    }];
-  } catch (err) {
-    logger.warn({ err, beauticianId }, 'florrie-thinks: lapsed regular card failed');
-    throw err;
-  }
+  const candidates = await loadReturningCandidates(database, { id: beauticianId, timezone: 'UTC' }, wallNow);
+  const top = candidates[0];
+  if (!top) return [];
+  return [{ id: `lapsed-${top.id}`, type: 'lapsed_regular', person: top.name, icon: 'heart',
+    summary: `${top.name} has no upcoming booking and was last seen on ${shortDate(top.last)}. Want a warm rebooking draft to review?`,
+    evidence: { label: `last in ${shortDate(top.last)}`, link_to: '/clients', link_state: { clientId: top.id } },
+    action_label: 'Prepare a rebooking draft', action: { kind: 'commander', task_id: 'reconnect' },
+    link_to: '/clients', link_state: { clientId: top.id }, priority_band: 2, urgency: 40, impact_pence: 0,
+    expires_at: new Date(Date.now() + 86400000).toISOString(), expires_frame: 'utc' }];
 }
 
 // ============================================================
@@ -531,17 +471,19 @@ async function lapsedRegularCard(beauticianId, wallNow) {
 async function withoutDismissed(beauticianId, cards) {
   if (!cards.length) return cards;
   try {
-    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-    const { data, error } = await supabase
-      .from('florrie_decisions')
-      .select('suggestion_payload, response')
-      .eq('beautician_id', beauticianId)
-      .gte('created_at', since);
-    if (error) throw error;
+    const since = new Date(Date.now() - 365 * 86400000).toISOString();
+    const data = await readAllMoney(() => supabase.from('florrie_decisions')
+      .select('id,suggestion_payload,response,created_at', { count: 'exact' })
+      .eq('beautician_id', beauticianId).gte('created_at', since).order('id'));
     if (!data) return cards;
     const dismissed = new Set(
       data
-        .filter(d => d.response === 'no' || d.response === 'dismissed')
+        .filter(d => {
+          const p = d.suggestion_payload || {};
+          if (p.snooze_until) return Date.parse(p.snooze_until) > Date.now();
+          if (p.choice === 'keep_open') return true;
+          return (['no', 'dismissed'].includes(d.response) && Date.parse(d.created_at) > Date.now() - 30 * 86400000) || (d.response === 'yes' && p.block_id);
+        })
         .map(d => d.suggestion_payload?.key)
         .filter(Boolean)
     );

@@ -9,16 +9,19 @@ function from(table) {
     in(key, values) { filters.push(row => values.includes(row[key])); return query; },
     gte() { return query; }, lte() { return query; }, gt() { return query; },
     not() { return query; }, order() { return query; }, limit() { return query; },
-    abortSignal() { return query; },
+    abortSignal() { return query; }, range() { return query; }, is() { return query; }, lt() { return query; },
     then(resolve, reject) {
       const rows = table === 'messages' ? fixture.messages : [];
-      return Promise.resolve({ data: rows.filter(row => filters.every(filter => filter(row))), error: null }).then(resolve, reject);
+      const data = rows.filter(row => filters.every(filter => filter(row)));
+      return Promise.resolve({ data, count: data.length, error: null }).then(resolve, reject);
     },
   };
   return query;
 }
 vi.mock('../../src/config.js', () => ({ supabase: { from } }));
 vi.mock('../../src/services/gap-fill-engine.js', () => ({ getGapFillSuggestions: async () => [] }));
+vi.mock('../../src/services/personal-thoughts.js', () => ({ loadPersonalThoughts: async () => [] }));
+vi.mock('../../src/services/thought-reasoner.js', () => ({ enrichThoughts: (_owner, cards) => ({ cards, thinking: false }) }));
 vi.mock('../../src/routes/appointments.js', () => ({ clientNeedsPatchTest: async () => false }));
 
 const { getFlorrieThoughts } = await import('../../src/services/florrie-thinking.js');
