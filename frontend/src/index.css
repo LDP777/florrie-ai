@@ -433,10 +433,34 @@ body {
 .booking-time-editing input[type="datetime-local"] { width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box; }
 .booking-detail-refined button { min-height: 44px; }
 .booking-section-title { margin: 0 0 12px; font-size: 14px; font-weight: 700; }
-.booking-care:empty { display: none; }
-.booking-care > details { background: var(--bg-card); border-radius: 18px !important; margin-top: var(--booking-card-gap) !important; padding: 12px 16px !important; }
-.booking-care > details > summary { min-height: 44px !important; align-content: center; font-size: 13px; line-height: 1.5; }
-.booking-consultation { margin-top: 10px; padding: 12px 16px; border-left: 3px solid var(--accent); background: var(--bg-input); border-radius: 0 12px 12px 0; }
+/* Client care is one compact owner summary, with the source records one tap away. */
+.appointment-care { margin-top: 16px; padding: 0 16px; border: 1px solid var(--border); border-radius: 18px; background: var(--bg-card); }
+.appointment-care-row { display: grid; grid-template-columns: 19px minmax(0, 1fr) auto; column-gap: 10px; align-items: start; padding: 16px 0; }
+.appointment-care-row + .appointment-care-row { border-top: 1px solid var(--border-light, var(--border)); }
+.appointment-care-icon { margin-top: 2px; color: var(--accent); }
+.appointment-care-body h4 { margin: 0 0 4px; font-size: 12px; font-weight: 500; color: var(--text-secondary); }
+.appointment-care-status { margin: 0; font-size: 13px; font-weight: 600; line-height: 1.5; }
+.appointment-care-status.needs-attention { color: var(--accent); }
+.appointment-care-status.is-received { color: var(--success); }
+.appointment-care-hint { margin: 5px 0 0; font-size: 11px; color: var(--text-secondary); line-height: 1.55; overflow-wrap: anywhere; }
+.appointment-care-row > .fl-btn { margin: -6px -8px 0 0; padding-inline: 8px; font-size: 11px; }
+.appointment-care-flag { display: block; margin: 8px 0 0; padding-left: 8px; border-left: 2px solid var(--accent); color: var(--accent); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.appointment-care-message { margin: 0; padding-block: 16px; font-size: 12px; color: var(--text-secondary); }
+.appointment-care-error { display: flex; justify-content: space-between; gap: 12px; padding-block: 16px; font-size: 12px; }
+.appointment-care-error p { margin: 4px 0 0; color: var(--text-secondary); line-height: 1.5; }
+.appointment-care-result, .appointment-care-answers { grid-column: 2 / -1; min-width: 0; }
+.appointment-care-result { margin: 8px 0 0; font-size: 12px; line-height: 1.5; }
+.appointment-care-answers { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
+.appointment-care-answers h5 { margin: 0 0 8px; font-size: 13px; font-weight: 600; }
+.appointment-care-answer { padding-block: 10px; border-bottom: 1px solid var(--border-light, var(--border)); font-size: 13px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.appointment-care-answer > p { margin: 0 0 4px; color: var(--text-secondary); font-size: 11px; }
+.appointment-care-record { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 44px; border-top: 1px solid var(--border-light, var(--border)); text-decoration: none; color: var(--accent); font-size: 11px; font-weight: 600; }
+.appointment-care :is(a, button):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 360px) {
+  .appointment-care { padding-inline: 12px; }
+  .appointment-care-row { column-gap: 8px; }
+  .appointment-care-row > .fl-btn { padding-inline: 6px; }
+}
 .booking-payment-summary { font-variant-numeric: tabular-nums; }
 .booking-payment-summary > div { gap: 12px; line-height: 1.5; }
 .booking-payment-summary > div > span:last-child { flex-shrink: 0; }

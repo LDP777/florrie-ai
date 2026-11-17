@@ -1810,7 +1810,6 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
   // means silence: a failed call renders nothing rather than implying that
   // there is no form and nothing to worry about.
   const [consultation, setConsultation] = useState(null);
-  const [consultOpen, setConsultOpen] = useState(false);
   const [consultSending, setConsultSending] = useState(false);
   const [consultSendResult, setConsultSendResult] = useState(null);
   // Pulled out of the effect so the send handler can call it too. After a
@@ -1831,7 +1830,6 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
   useEffect(() => {
     let cancelled = false;
     setConsultation(null);
-    setConsultOpen(false);
     (async () => {
       const d = await loadConsultation();
       if (!cancelled && d) setConsultation(d);
@@ -2590,109 +2588,14 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               </button>
             </div>
           )}
-          <section className="booking-care" aria-label="Booking preparation">
-          <AppointmentPreparation appointmentId={appointment.id} clientId={appointment.client_id} />
-          {/* Consultation form. Two states worth a line on this sheet: there
-              is one on file (read it here, in place), or the treatment needs
-              one and there is nothing (say so BEFORE the client arrives). */}
-          {consultation && (consultation.response || consultation.requires_consultation) && (
-            <div className="booking-consultation">
-              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #574A42)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>Consultation</div>
-
-              {consultation.response ? (
-                <>
-                  <button className="fl-tap"
-                    onClick={() => { hapticTap(); setConsultOpen(v => !v); }}
-                    aria-expanded={consultOpen}
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, width: '100%', minHeight: TAP, padding: 0, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}
-                  >
-                    <span style={{ fontSize: 13, color: 'var(--text-primary)', minWidth: 0 }}>
-                      {/* completed_at is a real instant, not an appointment wall
-                          time, so it formats normally. slice(11,16) is for
-                          appointments.starts_at and nothing else. */}
-                      Consultation form, submitted {consultation.response.completed_at
-                        ? new Date(consultation.response.completed_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
-                        : 'date unknown'}
-                    </span>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: COLORS.primary, flexShrink: 0 }}>
-                      {consultOpen ? 'Hide' : 'Read it'}
-                    </span>
-                  </button>
-
-                  {/* Flagged answers stay on screen whether or not she opens
-                      the form. That is the whole point of flagging them. */}
-                  {(consultation.response.worth_knowing || []).map((note, i) => (
-                    <p key={i} style={{ fontSize: 12, color: COLORS.primary, fontWeight: 600, margin: '6px 0 0', lineHeight: 1.45 }}>
-                      {note}
-                    </p>
-                  ))}
-
-                  {consultOpen && (
-                    <div style={{ marginTop: 10, borderTop: `1px solid ${COLORS.outlineVariant}66`, paddingTop: 8 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6 }}>
-                        {consultation.response.form_name}
-                      </div>
-                      {consultation.response.pairs.map(pair => (
-                        <div key={pair.field_id} style={{ padding: '7px 0', borderBottom: `1px solid ${COLORS.outlineVariant}44` }}>
-                          <div style={{ fontSize: 11, color: COLORS.stone400, lineHeight: 1.4 }}>{pair.question}</div>
-                          <div style={{ fontSize: 13,
-                            fontWeight: 500,
-                            lineHeight: 1.45,
-                            whiteSpace: 'pre-wrap',
-                            wordBreak: 'break-word',
-                            color: pair.answered ? 'var(--text-primary)' : COLORS.stone400,
-                            fontStyle: pair.answered ? 'normal' : 'italic',
-                          }}>
-                            {pair.answered ? pair.answer : 'Not answered'}
-                          </div>
-                          {pair.worth_knowing && (
-                            <span style={{ display: 'inline-block', marginTop: 4, fontSize: 11, fontWeight: 700, color: '#92405e', background: 'rgba(146, 64, 94, 0.10)', border: '1px solid rgba(146, 64, 94, 0.25)', borderRadius: 999, padding: '3px 9px' }}>
-                              Worth knowing
-                            </span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </>
-              ) : (
-                <>
-                  {/* A form already sent and not yet filled in is its own
-                      state, and it used to be invisible: this card only ever
-                      asked about COMPLETED forms, so it said "nothing on file"
-                      an hour after one had gone and offered a primary button
-                      to send another. Ellie sent Shauna two. */}
-                  <p style={{ fontSize: 13, color: COLORS.primary, fontWeight: 600, margin: 0, lineHeight: 1.45 }}>
-                    {consultation.missing_forms?.length
-                      ? consultation.missing_forms.map(form => `${form.form_name}: ${form.status === 'awaiting_response' ? 'awaiting a response' : form.status === 'link_expired' ? 'link expired' : form.status === 'template_unavailable' ? 'template needs updating' : 'not requested yet'}`).join('. ')
-                      : consultation.pending
-                        ? `A consultation form is ${consultation.pending.expired ? 'past its link expiry date' : 'awaiting a response'}.`
-                        : `No completed consultation covers this booking. Open the client record to review their forms.`}
-
-                  </p>
-                  {consultation.form_available && appointment.client_id && (
-                    <button className="fl-tap"
-                      onClick={() => { hapticTap(); handleSendConsultationForm(); }}
-                      disabled={consultSending}
-                      style={{ width: '100%', minHeight: TAP, marginTop: 8, padding: '10px 12px', borderRadius: 10,
-                        border: consultation.pending ? `1px solid ${COLORS.primary}` : 'none',
-                        background: consultation.pending ? 'transparent' : '#92405e',
-                        color: consultation.pending ? COLORS.primary : '#fff',
-                        fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', opacity: consultSending ? 0.6 : 1 }}
-                    >
-                      {consultSending
-                        ? 'Sending...'
-                        : 'Send outstanding forms'}
-                    </button>
-                  )}
-                  {consultSendResult && (
-                    <p style={{ fontSize: 11, color: COLORS.stone400, margin: '6px 0 0', lineHeight: 1.45 }}>{consultSendResult}</p>
-                  )}
-                </>
-              )}
-            </div>
-          )}
-          </section>
+          <AppointmentPreparation
+            appointmentId={appointment.id}
+            clientId={appointment.client_id}
+            consultation={consultation}
+            onSendForm={() => { hapticTap(); handleSendConsultationForm(); }}
+            sendingForm={consultSending}
+            sendResult={consultSendResult}
+          />
           {(canTakeMoney || owesCents > 0 || paymentReviewSources.length > 0 || paymentLinkUrl) && <section className="booking-section booking-payments" aria-label="Payments">
             <h4 className="booking-section-title">Payments</h4>
             {owesCents > 0 && (

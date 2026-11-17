@@ -31,6 +31,7 @@ try {
         status:scenario==='cancelled'?'cancelled':scenario==='confirmed' || scenario==='full' ? 'confirmed' : 'completed', price_cents:8500, deposit_cents:1700, deposit_paid:scenario==='full', payment_type:scenario==='full'?'full':null,
         payment_method:'card', clients:{ first_name:'Alex', last_name:'Morgan' }, treatments:{id:'t4',name:'Korean lash lift',duration_minutes:90,price_cents:8500},
         beautician_notes:'Lash lift + hybrid stain. Prefers a natural finish.', created_at:'2026-08-01T20:45:00Z', booked_via:'manual', confirmation_sent_at:scenario==='confirmed'?null:'2026-08-01T20:45:00Z' };
+      const careCase=new URL(location.href).searchParams.get('care')||'review';
       const writes=[];
       window.bookingSheetFixture={appointment,writes};
       const json=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json'}});
@@ -40,6 +41,7 @@ try {
           const body=options.body ? JSON.parse(options.body) : null; writes.push({path:p,method,body});
           if(p==='/rest/v1/appointments'){Object.assign(appointment,body);return json([appointment]);}
           if(p==='/api/appointments/a2'){Object.assign(appointment,body);return json({appointment});}
+          if(p==='/api/consultation-forms/send'){window.bookingSheetFixture.formSent=true;return json({sent:true});}
           if(p.endsWith('/send-manage-link'))return json({channel:'sms'});
           if(p.endsWith('/resend-confirmation'))return json({sent:true,channels:['SMS']});
           if(p==='/api/stripe/payment-link')return json({url:'https://example.test/fictional-payment'});
@@ -51,8 +53,20 @@ try {
         if(p==='/api/appointments/a2/card')return json({hasCard:scenario==='confirmed',last4:scenario==='confirmed'?'4242':null,reason:'no_card_on_file',takings_readable:true,uncollected_cents:scenario==='full'?0:8500,settled_cents:scenario==='full'?8500:0,assumed_cents:scenario==='completed'?8500:0,fees:{amount_cents:8500,estimated_net_cents:8224}});
         if(p==='/api/appointments/a2/manage-link')return json({needs_patch_test:false,url:'https://example.test/fictional-booking'});
         if(p==='/api/clients/c2/outstanding-balance')return json({outstanding_cents:0,review_sources:[]});
-        if(p==='/api/consultation-forms/preparation/a2')return json({preparation:{confirmed:true,required:true,patch:{required:true,state:'review',can_complete:false},forms:[{id:'form1',name:'Lash lift consultation',status:'awaiting_response',available:true,review_required:true}]}});
-        if(p==='/api/consultation-forms/for-appointment/a2')return json({requires_consultation:true,form_available:false,pending:{expired:false},missing_forms:[{form_name:'Lash lift consultation',status:'awaiting_response'}]});
+        if(p==='/api/consultation-forms/preparation/a2'){
+          if(careCase==='error'&&!window.bookingSheetFixture.careRecovered)return json({},503);
+          if(careCase==='none')return json({preparation:{confirmed:true,required:false,patch:{required:false,can_complete:true},forms:[]}});
+          const state=careCase==='waiting'?'waiting':(careCase==='received'||careCase==='historic')?'ready':careCase==='send'?'needed':careCase==='multi'?'not_required':'review';
+          const forms=careCase==='multi'?[{id:'form1',name:'Brow consultation',status:'received',available:true},{id:'form2',name:'Lash consultation',status:'pending',available:true}]
+            :[{id:'form1',name:'Lash lift consultation',status:'pending',available:true,review_required:careCase==='review'||careCase==='concern'}];
+          return json({preparation:{confirmed:true,required:true,patch:{required:state!=='not_required',state,can_complete:state==='ready'||state==='not_required',ready_at:state==='ready'?'2026-08-07T09:30:00Z':'2026-08-08T09:30:00Z'},forms}});
+        }
+        if(p==='/api/consultation-forms/for-appointment/a2'){
+          if(careCase==='none')return json({requires_consultation:false,form_available:false});
+          if(careCase==='received'||careCase==='concern'||careCase==='historic')return json({requires_consultation:true,response:{id:'response1',appointment_id:careCase==='historic'?'previous-booking':'a2',form_id:'form1',form_name:'Lash lift consultation',completed_at:'2026-08-01T12:00:00Z',has_signature:true,consent_text:'Fictional consent wording.',pairs:[{field_id:'allergy',question:'Any allergies?',answer:'None reported',answered:true}],worth_knowing:careCase==='concern'?['Client reports a reaction to the patch test.']:[]}});
+          const canSend=careCase==='send'&&!window.bookingSheetFixture.formSent;
+          return json({requires_consultation:true,form_available:canSend,pending:canSend?null:{expired:false},missing_forms:careCase==='multi'?[{form_id:'form2',form_name:'Lash consultation',status:'not_requested'}]:[{form_id:'form1',form_name:'Lash lift consultation',status:canSend?'not_requested':'awaiting_response'}]});
+        }
         return base(input,options);
       };
     })();`);
@@ -61,12 +75,12 @@ try {
   page.on('dialog', dialog=>dialog.dismiss());
   page.setDefaultTimeout(10000);
   const sheet=page.getByRole('dialog',{name:'Booking details'});
-  async function open(scenario='completed',width=390){
+  async function open(scenario='completed',width=390,care='review'){
     await page.setViewportSize({width,height:844});
-    await page.goto(`${origin}/calendar/week?date=2026-08-08&appt=a2&scenario=${scenario}`);
+    await page.goto(`${origin}/calendar/week?date=2026-08-08&appt=a2&scenario=${scenario}&care=${care}`);
     await page.addStyleTag({content:':root{--safe-top:47px;--shell-top:47px;--safe-bottom:24px;}'});
     await sheet.getByRole('heading',{name:'Alex Morgan'}).waitFor();
-    await sheet.getByText('Lash lift consultation: awaiting a response',{exact:true}).waitFor();
+    if(care!=='none')await sheet.getByRole('heading',{name:'Consultation',exact:true}).waitFor();
     await page.evaluate(()=>document.fonts.ready);
   }
   async function fit(label){
@@ -124,9 +138,11 @@ try {
   await sheet.getByRole('button',{name:'Actually a no-show',exact:true}).click();
   assert.equal(await page.evaluate(()=>window.bookingSheetFixture.writes.some(w=>w.method==='DELETE'||w.path.endsWith('/status'))),false,'destructive actions still need confirmation');
   console.log('✓ Notes save, booking links, confirmation, payment links and card links use their original routes; destructive confirmations remain');
-  await sheet.locator('.booking-care summary').click();
-  await sheet.getByText('Needs your review before treatment.',{exact:true}).waitFor();
-  console.log('✓ Preparation warning and full checklist remain accessible');
+  await sheet.getByText('Reaction recorded',{exact:true}).waitFor();
+  await sheet.getByText('An answer has been flagged. Open the client care record to read it before treatment.',{exact:true}).waitFor();
+  assert.equal(await sheet.getByRole('region',{name:'Patch test and consultation',exact:true}).count(),1);
+  assert.equal(await sheet.locator('.booking-care,.booking-consultation').count(),0);
+  console.log('✓ Test result and consultation warning are visible in one care section');
   await open('confirmed');
   assert.ok(await sheet.locator('.booking-history').evaluate(el=>el.open),'missing confirmation stays visible');
   await sheet.getByRole('button',{name:'Charge their card ···· 4242',exact:true}).click();
@@ -143,6 +159,45 @@ try {
   console.log('✓ Completion/photo flow, saved-card editor and fully-paid safeguards remain');
   await open('cancelled');
   assert.equal(await sheet.getByRole('region',{name:'Payments',exact:true}).count(),0,'cancelled booking has no empty collection section');
+  await open('completed',390,'received');
+  const care=sheet.getByRole('region',{name:'Patch test and consultation',exact:true});
+  await care.getByText('Received',{exact:true}).waitFor();
+  await care.getByText('Waiting period finished',{exact:true}).waitFor();
+  assert.equal(await care.getByText('Not completed',{exact:true}).count(),0,'completed form for this appointment does not appear as pending');
+  assert.equal(await care.getByRole('button',{name:'Send form',exact:true}).count(),0);
+  await care.getByRole('button',{name:'Read form',exact:true}).click();
+  await care.getByText('None reported',{exact:true}).waitFor();
+  await care.getByText('Signature received',{exact:true}).waitFor();
+  await care.getByText('Fictional consent wording.',{exact:true}).waitFor();
+  await care.getByRole('button',{name:'Hide form',exact:true}).click();
+  if(shots){await care.scrollIntoViewIfNeeded();await page.screenshot({path:join(shots,'care-received-390.png')});await care.screenshot({path:join(shots,'care-received-panel.png')});}
+  await open('completed',390,'historic');
+  await care.getByText('Form on file',{exact:true}).waitFor();
+  await care.getByText('No completed form is recorded against this appointment. You can read the form on file below.',{exact:true}).waitFor();
+  assert.equal(await care.getByText('Received',{exact:true}).count(),0,'past forms are not presented as submitted for this booking');
+  await open('completed',390,'waiting');
+  await care.getByText('48-hour wait',{exact:true}).waitFor();
+  await care.getByText('Awaiting reply',{exact:true}).waitFor();
+  assert.equal(await care.getByRole('button',{name:'Send form',exact:true}).count(),0,'waiting clients are not prompted to receive duplicate forms');
+  if(shots){await care.scrollIntoViewIfNeeded();await page.screenshot({path:join(shots,'care-waiting-390.png')});await care.screenshot({path:join(shots,'care-waiting-panel.png')});}
+  await open('completed',390,'send');
+  await care.getByText('Not sent yet',{exact:true}).waitFor();
+  await care.getByRole('button',{name:'Send form',exact:true}).click();
+  await care.getByText('Awaiting reply',{exact:true}).waitFor();
+  assert.equal(await care.getByRole('button',{name:'Send form',exact:true}).count(),0);
+  assert.deepEqual(await page.evaluate(()=>window.bookingSheetFixture.writes.filter(w=>w.path==='/api/consultation-forms/send').map(w=>w.body)),[{client_id:'c2',appointment_id:'a2'}]);
+  await open('completed',390,'multi');
+  await care.getByText('Brow consultation: Received',{exact:true}).waitFor();
+  await care.getByText('Lash consultation: Not sent yet',{exact:true}).waitFor();
+  await open('completed',390,'error');
+  await care.getByText('Couldn’t check patch test and forms',{exact:true}).waitFor();
+  await page.evaluate(()=>window.bookingSheetFixture.careRecovered=true);
+  await care.getByRole('button',{name:'Retry',exact:true}).click();
+  await care.getByText('Reaction recorded',{exact:true}).waitFor();
+  await open('completed',390,'none');
+  await page.waitForFunction(()=>!document.querySelector('.appointment-care-message'));
+  assert.equal(await care.count(),0,'irrelevant care section is omitted');
+  console.log('✓ Care states: completed coverage, readable answers/signature, waiting period, duplicate-send prevention, multiple forms, retry and no requirements');
   await open('completed',320);await fit('320px');
   await overview.getByRole('button',{name:'Move',exact:true}).click();await fit('320px date editor');
   await open('completed',768);await fit('tablet');
