@@ -45,8 +45,8 @@ export function MoneyTax({ report: t, years, onYear, onExport, exporting, onSett
         <p style={{ ...S.text, fontSize: 11, margin: '12px 0 0' }}>After refunds · updated through {date(t.asAt)}</p>
       </div>
     </section>
-    {needsChecking > 0 && <TaxDetails title={`${needsChecking} ${needsChecking === 1 ? 'payment needs' : 'payments need'} checking`} warning>
-      <p style={S.text}>These records are excluded from the totals. They may already have been paid in cash or by transfer; they are not a bill to collect from clients.</p>
+    {needsChecking > 0 && <TaxDetails title="Cash & bank receipts">
+      <p style={S.text}>{needsChecking} appointments have no confirmed receipt. Record any cash or bank payments you received to include them here.</p>
       {t.assumedCount > 0 && <MoneyLine label="Payment not confirmed" value={t.assumedIncome} />}
       <Button variant="secondary" size="sm" onClick={onReview} style={{ margin: '8px 0 14px' }}>Review payments</Button>
     </TaxDetails>}

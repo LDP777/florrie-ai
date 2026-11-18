@@ -40,12 +40,13 @@ async function check(hidden=false,fail=false){
  const page=await context.newPage();page.setDefaultTimeout(12000);const errors=[];page.on('pageerror',e=>errors.push(e.message));
  try{
   await page.goto(origin+'/money?tab=income');
+  await page.locator('summary').filter({hasText:'Cancellation fees'}).click();
   if(fail){await page.getByRole('alert').filter({hasText:'Couldn’t check cancellation payments'}).waitFor();assert.equal(await page.getByText('Cancellation fee · Collected',{exact:true}).count(),0);await page.getByRole('button',{name:'Refresh',exact:true}).click();}
   await page.getByText('Cancellation fee · Collected',{exact:true}).waitFor();
   await page.getByText('Cancellation fee · Pending',{exact:true}).waitFor();
   await page.getByText('Cancellation fee · Needs attention',{exact:true}).waitFor();
   assert.match(await page.locator('body').innerText(),/Collected on 9 November 2026/);
-  assert.match(await page.locator('body').innerText(),/Late cancellation fee · Paid by card/);
+  assert.match(await page.locator('body').innerText(),/Cancellation fee · Card/);
   const body=await page.locator('body').innerText();if(hidden)assert.doesNotMatch(body,/Fictional|24\.00|12\.00|18\.00/);else assert.match(body,/Fictional Alex/);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
   assert.deepEqual(await page.evaluate(()=>window.__feeWrites),[]);assert.deepEqual(errors,[]);

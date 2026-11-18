@@ -133,6 +133,7 @@ try {
   await page.getByRole('button', { name: 'Save', exact: true }).evaluate(b => { b.click(); b.click(); });
   await page.getByRole('status').filter({ hasText: 'Tip saved' }).waitFor();
   assert.equal(await page.evaluate(() => window.__moneyRows.filter(t => t.type === 'tip').length), 1);
+  await page.getByText('Trends & breakdowns', { exact: true }).click();
   await page.getByText('Tips', { exact: true }).locator('..').getByText('£5', { exact: true }).waitFor();
   await page.getByRole('button', { name: 'Tax', exact: true }).click();
   await page.getByRole('region', { name: 'Tax year figures' }).getByText('£1,192.00', { exact: true }).waitFor();
@@ -160,7 +161,7 @@ try {
   assert.doesNotMatch(await page.getByRole('region', { name: 'Tax summary' }).innerText(), /£[0-9,]+\.[0-9]{2}/);
   assert.equal(await page.getByRole('button', { name: 'Export for Accountant', exact: true }).isDisabled(), true);
   await page.getByRole('button', { name: 'Hide client details', exact: true }).click();
-  await page.getByText('1 payment needs checking', { exact: true }).click();
+  await page.getByText('Cash & bank receipts', { exact: true }).click();
   await page.getByRole('button', { name: 'Review payments', exact: true }).click();
   assert.equal(await page.getByLabel('Income records').inputValue(), 'review');
   assert.equal(await page.getByRole('button', { name: /Show more records/ }).count(), 0);

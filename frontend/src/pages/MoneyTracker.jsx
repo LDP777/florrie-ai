@@ -4,7 +4,7 @@ import { parseMoneyInput } from '../lib/money-view.js';
 import { moneyApi, saveMoneyEntry, boundedMoneyRequest } from '../lib/money-requests.js';
 import { readAllMoney } from '../../../backend/src/lib/read-all-money.js';
 import { moneyDate, moneyTotals, reconcileTransactions, reportingYear, reportingBounds, shiftDate, periodWindow, sumMoney, taxReport } from '../../../backend/src/lib/money-reporting.js';
-import CancellationPayments from '../components/CancellationPayment.jsx';
+import MoneyPayments from '../components/MoneyPayments.jsx';
 import { PrivateAmount, PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import MoreLoadError from '../components/MoreLoadError.jsx';
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -17,7 +17,6 @@ import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import { hapticTap, hapticSuccess } from '../lib/native.js';
-import { useCountUp } from '../lib/useCountUp.js';
 import { todayLocal, localDateStr } from '../lib/dates.js';
 import { uploadFile, objectPath, signedUrlMap, PRIVATE_BUCKET } from '../lib/storage.js';
 import Icon, { iconName } from '../components/ui/Icon';
@@ -230,7 +229,7 @@ export default function MoneyTracker() {
   const [exporting, setExporting] = useState(false);
   const [savingEntry, setSavingEntry] = useState(null);
   const entryIds = useRef({}), saveLock = useRef(false);
-  const [incomeFilter, setIncomeFilter] = useState('all');
+  const [incomeFilter, setIncomeFilter] = useState('received');
   const [ledgerRevision, setLedgerRevision] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -370,14 +369,6 @@ export default function MoneyTracker() {
       setReports(null);
 
       setLoading(false);
-      // Reports: revenue MoM, rebooking + no-show rate, one insight (server-computed)
-      try {
-        const token = (await supabase.auth.getSession())?.data?.session?.access_token;
-        const rep = await fetch(`${API_BASE}/api/money/reports`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (rep.ok) setReports(await rep.json());
-      } catch { /* non-critical, the rest of the page still works */ }
     } catch (err) {
       logger.error({ err }, 'Money load error');
       setError('Something went wrong loading your money data');
@@ -385,6 +376,17 @@ export default function MoneyTracker() {
       setLoading(false);
     }
   }
+
+  // A newly recorded receipt also changes the optional monthly comparison.
+  useEffect(() => {
+    if (!beautician || loading) return;
+    let cancelled = false;
+    setReports(null);
+    apiFetch('/api/money/reports')
+      .then(data => { if (!cancelled) setReports(data); })
+      .catch(() => { /* the local totals remain available */ });
+    return () => { cancelled = true; };
+  }, [beautician?.id, loading, transactions]);
 
   // Year to date and the regular costs load alongside the page rather than
   // blocking it: if either fails the rest of the Money page still works, which
@@ -852,7 +854,6 @@ export default function MoneyTracker() {
     return [...new Set([current, ...transactions.filter(t => t.created_at).map(t => reportingYear(moneyDate(t.created_at, timezone))), ...expenses.filter(e => e.date).map(e => reportingYear(e.date))])].filter(y => y <= current).sort().reverse();
   }, [transactions, expenses, timezone]);
   const tax = useMemo(() => taxReport({ transactions, expenses, beautician: beautician || {}, year: taxYear || undefined }), [transactions, expenses, beautician, taxYear]);
-  const shownIncome = useMemo(() => incomeFilter === 'review' ? transactions.filter(t => ['assumed','review'].includes(t.reporting_status)) : transactions, [transactions, incomeFilter]);
 
   const pulse = useMemo(() => !loading ? computePulse() : null, [loading, expenses, transactions]);
 
@@ -895,15 +896,9 @@ export default function MoneyTracker() {
     };
   }, [periodStats]);
 
-  const recentTx = useMemo(() => transactions.slice(0, 5), [transactions]);
+  const recentTx = useMemo(() => transactions.filter(t => t.reporting_status === 'received').slice(0, 5), [transactions]);
 
-  // Today's takings, surfaced at the very top so the number Ellie wants is the
-  // first thing on the Money page (was buried inside the Pulse tab).
-  const todayRevenue = useMemo(() => moneyTotals({ transactions, start: moneyDate(new Date(), timezone), timezone }).income_cents, [transactions, timezone]);
   const reconciliation = useMemo(() => moneyTotals({ transactions, timezone }), [transactions, timezone]);
-
-  // Roll today's takings up when the Money page opens (Monzo-style).
-  const animatedToday = useCountUp(todayRevenue);
 
   if (bLoading || loading) return <PageLoader />;
   if (error) return <MoreLoadError title="Money" message={error} onRetry={loadData} />;
@@ -912,94 +907,10 @@ export default function MoneyTracker() {
   const changeArrow = changePct != null ? (changePct >= 0 ? '↑' : '↓') : '';
 
   return (
-    <div style={S.page}>
+    <div className="money-workspace" style={S.page}>
       {/* ─── Page Title ─── */}
       <PageHeader title="Money" />
 
-      {tab !== 'tax' && <>
-      {/* Today's takings */}
-      <div style={{ background: 'var(--gradient-hero)',
-        borderRadius: 16, padding: '16px 18px', color: '#fff',
-        boxShadow: 'var(--elev-2)', marginBottom: 14,
-        display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12,
-      }}>
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', opacity: 0.85 }}>Recorded receipts today</div>
-          <div style={{ fontFamily: '"Plus Jakarta Sans", -apple-system, sans-serif', fontSize: 38, fontWeight: 700, lineHeight: 1.05, marginTop: 2, fontVariantNumeric: 'tabular-nums', fontFeatureSettings: '"tnum" 1', letterSpacing: '-0.03em' }}><PrivateAmount>{fmt(Math.round(animatedToday))}</PrivateAmount></div>
-          {todayRevenue === 0 && (
-            <div style={{ fontSize: 11.5, opacity: 0.85, marginTop: 4, maxWidth: 220 }}>
-              Confirmed payments appear here. Finishing a booking does not confirm payment.
-            </div>
-          )}
-        </div>
-        {pulse && (
-          <div style={{ textAlign: 'right', opacity: 0.92 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.85 }}>This week</div>
-            <div style={{ fontSize: 17, fontWeight: 700 }}><PrivateAmount>{fmt(pulse.thisWeek.income)}</PrivateAmount></div>
-          </div>
-        )}
-      </div>
-
-      <details style={{ ...S.breakdownCard, marginBottom: 14 }} aria-label="How money totals are calculated">
-        <summary style={{ fontSize: 13, cursor: 'pointer', color: 'var(--accent)' }}>What counts as received{reconciliation.assumed_count > 0 ? ` · ${reconciliation.assumed_count} records to check` : ''}</summary>
-        <p style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--text-secondary)' }}>Completed recorded payments, less refunds. Card fees reduce profit only when logged as expenses. This is not your bank balance.</p>
-        {reconciliation.assumed_count > 0 && <p style={{ fontSize: 12 }}><PrivateAmount>{fmt(reconciliation.assumed_cents)}</PrivateAmount> across {reconciliation.assumed_count} assumed takings needs checking and is excluded.</p>}
-        {reconciliation.duplicate_count > 0 && <p style={{ fontSize: 12 }}>{reconciliation.duplicate_count} duplicate payment records excluded: <PrivateAmount>{fmt(reconciliation.duplicate_cents)}</PrivateAmount>.</p>}
-        {reconciliation.review_count > 0 && <p style={{ fontSize: 12 }}>{reconciliation.review_count} conflicting records need review and are excluded.</p>}
-        {(reconciliation.assumed_count + reconciliation.duplicate_count + reconciliation.review_count > 0) && <Button variant="secondary" size="sm" onClick={() => setTab('income')} style={S.exportBtn}>Review income records</Button>}
-      </details>
-
-      {/* Year to date, on the UK TAX year (6 April to 5 April), with the same
-          slice of last year beside it. Every other number on this page is a
-          window onto a week or a month; this is the one that carries. */}
-      {ytd && (
-        <section style={S.ytdCard}>
-          <div style={S.ytdHead}>
-            <span style={S.ytdTitle}>Tax year {ytd.current.tax_year} so far</span>
-            <span style={S.ytdDates}>6 April to {prettyDate(ytd.current.as_at)}</span>
-          </div>
-          <div style={S.ytdRow}>
-            <div style={S.ytdStat}>
-              <span style={S.ytdLabel}>Income</span>
-              <span style={S.ytdValue}><PrivateAmount>{fmtNeat(ytd.current.income_cents)}</PrivateAmount></span>
-            </div>
-            <div style={S.ytdStat}>
-              <span style={S.ytdLabel}>Expenses</span>
-              <span style={S.ytdValue}><PrivateAmount>{fmtNeat(ytd.current.expenses_cents)}</PrivateAmount></span>
-            </div>
-            <div style={S.ytdStat}>
-              <span style={S.ytdLabel}>Profit</span>
-              <span style={{ ...S.ytdValue,
-                color: ytd.current.profit_cents >= 0 ? 'var(--success)' : 'var(--danger)',
-              }}><PrivateAmount>{fmtNeat(ytd.current.profit_cents)}</PrivateAmount></span>
-            </div>
-          </div>
-          {/* ^ Income / Expenses / Profit are stacked rows, not three side-by-side
-              columns. Three flex:1 thirds of a 390px card (~106px each after the
-              card padding and gaps) is narrower than a four-figure tabular value
-              at this weight and size ("£10,009.60" alone runs to ~135px) — the
-              figure has nowhere to wrap (it is one unbroken token) and no clip is
-              applied, so it spills out of its own column and lands directly on
-              its neighbour, gap and all. That is what "£10,009.60£65.71" was: the
-              Income figure had already overflowed onto the Expenses column
-              before Expenses' text even started. A stacked row gives every value
-              the full card width to itself (~300px), which holds even
-              "-£100,000.00" comfortably, at any combination of income/expenses/
-              profit magnitude — not just a wider gap that happens to survive
-              today's numbers. */}
-          {/* Cut off at the same calendar point last year on purpose. Four
-              months against twelve always looks like a collapse. */}
-          <div style={S.ytdCompare}>
-            <span>{ytd.previous.tax_year} to the same point</span>
-            <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>
-              <PrivateAmount>{fmtNeat(ytd.previous.income_cents)}</PrivateAmount> in, <PrivateAmount>{fmtNeat(ytd.previous.expenses_cents)}</PrivateAmount> out,
-              {' '}<PrivateAmount>{fmtNeat(ytd.previous.profit_cents)}</PrivateAmount> profit
-            </span>
-          </div>
-        </section>
-      )}
-
-      </>}
       {/* ─── Tab Bar (pill style) ─── */}
       <div style={S.tabBar}>
         {['pulse', 'expenses', 'ledger', 'income', 'tax'].map(t => (
@@ -1028,28 +939,6 @@ export default function MoneyTracker() {
       {/* ═══ PULSE TAB ═══ */}
       {tab === 'pulse' && (
         <div>
-          {reports && (
-            <div style={S.reportsCard}>
-              <div style={S.reportsTitle}>Your numbers</div>
-              <div style={S.reportsRow}>
-                <div style={S.reportStat}>
-                  <span style={S.reportValue}><PrivateAmount>{`\u00A3${Math.round((reports.revenue.this_month_cents || 0) / 100).toLocaleString('en-GB')}`}</PrivateAmount></span>
-                  <span style={S.reportLabel}>
-                    this month{reports.revenue.change_pct != null ? ` \u00B7 ${reports.revenue.change_pct >= 0 ? '+' : ''}${reports.revenue.change_pct}%` : ''}
-                  </span>
-                </div>
-                <div style={S.reportStat}>
-                  <span style={S.reportValue}>{reports.rebooking_rate.pct != null ? `${reports.rebooking_rate.pct}%` : '-'}</span>
-                  <span style={S.reportLabel}>rebook (90d)</span>
-                </div>
-                <div style={S.reportStat}>
-                  <span style={S.reportValue}>{reports.no_show_rate.pct != null ? `${reports.no_show_rate.pct}%` : '-'}</span>
-                  <span style={S.reportLabel}>no-shows (90d)</span>
-                </div>
-              </div>
-              {reports.insight && <div style={S.reportInsight}><PrivateText placeholder="Hidden">{reports.insight}</PrivateText></div>}
-            </div>
-          )}
           {pulse ? (
             <>
               {/* Period selector */}
@@ -1074,7 +963,7 @@ export default function MoneyTracker() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                     <Icon name={iconName('payments')} size={16} filled inline style={{ color: 'rgba(255,255,255,0.8)' }} />
                     <span style={S.heroLabel}>
-                      {period === 'today' ? 'Receipts Today' : period === 'month' ? 'Receipts This Month' : 'Receipts This Week'}
+                      Money received
                     </span>
                   </div>
                   <h2 style={S.heroValue}><PrivateAmount>{fmt(periodStats?.income || 0)}</PrivateAmount></h2>
@@ -1092,62 +981,8 @@ export default function MoneyTracker() {
                 </div>
               </section>
 
-              {/* ─── Mini Bar Chart ─── */}
-              <section style={S.chartCard}>
-                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, height: 80 }}>
-                  {!dailyRevenue.some(d => d.total !== 0) ? (
-                    <div style={{ flex: 1, alignSelf: 'center', textAlign: 'center', fontSize: 12, color: 'var(--text-muted)' }}>No takings logged this week yet</div>
-                  ) : dailyRevenue.map((d, i) => {
-                    const isToday = i === dailyRevenue.length - 1;
-                    const h = Math.max(4, (Math.abs(d.total) / maxDayRevenue) * 72);
-                    return (
-                      <div key={i} title={clientDetailsHidden ? undefined : `${d.dayStr}: ${fmt(d.total)}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                        <div style={{ width: '100%',
-                          height: h,
-                          borderRadius: 'var(--radius-xs)',
-                          background: d.total < 0 ? 'var(--danger)' : isToday
-                            ? 'linear-gradient(180deg, #B9466D 0%, #92405e 100%)'
-                            : 'rgba(146, 64, 94, 0.15)',
-                          transition: 'height 0.3s ease',
-                        }} />
-                        <span style={{ fontSize: 9,
-                          fontWeight: isToday ? 700 : 500,
-                          color: isToday ? 'var(--accent)' : 'var(--text-muted)',
-                          textTransform: 'uppercase',
-                        }}>{d.label}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-
-              {/* ─── Breakdown Bento ─── */}
-              <section style={S.bentoGrid}>
-                <div style={{ ...S.bentoCard, background: 'rgba(255, 217, 226, 0.3)' }}>
-                  <Icon name={iconName('content_cut')} size={20} inline style={{ color: 'var(--accent)' }} />
-                  <span style={S.bentoLabel}>Treatments</span>
-                  <span style={{ ...S.bentoValue, color: 'var(--accent)' }}><PrivateAmount>{fmtShort(breakdown.treatments)}</PrivateAmount></span>
-                </div>
-                <div
-                  onClick={() => setShowLogSale(s => !s)}
-                  style={{ ...S.bentoCard, background: 'rgba(254, 219, 155, 0.3)', cursor: 'pointer' }}
-                >
-                  <Icon name={iconName('shopping_bag')} size={20} inline style={{ color: 'var(--gold)' }} />
-                  <span style={S.bentoLabel}>Products</span>
-                  <span style={{ ...S.bentoValue, color: 'var(--gold)' }}><PrivateAmount>{fmtShort(breakdown.products)}</PrivateAmount></span>
-                  <span style={{ fontSize: 9, color: 'var(--gold)', opacity: 0.6, marginTop: -2 }}>+ log sale</span>
-                </div>
-                <div
-                  onClick={() => setShowLogTip(s => !s)}
-                  style={{ ...S.bentoCard, background: 'rgba(91, 169, 123, 0.1)', cursor: 'pointer' }}
-                >
-                  <Icon name={iconName('volunteer_activism')} size={20} inline style={{ color: 'var(--success)' }} />
-                  <span style={S.bentoLabel}>Tips</span>
-                  <span style={{ ...S.bentoValue, color: 'var(--success)' }}><PrivateAmount>{fmtShort(breakdown.tips)}</PrivateAmount></span>
-                  <span style={{ fontSize: 9, color: 'var(--success)', opacity: 0.6, marginTop: -2 }}>+ log tip</span>
-                </div>
-              </section>
-
+              {(reconciliation.assumed_count + reconciliation.review_count > 0) && <button className="money-review-link" onClick={() => { setIncomeFilter('review'); setIncomeVisible(100); setTab('income'); }}><Icon name="receipt" size={17}/><span>Record cash &amp; bank payments</span><Icon name="chevron-right" size={16}/></button>}
+              <div className="money-quick-actions"><Button variant="quiet" size="sm" onClick={() => setShowLogTip(value => !value)}>+ log tip</Button><Button variant="quiet" size="sm" onClick={() => setShowLogSale(value => !value)}>+ log sale</Button></div>
               {/* ─── Quick Log Tip ─── */}
               {showLogTip && (
                 <section style={S.quickLogCard}>
@@ -1229,7 +1064,7 @@ export default function MoneyTracker() {
               {/* ─── Recent Transactions ─── */}
               <section>
                 <div style={S.sectionHeader}>
-                  <h3 style={S.sectionHeading}>Recent Transactions</h3>
+                  <h3 style={S.sectionHeading}>Recent payments</h3>
                   <button onClick={() => setTab('income')} style={S.seeAll}>See All</button>
                 </div>
                 {recentTx.length === 0 ? (
@@ -1263,7 +1098,7 @@ export default function MoneyTracker() {
                                 >
                                   <PrivateText placeholder="Client">{name}</PrivateText>
                                 </button>
-                              ) : name}
+                              ) : <PrivateText placeholder="Client">{name}</PrivateText>}
                             </p>
                             <p style={{ fontSize: 11, color: assumed ? '#8A5A22' : 'var(--text-muted)', margin: 0 }}>
                               {treatment}{treatment ? ' · ' : ''}
@@ -1290,6 +1125,85 @@ export default function MoneyTracker() {
                 )}
               </section>
 
+              <details className="money-details"><summary>Trends &amp; breakdowns<Icon name="chevron-down" size={16}/></summary>
+          {reports && (
+            <div style={S.reportsCard}>
+              <div style={S.reportsTitle}>Your numbers</div>
+              <div style={S.reportsRow}>
+                <div style={{ ...S.reportStat, gridColumn: '1 / -1' }}>
+                  <span style={S.reportValue}><PrivateAmount>{`\u00A3${Math.round((reports.revenue.this_month_cents || 0) / 100).toLocaleString('en-GB')}`}</PrivateAmount></span>
+                  <span style={S.reportLabel}>
+                    this month{reports.revenue.change_pct != null ? ` \u00B7 ${reports.revenue.change_pct >= 0 ? '+' : ''}${reports.revenue.change_pct}%` : ''}
+                  </span>
+                </div>
+                <div style={S.reportStat}>
+                  <span style={S.reportValue}>{reports.rebooking_rate.pct != null ? `${reports.rebooking_rate.pct}%` : '-'}</span>
+                  <span style={S.reportLabel}>rebook (90d)</span>
+                </div>
+                <div style={S.reportStat}>
+                  <span style={S.reportValue}>{reports.no_show_rate.pct != null ? `${reports.no_show_rate.pct}%` : '-'}</span>
+                  <span style={S.reportLabel}>no-shows (90d)</span>
+                </div>
+              </div>
+              {reports.insight && <div style={S.reportInsight}><PrivateText placeholder="Hidden">{reports.insight}</PrivateText></div>}
+            </div>
+          )}
+              {/* ─── Mini Bar Chart ─── */}
+              <section style={S.chartCard}>
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, height: 80 }}>
+                  {!dailyRevenue.some(d => d.total !== 0) ? (
+                    <div style={{ flex: 1, alignSelf: 'center', textAlign: 'center', fontSize: 12, color: 'var(--text-muted)' }}>No takings logged this week yet</div>
+                  ) : dailyRevenue.map((d, i) => {
+                    const isToday = i === dailyRevenue.length - 1;
+                    const h = Math.max(4, (Math.abs(d.total) / maxDayRevenue) * 72);
+                    return (
+                      <div key={i} title={clientDetailsHidden ? undefined : `${d.dayStr}: ${fmt(d.total)}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                        <div style={{ width: '100%',
+                          height: h,
+                          borderRadius: 'var(--radius-xs)',
+                          background: d.total < 0 ? 'var(--danger)' : isToday
+                            ? 'linear-gradient(180deg, #B9466D 0%, #92405e 100%)'
+                            : 'rgba(146, 64, 94, 0.15)',
+                          transition: 'height 0.3s ease',
+                        }} />
+                        <span style={{ fontSize: 9,
+                          fontWeight: isToday ? 700 : 500,
+                          color: isToday ? 'var(--accent)' : 'var(--text-muted)',
+                          textTransform: 'uppercase',
+                        }}>{d.label}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+
+              {/* ─── Breakdown Bento ─── */}
+              <section style={S.bentoGrid}>
+                <div style={{ ...S.bentoCard, background: 'rgba(255, 217, 226, 0.3)' }}>
+                  <Icon name={iconName('content_cut')} size={20} inline style={{ color: 'var(--accent)' }} />
+                  <span style={S.bentoLabel}>Treatments</span>
+                  <span style={{ ...S.bentoValue, color: 'var(--accent)' }}><PrivateAmount>{fmtShort(breakdown.treatments)}</PrivateAmount></span>
+                </div>
+                <div
+                  onClick={() => setShowLogSale(s => !s)}
+                  style={{ ...S.bentoCard, background: 'rgba(254, 219, 155, 0.3)', cursor: 'pointer' }}
+                >
+                  <Icon name={iconName('shopping_bag')} size={20} inline style={{ color: 'var(--gold)' }} />
+                  <span style={S.bentoLabel}>Products</span>
+                  <span style={{ ...S.bentoValue, color: 'var(--gold)' }}><PrivateAmount>{fmtShort(breakdown.products)}</PrivateAmount></span>
+
+                </div>
+                <div
+                  onClick={() => setShowLogTip(s => !s)}
+                  style={{ ...S.bentoCard, background: 'rgba(91, 169, 123, 0.1)', cursor: 'pointer' }}
+                >
+                  <Icon name={iconName('volunteer_activism')} size={20} inline style={{ color: 'var(--success)' }} />
+                  <span style={S.bentoLabel}>Tips</span>
+                  <span style={{ ...S.bentoValue, color: 'var(--success)' }}><PrivateAmount>{fmtShort(breakdown.tips)}</PrivateAmount></span>
+
+                </div>
+              </section>
+
               {/* ─── Last Week Comparison ─── */}
               <section style={{ ...S.compCard, marginTop: 24 }}>
                 <h4 style={S.compTitle}>Last Week</h4>
@@ -1302,6 +1216,54 @@ export default function MoneyTracker() {
                   </span>
                 </div>
               </section>
+      {ytd && (
+        <section style={S.ytdCard}>
+          <div style={S.ytdHead}>
+            <span style={S.ytdTitle}>Tax year {ytd.current.tax_year} so far</span>
+            <span style={S.ytdDates}>6 April to {prettyDate(ytd.current.as_at)}</span>
+          </div>
+          <div style={S.ytdRow}>
+            <div style={S.ytdStat}>
+              <span style={S.ytdLabel}>Income</span>
+              <span style={S.ytdValue}><PrivateAmount>{fmtNeat(ytd.current.income_cents)}</PrivateAmount></span>
+            </div>
+            <div style={S.ytdStat}>
+              <span style={S.ytdLabel}>Expenses</span>
+              <span style={S.ytdValue}><PrivateAmount>{fmtNeat(ytd.current.expenses_cents)}</PrivateAmount></span>
+            </div>
+            <div style={S.ytdStat}>
+              <span style={S.ytdLabel}>Profit</span>
+              <span style={{ ...S.ytdValue,
+                color: ytd.current.profit_cents >= 0 ? 'var(--success)' : 'var(--danger)',
+              }}><PrivateAmount>{fmtNeat(ytd.current.profit_cents)}</PrivateAmount></span>
+            </div>
+          </div>
+          {/* ^ Income / Expenses / Profit are stacked rows, not three side-by-side
+              columns. Three flex:1 thirds of a 390px card (~106px each after the
+              card padding and gaps) is narrower than a four-figure tabular value
+              at this weight and size ("£10,009.60" alone runs to ~135px) — the
+              figure has nowhere to wrap (it is one unbroken token) and no clip is
+              applied, so it spills out of its own column and lands directly on
+              its neighbour, gap and all. That is what "£10,009.60£65.71" was: the
+              Income figure had already overflowed onto the Expenses column
+              before Expenses' text even started. A stacked row gives every value
+              the full card width to itself (~300px), which holds even
+              "-£100,000.00" comfortably, at any combination of income/expenses/
+              profit magnitude — not just a wider gap that happens to survive
+              today's numbers. */}
+          {/* Cut off at the same calendar point last year on purpose. Four
+              months against twelve always looks like a collapse. */}
+          <div style={S.ytdCompare}>
+            <span>{ytd.previous.tax_year} to the same point</span>
+            <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>
+              <PrivateAmount>{fmtNeat(ytd.previous.income_cents)}</PrivateAmount> in, <PrivateAmount>{fmtNeat(ytd.previous.expenses_cents)}</PrivateAmount> out,
+              {' '}<PrivateAmount>{fmtNeat(ytd.previous.profit_cents)}</PrivateAmount> profit
+            </span>
+          </div>
+        </section>
+      )}
+
+              </details>
             </>
           ) : (
             <EmptyState message="Complete appointments and log expenses to see your pulse." icon="chart" />
@@ -1945,59 +1907,11 @@ export default function MoneyTracker() {
         </div>
       )}
 
-      {/* ═══ INCOME TAB ═══ */}
-      {tab === 'income' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <CancellationPayments />
-          <select aria-label="Income records" value={incomeFilter} onChange={e => { setIncomeFilter(e.target.value); setIncomeVisible(100); }} style={S.formInput}><option value="all">All payments</option><option value="review">Needs checking</option></select>
-          {transactions.length === 0 && (
-            <EmptyState message="Payments from completed appointments will show here." icon="card" />
-          )}
-          {transactions.some(isAssumedPayment) && (
-            <p style={{ fontSize: 12, color: '#6B4E2E', background: '#FDF3E7', border: '1px solid #E9D3B4',
-              borderRadius: 10, padding: '10px 12px', margin: '0 0 4px', lineHeight: 1.5 }}>
-              <strong>Assumed takings are excluded from totals.</strong> These rows were created when bookings finished,
-              without a confirmed payment method. Check your cash and bank records before taking any further payment.
-            </p>
-          )}
-          {shownIncome.slice(0, incomeVisible).map(tx => {
-            const isTipOrSale = tx.type === 'tip' || tx.type === 'product_sale';
-            const name = isTipOrSale ? (tx.description || (tx.type === 'tip' ? 'Tip' : 'Product Sale')) : (tx.appointments?.clients?.first_name || 'Payment');
-            const treatment = isTipOrSale ? '' : (tx.appointments?.treatments?.name || '');
-            const initial = isTipOrSale ? (tx.type === 'tip' ? 'heart' : 'shopping-bag') : name.charAt(0).toUpperCase();
-            // An assumption and a real payment used to print the same word in
-            // the same green. They are different facts about her money, so they
-            // get different words and the assumption does not get the green.
-            const assumed = isAssumedPayment(tx);
-            const typeLabel = (tx.type === 'late_cancel_fee' ? `Late cancellation fee · ${paymentStory(tx) || 'Payment not confirmed'}` : paymentStory(tx))
-              || { payment: 'Payment', deposit: 'Deposit', no_show_fee: 'No-show fee', tip: 'Tip', product_sale: 'Product sale' }[tx.type]
-              || tx.type;
-            return (
-              <div key={tx.id} style={S.txRow}>
-                <div style={{ ...S.txAvatar,
-                  ...(tx.type === 'tip' ? { background: 'linear-gradient(135deg, #d4f5e0 0%, #a3e4b8 100%)' } :
-                      tx.type === 'product_sale' ? { background: 'linear-gradient(135deg, #fedb9b 0%, #f5c563 100%)' } : {}),
-                  ...(assumed ? { background: '#FDF3E7', color: '#6B4E2E' } : {}),
-                }}><PrivateText placeholder="•">{initial}</PrivateText></div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
-                    <PrivateText placeholder="Client">{name}</PrivateText>{treatment ? ` - ${treatment}` : ''}
-                  </p>
-                  <p style={{ fontSize: 11, color: assumed ? '#8A5A22' : 'var(--text-muted)', margin: 0 }}>
-                    {new Date(tx.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                    {' · '}{typeLabel}
-                  </p>
-                </div>
-                <span style={{ fontSize: 14, fontWeight: 700, color: tx.reporting_status !== 'received' ? '#8A5A22' : tx.amount_cents < 0 ? 'var(--danger)' : 'var(--success)', marginLeft: 12 }}>
-                  <PrivateAmount>{fmt(tx.amount_cents)}</PrivateAmount>
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {tab === 'income' && incomeVisible < shownIncome.length && <Button variant="secondary" size="sm" fullWidth onClick={() => setIncomeVisible(n => n + 100)}>Show more records ({incomeVisible} of {shownIncome.length})</Button>}
+      {tab === 'income' && <MoneyPayments key={beautician.id} transactions={transactions} filter={incomeFilter}
+        onFilter={value => { setIncomeFilter(value); setIncomeVisible(100); }} visible={incomeVisible} onMore={() => setIncomeVisible(n => n + 100)}
+        today={moneyDate(new Date(), timezone)}
+        onSave={(id, body) => apiFetch(`/api/money/receipts/${id}/confirm`, { method: 'POST', body: JSON.stringify(body) })}
+        onRecorded={row => { setTransactions(prev => reconcileTransactions(prev.map(t => t.id === row.id ? { ...t, ...row } : t).sort((a,b) => String(b.created_at).localeCompare(String(a.created_at))))); setLedgerRevision(n => n + 1); setNotice('Receipt recorded. Your totals are up to date.'); }} />}
 
       {tab === 'tax' && <MoneyTax report={tax} years={taxYears} exporting={exporting} onYear={setTaxYear} onExport={handleExportLedgerCSV} onSettings={() => navigate('/settings?section=profile')} onReview={() => { setIncomeFilter('review'); setIncomeVisible(100); setTab('income'); }} />}
 
@@ -2160,7 +2074,7 @@ const S = {
     fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
     color: '#92405e', marginBottom: 14,
   },
-  reportsRow: { display: 'flex', gap: 12, justifyContent: 'space-between' },
+  reportsRow: { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 16 },
   reportStat: { display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 0 },
   reportValue: { fontSize: 24, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums', fontFamily: '"Plus Jakarta Sans", -apple-system, sans-serif' },
   reportLabel: { fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },

@@ -1,0 +1,47 @@
+/* Only Money and Content share their title row with the existing controls. */
+.app-shell.has-workspace-header #app-scroll { padding-top: calc(var(--shell-top) + 8px) !important; }
+.has-workspace-header .client-privacy-status:not(.sr-only) { margin-top: 60px; }
+.has-workspace-header .money-workspace { padding-top: 0 !important; }
+.has-workspace-header .money-workspace > .fl-page-heading,
+.has-workspace-header .fl-content-studio > .fl-content-heading { min-height: 64px; padding: 8px 142px 12px 0; align-items: center; box-sizing: border-box; }
+.has-workspace-header .fl-content-studio > .fl-content-heading { gap: 12px; flex-wrap: wrap; }
+.has-workspace-header .fl-content-studio > .fl-content-heading h1 { margin: 0; }
+.has-workspace-header .fl-content-heading > .fl-btn { margin-top: 8px; }
+.money-workspace .money-details { border: 1px solid var(--border-light); border-radius: 16px; padding: 4px 16px; margin: 16px 0; }
+.money-details > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; color: var(--text-secondary); font-size: 13px; cursor: pointer; list-style: none; }
+.money-details > summary::-webkit-details-marker { display: none; }
+.money-details > summary > svg { flex-shrink: 0; }
+.money-details[open] > summary > svg { transform: rotate(180deg); }
+.money-details > p { font-size: 12px; line-height: 1.6; color: var(--text-secondary); }
+.money-income-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 6px 0 14px; }
+.money-income-toolbar h2 { font: 600 20px var(--font-body); margin: 0; }
+.money-income-toolbar select { max-width: 58%; }
+.money-payments :is(select,input) { font: 500 13px var(--font-body); color: var(--text-primary); background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; min-height: 44px; padding: 8px 12px; box-sizing: border-box; }
+.money-helper,.money-empty { font-size: 13px; color: var(--text-secondary); line-height: 1.55; margin: 0 0 16px; }
+.money-review-link { width: 100%; display: flex; align-items: center; gap: 9px; border: 1px solid var(--border-light); border-radius: 12px; padding: 10px 12px; min-height: 48px; background: var(--tone-1); color: var(--accent); font: 500 12px var(--font-body); text-align: left; cursor: pointer; margin-bottom: 12px; }
+.money-review-link > span:first-of-type { flex: 1; }
+.money-review-link > svg { flex-shrink: 0; }
+.money-count { font-variant-numeric: tabular-nums; font-size: 11px; padding: 2px 6px; border-radius: 6px; background: var(--accent-light); }
+.money-search { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; color: var(--text-muted); }
+.money-search input { width: 100%; min-width: 0; background: transparent; }
+.money-payment-list { margin: 4px 0 16px; }
+.money-payment-row { padding: 16px 0; border-bottom: 1px solid var(--border-light); }
+.money-payment-top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.money-payment-top > div { min-width: 0; }
+.money-payment-top h3 { margin: 0; font: 600 14px/1.5 var(--font-body); overflow-wrap: anywhere; }
+.money-payment-top p { font-size: 11px; color: var(--text-muted); margin: 3px 0 0; line-height: 1.5; }
+.money-payment-top > strong { font-size: 15px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.money-payment-status { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; color: var(--text-secondary); font-size: 11px; }
+.money-payment-status .fl-btn { flex-shrink: 0; padding-inline: 6px; }
+.money-receipt-form { margin-top: 12px; padding: 16px; border-radius: 14px; background: var(--bg-card); border: 1px solid var(--border); }
+.money-receipt-form h4 { margin: 0; font-size: 15px; }
+.money-receipt-form p { font-size: 12px; line-height: 1.5; color: var(--text-secondary); }
+.money-receipt-form label { display: grid; gap: 6px; font-size: 12px; font-weight: 600; margin: 14px 0; }
+.money-receipt-form :is(input,select) { width: 100%; min-width: 0; }
+.money-receipt-form [role=alert] { color: var(--danger); }
+.money-receipt-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.money-workspace :is(summary,select,input,button):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@media (min-width: 700px) { .has-workspace-header .fl-content-studio > .fl-content-heading { flex-direction: row; } }
+@media (max-width: 350px) { .money-payment-top { flex-wrap: wrap; gap: 4px; } .money-workspace { padding-inline: 16px !important; } }
+
+.money-quick-actions { display: flex; gap: 8px; margin-bottom: 12px; }

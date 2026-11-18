@@ -31,7 +31,7 @@ const bundle = await build({
       clients:[{id:'client-a',...client,created_at:now}],
       appointments:[0,1,2].map(i=>({id:'appointment-'+i,client_id:'client-a',starts_at:new Date(Date.now()-864e5-i*3600e3).toISOString(),status:'completed',price_cents:3000})),
       notifications:[{id:'notification-a',category:'booking',title:secret+' booked',body:secret+' notification body',read:true,created_at:now}],
-      transactions:[{id:'transaction-a',type:'payment',amount_cents:3000,created_at:now,appointments:{id:'appointment-a',starts_at:now,client_id:'client-a',clients:client,treatments:{name:'Signature brows'}}}],
+      transactions:[{id:'transaction-a',type:'payment',status:'completed',payment_method:'cash',amount_cents:3000,created_at:now,appointments:{id:'appointment-a',starts_at:now,client_id:'client-a',clients:client,treatments:{name:'Signature brows'}}}],
       expenses:[{id:'expense-a',date:today,vendor:secret+' vendor',description:secret+' expense note',amount_cents:500,category:'products',tax_deductible:true}],
       expense_budgets:[],
       courses:[{id:'course-a',beautician_id:owner.id,name:'Brow training',date:new Date(Date.now()+7*864e5).toISOString().slice(0,10),start_time:'09:30',status:'active',price:450,deposit:100,max_students:4,enrolled:1,duration:'Full day (7hrs)',created_at:now}],

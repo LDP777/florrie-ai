@@ -518,7 +518,7 @@ export default function App() {
     <ErrorBoundary>
       <ClientPrivacyProvider>
       <CoachProvider>
-      <div style={{ ...styles.appShell, '--client-privacy-toolbar-height': showNav ? '60px' : '0px' }} className="app-shell">
+      <div style={{ ...styles.appShell, '--client-privacy-toolbar-height': showNav ? '60px' : '0px' }} className={`app-shell${['/money', '/content'].includes(location.pathname) ? ' has-workspace-header' : ''}`}>
         {pastDue && !pastDueLocked && !isIOSNative() && (
           <div style={{ background: 'var(--danger, #9E2B32)', color: '#fff', textAlign: 'center', padding: '8px 16px', fontSize: 13, fontWeight: 500 }}>
             Your last payment did not go through.{' '}
