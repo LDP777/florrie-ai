@@ -20,6 +20,7 @@ import './styles/content-studio.css';
 import './styles/content-compose.css';
 import './styles/content-assistant.css';
 import './styles/content-team.css';
+import './styles/content-preparation.css';
 import './styles/interaction-system.css';
 
 // Analytics + Sentry must never be able to blank the app on a bad init.

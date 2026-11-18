@@ -1,0 +1,18 @@
+/* Scoped to preparation and confirmed results; existing app type and colours. */
+.fl-team-prepared:has(.fl-content-preparing) { scroll-margin-top:96px; }
+.fl-content-preparing { display:flex; align-items:center; gap:14px; position:relative; overflow:hidden; padding:22px 20px; margin:12px 0 20px; border:1px solid var(--border); border-radius:18px; background:var(--bg-card); }
+.fl-content-preparing-mark { display:grid; place-items:center; flex-shrink:0; width:48px; height:48px; border-radius:50%; color:var(--accent); background:var(--accent-bg); }
+.fl-content-preparing-copy { flex:1; min-width:0; display:flex; flex-direction:column; gap:6px; }
+.fl-content-preparing-copy strong { font:500 22px/1.25 var(--font-display); color:var(--text-primary); }
+.fl-content-preparing-copy > span { font:400 12px/1.6 var(--font-body); color:var(--text-secondary); }
+.fl-content-preparing-copy small { font:500 11px/1.5 var(--font-body); color:var(--accent); font-variant-numeric:tabular-nums; }
+.fl-content-preparing-line { position:absolute; left:20px; right:20px; bottom:0; height:2px; background:var(--accent-light); }
+.fl-content-reveal { position:relative; isolation:isolate; }
+.fl-content-reveal-colour { position:absolute; inset:0; pointer-events:none; border-radius:inherit; overflow:hidden; z-index:2; }
+.fl-content-reveal-colour > div { width:100%; height:100%; pointer-events:none; }
+.fl-content-ready { border:1px solid var(--border); background:var(--accent-bg); border-radius:18px; margin:12px 0 22px; }
+.fl-content-ready-copy { display:flex; align-items:center; gap:12px; padding:18px 20px; }
+.fl-content-ready-copy > svg { color:var(--accent); flex-shrink:0; }
+.fl-content-ready-copy p { margin:0; color:var(--text-primary); font:500 13px/1.7 var(--font-body); }
+@media(max-width:360px) { .fl-content-preparing { padding:18px 14px; gap:10px; } .fl-content-preparing-copy strong { font-size:20px; } .fl-content-preparing-mark { width:40px; height:40px; } }
+@media(prefers-reduced-motion:reduce) { .fl-content-reveal-colour { display:none; } }

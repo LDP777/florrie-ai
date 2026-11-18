@@ -1,0 +1,14 @@
+{
+  "repository": "https://github.com/Jakubantalik/Libraries.dev",
+  "commit": "371b324a253b8ee71b9ce1bc8a1ecc5a59e1a16a",
+  "path": "packages/distortion-waves",
+  "version": "0.1.0",
+  "license": "MIT",
+  "sha256": {
+    "controller.ts": "6ea3470bda6667106b9d84c9fad74a56fd84b912f28eb4720425d5e1717a1d40",
+    "renderer.ts": "8cc0107b180c57bf6bed30cb729fc160d49b8e854f2ad085ce7822a1c816818d",
+    "model.ts": "8cfb5d0429e97c36deae6b3edcd1d9d6bfcabb64657dee4560854176e4604201",
+    "capture.ts": "010052a7b7b1e8c0f7c066202b667ef5b429a8212feb0caa98772eaffd709f48",
+    "LICENSE": "915a283980628a0ca9e7b423ebafc6f3a0fa1e630ff17d34e59034808d92011c"
+  }
+}

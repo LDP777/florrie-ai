@@ -7,6 +7,7 @@ import { contentRequest } from '../lib/content-workflow.js';
 import { renderContentArtwork } from '../lib/content-artwork.js';
 import Button from './ui/Button.jsx';
 import Icon from './ui/Icon.jsx';
+import ContentPreparation, { ContentReveal } from './ContentPreparation.jsx';
 
 const GOALS = [
   ['bookings', 'Fill my diary', 'calendar'], ['show_work', 'Show my work', 'camera'],
@@ -62,7 +63,7 @@ export default function ContentTeam(props) {
 
 function ContentTeamForOwner({ owner, board, loading: sourcesLoading, busy: preparing, stage: prepareStage,
   error: prepareError, note, canPrepare, needsArtwork, onPrepare, onRefresh, onPosts, onPhotos, onResults,
-  onCompose, children }) {
+  onCompose, children, progress, reveal }) {
   const { hidden } = useClientPrivacy();
   const initialPending = useRef(pendingRead(owner.id));
   const [run, setRun] = useState(null), [available, setAvailable] = useState(null);
@@ -92,6 +93,13 @@ function ContentTeamForOwner({ owner, board, loading: sourcesLoading, busy: prep
   const campaignResults = board?.results?.available && Array.isArray(board.results.campaigns)
     && board.results.campaigns.every(item => item && (typeof item.confirmed === 'number' || (typeof item.confirmed === 'string' && /^\d+$/.test(item.confirmed))) && Number.isSafeInteger(Number(item.confirmed)) && Number(item.confirmed) >= 0) ? board.results.campaigns : null;
   const bookings = campaignResults?.reduce((sum, item) => sum + Number(item.confirmed), 0);
+
+  useEffect(() => {
+    if (!preparing || hidden) return;
+    // The owner's prepare/retry action brings its progress and result into view.
+    // Do not move keyboard focus or scroll when loading existing saved work.
+    workRef.current?.scrollIntoView({ block: 'start', behavior: 'auto' });
+  }, [preparing]);
 
   function blockSession() {
     blocked.current = true; authEpoch.current++; epoch.current++;
@@ -303,15 +311,15 @@ function ContentTeamForOwner({ owner, board, loading: sourcesLoading, busy: prep
 
     <div ref={workRef} className="fl-team-prepared">
       <div className="fl-team-section-heading"><div><h3>Prepared for you.</h3></div><Button variant="quiet" onClick={onPosts}>See all posts<Icon name="arrow-right" size={15}/></Button></div>
-      {(canPrepare || sourcesLoading || savedPosts.length > 0) && <div className="fl-team-prepare-line"><p>{readyPosts === null ? 'Checking your saved posts…' : readyPosts ? `${readyPosts} ${readyPosts === 1 ? 'post is' : 'posts are'} ready to review.` : 'Make posts from your saved photos and salon notes.'}</p>{canPrepare ? <Button variant="secondary" disabled={hidden || preparing || sourcesLoading} onClick={onPrepare}>{preparing ? 'Preparing your content…' : needsArtwork ? 'Finish my prepared posts' : 'Prepare my next posts'}</Button> : <Button variant="secondary" disabled={hidden} onClick={onPhotos}><Icon name="camera" size={17}/>Add a photo</Button>}</div>}
-      {preparing && <p className="fl-team-run-status" role="status"><PrivateText>{prepareStage}</PrivateText><span>Keep this page open while the pictures are made. Saved drafts stay in Your posts.</span></p>}
+      {!preparing && (canPrepare || sourcesLoading || savedPosts.length > 0) && <div className="fl-team-prepare-line">{!note && <p>{readyPosts === null ? 'Checking your saved posts…' : readyPosts ? `${readyPosts} ${readyPosts === 1 ? 'post is' : 'posts are'} ready to review.` : 'Make posts from your saved photos and salon notes.'}</p>}{canPrepare ? <Button variant="secondary" disabled={hidden || sourcesLoading} onClick={onPrepare}>{needsArtwork ? 'Finish my prepared posts' : 'Prepare my next posts'}</Button> : !note && <Button variant="secondary" disabled={hidden} onClick={onPhotos}><Icon name="camera" size={17}/>Add a photo</Button>}</div>}
+      {preparing && <PrivateSection placeholder="Preparing your content"><ContentPreparation stage={prepareStage} progress={progress}/></PrivateSection>}
       {prepareError && <div role="alert" className="fl-team-notice"><p><PrivateText>{prepareError}</PrivateText></p><Button variant="quiet" disabled={hidden || preparing || sourcesLoading} onClick={onRefresh}>Refresh prepared work</Button></div>}
-      {note && <p role="status" className="fl-team-note"><PrivateText>{note}</PrivateText></p>}
+      {note && <ContentReveal event={reveal} className="fl-content-ready"><div className="fl-content-ready-copy"><Icon name={reveal ? 'check-circle' : 'file'} size={22}/><p role="status"><PrivateText>{note}</PrivateText></p></div></ContentReveal>}
       {children}
-      {!savedPosts.length && !sourcesLoading && <button className="fl-team-photo-invite" type="button" disabled={hidden} onClick={onPhotos}><span className="fl-team-photo-mark"><Icon name="camera" size={24}/></span><span><strong>Add a treatment photo</strong><small>Choose a photo you have permission to share.</small></span><Icon name="arrow-right" size={20}/></button>}
+      {!preparing && !savedPosts.length && !sourcesLoading && <button className="fl-team-photo-invite" type="button" disabled={hidden} onClick={onPhotos}><span className="fl-team-photo-mark"><Icon name="camera" size={24}/></span><span><strong>Add a treatment photo</strong><small>Choose a photo you have permission to share.</small></span><Icon name="arrow-right" size={20}/></button>}
     </div>
 
-    <details ref={ideasRef} className="fl-team-campaigns fl-team-disclosure" aria-label="Campaign suggestions" open={!run && !savedPosts.length && suggestions.length > 0 || undefined}>
+    <details ref={ideasRef} className="fl-team-campaigns fl-team-disclosure" aria-label="Campaign suggestions" open={!preparing && !run && !savedPosts.length && suggestions.length > 0 || undefined}>
       <summary>Campaign ideas<Icon name="chevron-down" size={17}/></summary>
       <div className="fl-team-section-heading"><p className="fl-team-ideas-intro">From your diary, photos and salon knowledge.</p><Button variant="quiet" onClick={onRefresh} disabled={sourcesLoading || preparing}>Refresh ideas</Button></div>
       <PrivateSection placeholder="Campaign suggestions hidden">

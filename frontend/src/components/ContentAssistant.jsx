@@ -30,6 +30,8 @@ export default function ContentAssistant({ owner, onPost, onPrepared, onPosts, o
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState('');
+  const [progress, setProgress] = useState(null);
+  const [reveal, setReveal] = useState(null);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
   const [assetErrors, setAssetErrors] = useState({});
@@ -50,7 +52,7 @@ export default function ContentAssistant({ owner, onPost, onPrepared, onPosts, o
     blocked.current = true; authGeneration.current++; generation.current++; operation.current++;
     locked.current = false; clearAssets();
     setSessionBlocked(true); setBoard(null); setLocalArtwork({}); setAssetErrors({});
-    setBusy(false); setLoading(false); setStage(''); setNote(''); setError('');
+    setBusy(false); setLoading(false); setStage(''); setProgress(null); setReveal(null); setNote(''); setError('');
   }
   async function session(sequence = authGeneration.current) {
     assertCurrent(sequence);
@@ -136,16 +138,23 @@ export default function ContentAssistant({ owner, onPost, onPrepared, onPosts, o
   async function prepare() {
     if (hidden || locked.current || !board || loading || blocked.current) return;
     const sequence = authGeneration.current, task = ++operation.current;
-    locked.current = true; setBusy(true); setError(''); setNote(''); setAssetErrors({});
-    setStage('Checking your sources and preparing up to three posts…');
+    locked.current = true; setBusy(true); setError(''); setNote(''); setAssetErrors({}); setReveal(null);
+    setProgress({ phase: 'writing', completed: 0, total: 0 });
+    setStage('Writing from your photos and salon notes…');
     try {
       let next = checkBoard(await request('/assistant/prepare', { method: 'POST', body: {}, timeoutMs: 180000 }, sequence));
       setBoard(next);
       const prepared = [...next.prepared];
       const finishable = prepared.map((item, index) => ({item,index})).filter(({item}) => item.artwork && !item.post.image_url && item.post.status === 'draft').slice(0,3);
+      let savedDesigns = 0;
+      if (finishable.length) setProgress({ phase: 'artwork', completed: 0, total: finishable.length });
       for (const { index } of finishable) {
-        setStage('Making the designs and saving them with your drafts…');
-        try { prepared[index] = await finishArtwork(prepared[index], next, sequence); }
+        setStage('Making and saving your designs…');
+        try {
+          prepared[index] = await finishArtwork(prepared[index], next, sequence);
+          if (prepared[index].post.image_url) savedDesigns++;
+          if (current(sequence)) setProgress({ phase: 'artwork', completed: savedDesigns, total: finishable.length });
+        }
         catch (err) { if (current(sequence)) setAssetErrors(previous => ({ ...previous, [prepared[index].post_id]: err.message })); }
         if (!current(sequence)) return;
       }
@@ -153,28 +162,33 @@ export default function ContentAssistant({ owner, onPost, onPrepared, onPosts, o
       const ready = prepared.filter(item => item.post.status === 'draft' && item.post.image_url && item.post.caption?.trim()).length;
       const issues = (next.errors || []).map(item => typeof item === 'string' ? item : item.message || item.error).filter(Boolean);
       setNote(ready ? `${ready} ${ready === 1 ? 'post is' : 'posts are'} ready for you to review. Nothing has been published.` : 'Your saved work is below, with the remaining details marked. Nothing has been published.');
+      if (ready) setReveal(task);
       if (issues.length) setError(issues.join(' '));
     } catch (err) { if (current(sequence)) setError(`${err.message} Check saved posts before trying again.`); }
-    finally { if (current(sequence) && task === operation.current) { locked.current = false; setBusy(false); setStage(''); } }
+    finally { if (current(sequence) && task === operation.current) { locked.current = false; setBusy(false); setStage(''); setProgress(null); } }
   }
   async function retryDesign(item) {
     if (hidden || locked.current || blocked.current) return;
     const sequence = authGeneration.current, task = ++operation.current;
-    locked.current = true; setBusy(true); setStage('Saving your design…');
+    locked.current = true; setBusy(true); setStage('Saving your design…'); setNote(''); setReveal(null);
+    setProgress({ phase: 'artwork', completed: 0, total: 1 });
     try {
       const updated = await finishArtwork(item, board, sequence);
       assertCurrent(sequence);
       setBoard(previous => ({ ...previous, prepared: previous.prepared.map(row => row.post_id === item.post_id ? updated : row) }));
       setAssetErrors(previous => ({ ...previous, [item.post_id]: '' })); onPrepared([updated.post]);
+      if (updated.post.status === 'draft' && updated.post.image_url && updated.post.caption?.trim()) {
+        setNote('Your post is ready for review. Nothing has been published.'); setReveal(task);
+      }
     } catch (err) { if (current(sequence)) setAssetErrors(previous => ({ ...previous, [item.post_id]: err.message })); }
-    finally { if (current(sequence) && task === operation.current) { locked.current = false; setBusy(false); setStage(''); } }
+    finally { if (current(sequence) && task === operation.current) { locked.current = false; setBusy(false); setStage(''); setProgress(null); } }
   }
 
   const prepared = board?.prepared || [], opportunities = board?.opportunities || [];
   const needsArtwork = prepared.some(item => item.artwork && !item.post.image_url && item.post.status === 'draft');
   const canPrepare = !board?.unavailable.includes('posts') && ((opportunities.length > 0 && (board?.prepare_capacity ?? Math.max(0, 3-prepared.length)) > 0) || needsArtwork);
   if (sessionBlocked) return <section className="fl-content-team"><div className="fl-team-notice" role="alert">Your account changed. Reopen Content for your signed-in salon.</div></section>;
-  return <ContentTeam owner={owner} board={board} loading={loading} busy={busy} stage={stage}
+  return <ContentTeam owner={owner} board={board} loading={loading} busy={busy} stage={stage} progress={progress} reveal={reveal}
     error={error} note={note} canPrepare={canPrepare} needsArtwork={needsArtwork} onPrepare={prepare}
     onRefresh={refresh} onPosts={onPosts} onPhotos={onPhotos} onResults={onResults} onCompose={onCompose}>
     {board?.unavailable.length > 0 && <details className="fl-assistant-sources"><summary>Some sources couldn’t be checked</summary><p>Florrie won’t use information it couldn’t load. Your saved work remains available.</p><p>{board.unavailable.map(source => ({ diary:'Diary availability', posts:'Saved posts', gallery:'Content photos', treatments:'Treatment details', knowledge:'Salon knowledge', results:'Booking results', sources:'Post sources', photo_usage:'Previous photo use', prepared_sources:'Previously prepared work' }[source] || 'Content source')).join(' · ')}</p><Button variant="quiet" disabled={busy || loading} onClick={refresh}>Check again</Button></details>}

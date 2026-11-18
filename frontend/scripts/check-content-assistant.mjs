@@ -61,8 +61,8 @@ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
 const browser=await launch(), baseUrl=`http://127.0.0.1:${server.address().port}`;
 const output=process.env.VISUAL_OUTPUT_DIR;
 if(output)mkdirSync(output,{recursive:true});
-async function fixture({width=390,readError=false,partial=false,saveError=false,delay=false}={}) {
-  const context=await browser.newContext({viewport:{width,height:844},reducedMotion:'reduce'});
+async function fixture({width=390,readError=false,partial=false,saveError=false,delay=false,holdSave=false,motion='reduce'}={}) {
+  const context=await browser.newContext({viewport:{width,height:844},reducedMotion:motion});
   let page;
   await context.route('**/*',async route=>{
     const url=new URL(route.request().url());
@@ -76,7 +76,7 @@ async function fixture({width=390,readError=false,partial=false,saveError=false,
   });
   await context.addInitScript(fetchStubSource());
   await context.addInitScript(sessionSeedSource(bundleSupabaseUrl(dist)));
-  await context.addInitScript(({readError,partial,saveError,delay})=>{
+  await context.addInitScript(({readError,partial,saveError,delay,holdSave})=>{
     const base=window.fetch;
     const json=(body,status=200)=>Promise.resolve(new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json'}}));
     const facts=[
@@ -84,7 +84,7 @@ async function fixture({width=390,readError=false,partial=false,saveError=false,
       {type:'treatment',source_id:'t1',title:'Signature brows',reason:'Explain your treatment using its saved salon description.',artwork:{kind:'treatment',title:'Signature brows',body:'A brow treatment shaped around your consultation.'}},
       {type:'booking',source_id:'current-diary',title:'A little time for you.',reason:'Your checked diary has room for a treatment. Invite clients to see the current times.',artwork:{kind:'booking',title:'A little time for you.',body:'Explore our treatments and check the booking page for current appointments.'}},
     ];
-    const s=window.__assistantCheck={reads:0,writes:[],images:{},uploads:[],posts:[],readError,partial,saveError,delay,prepareCount:0};
+    const s=window.__assistantCheck={reads:0,writes:[],images:{},uploads:[],posts:[],readError,partial,saveError,delay,holdSave,prepareCount:0};
     const board=()=>({business_name:'Florrie Demo Salon',booking_slug:'florrie-demo',checked_at:new Date().toISOString(),unavailable:s.partial?['diary']:[],prepare_capacity:Math.max(0,3-s.posts.length),prepared:s.posts.map((post,i)=>({post_id:post.id,post,source:{type:facts[i].type,id:facts[i].source_id},reason:facts[i].reason,artwork:facts[i].artwork,needs:post.image_url?[]:['photo']})),opportunities:s.posts.length?[]:facts.slice(0,s.partial?2:3),results:{available:true,days:90,campaigns:[]}});
     window.fetch=async(input,options={})=>{
       const url=typeof input==='string'?input:input.url,method=(options.method || 'GET').toUpperCase();
@@ -106,6 +106,7 @@ async function fixture({width=390,readError=false,partial=false,saveError=false,
       if(path==='/api/content')return json({posts:s.posts});
       if(method==='PATCH'&&/\/api\/content\/[a-f0-9-]+$/.test(path)){
         const body=JSON.parse(options.body),post=s.posts.find(p=>path.endsWith(p.id));s.writes.push({path,method,body});
+        if(s.holdSave){s.holdSave=false;await new Promise(resolve=>{s.releaseSave=resolve;});}
         if(s.saveError){s.saveError=false;return json({error:'A temporary save failure. Your design is still here.'},503);}
         if(body.expected_caption!==post.caption||post.image_url||!body.artwork_only)return json({error:'Post changed.'},409);
         post.image_url=body.image_url;return json({post});
@@ -117,7 +118,7 @@ async function fixture({width=390,readError=false,partial=false,saveError=false,
       if(!['GET','HEAD'].includes(method)&&/\/api\/|\/rest\/|\/storage\//.test(path)){s.writes.push({path,method,unexpected:true});return json({error:'Unexpected write'},409);}
       return base(input,options);
     };
-  },{readError,partial,saveError,delay});
+  },{readError,partial,saveError,delay,holdSave});
   page=await context.newPage();const errors=[];page.on('pageerror',error=>errors.push(error.message));
   await page.goto(`${baseUrl}/content`);
   try { await page.getByRole('region',{name:'Your content team',exact:true}).waitFor(); }
@@ -163,6 +164,27 @@ try {
   if(process.env.CONTENT_ASSISTANT_AUTH_ONLY==='1') {
     console.log('PASS all focused ContentAssistant auth lifecycle cases');
   } else {
+  {
+    const {context,page,errors}=await fixture({delay:true,holdSave:true,motion:'no-preference'});
+    await page.getByRole('button',{name:'Prepare my next posts',exact:true}).click();
+    await page.waitForFunction(()=>!!window.__assistantCheck.release);
+    await page.locator('.fl-content-preparing').waitFor();
+    assert.equal(await page.locator('.fl-content-ready').count(),0,'A pending prepare request is not a finished result');
+    assert.ok(await page.locator('.fl-content-preparing').evaluate(el=>el.getBoundingClientRect().top>=0&&el.getBoundingClientRect().bottom<innerHeight),'The preparation action brings progress into view');
+    if(output)await page.screenshot({path:join(output,'assistant-preparing-390.png')});
+    await page.evaluate(()=>window.__assistantCheck.release());
+    await page.waitForFunction(()=>!!window.__assistantCheck.releaseSave);
+    await page.getByText('0 of 3 designs saved · Keep Content open',{exact:true}).waitFor();
+    assert.equal(await page.locator('.fl-content-ready').count(),0,'An uploaded image is not reported saved before PATCH confirmation');
+    if(output)await page.screenshot({path:join(output,'assistant-saving-390.png')});
+    await page.evaluate(()=>window.__assistantCheck.releaseSave());
+    await page.getByText('3 posts are ready for you to review. Nothing has been published.',{exact:true}).waitFor({timeout:45000});
+    await page.waitForFunction(()=>document.querySelector('[data-content-reveal]')?.dataset.revealState==='complete');
+    assert.equal(await page.locator('[data-content-reveal] canvas').count(),0,'The production-bundle effect releases its canvas');
+    assert.equal(await page.locator('.fl-content-preparing').count(),0,'Saved work stops the pending indicator');
+    if(output)await page.screenshot({path:join(output,'assistant-ready-390.png')});
+    assert.deepEqual(errors,[]);await context.close();console.log('PASS preparation waits for confirmed saves, keeps progress visible and releases the result effect');
+  }
   for(const width of [320,390,1024]) {
     const {context,page,errors}=await fixture({width});
     const prepare=page.getByRole('button',{name:'Prepare my next posts',exact:true});await prepare.waitFor();
