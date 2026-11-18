@@ -13,7 +13,7 @@ const server = http.createServer((req,res) => {
 const browser = await launch(), origin = `http://127.0.0.1:${server.address().port}`;
 try {
   for (const [mode,width] of [['confirm',390],['conflict',320],['stale',390],['snooze',1024],['draft',390],['privacy',390],['receipt',390]]) {
-    const context = await browser.newContext({ viewport: { width, height: 844 } });
+    const context = await browser.newContext({ viewport: { width, height: 844 }, timezoneId: 'Europe/London' });
     await context.route('**/*', r => new URL(r.request().url()).origin === origin ? r.continue() : r.abort());
     await context.addInitScript(fetchStubSource()); await context.addInitScript(sessionSeedSource(bundleSupabaseUrl(dist)));
     await context.addInitScript(mode => {
@@ -36,7 +36,11 @@ try {
       };
     }, mode);
     const page = await context.newPage(), errors = []; page.on('pageerror', e => errors.push(e.message));
+    // A real morning visit opens a catch-up dialog. Keep the clock fixed and
+    // dismiss it through its normal control before interacting with the feed.
+    await page.clock.setFixedTime(new Date('2026-11-17T09:00:00Z'));
     await page.goto(`${origin}/today`);
+    await page.getByRole('dialog', { name: 'Morning catch-up' }).getByRole('button', { name: 'Got it', exact: true }).click();
     const section = page.getByRole('region', { name: 'Florrie thinks', exact: true });
     await section.waitFor();
     if (mode === 'privacy') {
