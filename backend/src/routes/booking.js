@@ -3195,7 +3195,7 @@ router.post('/:slug/send-manage-link', async (req, res) => {
  */
 const statusTransitionSchema = z.object({
   status: z.enum(['confirmed', 'cancelled', 'no_show', 'completed'], {
-    errorMap: () => ({ message: 'Invalid status. Must be: confirmed, cancelled, no_show, or completed' })
+    error: 'Invalid status. Must be: confirmed, cancelled, no_show, or completed'
   })
 });
 

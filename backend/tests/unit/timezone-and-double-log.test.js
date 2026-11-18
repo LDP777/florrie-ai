@@ -10,7 +10,7 @@ import { describe, it, expect } from 'vitest';
 import { bookingSchema } from '../../src/lib/schemas.js';
 
 const base = {
-  treatment_id: '11111111-1111-1111-1111-111111111111',
+  treatment_id: '11111111-1111-4111-8111-111111111111',
   client_name: 'Sasha',
   client_phone: '07700900123',
 };

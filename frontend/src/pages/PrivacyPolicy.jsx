@@ -4,7 +4,7 @@ export default function PrivacyPolicy() {
     <div style={s.container}>
       <article style={s.article}>
         <h1 style={s.h1}>Privacy Policy</h1>
-        <p style={s.meta}>Last updated: 16 November 2026</p>
+        <p style={s.meta}>Last updated: 18 November 2026</p>
 
         <section style={s.section}>
           <h2 style={s.h2}>Who we are</h2>
@@ -55,7 +55,7 @@ export default function PrivacyPolicy() {
             <li><strong>Anthropic:</strong> AI processing for the features described above.</li>
             <li><strong>Meta:</strong> Instagram and WhatsApp account connections, messaging and Instagram publishing.</li>
             <li><strong>Bird and configured SMS providers:</strong> SMS delivery and receipt.</li>
-            <li><strong>Resend:</strong> transactional email delivery. <strong>Google and Microsoft:</strong> mailbox sign-in, email import and replies when the salon connects its Gmail or Outlook account.</li>
+            <li><strong>Resend:</strong> transactional email delivery, and receiving and replying to email sent to a salon’s Florrie email address when enabled. <strong>Google and Microsoft:</strong> mailbox sign-in, email import and replies when the salon connects its Gmail or Outlook account.</li>
             <li><strong>Stripe:</strong> payments, subscriptions and connected payout accounts.</li>
             <li><strong>Apple and Google:</strong> device notifications, sign-in or calendar features where used; your device or browser provider may also process speech recognition.</li>
             <li><strong>Sentry:</strong> error and performance reports used to investigate problems.</li>

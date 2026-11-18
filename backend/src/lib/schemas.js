@@ -348,7 +348,7 @@ export const expenseSchema = z.object({
  */
 export const createPromoCodeSchema = z.object({
   code: z.string().min(1, 'Code is required').max(50).toUpperCase(),
-  discount_type: z.enum(['percentage', 'fixed'], { errorMap: () => ({ message: 'Must be percentage or fixed' }) }),
+  discount_type: z.enum(['percentage', 'fixed'], { error: 'Must be percentage or fixed' }),
   discount_value: z.number().int().positive('Discount value must be positive'),
   max_uses: z.number().int().positive().optional().nullable(),
   valid_from: z.string().datetime('Invalid ISO datetime format'),
@@ -494,7 +494,7 @@ export const updateLocationSchema = z.object({
 export const waitlistSchema = z.object({
   email: z.string().trim().toLowerCase().email('Please enter a valid email address').max(254),
   name: z.string().trim().max(200).optional().nullable().default(null),
-  marketingConsent: z.literal(true, { errorMap: () => ({ message: 'Please agree to receive Florrie launch news and product updates.' }) }),
+  marketingConsent: z.literal(true, { error: 'Please agree to receive Florrie launch news and product updates.' }),
   website: z.string().max(200).optional().default(''),
   attribution: z.object({
     utm_source: z.string().max(100).optional(),
