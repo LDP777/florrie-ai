@@ -19,7 +19,7 @@ const existingDestinations = [
   '/promos', '/cancellations', '/content', '/campaigns', '/rebook', '/team', '/rota',
   '/staff-performance', '/locations', '/insights',
 ];
-const expectedDestinations = [...existingDestinations.filter(path => !['/whatsapp', '/whatsapp/templates', '/staff-performance'].includes(path)), '/connections'];
+const expectedDestinations = [...existingDestinations.filter(path => !['/whatsapp', '/whatsapp/templates', '/staff-performance'].includes(path)), '/connections', '/updates'];
 
 test('More consolidates connections and retains the routes for existing users', () => {
   const cataloguePaths = paths(getVisibleCategories());
@@ -42,6 +42,7 @@ test('clients can find renamed care tools using the old name or the task they ne
     ['income', '/money'],
     ['message connections', '/connections'],
     ['gmail', '/connections'],
+    ['updates', '/updates'],
   ]) assert.ok(paths(searchCategories(catalogue, query)).includes(expected), `No useful result for ${query}`);
   assert.equal(paths(searchCategories(catalogue, '   ')).length, expectedDestinations.length);
   assert.deepEqual(searchCategories(catalogue, 'nonexistent-zebra-tool'), []);

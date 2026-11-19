@@ -38,7 +38,7 @@ export default function More() {
   }
   return <div className="more-page">
     <style>{styles}</style>
-    <PageHeader title="More" action={<Link className="more-settings" to="/settings" aria-label="Settings" onClick={() => recordVisit(items.find(item => item.path === '/settings'))}><Icon name={iconName('settings')} size={21} /></Link>} />
+    <PageHeader title="More" action={<><Link className="more-updates" to="/updates" onClick={() => recordVisit(items.find(item => item.path === '/updates'))}>What’s new<Icon name="arrow-right" size={15} /></Link><Link className="more-settings" to="/settings" aria-label="Settings" onClick={() => recordVisit(items.find(item => item.path === '/settings'))}><Icon name={iconName('settings')} size={21} /></Link></>} />
     <div className="more-search" role="search">
       <Icon name={iconName('search')} size={21} />
       <input ref={searchInput} type="search" aria-label="Search More tools" placeholder="Search forms, payments, settings…" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') clearSearch(); }} />
@@ -72,6 +72,7 @@ const styles = `
 .more-page *{box-sizing:border-box}.more-page a{color:inherit;text-decoration:none}.more-page button,.more-page input{font:inherit}.more-page button{cursor:pointer}
 .more-page :is(a,button,input):focus-visible{outline:3px solid var(--accent,#92405e);outline-offset:3px}
 .more-settings{display:flex;align-items:center;justify-content:center;width:46px;height:46px;border:1px solid var(--border,#e5d9d1);border-radius:50%;background:var(--surface,#fff)}
+.more-page .more-updates{display:inline-flex;align-items:center;gap:6px;min-height:46px;padding:0 8px;color:var(--accent,#92405e);font-size:12px;font-weight:650;border-radius:12px;white-space:nowrap}
 .more-search{display:flex;align-items:center;gap:10px;min-height:56px;border:1px solid var(--border,#e5d9d1);border-radius:18px;background:var(--surface,#fff);padding:0 6px 0 17px;color:var(--text-secondary,#574A42);margin:4px 0 24px}
 .more-search:focus-within{border-color:var(--accent,#92405e);box-shadow:0 0 0 3px var(--accent-wash,#FBF2F5)}
 .more-search input{flex:1;min-width:0;width:100%;height:54px;padding:0 5px;border:0;background:transparent;color:var(--text-primary,#241B17);font-size:14px;outline:none}.more-search input::-webkit-search-cancel-button{display:none}

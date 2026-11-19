@@ -101,6 +101,7 @@ const APISettings = lazy(() => import('./pages/APISettings.jsx'));
 const Pricing = lazy(() => import('./pages/Pricing.jsx'));
 const Hub = lazy(() => import('./pages/Hub.jsx'));
 const More = lazy(() => import('./pages/More.jsx'));
+const Updates = lazy(() => import('./pages/Updates.jsx'));
 const Outbox = lazy(() => import('./pages/Outbox.jsx'));
 const ClientManagePage = lazy(() => import('./pages/ClientManagePage.jsx'));
 // LandingPage.jsx removed , landing.html (in public/) is the single source of truth.
@@ -477,6 +478,7 @@ export default function App() {
   // pages also show Back at the left of that same row.
   const showBackPill = showNav
     && location.pathname !== '/calendar/full'
+    && location.pathname !== '/updates' // This page has a direct Back to More link.
     && !ROOT_PATHS.has(location.pathname);
 
   const trialEndsAt = resolveTrialEndsAt(beautician);
@@ -518,7 +520,7 @@ export default function App() {
     <ErrorBoundary>
       <ClientPrivacyProvider>
       <CoachProvider>
-      <div style={{ ...styles.appShell, '--client-privacy-toolbar-height': showNav ? '60px' : '0px' }} className={`app-shell${['/money', '/content'].includes(location.pathname) ? ' has-workspace-header' : ''}`}>
+      <div style={{ ...styles.appShell, '--client-privacy-toolbar-height': showNav ? '60px' : '0px' }} className={`app-shell${['/money', '/content', '/updates'].includes(location.pathname) ? ' has-workspace-header' : ''}`}>
         {pastDue && !pastDueLocked && !isIOSNative() && (
           <div style={{ background: 'var(--danger, #9E2B32)', color: '#fff', textAlign: 'center', padding: '8px 16px', fontSize: 13, fontWeight: 500 }}>
             Your last payment did not go through.{' '}
@@ -639,6 +641,7 @@ export default function App() {
             <Route path="/pricing" element={<Pricing />} />
             <Route path="/hub" element={<Hub />} />
             <Route path="/more" element={<More />} />
+            <Route path="/updates" element={<Updates />} />
             <Route path="/outbox" element={<Outbox />} />
             <Route path="/onboarding" element={
               <Onboarding onComplete={(destination) => navigate(destination || '/')} />

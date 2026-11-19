@@ -52,6 +52,7 @@ export const MORE_CATEGORIES = [
     { path: '/locations',         label: 'Locations',  matIcon: 'location_city',      desc: 'Saved location names and addresses', gate: 'multi_location' , keywords: 'multi-location branch' },
   ] },
   { id: 'setup', label: 'Business setup', desc: 'Booking, automation and preferences', matIcon: 'settings', items: [
+    { path: '/updates',            label: 'What’s new',        matIcon: 'auto_awesome',    desc: 'Recent additions and improvements', keywords: 'updates changes added release history new features' },
     { path: '/setup',              label: 'Setup guide',       matIcon: 'checklist',       desc: 'Your launch checklist and next step'        },
     { path: '/settings',           label: 'Settings',          matIcon: 'settings',        desc: 'Booking rules, reply controls and preferences', keywords: 'instagram connections channels notifications ai tone voice account' },
     { path: '/portal',             label: 'Booking page',      matIcon: 'open_in_browser', desc: 'Manage your public booking link'       , keywords: 'portal online bookings' },
