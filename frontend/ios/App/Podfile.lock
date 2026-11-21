@@ -1,64 +1,64 @@
 PODS:
-  - Capacitor (6.2.2):
+  - Capacitor (8.6.2):
     - CapacitorCordova
-  - CapacitorApp (6.0.3):
+  - CapacitorApp (8.1.2):
     - Capacitor
-  - CapacitorBrowser (6.0.6):
+  - CapacitorBrowser (8.0.5):
     - Capacitor
-  - CapacitorCommunityAppleSignIn (6.0.0):
+  - CapacitorCommunityAppleSignIn (7.1.0):
     - Capacitor
-  - CapacitorCordova (6.2.2)
-  - CapacitorHaptics (6.0.3):
+  - CapacitorCordova (8.6.2)
+  - CapacitorHaptics (8.0.2):
     - Capacitor
-  - CapacitorPushNotifications (6.0.5):
+  - CapacitorPushNotifications (8.1.3):
     - Capacitor
-  - CapacitorSplashScreen (6.0.4):
+  - CapacitorSplashScreen (8.0.2):
     - Capacitor
-  - CapacitorStatusBar (6.0.3):
+  - CapacitorStatusBar (8.0.4):
     - Capacitor
 
 DEPENDENCIES:
-  - "Capacitor (from `../../../node_modules/@capacitor/ios`)"
-  - "CapacitorApp (from `../../../node_modules/@capacitor/app`)"
-  - "CapacitorBrowser (from `../../../node_modules/@capacitor/browser`)"
-  - "CapacitorCommunityAppleSignIn (from `../../../node_modules/@capacitor-community/apple-sign-in`)"
-  - "CapacitorCordova (from `../../../node_modules/@capacitor/ios`)"
-  - "CapacitorHaptics (from `../../../node_modules/@capacitor/haptics`)"
-  - "CapacitorPushNotifications (from `../../../node_modules/@capacitor/push-notifications`)"
-  - "CapacitorSplashScreen (from `../../../node_modules/@capacitor/splash-screen`)"
-  - "CapacitorStatusBar (from `../../../node_modules/@capacitor/status-bar`)"
+  - "Capacitor (from `../../node_modules/@capacitor/ios`)"
+  - "CapacitorApp (from `../../node_modules/@capacitor/app`)"
+  - "CapacitorBrowser (from `../../node_modules/@capacitor/browser`)"
+  - "CapacitorCommunityAppleSignIn (from `../../node_modules/@capacitor-community/apple-sign-in`)"
+  - "CapacitorCordova (from `../../node_modules/@capacitor/ios`)"
+  - "CapacitorHaptics (from `../../node_modules/@capacitor/haptics`)"
+  - "CapacitorPushNotifications (from `../../node_modules/@capacitor/push-notifications`)"
+  - "CapacitorSplashScreen (from `../../node_modules/@capacitor/splash-screen`)"
+  - "CapacitorStatusBar (from `../../node_modules/@capacitor/status-bar`)"
 
 EXTERNAL SOURCES:
   Capacitor:
-    :path: "../../../node_modules/@capacitor/ios"
+    :path: "../../node_modules/@capacitor/ios"
   CapacitorApp:
-    :path: "../../../node_modules/@capacitor/app"
+    :path: "../../node_modules/@capacitor/app"
   CapacitorBrowser:
-    :path: "../../../node_modules/@capacitor/browser"
+    :path: "../../node_modules/@capacitor/browser"
   CapacitorCommunityAppleSignIn:
-    :path: "../../../node_modules/@capacitor-community/apple-sign-in"
+    :path: "../../node_modules/@capacitor-community/apple-sign-in"
   CapacitorCordova:
-    :path: "../../../node_modules/@capacitor/ios"
+    :path: "../../node_modules/@capacitor/ios"
   CapacitorHaptics:
-    :path: "../../../node_modules/@capacitor/haptics"
+    :path: "../../node_modules/@capacitor/haptics"
   CapacitorPushNotifications:
-    :path: "../../../node_modules/@capacitor/push-notifications"
+    :path: "../../node_modules/@capacitor/push-notifications"
   CapacitorSplashScreen:
-    :path: "../../../node_modules/@capacitor/splash-screen"
+    :path: "../../node_modules/@capacitor/splash-screen"
   CapacitorStatusBar:
-    :path: "../../../node_modules/@capacitor/status-bar"
+    :path: "../../node_modules/@capacitor/status-bar"
 
 SPEC CHECKSUMS:
-  Capacitor: 6591a78b923b7e6dde28506ffeea820356e68013
-  CapacitorApp: a19ccb4f5f32d2534be5c6f524d5a9b614a1e8a7
-  CapacitorBrowser: 825163a1d6adce944ac7b9e3cab101146b5a9df8
-  CapacitorCommunityAppleSignIn: c9c2541ee7580618055a91b3516c3f0313fe2544
-  CapacitorCordova: c2c76283b5c00cf6073bab0b1311e3b10bd17254
-  CapacitorHaptics: 40f83026feeee9cfe36e89e9c98a3baaaf20c450
-  CapacitorPushNotifications: 35abece14371c57172e8321c9ccc8b6fa35fabfe
-  CapacitorSplashScreen: ef140a8b1ea7244e0c245ce2dd4ce5251e7ab86a
-  CapacitorStatusBar: 149cde8f1328ec3aa6cbdd872a55137ae3f98b16
+  Capacitor: 0a406b8a50b1ddcfe49fbc5795515918d5294708
+  CapacitorApp: 7b7e43debe505bc61beedb83796aa1368c86078b
+  CapacitorBrowser: f94f92654e92a97981bf346b3681af76527dace0
+  CapacitorCommunityAppleSignIn: 271cb2860576fd2961508bbfa7a82117d93eadca
+  CapacitorCordova: 8e68a712e47128cf5b97e88b9c2b406b9b956b22
+  CapacitorHaptics: 296f771ecd89c7a1bd92a7b6826a7d268e2e70f5
+  CapacitorPushNotifications: a31b62e18764ab855537dfcdade1e6ecf5aba29f
+  CapacitorSplashScreen: 7bf61c2001557ff9e195e601c6b87344480d3c65
+  CapacitorStatusBar: ff844df1f126da6c4fbc4028272425fa3a91e7e3
 
-PODFILE CHECKSUM: e50c6db98a1ab49f2a62cf55f19774573844b5b8
+PODFILE CHECKSUM: a2c4306b13418eed5dd7bc839357877d58186aca
 
 COCOAPODS: 1.16.2

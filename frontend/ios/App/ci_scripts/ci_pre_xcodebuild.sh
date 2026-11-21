@@ -6,6 +6,9 @@
 
 set -e
 
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+python3 "$SCRIPT_DIR/../../../scripts/check-ios-startup.py"
+
 if [ -n "$CI_BUILD_NUMBER" ]; then
   cd "$CI_PRIMARY_REPOSITORY_PATH/frontend/ios/App"
   echo "Setting build number to CI_BUILD_NUMBER=$CI_BUILD_NUMBER"

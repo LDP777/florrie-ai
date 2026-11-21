@@ -1,4 +1,4 @@
-require_relative '../../../node_modules/@capacitor/ios/scripts/pods_helpers'
+require_relative '../../node_modules/@capacitor/ios/scripts/pods_helpers'
 
 # App Store Connect warning 90068: from Spring 2027 every upload must declare a
 # MinimumOSVersion of 15.0 or later. iOS 15 shipped in 2021, so nobody running a
@@ -12,26 +12,28 @@ use_frameworks!
 install! 'cocoapods', :disable_input_output_paths => true
 
 def capacitor_pods
-  pod 'Capacitor', :path => '../../../node_modules/@capacitor/ios'
-  pod 'CapacitorCordova', :path => '../../../node_modules/@capacitor/ios'
-  pod 'CapacitorCommunityAppleSignIn', :path => '../../../node_modules/@capacitor-community/apple-sign-in'
-  pod 'CapacitorApp', :path => '../../../node_modules/@capacitor/app'
-  pod 'CapacitorBrowser', :path => '../../../node_modules/@capacitor/browser'
-  pod 'CapacitorHaptics', :path => '../../../node_modules/@capacitor/haptics'
-  pod 'CapacitorPushNotifications', :path => '../../../node_modules/@capacitor/push-notifications'
-  pod 'CapacitorSplashScreen', :path => '../../../node_modules/@capacitor/splash-screen'
-  pod 'CapacitorStatusBar', :path => '../../../node_modules/@capacitor/status-bar'
+  pod 'Capacitor', :path => '../../node_modules/@capacitor/ios'
+  pod 'CapacitorCordova', :path => '../../node_modules/@capacitor/ios'
+  pod 'CapacitorCommunityAppleSignIn', :path => '../../node_modules/@capacitor-community/apple-sign-in'
+  pod 'CapacitorApp', :path => '../../node_modules/@capacitor/app'
+  pod 'CapacitorBrowser', :path => '../../node_modules/@capacitor/browser'
+  pod 'CapacitorHaptics', :path => '../../node_modules/@capacitor/haptics'
+  pod 'CapacitorPushNotifications', :path => '../../node_modules/@capacitor/push-notifications'
+  pod 'CapacitorSplashScreen', :path => '../../node_modules/@capacitor/splash-screen'
+  pod 'CapacitorStatusBar', :path => '../../node_modules/@capacitor/status-bar'
 end
 
 target 'App' do
   capacitor_pods
   # Add your Pods here
+  target 'FlorrieStartupTests' do
+    inherit! :search_paths
+  end
 end
 
 post_install do |installer|
-  # The app already requires iOS 15, but the Capacitor 6 podspecs still declare
-  # iOS 13. Xcode 27 rejects those generated targets. Apply the app's minimum
-  # to every pod configuration without lowering a dependency's higher target.
+  # Keep every generated pod at the app's supported minimum without lowering
+  # a dependency's higher target.
   minimum_ios = Gem::Version.new('15.0')
   installer.pods_project.targets.each do |target|
     target.build_configurations.each do |config|

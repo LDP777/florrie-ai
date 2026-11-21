@@ -69,6 +69,7 @@ jobs:
       # runs, which is how `FROM_EMOJI is not defined` reached production with a
       # green build. `npm run build` now runs scripts/check-icons.mjs first,
       # which evaluates the module and actually calls it.
+      - run: python3 frontend/scripts/check-ios-startup.py
       - run: npm run build --workspace frontend
         env:
           # Vite inlines these at build time. Real values live in Vercel; CI
