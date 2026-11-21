@@ -2,6 +2,17 @@
 // Dates are release dates, not commit-author dates. See docs/app-updates.md.
 export const APP_UPDATES = [
   {
+    date: '2026-11-21',
+    changes: [
+      {
+        id: 'iphone-startup',
+        title: 'An iPhone startup fix',
+        description: 'Fixed a crash when opening Florrie after an iOS update. Install the latest Florrie build to get this fix.',
+        commits: ['ec31ad7'],
+      },
+    ],
+  },
+  {
     date: '2026-11-18',
     changes: [
       {
