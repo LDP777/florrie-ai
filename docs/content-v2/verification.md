@@ -8,6 +8,7 @@ Built on branch `content-v2` from main `d49b083`. All browser and database fixtu
 | --- | --- |
 | Backend Vitest suite | 4,558 tests passed across 257 files |
 | Frontend production build | Passed, including existing primitive, icon, copy, render and other build guards |
+| Remaining frontend CI commands | All 39 passed locally, including legacy Content, voice, privacy, booking, Money, training, safe areas, overflow, contrast and loaded-page checks |
 | Chromium and WebKit | 26 grouped journeys passed at 320 x 568, 375 x 667, 390 x 844 and 430 x 932 |
 | Accessibility | No axe WCAG A/AA violations on home, deck, change sheet, item sheet and first visit in either engine |
 | Navigation, request handling and image sharing | 21 Node tests passed |
