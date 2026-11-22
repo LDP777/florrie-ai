@@ -2,7 +2,7 @@
 .fl-booking *, .fl-booking *::before, .fl-booking *::after { box-sizing: border-box; }
 .fl-booking button, .fl-booking input, .fl-booking select, .fl-booking textarea { font-family: var(--font-body); }
 .fl-booking button:focus-visible, .fl-booking a:focus-visible, .fl-booking summary:focus-visible, .fl-booking select:focus-visible { outline: 2px solid var(--booking-ink); outline-offset: 4px; }
-.fl-booking h2[tabindex="-1"]:focus { outline: none; }
+.fl-booking h2[tabindex="-1"]:focus { outline: none; box-shadow: none; }
 .fl-booking-header { display: flex; align-items: center; gap: 12px; padding: 22px 0 20px; min-width: 0; }
 .fl-booking-logo { width: 40px; height: 40px; object-fit: contain; border-radius: 10px; flex-shrink: 0; }
 .fl-booking-monogram { display: grid; place-items: center; background: var(--booking-soft); color: var(--booking-ink); font-family: var(--font-display); font-size: 23px; }
