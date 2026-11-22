@@ -15,7 +15,7 @@ export default function MoneyRecentPayments({ payments, timezone, onAll, onRevie
       return <article className="money-recent-row" key={tx.id}>
         <div className="money-recent-avatar"><Icon name={tx.type === 'refund' ? 'arrow-left' : 'receipt'} size={18}/></div>
         <div className="money-recent-main">
-          {tx.appointments?.client_id ? <button className="money-recent-client" onClick={() => navigate('/clients', { state: { clientId: tx.appointments.client_id } })}><PrivateText placeholder="Client">{name}</PrivateText></button> : <strong><PrivateText placeholder="Client">{name}</PrivateText></strong>}
+          {tx.appointments?.client_id ? <button className="money-recent-client fl-tap" onClick={() => navigate('/clients', { state: { clientId: tx.appointments.client_id } })}><PrivateText placeholder="Client">{name}</PrivateText></button> : <strong><PrivateText placeholder="Client">{name}</PrivateText></strong>}
           <span>{paymentLabel(tx)}</span><time dateTime={tx.created_at}>{paymentDateLabel(tx.created_at, timezone)}</time>
         </div>
         <strong className={tx.amount_cents < 0 ? 'money-recent-out' : 'money-recent-in'}><PrivateAmount>{formatMoney(tx.amount_cents)}</PrivateAmount></strong>
