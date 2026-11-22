@@ -94,7 +94,7 @@ export function computeCalendarGaps(now, appointments, hours, timezone, blocks =
     const day = new Date(midnight + offset * DAY);
     const date = day.toISOString().slice(0, 10);
     if (blocks.closedDays.has(date)) continue;
-    const dayHours = wallDayHours(hours, day);
+    const dayHours = wallDayHours(hours, day, blocks.dateHours);
     if (!dayHours || dayHours.enabled === false || dayHours.closed === true) continue;
     const open = wallStamp(`${date}T${String(dayHours.start).slice(0, 5)}:00`);
     const close = wallStamp(`${date}T${String(dayHours.end).slice(0, 5)}:00`);

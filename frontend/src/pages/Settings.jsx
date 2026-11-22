@@ -1,7 +1,7 @@
 import ReplySettingsSummary from '../components/ReplySettingsSummary.jsx';
 import { PrivateText, PrivateSection } from '../contexts/ClientPrivacyContext.jsx';
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { useBeautician, updateRow, supabase } from '../lib/supabase.js';
 import { useTheme } from '../lib/theme.jsx';
 import { API_BASE } from '../lib/config.js';
@@ -28,41 +28,6 @@ import { readAuthenticatedJson } from '../lib/authenticated-json.js';
  * Settings, beautician profile and app configuration.
  * Wired to Supabase via useBeautician. Ellie's real hours + tone model as defaults.
  */
-
-const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
-
-// beauticians.timezone drives reminder timing, quiet hours and gap-fill, and
-// until now nothing in the app let the owner set it: every salon sat on the
-// column default of Europe/London. Curated rather than the full IANA list,
-// which is six hundred names long and mostly cities nobody here trades from.
-const TIMEZONE_OPTIONS = [
-  ['Europe/London', 'United Kingdom (London)'],
-  ['Europe/Dublin', 'Ireland (Dublin)'],
-  ['Europe/Paris', 'France (Paris)'],
-  ['Europe/Berlin', 'Germany (Berlin)'],
-  ['Europe/Madrid', 'Spain (Madrid)'],
-  ['Europe/Lisbon', 'Portugal (Lisbon)'],
-  ['Europe/Amsterdam', 'Netherlands (Amsterdam)'],
-  ['Europe/Brussels', 'Belgium (Brussels)'],
-  ['Europe/Rome', 'Italy (Rome)'],
-  ['Europe/Stockholm', 'Sweden (Stockholm)'],
-  ['Europe/Oslo', 'Norway (Oslo)'],
-  ['Europe/Copenhagen', 'Denmark (Copenhagen)'],
-  ['Europe/Warsaw', 'Poland (Warsaw)'],
-  ['Europe/Athens', 'Greece (Athens)'],
-  ['America/New_York', 'US Eastern (New York)'],
-  ['America/Chicago', 'US Central (Chicago)'],
-  ['America/Denver', 'US Mountain (Denver)'],
-  ['America/Los_Angeles', 'US Pacific (Los Angeles)'],
-  ['America/Toronto', 'Canada Eastern (Toronto)'],
-  ['Australia/Sydney', 'Australia (Sydney)'],
-  ['Australia/Melbourne', 'Australia (Melbourne)'],
-  ['Australia/Perth', 'Australia (Perth)'],
-  ['Pacific/Auckland', 'New Zealand (Auckland)'],
-  ['Asia/Dubai', 'UAE (Dubai)'],
-  ['Asia/Singapore', 'Singapore'],
-];
 
 /**
  * The on/off state pill used by the autonomy switches.
@@ -430,14 +395,8 @@ export default function Settings({ onLogout }) {
   if (loading) return <PageLoader />;
   if (!beautician) return <div><ErrorCard message="Could not load your settings." /><Button onClick={refresh}>Retry</Button></div>;
 
-  const hours = beautician.working_hours || {};
-  // The saved value stays selectable even when it is not on the curated list
-  // (set by support, or by an older build), so opening this page can never
-  // silently change it.
-  const timezone = beautician.timezone || 'Europe/London';
-  const timezoneOptions = TIMEZONE_OPTIONS.some(([v]) => v === timezone)
-    ? TIMEZONE_OPTIONS
-    : [[timezone, timezone], ...TIMEZONE_OPTIONS];
+  if (section === 'hours') return <Navigate to="/hours?tab=week" replace />;
+
   const tone = beautician.tone_model || {};
   const confidence = beautician.confidence_threshold || 0.85;
   const calSettings = beautician.calendar_settings || { buffer_minutes: 10, block_personal: false, push_bookings: true, two_way_sync: false };
@@ -578,87 +537,6 @@ export default function Settings({ onLogout }) {
               onSave={v => saveProfile({ vat_number: v.toUpperCase().replace(/\s/g, '') })}
             />
           )}
-        </div>
-      )}
-
-      {/* === WORKING HOURS === */}
-      {section === 'hours' && (
-        <div style={styles.card}>
-          <p style={styles.cardDesc}>Set when clients can book appointments.</p>
-          <div style={styles.timezoneRow}>
-            <label htmlFor="settings-timezone" style={styles.timezoneLabel}>Your timezone</label>
-            <select
-              id="settings-timezone"
-              value={timezone}
-              onChange={e => saveProfile({ timezone: e.target.value })}
-              style={styles.timezoneSelect}
-            >
-              {timezoneOptions.map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
-            </select>
-            <p style={styles.timezoneHint}>Reminders, quiet hours and your hours below all run on this clock.</p>
-          </div>
-          {DAY_KEYS.map((day, idx) => {
-            const dayHours = hours[day];
-            const enabled = !!dayHours;
-            return (
-              <div key={day} style={styles.dayRow}>
-                <label style={styles.dayToggle}>
-                  <input
-                    type="checkbox"
-                    checked={enabled}
-                    onChange={() => {
-                      const newHours = { ...hours };
-                      if (enabled) { newHours[day] = null; } else { newHours[day] = { start: '09:00', end: '17:00' }; }
-                      saveProfile({ working_hours: newHours });
-                    }}
-                  />
-                  <span style={{ ...styles.dayName, color: enabled ? 'var(--text-primary)' : 'var(--text-muted)' }}>
-                    {DAYS[idx]}
-                  </span>
-                </label>
-                {enabled && (
-                  <div style={styles.timeInputs}>
-                    <input type="time" value={dayHours?.start || '09:00'} onChange={e => { const nh = { ...hours, [day]: { ...hours[day], start: e.target.value } }; saveProfile({ working_hours: nh }); }} style={styles.timeInput} />
-                    <span style={styles.timeSep}>to</span>
-                    <input type="time" value={dayHours?.end || '17:00'} onChange={e => { const nh = { ...hours, [day]: { ...hours[day], end: e.target.value } }; saveProfile({ working_hours: nh }); }} style={styles.timeInput} />
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {section === 'hours' && (
-        <div style={styles.card}>
-          <h3 style={styles.cardTitle}>Block time off</h3>
-          <p style={styles.cardDesc}>Need a day off, holiday, or a quick lunch break? Block time without changing your regular schedule.</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <button
-              onClick={() => { window.location.href = '/hours'; }}
-              style={styles.blockLinkBtn}
-            >
-              <span style={styles.blockLinkIcon}><Icon name="calendar" size={19} /></span>
-              <div>
-                <span style={styles.blockLinkTitle}>Full days &amp; exceptions</span>
-                <span style={styles.blockLinkDesc}>Close for a holiday, change hours for a specific date</span>
-              </div>
-              <span style={{ color: 'var(--text-muted)', fontSize: 18 }}>›</span>
-            </button>
-            <button
-              onClick={() => { window.location.href = '/calendar'; }}
-              style={styles.blockLinkBtn}
-            >
-              <span style={styles.blockLinkIcon}><Icon name="x" size={19} /></span>
-              <div>
-                <span style={styles.blockLinkTitle}>Block a time slot</span>
-                <span style={styles.blockLinkDesc}>Lunch break, rest of day, or any custom window</span>
-              </div>
-              <span style={{ color: 'var(--text-muted)', fontSize: 18 }}>›</span>
-            </button>
-          </div>
         </div>
       )}
 

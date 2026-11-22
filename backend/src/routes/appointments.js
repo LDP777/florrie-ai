@@ -1,3 +1,6 @@
+import { effectiveHours } from '../lib/effective-hours.js';
+import { hoursForDate, loadDateHours } from '../lib/date-working-hours.js';
+import { loadBlocks, hitsBlock } from '../lib/free-slots.js';
 import { salonWallInstant } from '../lib/booking-preparation.js';
 import { FEE_FIELDS, cancellationPaymentStatus, readCancellationPaymentStatus } from '../services/cancellation-payment-status.js';
 import { announceBookingConfirmed } from '../services/booking-confirmed-alert.js';
@@ -232,15 +235,19 @@ router.post('/', requireAuth, async (req, res) => {
   }
 
   // Validate appointment falls within working hours
-  const { data: beauticianHours } = await supabase
+  const { data: beauticianHours, error: hoursError } = await supabase
     .from('beauticians')
     .select('working_hours')
     .eq('id', req.beautician.id)
     .single();
 
-  if (beauticianHours?.working_hours) {
+  if (hoursError) return res.status(503).json({ error: 'Could not check opening hours. Please try again.' });
+  let datedHours;
+  try { datedHours = await loadDateHours(req.beautician.id, startsAtDate.toISOString().slice(0, 10)); }
+  catch { return res.status(503).json({ error: 'Could not check opening hours. Please try again.' }); }
+  if (beauticianHours?.working_hours || datedHours.length) {
     const dayKey = startsAtDate.toLocaleDateString('en-US', { weekday: 'short' }).toLowerCase();
-    const hours = beauticianHours.working_hours[dayKey];
+    const hours = effectiveHours(beauticianHours?.working_hours, startsAtDate.toISOString().slice(0, 10), datedHours);
 
     if (!hours) {
       return res.status(400).json({ error: 'Not available on this day' });
@@ -1600,7 +1607,11 @@ router.get('/slots', async (req, res) => {
 
   // Calculate available slots
   const dayOfWeek = new Date(date).toLocaleDateString('en-US', { weekday: 'short' }).toLowerCase();
-  const hours = beautician.working_hours?.[dayOfWeek];
+  let hours, blocks;
+  try {
+    hours = await hoursForDate(beautician_id, beautician.working_hours, date);
+    blocks = await loadBlocks(beautician_id, new Date(dayStart), new Date(dayEnd));
+  } catch { return res.status(503).json({ error: 'Could not check availability. Please try again.' }); }
 
   if (!hours) {
     return res.json({ slots: [], message: 'Not available on this day' });
@@ -1614,7 +1625,7 @@ router.get('/slots', async (req, res) => {
     existing || []
   );
 
-  res.json({ slots });
+  res.json({ slots: slots.filter(slot => !hitsBlock(new Date(slot.starts_at), new Date(slot.ends_at), blocks)) });
 });
 
 // Helpers

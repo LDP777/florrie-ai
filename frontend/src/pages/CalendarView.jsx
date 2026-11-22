@@ -1,3 +1,6 @@
+import { calendarHoursBounds } from '../lib/calendar-hours-bounds.js';
+import DateHoursEditor from '../components/DateHoursEditor.jsx';
+import { readDateHours, effectiveHours } from '../lib/working-hours.js';
 import CancellationPayments from '../components/CancellationPayment.jsx';
 import { useClientPrivacy, PrivateText, PrivateSection } from '../contexts/ClientPrivacyContext.jsx';
 import AppointmentPreparation from '../components/AppointmentPreparation.jsx';
@@ -127,12 +130,12 @@ function minToHHMM(min) {
  * form a cluster; cluster members are greedily packed into columns and share
  * the width. Returns [{ appt, top, height, col, cols }].
  */
-function layoutDayAppointments(appts) {
+function layoutDayAppointments(appts, startHour = START_HOUR) {
   const rects = appts
     .map(appt => {
       const startMin = wallMinutes(appt.starts_at);
       const endMin = Math.max(appt.ends_at ? wallMinutes(appt.ends_at) : startMin + 30, startMin + 15);
-      const top = Math.max(0, ((startMin - START_HOUR * 60) / 60) * HOUR_HEIGHT);
+      const top = Math.max(0, ((startMin - startHour * 60) / 60) * HOUR_HEIGHT);
       const height = Math.max(((endMin - startMin) / 60) * HOUR_HEIGHT, MIN_CARD_PX);
       return { appt, top, height, bottom: top + height, col: 0, cols: 1 };
     })
@@ -483,6 +486,23 @@ export default function CalendarView({ initialView } = {}) {
   const [markingAllDone, setMarkingAllDone] = useState(false);
   // Time blocking state
   const [timeBlocks, setTimeBlocks] = useState([]);
+  const [dateHours, setDateHours] = useState([]), [dateHoursError, setDateHoursError] = useState('');
+  const [showDateHours, setShowDateHours] = useState(false);
+  const hoursRequest = useRef(0);
+  const { start: START_HOUR, end: END_HOUR } = calendarHoursBounds([formatDate(currentDate)], beautician?.working_hours, dateHours, appointments);
+  async function loadDatedHours() {
+    const seq = ++hoursRequest.current;
+    const from = new Date(currentDate); from.setDate(from.getDate() - 7);
+    const to = new Date(currentDate); to.setDate(to.getDate() + 7);
+    try {
+      const data = await readDateHours(formatDate(from), formatDate(to));
+      if (!Array.isArray(data.dates)) throw new Error('Invalid hours response');
+      if (seq === hoursRequest.current) { setDateHours(data.dates); setDateHoursError(''); }
+    } catch { if (seq === hoursRequest.current) setDateHoursError('Could not check your hours for these dates.'); }
+  }
+  useEffect(() => { if (beautician) loadDatedHours(); return () => { hoursRequest.current++; }; }, [beautician?.id, currentDate]); // eslint-disable-line react-hooks/exhaustive-deps
+  function openingFor(day) { return effectiveHours(beautician?.working_hours, formatDate(day), dateHours); }
+
   const [timeBlockError, setTimeBlockError] = useState(null);
   const [showBlockModal, setShowBlockModal] = useState(false);
   const [selectedBlock, setSelectedBlock] = useState(null); // existing block tapped
@@ -667,7 +687,7 @@ export default function CalendarView({ initialView } = {}) {
     const linkedId = new URLSearchParams(location.search).get('appt');
     const linked = dayAppts.find(a => a.id === linkedId || a.id === selectedAppointment?.id);
     const now = new Date();
-    const opening = beautician?.working_hours?.[DAY_KEYS[currentDate.getDay()]]?.start;
+    const opening = openingFor(currentDate)?.start;
     const openingMinutes = opening ? Number(opening.slice(0, 2)) * 60 + Number(opening.slice(3, 5)) : 8 * 60;
     const targetMin = linked ? wallMinutes(linked.starts_at)
       : isToday(currentDate) ? now.getHours() * 60 + now.getMinutes()
@@ -945,7 +965,7 @@ export default function CalendarView({ initialView } = {}) {
         <div style={styles.weeklyStrip}>
           {weekDays.map(day => {
             const selected = isSameDay(day, currentDate);
-            const wh = beautician?.working_hours?.[DAY_KEYS[day.getDay()]];
+            const wh = openingFor(day);
             // Only call a day off once her hours have actually loaded, or every
             // day would look shut for the first frame.
             const dayOff = !!beautician?.working_hours && !(wh?.start && wh?.end);
@@ -1004,11 +1024,15 @@ export default function CalendarView({ initialView } = {}) {
           <summary aria-label="Calendar tools">More <Icon name="chevron-down" size={14} /></summary>
           <div className="calendar-tools-panel">
             <Button variant="quiet" onClick={e => { e.currentTarget.closest('details').open = false; navigate(`/calendar/full?date=${formatDate(currentDate)}`); }}><Icon name="calendar" size={17} />Open full calendar</Button>
+            <Button variant="quiet" onClick={e => { e.currentTarget.closest('details').open = false; setShowDateHours(true); }}><Icon name="clock" size={17} />Hours for this day</Button>
+            <Button variant="quiet" onClick={e => { e.currentTarget.closest('details').open = false; navigate('/hours'); }}><Icon name="calendar" size={17} />Manage working hours</Button>
             <Button variant="quiet" onClick={e => { e.currentTarget.closest('details').open = false; setShowBlockModal(true); }}><Icon name={iconName('event_busy')} size={17} />Block time</Button>
             {view === 'day' && <Button variant="quiet" disabled={hidden || markingAllDone || loading || !!loadError} onClick={e => { e.currentTarget.closest('details').open = false; handleMarkAllDone(); }}><Icon name="check" size={17} />{markingAllDone ? 'Completing...' : 'Mark day complete'}</Button>}
           </div>
         </details>
       </div>
+      {view === 'day' && <button className="calendar-hours-button" onClick={() => setShowDateHours(true)}>{dateHoursError ? 'Check hours for this day' : `Hours for this day · ${openingFor(currentDate) ? `${openingFor(currentDate).start}–${openingFor(currentDate).end}` : 'Closed'}`} <Icon name="chevron-right" size={13} /></button>}
+      {dateHoursError && <div className="calendar-link-notice" role="alert">{dateHoursError} <Button variant="quiet" onClick={loadDatedHours}>Retry hours</Button></div>}
       {linkNotice && <div className="calendar-link-notice" role="status">{linkNotice}</div>}
       {timeBlockError && <div className="calendar-link-notice" role="alert">{timeBlockError} <Button variant="quiet" onClick={loadTimeBlocks}>Retry blocked time</Button></div>}
       <div className="calendar-day-summary" aria-live="polite">
@@ -1085,7 +1109,7 @@ export default function CalendarView({ initialView } = {}) {
           <div style={{ ...styles.appointmentColumn, height: (END_HOUR - START_HOUR) * HOUR_HEIGHT }}>
             {/* Outside-working-hours dimming. Visual only, never blocks taps. */}
             {(() => {
-              const wh = beautician?.working_hours?.[DAY_KEYS[currentDate.getDay()]];
+              const wh = openingFor(currentDate);
               const fullHeight = (END_HOUR - START_HOUR) * HOUR_HEIGHT;
               const bands = [];
               if (wh?.start && wh?.end) {
@@ -1111,13 +1135,13 @@ export default function CalendarView({ initialView } = {}) {
               <div key={i} style={{ ...styles.hourLine, top: i * HOUR_HEIGHT }} />
             ))}
             {/* Now-line indicator */}
-            {isToday(currentDate) && getNowPosition() >= 0 && getNowPosition() <= (END_HOUR - START_HOUR) * HOUR_HEIGHT && (
-              <div className="calendar-now-line" style={{ ...styles.nowLine, top: getNowPosition(), pointerEvents: 'none' }}>
+            {isToday(currentDate) && getNowPosition(START_HOUR) >= 0 && getNowPosition(START_HOUR) <= (END_HOUR - START_HOUR) * HOUR_HEIGHT && (
+              <div className="calendar-now-line" style={{ ...styles.nowLine, top: getNowPosition(START_HOUR), pointerEvents: 'none' }}>
                 <div style={styles.nowDot} />
               </div>
             )}
             {/* Appointment cards. Collision-aware: overlapping cards share the width. */}
-            {layoutDayAppointments(getAppointmentsForDate(currentDate)).map(({ appt, top, height, col, cols }) => {
+            {layoutDayAppointments(getAppointmentsForDate(currentDate), START_HOUR).map(({ appt, top, height, col, cols }) => {
 
               // Treatment colour drives the block (left stripe + soft tint) so each
               // service type is distinct; a separate label explains status.
@@ -1270,7 +1294,7 @@ export default function CalendarView({ initialView } = {}) {
             const takingsPence = live.reduce((s, a) => s + (a.price_cents ?? a.treatments?.price_cents ?? 0), 0);
             const workedMins = live.reduce((s, a) => s + Math.max(0, wallMinutes(a.ends_at || a.starts_at) - wallMinutes(a.starts_at)), 0);
             const hours = workedMins / 60;
-            const wh = beautician?.working_hours?.[DAY_KEYS[day.getDay()]];
+            const wh = openingFor(day);
             const dayOff = !!beautician?.working_hours && !(wh?.start && wh?.end);
             const today = isToday(day);
             return (
@@ -1430,6 +1454,11 @@ export default function CalendarView({ initialView } = {}) {
           }}
         />
       )}
+      {showDateHours && <DateHoursEditor dates={[formatDate(currentDate)]} beautician={beautician}
+        onClose={() => setShowDateHours(false)} onSaved={result => {
+          setDateHours(prev => result.removed ? prev.filter(row => row.date !== result.removed) : [...prev.filter(row => !result.dates.some(item => item.date === row.date)), ...result.dates]);
+          setDateHoursError(''); setSaveNotice(result.removed ? 'Usual hours restored.' : 'Hours saved for this day.');
+        }} />}
       {/* Block Time modal */}
       {showBlockModal && (
         <BlockTimeModal
@@ -3110,7 +3139,7 @@ function isToday(d) { return d.toDateString() === new Date().toDateString(); }
 function isSameDay(a, b) { return a.toDateString() === b.toDateString(); }
 function getWeekStart(d) { const s = new Date(d); const day = s.getDay(); s.setDate(s.getDate() + (day === 0 ? -6 : 1 - day)); return s; }
 function getWeekEnd(d) { const e = getWeekStart(d); e.setDate(e.getDate() + 6); return e; }
-function getNowPosition() { const now = new Date(); return ((now.getHours() * 60 + now.getMinutes() - START_HOUR * 60) / 60) * HOUR_HEIGHT; }
+function getNowPosition(startHour = START_HOUR) { const now = new Date(); return ((now.getHours() * 60 + now.getMinutes() - startHour * 60) / 60) * HOUR_HEIGHT; }
 const styles = {
   page: { minHeight: 'var(--shell-viewport)', background: 'var(--bg)', fontFamily: "var(--font-body, 'Plus Jakarta Sans', -apple-system, sans-serif)", padding: '0 var(--calendar-inset, 16px) 24px', maxWidth: 'var(--calendar-width, 480px)', margin: '0 auto', color: 'var(--text-primary)', animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)' },
   header: { paddingTop: 8 },

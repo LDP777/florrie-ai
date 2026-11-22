@@ -63,3 +63,16 @@ test('date range follows local dates, including midnight and month boundaries', 
   assert.equal(clock.getHours(), 0); assert.equal(clock.getMinutes(), 15);
   assert.deepEqual(scheduleRange(salonClock(new Date('2026-09-20T23:15:00Z'))), { from: '2026-09-21', until: '2026-09-28' });
 });
+
+
+test('specific dates extend a day and open a usual day off without changing other weekdays', () => {
+  const result = base({ dateHours: [
+    { date: '2026-09-21', start_time: '09:00', end_time: '20:00' },
+    { date: '2026-09-22', start_time: '10:00', end_time: '14:00' },
+  ], exceptions: [{ date: '2026-09-21', type: 'amended', start_time: '17:00', end_time: '18:00' }] });
+  assert.deepEqual(result.gaps.map(g => [g.date, g.start, g.end]), [
+    ['2026-09-21', '09:00', '17:00'], ['2026-09-21', '18:00', '20:00'], ['2026-09-22', '10:00', '14:00'],
+  ]);
+  assert.equal(result.workMinutes, 840);
+  assert.equal(base({ workingHours: {}, dateHours: [{ date: '2026-09-22', start_time: '10:00', end_time: '14:00' }] }).hasConfiguredHours, true);
+});

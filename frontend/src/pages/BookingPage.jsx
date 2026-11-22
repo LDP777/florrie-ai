@@ -1,3 +1,4 @@
+import { effectiveHours } from '../../../backend/src/lib/effective-hours.js';
 import { PATCH_TEST_LEAD_HOURS } from '../lib/patch-test-policy.js';
 import { cancellationNoticeHours, policyFeePercent } from '../lib/booking-policy.js';
 import BookingEmailVerification from '../components/BookingEmailVerification.jsx';
@@ -183,6 +184,7 @@ export default function BookingPage() {
   const [monthAppointments, setMonthAppointments] = useState([]);
   const [monthClosures, setMonthClosures] = useState([]);
   const [monthBlocks, setMonthBlocks] = useState([]);
+  const [dateHours, setDateHours] = useState([]);
   const [reviewsData, setReviewsData] = useState(null);
   const [hasTrainingDates, setHasTrainingDates] = useState(false);
   // "Booked before?" one-tap rebook path on step 0
@@ -713,23 +715,13 @@ export default function BookingPage() {
   // Generate available time slots when date changes
   useEffect(() => {
     if (selectedTreatments.length === 0 || !selectedDate || !beautician) return;
+    let cancelled = false;
+    const controller = new AbortController();
+    setSlots([]); setSelectedSlot(null);
     async function loadSlots() {
-      const dayOfWeek = new Date(selectedDate).toLocaleDateString('en-GB', { weekday: 'short' }).toLowerCase();
-      const dayKey = { mon: 'mon', tue: 'tue', wed: 'wed', thu: 'thu', fri: 'fri', sat: 'sat', sun: 'sun' }[dayOfWeek];
-      const hours = beautician.working_hours?.[dayKey];
-      if (!hours || !hours.start || !hours.end) {
-        setSlots([]);
-        setSelectedSlot(null);
-        return;
-      }
-      // Generate slots from working hours (uses combined duration for multi-treatment)
       const duration = combinedDuration || 60;
       const buffer = Math.max(...selectedTreatments.map(t => t.buffer_minutes || 0), 0);
-      const totalBlock = duration + buffer; // all treatments + longest buffer
-      const [startH, startM] = hours.start.split(':').map(Number);
-      const [endH, endM] = hours.end.split(':').map(Number);
-      const startMin = startH * 60 + startM;
-      const endMin = endH * 60 + endM;
+      const totalBlock = duration + buffer;
       // Booked blocks via the public backend endpoint (works logged-out).
       let bookedSlots = [];
       let appts = [];
@@ -742,21 +734,27 @@ export default function BookingPage() {
       // offered slots that were actually booked, and the list visibly jumped
       // between "everything free" and reality on each refresh.
       let av = null;
-      for (let attempt = 0; attempt < 2 && !av; attempt++) {
+      for (let attempt = 0; attempt < 2 && !av && !cancelled; attempt++) {
         try {
-          const avRes = await fetch(`${API_BASE}/api/booking/${slug}/availability?date=${selectedDate}`);
+          const avRes = await fetch(`${API_BASE}/api/booking/${slug}/availability?date=${selectedDate}`, { signal: controller.signal });
           if (avRes.ok) av = await avRes.json();
           else if (attempt === 0) await new Promise(r => setTimeout(r, 1200));
         } catch {
           if (attempt === 0) await new Promise(r => setTimeout(r, 1200));
         }
       }
+      if (cancelled) return;
       if (!av) {
         setSlots([]);
         setSelectedSlot(null);
         setAvailError(true);
         return;
       }
+      const hours = Object.hasOwn(av, 'hours') ? av.hours : effectiveHours(beautician.working_hours, selectedDate, dateHours);
+      if (!hours) { setSlots([]); setSelectedSlot(null); return; }
+      const [startH, startM] = hours.start.split(':').map(Number);
+      const [endH, endM] = hours.end.split(':').map(Number);
+      const startMin = startH * 60 + startM, endMin = endH * 60 + endM;
       appts = av.appointments || [];
       dayBlocks = av.blocks || [];
       dayClosed = av.closed === true;
@@ -794,6 +792,7 @@ export default function BookingPage() {
       setSelectedSlot(null);
     }
     loadSlots();
+    return () => { cancelled = true; controller.abort(); };
   }, [selectedDate, selectedTreatments, beautician, combinedDuration, availRetryNonce]);
   // --- Calendar helpers (Step 1 month grid) ---------------------------------
   // Build a YYYY-MM-DD from LOCAL date parts (never toISOString, which can shift
@@ -852,6 +851,7 @@ export default function BookingPage() {
         setMonthAppointments(data.appointments || []);
         setMonthClosures(data.closures || []);
         setMonthBlocks(data.blocks || []);
+        setDateHours(data.date_hours || []);
         setMonthDataFor(monthKey);
         setMonthError(false);
       } catch (err) {
@@ -927,7 +927,7 @@ export default function BookingPage() {
     // saying she is free on a day we have not looked at.
     if (calMonth && monthDataFor !== `${calMonth.getFullYear()}-${calMonth.getMonth()}`) return 'unknown';
     const dayKey = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][day.getDay()];
-    const hours = beautician?.working_hours?.[dayKey];
+    const hours = effectiveHours(beautician?.working_hours, isoLocal(day), dateHours);
     if (!hours || !hours.start || !hours.end) return 'off';
     const iso = isoLocal(day);
     if (closureSet.has(iso)) return 'closed';

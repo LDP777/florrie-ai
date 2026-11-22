@@ -1,3 +1,5 @@
+import { effectiveHours } from './effective-hours.js';
+import { loadDateHours } from './date-working-hours.js';
 import { supabase } from '../config.js';
 
 /**
@@ -17,7 +19,6 @@ import { supabase } from '../config.js';
  * answers from the same source of truth the booking page does.
  */
 
-const WALL_DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 
 // How far back to look for a closure that started before the window and is still
 // running. A year covers any real salon closure; anything longer is a data entry
@@ -100,7 +101,7 @@ export async function loadBlocks(beauticianId, fromWall, toWall, { requireComple
       }
     }
   }
-  return { closedDays, intervals };
+  return { closedDays, intervals, dateHours: await loadDateHours(beauticianId, from, to) };
 }
 
 /** The last day a block covers. Null/blank end_date, or one before the start, = a single day. */
@@ -139,10 +140,8 @@ export function hitsBlock(slotStart, slotEnd, blocks) {
   return blocks.intervals.some(b => slotStart < b.end && slotEnd > b.start);
 }
 
-export function wallDayHours(workingHours, wallDate) {
-  const k = WALL_DAYS[wallDate.getUTCDay()];
-  const h = workingHours?.[k] || workingHours?.[k[0].toUpperCase() + k.slice(1)];
-  return h && h.start && h.end ? h : null;
+export function wallDayHours(workingHours, wallDate, dateHours = []) {
+  return effectiveHours(workingHours, wallDate.toISOString().slice(0, 10), dateHours);
 }
 
 // Cancelled and no-show rows must never hold a slot hostage: the whole point of
@@ -248,7 +247,7 @@ export async function getFreeSlots(beauticianId, {
   const slots = [];
   while (cursor < scanEnd && slots.length < maxSlots) {
     const slotEnd = new Date(cursor.getTime() + durationMinutes * 60 * 1000);
-    const dh = wallDayHours(hours, cursor);
+    const dh = wallDayHours(hours, cursor, blocks.dateHours);
     if (dh) {
       const [sh, sm] = dh.start.split(':').map(Number);
       const [eh, em] = dh.end.split(':').map(Number);

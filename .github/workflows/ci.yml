@@ -110,6 +110,8 @@ jobs:
         working-directory: frontend
       - run: node scripts/check-calendar-block-edit.mjs
         working-directory: frontend
+      - run: node scripts/check-working-hours.mjs
+        working-directory: frontend
       - run: node --test src/pages/smart-schedule-model.test.mjs && node scripts/check-smart-schedule.mjs
         working-directory: frontend
       - run: node scripts/check-knowledge-training.mjs

@@ -16,6 +16,7 @@ function builder() {
     then(resolve, reject) { return Promise.resolve(settle()).then(resolve, reject); },
   }; return chain;
 }
+vi.mock('../../src/lib/date-working-hours.js', () => ({ loadDateHours: async () => [] }));
 vi.mock('../../src/config.js', () => ({ supabase: { from: table => {
   if (table !== 'hours_exceptions') throw new Error(`Block edit must not touch ${table}`);
   return builder();

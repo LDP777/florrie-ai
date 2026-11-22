@@ -1,3 +1,5 @@
+import { calendarHoursBounds } from '../lib/calendar-hours-bounds.js';
+import { readDateHours } from '../lib/working-hours.js';
 import { useClientPrivacy, PrivateSection } from '../contexts/ClientPrivacyContext.jsx';
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -72,12 +74,12 @@ function sameDay(a, b) { return localDateStr(a) === localDateStr(b); }
  * Greedy column layout for one day's appointments inside the week grid, so
  * overlapping bookings sit side by side instead of stacking on top of each other.
  */
-function layoutDay(appts) {
+function layoutDay(appts, startHour = START_HOUR) {
   const rects = appts
     .map(a => {
       const startMin = wallMinutes(a.starts_at);
       const endMin = Math.max(a.ends_at ? wallMinutes(a.ends_at) : startMin + 30, startMin + 15);
-      const top = ((startMin - START_HOUR * 60) / 60) * HOUR_HEIGHT;
+      const top = ((startMin - startHour * 60) / 60) * HOUR_HEIGHT;
       const height = Math.max(((endMin - startMin) / 60) * HOUR_HEIGHT, 20);
       return { a, top, height, bottom: top + height, col: 0, cols: 1 };
     })
@@ -119,6 +121,7 @@ export default function CalendarFull() {
     d.setHours(12, 0, 0, 0); return d;
   });
   const [appts, setAppts] = useState([]);
+  const [dateHours, setDateHours] = useState([]);
   const [blocks, setBlocks] = useState([]); // hours_exceptions: closed days + blocked hours
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -150,7 +153,7 @@ export default function CalendarFull() {
     try {
       const fromStr = localDateStr(range.from);
       const toStr = localDateStr(range.to);
-      const [diary, exceptions] = await Promise.allSettled([supabase
+      const [diary, exceptions, datedHours] = await Promise.allSettled([supabase
         .from('appointments')
         .select('*, clients(first_name, last_name), treatments(name, price_cents, color, sort_order)')
         .eq('beautician_id', beautician.id)
@@ -158,12 +161,15 @@ export default function CalendarFull() {
         .lte('starts_at', `${toStr}T23:59:59`)
         .order('starts_at').abortSignal(controller.signal),
         readAuthenticatedJson({ auth: supabase.auth, url: `${API_BASE}/api/hours-exceptions` }),
+        readDateHours(fromStr, toStr),
       ]);
       if (sequence !== loadSequence.current) return;
       if (diary.status === 'rejected') throw diary.reason;
       const { data, error } = diary.value;
       if (error) throw error;
       setAppts(data || []);
+      if (datedHours.status === 'fulfilled' && Array.isArray(datedHours.value.dates)) setDateHours(datedHours.value.dates);
+      else { setDateHours([]); setBlockError('Opening hours could not be checked. Try again.'); }
       if (exceptions.status === 'fulfilled' && Array.isArray(exceptions.value.exceptions)) {
         setBlocks(exceptions.value.exceptions.filter(b => b.date <= toStr && (b.end_date && b.end_date >= b.date ? b.end_date : b.date) >= fromStr));
       } else {
@@ -258,7 +264,7 @@ export default function CalendarFull() {
       </div>}
 
       {!loading && !loadError && (view === 'week'
-        ? <WeekGrid days={days} apptsOn={apptsOn} blocksOn={blocksOn} onPickDay={(d) => navigate(`/calendar/week?date=${localDateStr(d)}&view=day`)} onOpenAppt={(a) => navigate(`/calendar/week?date=${localDateStr(new Date(String(a.starts_at).slice(0, 10) + 'T12:00:00'))}&appt=${a.id}`)} />
+        ? <WeekGrid dateHours={dateHours} weekly={beautician?.working_hours} days={days} apptsOn={apptsOn} blocksOn={blocksOn} onPickDay={(d) => navigate(`/calendar/week?date=${localDateStr(d)}&view=day`)} onOpenAppt={(a) => navigate(`/calendar/week?date=${localDateStr(new Date(String(a.starts_at).slice(0, 10) + 'T12:00:00'))}&appt=${a.id}`)} />
         : <MonthGrid anchor={anchor} apptsOn={apptsOn} blocksOn={blocksOn} onPickDay={(d) => navigate(`/calendar/week?date=${localDateStr(d)}&view=day`)} />)}
 
       {syncOpen && <PrivateSection placeholder="Calendar connection details hidden"><SyncPanel onClose={() => setSyncOpen(false)} /></PrivateSection>}
@@ -267,8 +273,9 @@ export default function CalendarFull() {
 }
 
 /* ============================ WEEK GRID ============================ */
-function WeekGrid({ days, apptsOn, blocksOn = () => [], onPickDay, onOpenAppt = () => {} }) {
+function WeekGrid({ days, dateHours = [], weekly, apptsOn, blocksOn = () => [], onPickDay, onOpenAppt = () => {} }) {
   const { hidden } = useClientPrivacy();
+  const { start: START_HOUR, end: END_HOUR } = calendarHoursBounds(days.map(localDateStr), weekly, dateHours, days.flatMap(d => apptsOn(localDateStr(d))), 7, 21);
   const hours = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => START_HOUR + i);
   const gridHeight = (END_HOUR - START_HOUR) * HOUR_HEIGHT;
   const todayStr = todayLocal();
@@ -302,7 +309,7 @@ function WeekGrid({ days, apptsOn, blocksOn = () => [], onPickDay, onOpenAppt = 
           {/* day columns */}
           {days.map(d => {
             const ds = localDateStr(d);
-            const rects = layoutDay(apptsOn(ds));
+            const rects = layoutDay(apptsOn(ds), START_HOUR);
             return (
               <div key={ds} style={{ ...S.dayCol, height: gridHeight }}>
                 {hours.map((h, i) => (

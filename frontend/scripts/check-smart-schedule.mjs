@@ -21,7 +21,7 @@ export const supabase={auth:{getSession:async()=>({data:{session:{access_token:'
  const ownerId=filters.find(x=>x[0]==='eq'&&x[1]==='beautician_id')?.[2];
  window.fixture.queries.push({table,selected,filters,ownerId});
  const history=selected.includes('clients('),future=selected==='client_id,status';
- const data=table==='treatments'?[{id:'t1',name:'Fictional brows',duration_minutes:30,price_cents:3000,is_active:true}]:table==='hours_exceptions'?[{date:'2026-09-21',type:'amended',start_time:'12:00',end_time:'13:00'}]:history||future?[]:ownerId==='owner-b'?[{id:'b',starts_at:'2026-09-21T09:00:00Z',ends_at:'2026-09-21T17:00:00Z',status:'confirmed'}]:[{id:'a',starts_at:'2026-09-21T10:00:00Z',ends_at:'2026-09-21T11:00:00Z',duration_minutes:0,status:'confirmed'}];
+ const data=table==='date_working_hours'?[]:table==='treatments'?[{id:'t1',name:'Fictional brows',duration_minutes:30,price_cents:3000,is_active:true}]:table==='hours_exceptions'?[{date:'2026-09-21',type:'amended',start_time:'12:00',end_time:'13:00'}]:history||future?[]:ownerId==='owner-b'?[{id:'b',starts_at:'2026-09-21T09:00:00Z',ends_at:'2026-09-21T17:00:00Z',status:'confirmed'}]:[{id:'a',starts_at:'2026-09-21T10:00:00Z',ends_at:'2026-09-21T11:00:00Z',duration_minutes:0,status:'confirmed'}];
  const result={data,error:window.fixture.coreFail&&table==='hours_exceptions'?{message:'Synthetic blocked-time read failed'}:null};
  if(window.fixture.defer&&table==='appointments'&&!history&&!future)return new Promise(r=>window.fixture.waiters.push(()=>r(result))).then(resolve,reject);
  return Promise.resolve(result).then(resolve,reject);

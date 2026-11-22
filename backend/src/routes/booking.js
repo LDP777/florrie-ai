@@ -1,3 +1,5 @@
+import { loadDateHours, hoursForDate } from '../lib/date-working-hours.js';
+import { effectiveHours } from '../lib/effective-hours.js';
 import { readCancellationPaymentReceipt, collectedFeeText } from '../services/cancellation-payment-status.js';
 import { recordContentBooking } from '../services/content-booking-results.js';
 import { salonWallInstant } from '../lib/booking-preparation.js';
@@ -723,7 +725,7 @@ router.get('/:slug/availability', async (req, res) => {
   const { date } = req.query;
   const { data: salon } = await supabase
     .from('beauticians')
-    .select('id')
+    .select('id, working_hours')
     .eq('booking_slug', req.params.slug)
     .maybeSingle();
   if (!salon) return res.status(404).json({ error: 'not_found' });
@@ -781,7 +783,13 @@ router.get('/:slug/availability', async (req, res) => {
     }
   }
 
-  res.json({ appointments: appts || [], blocks, closed: dayClosed });
+  try {
+    const hours = await hoursForDate(salon.id, salon.working_hours, date);
+    res.json({ appointments: appts || [], blocks, closed: dayClosed, hours });
+  } catch (err) {
+    logger.error({ err }, 'availability: dated hours unavailable');
+    res.status(503).json({ error: 'Could not check opening hours. Please try again.' });
+  }
 });
 
 /**
@@ -859,11 +867,13 @@ router.get('/:slug/availability-range', async (req, res) => {
   }
   const closures = [...closureDays].sort();
 
-  res.json({
-    appointments: appts || [],
-    closures,
-    blocks,
-  });
+  try {
+    const date_hours = await loadDateHours(salon.id, from, to);
+    res.json({ appointments: appts || [], closures, blocks, date_hours });
+  } catch (err) {
+    logger.error({ err }, 'availability-range: dated hours unavailable');
+    res.status(503).json({ error: 'Could not check opening hours. Please try again.' });
+  }
 });
 
 /**
@@ -1787,7 +1797,7 @@ router.post('/:slug/manage/:token/change-treatment', async (req, res) => {
     if (hitsBlock(startD, endD, blocks)) {
       return res.status(409).json({ error: 'That treatment takes longer than the time left in that slot. Please pick a shorter one, or message me.' });
     }
-    const dh = wallDayHours(appt.beauticians.working_hours || {}, startD);
+    const dh = wallDayHours(appt.beauticians.working_hours || {}, startD, blocks.dateHours);
     if (dh) {
       const [eh, em] = dh.end.split(':').map(Number);
       const dayEnd = new Date(startD); dayEnd.setUTCHours(eh, em, 0, 0);
@@ -1983,7 +1993,7 @@ router.post('/:slug/manage/:token/add-treatment', async (req, res) => {
     if (hitsBlock(startD, endD, blocks)) {
       return res.status(409).json({ error: `There is not enough time left in that slot for ${treat.name} as well. Message me and we will find a time that fits both.` });
     }
-    const dh = wallDayHours(appt.beauticians.working_hours || {}, startD);
+    const dh = wallDayHours(appt.beauticians.working_hours || {}, startD, blocks.dateHours);
     if (dh) {
       const [eh, em] = dh.end.split(':').map(Number);
       const dayEnd = new Date(startD); dayEnd.setUTCHours(eh, em, 0, 0);
@@ -2186,7 +2196,7 @@ router.post('/:slug/manage/:token/reschedule', async (req, res) => {
       return res.status(409).json({ error: 'That time is not available. Please choose another time.' });
     }
 
-    const rsHours = wallDayHours(appt.beauticians?.working_hours || {}, wallStart);
+    const rsHours = wallDayHours(appt.beauticians?.working_hours || {}, wallStart, rsBlocks.dateHours);
     if (!rsHours) {
       return res.status(409).json({ error: 'We are closed that day. Please choose another date.' });
     }
@@ -2533,13 +2543,14 @@ router.get('/:slug/manage/:token/reschedule/slots', async (req, res) => {
     const seen = new Set();
 
     // Only days that ALREADY have a booking can host a back-to-back slot.
+    const dateHours = await loadDateHours(appt.beautician_id, fromStr, toStr);
     const candidateDays = Object.keys(byDay).sort();
     for (const dateStr of candidateDays) {
       if (closedDays.has(dateStr)) continue;
       if (dateStr < todayStr) continue;
 
       const dow = new Date(`${dateStr}T12:00:00Z`).getUTCDay();
-      const wh = workingHours ? workingHours[dayKeys[dow]] : { start: '09:00', end: '17:00' };
+      const wh = effectiveHours(workingHours || {}, dateStr, dateHours);
       if (!wh || !wh.start || !wh.end) continue; // day off
       const workStart = parseInt(wh.start.slice(0, 2), 10) * 60 + parseInt(wh.start.slice(3, 5), 10);
       const workEnd = parseInt(wh.end.slice(0, 2), 10) * 60 + parseInt(wh.end.slice(3, 5), 10);
@@ -2838,7 +2849,7 @@ router.get('/:slug/manage/:token/patch-test/slots', async (req, res) => {
     const MAX_SLOTS = 800;
     while (cursor <= scanEnd && slots.length < MAX_SLOTS) {
       const slotEnd = new Date(cursor.getTime() + ptDuration * 60 * 1000);
-      const dh = wallDayHours(workingHours, cursor);
+      const dh = wallDayHours(workingHours, cursor, blocks.dateHours);
       if (dh) {
         const [sh, sm] = dh.start.split(':').map(Number);
         const [eh, em] = dh.end.split(':').map(Number);
@@ -2940,7 +2951,7 @@ router.post('/:slug/manage/:token/patch-test/confirm', async (req, res) => {
       wed: { start: '09:00', end: '17:00' }, thu: { start: '09:00', end: '17:00' },
       fri: { start: '09:00', end: '17:00' }, sat: { start: '09:00', end: '17:00' },
     };
-    const dayHours = wallDayHours(workingHours, slotTime);
+    const dayHours = await hoursForDate(beautician.id, workingHours, slotTime.toISOString().slice(0, 10));
     if (!dayHours) return res.status(400).json({ error: 'The salon is closed that day. Please choose an available patch-test slot.' });
     const [startHour, startMin] = dayHours.start.split(':').map(Number);
     const [endHour, endMin] = dayHours.end.split(':').map(Number);
@@ -3751,12 +3762,18 @@ router.post('/:slug/book', requireBookingIdentity, validate(bookingSchema), veri
     return res.status(500).json({ error: 'Could not check availability just then. Nothing has been booked, please try again.' });
   }
 
-  if (beauticianHours?.working_hours) {
+  let bookingHours;
+  try { bookingHours = await hoursForDate(beautician.id, beauticianHours?.working_hours, startsAtCheck.toISOString().slice(0, 10)); }
+  catch (err) {
+    logger.error({ err }, 'book: dated hours unavailable');
+    return res.status(503).json({ error: 'Could not check opening hours. Please try again.' });
+  }
+  {
     // getUTCDay, not a locale conversion. startsAtCheck is a wall-time Date
     // whose UTC fields ARE the salon clock, so asking the runtime which day it
     // is in ITS zone is only right while that zone happens to be UTC.
     const dayKey = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][startsAtCheck.getUTCDay()];
-    const hours = beauticianHours.working_hours[dayKey];
+    const hours = bookingHours;
 
     if (!hours) {
       return res.status(400).json({ error: 'Not available on this day' });
@@ -3847,6 +3864,19 @@ router.post('/:slug/book', requireBookingIdentity, validate(bookingSchema), veri
 
   if (conflicts && conflicts.length > 0) {
     return res.status(409).json({ error: 'This time slot is no longer available' });
+  }
+
+  let finalHours;
+  try { finalHours = await hoursForDate(beautician.id, beauticianHours?.working_hours, String(starts_at).slice(0, 10)); }
+  catch (err) {
+    logger.error({ err }, 'book: could not recheck opening hours');
+    return res.status(503).json({ error: 'Could not check opening hours. Please try again.' });
+  }
+  const requestedMinutes = startsAtCheck.getUTCHours() * 60 + startsAtCheck.getUTCMinutes();
+  const closingMinutes = finalHours ? Number(finalHours.end.slice(0, 2)) * 60 + Number(finalHours.end.slice(3, 5)) : 0;
+  const openingMinutes = finalHours ? Number(finalHours.start.slice(0, 2)) * 60 + Number(finalHours.start.slice(3, 5)) : 0;
+  if (!finalHours || requestedMinutes < openingMinutes || requestedMinutes + totalMinutes > closingMinutes) {
+    return res.status(409).json({ error: 'That treatment does not fit within the opening hours. Please choose another time.' });
   }
 
   // Blocked-time guard: never accept a booking on a closed day or inside a

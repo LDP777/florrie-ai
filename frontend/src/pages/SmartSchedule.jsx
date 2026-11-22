@@ -185,13 +185,14 @@ export default function SmartSchedule() {
     historyStart.setDate(historyStart.getDate() - 180);
     let rows;
     try {
-      const [appointments, treatmentRows, exceptions] = await Promise.all([
+      const [appointments, treatmentRows, exceptions, dateHours] = await Promise.all([
         readRows(supabase.from('appointments').select('id,client_id,starts_at,ends_at,duration_minutes,buffer_minutes,extra_padding_minutes,status,treatment_id').eq('beautician_id', beautician.id).lt('starts_at', `${range.until}T00:00:00Z`).or(`ends_at.gt.${range.from}T00:00:00Z,starts_at.gte.${scheduleRange(previousDay).from}T00:00:00Z`).order('starts_at'), ac.signal),
         readRows(supabase.from('treatments').select('id,name,duration_minutes,buffer_minutes,price_cents,is_active').eq('beautician_id', beautician.id), ac.signal),
         readRows(supabase.from('hours_exceptions').select('*').eq('beautician_id', beautician.id).lt('date', range.until).or(`end_date.gte.${range.from},date.gte.${range.from}`), ac.signal),
+        readRows(supabase.from('date_working_hours').select('date,start_time,end_time').eq('beautician_id', beautician.id).gte('date', range.from).lt('date', range.until), ac.signal),
       ]);
       rows = treatmentRows;
-      const computed = computeSchedule({ appointments, treatments: treatmentRows, exceptions, workingHours: beautician.working_hours, now });
+      const computed = computeSchedule({ appointments, treatments: treatmentRows, exceptions, dateHours, workingHours: beautician.working_hours, now });
       if (!current()) return;
       setTreatments(treatmentRows); setSchedule(computed); setGaps(computed.gaps);
     } catch (error) {

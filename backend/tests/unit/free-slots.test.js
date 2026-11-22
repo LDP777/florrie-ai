@@ -23,7 +23,7 @@ vi.mock('../../src/config.js', () => {
     return b;
   };
   return {
-    supabase: { from: (table) => builder(table === 'appointments' ? appointments : exceptions) },
+    supabase: { from: (table) => builder(table === 'appointments' ? appointments : table === 'hours_exceptions' ? exceptions : []) },
   };
 });
 

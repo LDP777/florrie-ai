@@ -5,7 +5,7 @@ import Button from './ui/Button.jsx';
 
 export const SETTINGS_SECTIONS = [
   { key: 'profile', title: 'Business details', group: 'Your salon', icon: 'person', description: 'Your name, contact details, booking link and tax information.', keywords: 'address phone email slug timezone VAT' },
-  { key: 'hours', title: 'Opening hours', group: 'Your salon', icon: 'schedule', description: 'Your usual working week and time away.', keywords: 'holidays time off availability' },
+  { key: 'hours', title: 'Working hours', group: 'Your salon', icon: 'schedule', description: 'Usual week, extra hours and time off.', keywords: 'holidays time off availability' },
   { key: 'policy', title: 'Booking rules', group: 'Your salon', icon: 'event_note', description: 'Notice periods, cancellations and how clients book.', keywords: 'policy patch test buffer booking window deposits' },
   { key: 'payments', title: 'Payments', group: 'Your salon', icon: 'payments', description: 'Stripe, deposits, payment methods and bank details.', keywords: 'fees cash transfer balance card' },
   { key: 'connections', title: 'Connected apps', group: 'Messages & Florrie', icon: 'link', description: 'Connect or check Instagram, WhatsApp and SMS.', keywords: 'channels messaging meta social reconnect' },

@@ -88,7 +88,7 @@ const RELATIONS = {
 
 const db = {
   beauticians: [], treatments: [], clients: [], appointments: [],
-  hours_exceptions: [], transactions: [], patch_tests: [],
+  date_working_hours: [], hours_exceptions: [], transactions: [], patch_tests: [],
   consultation_responses: [], waitlist: [], notifications: [],
   outbound_sends: [], ai_actions: [],
 };
@@ -888,7 +888,7 @@ describe('manage, cancellation and rescheduling honour the agreed notice', () =>
     const offered = slots.body.slots.find(slot => new Date(`${slot}Z`) > new Date(Date.now() + 24 * 3600_000));
     expect(offered).toBeDefined();
     const moved = await run('post', '/:slug/manage/:token/reschedule', { params, body: { new_starts_at: offered } });
-    expect(moved.status).toBe(200);
+    expect(moved.status, JSON.stringify(moved.body)).toBe(200);
     expect(moved.body).toMatchObject({ success: true, isLateReschedule: false, chargePercent: 0, newDepositCollected: false });
     expect(db.appointments[0].starts_at).toBe(`${offered}.000Z`);
     expect(feeFixture.charges).toEqual([]);
@@ -969,7 +969,7 @@ describe('moving between calendar months',()=>{
     expect(out.body.month).toBe(month);expect(out.body.latestMonth).toBe(null);
     const slot=out.body.slots.find(s=>s.startsWith(day));expect(slot).toBeDefined();
     const moved=await run('post','/:slug/manage/:token/reschedule',{params:{slug:'ellindigo',token:TOKEN},body:{new_starts_at:slot}});
-    expect(moved.status).toBe(200);
+    expect(moved.status, JSON.stringify(moved.body)).toBe(200);
   });
   it('does not truncate later-month back-to-back choices after the first 12 slots',async()=>{
     seed({policy:{reschedule_between_only:true}});const day=openDay(45),month=day.slice(0,7);
@@ -981,5 +981,39 @@ describe('moving between calendar months',()=>{
     seed({policy:{max_advance_days:10}});
     expect((await monthly(openDay(70).slice(0,7))).body.code).toBe('month_outside_booking_window');
     expect((await monthly('2026-13')).body.code).toBe('invalid_month');
+  });
+});
+
+
+describe('date-specific opening hours stay consistent across public booking and rescheduling', () => {
+  it('shows the actual opening window on a normally closed day and accepts an offered move', async () => {
+    const { day } = seed({ workingHours: {}, policy: { reschedule_between_only: false } });
+    db.date_working_hours.push({ beautician_id: 'b1', date: day, start_time: '10:00', end_time: '20:00' });
+    const daily = await run('get', '/:slug/availability', { params: { slug: 'ellindigo' }, query: { date: day } });
+    expect(daily.status).toBe(200); expect(daily.body.hours).toEqual({ start: '10:00', end: '20:00' });
+    const monthly = await run('get', '/:slug/availability-range', { params: { slug: 'ellindigo' }, query: { from: day, to: day } });
+    expect(monthly.status).toBe(200); expect(monthly.body.date_hours).toHaveLength(1);
+    const offered = await getSlots();
+    expect(offered.status).toBe(200); expect(offered.body.slots).toContain(at(day, '19:00'));
+    expect(offered.body.slots).not.toContain(at(day, '19:15'));
+    const moved = await run('post', '/:slug/manage/:token/reschedule', {
+      params: { slug: 'ellindigo', token: TOKEN }, body: { new_starts_at: at(day, '19:00') },
+    });
+    expect(moved.status, JSON.stringify(moved.body)).toBe(200);
+    expect(db.appointments.find(a => a.id === APPT_ID).starts_at.slice(0,16)).toBe(at(day, '19:00').slice(0,16));
+  });
+  it('keeps the back-to-back rule while using the extra opening hours', async () => {
+    const { day } = seed({ workingHours: {}, policy: { reschedule_between_only: true } });
+    db.date_working_hours.push({ beautician_id: 'b1', date: day, start_time: '10:00', end_time: '20:00' });
+    otherBooking(day, '17:00', '18:00');
+    const offered = await getSlots();
+    expect(offered.body.slots).toContain(at(day, '18:00'));
+    expect(offered.body.slots).not.toContain(at(day, '19:00'));
+  });
+  it('fails visibly when opening hours cannot be verified', async () => {
+    seed(); failing.set('date_working_hours', { message: 'Synthetic outage' });
+    const day = openDay(7);
+    const out = await run('get', '/:slug/availability', { params: { slug: 'ellindigo' }, query: { date: day } });
+    expect(out.status).toBe(503); expect(out.body.hours).toBeUndefined();
   });
 });

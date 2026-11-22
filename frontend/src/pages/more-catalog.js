@@ -3,7 +3,7 @@ export const MORE_CATEGORIES = [
   { id: 'appointments', label: 'Appointments', desc: 'Plan your diary and close your day', matIcon: 'calendar_month', items: [
     { path: '/calendar/week',  label: 'Calendar',         matIcon: 'calendar_month',         desc: 'Your week and days'           },
     { path: '/waitlist-pro',   label: 'Waitlist',         matIcon: 'history',                desc: 'Manage waiting clients'       },
-    { path: '/hours',          label: 'Hours & time off', matIcon: 'beach_access',         desc: 'Manage holidays and closures'        , keywords: 'opening hours availability vacation' },
+    { path: '/hours',          label: 'Hours & time off', matIcon: 'beach_access',         desc: 'Usual week, extra hours and time off'        , keywords: 'opening hours availability vacation' },
     { path: '/cancellations', label: 'Cancellations',    matIcon: 'event_busy',  desc: 'No-shows and late cancels' },
     { path: '/end-of-day',     label: 'End of Day',       matIcon: 'nightlight',             desc: 'Cash-up and close'            },
     { path: '/notifications',  label: 'Notifications',    matIcon: 'notifications',          desc: 'Alerts and reminders'         },

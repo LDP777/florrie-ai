@@ -60,6 +60,8 @@ const ROWS = [
  * page should be checkable even when a fixture for one of its calls is missing.
  */
 const ROUTES = [
+  [/\/api\/working-hours(?:\?|$)/, () => ({ dates: [] })],
+  [/\/rest\/v1\/date_working_hours/, () => []],
   // The beautician profile does NOT come through /api — it is a direct
   // Supabase table read (lib/supabase.js:76, .maybeSingle()), so it hits
   // /rest/v1/beauticians and fell through to the empty fallback. That made the

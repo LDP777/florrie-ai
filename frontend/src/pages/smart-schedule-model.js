@@ -1,3 +1,4 @@
+import { effectiveHours } from '../../../backend/src/lib/effective-hours.js';
 import { localDateStr } from '../lib/dates.js';
 
 export const INACTIVE_APPOINTMENTS = ['cancelled', 'cancelled_by_client', 'cancelled_by_beautician', 'rescheduled', 'no_show'];
@@ -43,10 +44,10 @@ function subtract(windows, busy) {
 
 // The app stores salon wall-clock fields in timestamps; match Calendar/public
 // booking rather than shifting the stored clock by the browser's UTC offset.
-export function computeSchedule({ appointments = [], exceptions = [], treatments = [], workingHours, now = new Date() }) {
+export function computeSchedule({ appointments = [], exceptions = [], treatments = [], workingHours, dateHours = [], now = new Date() }) {
   const gaps = []; let workMinutes = 0, bookedMinutes = 0, blockedMinutes = 0;
   const activeTreatments = treatments.filter(t => t.is_active !== false);
-  const hasConfiguredHours = Object.values(workingHours || {}).some(h => h?.start && h?.end && h.enabled !== false && h.closed !== true);
+  const hasConfiguredHours = dateHours.length > 0 || Object.values(workingHours || {}).some(h => h?.start && h?.end && h.enabled !== false && h.closed !== true);
   const busyAppointments = appointments.filter(a => !INACTIVE_APPOINTMENTS.includes(a.status)).map(a => {
     const start = wallStamp(a.starts_at);
     const end = a.ends_at ? wallStamp(a.ends_at) : start + Number(a.duration_minutes) + Math.max(0, Number(a.buffer_minutes || 0)) + Math.max(0, Number(a.extra_padding_minutes || 0));
@@ -56,7 +57,7 @@ export function computeSchedule({ appointments = [], exceptions = [], treatments
   for (let i = 0; i < 7; i++) {
     const date = new Date(now); date.setDate(date.getDate() + i);
     const dateStr = localDateStr(date), key = dayKeys[date.getDay()];
-    const h = workingHours?.[key] || workingHours?.[key[0].toUpperCase() + key.slice(1)];
+    const h = effectiveHours(workingHours, dateStr, dateHours);
     if (!h || h.enabled === false || h.closed === true) continue;
     const start = minutes(h.start), end = minutes(h.end);
     if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) throw new Error('Check your saved working hours, then refresh Schedule.');

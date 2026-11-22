@@ -89,6 +89,7 @@ import notificationRoutes from './routes/notifications.js';
 import gcalRoutes from './routes/google-calendar.js';
 import featureRoutes from './routes/features.js';
 import hoursExceptionsRoutes from './routes/hours-exceptions.js';
+import workingHoursRoutes from './routes/working-hours.js';
 import exportsRoutes from './routes/exports.js';
 import promoCodesRoutes from './routes/promo-codes.js';
 import photoConsentRoutes from './routes/photo-consent.js';
@@ -361,6 +362,7 @@ app.use('/api/notifications', apiLimiter, notificationRoutes);
 app.use('/api/gcal', apiLimiter, gcalRoutes);
 app.use('/api/features', apiLimiter, featureRoutes);
 app.use('/api/hours-exceptions', apiLimiter, hoursExceptionsRoutes);
+app.use('/api/working-hours', apiLimiter, workingHoursRoutes);
 app.use('/api/exports', apiLimiter, exportsRoutes);
 // Promo codes: apply bookingLimiter to public routes specifically
 app.use('/api/promo-codes', (req, res, next) => {
