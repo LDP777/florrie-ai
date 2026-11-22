@@ -275,6 +275,17 @@ export function isAssumedTakingsRow(row) {
   return true;
 }
 
+// The salon can choose to record completed visits as paid. This is a
+// bookkeeping receipt, not evidence of a Stripe charge or a particular tender.
+export function isCompletionReceipt(row) {
+  return row?.type === 'payment' && ['completion_record', 'completion_unpaid'].includes(row.payment_method)
+    && !row.stripe_payment_intent_id && !row.stripe_charge_id;
+}
+
+export function isReplaceableTakingsRow(row) {
+  return isAssumedTakingsRow(row) || isCompletionReceipt(row);
+}
+
 /**
  * A price row that is EVIDENCE rather than a guess: it carries a Stripe payment
  * intent (the card really was charged) or a payment_method (she keyed in the
@@ -285,6 +296,7 @@ export function isAssumedTakingsRow(row) {
 export function isSettledPriceRow(row) {
   if (!row) return false;
   if (!PRICE_SETTLED_TYPES.includes(String(row.type || '').toLowerCase())) return false;
+  if (row.payment_method === 'completion_unpaid') return false;
   return !isAssumedTakingsRow(row);
 }
 
@@ -337,7 +349,7 @@ export function supersedeAssumedPlan(assumedRows, chargedCents) {
   const reduce = [];
   for (const row of (assumedRows || [])) {
     if (budget <= 0) break;
-    if (!isAssumedTakingsRow(row)) continue;
+    if (!isReplaceableTakingsRow(row)) continue;
     const amount = Math.max(0, Number(row.amount_cents) || 0);
     if (amount <= budget) {
       deleteIds.push(row.id);

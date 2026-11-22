@@ -70,3 +70,22 @@
 .money-received-summary > svg { color: var(--accent); flex-shrink: 0; }
 .money-income-period { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; color: var(--text-secondary); font-size: 11px; line-height: 1.5; }
 .money-income-period .fl-btn { flex-shrink: 0; }
+.money-diary-card h2 { margin-bottom: 12px; }
+.money-comparison { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin: 0 0 18px; font-size: 11px; line-height: 1.6; }
+.money-change { padding: 3px 8px; border-radius: 7px; font-weight: 700; font-variant-numeric: tabular-nums; background: var(--tone-1); color: var(--text-primary); }
+.money-change--up { background: var(--success-bg); color: var(--success); }
+.money-change--down { background: var(--danger-bg, #fff0ed); color: var(--danger); }
+.money-recent { margin: 22px 0; }
+.money-recent-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.money-recent-heading h3 { font: 600 18px var(--font-body); margin: 0; }
+.money-recent-heading button { border: 0; background: transparent; font: 600 12px var(--font-body); min-height: 44px; padding: 8px 0 8px 12px; color: var(--accent); cursor: pointer; }
+.money-recent-row { display: flex; align-items: center; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--border-light); }
+.money-recent-avatar { width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; flex-shrink: 0; background: var(--accent-light); color: var(--accent); }
+.money-recent-main { flex: 1; min-width: 0; display: grid; gap: 4px; }
+.money-recent-main > strong,.money-recent-client { font: 600 13px/1.45 var(--font-body); overflow-wrap: anywhere; color: var(--text-primary); }
+.money-recent-client { border: 0; background: transparent; text-align: left; padding: 0; cursor: pointer; min-height: 28px; }
+.money-recent-main > span,.money-recent-main time { font-size: 11px; color: var(--text-secondary); line-height: 1.45; }
+.money-recent-row > strong { font: 600 14px var(--font-body); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.money-recent-in { color: var(--success); }
+.money-recent-out { color: var(--danger); }
+.money-recent .money-review-link { margin-top: 16px; }

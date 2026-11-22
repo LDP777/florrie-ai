@@ -33,17 +33,26 @@ async function fixture(mode = 'ready', width = 390) {
   await context.addInitScript(sessionSeedSource(bundleSupabaseUrl(dist)));
   await context.addInitScript(({ diary, empty, mode }) => {
     const base = window.fetch;
-    const state = window.moneyMonth = { mode, writes: [], reads: 0 };
+    const state = window.moneyMonth = { mode, writes: [], reads: 0, fail: false };
     const rows = [
       { id:'nov-deposit', type:'deposit', status:'completed', amount_cents:7000, payment_method:'card_online', stripe_payment_intent_id:'pi_nov', created_at:'2026-11-18T12:00:00Z' },
       { id:'oct-work-paid-now', type:'payment', status:'completed', amount_cents:2000, payment_method:'cash', created_at:'2026-11-19T12:00:00Z', appointments:{ starts_at:'2026-10-05T10:00:00Z' } },
       { id:'oct-deposit', type:'deposit', status:'completed', amount_cents:4000, payment_method:'card_online', stripe_payment_intent_id:'pi_oct', created_at:'2026-10-01T12:00:00Z', appointments:{ starts_at:'2026-11-05T10:00:00Z' } },
-      { id:'unrecorded', appointment_id:'a', type:'payment', status:'completed', amount_cents:16000, created_at:'2026-11-05T12:00:00Z', appointments:{ starts_at:'2026-11-05T10:00:00Z' } },
+      { id:'unrecorded', appointment_id:'a', type:'payment', status:'completed', payment_method:'completion_record', amount_cents:16000, created_at:'2026-11-05T12:00:00Z', appointments:{ starts_at:'2026-11-05T10:00:00Z' } },
     ];
+    if(mode==='falling')rows.find(r=>r.id==='oct-deposit').amount_cents=40000;
     const json = (body, status = 200, count) => new Response(JSON.stringify(body), { status, headers: { 'content-type':'application/json', ...(count === undefined ? {} : { 'content-range': `*/${count}` }) } });
     window.fetch = async (input, options = {}) => {
       const path = new URL(String(input), location.href).pathname;
-      if (options.method && !['GET','HEAD'].includes(options.method)) { state.writes.push(path); return json({ error:'Unexpected write' }, 409); }
+      if (options.method && !['GET','HEAD'].includes(options.method)) {
+        state.writes.push(path);
+        if (path !== '/api/money/receipts/unrecorded/payment-status') return json({error:'Unexpected write'},409);
+        if (state.fail) return json({error:'Save not confirmed. Refresh your payments.'},503);
+        const body=JSON.parse(options.body), tx=rows.find(r=>r.id==='unrecorded');
+        if(body.expected_amount_cents!==tx.amount_cents)return json({error:'Payment changed'},409);
+        Object.assign(tx,{payment_method:body.paid?'completion_record':'completion_unpaid',status:body.paid?'completed':'pending'});
+        return json({transaction:tx});
+      }
       if (path.endsWith('/transactions')) return json(rows, 200, rows.length);
       if (path.endsWith('/expenses')) return json([], 200, 0);
       if (path === '/api/money/reports') {
@@ -52,74 +61,93 @@ async function fixture(mode = 'ready', width = 390) {
         if (state.mode === 'error') return json({ error:'Temporary failure' }, 503);
         return json({ appointments: state.mode === 'malformed' ? {} : state.mode === 'empty' ? empty : diary, revenue:{ this_month_cents:9000, change_pct:null }, rebooking_rate:{ pct:null }, no_show_rate:{ pct:null } });
       }
-      return base(input, options);
+      const result=await base(input, options);
+      if(path.endsWith('/beauticians')) { const owners=await result.json(); return json(Array.isArray(owners)?owners.map(o=>({...o,completion_receipts_enabled:true})):owners); }
+      return result;
     };
   }, { diary, empty, mode });
   const page = await context.newPage(), errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.clock.setFixedTime(now);
   await page.goto(baseUrl + '/money');
-  await page.getByRole('button', { name:'View recorded payments', exact:true }).waitFor();
+  await page.getByRole('button', { name:'View payments', exact:true }).waitFor();
   return { context, page, errors };
 }
 try {
-  for (const width of [320, 390, 430]) {
-    const { context, page, errors } = await fixture('ready', width);
-    const card = page.getByRole('region', { name:'Appointment value', exact:true });
-    await card.getByRole('heading', { name:'£750.00', exact:true }).waitFor();
-    assert.equal(await page.getByRole('button', { name:'This Month', exact:true }).getAttribute('aria-pressed'), 'true');
-    await card.getByText('£400.00', { exact:true }).waitFor();
-    await card.getByText('£350.00', { exact:true }).waitFor();
-    await page.getByRole('button', { name:'View recorded payments' }).getByText('£90.00', { exact:true }).waitFor();
-    assert.equal(await card.locator('details[open]').count(), 0);
-    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
-    if (output) await page.screenshot({ path:join(output, `month-${width}.png`) });
-    await page.getByRole('button', { name:'This Week', exact:true }).click();
-    await card.getByRole('heading', { name:'£200.00', exact:true }).waitFor();
-    await page.locator('.money-workspace').getByRole('button', { name:'Today', exact:true }).click();
-    await card.getByRole('heading', { name:'£0.00', exact:true }).waitFor();
-    await page.getByRole('button', { name:'This Month', exact:true }).click();
-    await page.getByRole('button', { name:'Hide client details', exact:true }).click();
-    assert.doesNotMatch(await page.locator('.money-workspace').innerText(), /£750|£400|£350|£90/);
-    await page.getByRole('button', { name:'Hide client details', exact:true }).click();
-    await page.getByRole('button', { name:'View recorded payments', exact:true }).click();
-    await page.getByRole('heading', { name:'Received', exact:true }).waitFor();
-    assert.equal(await page.locator('.money-payment-row').count(), 2, 'The month drill-down uses receipt dates, including payment for older work');
-    await page.getByRole('button', { name:'All dates', exact:true }).click();
-    await page.getByRole('button', { name:'All dates', exact:true }).waitFor({ state:'hidden' });
-    assert.equal(await page.locator('.money-payment-row').count(), 3);
-    await page.getByRole('button', { name:'Pulse', exact:true }).click();
-    await page.getByRole('button', { name:'Record cash & bank payments', exact:true }).click();
-    await page.getByRole('heading', { name:'To record', exact:true }).waitFor();
-    assert.equal(await page.locator('.money-payment-row').count(), 1);
-    await page.getByRole('button', { name:'Pulse', exact:true }).click();
-    await page.getByRole('button', { name:'Open appointments in calendar', exact:true }).click();
-    await page.waitForURL('**/calendar');
-    assert.deepEqual(await page.evaluate(() => moneyMonth.writes), []);
-    assert.deepEqual(errors, []);
-    await context.close();
-    console.log(`PASS monthly diary/payment separation, period drill-down, privacy and ${width}px layout`);
+  for (const width of [320,390,430]) {
+    const {context,page,errors}=await fixture('ready',width);
+    const card=page.getByRole('region',{name:'Money received',exact:true});
+    await card.getByRole('heading',{name:'£250.00',exact:true}).waitFor();
+    await card.getByText('↑ 525%',{exact:true}).waitFor();
+    await page.getByRole('button',{name:'View upcoming appointments'}).getByText('£350.00',{exact:true}).waitFor();
+    assert.equal(await card.locator('details[open]').count(),0);
+    assert.equal(await page.locator('.money-recent-row').count(),4);
+    assert.match(await page.locator('.money-recent-row').first().innerText(),/19 Nov 2026/);
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+    if(output)await page.screenshot({path:join(output,`month-${width}.png`)});
+    await page.getByRole('button',{name:'This Week',exact:true}).click();
+    await card.getByRole('heading',{name:'£90.00',exact:true}).waitFor();
+    await card.getByText('No previous total',{exact:true}).waitFor();
+    await page.locator('.money-workspace').getByRole('button',{name:'Today',exact:true}).click();
+    await card.getByRole('heading',{name:'£0.00',exact:true}).waitFor();
+    assert.equal(await page.locator('.money-recent-row').count(),4,'Latest payments do not disappear on days with no receipts');
+    await page.getByRole('button',{name:'See all',exact:true}).click();
+    await page.getByRole('heading',{name:'Received',exact:true}).waitFor();
+    assert.equal(await page.locator('.money-payment-row').count(),4,'See all includes all dates');
+    await page.getByRole('button',{name:'Pulse',exact:true}).click();
+    await page.getByRole('button',{name:'This Month',exact:true}).click();
+    await page.getByRole('button',{name:'Hide client details',exact:true}).click();
+    assert.doesNotMatch(await page.locator('.money-workspace').innerText(),/£250|£350|£90|525%/);
+    assert.match(await page.locator('.money-recent').innerText(),/Paid on completion/);
+    await page.getByRole('button',{name:'Hide client details',exact:true}).click();
+    await page.getByRole('button',{name:'View payments',exact:true}).click();
+    await page.getByRole('heading',{name:'Received',exact:true}).waitFor();
+    assert.equal(await page.locator('.money-payment-row').count(),3,'Month drill-down follows receipt dates');
+    const auto=page.locator('.money-payment-row').filter({hasText:'Paid on completion'});
+    assert.equal(await page.getByRole('button',{name:'Mark unpaid',exact:true}).count(),1,'Only bookkeeping receipts can be marked unpaid');
+    await auto.getByRole('button',{name:'Mark unpaid',exact:true}).click();
+    await page.evaluate(()=>moneyMonth.fail=true);
+    await auto.getByRole('group',{name:'Change payment status'}).getByRole('button',{name:'Mark unpaid',exact:true}).click();
+    await auto.getByRole('alert').waitFor();
+    await page.evaluate(()=>moneyMonth.fail=false);
+    await auto.getByRole('group',{name:'Change payment status'}).getByRole('button',{name:'Mark unpaid',exact:true}).click();
+    await page.getByRole('status').filter({hasText:'Marked unpaid'}).waitFor();
+    await page.getByLabel('Income records').selectOption('review');
+    await page.getByText('Unpaid',{exact:true}).waitFor();
+    await page.getByRole('button',{name:'Pulse',exact:true}).click();
+    await card.getByRole('heading',{name:'£90.00',exact:true}).waitFor();
+    await page.getByRole('button',{name:'Check unpaid payments',exact:true}).click();
+    await page.getByRole('button',{name:'Undo unpaid',exact:true}).click();
+    await page.getByRole('button',{name:'Restore payment',exact:true}).click();
+    await page.getByRole('status').filter({hasText:'Payment recorded'}).waitFor();
+    await page.getByRole('button',{name:'Tax',exact:true}).click();
+    await page.getByRole('region',{name:'Tax year figures'}).getByText('£290.00',{exact:true}).first().waitFor();
+    await page.getByText('Money received by month',{exact:true}).click();
+    await page.getByText('£250.00',{exact:true}).waitFor();
+    assert.deepEqual(await page.evaluate(()=>moneyMonth.writes),Array(3).fill('/api/money/receipts/unrecorded/payment-status'));
+    assert.deepEqual(errors,[]);
+    await context.close();console.log(`PASS ${width}px income, comparison, recent payments, privacy, unpaid/undo, retry and tax totals`);
   }
-  for (const mode of ['error', 'malformed']) {
-    const { context, page } = await fixture(mode);
-    await page.getByRole('alert').filter({ hasText:'Couldn’t load your diary totals.' }).waitFor();
-    await page.getByRole('button', { name:'View recorded payments' }).getByText('£90.00', { exact:true }).waitFor();
-    assert.equal(await page.getByRole('region', { name:'Appointment value' }).getByRole('heading').count(), 0);
-    await page.evaluate(() => { moneyMonth.mode = 'ready'; });
-    await page.getByRole('button', { name:'Retry diary totals', exact:true }).click();
-    await page.getByRole('heading', { name:'£750.00', exact:true }).waitFor();
-    assert.deepEqual(await page.evaluate(() => moneyMonth.writes), []);
-    await context.close(); console.log(`PASS ${mode} keeps receipts usable and diary unknown until retry succeeds`);
+  {
+    const {context,page}=await fixture('falling');
+    await page.locator('.money-change--down').getByText('↓ 37.5%',{exact:true}).waitFor();
+    assert.equal(await page.locator('.money-change--up').count(),0);
+    await context.close();console.log('PASS lower income uses a downward comparison');
   }
-  for (const mode of ['held', 'empty']) {
-    const { context, page } = await fixture(mode);
-    if (mode === 'held') {
-      await page.getByRole('status').filter({ hasText:'Checking your diary…' }).waitFor();
-      await page.waitForFunction(() => !!moneyMonth.release);
-      assert.equal(await page.getByRole('heading', { name:'£0.00', exact:true }).count(), 0);
-      await page.evaluate(() => moneyMonth.release());
-      await page.getByRole('heading', { name:'£750.00', exact:true }).waitFor();
-    } else await page.getByRole('heading', { name:'£0.00', exact:true }).waitFor();
-    await context.close(); console.log(`PASS ${mode} has an honest diary total`);
+  for(const mode of ['error','malformed','held','empty']) {
+    const {context,page}=await fixture(mode);
+    const card=page.getByRole('region',{name:'Money received',exact:true});
+    await card.getByRole('heading',{name:'£250.00',exact:true}).waitFor();
+    if(['error','malformed'].includes(mode)){
+      await page.getByRole('button',{name:'Retry upcoming appointments',exact:true}).waitFor();
+      await page.evaluate(()=>moneyMonth.mode='ready');
+      await page.getByRole('button',{name:'Retry upcoming appointments',exact:true}).click();
+    } else if(mode==='held') {
+      await page.getByRole('status').filter({hasText:'Checking upcoming appointments'}).waitFor();
+      await page.waitForFunction(()=>!!moneyMonth.release);await page.evaluate(()=>moneyMonth.release());
+    }
+    await page.getByRole('button',{name:'View upcoming appointments',exact:true}).waitFor();
+    assert.deepEqual(await page.evaluate(()=>moneyMonth.writes),[]);
+    await context.close();console.log(`PASS ${mode} diary keeps money usable`);
   }
-} finally { await browser.close(); server.close(); }
+} finally {await browser.close();server.close();}

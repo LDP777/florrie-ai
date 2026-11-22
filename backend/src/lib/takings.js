@@ -1,7 +1,7 @@
 import * as Sentry from '@sentry/node';
 import { supabase } from '../config.js';
 import { getTaxYear } from './time-utils.js';
-import { PRICE_SETTLED_TYPES, completionTakingsCents, isAssumedTakingsRow, supersedeAssumedPlan } from './money-guards.js';
+import { PRICE_SETTLED_TYPES, completionTakingsCents, isReplaceableTakingsRow, supersedeAssumedPlan } from './money-guards.js';
 import logger from './logger.js';
 
 /**
@@ -112,7 +112,7 @@ export async function supersedeAssumedTakings(appointmentId, chargedCents) {
   // to worry about", which is the one wrong answer.
   const { data: rows, error } = await supabase
     .from('transactions')
-    .select('id, type, amount_cents, payment_method, stripe_payment_intent_id')
+    .select('id, type, amount_cents, payment_method, stripe_payment_intent_id, stripe_charge_id')
     .eq('appointment_id', appointmentId)
     .in('type', PRICE_SETTLED_TYPES)
     .order('created_at', { ascending: true });
@@ -127,7 +127,7 @@ export async function supersedeAssumedTakings(appointmentId, chargedCents) {
     return { superseded: 0, reason: 'read_failed' };
   }
 
-  const assumed = (rows || []).filter(isAssumedTakingsRow);
+  const assumed = (rows || []).filter(isReplaceableTakingsRow);
   if (!assumed.length) return { superseded: 0, reason: 'no_assumed_row' };
 
   const plan = supersedeAssumedPlan(assumed, charged);

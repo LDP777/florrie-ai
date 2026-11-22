@@ -1,11 +1,12 @@
 import Button from '../components/ui/Button.jsx';
 import { MoneyTax } from '../components/MoneyTax.jsx';
-import { parseMoneyInput } from '../lib/money-view.js';
+import { parseMoneyInput, latestPayments } from '../lib/money-view.js';
 import { moneyApi, saveMoneyEntry, boundedMoneyRequest } from '../lib/money-requests.js';
 import { readAllMoney } from '../../../backend/src/lib/read-all-money.js';
 import { moneyDate, moneyTotals, reconcileTransactions, reportingYear, reportingBounds, shiftDate, periodWindow, sumMoney, taxReport } from '../../../backend/src/lib/money-reporting.js';
 import MoneyPayments from '../components/MoneyPayments.jsx';
 import MoneyDiaryOverview from '../components/MoneyDiaryOverview.jsx';
+import MoneyRecentPayments from '../components/MoneyRecentPayments.jsx';
 import { PrivateAmount, PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import MoreLoadError from '../components/MoreLoadError.jsx';
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -91,6 +92,8 @@ export function isAssumedPayment(tx) {
 
 /** What actually happened to this money, in her words rather than the schema's. */
 function paymentStory(tx) {
+  if (tx?.payment_method === 'completion_record') return 'Paid on completion';
+  if (tx?.payment_method === 'completion_unpaid') return 'Unpaid';
   if (tx?.reporting_status === 'duplicate') return 'Duplicate record · excluded from totals';
   if (tx?.reporting_status === 'review') return 'Conflicting payment records · excluded pending review';
   if (tx?.reporting_status === 'excluded') return `${tx?.status || 'Unverified'} · excluded from totals`;
@@ -876,7 +879,8 @@ export default function MoneyTracker() {
     return {
       income: current.income_cents, expenses: current.expenses_cents, profit: current.profit_cents,
       completed: current.transaction_count,
-      changePct: previous.income_cents > 0 ? Math.round((current.income_cents - previous.income_cents) / previous.income_cents * 100) : null,
+      changePct: previous.income_cents > 0 ? Math.round((current.income_cents - previous.income_cents) / previous.income_cents * 1000) / 10 : null,
+      changeCents: current.income_cents - previous.income_cents,
       compareLabel: period === 'today' ? 'yesterday' : period === 'week' ? 'last week through the same day' : 'the same dates last month',
       treatments: sumMoney(received.filter(t => !['tip', 'product_sale'].includes(t.type))),
       products: sumMoney(received.filter(t => t.type === 'product_sale')),
@@ -902,10 +906,10 @@ export default function MoneyTracker() {
     };
   }, [periodStats]);
 
-  const recentTx = useMemo(() => {
-    const window = periodWindow(period, moneyDate(new Date(), timezone));
-    return transactions.filter(t => t.reporting_status === 'received' && moneyDate(t.created_at, timezone) >= window.start && moneyDate(t.created_at, timezone) <= window.end).slice(0, 5);
-  }, [transactions, period, timezone]);
+  const recentTx = useMemo(() => latestPayments(transactions), [transactions]);
+  function openAllIncome(filter = 'received') {
+    setIncomeRange(null); setIncomeFilter(filter); setIncomeVisible(100); setTab('income');
+  }
 
   function openPeriodIncome(filter = 'received') {
     const window = periodWindow(period, moneyDate(new Date(), timezone));
@@ -969,13 +973,12 @@ export default function MoneyTracker() {
                 ))}
               </div>
 
-              <MoneyDiaryOverview summary={reports?.appointments?.periods?.[period]} loading={reportsLoading}
+              <MoneyDiaryOverview summary={reports?.appointments?.periods?.[period]} stats={periodStats}
+                automatic={beautician.completion_receipts_enabled} loading={reportsLoading} onPayments={() => openPeriodIncome()}
                 onRetry={() => setReportsAttempt(n => n + 1)} onCalendar={date => navigate('/calendar', { state: { date } })} />
-              <button className="money-received-summary" onClick={() => openPeriodIncome()} aria-label="View recorded payments">
-                <span>Payments recorded</span><strong><PrivateAmount>{fmt(periodStats?.income || 0)}</PrivateAmount></strong><Icon name="chevron-right" size={16}/>
-              </button>
+              <MoneyRecentPayments payments={recentTx} timezone={timezone} onAll={() => openAllIncome()}
+                onReview={() => openAllIncome('review')} needsReview={reconciliation.assumed_count + reconciliation.review_count > 0 || transactions.some(t => t.reporting_status === 'unpaid')}/>
 
-              {(reconciliation.assumed_count + reconciliation.review_count > 0) && <button className="money-review-link" onClick={() => openPeriodIncome('review')}><Icon name="receipt" size={17}/><span>Record cash &amp; bank payments</span><Icon name="chevron-right" size={16}/></button>}
               <div className="money-quick-actions"><Button variant="quiet" size="sm" onClick={() => setShowLogTip(value => !value)}>+ log tip</Button><Button variant="quiet" size="sm" onClick={() => setShowLogSale(value => !value)}>+ log sale</Button></div>
               {/* ─── Quick Log Tip ─── */}
               {showLogTip && (
@@ -1034,90 +1037,6 @@ export default function MoneyTracker() {
                   </div>
                 </section>
               )}
-
-              {/* ─── Quick Stats ─── */}
-              <section style={S.quickStats}>
-                <div style={S.qStat}>
-                  <span style={S.qStatValue}>{periodStats?.completed ?? 0}</span>
-                  <span style={S.qStatLabel}>Receipts</span>
-                </div>
-                <div style={{ width: 1, height: 28, background: 'rgba(146, 64, 94, 0.1)' }} />
-                <div style={S.qStat}>
-                  <span style={S.qStatValue}><PrivateAmount>{fmt(periodStats?.expenses || 0)}</PrivateAmount></span>
-                  <span style={S.qStatLabel}>Expenses</span>
-                </div>
-                <div style={{ width: 1, height: 28, background: 'rgba(146, 64, 94, 0.1)' }} />
-                <div style={S.qStat}>
-                  <span style={{ ...S.qStatValue,
-                    color: (periodStats?.profit ?? 0) >= 0 ? 'var(--success)' : 'var(--danger)',
-                  }}><PrivateAmount>{fmt(periodStats?.profit || 0)}</PrivateAmount></span>
-                  <span style={S.qStatLabel}>After costs</span>
-                </div>
-              </section>
-
-              {/* ─── Recent Transactions ─── */}
-              <section>
-                <div style={S.sectionHeader}>
-                  <h3 style={S.sectionHeading}>Recent payments</h3>
-                  <button onClick={() => openPeriodIncome()} style={S.seeAll}>See All</button>
-                </div>
-                {recentTx.length === 0 ? (
-                  <EmptyState message="No recorded payments in this period" icon="wallet" />
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {recentTx.map(tx => {
-                      const isTipOrSale = tx.type === 'tip' || tx.type === 'product_sale';
-                      const name = isTipOrSale ? (tx.description || (tx.type === 'tip' ? 'Tip' : 'Product Sale')) : (tx.appointments?.clients?.first_name || 'Payment');
-                      const treatment = isTipOrSale ? '' : (tx.appointments?.treatments?.name || '');
-                      const initial = isTipOrSale ? (tx.type === 'tip' ? 'heart' : 'shopping-bag') : name.charAt(0).toUpperCase();
-                      const time = new Date(tx.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-                      const isIncome = tx.amount_cents >= 0;
-                      // Same split as the Income tab: an assumption must never
-                      // sit in this list looking exactly like money that landed.
-                      const assumed = isAssumedPayment(tx);
-                      const clientId = tx.appointments?.client_id;
-                      const apptDate = tx.appointments?.starts_at?.slice(0, 10);
-                      return (
-                        <div key={tx.id} style={S.txRow}>
-                          <div style={{ ...S.txAvatar,
-                            ...(tx.type === 'tip' ? { background: 'linear-gradient(135deg, #d4f5e0 0%, #a3e4b8 100%)' } :
-                                tx.type === 'product_sale' ? { background: 'linear-gradient(135deg, #fedb9b 0%, #f5c563 100%)' } : {}),
-                          }}><PrivateText placeholder="•">{initial}</PrivateText></div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
-                              {clientId ? (
-                                <button className="fl-tap"
-                                  onClick={() => navigate('/clients', { state: { clientId } })}
-                                  style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit', fontWeight: 'inherit', color: 'inherit', textDecoration: 'underline', textDecorationColor: 'rgba(146,64,94,0.25)', textUnderlineOffset: 2 }}
-                                >
-                                  <PrivateText placeholder="Client">{name}</PrivateText>
-                                </button>
-                              ) : <PrivateText placeholder="Client">{name}</PrivateText>}
-                            </p>
-                            <p style={{ fontSize: 11, color: assumed ? '#8A5A22' : 'var(--text-muted)', margin: 0 }}>
-                              {treatment}{treatment ? ' · ' : ''}
-                              {apptDate ? (
-                                <button className="fl-tap"
-                                  onClick={() => navigate('/calendar', { state: { date: apptDate } })}
-                                  style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit', color: 'var(--accent, #92405e)', fontWeight: 600 }}
-                                >
-                                  {time}
-                                </button>
-                              ) : time}
-                              {assumed ? ' · Assumed, not confirmed' : ''}
-                            </p>
-                          </div>
-                          <span style={{ fontSize: 14, fontWeight: 700,
-                            color: assumed ? '#8A5A22' : isIncome ? 'var(--success)' : 'var(--danger)',
-                          }}>
-                            <PrivateAmount>{fmt(tx.amount_cents)}</PrivateAmount>
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </section>
 
               <details className="money-details"><summary>Trends &amp; breakdowns<Icon name="chevron-down" size={16}/></summary>
           {reports && (
@@ -1906,7 +1825,8 @@ export default function MoneyTracker() {
         onFilter={value => { setIncomeFilter(value); setIncomeVisible(100); }} visible={incomeVisible} onMore={() => setIncomeVisible(n => n + 100)}
         today={moneyDate(new Date(), timezone)}
         onSave={(id, body) => apiFetch(`/api/money/receipts/${id}/confirm`, { method: 'POST', body: JSON.stringify(body) })}
-        onRecorded={row => { setTransactions(prev => reconcileTransactions(prev.map(t => t.id === row.id ? { ...t, ...row } : t).sort((a,b) => String(b.created_at).localeCompare(String(a.created_at))))); setLedgerRevision(n => n + 1); setNotice('Receipt recorded. Your totals are up to date.'); }} />}
+        onPaymentStatus={(id, body) => apiFetch(`/api/money/receipts/${id}/payment-status`, { method: 'POST', body: JSON.stringify(body) })}
+        onRecorded={row => { setTransactions(prev => reconcileTransactions(prev.map(t => t.id === row.id ? { ...t, ...row } : t).sort((a,b) => String(b.created_at).localeCompare(String(a.created_at))))); setLedgerRevision(n => n + 1); setReportsAttempt(n => n + 1); setNotice(row.payment_method === 'completion_unpaid' ? 'Marked unpaid. Removed from your income.' : 'Payment recorded. Your totals are up to date.'); }} />}
 
       {tab === 'tax' && <MoneyTax report={tax} years={taxYears} exporting={exporting} onYear={setTaxYear} onExport={handleExportLedgerCSV} onSettings={() => navigate('/settings?section=profile')} onReview={() => { setIncomeRange(null); setIncomeFilter('review'); setIncomeVisible(100); setTab('income'); }} />}
 

@@ -12,6 +12,8 @@ const methods = { cash: 'Cash', bank_transfer: 'Bank transfer', card_terminal: '
 const shortDate = date => date ? new Date(`${date.slice(0, 10)}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
 
 export function paymentLabel(tx) {
+  if (tx.reporting_status === 'unpaid') return 'Unpaid';
+  if (tx.reporting_status === 'received' && tx.payment_method === 'completion_record') return 'Paid on completion';
   if (tx.reporting_status === 'assumed') return 'Receipt not recorded';
   if (tx.reporting_status === 'review') return 'Check payment records';
   if (tx.reporting_status === 'duplicate') return 'Duplicate · not counted';
@@ -19,7 +21,7 @@ export function paymentLabel(tx) {
   return [labels[tx.type] || 'Payment', methods[tx.payment_method] || (tx.stripe_payment_intent_id ? 'Card' : null)].filter(Boolean).join(' · ');
 }
 
-export default function MoneyPayments({ transactions, filter, onFilter, visible, onMore, today, onSave, onRecorded, range, timezone = 'Europe/London', onClearRange }) {
+export default function MoneyPayments({ transactions, filter, onFilter, visible, onMore, today, onSave, onPaymentStatus, onRecorded, range, timezone = 'Europe/London', onClearRange }) {
   const { hidden } = useClientPrivacy();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
@@ -28,6 +30,7 @@ export default function MoneyPayments({ transactions, filter, onFilter, visible,
   const [date, setDate] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [changing, setChanging] = useState(null);
   const saving = useRef(false), active = useRef(true);
   useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
   const inRange = transactions.filter(t => {
@@ -35,10 +38,22 @@ export default function MoneyPayments({ transactions, filter, onFilter, visible,
     const day = t.reporting_status === 'assumed' && t.appointments?.starts_at ? t.appointments.starts_at.slice(0, 10) : moneyDate(t.created_at, timezone);
     return day >= range.start && day <= range.end;
   });
-  const needsRecording = inRange.filter(t => ['assumed', 'review'].includes(t.reporting_status));
-  const shown = inRange.filter(t => filter === 'review' ? ['assumed', 'review'].includes(t.reporting_status) : filter === 'all' || t.reporting_status === 'received')
+  const needsRecording = inRange.filter(t => ['assumed', 'review', 'unpaid'].includes(t.reporting_status));
+  const shown = inRange.filter(t => filter === 'review' ? ['assumed', 'review', 'unpaid'].includes(t.reporting_status) : filter === 'all' || t.reporting_status === 'received')
     .filter(t => !search || hidden || [t.appointments?.clients?.first_name, t.appointments?.clients?.last_name, t.appointments?.treatments?.name, t.description, shortDate(t.created_at)].join(' ').toLowerCase().includes(search.toLowerCase()));
   function open(tx) { setSelected(tx.id); setMethod(''); setDate(''); setError(''); }
+  async function changePaid(tx) {
+    if (saving.current || hidden) return;
+    saving.current = true; setBusy(true); setError('');
+    try {
+      const paid = tx.payment_method === 'completion_unpaid';
+      const result = await onPaymentStatus(tx.id, { paid, expected_amount_cents: tx.amount_cents });
+      if (result.transaction?.id !== tx.id || result.transaction.payment_method !== (paid ? 'completion_record' : 'completion_unpaid')) throw new Error('Save not confirmed. Refresh your records.');
+      if (!active.current) return;
+      onRecorded(result.transaction); setChanging(null);
+    } catch (e) { if (active.current) setError(e.message || 'Could not update this payment.'); }
+    finally { saving.current = false; if (active.current) setBusy(false); }
+  }
   async function save(tx, event) {
     event.preventDefault();
     if (saving.current || hidden) return;
@@ -53,13 +68,13 @@ export default function MoneyPayments({ transactions, filter, onFilter, visible,
   }
   return <section className="money-payments" aria-label="Income payments">
     <div className="money-income-toolbar">
-      <h2>{filter === 'review' ? 'To record' : filter === 'all' ? 'All records' : 'Received'}</h2>
+      <h2>{filter === 'review' ? 'Unpaid & to check' : filter === 'all' ? 'All records' : 'Received'}</h2>
       <select aria-label="Income records" value={filter} onChange={e => onFilter(e.target.value)}>
-        <option value="received">Received</option><option value="review">To record ({needsRecording.length})</option><option value="all">All records</option>
+        <option value="received">Received</option><option value="review">Unpaid &amp; to check ({needsRecording.length})</option><option value="all">All records</option>
       </select>
     </div>
     {range && <div className="money-income-period"><span>{range.label} · {shortDate(range.start)} to {shortDate(range.end)}</span><Button variant="quiet" size="sm" onClick={onClearRange}>All dates</Button></div>}
-    {filter === 'review' ? <p className="money-helper">Check how you were paid, then add the receipt. These amounts are not counted as received.</p> : filter === 'all' ? <p className="money-helper">Includes failed and duplicate records. Only received payments count in your totals.</p> : needsRecording.length > 0 && <button className="money-review-link" onClick={() => onFilter('review')}><Icon name="receipt" size={17}/><span>Record cash &amp; bank payments</span><Icon name="chevron-right" size={16}/></button>}
+    {filter === 'review' ? <p className="money-helper">These payments are not counted in your income.</p> : filter === 'all' ? <p className="money-helper">Includes failed and duplicate records. Only received payments count in your totals.</p> : needsRecording.length > 0 && <button className="money-review-link" onClick={() => onFilter('review')}><Icon name="receipt" size={17}/><span>Check unpaid payments</span><Icon name="chevron-right" size={16}/></button>}
     <PrivateText placeholder="Search hidden"><label className="money-search"><Icon name="search" size={17}/><input aria-label="Search payments" placeholder="Find a client or date" value={search} onChange={e => setSearch(e.target.value)}/></label></PrivateText>
     {!shown.length && <p className="money-empty">{search ? 'No matching payments.' : filter === 'review' ? 'No payments waiting to be recorded.' : 'No received payments recorded yet.'}</p>}
     <div className="money-payment-list">{shown.slice(0, visible).map(tx => {
@@ -69,6 +84,10 @@ export default function MoneyPayments({ transactions, filter, onFilter, visible,
       return <article key={tx.id} className="money-payment-row" data-payment-status={tx.reporting_status}>
         <div className="money-payment-top"><div><h3><PrivateText placeholder="Client">{name}</PrivateText></h3><p>{shortDate(tx.created_at)}{tx.appointments?.treatments?.name && <> · <PrivateText>{tx.appointments.treatments.name}</PrivateText></>}</p></div><strong><PrivateAmount>{formatMoney(tx.amount_cents)}</PrivateAmount></strong></div>
         <div className="money-payment-status"><span>{paymentLabel(tx)}</span>{assumed && tx.appointment_id && selected !== tx.id && <Button variant="quiet" size="sm" disabled={hidden || busy} onClick={() => open(tx)}>Record payment</Button>}</div>
+        {onPaymentStatus && ['completion_record','completion_unpaid'].includes(tx.payment_method) && !tx.stripe_payment_intent_id && <>
+          {changing !== tx.id ? <Button variant="quiet" size="sm" disabled={hidden || busy} onClick={() => { setChanging(tx.id); setSelected(null); setError(''); }}>{tx.payment_method === 'completion_unpaid' ? 'Undo unpaid' : 'Mark unpaid'}</Button>
+            : !hidden && <div className="money-receipt-form" role="group" aria-label="Change payment status"><p>{tx.payment_method === 'completion_unpaid' ? 'Restore this balance to income for the appointment date?' : 'Remove this balance from income? Any deposit already paid will stay recorded.'}</p><p>No card charge or refund is made.</p>{error && <p role="alert">{error}</p>}<div className="money-receipt-actions"><Button disabled={busy} onClick={() => changePaid(tx)}>{busy ? 'Saving…' : tx.payment_method === 'completion_unpaid' ? 'Restore payment' : 'Mark unpaid'}</Button><Button variant="quiet" disabled={busy} onClick={() => setChanging(null)}>Keep as it is</Button></div></div>}
+        </>}
         {selected === tx.id && !hidden && <form className="money-receipt-form" aria-label="Record a payment" onSubmit={e => save(tx, e)}>
           <h4>Record {formatMoney(tx.amount_cents)} received</h4>
           <p>Adds a receipt. No money is taken from the client.</p>

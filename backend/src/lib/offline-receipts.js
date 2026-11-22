@@ -23,3 +23,18 @@ export async function recordOfflineReceipt(db, owner, transactionId, body) {
   if (error || data?.id !== transactionId || data?.beautician_id !== owner) return { status: 503, error: 'Save not confirmed. Refresh your payments before trying again.' };
   return { status: 200, transaction: data };
 }
+
+const completionReceiptSchema = z.object({ paid: z.boolean(), expected_amount_cents: z.number().int().positive().max(100000000) }).strict();
+export async function setCompletionReceiptPaid(db, owner, transactionId, body) {
+  const parsed = completionReceiptSchema.safeParse(body);
+  if (!parsed.success || !z.string().uuid().safeParse(transactionId).success) return { status: 400, error: 'Choose a valid payment record.' };
+  const { data, error } = await db.rpc('set_completion_receipt_paid', {
+    p_owner: owner, p_transaction: transactionId, p_paid: parsed.data.paid, p_expected_cents: parsed.data.expected_amount_cents,
+  });
+  if (error?.code === 'P0002') return { status: 404, error: 'Payment record not found.' };
+  if (error?.code === 'P0001') return { status: 409, error: 'This payment has changed. Refresh your records before editing it.' };
+  if (error || data?.id !== transactionId || data?.beautician_id !== owner || data?.payment_method !== (parsed.data.paid ? 'completion_record' : 'completion_unpaid')) {
+    return { status: 503, error: 'Save not confirmed. Refresh your payments before trying again.' };
+  }
+  return { status: 200, transaction: data };
+}

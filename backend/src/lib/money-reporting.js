@@ -33,6 +33,9 @@ export function reconcileTransactions(input = [], now = new Date()) {
   const rows = input.map(r => ({ ...r, reporting_status: 'excluded' }));
   const positiveIntents = new Map();
   for (const row of rows) {
+    if (row.payment_method === 'completion_unpaid' && row.status === 'pending' && !row.stripe_payment_intent_id) {
+      row.reporting_status = 'unpaid'; continue;
+    }
     if (row.status !== 'completed' || !INCOME_TYPES.includes(row.type) || !Number.isSafeInteger(Number(row.amount_cents)) || !row.created_at || new Date(row.created_at) > now) continue;
     if (isAssumedTakingsRow(row)) { row.reporting_status = 'assumed'; continue; }
     row.reporting_status = 'received';

@@ -72,7 +72,7 @@ try {
     if(output)await page.screenshot({path:join(output,`income-${width}.png`)});
   }
   await page.setViewportSize({width:390,height:844});
-  await page.getByRole('button',{name:'Record cash & bank payments'}).click();
+  await page.getByRole('button',{name:'Check unpaid payments'}).click();
   await page.getByRole('button',{name:'Record payment',exact:true}).click();
   const form=page.getByRole('form',{name:'Record a payment'});
   assert.equal(await form.getByRole('button',{name:'Record receipt',exact:true}).isDisabled(),true);
@@ -94,12 +94,12 @@ try {
   await form.getByRole('alert').filter({hasText:'Save not confirmed'}).waitFor();
   assert.equal((await page.evaluate(()=>receiptFixture.writes)).length,2,'Double click sends one request');
   await form.getByRole('button',{name:'Record receipt',exact:true}).click();
-  await page.getByRole('status').filter({hasText:'Receipt recorded'}).waitFor();
+  await page.getByRole('status').filter({hasText:'Payment recorded'}).waitFor();
   assert.equal(await page.getByRole('button',{name:'Record payment',exact:true}).count(),0);
   await page.getByLabel('Income records').selectOption('received');
   assert.equal(await page.locator('.money-payment-row').count(),2);
   await page.getByRole('button',{name:'Pulse',exact:true}).click();
-  await page.getByRole('button',{name:'View recorded payments',exact:true}).getByText('£30.00',{exact:true}).waitFor();
+  await page.getByRole('region',{name:'Money received',exact:true}).getByRole('heading',{name:'£30.00',exact:true}).waitFor();
   await page.getByRole('heading',{name:'£30.00',exact:true}).waitFor();
   await page.getByText('Trends & breakdowns',{exact:true}).click();
   await page.getByText('Your numbers',{exact:true}).locator('..').getByText('£30.00',{exact:true}).waitFor();

@@ -1,7 +1,14 @@
 import Button from './ui/Button.jsx';
 import Icon from './ui/Icon.jsx';
-import { PrivateAmount } from '../contexts/ClientPrivacyContext.jsx';
+import { PrivateAmount, PrivateText } from '../contexts/ClientPrivacyContext.jsx';
 import { formatMoney } from '../lib/money-view.js';
+
+function MoneyComparison({ stats }) {
+  if (!stats) return null;
+  const direction = stats.changeCents > 0 ? 'up' : stats.changeCents < 0 ? 'down' : 'flat';
+  const change = stats.changePct === null ? 'No previous total' : stats.changeCents === 0 ? 'No change' : `${direction === 'up' ? '↑' : '↓'} ${Math.abs(stats.changePct) < 0.1 ? '<0.1' : Math.abs(stats.changePct)}%`;
+  return <PrivateText placeholder="Comparison hidden"><div className="money-comparison" aria-label="Income comparison"><span className={`money-change money-change--${stats.changePct === null ? 'flat' : direction}`}>{change}</span><span>vs {stats.compareLabel}</span></div></PrivateText>;
+}
 
 export function validDiarySummary(value) {
   if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value.start || '') || !/^\d{4}-\d{2}-\d{2}$/.test(value.end || '')) return false;
@@ -11,18 +18,21 @@ export function validDiarySummary(value) {
   return value.total_cents === null || (value.completed_cents !== null && value.remaining_cents !== null && value.total_cents === value.completed_cents + value.remaining_cents);
 }
 
-export default function MoneyDiaryOverview({ summary, loading, onRetry, onCalendar }) {
-  if (loading) return <section className="money-diary-loading" aria-label="Appointment value"><p role="status">Checking your diary…</p></section>;
-  if (!validDiarySummary(summary)) return <section className="money-diary-loading" aria-label="Appointment value"><p role="alert">Couldn’t load your diary totals.</p><Button variant="quiet" onClick={onRetry}>Retry diary totals</Button></section>;
+export default function MoneyDiaryOverview({ summary, stats, automatic, loading, onRetry, onCalendar, onPayments }) {
+  const diaryReady = validDiarySummary(summary);
   const amount = value => value === null ? <span className="money-diary-unknown">Needs review</span> : <PrivateAmount>{formatMoney(value)}</PrivateAmount>;
-  return <section className="money-diary-card" aria-label="Appointment value">
-    <div className="money-diary-top"><span>Booked value</span><button onClick={() => onCalendar(summary.start)} aria-label="Open appointments in calendar"><Icon name="calendar" size={19}/></button></div>
-    <h2>{amount(summary.total_cents)}</h2>
-    <div className="money-diary-split">
-      <div><span>Completed · {summary.completed_count}</span><strong>{amount(summary.completed_cents)}</strong></div>
-      <div><span>Still booked · {summary.remaining_count}</span><strong>{amount(summary.remaining_cents)}</strong></div>
-    </div>
-    {(summary.missing_price_count > 0 || summary.status_review_count > 0) && <button className="money-diary-review" onClick={() => onCalendar(summary.start)}>Check {summary.missing_price_count > 0 ? 'missing prices' : 'appointment statuses'}<Icon name="chevron-right" size={15}/></button>}
-    <details><summary>How this adds up<Icon name="chevron-down" size={14}/></summary><p>Appointment prices include add-ons and discounts. Deposits and prepaid sessions are already included. Cancelled appointments and no-shows are excluded.</p></details>
-  </section>;
+  return <>
+    <section className="money-diary-card" aria-label="Money received">
+      <div className="money-diary-top"><span>Money received</span><button onClick={onPayments} aria-label="View payments"><Icon name="receipt" size={19}/></button></div>
+      <h2>{amount(stats?.income ?? 0)}</h2>
+      <MoneyComparison stats={stats}/>
+      <div className="money-diary-split">
+        <div><span>Expenses</span><strong>{amount(stats?.expenses ?? 0)}</strong></div>
+        <div><span>After costs</span><strong>{amount(stats?.profit ?? 0)}</strong></div>
+      </div>
+      <details><summary>How this adds up<Icon name="chevron-down" size={14}/></summary><p>{automatic ? 'Completed visits count as paid. Mark any unpaid balance in Income. Deposits count once, refunds come off, and future visits are not included. This does not charge a card.' : 'Recorded card, cash and bank payments, less refunds. Future appointments are not included.'}</p></details>
+    </section>
+    {diaryReady ? <button className="money-received-summary" onClick={() => onCalendar(summary.start)} aria-label="View upcoming appointments"><span>Still booked · {summary.remaining_count}</span><strong>{amount(summary.remaining_cents)}</strong><Icon name="chevron-right" size={16}/></button>
+      : loading ? <p className="money-helper" role="status">Checking upcoming appointments…</p> : <Button variant="quiet" size="sm" onClick={onRetry}>Retry upcoming appointments</Button>}
+  </>;
 }

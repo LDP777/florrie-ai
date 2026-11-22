@@ -9,7 +9,7 @@ import { supabase } from '../config.js';
 import { nowInSalonWall } from '../lib/free-slots.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireOwned } from '../lib/ownership.js';
-import { recordOfflineReceipt } from '../lib/offline-receipts.js';
+import { recordOfflineReceipt, setCompletionReceiptPaid } from '../lib/offline-receipts.js';
 import Anthropic from '@anthropic-ai/sdk';
 import logger from '../lib/logger.js';
 import { expenseSchema } from '../lib/schemas.js';
@@ -29,6 +29,16 @@ import {
 
 const router = Router();
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+router.post('/receipts/:id/payment-status', requireAuth, async (req, res) => {
+  try {
+    const { status, ...body } = await setCompletionReceiptPaid(supabase, req.beautician.id, req.params.id, req.body);
+    return res.status(status).json(body);
+  } catch (err) {
+    logger.error({ err }, 'Payment status save not confirmed');
+    return res.status(503).json({ error: 'Save not confirmed. Refresh your payments before trying again.' });
+  }
+});
 
 // Recording an existing cash/transfer receipt never contacts a payment provider.
 router.post('/receipts/:id/confirm', requireAuth, async (req, res) => {
