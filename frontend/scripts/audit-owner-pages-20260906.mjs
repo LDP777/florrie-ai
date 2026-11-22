@@ -47,7 +47,8 @@ try {
       };
     }, mode);
     const page = await ctx.newPage();
-    await page.goto(`http://127.0.0.1:${server.address().port}/${mode}${mode === 'inbox' ? '?client=audit-client' : ''}`);
+    const query = mode === 'inbox' ? '?client=audit-client' : mode === 'hours' ? '?tab=off' : '';
+    await page.goto(`http://127.0.0.1:${server.address().port}/${mode}${query}`);
     if (mode === 'aftercare') {
       await page.getByRole('button', { name: '+ New Care Card', exact: true }).click();
       await page.getByPlaceholder('e.g. Lash Lift & Tint').fill('Audit care card');
@@ -83,13 +84,17 @@ try {
       assert.equal(await page.getByRole('tab', { name: 'Me', exact: true }).getAttribute('aria-selected'), 'true');
       console.log('PASS: Inbox takeover stays unchanged after rejected write and confirms retry');
     } else {
-      const day = new Date(); day.setDate(day.getDate() + 2);
+      const today = new Date();
+      const day = new Date(today); day.setDate(day.getDate() + 2);
       const dayKey = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+      if (day.getMonth() !== today.getMonth()) {
+        await page.getByRole('button', { name: 'Next month', exact: true }).click();
+      }
       await page.getByRole('button', { name: dayKey, exact: true }).click();
-      await page.getByPlaceholder('Note (optional - e.g. Tenerife ☀️)').fill('Audit holiday');
+      await page.getByRole('textbox', { name: 'Private note', exact: true }).fill('Audit holiday');
       await page.getByRole('button', { name: 'Block this day', exact: true }).click();
       await page.getByRole('alert').filter({ hasText: 'Could not save this change' }).waitFor();
-      assert.equal(await page.getByPlaceholder('Note (optional - e.g. Tenerife ☀️)').inputValue(), 'Audit holiday');
+      assert.equal(await page.getByRole('textbox', { name: 'Private note', exact: true }).inputValue(), 'Audit holiday');
       await page.getByText('Coming up (0)', { exact: true }).waitFor();
       await page.evaluate(() => { window.__allowWrite = true; });
       await page.getByRole('button', { name: 'Block this day', exact: true }).click();
@@ -107,7 +112,7 @@ try {
     await ctx.close();
   }
   for (const [route, table, message] of [
-    ['/hours', 'hours_exceptions', 'Could not load your availability.'],
+    ['/hours?tab=off', 'hours_exceptions', 'Could not load your availability.'],
     ['/aftercare', 'aftercare_cards', 'Could not load your care cards.'],
   ]) {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
