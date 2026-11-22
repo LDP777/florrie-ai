@@ -5,6 +5,7 @@ import Icon from './ui/Icon.jsx';
 import CancellationPayments from './CancellationPayment.jsx';
 import { PrivateAmount, PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import { formatMoney } from '../lib/money-view.js';
+import { moneyDate } from '../../../backend/src/lib/money-reporting.js';
 
 const labels = { deposit: 'Deposit', full_payment: 'Paid in full', payment_link: 'Payment link', no_show_fee: 'No-show fee', late_cancel_fee: 'Cancellation fee', tip: 'Tip', product_sale: 'Product sale', refund: 'Refund', payment: 'Payment' };
 const methods = { cash: 'Cash', bank_transfer: 'Bank transfer', card_terminal: 'Card machine', card_online: 'Card', tap_to_pay: 'Tap to Pay' };
@@ -18,7 +19,7 @@ export function paymentLabel(tx) {
   return [labels[tx.type] || 'Payment', methods[tx.payment_method] || (tx.stripe_payment_intent_id ? 'Card' : null)].filter(Boolean).join(' · ');
 }
 
-export default function MoneyPayments({ transactions, filter, onFilter, visible, onMore, today, onSave, onRecorded }) {
+export default function MoneyPayments({ transactions, filter, onFilter, visible, onMore, today, onSave, onRecorded, range, timezone = 'Europe/London', onClearRange }) {
   const { hidden } = useClientPrivacy();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
@@ -29,8 +30,13 @@ export default function MoneyPayments({ transactions, filter, onFilter, visible,
   const [busy, setBusy] = useState(false);
   const saving = useRef(false), active = useRef(true);
   useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
-  const needsRecording = transactions.filter(t => ['assumed', 'review'].includes(t.reporting_status));
-  const shown = transactions.filter(t => filter === 'review' ? ['assumed', 'review'].includes(t.reporting_status) : filter === 'all' || t.reporting_status === 'received')
+  const inRange = transactions.filter(t => {
+    if (!range) return true;
+    const day = t.reporting_status === 'assumed' && t.appointments?.starts_at ? t.appointments.starts_at.slice(0, 10) : moneyDate(t.created_at, timezone);
+    return day >= range.start && day <= range.end;
+  });
+  const needsRecording = inRange.filter(t => ['assumed', 'review'].includes(t.reporting_status));
+  const shown = inRange.filter(t => filter === 'review' ? ['assumed', 'review'].includes(t.reporting_status) : filter === 'all' || t.reporting_status === 'received')
     .filter(t => !search || hidden || [t.appointments?.clients?.first_name, t.appointments?.clients?.last_name, t.appointments?.treatments?.name, t.description, shortDate(t.created_at)].join(' ').toLowerCase().includes(search.toLowerCase()));
   function open(tx) { setSelected(tx.id); setMethod(''); setDate(''); setError(''); }
   async function save(tx, event) {
@@ -52,6 +58,7 @@ export default function MoneyPayments({ transactions, filter, onFilter, visible,
         <option value="received">Received</option><option value="review">To record ({needsRecording.length})</option><option value="all">All records</option>
       </select>
     </div>
+    {range && <div className="money-income-period"><span>{range.label} · {shortDate(range.start)} to {shortDate(range.end)}</span><Button variant="quiet" size="sm" onClick={onClearRange}>All dates</Button></div>}
     {filter === 'review' ? <p className="money-helper">Check how you were paid, then add the receipt. These amounts are not counted as received.</p> : filter === 'all' ? <p className="money-helper">Includes failed and duplicate records. Only received payments count in your totals.</p> : needsRecording.length > 0 && <button className="money-review-link" onClick={() => onFilter('review')}><Icon name="receipt" size={17}/><span>Record cash &amp; bank payments</span><Icon name="chevron-right" size={16}/></button>}
     <PrivateText placeholder="Search hidden"><label className="money-search"><Icon name="search" size={17}/><input aria-label="Search payments" placeholder="Find a client or date" value={search} onChange={e => setSearch(e.target.value)}/></label></PrivateText>
     {!shown.length && <p className="money-empty">{search ? 'No matching payments.' : filter === 'review' ? 'No payments waiting to be recorded.' : 'No received payments recorded yet.'}</p>}

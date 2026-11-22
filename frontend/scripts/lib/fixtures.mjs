@@ -1,5 +1,6 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { appointmentMoneyReport } from '../../../backend/src/lib/appointment-money.js';
 /**
  * Plausible API responses, so a screen can be checked in the state Ellie sees.
  *
@@ -214,6 +215,7 @@ const ROUTES = [
   // ever answered. The Pulse tab reads reports.revenue.this_month_cents
   // unguarded, so the wrong envelope was an ErrorBoundary, not a blank card.
   [/\/api\/money\/reports/, () => ({
+    appointments: appointmentMoneyReport(APPOINTMENTS, { now: NOW }),
     revenue: { this_month_cents: 1000960, last_month_cents: 812400, change_pct: 23 },
     rebooking_rate: { pct: 68, completed: 25, rebooked: 17 },
     no_show_rate: { pct: 4, total: 25, no_shows: 1 },

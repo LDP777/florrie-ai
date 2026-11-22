@@ -5,6 +5,7 @@ import { join, extname } from 'node:path';
 import http from 'node:http';
 import { launch } from './lib/browser.mjs';
 import { fetchStubSource, sessionSeedSource, bundleSupabaseUrl } from './lib/fixtures.mjs';
+import { appointmentMoneyReport } from '../../backend/src/lib/appointment-money.js';
 const dist = new URL('../dist', import.meta.url).pathname;
 const output = process.env.VISUAL_OUTPUT_DIR;
 if (output) mkdirSync(output, { recursive: true });
@@ -21,7 +22,7 @@ try {
   await context.route('**/*',route => new URL(route.request().url()).hostname === '127.0.0.1' ? route.continue() : route.abort());
   await context.addInitScript(fetchStubSource());
   await context.addInitScript(sessionSeedSource(bundleSupabaseUrl(dist)));
-  await context.addInitScript(() => {
+  await context.addInitScript(diary => {
     const base=window.fetch;
     const rows=[
       { id:'00000000-0000-4000-8000-000000000004',beautician_id:'b1',appointment_id:'a1',type:'payment',status:'completed',payment_method:null,amount_cents:2400,created_at:'2026-11-18T11:00:00Z',appointments:{starts_at:'2026-11-18T10:00:00Z',clients:{first_name:'Fictional',last_name:'Client'},treatments:{name:'Brows'}} },
@@ -46,10 +47,10 @@ try {
         if(s.lose){s.lose=false;return json({error:'Save not confirmed. Check your records.'},503);}
         return json({transaction:rows[0]});
       }
-      if(u.pathname==='/api/money/reports')return json({revenue:{this_month_cents:s.confirmed?3000:600,change_pct:null},rebooking_rate:{pct:null},no_show_rate:{pct:null}});
+      if(u.pathname==='/api/money/reports')return json({appointments:diary,revenue:{this_month_cents:s.confirmed?3000:600,change_pct:null},rebooking_rate:{pct:null},no_show_rate:{pct:null}});
       return base(input,options);
     };
-  });
+  }, appointmentMoneyReport([{ id:'a1',starts_at:'2026-11-18T10:00:00Z',status:'completed',price_cents:3000 }], { now: new Date('2026-11-18T21:00:00Z') }));
   const page=await context.newPage();
   page.setDefaultTimeout(15000);
   await page.clock.setFixedTime(new Date('2026-11-18T21:00:00Z'));
@@ -98,9 +99,10 @@ try {
   await page.getByLabel('Income records').selectOption('received');
   assert.equal(await page.locator('.money-payment-row').count(),2);
   await page.getByRole('button',{name:'Pulse',exact:true}).click();
+  await page.getByRole('button',{name:'View recorded payments',exact:true}).getByText('£30.00',{exact:true}).waitFor();
   await page.getByRole('heading',{name:'£30.00',exact:true}).waitFor();
   await page.getByText('Trends & breakdowns',{exact:true}).click();
-  await page.getByText('Your numbers',{exact:true}).locator('..').getByText('£30',{exact:true}).waitFor();
+  await page.getByText('Your numbers',{exact:true}).locator('..').getByText('£30.00',{exact:true}).waitFor();
   await page.getByText('Trends & breakdowns',{exact:true}).click();
   await page.getByRole('button',{name:'Pulse',exact:true}).getAttribute('aria-pressed').then(value=>assert.equal(value,'true'));
   await page.waitForTimeout(250);

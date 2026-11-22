@@ -507,6 +507,26 @@ describe('GET /api/money/reports in British Summer Time', () => {
 
 describe('Money API totals agree on complete owner-scoped records', () => {
   beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date('2026-11-17T12:00:00Z')); });
+  it('reports appointment value separately from payments, across every page and only for this salon', async () => {
+    for (let i = 0; i < 1100; i++) db.appointments.push({ id: `booking-${i}`, beautician_id: B, starts_at: '2026-11-10T10:00:00Z', status: 'completed', price_cents: 100 });
+    db.appointments.push(
+      { id: 'later', beautician_id: B, starts_at: '2026-11-30T10:00:00Z', status: 'confirmed', price_cents: 3500 },
+      { id: 'cancelled', beautician_id: B, starts_at: '2026-11-18T10:00:00Z', status: 'cancelled', price_cents: 9999 },
+      { id: 'other-owner', beautician_id: 'other', starts_at: '2026-11-10T10:00:00Z', status: 'completed', price_cents: 999999 },
+    );
+    db.transactions.push({ id: 'deposit', beautician_id: B, type: 'deposit', status: 'completed', payment_method: 'card_online', stripe_payment_intent_id: 'pi_one', amount_cents: 700, created_at: '2026-11-01T10:00:00Z' });
+    const out = await run(moneyRouter, 'get', '/reports');
+    expect(out.status).toBe(200);
+    expect(out.body.appointments.periods.month).toMatchObject({ total_cents: 113500, completed_cents: 110000, remaining_cents: 3500, completed_count: 1100, remaining_count: 1 });
+    expect(out.body.revenue.this_month_cents).toBe(700);
+    expect(db.transactions).toHaveLength(1);
+  });
+  it('does not return a zero diary when the appointment query fails', async () => {
+    failing.set('appointments', { message: 'Unavailable' });
+    const out = await run(moneyRouter, 'get', '/reports');
+    expect(out.status).toBe(500);
+    expect(out.body.appointments).toBeUndefined();
+  });
   it('reconciles >1000 receipts consistently in Tax, Ledger and year-to-date', async () => {
     for (let i = 0; i < 1200; i++) db.transactions.push({ id: `receipt-${i}`, beautician_id: B, type: 'deposit', status: 'completed', payment_method: 'card_online', stripe_payment_intent_id: `pi_${i}`, amount_cents: 100, created_at: '2026-08-01T12:00:00Z' });
     db.transactions.push(

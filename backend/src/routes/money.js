@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { readAllMoney } from '../lib/read-all-money.js';
 import { loadMoneyRecords } from '../lib/money-records.js';
 import { moneyDate, moneyTotals, periodWindow, taxReport, reportingYear } from '../lib/money-reporting.js';
+import { appointmentMoneyReport } from '../lib/appointment-money.js';
 import { INCOME_TYPES } from '../lib/money-guards.js';
 import { z } from 'zod';
 import { supabase } from '../config.js';
@@ -440,7 +441,7 @@ router.get('/reports', requireAuth, async (req, res) => {
     // Same two clocks as /pulse. The month boundaries are salon-calendar
     // boundaries: worked out on her clock, then expressed as real instants for
     // transactions.created_at and left in the wall frame for starts_at.
-    const nowWall = nowInSalonWall(SALON_TZ);
+    const nowWall = nowInSalonWall(req.beautician.timezone || SALON_TZ);
 
     const ninetyAgoWall = new Date(nowWall.getTime() - 90 * 24 * 60 * 60 * 1000);
 
@@ -452,7 +453,7 @@ router.get('/reports', requireAuth, async (req, res) => {
     const changePct = lastMonth > 0 ? Math.round(((thisMonth - lastMonth) / lastMonth) * 100) : null;
     const tx = records.transactions.filter(t => t.reporting_status === 'received');
     const appts = await readAllMoney(() => supabase.from('appointments')
-      .select('id, client_id, starts_at, status', { count: 'exact' })
+      .select('id, client_id, starts_at, status, price_cents, discount_cents, discount_meta, appointment_add_ons(price_cents)', { count: 'exact' })
       .eq('beautician_id', req.beautician.id).gte('starts_at', ninetyAgoWall.toISOString()).order('id'));
 
     const all = appts || [];
@@ -486,9 +487,9 @@ router.get('/reports', requireAuth, async (req, res) => {
     } else if (completed.length >= 5 && rebookingRate != null && rebookingRate < 50) {
       insight = `Only ${rebookingRate}% of clients rebook. A quick nudge after each visit could lift that.`;
     } else if (changePct != null && changePct >= 5) {
-      insight = `You are up ${changePct}% against the same dates last month.`;
+      insight = `Recorded payments are up ${changePct}% against the same dates last month.`;
     } else if (changePct != null && changePct <= -5) {
-      insight = `You are down ${Math.abs(changePct)}% against the same dates last month.`;
+      insight = `Recorded payments are down ${Math.abs(changePct)}% against the same dates last month.`;
     } else if ((tx || []).length === 0 && all.length === 0) {
       insight = `Once you have logged a few appointments, Florrie will spot patterns here.`;
     } else {
@@ -496,6 +497,7 @@ router.get('/reports', requireAuth, async (req, res) => {
     }
 
     res.json({
+      appointments: appointmentMoneyReport(all, { now: records.now, timezone }),
       revenue: { this_month_cents: thisMonth, last_month_cents: lastMonth, change_pct: changePct },
       rebooking_rate: { pct: rebookingRate, completed: completed.length, rebooked },
       no_show_rate: { pct: noShowRate, total: terminal.length, no_shows: noShows },

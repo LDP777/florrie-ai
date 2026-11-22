@@ -5,6 +5,7 @@ import { moneyApi, saveMoneyEntry, boundedMoneyRequest } from '../lib/money-requ
 import { readAllMoney } from '../../../backend/src/lib/read-all-money.js';
 import { moneyDate, moneyTotals, reconcileTransactions, reportingYear, reportingBounds, shiftDate, periodWindow, sumMoney, taxReport } from '../../../backend/src/lib/money-reporting.js';
 import MoneyPayments from '../components/MoneyPayments.jsx';
+import MoneyDiaryOverview from '../components/MoneyDiaryOverview.jsx';
 import { PrivateAmount, PrivateText, useClientPrivacy } from '../contexts/ClientPrivacyContext.jsx';
 import MoreLoadError from '../components/MoreLoadError.jsx';
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -222,6 +223,8 @@ export default function MoneyTracker() {
   const [incomeVisible, setIncomeVisible] = useState(100);
   const timezone = beautician?.timezone || 'Europe/London';
   const [reports, setReports] = useState(null);
+  const [reportsLoading, setReportsLoading] = useState(true);
+  const [reportsAttempt, setReportsAttempt] = useState(0);
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = ['pulse', 'expenses', 'ledger', 'income', 'tax'].includes(searchParams.get('tab')) ? searchParams.get('tab') : 'pulse';
   const setTab = value => setSearchParams(p => { p.set('tab', value); return p; });
@@ -230,12 +233,13 @@ export default function MoneyTracker() {
   const [savingEntry, setSavingEntry] = useState(null);
   const entryIds = useRef({}), saveLock = useRef(false);
   const [incomeFilter, setIncomeFilter] = useState('received');
+  const [incomeRange, setIncomeRange] = useState(null);
   const [ledgerRevision, setLedgerRevision] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [scanning, setScanning] = useState(false);
-  const [period, setPeriod] = useState('week');
+  const [period, setPeriod] = useState('month');
 
   // The ledger and regular costs come from the API. Local totals use the
   // same reporting functions as that API and the accountant export.
@@ -382,11 +386,13 @@ export default function MoneyTracker() {
     if (!beautician || loading) return;
     let cancelled = false;
     setReports(null);
+    setReportsLoading(true);
     apiFetch('/api/money/reports')
       .then(data => { if (!cancelled) setReports(data); })
-      .catch(() => { /* the local totals remain available */ });
+      .catch(() => { /* A failed diary read leaves recorded receipts usable. */ })
+      .finally(() => { if (!cancelled) setReportsLoading(false); });
     return () => { cancelled = true; };
-  }, [beautician?.id, loading, transactions]);
+  }, [beautician?.id, loading, transactions, reportsAttempt]);
 
   // Year to date and the regular costs load alongside the page rather than
   // blocking it: if either fails the rest of the Money page still works, which
@@ -896,15 +902,21 @@ export default function MoneyTracker() {
     };
   }, [periodStats]);
 
-  const recentTx = useMemo(() => transactions.filter(t => t.reporting_status === 'received').slice(0, 5), [transactions]);
+  const recentTx = useMemo(() => {
+    const window = periodWindow(period, moneyDate(new Date(), timezone));
+    return transactions.filter(t => t.reporting_status === 'received' && moneyDate(t.created_at, timezone) >= window.start && moneyDate(t.created_at, timezone) <= window.end).slice(0, 5);
+  }, [transactions, period, timezone]);
+
+  function openPeriodIncome(filter = 'received') {
+    const window = periodWindow(period, moneyDate(new Date(), timezone));
+    setIncomeRange({ start: window.start, end: window.end, label: { today: 'Today', week: 'This week', month: 'This month' }[period] });
+    setIncomeFilter(filter); setIncomeVisible(100); setTab('income');
+  }
 
   const reconciliation = useMemo(() => moneyTotals({ transactions, timezone }), [transactions, timezone]);
 
   if (bLoading || loading) return <PageLoader />;
   if (error) return <MoreLoadError title="Money" message={error} onRetry={loadData} />;
-
-  const changePct = periodStats?.changePct;
-  const changeArrow = changePct != null ? (changePct >= 0 ? '↑' : '↓') : '';
 
   return (
     <div className="money-workspace" style={S.page}>
@@ -946,6 +958,7 @@ export default function MoneyTracker() {
                 {['today', 'week', 'month'].map(p => (
                   <button
                     key={p}
+                    aria-pressed={period === p}
                     onClick={() => setPeriod(p)}
                     style={{ ...S.periodBtn,
                       ...(period === p ? S.periodBtnActive : {}),
@@ -956,32 +969,13 @@ export default function MoneyTracker() {
                 ))}
               </div>
 
-              {/* ─── Hero Revenue Card ─── */}
-              <section style={S.heroCard}>
-                <div style={S.heroDecor} />
-                <div style={{ position: 'relative', zIndex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                    <Icon name={iconName('payments')} size={16} filled inline style={{ color: 'rgba(255,255,255,0.8)' }} />
-                    <span style={S.heroLabel}>
-                      Money received
-                    </span>
-                  </div>
-                  <h2 style={S.heroValue}><PrivateAmount>{fmt(periodStats?.income || 0)}</PrivateAmount></h2>
-                  {changePct != null && (
-                    <span style={{ ...S.changeBadge,
-                      background: changePct >= 0 ? 'rgba(91,169,123,0.2)' : 'rgba(186,26,26,0.2)',
-                      color: changePct >= 0 ? '#8EE0AE' : '#F08080',
-                    }}>
-                      {changeArrow} {Math.abs(changePct)}% vs {periodStats.compareLabel}
-                    </span>
-                  )}
-                </div>
-                <div style={S.heroIcon}>
-                  <Icon name={iconName('trending_up')} size={64} inline style={{ opacity: 0.15, color: '#fff' }} />
-                </div>
-              </section>
+              <MoneyDiaryOverview summary={reports?.appointments?.periods?.[period]} loading={reportsLoading}
+                onRetry={() => setReportsAttempt(n => n + 1)} onCalendar={date => navigate('/calendar', { state: { date } })} />
+              <button className="money-received-summary" onClick={() => openPeriodIncome()} aria-label="View recorded payments">
+                <span>Payments recorded</span><strong><PrivateAmount>{fmt(periodStats?.income || 0)}</PrivateAmount></strong><Icon name="chevron-right" size={16}/>
+              </button>
 
-              {(reconciliation.assumed_count + reconciliation.review_count > 0) && <button className="money-review-link" onClick={() => { setIncomeFilter('review'); setIncomeVisible(100); setTab('income'); }}><Icon name="receipt" size={17}/><span>Record cash &amp; bank payments</span><Icon name="chevron-right" size={16}/></button>}
+              {(reconciliation.assumed_count + reconciliation.review_count > 0) && <button className="money-review-link" onClick={() => openPeriodIncome('review')}><Icon name="receipt" size={17}/><span>Record cash &amp; bank payments</span><Icon name="chevron-right" size={16}/></button>}
               <div className="money-quick-actions"><Button variant="quiet" size="sm" onClick={() => setShowLogTip(value => !value)}>+ log tip</Button><Button variant="quiet" size="sm" onClick={() => setShowLogSale(value => !value)}>+ log sale</Button></div>
               {/* ─── Quick Log Tip ─── */}
               {showLogTip && (
@@ -1057,7 +1051,7 @@ export default function MoneyTracker() {
                   <span style={{ ...S.qStatValue,
                     color: (periodStats?.profit ?? 0) >= 0 ? 'var(--success)' : 'var(--danger)',
                   }}><PrivateAmount>{fmt(periodStats?.profit || 0)}</PrivateAmount></span>
-                  <span style={S.qStatLabel}>Profit</span>
+                  <span style={S.qStatLabel}>After costs</span>
                 </div>
               </section>
 
@@ -1065,10 +1059,10 @@ export default function MoneyTracker() {
               <section>
                 <div style={S.sectionHeader}>
                   <h3 style={S.sectionHeading}>Recent payments</h3>
-                  <button onClick={() => setTab('income')} style={S.seeAll}>See All</button>
+                  <button onClick={() => openPeriodIncome()} style={S.seeAll}>See All</button>
                 </div>
                 {recentTx.length === 0 ? (
-                  <EmptyState message="No transactions yet" icon="wallet" />
+                  <EmptyState message="No recorded payments in this period" icon="wallet" />
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {recentTx.map(tx => {
@@ -1131,9 +1125,9 @@ export default function MoneyTracker() {
               <div style={S.reportsTitle}>Your numbers</div>
               <div style={S.reportsRow}>
                 <div style={{ ...S.reportStat, gridColumn: '1 / -1' }}>
-                  <span style={S.reportValue}><PrivateAmount>{`\u00A3${Math.round((reports.revenue.this_month_cents || 0) / 100).toLocaleString('en-GB')}`}</PrivateAmount></span>
+                  <span style={S.reportValue}><PrivateAmount>{fmt(reports.revenue.this_month_cents || 0)}</PrivateAmount></span>
                   <span style={S.reportLabel}>
-                    this month{reports.revenue.change_pct != null ? ` \u00B7 ${reports.revenue.change_pct >= 0 ? '+' : ''}${reports.revenue.change_pct}%` : ''}
+                    payments recorded this month{reports.revenue.change_pct != null ? ` \u00B7 ${reports.revenue.change_pct >= 0 ? '+' : ''}${reports.revenue.change_pct}%` : ''}
                   </span>
                 </div>
                 <div style={S.reportStat}>
@@ -1908,12 +1902,13 @@ export default function MoneyTracker() {
       )}
 
       {tab === 'income' && <MoneyPayments key={beautician.id} transactions={transactions} filter={incomeFilter}
+        range={incomeRange} timezone={timezone} onClearRange={() => { setIncomeRange(null); setIncomeVisible(100); }}
         onFilter={value => { setIncomeFilter(value); setIncomeVisible(100); }} visible={incomeVisible} onMore={() => setIncomeVisible(n => n + 100)}
         today={moneyDate(new Date(), timezone)}
         onSave={(id, body) => apiFetch(`/api/money/receipts/${id}/confirm`, { method: 'POST', body: JSON.stringify(body) })}
         onRecorded={row => { setTransactions(prev => reconcileTransactions(prev.map(t => t.id === row.id ? { ...t, ...row } : t).sort((a,b) => String(b.created_at).localeCompare(String(a.created_at))))); setLedgerRevision(n => n + 1); setNotice('Receipt recorded. Your totals are up to date.'); }} />}
 
-      {tab === 'tax' && <MoneyTax report={tax} years={taxYears} exporting={exporting} onYear={setTaxYear} onExport={handleExportLedgerCSV} onSettings={() => navigate('/settings?section=profile')} onReview={() => { setIncomeFilter('review'); setIncomeVisible(100); setTab('income'); }} />}
+      {tab === 'tax' && <MoneyTax report={tax} years={taxYears} exporting={exporting} onYear={setTaxYear} onExport={handleExportLedgerCSV} onSettings={() => navigate('/settings?section=profile')} onReview={() => { setIncomeRange(null); setIncomeFilter('review'); setIncomeVisible(100); setTab('income'); }} />}
 
       {/* Long-press delete confirm sheet. PORTALED to <body>: the page's
           ancestors create a stacking context (backdrop filters etc.), so an

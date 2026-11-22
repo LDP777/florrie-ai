@@ -45,3 +45,28 @@
 @media (max-width: 350px) { .money-payment-top { flex-wrap: wrap; gap: 4px; } .money-workspace { padding-inline: 16px !important; } }
 
 .money-quick-actions { display: flex; gap: 8px; margin-bottom: 12px; }
+
+.money-diary-card { padding: 20px 24px 12px; margin-bottom: 14px; border-radius: 22px; background: var(--gradient-hero); color: #fff; box-shadow: var(--elev-3); }
+.money-diary-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.money-diary-top > span { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.money-diary-top > button { width: 44px; height: 44px; display: grid; place-items: center; background: transparent; border: 1px solid rgba(255,255,255,.3); color: inherit; border-radius: 50%; cursor: pointer; }
+.money-diary-card h2 { font: 700 clamp(32px, 10vw, 44px)/1.15 var(--font-body, 'Plus Jakarta Sans', sans-serif); font-variant-numeric: tabular-nums; letter-spacing: -.03em; margin: 5px 0 22px; overflow-wrap: anywhere; }
+.money-diary-split { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; border-top: 1px solid rgba(255,255,255,.25); padding-top: 16px; }
+.money-diary-split > div { display: grid; gap: 7px; }
+.money-diary-split > div > span { font-size: 11px; }
+.money-diary-split strong { font: 600 18px/1.3 var(--font-body, 'Plus Jakarta Sans', sans-serif); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.money-diary-card details { margin-top: 7px; font-size: 11px; }
+.money-diary-card summary { min-height: 44px; display: flex; align-items: center; gap: 6px; cursor: pointer; list-style: none; }
+.money-diary-card summary::-webkit-details-marker { display: none; }
+.money-diary-card details[open] summary svg { transform: rotate(180deg); }
+.money-diary-card details p { line-height: 1.6; margin: 0 0 10px; }
+.money-diary-card .money-diary-unknown { font-size: 16px; letter-spacing: 0; }
+.money-diary-review { min-height: 44px; display: flex; align-items: center; gap: 8px; background: transparent; border: 0; padding: 0; color: inherit; font: 600 12px var(--font-body, 'Plus Jakarta Sans', sans-serif); cursor: pointer; }
+.money-diary-loading { padding: 22px; border: 1px solid var(--border-light); border-radius: 22px; margin-bottom: 14px; background: var(--tone-1); }
+.money-diary-loading p { font-size: 14px; color: var(--text-secondary); margin: 0; }
+.money-received-summary { width: 100%; display: flex; align-items: center; gap: 10px; min-height: 58px; border: 1px solid var(--border-light); border-radius: 16px; padding: 13px 16px; margin-bottom: 12px; color: var(--text-primary); background: var(--bg-card); cursor: pointer; font-family: var(--font-body); text-align: left; }
+.money-received-summary > span { flex: 1; font-size: 13px; }
+.money-received-summary strong { font-size: 18px; font-variant-numeric: tabular-nums; }
+.money-received-summary > svg { color: var(--accent); flex-shrink: 0; }
+.money-income-period { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; color: var(--text-secondary); font-size: 11px; line-height: 1.5; }
+.money-income-period .fl-btn { flex-shrink: 0; }

@@ -104,7 +104,7 @@ jobs:
         working-directory: frontend
       - run: node scripts/check-calendar-navigation.mjs
         working-directory: frontend
-      - run: node --test src/lib/money-requests.test.mjs && node scripts/check-money-audit.mjs && node scripts/check-money-workspace.mjs
+      - run: node --test src/lib/money-requests.test.mjs && node scripts/check-money-audit.mjs && node scripts/check-money-workspace.mjs && node scripts/check-money-month.mjs
         working-directory: frontend
       - run: node scripts/check-booking-sheet.mjs
         working-directory: frontend
