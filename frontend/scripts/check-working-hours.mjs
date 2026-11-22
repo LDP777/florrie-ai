@@ -135,11 +135,12 @@ try {
   await page.goto(origin+'/book/ellindigo');
   await page.getByRole('button',{name:/Signature brows/}).click();
   await page.getByRole('button',{name:'Continue to date & time',exact:true}).click();
-  await page.getByRole('button',{name:'9',exact:true}).click();
+  await page.getByRole('button',{name:'Sunday, 9 August 2026, Available',exact:true}).click();
   await page.getByRole('button',{name:'19:30',exact:true}).waitFor();
   assert.equal(await page.getByRole('button',{name:'20:00',exact:true}).count(),0,'treatment cannot finish after closing');
-  assert.equal(await page.getByRole('button',{name:'16',exact:true}).isDisabled(),true,'the following Sunday stays closed');
-  await page.getByRole('button',{name:'10',exact:true}).click();
+  await page.getByRole('button',{name:'See full calendar',exact:true}).click();
+  assert.equal(await page.getByRole('button',{name:'Sunday, 16 August 2026, Closed',exact:true}).isDisabled(),true,'the following Sunday stays closed');
+  await page.getByRole('button',{name:'Monday, 10 August 2026, Available',exact:true}).click();
   await page.getByRole('button',{name:'17:30',exact:true}).waitFor({state:'hidden'});
   await page.getByRole('button',{name:'19:30',exact:true}).waitFor();
   assert.equal(await page.getByRole('button',{name:'17:30',exact:true}).count(),0,'personal break remains unavailable to clients');

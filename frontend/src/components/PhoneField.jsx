@@ -36,7 +36,7 @@ function splitE164(value) {
   return { dial: '+44', national: v.replace(/[^\d]/g, '') };
 }
 
-export default function PhoneField({ value, onChange, style, error, onBlur }) {
+export default function PhoneField({ value, onChange, style, error, onBlur, id }) {
   const init = splitE164(value);
   const [dial, setDial] = useState(init.dial);
   const [national, setNational] = useState(init.national);
@@ -70,7 +70,8 @@ export default function PhoneField({ value, onChange, style, error, onBlur }) {
           <option key={c.code} value={c.dial}>{c.flag} {c.dial}</option>
         ))}
       </select>
-      <input
+      <input id={id}
+        autoComplete="tel-national"
         type="tel"
         inputMode="tel"
         placeholder="Phone number *"

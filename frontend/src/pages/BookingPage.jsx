@@ -1,3 +1,4 @@
+import BookingDatePicker from '../components/BookingDatePicker.jsx';
 import { effectiveHours } from '../../../backend/src/lib/effective-hours.js';
 import { PATCH_TEST_LEAD_HOURS } from '../lib/patch-test-policy.js';
 import { cancellationNoticeHours, policyFeePercent } from '../lib/booking-policy.js';
@@ -139,6 +140,8 @@ export default function BookingPage() {
   const isConfirmedReturn = location.pathname.endsWith('/confirmed');
   const isCancelled = new URLSearchParams(location.search).get('cancelled') === 'true';
   const [step, setStep] = useState(0);
+  const flowRoot = useRef(null);
+  const errorBanner = useRef(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState(null);
@@ -146,8 +149,14 @@ export default function BookingPage() {
   // A form that is angry before you have touched it reads as broken.
   const [showConsultationErrors, setShowConsultationErrors] = useState(false);
   const [error, setError] = useState(isCancelled ? 'Payment was cancelled. Your booking slot is held for 15 minutes, you can try again.' : null);
+  useEffect(() => { if (error) errorBanner.current?.scrollIntoView({ block: 'center', behavior: 'instant' }); }, [error]);
   const confirmedManageToken = new URLSearchParams(location.search).get('mt');
   const [success, setSuccess] = useState(isConfirmedReturn ? { depositPaid: true, manageUrl: confirmedManageToken ? `/book/${slug}/manage/${confirmedManageToken}` : null } : null);
+  useEffect(() => {
+    if (loading) return;
+    flowRoot.current?.scrollIntoView({ block: 'start', behavior: 'instant' });
+    flowRoot.current?.querySelector('h2')?.focus({ preventScroll: true });
+  }, [step, loading, !!success]);
   // Receipt for the Stripe-return success screen. The figures come from the
   // manage endpoint, which reads the logged charge, so what we show matches
   // the card statement instead of being recomputed from the treatment price.
@@ -177,6 +186,7 @@ export default function BookingPage() {
   // every slot as free when we could not load the booked ones is how times
   // "move around" between refreshes and how double-bookings happen.
   const [availError, setAvailError] = useState(false);
+  const [slotsLoading, setSlotsLoading] = useState(false);
   const [availRetryNonce, setAvailRetryNonce] = useState(0);
   // Calendar (Step 1) state. calMonth = first-of-month Date for the visible month.
   // monthAppointments/monthClosures hold the availability-range payload for that month.
@@ -199,10 +209,6 @@ export default function BookingPage() {
   const [monthRetryNonce, setMonthRetryNonce] = useState(0);
   // User selections, multi-treatment support
   const [selectedTreatments, setSelectedTreatments] = useState([]);
-  // Which treatment's description is expanded (via the little info button).
-  // Descriptions used to render inline on every card, which made the list
-  // huge and uneven; now they sit behind an "i" tap.
-  const [descOpenId, setDescOpenId] = useState(null);
   const selectedTreatment = selectedTreatments[0] || null; // primary treatment for backwards compat
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedSlot, setSelectedSlot] = useState(null);
@@ -381,6 +387,7 @@ export default function BookingPage() {
       })
     : addOns;
   function toggleAddOn(addOn) {
+    setSlots([]); setSelectedSlot(null); setSlotsLoading(true);
     setSelectedAddOns(prev => {
       const exists = prev.find(a => a.id === addOn.id);
       if (exists) return prev.filter(a => a.id !== addOn.id);
@@ -714,12 +721,12 @@ export default function BookingPage() {
   }, [slug]);
   // Generate available time slots when date changes
   useEffect(() => {
-    if (selectedTreatments.length === 0 || !selectedDate || !beautician) return;
+    if (step !== 1 || selectedTreatments.length === 0 || !selectedDate || !beautician) return;
     let cancelled = false;
     const controller = new AbortController();
-    setSlots([]); setSelectedSlot(null);
+    setSlots([]); setSelectedSlot(null); setSlotsLoading(true);
     async function loadSlots() {
-      const duration = combinedDuration || 60;
+      const duration = (combinedDuration + addOnDuration) || 60;
       const buffer = Math.max(...selectedTreatments.map(t => t.buffer_minutes || 0), 0);
       const totalBlock = duration + buffer;
       // Booked blocks via the public backend endpoint (works logged-out).
@@ -791,9 +798,9 @@ export default function BookingPage() {
       setSlots(generated);
       setSelectedSlot(null);
     }
-    loadSlots();
+    loadSlots().finally(() => { if (!cancelled) setSlotsLoading(false); });
     return () => { cancelled = true; controller.abort(); };
-  }, [selectedDate, selectedTreatments, beautician, combinedDuration, availRetryNonce]);
+  }, [step, selectedDate, selectedTreatments, beautician, combinedDuration, addOnDuration, availRetryNonce]);
   // --- Calendar helpers (Step 1 month grid) ---------------------------------
   // Build a YYYY-MM-DD from LOCAL date parts (never toISOString, which can shift
   // the day under BST).
@@ -805,7 +812,6 @@ export default function BookingPage() {
   }
   function startOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
   function endOfMonth(d) { return new Date(d.getFullYear(), d.getMonth() + 1, 0); }
-  function sameMonth(a, b) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth(); }
   const todayMid = new Date(); todayMid.setHours(0, 0, 0, 0);
   const earliestBookable = new Date(todayMid); earliestBookable.setDate(earliestBookable.getDate() + 1); // tomorrow
   // max_advance_days: a positive value (30/60/90) caps the window; 0 or unset
@@ -932,7 +938,7 @@ export default function BookingPage() {
     const iso = isoLocal(day);
     if (closureSet.has(iso)) return 'closed';
     // Replicate the slot math: a free slot must fit combinedDuration + max buffer.
-    const duration = combinedDuration || 60;
+    const duration = (combinedDuration + addOnDuration) || 60;
     const buffer = Math.max(...selectedTreatments.map(t => t.buffer_minutes || 0), 0);
     const totalBlock = duration + buffer;
     const [startH, startM] = hours.start.split(':').map(Number);
@@ -946,23 +952,6 @@ export default function BookingPage() {
     }
     return 'full';
   }
-  // Build the visible month grid: leading blanks so the 1st lands on the right
-  // weekday (Mon-first), then every day of the month.
-  const monthCells = useMemo(() => {
-    if (!calMonth) return [];
-    const first = startOfMonth(calMonth);
-    const last = endOfMonth(calMonth);
-    // JS getDay(): 0=Sun..6=Sat. We want Mon-first, so blanks = (getDay()+6)%7.
-    const lead = (first.getDay() + 6) % 7;
-    const cells = [];
-    for (let i = 0; i < lead; i++) cells.push(null);
-    for (let d = 1; d <= last.getDate(); d++) {
-      cells.push(new Date(calMonth.getFullYear(), calMonth.getMonth(), d));
-    }
-    return cells;
-  }, [calMonth]);
-  const canGoPrev = calMonth ? !sameMonth(calMonth, todayMid) : false;
-  const canGoNext = calMonth ? !sameMonth(calMonth, horizonDate) && calMonth < startOfMonth(horizonDate) : false;
   /* The dots along the top. The health form earns one the moment we know she
    * is going to be asked for it, and keeps it while she is on it. */
   const showFormStep = step === 2.5;
@@ -1086,7 +1075,7 @@ export default function BookingPage() {
         treatment: selectedTreatments.map(t => t.name).join(' + '),
         date: new Date(selectedSlot.starts_at).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }),
         time: selectedSlot.display,
-        price: `£${(combinedTreatmentCents / 100).toFixed(2)}`,
+        price: `£${((grandTotalCents + cartTotalCents) / 100).toFixed(2)}`,
         deposit: data.booking?.deposit || null,
         depositPending: data.booking?.deposit_pending || false,
         depositNote: data.deposit_note || null,
@@ -1159,6 +1148,28 @@ export default function BookingPage() {
   const logoUrl = beautician?.logo_url || beautician?.avatar_url || null;
   const monogram = bizName.trim().charAt(0).toUpperCase();
   const headerTagline = beautician?.tagline || 'Book your appointment';
+  const bookingStyle = { ...styles.page, '--booking-fill': brand, '--booking-ink': brandInk, '--booking-on': onBrandColour, '--booking-soft': brandLight };
+  const selectionSummary = selectedTreatments.length > 0 && step > 0 && step < 3 ? (
+    <div className="fl-booking-selection">
+      <div><strong>{selectedTreatments.map(t => t.name).join(' + ')}</strong>
+        <p>{combinedDuration + addOnDuration} min · <Money pence={grandTotalCents} />{selectedAddOns.length > 0 ? ' including extras' : ''}</p>
+        {step > 1 && selectedSlot && <p>{new Date(selectedSlot.starts_at).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })} · {selectedSlot.display}</p>}
+      </div>
+      <button type="button" onClick={() => setStep(0)} aria-label="Change treatments">Change</button>
+    </div>
+  ) : null;
+  function chooseBookingDate(date) {
+    if (date === selectedDate) { setFieldErrors({}); return; }
+    setSelectedDate(date); setSelectedSlot(null); setSlots([]); setSlotsLoading(true); setFieldErrors({});
+  }
+  function changeBookingMonth(month) {
+    setCalMonth(month); setSelectedDate(''); setSelectedSlot(null); setSlots([]); setSlotsLoading(false); setFieldErrors({});
+  }
+  const bookingHeader = <header className="fl-booking-header">
+    {logoUrl ? <img className="fl-booking-logo" src={logoUrl} alt="" /> : <span className="fl-booking-logo fl-booking-monogram" aria-hidden="true">{monogram}</span>}
+    <div className="fl-booking-brand"><h1>{bizName}</h1><p>{headerTagline}</p></div>
+    {step > 0 && !success && <button className="fl-booking-header-back" type="button" onClick={() => setStep(step === 2.5 ? 2 : step - 1)}><Icon name="chevron-left" size={17} />Back</button>}
+  </header>;
   if (loading) {
     return (
       <div style={styles.loadingContainer}>
@@ -1168,7 +1179,7 @@ export default function BookingPage() {
   }
   if (error && !beautician) {
     return (
-      <div style={styles.page}>
+      <div className="fl-booking" ref={flowRoot} style={bookingStyle}>
         <div style={styles.card}>
           <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 40 }}>{error}</p>
         </div>
@@ -1177,10 +1188,11 @@ export default function BookingPage() {
   }
   if (success) {
     return (
-      <div style={styles.page}>
-        <div style={styles.card}>
+      <div className="fl-booking fl-booking-success" ref={flowRoot} style={bookingStyle}>
+        {bookingHeader}
+        <div className="fl-booking-success-card" style={styles.card}>
           <div style={{ ...styles.successIcon, background: brandLight, color: brand }}><Icon name="check" size={15} /></div>
-          <h2 style={styles.successTitle}>
+          <h2 tabIndex={-1} style={styles.successTitle}>
             {success.depositPaid ? (receipt?.paidInFull ? "You're booked, paid in full" : "You're booked, deposit paid") : success.depositPending ? "Almost there, deposit needed" : "You're booked"}
           </h2>
           <div style={styles.successDetails}>
@@ -1311,27 +1323,11 @@ export default function BookingPage() {
           {success.paymentExpiresAt && (
             <PaymentCountdown expiresAt={success.paymentExpiresAt} brand={brand} brandLight={brandLight} />
           )}
-          {/* Manage booking portal link */}
-          {success.manageUrl && (
-            <div style={{ marginTop: 20 }}>
-              <h3 style={{ fontSize: 18, margin: '0 0 8px' }}>Before your appointment</h3>
-              <p style={{ fontSize: 14, lineHeight: 1.6 }}>Once your booking is confirmed, your checklist keeps patch-test times and your consultation together.</p>
-              <a
-                href={success.manageUrl}
-                style={{ display: 'block', width: '100%', boxSizing: 'border-box',
-                  padding: '13px 0', borderRadius: 10, textAlign: 'center',
-                  background: brandLight, color: brand,
-                  fontWeight: 600, fontSize: 15, textDecoration: 'none',
-                  border: `1.5px solid ${brand}22`,
-                }}
-              >
-                Manage my booking
-              </a>
-              <p style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', marginTop: 8 }}>
-                Manage booking, patch test and consultation
-              </p>
-            </div>
-          )}
+          {success.manageUrl && <div className="fl-booking-success-links">
+            <a href={success.manageUrl}>Manage my booking<Icon name="arrow-right" size={16} /></a>
+            {!success.depositPending && <a href={`${API_BASE}/api/booking/${encodeURIComponent(slug)}/manage/${encodeURIComponent(new URL(success.manageUrl, window.location.origin).pathname.split('/').filter(Boolean).pop())}/calendar`}><Icon name="calendar" size={16} />Add to calendar</a>}
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, margin: '4px 0 0' }}>Your booking details, patch test and consultation stay together in your booking link.</p>
+          </div>}
         </div>
         <div style={styles.footer}>
           <span style={styles.footerText}>Powered by </span>
@@ -1341,43 +1337,25 @@ export default function BookingPage() {
     );
   }
   return (
-    <div style={styles.page}>
-      {/* Header */}
-      <div style={{ ...styles.brandBand, background: `linear-gradient(160deg, ${brand}16 0%, ${brand}07 55%, transparent 100%)` }}>
-        {logoUrl
-          ? <img src={logoUrl} alt={bizName} style={{ ...styles.brandLogo, ...(beautician.logo_url ? { width: 160, height: 80, objectFit: 'contain', borderRadius: 0 } : {}) }} />
-          : <div style={{ ...styles.brandMonogram, background: brand }}>{monogram}</div>}
-        <h1 style={styles.businessName}>{bizName}</h1>
-        <p style={{ ...styles.subtitle, color: onBrandColour, opacity: 0.85 }}>{headerTagline}</p>
-      </div>
-      {/* Progress. The health form gets a dot and a label of its own as soon as
-          we know she is going to be asked for it, so it stops arriving from
-          nowhere between "Your Details" and "Confirm". */}
-      <div style={{ ...styles.progressContainer, gap: progressSteps.length > 4 ? 14 : 24 }}>
-        {progressSteps.map(({ label, at }) => (
-          <div key={label} style={styles.progressStep}>
-            <div style={{ ...styles.progressDot,
-              background: at <= step ? brand : 'var(--border-light)',
-              transform: at === step ? 'scale(1.2)' : 'scale(1)'
-            }} />
-            <span style={{ ...styles.progressLabel,
-              color: at <= step ? brandInk : 'var(--text-muted)',
-              fontWeight: at === step ? 600 : 400,
-              whiteSpace: 'nowrap',
-            }}>{label}</span>
-          </div>
-        ))}
-      </div>
+    <div className="fl-booking" ref={flowRoot} style={bookingStyle}>
+      {bookingHeader}
+      <ol className="fl-booking-progress" aria-label="Booking progress">
+        {progressSteps.map(({ label, at }) => <li key={label} data-reached={at <= step} aria-current={at === step ? 'step' : undefined}><span>{label}</span></li>)}
+      </ol>
       {error && (
-        <div style={styles.errorBanner}>
-          {error}
-          <button onClick={() => setError(null)} style={styles.errorClose}>×</button>
+        <div ref={errorBanner} role="alert" style={styles.errorBanner}>
+          <span>{error}</span>
+          <button aria-label="Dismiss message" onClick={() => setError(null)} style={styles.errorClose}>×</button>
         </div>
       )}
       <div style={styles.card}>
         {/* Step 0: Select Treatment */}
         {step === 0 && (
           <div>
+            {hasTrainingDates && <a href={`/training/${slug}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '14px 16px', marginBottom: 22, borderRadius: 16, border: `1px solid ${brand}`, color: brand, textDecoration: 'none' }}><span><strong>Looking for training?</strong><br /><span style={{ fontSize: 13 }}>Browse courses and choose a training date.</span></span><span aria-hidden="true">→</span></a>}
+            <h2 tabIndex={-1} className="fl-booking-title" style={styles.stepTitle}>Choose your treatment{selectedTreatments.length > 1 ? 's' : ''}</h2>
+            <p className="fl-booking-intro">Choose one, or combine a few.</p>
+            <details className="fl-booking-returning"><summary>Booked before? Use your saved details</summary>
             <BookingEmailVerification onVerified={verifiedEmailChanged} recoveryHelp={<BookingVerificationHelp businessName={bizName} treatments={selectedTreatments} startsAt={selectedSlot?.starts_at} />} />
             {rebookState === 'error' && <p role="alert">Saved details could not be checked. Please try again.</p>}
             {rebookState === 'nomatch' && <p>No saved details for this email. Choose your treatment to continue. If your package uses another email, contact the salon.</p>}
@@ -1409,11 +1387,7 @@ export default function BookingPage() {
                 )}
               </div>
             )}
-            {hasTrainingDates && <a href={`/training/${slug}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '14px 16px', marginBottom: 22, borderRadius: 16, border: `1px solid ${brand}`, color: brand, textDecoration: 'none' }}><span><strong>Looking for training?</strong><br /><span style={{ fontSize: 13 }}>Browse courses and choose a training date.</span></span><span aria-hidden="true">→</span></a>}
-            <h2 style={styles.stepTitle}>Choose your treatment{selectedTreatments.length > 1 ? 's' : ''}</h2>
-            {selectedTreatments.length === 0 && (
-              <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '-12px 0 14px' }}>Tap multiple to book them together</p>
-            )}
+            </details>
             {fieldErrors.treatment && (
               <div style={styles.inlineError}>{fieldErrors.treatment}</div>
             )}
@@ -1425,66 +1399,28 @@ export default function BookingPage() {
                 return (
                   <Fragment key={t.id}>
                     {_showCat && <div style={styles.categoryLabel}>{t.category}</div>}
-                  <button
-                    onClick={() => {
-                      setSelectedTreatments(prev => {
-                        const exists = prev.find(st => st.id === t.id);
-                        const next = exists ? prev.filter(st => st.id !== t.id) : [...prev, t];
-                        if (next.length === 0) setSelectedAddOns([]);
-                        return next;
-                      });
-                      setFieldErrors({});
-                    }}
-                    style={{ ...styles.treatmentCard,
-                      borderColor: isSelected ? brand : '#E8E4DF',
-                      background: isSelected ? brandLight : 'var(--bg-card)'
-                    }}
-                  >
-                    <div style={styles.treatmentInfo}>
-                      <span style={styles.treatmentName}>
-                        {isSelected ? '✓ ' : ''}{t.name}
-                        {t.description && (
-                          <span className="fl-tap"
-                            role="button"
-                            aria-label={descOpenId === t.id ? 'Hide description' : 'Show description'}
-                            aria-expanded={descOpenId === t.id}
-                            onClick={e => {
-                              e.stopPropagation();
-                              setDescOpenId(prev => (prev === t.id ? null : t.id));
-                            }}
-                            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                              width: 20, height: 20, marginLeft: 6, borderRadius: 10, verticalAlign: 'middle',
-                              border: `1.2px solid ${descOpenId === t.id ? brand : '#CFC8C1'}`,
-                              color: descOpenId === t.id ? brand : 'var(--text-muted)',
-                              fontSize: 11, fontWeight: 700, fontStyle: 'italic', fontFamily: 'Georgia, serif',
-                              lineHeight: 1, cursor: 'pointer', userSelect: 'none',
-                            }}
-                          >
-                            i
-                          </span>
-                        )}
-                      </span>
-                      {t.description && descOpenId === t.id && (
-                        <span style={styles.treatmentDesc}>{t.description}</span>
-                      )}
-                      <span style={styles.treatmentDuration}>{t.duration_minutes} min</span>
+                  <div>
+                    <div className="fl-booking-treatment">
+                      <button type="button" className="fl-booking-treatment-main" aria-pressed={isSelected}
+                        onClick={() => {
+                          setSelectedTreatments(prev => {
+                            const next = prev.some(st => st.id === t.id) ? prev.filter(st => st.id !== t.id) : [...prev, t];
+                            if (next.length === 0) setSelectedAddOns([]);
+                            return next;
+                          });
+                          setSlots([]); setSelectedSlot(null); setSlotsLoading(true); setFieldErrors({});
+                        }}>
+                        <span className="fl-booking-treatment-check" aria-hidden="true">{isSelected && <Icon name="check" size={13} />}</span>
+                        <div><span className="fl-booking-treatment-name">{t.name}</span><span className="fl-booking-treatment-duration">{t.duration_minutes} min</span></div>
+                        <span className="fl-booking-treatment-price"><Money pence={t.price_cents} /></span>
+                      </button>
                     </div>
-                    <span style={styles.treatmentPrice}>
-                      <Money pence={t.price_cents} />
-                    </span>
-                  </button>
+                    {t.description && <details className="fl-booking-description"><summary>About {t.name}</summary><p>{t.description}</p></details>}
+                  </div>
                   </Fragment>
                 );
               })}
             </div>
-            {/* Multi-treatment summary bar */}
-            {selectedTreatments.length > 1 && (
-              <div style={{ marginTop: 10, padding: '10px 14px', borderRadius: 10, background: brandLight, border: `1px solid ${brand}30`, textAlign: 'center' }}>
-                <span style={{ fontSize: 14, fontWeight: 600, color: brand }}>
-                  {selectedTreatments.length} treatments · {combinedDuration} min · <Money pence={combinedTreatmentCents} />
-                </span>
-              </div>
-            )}
             {treatments.length === 0 && (
               <div style={{ ...styles.noSlots, background: '#fff', border: '1px solid #efe2e5', borderRadius: 14, padding: '22px 18px' }}>
                 <p style={{ margin: '0 0 6px', fontWeight: 600, color: '#1d1b19' }}>{salonName} is still setting up online booking</p>
@@ -1525,11 +1461,6 @@ export default function BookingPage() {
                     );
                   })}
                 </div>
-                {selectedAddOns.length > 0 && (
-                  <div style={{ marginTop: 10, padding: '8px 12px', borderRadius: 10, background: brandLight, fontSize: 13, fontWeight: 500, color: brand, textAlign: 'center' }}>
-                    Total: <Money pence={grandTotalCents} /> · {(selectedTreatment.duration_minutes || 0) + addOnDuration} min
-                  </div>
-                )}
               </div>
             )}
             {/* Retail Products, shown after treatment selected */}
@@ -1606,176 +1537,42 @@ export default function BookingPage() {
                 )}
               </div>
             )}
-            {selectedTreatments.length > 0 && (
-              <button
-                onClick={() => setStep(1)}
-                style={{ ...styles.primaryBtn, background: brand, width: '100%', marginTop: 16 }}
-              >
-                Continue to date & time
-              </button>
-            )}
+            <div className="fl-booking-actions" data-step={step}>
+              {selectedTreatments.length > 0 && <div className="fl-booking-actions-summary"><span>{selectedTreatments.length === 1 ? 'Your treatment' : `${selectedTreatments.length} treatments`} · {combinedDuration + addOnDuration} min</span><strong><Money pence={grandTotalCents} /></strong></div>}
+              <button className="fl-booking-primary" disabled={!selectedTreatments.length} onClick={() => { if (validateStep(0)) setStep(1); }}>Continue to date & time<Icon name="arrow-right" size={16} /></button>
+            </div>
           </div>
         )}
         {/* Step 1: Pick Date & Time */}
         {step === 1 && (
           <div>
-            <h2 style={styles.stepTitle}>Pick a date and time</h2>
-            {/* Step 1 is BEFORE we know who is reading. So this states the
-                condition and lets her decide whether it is about her, rather
-                than telling a regular she needs something she does not. A
-                client who has already been recognised is told nothing. */}
-            {needsPatchTest && !returningClient && (
-              <div style={{ margin: '0 0 12px', padding: '11px 13px', borderRadius: 10, background: brandLight, border: `1px solid ${brandMedium}`, fontSize: 12.5, lineHeight: 1.5, color: 'var(--text-secondary)' }}>
-                <strong style={{ color: brand }}>Heads up:</strong> if this is your first time with us, this treatment needs a quick patch test at least {PATCH_TEST_LEAD_HOURS} hours beforehand, so allow time for that when choosing your appointment and we'll sort it right after you book. If you already have a patch test on record, we can check whether you need another.
-              </div>
-            )}
-            {fieldErrors.date && (
-              <div style={styles.inlineError}>{fieldErrors.date}</div>
-            )}
-            {/* Month calendar, makes free days unmistakable */}
-            <div style={styles.calWrap}>
-              <div style={styles.calHeader}>
-                <button
-                  type="button"
-                  onClick={() => canGoPrev && setCalMonth(m => new Date(m.getFullYear(), m.getMonth() - 1, 1))}
-                  disabled={!canGoPrev}
-                  aria-label="Previous month"
-                  style={{ ...styles.calNav, color: canGoPrev ? brand : '#D8D2CC', cursor: canGoPrev ? 'pointer' : 'default' }}
-                >‹</button>
-                <span style={styles.calMonthLabel}>
-                  {calMonth ? calMonth.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }) : ''}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => canGoNext && setCalMonth(m => new Date(m.getFullYear(), m.getMonth() + 1, 1))}
-                  disabled={!canGoNext}
-                  aria-label="Next month"
-                  style={{ ...styles.calNav, color: canGoNext ? brand : '#D8D2CC', cursor: canGoNext ? 'pointer' : 'default' }}
-                >›</button>
-              </div>
-              <div style={styles.calWeekRow}>
-                {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(w => (
-                  <span key={w} style={styles.calWeekday}>{w}</span>
-                ))}
-              </div>
-              <div style={styles.calGrid}>
-                {monthCells.map((d, i) => {
-                  if (!d) return <span key={`b${i}`} />;
-                  const iso = isoLocal(d);
-                  const status = dayStatus(d);
-                  const isSelected = selectedDate === iso;
-                  const tappable = status === 'open';   // never 'unknown'
-                  let bg = 'var(--bg-card)';
-                  let color = 'var(--text-primary)';
-                  let border = '1px solid transparent';
-                  if (isSelected) {
-                    bg = brand; color = '#fff'; border = `1px solid ${brand}`;
-                  } else if (status === 'open') {
-                    border = `1px solid ${brand}33`;
-                  } else if (status === 'full') {
-                    color = '#BAB4AE'; bg = 'transparent';
-                  } else {
-                    // past / beyond / off / closed
-                    color = '#D2CCC6'; bg = 'transparent';
-                  }
-                  return (
-                    <button
-                      key={iso}
-                      type="button"
-                      disabled={!tappable}
-                      onClick={() => { if (tappable) { setSelectedDate(iso); setFieldErrors({}); } }}
-                      title={status === 'closed' ? 'Closed' : status === 'full' ? 'Fully booked' : status === 'unknown' ? 'Could not load this month' : undefined}
-                      style={{ ...styles.calCell,
-                        background: bg,
-                        color,
-                        border,
-                        cursor: tappable ? 'pointer' : 'default',
-                        fontWeight: isSelected ? 700 : status === 'open' ? 600 : 400,
-                      }}
-                    >
-                      <span style={{ lineHeight: 1 }}>{d.getDate()}</span>
-                      {/* "has space" dot */}
-                      <span style={{ ...styles.calDot,
-                        background: status === 'open' && !isSelected ? brand : 'transparent',
-                      }} />
-                    </button>
-                  );
-                })}
-              </div>
-              {calLoading && (
-                <div style={styles.calLoadingRow}>
-                  <span style={{ ...styles.calSpinner, borderTopColor: brand }} />
-                </div>
-              )}
-              {/* Says out loud that it could not check, rather than drawing an
-                  empty diary and letting somebody pick a day that is taken. */}
-              {monthError && (
-                <div style={{ textAlign: 'center', padding: '14px 0 4px' }}>
-                  <p style={{ ...styles.noSlots, padding: 0, marginBottom: 10 }}>
-                    Couldn't load this month just now, so these dates may not be right. Try again in a moment.
-                  </p>
-                  <button className="fl-tap"
-                    onClick={() => setMonthRetryNonce(n => n + 1)}
-                    style={{ padding: '10px 22px', borderRadius: 10, border: `1.5px solid ${brand}`, background: 'var(--bg-card)', color: brand, fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}
-                  >
-                    Try again
-                  </button>
-                </div>
-              )}
-              {/* Legend */}
-              <div style={styles.calLegend}>
-                <span style={styles.calLegendItem}>
-                  <span style={{ ...styles.calLegendDot, background: brand }} /> has space
-                </span>
-                <span style={styles.calLegendItem}>
-                  <span style={{ ...styles.calLegendDot, background: '#D2CCC6' }} /> unavailable
-                </span>
-              </div>
+            <h2 tabIndex={-1} className="fl-booking-title" style={styles.stepTitle}>Pick a time</h2>
+            {selectionSummary}
+            {needsPatchTest && !returningClient && <p className="fl-booking-note"><Icon name="shield" size={16} /><span>New to this treatment? You’ll need a patch test at least {PATCH_TEST_LEAD_HOURS} hours before your appointment. You can book it after confirming.</span></p>}
+            <BookingDatePicker month={calMonth} earliest={earliestBookable} latest={horizonDate} selectedDate={selectedDate}
+              statusFor={dayStatus} loading={calLoading} error={monthError} onMonthChange={changeBookingMonth}
+              onSelect={chooseBookingDate} onRetry={() => setMonthRetryNonce(n => n + 1)} />
+            {fieldErrors.date && <div style={styles.inlineError}>{fieldErrors.date}</div>}
+            {selectedDate ? <section aria-label="Available times" aria-busy={slotsLoading}>
+              <h3 className="fl-booking-times-heading">{new Date(`${selectedDate}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</h3>
+              {slotsLoading ? <p className="fl-booking-slot-status" role="status">Checking available times…</p> : availError ? <div className="fl-booking-slot-status" role="alert">We couldn’t load the times. Your choices are saved.<button type="button" onClick={() => setAvailRetryNonce(n => n + 1)}>Try loading times again</button></div> : slots.length ?
+                <div className="fl-booking-times">{slots.map(slot => <button type="button" className="fl-booking-time" key={slot.starts_at}
+                  aria-pressed={selectedSlot?.starts_at === slot.starts_at} onClick={() => { setSelectedSlot(slot); setFieldErrors({}); }}>{slot.display}</button>)}</div> :
+                <p className="fl-booking-slot-status">No times left for these treatments. Choose another date.</p>}
+            </section> : !monthError && !calLoading && <p className="fl-booking-slot-status">Choose a date to see available times.</p>}
+            {fieldErrors.slot && <div style={styles.inlineError}>{fieldErrors.slot}</div>}
+            <div className="fl-booking-actions" data-step={step}>
+              <button className="fl-booking-primary" disabled={!selectedSlot || slotsLoading || availError} onClick={() => { if (validateStep(1)) setStep(2); }}>
+                {selectedSlot ? `Continue · ${new Date(selectedSlot.starts_at).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}, ${selectedSlot.display}` : 'Choose a time'}<Icon name="arrow-right" size={16} />
+              </button>
             </div>
-            {selectedDate && availError && (
-              <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                <p style={{ ...styles.noSlots, padding: 0, marginBottom: 10 }}>
-                  Having trouble loading times for this day. Nothing is lost, just try again in a moment.
-                </p>
-                <button className="fl-tap"
-                  onClick={() => setAvailRetryNonce(n => n + 1)}
-                  style={{ padding: '10px 22px', borderRadius: 10, border: `1.5px solid ${brand}`, background: 'var(--bg-card)', color: brand, fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}
-                >
-                  Try again
-                </button>
-              </div>
-            )}
-            {selectedDate && !availError && (
-              <div style={styles.slotGrid}>
-                {slots.length === 0 ? (
-                  <p style={styles.noSlots}>No available slots on this day, try another date</p>
-                ) : (
-                  slots.map(s => (
-                    <button
-                      key={s.starts_at}
-                      onClick={() => { setSelectedSlot(s); setFieldErrors({}); setStep(2); }}
-                      style={{ ...styles.slotChip,
-                        borderColor: selectedSlot?.starts_at === s.starts_at ? brand : '#E8E4DF',
-                        background: selectedSlot?.starts_at === s.starts_at ? brand : 'var(--bg-card)',
-                        color: selectedSlot?.starts_at === s.starts_at ? '#fff' : 'var(--text-primary)'
-                      }}
-                    >
-                      {s.display}
-                    </button>
-                  ))
-                )}
-              </div>
-            )}
-            {fieldErrors.slot && (
-              <div style={styles.inlineError}>{fieldErrors.slot}</div>
-            )}
-            <button onClick={() => setStep(0)} style={styles.backBtn}>← Back</button>
           </div>
         )}
         {/* Step 2: Client Details */}
         {step === 2 && (
           <div>
-            <h2 style={styles.stepTitle}>Your details</h2>
+            <h2 tabIndex={-1} className="fl-booking-title" style={styles.stepTitle}>Your details</h2>
+            {selectionSummary}
             {/* By step 2 we DO know her, so use it. This used to test `found`,
                 which is only "there is a row for her" and is true of all 277
                 imported first timers as well as the 673 regulars. */}
@@ -1785,9 +1582,10 @@ export default function BookingPage() {
                 That time is under {PATCH_TEST_LEAD_HOURS} hours away. As a new client you'll need a quick patch test first, so please <button className="fl-tap" type="button" onClick={() => setStep(1)} style={{ background: 'none', border: 'none', padding: 0, color: '#8A5A00', fontWeight: 700, textDecoration: 'underline', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5 }}>choose a later appointment</button>.
               </div>
             )}
-            <div style={styles.form}>
+            <div className="fl-booking-form" style={styles.form}>
               <div>
-                <input
+                <label className="fl-booking-field-label" htmlFor="booking-name">Your name</label>
+                <input id="booking-name" autoComplete="name"
                   type="text" placeholder="Your name *"
                   value={clientDetails.name}
                   onChange={e => setClientDetails({ ...clientDetails, name: e.target.value })}
@@ -1798,7 +1596,8 @@ export default function BookingPage() {
                 {fieldErrors.name && <span style={styles.fieldErrorText}>{fieldErrors.name}</span>}
               </div>
               <div>
-                <PhoneField
+                <label className="fl-booking-field-label" htmlFor="booking-phone">Phone number</label>
+                <PhoneField id="booking-phone"
                   value={clientDetails.phone}
                   onChange={phone => { setClientDetails({ ...clientDetails, phone }); setRecognisedClient(null); }}
                   onBlur={lookupClient}
@@ -1814,9 +1613,9 @@ export default function BookingPage() {
                   }}><Icon name="star" size={14} inline /> Member, {memberInfo.plan_name}
                   </div>
                 )}
-                <p style={{ fontSize: 11, color: '#9C9690', marginTop: 6, marginBottom: 0, lineHeight: 1.4,
+                <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 6, marginBottom: 0, lineHeight: 1.4,
                 }}>
-                  By providing your phone number, you agree to receive SMS booking confirmations and reminders from your beautician. Reply <strong>STOP</strong> to opt out at any time. Standard message and data rates may apply. See our <a href="/privacy" style={{ color: '#9C9690', textDecoration: 'underline' }}>Privacy Policy</a>.
+                  By providing your phone number, you agree to receive SMS booking confirmations and reminders from your beautician. Reply <strong>STOP</strong> to opt out at any time. Standard message and data rates may apply. See our <a href="/privacy" style={{ color: 'var(--text-secondary)', textDecoration: 'underline' }}>Privacy Policy</a>.
                 </p>
               </div>
               <div>
@@ -1845,16 +1644,15 @@ export default function BookingPage() {
                   </div>
                 )}
               </div>
-              <textarea
+              <textarea aria-label="Appointment notes"
                 placeholder="Any notes for your appointment? (optional)"
                 value={clientDetails.notes}
                 onChange={e => setClientDetails({ ...clientDetails, notes: e.target.value })}
                 style={{ ...styles.input, minHeight: 80, resize: 'vertical' }}
               />
             </div>
-            <div style={styles.buttonRow}>
-              <button onClick={() => setStep(1)} style={styles.backBtn}>← Back</button>
-              <button
+            <div className="fl-booking-actions" data-step={step}>
+              <button className="fl-booking-primary"
                 onClick={async () => {
                   if (!validateStep(2)) return;
                   /* WAIT FOR THE ANSWER THIS DECISION DEPENDS ON.
@@ -1871,16 +1669,8 @@ export default function BookingPage() {
                   setStep(3);
                 }}
                 disabled={!bookingEmail || !clientDetails.name || !clientDetails.phone || decidingConsultation}
-                style={{ ...styles.primaryBtn,
-                  background: (!clientDetails.name || !clientDetails.phone || decidingConsultation) ? '#ccc' : brand,
-                  cursor: (!clientDetails.name || !clientDetails.phone || decidingConsultation) ? 'not-allowed' : 'pointer'
-                }}
               >
-                {decidingConsultation
-                  ? 'Just a moment...'
-                  : consultationDecision?.forKey === consultationKey
-                    ? 'Review booking'
-                    : 'Next'}
+                {decidingConsultation ? 'Just a moment...' : 'Review booking'}
               </button>
             </div>
           </div>
@@ -1888,7 +1678,7 @@ export default function BookingPage() {
         {/* Step 2.5: Consultation Form (only for treatments that require it) */}
         {step === 2.5 && (
           <div>
-            <h2 style={styles.stepTitle}>
+            <h2 tabIndex={-1} className="fl-booking-title" style={styles.stepTitle}>
               {consultationForms.length > 1 ? 'Consultation forms' : (consultationForm?.name || 'Consultation form')}
             </h2>
             {/* WHAT THIS PAGE MAY SAY.
@@ -2056,9 +1846,8 @@ export default function BookingPage() {
                   : `${missingConsultation.length} questions still need an answer.`}
               </p>
             )}
-            <div style={styles.buttonRow}>
-              <button onClick={() => setStep(2)} style={styles.backBtn}>← Back</button>
-              <button
+            <div className="fl-booking-actions" data-step={step}>
+              <button className="fl-booking-primary"
                 onClick={() => {
                   // Caught here rather than at Confirm. Sending someone to the
                   // review screen and refusing there means walking them back
@@ -2083,7 +1872,7 @@ export default function BookingPage() {
         {/* Step 3: Confirm */}
         {step === 3 && (
           <div>
-            <h2 style={styles.stepTitle}>Confirm your booking</h2>
+            <h2 tabIndex={-1} className="fl-booking-title" style={styles.stepTitle}>Confirm your booking</h2>
             {/* Outstanding balance heads-up for a recognised returning client.
                 A warm notice only, never a wall: the backend fails open (zero)
                 on any error and booking always goes ahead. */}
@@ -2095,7 +1884,7 @@ export default function BookingPage() {
                 The salon’s records show a fee of <Money pence={recognisedClient.outstandingBalanceCents} /> from a previous appointment. If you’ve already paid or don’t recognise it, please check with the salon.
               </div>
             )}
-            <div style={styles.summaryCard}>
+            <div className="fl-booking-review-card">
               {/* Show each treatment row when multiple selected */}
               {selectedTreatments.length > 1 ? (
                 <>
@@ -2116,18 +1905,8 @@ export default function BookingPage() {
                 </div>
               )}
               <div style={styles.summaryRow}>
-                <span style={styles.summaryLabel}>Date</span>
-                <span style={styles.summaryValue}>
-                  {new Date(selectedSlot.starts_at).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
-                </span>
-              </div>
-              <div style={styles.summaryRow}>
-                <span style={styles.summaryLabel}>Time</span>
-                <span style={styles.summaryValue}>{selectedSlot.display}</span>
-              </div>
-              <div style={styles.summaryRow}>
-                <span style={styles.summaryLabel}>Duration</span>
-                <span style={styles.summaryValue}>{combinedDuration + addOnDuration} minutes</span>
+                <span style={styles.summaryLabel}>When</span>
+                <span style={styles.summaryValue}>{new Date(selectedSlot.starts_at).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })} · {selectedSlot.display}<br /><span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{combinedDuration + addOnDuration} min</span></span>
               </div>
               {selectedAddOns.length > 0 && (
                 <>
@@ -2435,15 +2214,10 @@ export default function BookingPage() {
               </p>
             )}
             {TURNSTILE_SITE_KEY ? <TurnstileWidget onToken={setTurnstileToken} /> : null}
-            <div style={styles.buttonRow}>
-              <button onClick={() => setStep(2)} style={styles.backBtn}>← Back</button>
-              <button
+            <div className="fl-booking-actions" data-step={step}>
+              <button className="fl-booking-primary"
                 onClick={handleBook}
                 disabled={submitting}
-                style={{ ...styles.primaryBtn,
-                  background: submitting ? '#ccc' : brand,
-                  minWidth: 160
-                }}
               >
                 {submitting
                   ? 'Booking...'
@@ -2461,7 +2235,7 @@ export default function BookingPage() {
           </div>
         )}
       </div>
-      <SalonInfo beautician={beautician} reviewsData={reviewsData} brand={brand} />
+      {step === 0 && <details className="fl-booking-salon-info"><summary>About {bizName}</summary><SalonInfo beautician={beautician} reviewsData={reviewsData} brand={brandInk} /></details>}
       <div style={styles.footer}>
         <span style={styles.footerText}>Powered by </span>
         <span style={{ ...styles.footerBrand, color: brandInk }}>florrie.ai</span>
@@ -2556,11 +2330,11 @@ const styles = {
     minHeight: 'var(--shell-viewport)',
     background: 'var(--bg)',
     fontFamily: "var(--font-body, 'Plus Jakarta Sans', -apple-system, sans-serif)",
-    padding: '0 16px 40px',
-    maxWidth: 480,
+    padding: '0 22px 40px',
+    maxWidth: 520,
     margin: '0 auto',
     color: 'var(--text-primary)',
-    animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
+    overflowWrap: 'break-word'
   },
   loadingContainer: {
     minHeight: 'var(--shell-viewport)',
@@ -2588,12 +2362,10 @@ const styles = {
   progressDot: { width: 10, height: 10, borderRadius: '50%', transition: 'all 0.3s ease' },
   progressLabel: { fontSize: 11, letterSpacing: '0.02em', transition: 'all 0.3s ease' },
   card: {
-    background: 'var(--bg-card)',
-    borderRadius: 16,
-    padding: '28px 24px',
-    boxShadow: 'var(--shadow-md)'
+    background: 'transparent',
+    padding: 0
   },
-  stepTitle: { fontSize: 18, fontWeight: 600, marginBottom: 20, marginTop: 0, fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" },
+  stepTitle: { fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" },
   treatmentList: { display: 'flex', flexDirection: 'column', gap: 10 },
   treatmentCard: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -2661,7 +2433,7 @@ const styles = {
   noSlots: { color: 'var(--text-muted)', fontSize: 14, padding: '20px 0' },
   form: { display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 },
   input: {
-    padding: '14px 16px', borderRadius: 10, border: '1.5px solid var(--border)',
+    padding: '14px 16px', borderRadius: 12, border: '1px solid var(--border)',
     fontSize: 15, fontFamily: 'inherit', outline: 'none', color: 'var(--text-primary)', background: 'var(--bg-subtle, #ede7e3)'
   },
   summaryCard: {
