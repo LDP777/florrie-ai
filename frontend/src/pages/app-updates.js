@@ -5,6 +5,13 @@ export const APP_UPDATES = [
     date: '2026-11-22',
     changes: [
       {
+        id: 'money-monthly-diary',
+        title: 'See the full month in Money',
+        description: 'See the value of this month’s appointments, split into completed and still booked. Tap Payments recorded to check what has been received.',
+        to: '/money', linkLabel: 'Open Money',
+        commits: ['1c03bf8'],
+      },
+      {
         id: 'hours-for-specific-dates',
         title: 'Work extra hours on selected dates',
         description: 'Choose a day in your calendar and tap Hours for this day, or set hours for several dates together. Your usual week stays the same.',
