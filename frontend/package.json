@@ -50,8 +50,7 @@
     "check:intelligence": "node scripts/check-intelligence-brief.mjs && node scripts/check-agent-network-loading.mjs && node scripts/check-effects.mjs",
     "check:voice:browser": "node scripts/check-voice-petal.mjs && node scripts/check-voice-design.mjs",
     "check:sms": "node --test src/lib/sms-settings.test.mjs && node scripts/check-sms-setup.mjs",
-    "check:privacy:browser": "node scripts/check-client-privacy.mjs && node scripts/check-client-privacy-primary.mjs && node scripts/check-client-privacy-content.mjs && node scripts/check-client-privacy-secondary.mjs",
-    "check:booking:design": "node scripts/check-booking-design.mjs"
+    "check:privacy:browser": "node scripts/check-client-privacy.mjs && node scripts/check-client-privacy-primary.mjs && node scripts/check-client-privacy-content.mjs && node scripts/check-client-privacy-secondary.mjs"
   },
   "dependencies": {
     "@capacitor-community/apple-sign-in": "7.1.0",

@@ -5,12 +5,6 @@ export const APP_UPDATES = [
     date: '2026-11-22',
     changes: [
       {
-        id: 'simpler-client-booking',
-        title: 'An easier booking page',
-        description: 'Clients can choose a date and time together, then check their details before paying. Your booking link now has a cleaner layout and a full calendar for looking further ahead.',
-        commits: ['90912b1'],
-      },
-      {
         id: 'money-monthly-diary',
         title: 'Clearer income and recent payments',
         description: 'Compare income with the same dates last month and see your latest payments. Payments recorded on completion can be marked unpaid in Income.',
