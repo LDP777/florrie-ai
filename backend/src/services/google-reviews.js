@@ -89,6 +89,7 @@ export function createGoogleReviews({ db, fetchImpl=fetch, env=process.env }) {
   }
   return {
     ready,
+    publishingContext: context,
     async status(owner) {
       if(!ready()) return {available:false,connected:false,reason:'Google review connections are awaiting setup. You can still use your Google review request link.'};
       const saved=await row(owner);

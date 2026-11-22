@@ -16,6 +16,7 @@ const SAFE_BEAUTICIAN_FIELDS = [
   'business_name',
   'avatar_url',
   'booking_slug',
+  'content_v2',
   'timezone',
   'currency',
   'locale',

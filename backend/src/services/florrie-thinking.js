@@ -1,3 +1,4 @@
+import { contentReadyThought } from './content-ready-thought.js';
 import { readAllMoney } from '../lib/read-all-money.js';
 import { briefCache } from '../lib/brief-cache.js';
 import { supabase as database } from '../config.js';
@@ -32,6 +33,7 @@ export async function readThoughtCandidates(beautician) {
     setPricesCard(beauticianId, wallNow),
     lapsedRegularCard(beauticianId, wallNow),
     loadPersonalThoughts(database, beautician),
+    contentReadyThought(beautician, { db: database }),
   ]);
 
   let cards = [];

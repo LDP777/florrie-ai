@@ -384,10 +384,11 @@ export async function waitForContainer(containerId, token, { attempts = 12, dela
     try {
       const res = await fetch(
         `https://graph.instagram.com/v21.0/${containerId}?fields=status_code,status`,
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15000) }
       );
       data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        if (res.status === 401 || data?.error?.code === 190) return { ok: false, statusCode: 'AUTH', not_connected: true, error: 'Instagram signed you out. Reconnect to publish this post.' };
         last = data?.error?.message || `HTTP ${res.status}`;
         // A rejected status read is not proof the container is bad, so keep
         // asking rather than binning a post that may be seconds from ready.
@@ -424,7 +425,7 @@ function metaError(body, res, fallback) {
  * Approve and publish a post to Instagram.
  * Uses the Instagram Graph API to publish.
  */
-export async function publishPost(beauticianId, postId) {
+export async function publishPost(beauticianId, postId, options = {}) {
   const { data: post, error: postErr } = await supabase
     .from('content_posts')
     .select('*')
@@ -437,6 +438,7 @@ export async function publishPost(beauticianId, postId) {
     return { published: false, reason: 'Could not read that post just now. Try again in a moment.' };
   }
   if (!post) throw new Error('Post not found');
+  if (post.kind === 'reel_plan' || post.post_type === 'gallery') return { published: false, reason: 'This is not a publishable post.' };
 
   // NOTHING PUBLISHES TWICE.
   //
@@ -477,7 +479,7 @@ export async function publishPost(beauticianId, postId) {
   const isStory = post.media_kind === 'story';
   const { data: beautician, error: beauticianErr } = await supabase
     .from('beauticians')
-    .select('instagram_page_id, instagram_page_token')
+    .select('*')
     .eq('id', beauticianId)
     .single();
 
@@ -489,8 +491,14 @@ export async function publishPost(beauticianId, postId) {
     return { published: false, reason: 'Could not check your Instagram connection just now. Try again in a moment.' };
   }
 
+  if (!options.v2 && (beautician?.content_v2 || post.preparation_id)) {
+    const { publishContentV2Post } = await import('./content-v2/publish.js');
+    return publishContentV2Post(beauticianId, postId);
+  }
+
   if (!beautician?.instagram_page_id || !beautician?.instagram_page_token) {
-    // No Instagram connected — mark as approved but can't publish
+    if (options.v2) return { published: false, not_connected: true, reason: 'Waiting for Instagram. Your approval is safe.' };
+    // No Instagram connected, mark as approved but cannot publish
     const { error: approveErr } = await supabase.from('content_posts').update({
       status: 'approved',
       approved_at: new Date().toISOString()
@@ -511,7 +519,7 @@ export async function publishPost(beauticianId, postId) {
   const urlProblem = imageUrlProblem(post.image_url);
   if (urlProblem) {
     logger.warn({ postId, beauticianId, imageUrl: post.image_url }, `Instagram publish blocked: ${urlProblem}`);
-    await markPostFailed(postId, urlProblem);
+    if (!options.v2) await markPostFailed(postId, urlProblem);
     return { published: false, reason: urlProblem };
   }
 
@@ -525,12 +533,14 @@ export async function publishPost(beauticianId, postId) {
   //
   // A claim older than STALE_CLAIM_MS is reclaimable, because a process that
   // died mid-publish must not lock a post out of ever being published again.
-  const claim = await claimForPublish(postId, beauticianId);
+  const claim = options.claimTaken ? { claimed: true } : await claimForPublish(postId, beauticianId);
   if (!claim.claimed) {
     logger.warn({ postId, beauticianId, reason: claim.reason }, 'Instagram publish: another publish of this post is already in flight');
     return { published: false, reason: 'This post is already being published. Give it a moment.' };
   }
 
+  let publishSent = false;
+  let explicitRefusal = false;
   try {
     // Step 1: Create media container
     const fullCaption = [post.caption, '', post.hashtags?.join(' ')].filter(Boolean).join('\n');
@@ -552,6 +562,7 @@ export async function publishPost(beauticianId, postId) {
 
     let container = null;
     let containerErr = null;
+    let connectionRejected = false;
     let target = null;
 
     for (const candidate of [beautician.instagram_page_id, 'me']) {
@@ -561,6 +572,7 @@ export async function publishPost(beauticianId, postId) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
           body: createBody,
+          signal: AbortSignal.timeout(30000),
         }
       );
       const body = await res.json().catch(() => ({}));
@@ -574,18 +586,21 @@ export async function publishPost(beauticianId, postId) {
         break;
       }
       containerErr = metaError(body, res, 'Instagram would not accept the photo');
+      connectionRejected ||= res.status === 401 || body?.error?.code === 190;
       logger.warn({ beauticianId, postId, candidate, err: body?.error || res.status }, 'Instagram publish: media container rejected');
     }
 
-    if (!container?.id) throw new Error(containerErr || 'Failed to create media container');
+    if (!container?.id) throw Object.assign(new Error(containerErr || 'Failed to create media container'), { not_connected: connectionRejected });
 
     // Step 1b: Instagram downloads the image on its own time. Publishing
     // before it has finished is what left posts marked "posted" that were
     // never on the profile.
     const ready = await waitForContainer(container.id, token);
-    if (!ready.ok) throw new Error(ready.error || 'Instagram could not process the photo');
+    if (!ready.ok) throw Object.assign(new Error(ready.error || 'Instagram could not process the photo'), { not_connected: ready.not_connected === true });
 
-    // Step 2: Publish
+    // Save the dispatch boundary before the request so a restart can reconcile.
+    if (options.beforePublish) await options.beforePublish();
+    publishSent = true;
     const publishRes = await fetch(
       `https://graph.instagram.com/v21.0/${target}/media_publish`,
       {
@@ -596,7 +611,8 @@ export async function publishPost(beauticianId, postId) {
         },
         body: JSON.stringify({
           creation_id: container.id
-        })
+        }),
+        signal: AbortSignal.timeout(30000)
       }
     );
     const published = await publishRes.json().catch(() => ({}));
@@ -605,8 +621,19 @@ export async function publishPost(beauticianId, postId) {
     // 'posted' regardless, so a rejected publish produced a row that claimed
     // to be live with external_post_id undefined.
     if (!publishRes.ok || !published.id) {
-      throw new Error(metaError(published, publishRes, 'Instagram accepted the photo but would not publish it'));
+      explicitRefusal = !publishRes.ok && !!published.error;
+      let reason = metaError(published, publishRes, 'Instagram accepted the photo but would not publish it');
+      if (options.v2 && explicitRefusal) {
+        try {
+          const limitResponse = await fetch(`https://graph.instagram.com/v21.0/${target}/content_publishing_limit?fields=quota_usage,config`, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10000) });
+          const limit = await limitResponse.json();
+          const usage = limit.data?.[0];
+          if (limitResponse.ok && usage?.quota_usage >= usage?.config?.quota_total) reason += ' Your Instagram publishing limit has been reached. Try again when the limit resets.';
+        } catch { /* The original refusal remains the reason if the limit read fails. */ }
+      }
+      throw Object.assign(new Error(reason), { not_connected: published.error?.code === 190 });
     }
+    if (options.v2) return { published: true, instagramId: published.id };
 
     // Update post record.
     //
@@ -647,6 +674,7 @@ export async function publishPost(beauticianId, postId) {
 
   } catch (err) {
     logger.error({ err, postId, beauticianId }, 'Instagram publish error');
+    if (options.v2) return { published: false, reason: err.message, disabled: err.disabled === true, needs_approval: err.needs_approval === true, not_connected: err.not_connected === true, uncertain: publishSent && !explicitRefusal };
     // Nothing reached the profile, so let her try again once she has fixed
     // whatever it was.
     await releasePublishClaim(postId);

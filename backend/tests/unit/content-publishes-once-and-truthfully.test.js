@@ -210,6 +210,7 @@ vi.mock('@anthropic-ai/sdk', () => ({
 }));
 vi.mock('../../src/lib/anti-slop.js', () => ({ ensureNoSlop: async (t) => t }));
 vi.mock('../../src/services/voice-profile.js', () => ({ buildVoiceGuide: () => '' }));
+vi.mock('../../src/services/content-v2/publish.js', () => ({ publishContentV2Post: vi.fn(async () => ({ published: false, needs_approval: true })) }));
 
 /* ------------------------------------------------------------------- fetch -- */
 const graphCalls = [];
@@ -225,6 +226,7 @@ vi.stubGlobal('fetch', async (input, init) => {
 });
 
 const { publishPost, planWeek, generateCaption } = await import('../../src/services/content-autopilot.js');
+const { publishContentV2Post } = await import('../../src/services/content-v2/publish.js');
 
 afterAll(() => { vi.useRealTimers(); });
 
@@ -277,6 +279,7 @@ beforeEach(() => {
   claudeReply = '[]';
   idCounter = 0;
   vi.setSystemTime(NOW);
+  publishContentV2Post.mockClear();
 });
 
 /* =========================================================================== */
@@ -581,5 +584,43 @@ describe('a caption is written by something that has seen the photo', () => {
     expect(fallback[0].text).toContain('The owner offers a consultation.');
     expect(fallback[0].text).not.toContain('Describe what you can actually see');
     expect(out.caption).toBeTruthy();
+  });
+});
+
+describe('v2 dispatch boundary in the existing Instagram pipeline', () => {
+  function fictionalPost() {
+    seedSalon({ id: 'fictional-salon', first_name: 'Mira', business_name: 'Cedar Beauty', booking_slug: 'cedar-beauty' });
+    return seedPost({ beautician_id: 'fictional-salon', caption: 'Lash lift and tint is £50.', hashtags: [], image_url: 'https://fictional.example/lashes.jpg', status: 'scheduled', publish_claimed_at: NOW.toISOString() });
+  }
+  it('routes every flagged salon through v2 even when a legacy tool saved no material hash', async () => {
+    const post = fictionalPost(); post.publish_claimed_at = null;
+    COLUMNS.beauticians.push('content_v2');
+    db.beauticians[0].content_v2 = true;
+    expect(post.material_hash).toBeUndefined();
+    expect(await publishPost('fictional-salon', post.id)).toEqual({ published: false, needs_approval: true });
+    expect(publishContentV2Post).toHaveBeenCalledWith('fictional-salon', post.id);
+    expect(graphCalls).toHaveLength(0);
+  });
+  it('preserves the claimed row when media_publish loses its answer', async () => {
+    const post = fictionalPost(); stubHappyPublish();
+    let boundarySaved = false;
+    graph[`${IG_ID}/media_publish`] = () => { expect(boundarySaved).toBe(true); throw new Error('Fictional response lost'); };
+    const result = await publishPost('fictional-salon', post.id, { v2: true, claimTaken: true, beforePublish: async () => { boundarySaved = true; } });
+    expect(result.uncertain).toBe(true); expect(post.publish_claimed_at).toBe(NOW.toISOString());
+    expect(post.status).toBe('scheduled'); expect(graphCalls.filter(call => call.url.includes('media_publish'))).toHaveLength(1);
+  });
+  it('distinguishes a provider refusal and reads the account publishing limit', async () => {
+    const post = fictionalPost(); stubHappyPublish();
+    graph[`${IG_ID}/media_publish`] = () => ({ ok: false, status: 400, body: { error: { message: 'Publishing limit reached' } } });
+    graph[`${IG_ID}/content_publishing_limit`] = () => ({ body: { data: [{ quota_usage: 100, config: { quota_total: 100 } }] } });
+    const result = await publishPost('fictional-salon', post.id, { v2: true, claimTaken: true, beforePublish: async () => {} });
+    expect(result.uncertain).toBe(false); expect(result.reason).toContain('publishing limit');
+    expect(graphCalls.some(call => call.url.includes('content_publishing_limit'))).toBe(true);
+  });
+  it('reports expired credentials as waiting without changing the approval', async () => {
+    const post = fictionalPost();
+    for (const target of [IG_ID, 'me']) graph[`${target}/media`] = () => ({ ok: false, status: 400, body: { error: { code: 190, message: 'Session expired' } } });
+    const result = await publishPost('fictional-salon', post.id, { v2: true, claimTaken: true });
+    expect(result.not_connected).toBe(true); expect(result.uncertain).toBe(false); expect(post.status).toBe('scheduled');
   });
 });

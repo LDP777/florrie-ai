@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		DF9C25A4139D4E56B519B101 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = DF9C25A4139D4E56B519B102 /* PrivacyInfo.xcprivacy */; };
 		2FAD9763203C412B000D30F8 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
 		3D7B130FEEB13AD69923DF5F /* FlorrieStartupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2FDEF65DA44CE351BCCDDFF /* FlorrieStartupTests.swift */; };
 		50379B232058CBB4000EE86E /* capacitor.config.json in Resources */ = {isa = PBXBuildFile; fileRef = 50379B222058CBB4000EE86E /* capacitor.config.json */; };
@@ -34,6 +35,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		DF9C25A4139D4E56B519B102 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		2F609696CFBD9D8B3ADA4272 /* SceneDelegate.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
 		50379B222058CBB4000EE86E /* capacitor.config.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = capacitor.config.json; sourceTree = "<group>"; };
@@ -128,6 +130,7 @@
 				88262634FE5F17866F62F458 /* bloom-needsyou.caf */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
 				504EC3131FED79650016851F /* Info.plist */,
+				DF9C25A4139D4E56B519B102 /* PrivacyInfo.xcprivacy */,
 				50AE271B2C1A4F0091B3D2E4 /* App.entitlements */,
 				2FAD9762203C412B000D30F8 /* config.xml */,
 				50B271D01FEDC1A000F3C39B /* public */,
@@ -240,6 +243,7 @@
 				504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */,
 				50B271D11FEDC1A000F3C39B /* public in Resources */,
 				504EC30F1FED79650016851F /* Assets.xcassets in Resources */,
+				DF9C25A4139D4E56B519B101 /* PrivacyInfo.xcprivacy in Resources */,
 				88BCC26AC1BF7ADCA76AF6C5 /* bloom-good.caf in Resources */,
 				E6BAA8B083F1BBC0CA3ADC88 /* bloom-needsyou.caf in Resources */,
 				50379B232058CBB4000EE86E /* capacitor.config.json in Resources */,

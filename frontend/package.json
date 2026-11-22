@@ -50,7 +50,8 @@
     "check:intelligence": "node scripts/check-intelligence-brief.mjs && node scripts/check-agent-network-loading.mjs && node scripts/check-effects.mjs",
     "check:voice:browser": "node scripts/check-voice-petal.mjs && node scripts/check-voice-design.mjs",
     "check:sms": "node --test src/lib/sms-settings.test.mjs && node scripts/check-sms-setup.mjs",
-    "check:privacy:browser": "node scripts/check-client-privacy.mjs && node scripts/check-client-privacy-primary.mjs && node scripts/check-client-privacy-content.mjs && node scripts/check-client-privacy-secondary.mjs"
+    "check:privacy:browser": "node scripts/check-client-privacy.mjs && node scripts/check-client-privacy-primary.mjs && node scripts/check-client-privacy-content.mjs && node scripts/check-client-privacy-secondary.mjs",
+    "check:content:v2": "node scripts/check-content-v2.mjs && node scripts/check-content-artwork.mjs && node --test src/lib/content-share.test.mjs"
   },
   "dependencies": {
     "@capacitor-community/apple-sign-in": "7.1.0",
@@ -58,9 +59,11 @@
     "@capacitor/app": "8.1.2",
     "@capacitor/browser": "8.0.5",
     "@capacitor/core": "8.6.2",
+    "@capacitor/filesystem": "8.1.5",
     "@capacitor/haptics": "8.0.2",
     "@capacitor/ios": "8.6.2",
     "@capacitor/push-notifications": "8.1.3",
+    "@capacitor/share": "8.0.3",
     "@capacitor/splash-screen": "8.0.2",
     "@capacitor/status-bar": "8.0.4",
     "@sentry/react": "^8.0.0",
@@ -79,6 +82,7 @@
     "@playwright/test": "^1.59.1",
     "@tailwindcss/vite": "^4.0.0",
     "@vitejs/plugin-react": "^4.3.0",
+    "axe-core": "4.14.1",
     "tailwindcss": "^4.0.0",
     "typescript": "^6.0.2",
     "vite": "^6.0.0",

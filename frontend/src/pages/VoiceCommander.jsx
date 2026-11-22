@@ -363,8 +363,8 @@ const TASK_GROUPS = [
     { title: 'Review how Florrie is set up', detail: 'Check your current messaging settings', icon: 'settings', prompt: 'How are you set up at the moment?' },
   ] },
   { id: 'create', label: 'Create', icon: 'camera', title: 'Put your work out there', tasks: [
-    { title: 'Plan content that brings bookings', detail: 'Open Content Studio to plan, create and track posts', icon: 'camera', path: '/content' },
-    { title: 'Continue a content draft', detail: 'Pick up where you left off', icon: 'edit', path: '/content', state: { showDrafts: true } },
+    { title: 'Plan content that brings bookings', detail: 'Check the posts Florrie prepared for your salon', icon: 'camera', path: '/content' },
+    { title: 'Continue a content draft', detail: 'Check your saved post and approve it when you are happy', icon: 'edit', path: '/content', state: { showDrafts: true } },
     { title: 'Work with your reviews', detail: 'Review replies and feedback permissions', icon: 'star', path: '/reviews' },
   ] },
 ];

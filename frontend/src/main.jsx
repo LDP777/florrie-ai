@@ -116,3 +116,5 @@ try {
 }
 
 if (typeof window !== 'undefined') { window.__FLORRIE_BUILD__ = '20260630-rehash-1'; }
+
+import './styles/content-v2.css';

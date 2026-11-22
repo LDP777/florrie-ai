@@ -15,6 +15,7 @@
  */
 
 import Stripe from 'stripe';
+import { randomUUID } from 'node:crypto';
 import { sendMessage } from './notifications.js';
 import { sendConsultationFormSMS } from '../routes/consultation-forms.js';
 import {
@@ -36,6 +37,16 @@ const stripe = process.env.STRIPE_SECRET_KEY
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://florrie.ai';
 
 export const TOOL_DEFINITIONS = [
+  {
+    name: 'get_content_status',
+    description: 'Read the posts ready to check, coming up, waiting for a connection, or needing another try. Does not publish anything.',
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'prepare_content',
+    description: 'Prepare finished content from plain words such as help fill Thursday or sort next week. Saves drafts for the owner to check and approve; never publishes.',
+    input_schema: { type: 'object', properties: { text: { type: 'string', maxLength: 300 }, request_id: { type: 'string', description: 'Reuse this id when retrying the same request.' } }, required: ['text'] },
+  },
   {
     name: 'get_florrie_brief',
     description: 'Read the same evidence shown in Insights: completed work, approval queue, background checks, writing learned and business patterns. Use when asked what needs attention, what Florrie has done or learned, or how the business is doing. Unknown or partial data is not zero. Checks do not prove message delivery. Do not claim these are independent AI minds.',
@@ -433,7 +444,24 @@ export async function executeTool(toolName, toolInput, beautician, supabase) {
         const data = await buildIntelligenceBrief(beautician, supabase);
         return { result: JSON.stringify({ instruction: 'Explain evidence, sampling and missing sources; ask before any changes or messages.', brief: data }), data };
       }
-      case 'get_settings':          return await toolGetSettings(toolInput, beautician);
+      case 'get_content_status': {
+        if (!beautician.content_v2) return { result: 'Open Content to check your saved posts.', data: { link_to: '/content' } };
+        const { getContentHome } = await import('./content-v2/index.js');
+        const home = await getContentHome(beautician.id);
+        const titles = rows => (rows || []).map(post => ({ id: post.id, title: post.purpose?.title || 'Your post', state: post.state }));
+        const data = { to_check: titles(home.posts_to_check), coming_up: titles(home.coming_up),
+          waiting: titles(home.coming_up?.filter(post => /waiting/i.test(post.state))),
+          failed: titles(home.coming_up?.filter(post => post.status === 'failed' || /didn.t post|failed/i.test(post.state))), link_to: '/content?view=drafts' };
+        data.counts = { to_check: data.to_check.length, coming_up: data.coming_up.length, waiting: data.waiting.length, failed: data.failed.length };
+        return { result: JSON.stringify(data), data };
+      }
+      case 'prepare_content': {
+        if (!beautician.content_v2) return { result: 'Open Content to prepare your posts.', data: { link_to: '/content' } };
+        const { askContent } = await import('./content-v2/index.js');
+        const data = await askContent(beautician.id, toolInput.request_id || randomUUID(), toolInput.text);
+        return { result: JSON.stringify({ ...data, instruction: 'These are drafts for the owner to check. Nothing has been published.' }), data: { ...data, link_to: '/content' } };
+      }
+      case 'get_settings':          return await toolGetSettings(toolInput, beautician, supabase);
       case 'change_setting':        return await toolChangeSetting(toolInput, beautician, supabase);
       case 'check_schedule':        return await toolCheckSchedule(toolInput, beautician, supabase);
       case 'get_upcoming_appointments': return await toolGetUpcoming(toolInput, beautician, supabase);
@@ -478,7 +506,7 @@ export async function executeTool(toolName, toolInput, beautician, supabase) {
  * than the column name. She is asking a question about her business, not
  * inspecting a row.
  */
-async function toolGetSettings({ setting_id }, beautician) {
+async function toolGetSettings({ setting_id }, beautician, supabase) {
   const list = setting_id ? [byId(setting_id)].filter(Boolean) : SETTINGS;
   if (!list.length) return { result: `I do not have a setting called "${setting_id}".` };
 
@@ -487,9 +515,17 @@ async function toolGetSettings({ setting_id }, beautician) {
     const state = s.type === 'boolean' ? (v ? 'on' : 'off') : String(v);
     return `${s.label}: ${state}`;
   });
+  let learnedVoiceRules = [];
+  if (beautician.content_v2) {
+    const rules = await supabase.from('content_voice_rules').select('id,kind,from_text,to_text,value')
+      .eq('beautician_id', beautician.id).is('forgotten_at', null);
+    if (rules.error) throw new Error('Could not read how you write. Try again.');
+    learnedVoiceRules = rules.data || [];
+  }
   return {
-    result: lines.join('\n'),
+    result: [lines.join('\n'), ...(learnedVoiceRules.length ? [`How you write: ${JSON.stringify(learnedVoiceRules)}`] : [])].join('\n'),
     data: {
+      content_voice_rules: learnedVoiceRules,
       settings: list.map(s => ({
         id: s.id, label: s.label, value: readSetting(s, beautician), means: s.means,
       })),

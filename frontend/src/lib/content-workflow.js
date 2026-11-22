@@ -15,15 +15,15 @@ export function scheduleInstant(value, now = Date.now()) {
   return date.toISOString();
 }
 // No mutation retries: an interrupted response does not prove the save failed.
-export async function contentRequest(url, { token, method = 'GET', body, timeoutMs = 45000, request = fetch } = {}) {
+export async function contentRequest(url, { token, method = 'GET', body, timeoutMs = 45000, keepalive = false, request = fetch } = {}) {
   if (!token) throw new Error('Sign in again to continue. Your request has not been sent.');
   const controller = new AbortController();
   let timer;
   try {
     return await Promise.race([(async () => {
-      const response = await request(url, { method, signal: controller.signal, headers: { Authorization: `Bearer ${token}`, ...(body ? {'Content-Type':'application/json'} : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
+      const response = await request(url, { method, signal: controller.signal, keepalive, headers: { Authorization: `Bearer ${token}`, ...(body ? {'Content-Type':'application/json'} : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
       const data = await response.json();
-      if (!response.ok) { const error = new Error(data?.error || 'Could not complete this request.'); error.status = response.status; throw error; }
+      if (!response.ok) { const error = new Error(data?.error || 'Could not complete this request.'); error.status = response.status; error.data = data; throw error; }
       return data;
     })(), new Promise((_, reject) => { timer = setTimeout(() => { controller.abort(); reject(new Error('This is taking too long. Your edits are still here. Check the saved result before trying again.')); }, timeoutMs); })]);
   } finally { clearTimeout(timer); }

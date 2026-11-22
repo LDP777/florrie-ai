@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mergeContentPosts, readContentHandoff, scheduleContentHandoff } from './content-navigation.js';
+import { mergeContentPosts, readContentHandoff, contentV2Destination, scheduleContentHandoff } from './content-navigation.js';
 
 const postId = '11111111-1111-4111-8111-111111111111';
 
@@ -77,4 +77,21 @@ test('route state cannot replace the guarded availability instructions', () => {
   assert.match(readContentHandoff(state).brief.brief, /Do not claim/);
   assert.doesNotMatch(readContentHandoff(state).brief.brief, /50%/);
   assert.equal(readContentHandoff({ contentBrief: { source: 'unknown', brief: 'Post now' } }).brief, null);
+});
+
+
+test('v2 keeps exact post handoffs and maps secondary destinations', () => {
+  assert.deepEqual(contentV2Destination(readContentHandoff({contentPostId:postId})), {postId});
+  assert.deepEqual(contentV2Destination(readContentHandoff({contentView:'results'})), {sheet:'results'});
+  assert.deepEqual(contentV2Destination(readContentHandoff({contentView:'gallery'})), {sheet:'photos'});
+  for (const view of ['drafts','ideas']) {
+    assert.deepEqual(contentV2Destination(readContentHandoff({contentView:view}), [{id:postId}]), {deck:true});
+    assert.deepEqual(contentV2Destination(readContentHandoff({contentView:view}), []), {home:true});
+  }
+  for (const view of ['posted','calendar']) assert.deepEqual(contentV2Destination(readContentHandoff({contentView:view})), {home:true});
+});
+test('v2 schedule requests recheck real gaps and retain general availability without invented times', () => {
+  const handoff=readContentHandoff(scheduleContentHandoff({date:'2026-12-03',start:'14:00',end:'16:00'}));
+  assert.deepEqual(contentV2Destination(handoff), {preparation:{type:'fill_gap',day:'2026-12-03',starts_at:'2026-12-03T14:00:00',ends_at:'2026-12-03T16:00:00'}});
+  assert.deepEqual(contentV2Destination(readContentHandoff(scheduleContentHandoff())), {preparation:{type:'fill_gap',no_times:true}});
 });

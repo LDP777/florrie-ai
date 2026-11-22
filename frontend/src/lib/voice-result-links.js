@@ -28,6 +28,8 @@ const DESTINATIONS = {
   get_patch_tests_needed: { label: 'Open patch tests', path: '/patch-tests' },
   get_florrie_brief: { label: 'Open Florrie’s brief', path: '/insights' },
   get_busiest_days: { label: 'Open Calendar', path: '/calendar' },
+  get_content_status: { label: 'Check your posts', path: '/content' },
+  prepare_content: { label: 'Open your posts', path: '/content' },
   get_settings: { label: 'Open Settings', path: '/settings' },
   change_setting: { label: 'Open Settings', path: '/settings' },
   add_note: { label: 'View Checklist', path: '/checklist' },

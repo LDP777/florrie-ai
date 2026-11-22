@@ -945,7 +945,7 @@ describe('publish: the two step flow, done in the documented order', () => {
  * The scheduled path, same publish, unattended
  * ======================================================================== */
 describe('scheduler: a scheduled post that did not go out says so', () => {
-  it('marks a scheduled post failed when Instagram is not connected', async () => {
+  it('keeps approval while Instagram is disconnected so reconnect can resume publishing', async () => {
     applyProposedColumns();
     db.beauticians = [{ id: 'b-ellie', first_name: 'Ellie' }];   // no token
     db.content_posts = [{
@@ -957,11 +957,9 @@ describe('scheduler: a scheduled post that did not go out says so', () => {
     const out = await publishScheduledPosts();
 
     expect(out.published).toBe(0);
-    expect(out.failed).toBe(1);
-    // Not left sitting in 'approved', where it appears nowhere and nobody
-    // ever learns the post never happened.
-    expect(db.content_posts[0].status).toBe('failed');
-    expect(db.content_posts[0].failure_reason).toMatch(/not connected/i);
+    expect(out.failed).toBe(0);
+    expect(db.content_posts[0].status).toBe('approved');
+    expect(db.content_posts[0].failure_reason).toBeFalsy();
   });
 
   it('returns a photoless scheduled post to drafts rather than failing it', async () => {
