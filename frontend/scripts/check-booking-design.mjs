@@ -53,15 +53,16 @@ try {
         if(p==='/api/booking/ellindigo/page')return json({salon:{id:'fictional-salon',business_name:'Ellindigo',brand_color:'#92405e',working_hours:weekly,booking_policy:{max_advance_days:90,cancellation_notice_hours:48,late_cancel_charge_percent:100},stripe_onboarding_complete:true},treatments,addOns:[{id:'extra',name:'Brow conditioning',duration_minutes:15,price_cents:500}]});
         if(p==='/api/products/public/fictional-salon')return json([]);
         if(p==='/api/courses/ellindigo')return json({courses:[]});
-        if(p==='/api/booking/ellindigo/reviews')return json({reviews:[]});
+        if(p==='/api/booking/ellindigo/reviews')return json({count:1,average:5,recent:[{first_name:'Fictional client',rating:5,comment:'Fictional feedback for the booking check.'}]});
         if(p==='/api/booking/ellindigo/availability-range')return state.failMonth?json({},503):json({appointments:[{starts_at:'2026-11-23T10:00:00Z',duration_minutes:420}],closures:['2026-11-25'],blocks:[],date_hours:[]});
         if(p==='/api/booking/ellindigo/availability'){
           if(state.holdDay)await new Promise(resolve=>{window.finishDay=resolve});
           return state.failDay?json({},503):json({appointments:[{starts_at:u.searchParams.get('date')+'T13:00:00Z',duration_minutes:60}],blocks:[{start_time:'12:00',end_time:'12:30'}],closed:false,hours:{start:'10:00',end:'17:00'}});
         }
-        if(p.endsWith('/check-member'))return json({is_member:false});
-        if(p.endsWith('/check-packages'))return json({packages:[]});
-        if(p.includes('/lookup-client'))return json({found:false,returningClient:false,consultation:{ask:false,block:false}});
+        if(p.endsWith('/check-member'))return json(scenario==='benefits'?{is_member:true,plan_name:'Care club'}:{is_member:false});
+        if(p.endsWith('/check-packages'))return json({packages:scenario==='benefits'?[{client_package_id:'fictional-package',package_name:'Regular brows',sessions_remaining:2,sessions_total:3}]:[]});
+        if(p.includes('/lookup-client'))return json(scenario==='benefits'?{found:true,returningClient:true,client:{name:'Maya Test',phone:'+447700900123',email:'maya@example.test'},lastTreatment:{id:'t1',name:'Signature brows'},consultation:{ask:false,block:false}}:{found:false,returningClient:false,consultation:{ask:false,block:false}});
+        if(p.endsWith('/validate-code'))return json({valid:true,code:'DEMO10',discount_type:'percentage',discount_value:10});
         if(p==='/api/booking/ellindigo/book'){
           const row={path:p,body:JSON.parse(options.body),authorization:options.headers.Authorization};state.writes.push(row);await window.recordBooking(row);
           if(scenario==='checkout')return json({checkout_url:'https://checkout.stripe.com/c/pay/florrie-fixture'});
@@ -92,6 +93,9 @@ try {
   assert.equal(await page.getByRole('button',{name:'13:00',exact:true}).count(),0,'existing appointment stays blocked');
   await page.getByRole('button',{name:'14:00',exact:true}).click();
   await page.getByRole('heading',{name:'Pick a time',exact:true}).waitFor();
+  await page.locator('.fl-booking-salon-info > summary').click();
+  await page.getByText('Fictional feedback for the booking check.',{exact:true}).waitFor();
+  await page.locator('.fl-booking-salon-info > summary').click();
   assert.equal(await page.getByRole('button',{name:'14:00',exact:true}).getAttribute('aria-pressed'),'true','selecting time does not advance');
   for(const width of [320,390,430]){await page.setViewportSize({width,height:844});await fit('Times '+width);await snap('times-'+width);}
   await page.setViewportSize({width:390,height:844});
@@ -113,6 +117,9 @@ try {
   await snap('details-390');await fit('Details');
   await page.getByRole('button',{name:'Review booking',exact:true}).click();
   await page.getByRole('heading',{name:'Confirm your booking',exact:true}).waitFor();
+  await page.locator('.fl-booking-salon-info > summary').click();
+  await page.getByText('Fictional feedback for the booking check.',{exact:true}).waitFor();
+  await page.locator('.fl-booking-salon-info > summary').click();
   await page.getByText(/48 hours/).waitFor();
   assert.equal(await page.getByRole('checkbox').first().isChecked(),false,'photo consent remains opt-in');
   assert.equal(await page.getByRole('checkbox').nth(1).isChecked(),false,'marketing remains opt-in');
@@ -182,6 +189,25 @@ try {
   await page.goto(origin+'/book/ellindigo/confirmed?mt=fictional-token');
   await page.getByText('To pay on the day',{exact:true}).waitFor();
   await page.getByRole('link',{name:'Manage my booking',exact:true}).waitFor();await snap('deposit-confirmed-390');
+
+  // The returning-client shortcuts, codes and paid package sessions remain usable.
+  await open('benefits');await page.locator('.fl-booking-returning > summary').click();
+  await page.getByRole('button',{name:'Find my saved details',exact:true}).click();
+  await page.getByText('Same Signature brows as last time?',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'Yes, pick a time',exact:true}).click();
+  await page.getByRole('button',{name:'Thursday, 26 November 2026, Available',exact:true}).click();
+  await page.getByRole('button',{name:'14:00',exact:true}).click();await page.getByRole('button',{name:'Continue · Thu 26 Nov, 14:00',exact:true}).click();
+  assert.equal(await page.getByLabel('Your name',{exact:true}).inputValue(),'Maya Test');
+  await page.getByRole('button',{name:'Review booking',exact:true}).click();
+  await page.getByRole('button',{name:'+ Got a code?',exact:true}).click();
+  await page.getByPlaceholder('Promo or gift voucher code',{exact:true}).fill('DEMO10');await page.getByRole('button',{name:'Apply',exact:true}).click();
+  await page.getByText('✓ DEMO10, saving £3.00',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'×',exact:true}).click();
+  await page.getByRole('button',{name:/Regular brows.*Use session/}).click();
+  await page.getByRole('button',{name:'Use session & book',exact:true}).click();
+  await page.getByRole('heading',{name:"You're booked",exact:true}).waitFor();
+  assert.equal(sentBookings.at(-1).body.client_package_id,'fictional-package');
+  assert.equal(sentBookings.at(-1).body.is_member,true);assert.equal(sentBookings.at(-1).body.discount_code,null);
   assert.deepEqual(errors,[]);
-  console.log('Passed: compact treatment/date journey, 320/390/430px, full calendar and year navigation, explicit time confirmation, email verification, details/retry, opt-ins, final payload and links, closed/booked dates, blocks, slow/failed availability, multi-treatment and add-on duration, deposit/full checkout handoffs, patch-test notice and payment receipt.');
+  console.log('Passed: compact treatment/date journey, 320/390/430px, full calendar and year navigation, explicit time confirmation, email verification, details/retry, opt-ins, final payload and links, closed/booked dates, blocks, slow/failed availability, multi-treatment and add-on duration, deposit/full checkout handoffs, patch-test notice and payment receipt, reviews during date/review steps, returning-client rebooking, codes and package benefits.');
 } catch(error) { console.log('SCREEN:', await page?.locator('body').innerText()); console.log('PAGE ERRORS:', errors); if(output && page) await page.screenshot({path:join(output,'failure.png'),fullPage:true}); throw error; } finally {await browser.close();await new Promise(resolve=>server.close(resolve));}

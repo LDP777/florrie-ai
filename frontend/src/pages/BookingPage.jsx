@@ -2232,7 +2232,7 @@ export default function BookingPage() {
           </div>
         )}
       </div>
-      {step === 0 && <details className="fl-booking-salon-info"><summary>About {bizName}</summary><SalonInfo beautician={beautician} reviewsData={reviewsData} brand={brandInk} /></details>}
+      <details className="fl-booking-salon-info"><summary>About {bizName}{reviewsData?.count > 0 ? ' & reviews' : ''}</summary><SalonInfo beautician={beautician} reviewsData={reviewsData} brand={brandInk} /></details>
       <div style={styles.footer}>
         <span style={styles.footerText}>Powered by </span>
         <span style={{ ...styles.footerBrand, color: brandInk }}>florrie.ai</span>
