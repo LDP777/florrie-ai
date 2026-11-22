@@ -2,6 +2,25 @@
 // Dates are release dates, not commit-author dates. See docs/app-updates.md.
 export const APP_UPDATES = [
   {
+    date: '2026-11-22',
+    changes: [
+      {
+        id: 'hours-for-specific-dates',
+        title: 'Work extra hours on selected dates',
+        description: 'Choose a day in your calendar and tap Hours for this day, or set hours for several dates together. Your usual week stays the same.',
+        to: '/hours', linkLabel: 'Set your hours',
+        commits: ['81b3578'],
+      },
+      {
+        id: 'time-off-editing',
+        title: 'Keep your time off easy to manage',
+        description: 'Usual hours, specific dates and time off now share one page. Tap a saved block to read its note, change it or remove it.',
+        to: '/hours?tab=off', linkLabel: 'View time off',
+        commits: ['81b3578'],
+      },
+    ],
+  },
+  {
     date: '2026-11-21',
     changes: [
       {
