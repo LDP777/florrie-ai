@@ -12,7 +12,7 @@ import PhoneField from '../components/PhoneField.jsx';
 import { API_BASE } from '../lib/config.js';
 import Icon, { iconName } from '../components/ui/Icon';
 import Money from '../components/ui/Money';
-import { readableOn, onBrand } from '../lib/brand-colour.js';
+import { readableOnAll, mixOver, onBrand } from '../lib/brand-colour.js';
 // Cloudflare Turnstile (bot protection). Renders ONLY when VITE_TURNSTILE_SITE_KEY
 // is set, so environments without keys behave exactly as before.
 const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || '';
@@ -1130,12 +1130,9 @@ export default function BookingPage() {
     return Object.keys(errors).length === 0;
   }
   const brand = beautician?.brand_color || '#C76B8A';
-  // The brand colour as a FILL is whatever the salon picked. As TEXT it has to
-  // be readable, and #C76B8A — the default, and Ellindigo's — measures 3.32:1
-  // on cream, which is under AA on the page her clients pay through. brandInk
-  // is the same hue a shade deeper, only as deep as it needs to be; a salon
-  // whose colour already passes gets theirs back untouched.
-  const brandInk = readableOn(brand, '#FBF6F1', 4.5);
+  // Brand text must remain readable on both the page and its tinted cards.
+  // Keep the hue and darken only as far as these actual backgrounds require.
+  const brandInk = readableOnAll(brand, ['#FFFCF9', '#FBF6F1', mixOver(brand, '#FBF6F1', 24 / 255)], 4.5);
   // And what to write ON the brand: ink for a pale pink, cream for a maroon.
   const onBrandColour = onBrand(brand);
   const brandLight = brand + '18';
