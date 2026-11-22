@@ -216,6 +216,9 @@ try {
     await page.getByText('Some sources couldn’t be checked',{exact:true}).waitFor();
     await page.getByRole('button',{name:'Prepare my next posts',exact:true}).click();
     await page.getByRole('button',{name:'Retry saving design',exact:true}).waitFor();
+    // The first save can fail while the second design is still uploading.
+    // Check the final upload count only after the preparation pass finishes.
+    await page.getByText('1 post is ready for you to review. Nothing has been published.',{exact:true}).waitFor();
     assert.equal(await page.evaluate(()=>window.__assistantCheck.uploads.length),2);
     await page.getByRole('button',{name:'Retry saving design',exact:true}).click();
     await page.waitForFunction(()=>window.__assistantCheck.posts.every(post=>post.image_url));
