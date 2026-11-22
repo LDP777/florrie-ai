@@ -1024,14 +1024,14 @@ export default function CalendarView({ initialView } = {}) {
           <summary aria-label="Calendar tools">More <Icon name="chevron-down" size={14} /></summary>
           <div className="calendar-tools-panel">
             <Button variant="quiet" onClick={e => { e.currentTarget.closest('details').open = false; navigate(`/calendar/full?date=${formatDate(currentDate)}`); }}><Icon name="calendar" size={17} />Open full calendar</Button>
-            <Button variant="quiet" onClick={e => { e.currentTarget.closest('details').open = false; setShowDateHours(true); }}><Icon name="clock" size={17} />Hours for this day</Button>
+            <Button variant="quiet" disabled={!beautician?.id} onClick={e => { e.currentTarget.closest('details').open = false; setShowDateHours(true); }}><Icon name="clock" size={17} />Hours for this day</Button>
             <Button variant="quiet" onClick={e => { e.currentTarget.closest('details').open = false; navigate('/hours'); }}><Icon name="calendar" size={17} />Manage working hours</Button>
             <Button variant="quiet" onClick={e => { e.currentTarget.closest('details').open = false; setShowBlockModal(true); }}><Icon name={iconName('event_busy')} size={17} />Block time</Button>
             {view === 'day' && <Button variant="quiet" disabled={hidden || markingAllDone || loading || !!loadError} onClick={e => { e.currentTarget.closest('details').open = false; handleMarkAllDone(); }}><Icon name="check" size={17} />{markingAllDone ? 'Completing...' : 'Mark day complete'}</Button>}
           </div>
         </details>
       </div>
-      {view === 'day' && <button className="calendar-hours-button" onClick={() => setShowDateHours(true)}>{dateHoursError ? 'Check hours for this day' : `Hours for this day · ${openingFor(currentDate) ? `${openingFor(currentDate).start}–${openingFor(currentDate).end}` : 'Closed'}`} <Icon name="chevron-right" size={13} /></button>}
+      {view === 'day' && beautician && <button className="calendar-hours-button" onClick={() => setShowDateHours(true)}>{dateHoursError ? 'Check hours for this day' : `Hours for this day · ${openingFor(currentDate) ? `${openingFor(currentDate).start}–${openingFor(currentDate).end}` : 'Closed'}`} <Icon name="chevron-right" size={13} /></button>}
       {dateHoursError && <div className="calendar-link-notice" role="alert">{dateHoursError} <Button variant="quiet" onClick={loadDatedHours}>Retry hours</Button></div>}
       {linkNotice && <div className="calendar-link-notice" role="status">{linkNotice}</div>}
       {timeBlockError && <div className="calendar-link-notice" role="alert">{timeBlockError} <Button variant="quiet" onClick={loadTimeBlocks}>Retry blocked time</Button></div>}
@@ -1454,7 +1454,7 @@ export default function CalendarView({ initialView } = {}) {
           }}
         />
       )}
-      {showDateHours && <DateHoursEditor dates={[formatDate(currentDate)]} beautician={beautician}
+      {showDateHours && beautician && <DateHoursEditor dates={[formatDate(currentDate)]} beautician={beautician}
         onClose={() => setShowDateHours(false)} onSaved={result => {
           setDateHours(prev => result.removed ? prev.filter(row => row.date !== result.removed) : [...prev.filter(row => !result.dates.some(item => item.date === row.date)), ...result.dates]);
           setDateHoursError(''); setSaveNotice(result.removed ? 'Usual hours restored.' : 'Hours saved for this day.');
