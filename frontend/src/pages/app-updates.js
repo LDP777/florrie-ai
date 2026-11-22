@@ -6,10 +6,10 @@ export const APP_UPDATES = [
     changes: [
       {
         id: 'money-monthly-diary',
-        title: 'See the full month in Money',
-        description: 'See the value of this month’s appointments, split into completed and still booked. Tap Payments recorded to check what has been received.',
+        title: 'Clearer income and recent payments',
+        description: 'Compare income with the same dates last month and see your latest payments. Payments recorded on completion can be marked unpaid in Income.',
         to: '/money', linkLabel: 'Open Money',
-        commits: ['1c03bf8'],
+        commits: ['8c809ee', '1c03bf8'],
       },
       {
         id: 'hours-for-specific-dates',
