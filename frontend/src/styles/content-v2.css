@@ -1,6 +1,6 @@
 .cv2-page,.cv2-dialog {
   color:var(--text-primary);
-  font-family:'Plus Jakarta Sans',sans-serif;
+  font-family:var(--font-body);
   font-size:14px;
   line-height:1.55;
 }
@@ -14,14 +14,16 @@
 .cv2-page *,.cv2-dialog * {
   box-sizing:border-box;
 }
-.cv2-page h1,.cv2-page h2,.cv2-dialog h2,.cv2-purpose h3 {
-  font-family:'Playfair Display',serif;
-  font-weight:500;
+.cv2-page h2,.cv2-dialog h2,.cv2-purpose h3 {
+  font-family:var(--font-body);
+  font-weight:600;
   letter-spacing:-.025em;
   line-height:1.18;
 }
 .cv2-page h1 {
-  font-size:32px;
+  font-family:var(--font-display);
+  font-weight:600;
+  font-size:var(--fl-title);
 }
 .cv2-page h2 {
   font-size:24px;
@@ -41,7 +43,8 @@
   font-weight:400;
 }
 .cv2-page em,.cv2-dialog em {
-  font-weight:500;
+  font-weight:inherit;
+  font-style:normal;
   color:var(--accent);
 }
 .cv2-page .fl-btn,.cv2-dialog .fl-btn {
@@ -104,7 +107,7 @@
   margin:0 0 8px;
 }
 .cv2-ready h2 {
-  font-size:27px;
+  font-size:24px;
   margin-bottom:16px;
   line-height:1.15;
 }
@@ -189,7 +192,7 @@
   margin-top:26px;
 }
 .cv2-section h2 {
-  font-size:23px;
+  font-size:var(--fl-section);
 }
 .cv2-ask {
   display:flex;
@@ -340,11 +343,12 @@
   background:transparent;
 }
 .cv2-result-number {
-  font-family:'Playfair Display',serif;
+  font-family:var(--font-body);
+  font-variant-numeric:tabular-nums;
   font-size:42px;
   line-height:1;
   color:var(--accent);
-  font-weight:500;
+  font-weight:700;
 }
 .cv2-results-line>span:nth-child(2) {
   flex:1;
@@ -545,8 +549,8 @@
   display:none;
 }
 .cv2-item-summary h3 {
-  font-family:'Playfair Display',serif;
-  font-weight:500;
+  font-family:var(--font-body);
+  font-weight:600;
   font-size:25px;
   margin:10px 0;
 }
@@ -615,9 +619,9 @@
   margin-bottom:16px;
 }
 .cv2-offer h3 {
-  font-family:'Playfair Display',serif;
+  font-family:var(--font-body);
   font-size:25px;
-  font-weight:500;
+  font-weight:600;
 }
 .cv2-offer h4 {
   font-size:13px;
@@ -750,7 +754,7 @@
   flex-shrink:0;
 }
 .cv2-deck-head h2 {
-  font-family:'Plus Jakarta Sans',sans-serif;
+  font-family:var(--font-body);
   font-size:15px;
   font-weight:700;
   outline:0;
@@ -1082,7 +1086,7 @@
     padding:24px;
   }
   .cv2-ready h2 {
-    font-size:32px;
+    font-size:28px;
   }
   .cv2-thumbnails {
     max-width:420px;
@@ -1256,7 +1260,8 @@
   align-items: center;
 }
 .fl-content-studio.cv2-page > .fl-content-heading h1 {
-  font-size: 32px;
+  font:600 var(--fl-title)/1.2 var(--font-display);
+  letter-spacing:-.6px;
 }
 .fl-content-studio.cv2-page {
   max-width: 740px !important;

@@ -71,7 +71,10 @@ function fixtureSource({mode,base}) {
       const sub=path.slice('/api/content/v2'.length),body=options.body?JSON.parse(options.body):{};
       if(method!=='GET'){state.writes.push({sub,method,body});persist();}
       if(sub==='/home')return json(home());
-      if(sub==='/photos')return json({photos:[],treatments:[{id:'t1',name:'Brow lamination and tint'}],clients:[{id:'c1',first_name:'Jess',last_name:'Example'}]});
+      if(sub==='/photos'){
+        if(mode==='first')await new Promise(resolve=>{window.releaseFirstPhotos=resolve;});
+        return json({photos:[],treatments:[{id:'t1',name:'Brow lamination and tint'}],clients:[{id:'c1',first_name:'Jess',last_name:'Example'}]});
+      }
       if(sub==='/voice'&&method==='GET')return json({rules:state.rules.length?state.rules:[{id:'rule1',kind:'replace',from_text:'appointments',to_text:'spaces'}]});
       if(sub.startsWith('/voice/')&&method==='DELETE'){state.rules=[];persist();return json({forgotten:true});}
       if(sub==='/offers')return json({offers:[{id:'offer1',title:'Festive lash lift',code:'FESTIVE10',terms:'One per client.',client_reply:'£10 off a lash lift and tint for appointments from 1 to 24 December. It is £40 instead of £50. Book by 20 December with code FESTIVE10. One per client.'}]});
@@ -129,6 +132,17 @@ for(const [width,height] of sizes){
   const primary=p.locator('.cv2-page .fl-btn--primary:visible');assert.equal(await primary.count(),1);
   const bounds=await button(p,'Check 3 posts').boundingBox();const dock=await p.locator('.fl-app-dock').boundingBox();assert.ok(bounds.y+bounds.height<=(dock?.y||height-80)+1,`Primary above dock at ${width}`);
   assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'No home overflow');
+  const typography=await p.evaluate(()=>{
+    const title=getComputedStyle(document.querySelector('.fl-content-heading h1'));
+    const section=getComputedStyle(document.querySelector('.cv2-section h2'));
+    const root=getComputedStyle(document.documentElement);
+    return {titleFamily:title.fontFamily,titleSize:title.fontSize,titleWeight:title.fontWeight,sectionFamily:section.fontFamily,
+      body:getComputedStyle(document.body).fontFamily,display:root.getPropertyValue('--font-display').trim(),size:root.getPropertyValue('--fl-title').trim()};
+  });
+  assert.equal(typography.titleSize,typography.size,'Content uses the shared page-title size');
+  assert.equal(typography.titleWeight,'600');
+  assert.equal(typography.sectionFamily.split(',')[0],typography.body.split(',')[0],'Content sections use the app body font');
+  assert.ok(typography.titleFamily.includes('Playfair Display'),'Content keeps the shared display title');
   await shot(p,'01-home',engine,width);if(width===390)await audit(p,`${engine} home`);
   await button(p,'Check 3 posts').click();await p.getByRole('heading',{name:'1 of 3',exact:true}).waitFor();
   await shot(p,'02-review-1',engine,width);if(width===390)await audit(p,`${engine} deck`);
@@ -151,7 +165,7 @@ for(const [width,height] of sizes){
 
   for(const mode of ['changed','withdrawn']){f=await fixture(browser,mode,width,height);p=f.page;await button(p,'Check 3 posts').click();if(mode==='changed'){await p.getByText('Changed since you approved it',{exact:true}).waitFor();assert.match(await p.locator('.cv2-preview-copy mark').innerText(),/from 3pm/);await shot(p,'10-fact-changed-review',engine,width);}else{await p.getByText("This can't go out as it is",{exact:true}).waitFor();assert.equal(await button(p,'Use a different photo').isVisible(),true);await shot(p,'11-permission-withdrawn',engine,width);}await clean(f);}
   for(const mode of ['failed','waiting']){f=await fixture(browser,mode,width,height);p=f.page;if(mode==='waiting'){await p.getByText('Instagram signed you out',{exact:true}).waitFor();assert.equal(await button(p,'Reconnect Instagram').isVisible(),true);await shot(p,'15-signed-out',engine,width);}else{await button(p,'See what happened').click();await p.getByRole('heading',{name:'Your post',exact:true}).waitFor();assert.match(await p.locator('.cv2-sheet-body').innerText(),/Instagram refused this image/);await shot(p,'14-failed',engine,width);if(width===390)await audit(p,`${engine} item`);await button(p,'Post it yourself').click();await p.getByRole('heading',{name:'Post it yourself',exact:true}).waitFor();assert.match(await p.locator('.cv2-sheet-body').innerText(),/Florrie can't confirm these posts/);await button(p,'Close sheet').last().click();await p.locator('.cv2-item-row').filter({hasText:"Didn't post"}).click();await button(p,'Try again').click();await p.waitForFunction(()=>cv2.posts.some(post=>post.purpose.label==='Thu gap'&&post.status==='scheduled'));}await clean(f);}
-  for(const mode of ['first','preparing']){f=await fixture(browser,mode,width,height);p=f.page;if(mode==='first'){await p.getByRole('heading',{name:'Your first posts, ready in a minute',exact:true}).waitFor();await shot(p,'19-first-visit',engine,width);if(width===390)await audit(p,`${engine} first visit`);await button(p,'Prepare my posts').click();}else{await shot(p,'20-preparing',engine,width);}await p.getByRole('heading',{name:'Preparing your posts',exact:true}).waitFor();await p.reload();await p.getByRole('heading',{name:'Preparing your posts',exact:true}).waitFor();assert.equal(await p.locator('.cv2-steps li.is-done').count(),2);assert.match(await p.locator('.cv2-steps').innerText(),/Thursday is free from 2pm/);await clean(f);}
+  for(const mode of ['first','preparing']){f=await fixture(browser,mode,width,height);p=f.page;if(mode==='first'){await p.getByRole('heading',{name:'Your first posts, ready in a minute',exact:true}).waitFor();await p.waitForFunction(()=>typeof window.releaseFirstPhotos==='function');assert.equal(await button(p,'Prepare my posts').isEnabled(),true,'Home is usable while photos are still pending');await p.evaluate(()=>window.releaseFirstPhotos());await shot(p,'19-first-visit',engine,width);if(width===390)await audit(p,`${engine} first visit`);await button(p,'Prepare my posts').click();}else{await shot(p,'20-preparing',engine,width);}await p.getByRole('heading',{name:'Preparing your posts',exact:true}).waitFor();await p.reload();await p.getByRole('heading',{name:'Preparing your posts',exact:true}).waitFor();assert.equal(await p.locator('.cv2-steps li.is-done').count(),2);assert.match(await p.locator('.cv2-steps').innerText(),/Thursday is free from 2pm/);await clean(f);}
   checks.push(`${engine} ${width}: changed facts, consent block, failure/retry, connection, first visit, durable preparation`);
   if(width===390){f=await fixture(browser,'ready',width,height);p=f.page;await p.locator('.cv2-item-row').filter({hasText:'Lash lift reveal'}).click();await p.getByText('You film this.',{exact:true}).waitFor();await shot(p,'22-reel-plan',engine,width);await button(p,'Close sheet').last().click();await p.locator('.cv2-results-line').click();await p.getByRole('heading',{name:'Bookings from your posts',exact:true}).waitFor();assert.match(await p.locator('.cv2-sheet-body').innerText(),/Not measured/);await shot(p,'23-results',engine,width);await button(p,'Close sheet').last().click();await p.locator('.cv2-tool').filter({hasText:'Offers'}).click();await p.getByRole('heading',{name:'Offers',exact:true}).waitFor();assert.match(await p.locator('.cv2-sheet-body').innerText(),/FESTIVE10.*One per client/s);await shot(p,'24-offers',engine,width);await button(p,'Close sheet').last().click();await p.locator('.cv2-tool').filter({hasText:'How you write'}).click();await p.getByRole('heading',{name:'How you write',exact:true}).waitFor();await shot(p,'25-voice',engine,width);await clean(f);}
   if(width===390){

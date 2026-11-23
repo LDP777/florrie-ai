@@ -91,13 +91,14 @@ function fixture() {
     reviews:[],review_post_permissions:[],courses:[],content_voice_rules:[],content_preparations:[],content_campaigns:[],content_booking_sources:[],appointments:[],google_review_connections:[],
   };
 }
-let db,service,gaps,slots,clock;
+let db,service,gaps,slots,clock,slotRead;
 beforeEach(()=>{
   db=fakeDatabase(fixture());clock=new Date(NOW);
   gaps=[{date:'2026-11-26',start:'14:00',end:'18:00',duration_minutes:240}];
   slots=[{date:'2026-11-26',time:'14:00',iso:'2026-11-26T14:00:00Z'},{date:'2026-11-26',time:'15:00',iso:'2026-11-26T15:00:00Z'}];
+  slotRead=vi.fn(async()=>slots);
   service=createContentV2Service({db,now:()=>clock,autoKick:false,gapCalendar:async(o,date)=>({gaps:+date>+NOW+6*86400000?[]:gaps}),
-    freeSlots:async()=>slots,calendarBlocks:async()=>({closedDays:new Set(),dateHours:new Map()}),
+    freeSlots:slotRead,calendarBlocks:async()=>({closedDays:new Set(),dateHours:new Map()}),
     writer:createWriter({env:{}}),renderArtwork:async(o,p)=>`https://test.supabase.co/storage/v1/object/public/content-images/${o}/generated/${p.id}.jpg`});
 });
 async function week() {
@@ -106,6 +107,35 @@ async function week() {
   return db.data.content_posts.filter(p=>p.post_type!=='gallery');
 }
 describe('Content v2 real-column workflow',()=>{
+  it('opens an empty home without scanning booking slots for the entire menu',async()=>{
+    const home=await service.home(owner);
+    expect(home.counts.total).toBe(0);expect(home.ideas.length).toBeGreaterThan(0);
+    expect(slotRead).not.toHaveBeenCalled();
+  });
+  it('reads saved posts and prices once, checks only claimed slots, and avoids unchanged writes',async()=>{
+    await week();await service.home(owner);
+    db.data.treatments.push({...db.data.treatments[0],id:randomUUID(),duration_minutes:30});
+    db.operations.length=0;slotRead.mockClear();clock=new Date(+NOW+60000);
+    const home=await service.home(owner);
+    expect(home.posts_to_check).toHaveLength(3);
+    expect(slotRead).toHaveBeenCalledTimes(1);
+    expect(slotRead.mock.calls[0][1].durationMinutes).toBe(60);
+    for(const table of ['content_posts','treatments']) expect(db.operations.filter(o=>o.table===table&&o.op==='select')).toHaveLength(1);
+    expect(db.operations.filter(o=>o.op==='update')).toHaveLength(0);
+    expect(home.posts_to_check.every(p=>p.checked_at===clock.toISOString())).toBe(true);
+  });
+  it('home still revokes approval immediately for changed prices, filled slots and withdrawn consent',async()=>{
+    const posts=await week();
+    for(const p of posts.filter(p=>p.kind==='post'))await service.approve(owner,p.id,p.material_hash);
+    db.data.treatments.find(t=>t.id===lash).price_cents=5500;
+    db.data.photo_consents[0].revoked_at=NOW.toISOString();slots=[];
+    const home=await service.home(owner);
+    const gap=home.posts_to_check.find(p=>p.purpose.type==='fill_gap');
+    expect(gap.caption).toContain('£55');expect(gap.facts.some(f=>f.key==='free'&&f.status==='block')).toBe(true);
+    const photo=home.posts_to_check.find(p=>p.purpose.type==='show_work');
+    expect(photo.facts.some(f=>f.key.startsWith('photo:')&&f.status==='block')).toBe(true);
+    for(const p of home.posts_to_check)expect((await service.getPost(owner,p.id)).approved_hash).toBeNull();
+  });
   it('rejects phantom columns rather than silently treating errors as empty rows',async()=>{
     const result=await db.from('treatments').select('price_pence');expect(result.error.code).toBe('42703');
     db.errors.set('treatments',{code:'42703'});

@@ -1,4 +1,5 @@
 import { randomUUID, createHash } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import { supabase } from '../../config.js';
 import logger from '../../lib/logger.js';
 import { currentGapCalendar } from '../../lib/gap-availability.js';
@@ -78,8 +79,8 @@ export function createContentV2Service({db=supabase,now=()=>new Date(),gapCalend
       needs_reconnect:expired || (!!salon?.instagram_page_id && !salon?.instagram_page_token),username:salon?.instagram_page_name || ''},
       google:{connected:!!google?.tokens && !!google.location_name,unavailable:googleRead.status==='rejected'}};
   }
-  async function context(owner) {
-    const p=await profile(owner),stamp=now();
+  async function context(owner,{salon=null,existingOnly=false}={}) {
+    const p=salon || await profile(owner),stamp=now();
     // Use the same calendar reader as booking suggestions for both halves of
     // the ten-day planning window. Appointment strings stay in wall time.
     const [first,second,posts,treatments,consents,clients,offers,reviews,reviewPermissions,courses,rules,blocks]=await Promise.all([
@@ -96,13 +97,17 @@ export function createContentV2Service({db=supabase,now=()=>new Date(),gapCalend
     const gaps=[...first.gaps,...second.gaps].filter(g=>g.date>=wallDay && g.date<=new Date(Date.parse(`${wallDay}T12:00:00Z`)+10*DAY).toISOString().slice(0,10));
     const fromWall=new Date(`${wallDay}T${parts.hour}:${parts.minute}:${parts.second}Z`);
     const slotsByTreatment={},durationReads=new Map();
-    await Promise.all(treatments.filter(t=>t.is_active && t.booking_enabled!==false).map(async treatment=>{
+    // Opening saved posts only needs booking slots for their availability claims.
+    // Preparation still checks the full menu; approval and publishing still read afresh.
+    const claimedTreatments=existingOnly?new Set(posts.filter(p=>!p.deleted_at && p.status!=='posted' && !p.publish_claimed_at)
+      .flatMap(p=>(p.claims || []).filter(c=>c.kind==='free_from').flatMap(c=>c.treatment_ids || []))):null;
+    await Promise.all(treatments.filter(t=>t.is_active && t.booking_enabled!==false && (!claimedTreatments || claimedTreatments.has(t.id))).map(async treatment=>{
       const duration=Number(treatment.duration_minutes)+Number(treatment.buffer_minutes || 0);
       if(!durationReads.has(duration)) durationReads.set(duration,freeSlots(owner,{workingHours:p.working_hours,timezone:p.timezone,durationMinutes:duration,
         fromWall,days:11,leadHours:Math.max(0,minNotice),maxSlots:2000,acceptSlot:slot=>!maxAdvance || Date.parse(slot.iso)<=+fromWall+maxAdvance*DAY}));
       slotsByTreatment[treatment.id]=await durationReads.get(duration);
     }));
-    return {profile:p,now:stamp,wallDay,wallNow:wall,posts:posts.filter(p=>!p.deleted_at && p.post_type!=='gallery'),photos:posts.filter(p=>p.post_type==='gallery' && !p.deleted_at),
+    return {profile:p,now:stamp,wallDay,wallNow:wall,allPosts:posts,posts:posts.filter(p=>!p.deleted_at && p.post_type!=='gallery'),photos:posts.filter(p=>p.post_type==='gallery' && !p.deleted_at),
       treatments,consents,clients,offers,reviews,reviewPermissions,courses,rules,gaps,slotsByTreatment,dateHours:blocks.dateHours,closedDays:blocks.closedDays,minNotice,maxAdvance};
   }
   async function getPost(owner,id,{includeDeleted=false}={}) {
@@ -123,8 +128,8 @@ export function createContentV2Service({db=supabase,now=()=>new Date(),gapCalend
     if(!saved) throw contentError('This post changed elsewhere. Reload it before saving your words.',409,'version_conflict');
     return saved;
   }
-  async function recheck(owner,id,ctx=null,{publishing=false}={}) {
-    let post=await getPost(owner,id);
+  async function recheck(owner,id,ctx=null,{publishing=false,loadedPost=null}={}) {
+    let post=loadedPost || await getPost(owner,id);
     if(post.external_post_id || post.published_by_owner || post.status==='posted' || (post.publish_claimed_at && !publishing)) return post;
     ctx ||= await context(owner);
     const hydration={};
@@ -151,6 +156,14 @@ export function createContentV2Service({db=supabase,now=()=>new Date(),gapCalend
     }
     if(publishing) {changes.publish_key=post.publish_key;changes.publish_claimed_at=post.publish_claimed_at;}
     if(!post.material_hash) changes.material_hash=materialHash({...post,...changes});
+    // A home read must not rewrite every unchanged draft just to stamp its check.
+    // Changed facts, withdrawn permissions and changed material still use the
+    // version/claim-guarded save below. Return the fresh check to the caller.
+    if(loadedPost && Object.keys(hydration).length===0 && Object.keys(changes).every(key=>{
+      if(key==='checked_at') return true;
+      if(key==='facts') return isDeepStrictEqual(changes.facts.map(({checked_at,...fact})=>fact),(post.facts || []).map(({checked_at,...fact})=>fact));
+      return isDeepStrictEqual(changes[key],post[key]);
+    })) return {...post,...changes};
     return savePost(owner,post,changes,{allowClaim:publishing});
   }
   async function ensureLink(owner,post,p) {
@@ -167,10 +180,10 @@ export function createContentV2Service({db=supabase,now=()=>new Date(),gapCalend
     const module=await import('./artwork.js');
     return module.renderContentV2Artwork(owner,post,p);
   }
-  async function results(owner,days=30) {
+  async function results(owner,days=30,loaded=null) {
     const from=new Date(+now()-days*DAY).toISOString();
-    const [posts,campaigns,sources,appointments,treatments]=await Promise.all([rows('content_posts',owner),rows('content_campaigns',owner),
-      rows('content_booking_sources',owner),rows('appointments',owner,q=>q.gte('created_at',from)),rows('treatments',owner)]);
+    const [posts,campaigns,sources,appointments,treatments]=await Promise.all([loaded?Promise.resolve(loaded).then(ctx=>ctx.allPosts):rows('content_posts',owner),rows('content_campaigns',owner),
+      rows('content_booking_sources',owner),rows('appointments',owner,q=>q.gte('created_at',from)),loaded?Promise.resolve(loaded).then(ctx=>ctx.treatments):rows('treatments',owner)]);
     const measured=campaigns.map(c=>{
       const ids=new Set(sources.filter(s=>s.campaign_id===c.id).map(s=>s.appointment_id));
       const booked=appointments.filter(a=>ids.has(a.id)),confirmed=booked.filter(a=>['confirmed','in_progress','completed'].includes(a.status));
@@ -190,13 +203,19 @@ export function createContentV2Service({db=supabase,now=()=>new Date(),gapCalend
     return {days,measured,total,inferred,explanation:'Instagram feed captions do not have clickable links. Florrie cannot change your bio link or add Story link stickers. Measured bookings come through Google Book buttons, links in replies and links you paste yourself. Booking value is not money collected.'};
   }
   async function home(owner) {
-    await enabled(owner);
-    const ctx=await context(owner),links=await connections(owner);
+    const salon=await enabled(owner);
+    const contextRead=context(owner,{salon,existingOnly:true});
+    const [ctx,links,latest,report]=await Promise.all([contextRead,connections(owner),
+      checked(db.from('content_preparations').select('*').eq('beautician_id',owner).order('created_at',{ascending:false}).limit(1).maybeSingle()),
+      results(owner,30,contextRead)]);
     const open=[];
-    for(const post of ctx.posts) {
-      if(!['posted'].includes(post.status) && !post.publish_claimed_at) {
-        try {open.push(await recheck(owner,post.id,ctx));} catch(error) {if(error.status===409) open.push(await getPost(owner,post.id));else throw error;}
-      } else open.push(post);
+    // Bound concurrent writes/renders while avoiding one round trip per post in series.
+    for(let start=0;start<ctx.posts.length;start+=4) {
+      open.push(...await Promise.all(ctx.posts.slice(start,start+4).map(async post=>{
+        if(post.status==='posted' || post.publish_claimed_at) return post;
+        try {return await recheck(owner,post.id,ctx,{loadedPost:post});}
+        catch(error) {if(error.status===409) return getPost(owner,post.id);throw error;}
+      })));
     }
     const visible=open.map(p=>publicPost(p,links));
     const check=visible.filter(p=>p.kind!=='reel_plan' && p.status==='draft' && !p.publish_claimed_at)
@@ -204,9 +223,7 @@ export function createContentV2Service({db=supabase,now=()=>new Date(),gapCalend
     const rank={"Didn't post":0,Posting:1,'Waiting for Instagram':2,Scheduled:3,'Approved, not scheduled':4,Posted:5};
     const coming=visible.filter(p=>p.kind!=='reel_plan' && p.status!=='draft' && (p.state!=='Posted' || Date.parse(p.posted_at)>+now()-3*DAY))
       .sort((a,b)=>(rank[a.state] ?? 6)-(rank[b.state] ?? 6) || String(a.scheduled_for || a.posted_at).localeCompare(String(b.scheduled_for || b.posted_at)));
-    const latest=(await rows('content_preparations',owner,q=>q.order('created_at',{ascending:false})))[0];
     const prep=latest && ['queued','running','failed'].includes(latest.status)?latest:null;
-    const report=await results(owner,30);
     return {posts_to_check:check,coming_up:coming,reel_plans:visible.filter(p=>p.kind==='reel_plan'),preparation:prep,
       results_summary:report.total,connections:links,ideas:contentIdeas(ctx),counts:{total:ctx.posts.length,posts_to_check:check.length,coming_up:coming.length,
         photos:ctx.photos.filter(p=>p.treatment_id && validConsent(p,ctx)).length,offers:ctx.offers.filter(p=>offerLive(p,now())).length,voice_rules:ctx.rules.length}};
