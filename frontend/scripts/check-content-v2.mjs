@@ -83,7 +83,7 @@ function fixtureSource({mode,base}) {
       if(sub==='/preparations'||sub==='/ask'){if(body.text&&/brow/i.test(body.text))return json({needs:'photos'});state.preparation={id:'55555555-5555-4555-8555-555555555555',status:'running',step:2,label:'your posts',details:{steps:[{result:'Thursday is free from 2pm'},{result:'2 photos with permission'}]}};persist();return json(state.preparation);}
       if(sub.startsWith('/preparations/'))return json(state.preparation);
       const match=sub.match(/^\/posts\/([^/]+)(?:\/(.+))?$/);
-      if(match){const post=state.posts.find(p=>p.id===match[1])||state.deleted.find(p=>p.id===match[1]);if(!post)return json({error:'Not found'},404);const action=match[2];if(method==='GET')return json({post});
+      if(match){const post=state.posts.find(p=>p.id===match[1])||state.reel.find(p=>p.id===match[1])||state.deleted.find(p=>p.id===match[1]);if(!post)return json({error:'Not found'},404);const action=match[2];if(method==='GET')return json({post});
         if(!action&&method==='PATCH'){
           if(state.failSave)return json({error:'Your words could not be saved.'},503);
           if(state.conflict){state.conflict=false;post.version++;post.caption='The version saved on another device.';persist();return json({error:'This post changed elsewhere.',post},409);}
@@ -96,8 +96,8 @@ function fixtureSource({mode,base}) {
         else if(action==='move-back'){post.status='draft';post.state='Ready to check';post.approved_hash=null;}
         else if(action==='retry'){post.status='scheduled';post.state=state.connected?'Scheduled':'Waiting for Instagram';}
         else if(action==='posted-by-owner'){post.status='posted';post.state='Posted';post.published_by_owner=true;}
-        else if(action==='restore'){state.deleted=state.deleted.filter(p=>p.id!==post.id);state.posts.push(post);}
-        else if(method==='DELETE'){state.posts=state.posts.filter(p=>p.id!==post.id);state.deleted.push(post);}
+        else if(action==='restore'){state.deleted=state.deleted.filter(p=>p.id!==post.id);(post.kind==='reel_plan'?state.reel:state.posts).push(post);}
+        else if(method==='DELETE'){if(state.failDelete)return json({error:'Could not delete this draft. Try again.'},503);state.posts=state.posts.filter(p=>p.id!==post.id);state.reel=state.reel.filter(p=>p.id!==post.id);state.deleted.push(post);}
         else if(action!=='post-now'){state.unexpected.push(`${method} ${sub}`);persist();return json({error:'Unexpected mutation'},500);}
         persist();return json({post,note:post.last_revision,learned_rules:[]});
       }
@@ -150,6 +150,32 @@ for(const [width,height] of sizes){
   await shot(p,'07-done',engine,width);await button(p,'Done').click();await p.getByRole('heading',{name:'Nothing to check',exact:true}).waitFor();
   assert.equal(await p.evaluate(()=>cv2.posts.filter(post=>post.state==='Scheduled').length),3);assert.equal(await p.evaluate(()=>cv2.writes.filter(write=>write.sub.endsWith('/approve')).length),3);
   await shot(p,'08-home-after',engine,width);await clean(f);checks.push(`${engine} ${width}: five taps, layout, scheduled`);
+
+  f=await fixture(browser,'ready',width,height);p=f.page;await button(p,'Check 3 posts').click();
+  const remove=button(p,'Delete draft'),removeBounds=await remove.boundingBox();
+  assert.ok(removeBounds.y>=0&&removeBounds.x>=0&&removeBounds.x+removeBounds.width<=width&&removeBounds.height>=44,'Delete is visible and tappable without scrolling');
+  await shot(p,'26-delete-draft',engine,width);
+  if(width===390){
+    await p.evaluate(()=>{cv2.failDelete=true;});await remove.click();
+    await p.locator('.cv2-toast').getByText('Could not delete this draft. Try again.',{exact:true}).waitFor();
+    assert.equal(await p.getByRole('heading',{name:'1 of 3',exact:true}).isVisible(),true);
+    assert.equal(await p.evaluate(()=>cv2.posts.length),3);await p.evaluate(()=>{cv2.failDelete=false;});
+  }
+  await remove.click();await p.getByRole('heading',{name:'2 of 3',exact:true}).waitFor();
+  await p.locator('.cv2-toast').getByRole('button',{name:'Undo',exact:true}).click();
+  await button(p,'Check 3 posts').waitFor();assert.equal(await p.locator('.cv2-review-deck').count(),0);
+  await p.reload();await button(p,'Check 3 posts').click();
+  for(let i=0;i<3;i++){await button(p,'Delete draft').click();await p.getByRole('heading',{name:i<2?`${i+2} of 3`:'Review finished',exact:true}).waitFor();}
+  assert.equal(await p.getByRole('button',{name:'Connect Instagram',exact:true}).count(),0);
+  assert.equal(await p.evaluate(()=>cv2.writes.filter(w=>w.sub.endsWith('/approve')).length),0);
+  await button(p,'Done').click();await p.getByRole('heading',{name:'Nothing to check',exact:true}).waitFor();
+  await p.reload();await p.getByRole('heading',{name:'Nothing to check',exact:true}).waitFor();
+  assert.equal(await p.evaluate(()=>cv2.posts.length),0,'Deleted drafts stay removed after reload');
+  await p.locator('.cv2-item-row').filter({hasText:'Lash lift reveal'}).click();await button(p,'Delete reel draft').click();
+  await p.waitForFunction(()=>cv2.reel.length===0);await p.locator('.cv2-toast').getByRole('button',{name:'Undo',exact:true}).click();
+  await p.locator('.cv2-item-row').filter({hasText:'Lash lift reveal'}).waitFor();
+  assert.equal(await p.evaluate(()=>cv2.reel.length),1);await clean(f);
+  checks.push(`${engine} ${width}: visible delete, Undo, empty review, reload persistence, reel deletion and restore`);
 
   f=await fixture(browser,'ready',width,height);p=f.page;await button(p,'Check 3 posts').click();
   const before=await p.evaluate(()=>({caption:cv2.posts[0].caption,image:cv2.posts[0].image_url}));
