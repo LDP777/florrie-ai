@@ -157,7 +157,7 @@ for(const [width,height] of sizes){
   await shot(p,'26-delete-draft',engine,width);
   if(width===390){
     await p.evaluate(()=>{cv2.failDelete=true;});await remove.click();
-    await p.getByText('Could not delete this draft. Try again.',{exact:true}).waitFor();
+    await p.locator('.cv2-toast').getByText('Could not delete this draft. Try again.',{exact:true}).waitFor();
     assert.equal(await p.getByRole('heading',{name:'1 of 3',exact:true}).isVisible(),true);
     assert.equal(await p.evaluate(()=>cv2.posts.length),3);await p.evaluate(()=>{cv2.failDelete=false;});
   }
