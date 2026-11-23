@@ -90,6 +90,10 @@ try {
   assert.ok(!(await page.locator('body').innerText()).includes('needs your yes or no'));
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
   if(process.env.VISUAL_OUTPUT_DIR){mkdirSync(process.env.VISUAL_OUTPUT_DIR,{recursive:true});await page.screenshot({path:join(process.env.VISUAL_OUTPUT_DIR,`inbox-${width}.png`),fullPage:true});}
+  await page.goto(origin+'/updates');
+  await page.getByText('Ask for Google reviews after a visit',{exact:true}).waitFor();
+  assert.equal(await page.getByRole('link',{name:'Set up reviews'}).getAttribute('href'),'/reviews');
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
   assert.deepEqual(errors,[]);
   await context.close();console.log(`✓ Reviews and Inbox at ${width}px: status, recovery, privacy and working next action; no sends`);
  }

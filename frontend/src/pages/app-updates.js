@@ -2,6 +2,18 @@
 // Dates are release dates, not commit-author dates. See docs/app-updates.md.
 export const APP_UPDATES = [
   {
+    date: '2026-11-23',
+    changes: [
+      {
+        id: 'google-review-requests-after-visits',
+        title: 'Ask for Google reviews after a visit',
+        description: 'Add your Google review link, then choose automatic requests or approve each one. Clients can also leave a review from their completed booking.',
+        to: '/reviews', linkLabel: 'Set up reviews',
+        commits: ['2a82086'],
+      },
+    ],
+  },
+  {
     date: '2026-11-22',
     changes: [
       {
