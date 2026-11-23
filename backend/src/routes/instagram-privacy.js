@@ -64,7 +64,8 @@ router.get('/data-deletion/status/:code', async (req, res) => {
     res.type('html').send(page(complete ? 'Instagram data request completed' : 'Instagram data request received',
       complete ? 'We have completed the Instagram data cleanup recorded for this request. Contact us with your reference if you need more details.'
         : 'We have saved your request and stopped the affected Instagram connection where it was still active. Our team must review the Instagram data held in your salon’s records and complete the cleanup. Deletion is not complete yet.', req.params.code));
-  } catch {
+  } catch (err) {
+    logger.error({ err }, 'Instagram privacy status lookup failed');
     res.status(503).type('html').send(page('Status temporarily unavailable', 'Please try this link again. An unavailable status does not mean your request is complete.'));
   }
 });
