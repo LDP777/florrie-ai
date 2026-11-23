@@ -23,6 +23,7 @@ try {for(const width of [320,390,1024]){
     if(state==='failed')return json({message:'Synthetic saved-feedback failure'},503);
     if(state==='stalled')return new Promise(resolve=>{t.releaseFeedback=()=>resolve(new Response('[]',{headers:{'content-type':'application/json'}}));});
    }
+   if(url.includes('/api/google-reviews/request-settings'))return json({mode:'ask',startedAt:null,hasLink:false,paused:false});
    if(url.includes('/api/google-reviews/status')){
     const state=sessionStorage.getItem('test-google-availability');
     if(state==='disabled')return json({available:false,connected:false});
@@ -56,7 +57,12 @@ try {for(const width of [320,390,1024]){
   await page.getByText('Google imports and replies are awaiting connection setup.',{exact:false}).waitFor();
   assert.equal(await page.getByRole('button',{name:'Connect Google Business Profile',exact:true}).count(),0,'provider setup must finish before offering OAuth');
   assert.ok(await page.getByRole('button',{name:'Save review link',exact:true}).isEnabled(),'review-link setup remains usable while imports are disabled');
-  await page.getByRole('button',{name:'Auto-ask',exact:true}).click();
+  const sending=page.getByRole('region',{name:'Review sending preferences'});
+  await sending.getByRole('combobox',{name:'Review requests'}).waitFor();
+  assert.ok(await sending.getByRole('button',{name:'Start review requests'}).isDisabled(),'automatic requests require a saved Google link, independently of API approval');
+  await sending.getByRole('combobox').selectOption('off');
+  assert.ok(await sending.getByRole('button',{name:'Save preferences'}).isEnabled(),'requests can always be switched off');
+  await sending.getByRole('combobox').selectOption('ask');
   assert.equal(await page.getByText('Review imports are not available yet.',{exact:false}).count(),0,'static settings copy defers to the live connection status');
   await page.evaluate(()=>sessionStorage.setItem('test-google-availability','available'));
   await page.reload();
