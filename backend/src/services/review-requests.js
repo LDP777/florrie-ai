@@ -4,11 +4,12 @@ import { supabase } from '../config.js';
 import { sendOnChannel } from './messaging.js';
 import { evaluateOutbound, recordOutbound } from '../lib/outbound-guard.js';
 import logger from '../lib/logger.js';
-import { splitBillable } from '../lib/billable.js';
+import { isBillable, splitBillable } from '../lib/billable.js';
+import { completedReviewVisit, reviewWallTime as wallNow } from '../lib/review-visit.mjs';
 
 const HOUR = 3600000;
 const VERSION = 'owner-completed-v2';
-const COLUMNS = '*, clients(id, beautician_id, first_name, phone, email, whatsapp_id, instagram_id, preferred_channel, marketing_consent, marketing_opted_out_at, messaging_autonomy), treatments(name), beauticians(*)';
+const COLUMNS = '*, clients(id, beautician_id, first_name, phone, email, whatsapp_id, instagram_id, preferred_channel, marketing_consent, marketing_opted_out_at, messaging_autonomy), treatments(name, category), beauticians(*)';
 const retryable = new Set(['quiet_hours', 'frequency_unavailable', 'autonomy_unavailable', 'error_failsafe']);
 const iso = ms => new Date(ms).toISOString();
 
@@ -16,13 +17,8 @@ function requestId(owner, appointment) {
   const h = createHash('sha256').update(`review-request:${owner}:${appointment}`).digest('hex');
   return `${h.slice(0,8)}-${h.slice(8,12)}-5${h.slice(13,16)}-a${h.slice(17,20)}-${h.slice(20,32)}`;
 }
-function wallNow(timezone, now) {
-  const parts = new Intl.DateTimeFormat('en-GB', { timeZone: timezone || 'Europe/London', year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23' }).formatToParts(new Date(now));
-  const p = Object.fromEntries(parts.map(x => [x.type,x.value]));
-  return Date.parse(`${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}Z`);
-}
 function eligible(appt, owner, client, now = Date.now()) {
-  if (!appt || appt.beautician_id !== owner || appt.client_id !== client || appt.status !== 'completed'
+  if (!completedReviewVisit(appt, now) || appt.beautician_id !== owner || appt.client_id !== client
     || appt.clients?.id !== client || appt.clients?.beautician_id !== owner) return false;
   // The owner may finish a treatment before its estimated end time. Her
   // completed status confirms attendance; the start still rules out future visits.
@@ -35,11 +31,13 @@ async function appointment(owner, id) {
   return result.data;
 }
 
-// Called only by owner completion routes. No scan of historic or assumed visits.
-export async function scheduleReviewRequest(owner, appointmentId, clientId) {
+// Manual completion keeps its existing behaviour. Diary completion is an
+// explicit, future-only opt-in, checked again here and before delivery.
+export async function scheduleReviewRequest(owner, appointmentId, clientId, { diary = false } = {}) {
   if (!clientId) return { scheduled:false };
   const appt = await appointment(owner, appointmentId);
   if (!eligible(appt, owner, clientId) || wallNow(appt.beauticians?.timezone, Date.now()) - Date.parse(appt.ends_at || appt.starts_at) > 48 * HOUR) return { scheduled:false };
+  if (diary && !diaryReviewEligible(appt)) return { scheduled:false };
   const recent = await supabase.from('ai_actions').select('id').eq('beautician_id', owner)
     .eq('action_type', 'review_requested').eq('client_id', clientId)
     .gte('created_at', iso(Date.now() - 7 * 24 * HOUR)).limit(1);
@@ -49,12 +47,50 @@ export async function scheduleReviewRequest(owner, appointmentId, clientId) {
   const { error } = await supabase.from('ai_actions').insert({
     id:requestId(owner, appointmentId), beautician_id:owner, appointment_id:appointmentId,
     client_id:clientId, action_type:'review_requested', digital_employee:'marketing',
-    summary:'Review request scheduled after owner-confirmed visit', confidence:1, autonomous:true,
+    summary:diary ? 'Review request scheduled after completed visit' : 'Review request scheduled after owner-confirmed visit', confidence:1, autonomous:true,
     status:'scheduled', outcome:'pending',
-    details:{ version:VERSION, appointment_id:appointmentId, send_at:iso(now + 2 * HOUR), expires_at:iso(now + 48 * HOUR), delivery_state:'scheduled' },
+    details:{ version:VERSION, appointment_id:appointmentId, source:diary ? 'diary' : 'owner', send_at:iso((diary ? Date.parse(appt.completed_at) : now) + 2 * HOUR), expires_at:iso((diary ? Date.parse(appt.completed_at) : now) + 48 * HOUR), delivery_state:'scheduled' },
   });
   if (error && error.code !== '23505') throw error;
   return { scheduled:!error };
+}
+
+function diaryReviewEligible(appt, now = Date.now()) {
+  const b = appt.beauticians;
+  const since = Date.parse(b?.autonomy?.review_request_started_at);
+  return ['ask','auto'].includes(b?.autonomy?.review_request)
+    && Number.isFinite(since) && since <= now
+    && Date.parse(appt.starts_at) >= wallNow(b.timezone, since)
+    && Date.parse(appt.ends_at) <= wallNow(b.timezone, now)
+    && Date.parse(appt.completed_at) >= since && Date.parse(appt.completed_at) <= now
+    && now - Date.parse(appt.completed_at) < 48 * HOUR
+    && !!googleReviewLink(b) && !b.client_reminder_prefs?.paused
+    && isBillable(b);
+}
+
+// Re-scan recent completions so a failed enqueue is recovered on the next run.
+// Pagination and deterministic appointment IDs avoid dropped rows and duplicates.
+export async function scheduleCompletedReviewVisits() {
+  let scheduled = 0;
+  for (let offset = 0; ; offset += 200) {
+    const owners = await supabase.from('beauticians').select('id')
+      .not('autonomy->>review_request_started_at','is',null).order('id').range(offset, offset + 199);
+    if (owners.error) throw owners.error;
+    for (const owner of owners.data || []) {
+      for (let page = 0; ; page += 200) {
+        const visits = await supabase.from('appointments').select(COLUMNS).eq('beautician_id',owner.id)
+          .eq('status','completed').gte('completed_at',iso(Date.now() - 48 * HOUR))
+          .order('completed_at').order('id').range(page,page + 199);
+        if (visits.error) throw visits.error;
+        for (const appt of visits.data || []) {
+          if (diaryReviewEligible(appt) && (await scheduleReviewRequest(owner.id,appt.id,appt.client_id,{diary:true})).scheduled) scheduled++;
+        }
+        if ((visits.data || []).length < 200) break;
+      }
+    }
+    if ((owners.data || []).length < 200) break;
+  }
+  return {scheduled};
 }
 
 async function finish(action, state, reason, extra = {}) {
@@ -95,8 +131,12 @@ export async function processReviewRequests() {
       }
       const appt = await appointment(action.beautician_id,action.details?.appointment_id);
       if (!eligible(appt,action.beautician_id,action.client_id)) { await finish(action,'held','visit_not_eligible'); continue; }
+      if (action.details?.source === 'diary' && !diaryReviewEligible(appt)) { await finish(action,'held','visit_or_permission_changed'); continue; }
       if (!splitBillable([appt.beauticians]).billable.length) { await finish(action,'held','plan_inactive'); continue; }
       if (appt.beauticians?.client_reminder_prefs?.paused === true) { await finish(action,'held','salon_paused'); continue; }
+      if ((appt.beauticians?.autonomy?.review_request || appt.beauticians?.autonomy?.proactive) === 'off') { await finish(action,'held','autonomy_off'); continue; }
+      const url = googleReviewLink(appt.beauticians);
+      if (!url) { await finish(action,'held','review_link_missing'); continue; }
       const client = appt.clients;
       const channel = reviewChannel(client);
       if (!channel) { await finish(action,'held','no_contact'); continue; }
@@ -107,13 +147,12 @@ export async function processReviewRequests() {
         else await finish(action,'held',verdict.reason);
         continue;
       }
-      const url = googleReviewLink(appt.beauticians);
-      const body = `Hi ${client.first_name || 'there'}, thanks for visiting ${appt.beauticians?.business_name || 'us'} for ${appt.treatments?.name || 'your treatment'}. ${url ? `If you have a moment, please share your experience on Google: ${url}` : 'If you have a moment, reply with any feedback about your visit.'}`;
+      const body = `Hi ${client.first_name || 'there'}, thanks for visiting ${appt.beauticians?.business_name || 'us'} for ${appt.treatments?.name || 'your treatment'}. If you have a moment, please share your experience on Google: ${url}`;
       if (verdict.decision === 'approve') {
         attempted = true; // Creating an approval is also a durable side effect.
         const outboundId = await recordOutbound({beauticianId:action.beautician_id,clientId:client.id,messageType:'review_request',channel,
           tier:'proactive',status:'pending_approval',reason:verdict.reason,body});
-        await finish(action,outboundId ? 'approval' : 'held',outboundId ? verdict.reason : 'approval_save_failed',{outbound_id:outboundId,channel});
+        await finish(action,outboundId ? 'approval' : 'held',outboundId ? verdict.reason : 'approval_save_failed',{outbound_id:outboundId,channel,review_url:url});
         continue;
       }
       if (['instagram','whatsapp'].includes(channel)) {
@@ -150,7 +189,9 @@ export async function beginReviewApproval(owner, outboundId) {
   const appt = await appointment(owner,row.data.details.appointment_id);
   if (!(Date.parse(row.data.details.expires_at) > Date.now() && eligible(appt,owner,row.data.client_id))
     || !appt.clients.marketing_consent || appt.clients.marketing_opted_out_at || appt.beauticians?.client_reminder_prefs?.paused
-    || appt.beauticians?.autonomy?.review_request === 'off') {
+    || appt.beauticians?.autonomy?.review_request === 'off'
+    || !googleReviewLink(appt.beauticians) || googleReviewLink(appt.beauticians) !== row.data.details.review_url
+    || (row.data.details.source === 'diary' && !diaryReviewEligible(appt))) {
     await finish(row.data,'held','visit_or_permission_changed');
     throw new Error('This review request is no longer eligible. Skip this draft and check the visit and contact permissions.');
   }

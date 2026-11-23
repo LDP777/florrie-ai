@@ -15,6 +15,8 @@ const reasons = {
   expired:'The request expired. It will not send.', visit_not_eligible:'The visit changed or is no longer eligible.',
   no_contact:'No usable contact details for their preferred channel.', channel_window_closed:'The messaging window has closed. Review the conversation before contacting them.',
   approval_save_failed:'The approval could not be saved. Nothing was sent.',
+  review_link_missing:'Add your Google review link before sending requests.',
+  visit_or_permission_changed:'The visit or your review settings changed. Nothing was sent.',
 };
 export function reviewRequestDescription(row) {
   if (row.state === 'sent') return 'The provider accepted the message. This does not confirm it was read.';
@@ -23,7 +25,7 @@ export function reviewRequestDescription(row) {
   if (row.state === 'processing') return 'Florrie is checking and sending this request.';
   if (row.state === 'legacy') return 'An older request without a complete send record. It will not be retried automatically.';
   if (reasons[row.reason]) return reasons[row.reason];
-  return row.state === 'scheduled' ? 'Eligible two hours after you mark the visit complete. Sending checks still apply.' : 'Sending checks did not pass. Open the conversation to review it.';
+  return row.state === 'scheduled' ? 'Eligible two hours after the visit is completed. Sending checks still apply.' : 'Sending checks did not pass. Open the conversation to review it.';
 }
 export default function ReviewRequests({ ownerId }) {
   const [state,setState] = useState({status:'loading',requests:[]});
@@ -54,10 +56,10 @@ export default function ReviewRequests({ ownerId }) {
       <h2 style={{fontSize:20,margin:0}}>Review requests</h2>
       <Button variant="quiet" size="sm" style={link} disabled={state.status==='loading'} onClick={()=>setRefresh(n=>n+1)}>Refresh</Button>
     </div>
-    <p style={{fontSize:13,lineHeight:1.55,color:'var(--text-muted)',margin:'8px 0 14px'}}>After you mark a visit complete, Florrie checks consent and your sending preferences. Your saved Google review link works without connecting Google.</p>
+    <p style={{fontSize:13,lineHeight:1.55,color:'var(--text-muted)',margin:'8px 0 14px'}}>See which requests are waiting, sent or need your attention. Sending a link does not confirm that someone left a review.</p>
     {state.status==='loading' && <p role="status">Checking recent requests…</p>}
     {state.status==='error' && <p role="alert" style={{fontSize:13}}>{state.error} Use Refresh to try again.</p>}
-    {state.status==='ready' && !state.requests.length && <p style={{fontSize:13,color:'var(--text-muted)'}}>No review requests yet. New eligible visits will appear here when you mark them complete.</p>}
+    {state.status==='ready' && !state.requests.length && <p style={{fontSize:13,color:'var(--text-muted)'}}>No review requests yet. Set up your link and sending preferences above.</p>}
     {(expanded?state.requests:state.requests.slice(0,4)).map(row=><article key={row.id} style={{padding:'13px 0',borderTop:'1px solid var(--border, #eaded6)'}}>
       <div style={{display:'flex',gap:12,justifyContent:'space-between',flexWrap:'wrap'}}>
         <strong style={{fontSize:14}}><PrivateText>{row.client_name}</PrivateText></strong>

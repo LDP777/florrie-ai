@@ -5,7 +5,6 @@ import GoogleReviews from '../components/GoogleReviews.jsx';
 import { API_BASE } from '../lib/config.js';
 import { contentRequest } from '../lib/content-workflow.js';
 import GoogleReviewSetup from '../components/GoogleReviewSetup.jsx';
-import { googleReviewLink } from '../../../backend/src/lib/google-review-link.mjs';
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useBeautician, supabase, fetchRowsStrict, updateRow } from '../lib/supabase.js';
@@ -193,7 +192,6 @@ function ReviewsWorkspace({ beautician, refresh }) {
         {[
           { key: 'reviews', label: 'All Reviews' },
           { key: 'request', label: 'Request' },
-          { key: 'settings', label: 'Auto-ask' },
         ].map(t => (
           <button
             key={t.key}
@@ -332,9 +330,9 @@ function ReviewsWorkspace({ beautician, refresh }) {
             <span style={{ fontSize: 28, display: 'block', marginBottom: 8 }}><Icon name="phone" size={28} /></span>
             <h3 style={styles.requestTitle}>After an appointment</h3>
             <p style={styles.requestDesc}>
-              Florrie schedules requests two hours after you mark a recent visit complete. Sending depends on consent, your approval settings, contact details and message allowance. A recent request can also prevent another being sent.
+              Choose how Florrie asks after completed visits using the preferences above. Requests wait two hours, and clients leave their review on Google.
             </p>
-            <Link to="/settings?section=ai" style={styles.preferencesLink}>Review sending preferences</Link>
+            <a href="#review-sending" style={styles.preferencesLink}>Review sending preferences</a>
 
             <div style={styles.requestPreview}>
               <span style={styles.requestPreviewLabel}>Example message</span>
@@ -346,45 +344,7 @@ function ReviewsWorkspace({ beautician, refresh }) {
         </div>
       )}
 
-      {/* Auto-ask: how florrie.ai handles review requests. Read-only -
-          these rules run on the backend and aren't editable yet, so they
-          are shown as status, not as toggles that imply saved state. */}
-      {tab === 'settings' && (
-        <div style={styles.body}>
-          <div style={styles.settingsCard}>
-            <h4 style={styles.sectionLabel}>How florrie.ai asks for reviews</h4>
-            <div style={styles.settingRow}>
-              <div style={{ flex: 1 }}>
-                <span style={styles.settingLabel}>Auto-ask after appointments</span>
-                <span style={styles.settingHint}>Requests become eligible two hours after you mark a visit complete</span>
-              </div>
-              <span style={styles.settingValue}>Checks apply</span>
-            </div>
 
-            <div style={styles.settingRow}>
-              <div style={{ flex: 1 }}>
-                <span style={styles.settingLabel}>Max requests per client</span>
-                <span style={styles.settingHint}>The scheduler checks for an existing request in the previous seven days</span>
-              </div>
-              <span style={styles.settingValue}>7-day check</span>
-            </div>
-
-            <div style={styles.settingRow}>
-              <div style={{ flex: 1 }}>
-                <span style={styles.settingLabel}>Review platform</span>
-                <span style={styles.settingHint}>Where clients are sent to leave a review</span>
-              </div>
-              <span style={styles.settingValue}>{googleReviewLink(beautician) ? 'Google link saved' : 'No Google link set'}</span>
-            </div>
-          </div>
-
-          <div style={styles.settingsCard}>
-            <h4 style={styles.sectionLabel}>Connect review platforms</h4>
-            <p style={styles.settingHint}>Requests include your saved Google review link; otherwise they ask for feedback without a link. Check Google availability and your connection in the section above.</p>
-            <Link to="/settings?section=ai" style={styles.preferencesLink}>Review sending preferences</Link>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

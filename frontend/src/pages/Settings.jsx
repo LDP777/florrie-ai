@@ -1,7 +1,7 @@
 import ReplySettingsSummary from '../components/ReplySettingsSummary.jsx';
 import { PrivateText, PrivateSection } from '../contexts/ClientPrivacyContext.jsx';
 import { useState, useEffect, useRef } from 'react';
-import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { useBeautician, updateRow, supabase } from '../lib/supabase.js';
 import { useTheme } from '../lib/theme.jsx';
 import { API_BASE } from '../lib/config.js';
@@ -1405,6 +1405,7 @@ export default function Settings({ onLogout }) {
                   <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>You choose</span>
                 </div>
                 {PROACTIVE.map(item => {
+                  if (item.key === 'review_request') return <div key={item.key} style={{padding:'12px 0',borderBottom:'1px solid var(--border-light)'}}><Link to="/reviews#review-sending" style={{color:'var(--accent)',fontSize:13,fontWeight:600}}>Review requests →</Link><p style={{fontSize:11,color:'var(--text-muted)',margin:'4px 0 0'}}>Set your Google review link and sending preferences.</p></div>;
                   const current = modeOf(item.key);
                   return (
                     <div key={item.key} style={{ padding: '10px 0', borderBottom: '1px solid var(--border-light)' }}>

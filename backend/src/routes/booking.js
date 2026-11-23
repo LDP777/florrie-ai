@@ -44,6 +44,7 @@ import { appointmentIcs, googleCalendarUrl, DEAD_STATUSES } from '../lib/ical.js
 import { calendarLandingPage } from '../lib/calendar-page.js';
 import { patchTestEvidence } from '../lib/patch-test-status.js';
 import { readConsultationStatus, hasPriorHistory } from '../lib/consultation-status.js';
+import { completedVisitReviewLink } from '../lib/review-visit.mjs';
 
 const router = Router();
 router.use('/:slug/manage/:token', bookingManagementGuard(supabase));
@@ -1128,7 +1129,7 @@ router.get('/:slug/manage/:token', async (req, res) => {
         policy_fee_charged_at, policy_fee_amount_cents, policy_fee_payment_intent_id,
         treatments(id, name, duration_minutes, price_cents, category, requires_patch_test),
         clients(id, first_name, last_name, email, phone, stripe_customer_id),
-        beauticians(id, first_name, business_name, phone, timezone, booking_policy, booking_slug, brand_color, patch_test_expiry_months, patch_test_block_booking, payment_settings)
+        beauticians(id, first_name, business_name, phone, timezone, booking_policy, booking_slug, brand_color, patch_test_expiry_months, patch_test_block_booking, payment_settings, google_review_link, google_place_id)
       `)
       .eq('management_token', req.params.token)
       .single();
@@ -1376,6 +1377,7 @@ router.get('/:slug/manage/:token', async (req, res) => {
           phone: appt.beauticians?.phone || null,
         },
       },
+      googleReviewUrl: completedVisitReviewLink(appt),
       // Remaining balance after the deposit, plus the beautician's bank details
       // so the client can pay the rest by transfer.
       payment: (() => {

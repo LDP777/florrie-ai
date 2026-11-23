@@ -39,14 +39,14 @@ async function fixture(options = {}) {
       reschedule_once: !!options.used, alreadyRescheduled: !!options.used,
       reschedule_between_only: options.mode === 'back_to_back', ...options.policy };
     const booking = () => ({ readOnly: cancelled, cancellationPayment: options.cancellationPayment || null,
-      appointment: { id: 'fixture-appointment', status: cancelled ? 'cancelled' : 'confirmed', startsAt,
+      appointment: { id: 'fixture-appointment', status: cancelled ? 'cancelled' : options.status || 'confirmed', startsAt,
         endsAt: startsAt.slice(0, 10) + 'T13:00:00', depositPaid: true,
         treatment, treatments: [treatment], totalPriceCents: 4500, totalDurationMinutes: 60,
         // Sentinels intentionally remain in a cancelled fixture: its receipt
         // must not mount private client, payment or consultation panels.
         client: { name: 'Private fixture person', email: 'private-fixture@example.test' },
         beautician: { name: 'Fixture Salon', brandColor: '#92405e', phone: '+447700900000' } },
-      policy, patchTests: [], needsPatchTest: false, pendingForms: [],
+      googleReviewUrl:options.googleReviewUrl, policy, patchTests: [], needsPatchTest: false, pendingForms: [],
       patchTest: { required: false, certainty: 'not_required' },
       payment: { depositPaidCents: 900, remainingCents: 3600, bankDetails: { accountName: 'Private bank fixture', accountNumber: '12345678', sortCode: '112233' } },
     });
@@ -119,6 +119,20 @@ async function choose(page) {
 }
 
 try {
+  await check('Completed visitors can open the saved Google link without leaking the booking token', {status:'completed',startsAt:'2026-01-01T12:00:00',googleReviewUrl:'https://g.page/r/fixture/review'},async page=>{
+    const review=page.getByRole('link',{name:'Leave a Google review ↗'});await review.waitFor();
+    assert.equal(await review.getAttribute('href'),'https://g.page/r/fixture/review');
+    assert.equal(await review.getAttribute('rel'),'noopener noreferrer');
+    assert.equal(await review.getAttribute('referrerpolicy'),'no-referrer');
+    assert.deepEqual(await writes(page),[]);
+  });
+  for(const options of [{status:'confirmed'},{status:'no_show'},{cancelled:true},{googleReviewUrl:null},{googleReviewUrl:'https://evil.test/review'},{startsAt:'2090-01-01T12:00:00'}]){
+    await check(`Review link is absent for ineligible visitor: ${JSON.stringify(options)}`,{status:'completed',startsAt:'2026-01-01T12:00:00',googleReviewUrl:'https://g.page/r/fixture/review',...options},async page=>{
+      await page.getByText(/Fixture Salon|Booking cancelled/).first().waitFor();
+      assert.equal(await page.getByRole('link',{name:'Leave a Google review ↗'}).count(),0);
+      assert.deepEqual(await writes(page),[]);
+    });
+  }
   for (const mode of ['available', 'back_to_back']) {
     await check(`${mode}: empty October still reaches November; offered wall time is preserved`, { mode, emptyOctober: true }, async page => {
       await open(page);

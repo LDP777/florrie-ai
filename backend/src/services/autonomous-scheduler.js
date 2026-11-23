@@ -36,14 +36,15 @@ export async function runAutonomousCycle() {
   logger.info('Autonomous scheduler: starting cycle');
 
   try {
-    // Get all beauticians with auto_reply_enabled
+    // Gap-fill has its own owner-controlled dial. Switching off AI replies
+    // must not disable a gap-fill preference the salon explicitly selected.
     // subscription_status and trial_ends_at are both in 001_initial_schema.sql,
     // so adding them cannot fail the whole select the way a column from an
     // unapplied migration would.
     const { data: allBeauticians, error } = await supabase
       .from('beauticians')
       .select('id, first_name, confidence_threshold, auto_reply_enabled, subscription_plan, subscription_status, trial_ends_at, tone_model, autonomy')
-      .eq('auto_reply_enabled', true);
+      .or('auto_reply_enabled.eq.true,autonomy->>gap_fill.eq.ask,autonomy->>gap_fill.eq.auto');
 
     if (error || !allBeauticians?.length) {
       logger.info('Autonomous scheduler: no active beauticians or error', { error });
@@ -68,7 +69,12 @@ export async function runAutonomousCycle() {
 
     for (const b of beauticians) {
       try {
-        await runForBeautician(b);
+        if (b.auto_reply_enabled === true) await runForBeautician(b);
+        else if (['ask', 'auto'].includes(b.autonomy?.gap_fill)) {
+          // Only the explicitly enabled feature runs here. Other background
+          // features keep their existing activation behaviour.
+          await checkGapFillOpportunities(b.id, b.confidence_threshold || DEFAULT_CONFIDENCE);
+        }
       } catch (err) {
         logger.error({ err, beauticianId: b.id }, 'Autonomous cycle failed for beautician');
       }

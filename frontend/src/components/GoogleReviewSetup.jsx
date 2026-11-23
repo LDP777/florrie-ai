@@ -3,6 +3,7 @@ import { updateRow } from '../lib/supabase.js';
 import { googleReviewLink, normaliseGoogleReviewLink } from '../../../backend/src/lib/google-review-link.mjs';
 import Button from './ui/Button.jsx';
 import Icon from './ui/Icon.jsx';
+import ReviewSendingSettings from './ReviewSendingSettings.jsx';
 
 export default function GoogleReviewSetup({ beautician, onSaved }) {
   const [saved, setSaved] = useState(() => googleReviewLink(beautician));
@@ -38,6 +39,7 @@ export default function GoogleReviewSetup({ beautician, onSaved }) {
     </form>}
     {notice && <p role="status" className="fl-studio-note">{notice}</p>}
     {error && <p role="alert">{error}</p>}
-    <p className="fl-studio-note">Requests follow your existing sending preferences. Check your Business Profile connection in the Google reviews section above.</p>
+    <p className="fl-studio-note">Clients write and submit their review on Google. Your link also appears in Manage my booking after a completed visit.</p>
+    <ReviewSendingSettings key={beautician.id} ownerId={beautician.id} hasLink={!!saved} onSaved={onSaved} />
   </section>;
 }

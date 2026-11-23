@@ -182,11 +182,11 @@ describe('no new sender joins clients without the consent columns', () => {
     // 2400 / 2666 / 3077, then 1095 / 2032 / 2586 / 2852 / 3263.)
     // Moved on 14 November 2026 by public cancellation receipts and month
     // navigation. The five joined client-column lists remain unchanged.
-    'src/routes/booking.js:1130',
-    'src/routes/booking.js:2093',
-    'src/routes/booking.js:2615',
-    'src/routes/booking.js:2913',
-    'src/routes/booking.js:3282',
+    'src/routes/booking.js:1131',
+    'src/routes/booking.js:2095',
+    'src/routes/booking.js:2617',
+    'src/routes/booking.js:2915',
+    'src/routes/booking.js:3284',
     'src/routes/features.js:132',
     'src/routes/features.js:169',
     'src/routes/features.js:194',

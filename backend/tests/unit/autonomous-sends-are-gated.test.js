@@ -31,6 +31,8 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
+const gapCalls = vi.hoisted(() => vi.fn(async () => ({matched:0})));
+
 const db = {
   beauticians: [], clients: [], appointments: [], patch_tests: [],
   consultation_responses: [], ai_actions: [],
@@ -93,7 +95,7 @@ vi.mock('../../src/services/sms-metering.js', () => ({ shouldAutoSend: async () 
 vi.mock('../../src/services/value-coaching.js', () => ({ runValueCoaching: async () => ({}) }));
 vi.mock('../../src/services/review-requests.js', () => ({ processReviewRequests: async () => ({ sent: 0 }) }));
 vi.mock('../../src/services/push-notifications.js', () => ({ pushTeamUpdate: async () => true }));
-vi.mock('../../src/services/gap-fill-engine.js', () => ({ checkGapFillOpportunities: async () => ({ matched: 0 }) }));
+vi.mock('../../src/services/gap-fill-engine.js', () => ({ checkGapFillOpportunities: gapCalls }));
 
 const { runAutonomousCycle } = await import('../../src/services/autonomous-scheduler.js');
 
@@ -113,6 +115,7 @@ function expiringTestDate() {
 
 beforeEach(() => {
   for (const t of Object.keys(db)) db[t] = [];
+  gapCalls.mockClear();
   delivered.length = 0;
   gateCalls.length = 0;
   verdict = { decision: 'send', tier: 'transactional', reason: 'transactional' };
@@ -247,5 +250,21 @@ describe('nothing in this file sends without asking', () => {
     const guards = (src.match(/await guardedSend\(/g) || []).length;
     expect(sends).toBeGreaterThan(0);
     expect(guards).toBe(sends);
+  });
+});
+
+
+describe('gap-fill has its own activation preference',()=>{
+  it.each(['ask','auto'])('runs explicit %s gap-fill without AI replies or unrelated nudges',async mode=>{
+    db.beauticians[0].auto_reply_enabled=false;
+    db.beauticians[0].autonomy={gap_fill:mode};
+    expiringPatchTest();preArrivalAppointment();
+    await runAutonomousCycle();
+    expect(gapCalls).toHaveBeenCalledExactlyOnceWith('b1',0.9);
+    expect(delivered).toHaveLength(0);expect(gateCalls).toHaveLength(0);
+  });
+  it.each([{}, {gap_fill:'off'},{proactive:'auto'}])('does not activate additional features from implicit or off settings: %j',async autonomy=>{
+    db.beauticians[0].auto_reply_enabled=false;db.beauticians[0].autonomy=autonomy;
+    await runAutonomousCycle();expect(gapCalls).not.toHaveBeenCalled();expect(delivered).toHaveLength(0);
   });
 });

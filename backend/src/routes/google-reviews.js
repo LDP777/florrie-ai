@@ -5,12 +5,15 @@ import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import { createGoogleReviews, reviewFingerprint } from '../services/google-reviews.js';
 import { buildVoiceGuide } from '../services/voice-profile.js';
+import { readReviewRequestSettings, saveReviewRequestSettings } from '../services/review-request-settings.js';
 
 const router=Router();
 router.use((req,res,next)=>{res.set('Cache-Control','no-store');next();});
 const service=createGoogleReviews({db:supabase});
 const handle=fn=>async(req,res)=>{try {res.json(await fn(req));}catch(error){res.status(error.status||503).json({error:error.status?error.message:'Google reviews could not be loaded. Try again.'});}};
 router.get('/requests',requireAuth,handle(req=>listReviewRequests(req.beautician.id)));
+router.get('/request-settings',requireAuth,handle(req=>readReviewRequestSettings(supabase,req.beautician.id)));
+router.put('/request-settings',requireAuth,handle(req=>saveReviewRequestSettings(supabase,req.beautician.id,req.body.mode)));
 router.get('/status',requireAuth,handle(req=>service.status(req.beautician.id)));
 router.get('/connect',requireAuth,handle(async req=>({url:await service.connect(req.beautician.id,req.query.platform==='native')})));
 router.get('/callback',async(req,res)=>{

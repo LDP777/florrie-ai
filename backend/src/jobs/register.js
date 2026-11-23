@@ -1,4 +1,4 @@
-import { processReviewRequests } from '../services/review-requests.js';
+import { processReviewRequests, scheduleCompletedReviewVisits } from '../services/review-requests.js';
 import { processWhatsAppBusinessApp } from '../services/whatsapp-business-app.js';
 import { processConnectedEmails } from '../services/email-connections.js';
 import { processSalonEmails } from '../services/salon-email.js';
@@ -208,7 +208,7 @@ export const JOBS = [
     name: 'review-requests-v2',
     description: 'review requests after owner-confirmed visits',
     intervalMs: 10 * MINUTE, startupDelayMs: 2 * MINUTE, leaseMs: 15 * MINUTE,
-    handler: processReviewRequests,
+    handler: async () => { await scheduleCompletedReviewVisits(); return processReviewRequests(); },
   },
   {
     name: 'autonomous-cycle',

@@ -1,3 +1,4 @@
+import { normaliseGoogleReviewLink } from '../../../backend/src/lib/google-review-link.mjs';
 import { CancellationPaymentReceipt } from '../components/CancellationPayment.jsx';
 import BookingPreparation from '../components/BookingPreparation.jsx';
 import { PATCH_TEST_LEAD_HOURS } from '../lib/patch-test-policy.js';
@@ -716,6 +717,15 @@ export default function ClientManagePage() {
             <Icon name="calendar" size={16} inline />
             Add to my calendar
           </a>
+        )}
+
+        {isCompleted && isPast && normaliseGoogleReviewLink(data.googleReviewUrl) && (
+          <section aria-label="Review your visit" style={{...S.card,marginBottom:16}}>
+            <h2 style={{fontSize:19,margin:'0 0 8px'}}>How was your visit?</h2>
+            <p style={{fontSize:14,lineHeight:1.5,margin:'0 0 16px',color:'var(--text-secondary)'}}>Share your experience with {appointment.beautician.name}.</p>
+            <a href={normaliseGoogleReviewLink(data.googleReviewUrl)} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer"
+              style={{...S.rescheduleBtn,display:'block',textAlign:'center',textDecoration:'none'}}>Leave a Google review ↗</a>
+          </section>
         )}
 
         {/* Cancellation result banner */}

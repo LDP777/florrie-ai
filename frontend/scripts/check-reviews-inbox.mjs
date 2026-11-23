@@ -20,9 +20,18 @@ try {
    const json=(body,status=200)=>Promise.resolve(new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json'}}));
    const at=new Date(Date.now()-25*60000).toISOString();
    const handoff={title:'Story context is missing',reason:'story_context:unavailable',action:'reply',action_label:'Read and reply',waiting_since:at};
-   window.fixture={fail:true,writes:[],handoff};
+   window.fixture={fail:true,writes:[],handoff,settingsFail:true,saveFail:true,settingsWrites:[],requestSettings:{mode:'ask',startedAt:null,hasLink:true,paused:false}};
    window.fetch=(input,options={})=>{
     const url=String(input);
+    if(url.includes('/rest/v1/beauticians'))return base(input,options).then(async r=>json({...await r.json(),google_review_link:'https://g.page/r/fixture/review'}));
+    if(url.includes('/api/google-reviews/request-settings')){
+      if(options.method==='PUT'){
+        fixture.settingsWrites.push(JSON.parse(options.body));
+        if(fixture.saveFail)return json({error:'Could not save preferences.'},503);
+        fixture.requestSettings={...fixture.requestSettings,...JSON.parse(options.body),startedAt:new Date().toISOString()};
+      }
+      return fixture.settingsFail?json({error:'Preferences could not be loaded.'},503):json(fixture.requestSettings);
+    }
     if(url.includes('/api/google-reviews/requests'))return fixture.fail?json({error:'Request history is unavailable.'},503):json({requests:[
      {id:'r1',client_id:'c1',client_name:'Fictional Morgan',state:'approval'},
      {id:'r2',client_id:'c1',client_name:'Fictional Jamie',state:'sent'},
@@ -40,6 +49,22 @@ try {
   const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
   const origin=`http://127.0.0.1:${server.address().port}`;
   await page.goto(origin+'/reviews');
+  const sending=page.getByRole('region',{name:'Review sending preferences'});
+  await sending.getByRole('alert').waitFor();
+  await page.evaluate(()=>fixture.settingsFail=false);
+  await sending.getByRole('button',{name:'Reload preferences'}).click();
+  await sending.getByRole('combobox',{name:'Review requests'}).selectOption('auto');
+  await sending.getByRole('button',{name:'Start review requests'}).click();
+  await sending.getByText('Could not save preferences.',{exact:true}).waitFor();
+  assert.equal(await sending.getByRole('combobox').inputValue(),'auto');
+  await page.evaluate(()=>fixture.saveFail=false);
+  await sending.getByRole('button',{name:'Start review requests'}).click();
+  await sending.getByText('Sends after completed visits',{exact:true}).waitFor();
+  assert.deepEqual(await page.evaluate(()=>fixture.settingsWrites),[{mode:'auto'},{mode:'auto'}]);
+  assert.equal(await page.getByRole('link',{name:'Check your link ↗'}).getAttribute('href'),'https://g.page/r/fixture/review');
+  assert.ok((await page.locator('body').innerText()).includes('Clients write and submit their review on Google.'));
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+  if(process.env.VISUAL_OUTPUT_DIR){mkdirSync(process.env.VISUAL_OUTPUT_DIR,{recursive:true});await page.screenshot({path:join(process.env.VISUAL_OUTPUT_DIR,`reviews-${width}.png`),fullPage:true});}
   const activity=page.getByRole('region',{name:'Review request activity'});
   await activity.getByRole('alert').waitFor();
   assert.ok(!(await activity.innerText()).includes('No review requests yet'));
