@@ -60,6 +60,7 @@ import { runMoneyMoments } from '../services/money-moments.js';
 import { runWeekInReview } from '../services/week-in-review.js';
 import { publishScheduledPosts } from '../services/content-scheduler.js';
 import { processContentTeamRuns } from '../services/content-team.js';
+import { processContentPreparations, recheckDueContent, prepareContentOpportunities } from '../services/content-v2/index.js';
 import { runVoiceProfileRefresh } from '../services/voice-profile.js';
 import { runAutonomousCycle } from '../services/autonomous-scheduler.js';
 import { autoCompletePastAppointments } from '../services/auto-complete.js';
@@ -84,6 +85,9 @@ const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
 export const JOBS = [
+  { name: 'content-v2-opportunities', description: 'prepare the next week and new permitted opportunities after the owner has started Content', intervalMs: HOUR, leaseMs: 10 * MINUTE, startupDelayMs: 2 * MINUTE, handler: prepareContentOpportunities },
+  { name: 'content-v2-preparations', description: 'resume requested posts from their last saved step', intervalMs: MINUTE, leaseMs: 10 * MINUTE, startupDelayMs: MINUTE, handler: processContentPreparations },
+  { name: 'content-v2-facts', description: 'recheck prices, availability and permission before posts are due', intervalMs: 10 * MINUTE, leaseMs: 10 * MINUTE, startupDelayMs: MINUTE, handler: recheckDueContent },
   { name: 'whatsapp-business-app-sync', description: 'import owner replies and approved WhatsApp history', intervalMs: MINUTE, leaseMs: 10 * MINUTE, handler: processWhatsAppBusinessApp },
   { name: 'connected-email-inbox', description: 'check connected customer mailboxes', intervalMs: MINUTE, leaseMs: 15 * MINUTE, handler: processConnectedEmails },
   { name: 'salon-email-inbox', description: 'receive salon email and recover interrupted imports', intervalMs: MINUTE, leaseMs: 5 * MINUTE, handler: processSalonEmails },

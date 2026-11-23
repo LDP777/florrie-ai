@@ -60,6 +60,7 @@ export default function SuggestionCards({ showEmpty = false }) {
   }
   async function prepare(card) {
     if (busy || hidden) return;
+    if (card.action?.kind === 'navigate') { open(card.link_to, card.link_state); return; }
     setBusy(card.id); setFailure(null); setPrepared(null); setCompleted(null);
     try {
       const result = await api('/api/florrie-thinks/prepare', { id: card.id });

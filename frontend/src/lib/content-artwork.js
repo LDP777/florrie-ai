@@ -93,7 +93,9 @@ function drawLines(context, lines, x, y, lineHeight) {
 }
 
 /** Render a local, reviewable PNG. This never saves, uploads or publishes it. */
-export async function renderContentArtwork({ kind, businessName, title, body = '', bookingSlug = '', photoUrl, format = 'feed' } = {}) {
+export async function renderContentArtwork(input = {}) {
+  const { kind, businessName, title, body = '', bookingSlug = '', photoUrl, format = 'feed' } = input;
+  if (['before_after','offer','availability','quote','course'].includes(kind)) return renderContentV2Artwork(input);
   if (typeof document === 'undefined' || typeof window === 'undefined') throw new Error('Open Florrie in the app or a browser to make this artwork.');
   if (!Object.hasOwn(KINDS, kind) || !Object.hasOwn(FORMATS, format)) throw new Error('Choose a supported artwork type and format.');
   const name = textValue(businessName, 'Business name', 120, true);
@@ -169,4 +171,57 @@ export async function renderContentArtwork({ kind, businessName, title, body = '
   } catch { throw new Error('Could not create the image. If you added a photo, upload it again and retry.'); }
   const filenameName = name.normalize('NFKD').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').slice(0, 48).toLowerCase() || 'salon';
   return { blob, filename: `${filenameName}-${kind}-${format}.png`, width, height, mimeType: 'image/png' };
+}
+
+// Artwork keeps the light brand palette so its appearance is independent of app theme.
+export async function renderContentV2Artwork({ kind, businessName, title, headline, body = '', lines = [], beforeUrl, afterUrl, before_url, after_url } = {}) {
+  if (!['before_after','offer','availability','quote','course'].includes(kind)) throw new Error('Choose a supported post design.');
+  const name = textValue(businessName, 'Business name', 120, true);
+  const heading = textValue(headline || title, 'Title', 500, true);
+  const detail = textValue(lines.length ? lines.filter(Boolean).join('\n') : body, 'Body text', 2400);
+  if (document.fonts?.ready) await bounded(document.fonts.ready, 10000, 'The fonts are still loading. Try again.');
+  const tokens = getComputedStyle(document.documentElement);
+  const fonts = { display: tokens.getPropertyValue('--font-display').trim() || "'Playfair Display', Georgia, serif", body: tokens.getPropertyValue('--font-body').trim() || "'Plus Jakarta Sans', sans-serif" };
+  const canvas = document.createElement('canvas'); canvas.width = 1080; canvas.height = 1350;
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('This device could not prepare the image. Try again.');
+  context.fillStyle = COLOURS.paper; context.fillRect(0, 0, 1080, 1350); context.textBaseline = 'top';
+  const flower = (x, y) => {
+    context.save(); context.translate(x, y); context.fillStyle = '#C76B8A';
+    for (let i = 0; i < 5; i++) { context.save(); context.rotate(i * Math.PI * 2 / 5); context.beginPath(); context.ellipse(0, -15, 11, 18, 0, 0, Math.PI * 2); context.fill(); context.restore(); }
+    context.fillStyle = '#C9A96E'; context.beginPath(); context.arc(0,0,7,0,Math.PI*2); context.fill(); context.restore();
+  };
+  flower(111, 112);
+  context.font = `500 29px ${fonts.body}`; context.fillStyle = COLOURS.rose;
+  const nameLines = wrappedLines(context, name, 790);
+  if (nameLines.length > 2) throw new Error('Shorten your business name for this image.');
+  drawLines(context, nameLines, 155, 92, 38);
+  if (kind === 'before_after') {
+    const photos = await Promise.all([loadPhoto(beforeUrl || before_url), loadPhoto(afterUrl || after_url)]);
+    photos.forEach((photo, index) => {
+      const x = 60, y = 192 + index * 488, width = 960, height = 468;
+      context.fillStyle = COLOURS.wash; context.fillRect(x,y,width,height);
+      const scale = Math.min(width/photo.naturalWidth,height/photo.naturalHeight);
+      const w=photo.naturalWidth*scale,h=photo.naturalHeight*scale;
+      context.drawImage(photo,x+(width-w)/2,y+(height-h)/2,w,h);
+      context.fillStyle = COLOURS.paper; context.beginPath(); context.roundRect(84,y+22,132,48,24); context.fill();
+      context.font = `600 25px ${fonts.body}`; context.fillStyle = COLOURS.ink; context.fillText(index?'After':'Before',108,y+32);
+    });
+  } else {
+    const labels = {offer:title || 'Your offer',availability:'Appointments',quote:'Kind words',course:'Your next training date'};
+    context.font = `600 25px ${fonts.body}`; context.fillStyle = COLOURS.rose;
+    const eyebrow = wrappedLines(context, String(labels[kind]).toUpperCase(), 904);
+    let y = drawLines(context,eyebrow,88,238,35)+38;
+    const copy = fitCopy(context, kind==='quote'?`“${heading}”`:heading, detail, 904, 1060-y, fonts);
+    context.font = `500 ${copy.titleSize}px ${fonts.display}`; context.fillStyle=COLOURS.ink;
+    y=drawLines(context,copy.titleLines,88,y,copy.titleSize*1.2)+38;
+    context.fillStyle='#C9A96E'; context.fillRect(88,y,96,4); y+=42;
+    context.font=`400 ${copy.bodySize}px ${fonts.body}`; context.fillStyle=COLOURS.muted;
+    drawLines(context,copy.bodyLines,88,y,copy.bodySize*1.5);
+  }
+  context.strokeStyle=COLOURS.line;context.beginPath();context.moveTo(88,1230);context.lineTo(992,1230);context.stroke();
+  context.font=`500 26px ${fonts.body}`;context.fillStyle=COLOURS.rose;context.fillText('Booking link in bio',88,1260);
+  const blob=await bounded(new Promise((resolve,reject)=>canvas.toBlob(value=>value?resolve(value):reject(new Error('Could not create this image. Try again.')),'image/png')),10000,'Creating the image took too long. Try again.');
+  const filename=name.normalize('NFKD').replace(/[^a-z0-9]+/gi,'-').replace(/^-|-$/g,'').slice(0,48).toLowerCase() || 'salon';
+  return {blob,filename:`${filename}-${kind}-feed.png`,width:1080,height:1350,mimeType:'image/png'};
 }

@@ -59,3 +59,15 @@ export function readContentHandoff(state, search = '') {
   }
   return { postId, view, brief };
 }
+
+/** Map validated legacy links onto the Content review journey. */
+export function contentV2Destination(handoff, posts = []) {
+  if (handoff?.postId) return { postId: handoff.postId };
+  if (handoff?.brief) return { preparation: handoff.brief.date
+    ? { type: 'fill_gap', day: handoff.brief.date, starts_at: handoff.brief.startsAt, ends_at: handoff.brief.endsAt }
+    : { type: 'fill_gap', no_times: true } };
+  if (handoff?.view === 'results') return { sheet: 'results' };
+  if (handoff?.view === 'gallery') return { sheet: 'photos' };
+  if (['drafts', 'ideas'].includes(handoff?.view) && posts.length) return { deck: true };
+  return { home: true };
+}

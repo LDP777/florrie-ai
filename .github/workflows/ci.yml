@@ -84,8 +84,17 @@ jobs:
       # parsed and rendered fine, and failed the moment a finger moved. This
       # drives real touch PointerEvents. Needs a browser, so it lives here
       # rather than in `npm run build` (Xcode Cloud has no chromium).
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps chromium webkit
         working-directory: frontend
+      - run: npm run check:content:v2 --workspace frontend
+        env:
+          VISUAL_OUTPUT_DIR: ${{ github.workspace }}/frontend/test-results/content-v2
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: content-v2-phone-checks
+          path: frontend/test-results/content-v2
+          if-no-files-found: ignore
       - run: npm run check:drag --workspace frontend
       - run: npm run check:voice:browser --workspace frontend
       - run: npm run check:privacy:browser --workspace frontend

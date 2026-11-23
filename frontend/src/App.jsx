@@ -28,6 +28,7 @@ const CalendarFull = lazy(() => import('./pages/CalendarFull.jsx'));
 const ValueBreakdown = lazy(() => import('./pages/ValueBreakdown.jsx'));
 const Escalations = lazy(() => import('./pages/Escalations.jsx'));
 const ContentAutopilot = lazy(() => import('./pages/ContentAutopilot.jsx'));
+const Content = lazy(() => import('./pages/Content.jsx'));
 const MoneyTracker = lazy(() => import('./pages/MoneyTracker.jsx'));
 const BookingPage = lazy(() => import('./pages/BookingPage.jsx'));
 const TrainingCatalogue = lazy(() => import('./pages/TrainingCatalogue.jsx'));
@@ -564,7 +565,7 @@ export default function App() {
             <Route path="/today" element={<Hub />} />
             <Route path="/escalations" element={<Escalations />} />
             <Route path="/approval-queue" element={<Navigate to="/outbox" replace />} />
-            <Route path="/content" element={<PlanGate feature="content_autopilot"><ContentAutopilot /></PlanGate>} />
+            <Route path="/content" element={<PlanGate feature="content_autopilot">{beautician?.content_v2 ? <Content owner={beautician} authId={session.user?.id} /> : <ContentAutopilot />}</PlanGate>} />
             <Route path="/money" element={<MoneyTracker />} />
             <Route path="/clients" element={<Clients />} />
             <Route path="/treatments" element={<Treatments />} />

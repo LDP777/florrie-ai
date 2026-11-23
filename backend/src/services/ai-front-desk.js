@@ -26,7 +26,8 @@ import { needsAPerson } from '../lib/needs-a-person.js';
 import { authorshipAvailable } from '../lib/authorship.js';
 import { isOptOutMessage, applyOptOut, OPT_OUT_CONFIRMATION } from '../lib/opt-out.js';
 import { getLoyaltyConfig, getClientPoints, loyaltyProximity } from './loyalty.js';
-import { getActivePromos, describePromo } from '../lib/promos.js';
+import { getActivePromos, describePromo, getMarketingOffers } from '../lib/promos.js';
+import { recentContentForMessaging, contentLinkForMessage, renderContentReplyContext, includeContentLink } from './content-post-context.js';
 import { advanceBookingConversation } from './conversational-booking.js';
 import { authorship } from '../lib/authorship.js';
 import { isGroundedReply, asksForHuman, signAsFlorrie, atTheDoorPhrase, greetingReplyCheck, isBareGreeting } from '../lib/grounded-reply.js';
@@ -1260,7 +1261,16 @@ async function gatherContext(beautician, client, messageContent = '', channel = 
     patchTest = { ...patchTestStance(evidence), treatmentsNeedingTest };
   }
 
-  const offers = (activePromos || []).map(describePromo).filter(Boolean);
+  let approvedOffers;
+  let recentPosts = [];
+  if (beautician.content_v2) {
+    [approvedOffers, recentPosts] = await Promise.all([
+      getMarketingOffers(beautician.id).catch(error => { logger.warn({ err: error, beauticianId: beautician.id }, 'Approved offer lookup failed'); return []; }),
+      recentContentForMessaging(beautician.id),
+    ]);
+  }
+  const offers = approvedOffers === undefined ? (activePromos || []).map(describePromo).filter(Boolean) : approvedOffers.map(offer => offer.client_reply).filter(Boolean);
+  const contentLink = contentLinkForMessage(messageContent, recentPosts, approvedOffers || []);
 
   if (treatments.error) {
     logger.error({ err: treatments.error, beauticianId: beautician.id }, 'Treatment menu read failed; Florrie must not claim she does not offer something');
@@ -1283,7 +1293,7 @@ async function gatherContext(beautician, client, messageContent = '', channel = 
     courses: courses || [],
     loyalty,
     patchTest,
-    offers,
+    offers, approvedOffers, recentPosts, contentLink,
     beautician: {
       name: beautician.business_name || beautician.first_name,
       workingHours: beautician.working_hours,
@@ -1918,6 +1928,7 @@ ${context.client ? `Client: ${context.client.name}, ${context.client.totalVisits
 ${context.clientIntelligence?.favourite_treatments?.length ? `Favourite treatments: ${context.clientIntelligence.favourite_treatments.join(', ')}` : ''}
 ${context.loyalty ? `LOYALTY: ${context.loyalty.summary} If it fits this message, you may mention it once, warmly and naturally, never pushy. Never invent points or rewards beyond what is stated here.` : ''}
 ${renderPatchTestBlock(context.patchTest)}
+${renderContentReplyContext(context)}
 ${context.offers?.length ? `OFFERS: ${context.offers.join('; ')}. Only mention an offer if the client asks about price or offers, or is hesitating on cost. Never volunteer it otherwise, and never invent a code.` : `OFFERS: none running right now. If the client asks about offers or discounts, tell them there is nothing on at the moment. Never invent an offer, discount, or code.`}
 ${renderKnowledgeBlock(context.knowledge)}
 ${renderClientHistory(context)}
@@ -1968,8 +1979,8 @@ Respond with the WhatsApp message only. No quotes, no JSON, no explanation.`;
   // different claim, evidenced by different code, and folding the two into one
   // flag would wave the 28 July incident through on the strength of the fix
   // for the 26 August one.
-  const guarded = safeReply(fit.text, { allowedTimes, sendPerformed, arrivalNote: writtenNotes });
-  let replyText = guarded.text;
+  const guarded = safeReply(fit.text, { allowedTimes, sendPerformed, arrivalNote: writtenNotes, approvedOffers: context.approvedOffers });
+  let replyText = guarded.rejected ? guarded.text : includeContentLink(guarded.text, context);
   if (guarded.rejected) {
     logger.warn({
       beauticianId: beautician?.id,
@@ -1984,7 +1995,7 @@ Respond with the WhatsApp message only. No quotes, no JSON, no explanation.`;
     // it cannot introduce a time or a claim. Re-checked anyway: if the styled
     // version fails for any reason the plain one goes instead.
     const styledFallback = styleFit(replyText, style).text;
-    if (checkReplyClaims(styledFallback, { allowedTimes, sendPerformed, arrivalNote: writtenNotes }).ok) replyText = styledFallback;
+    if (checkReplyClaims(styledFallback, { allowedTimes, sendPerformed, arrivalNote: writtenNotes, approvedOffers: context.approvedOffers }).ok) replyText = styledFallback;
   }
 
   // Calculate tone match score by comparing against beautician's correction history
@@ -2117,6 +2128,7 @@ ${renderClientBookings(context.clientUpcoming)}
 ${renderFreeSlots(context.freeSlots)}
 ${context.loyalty ? `Loyalty: ${context.loyalty.summary} If it fits, you may mention it once, warmly, never pushy. Never invent points or rewards beyond this.` : ''}
 ${renderPatchTestBlock(context.patchTest)}
+${renderContentReplyContext(context)}
 ${context.offers?.length ? `Offers: ${context.offers.join('; ')}. Mention only if they ask about price or offers, or hesitate on cost. Never volunteer, never invent a code.` : `Offers: none running right now. If they ask about offers, say there is nothing on at the moment. Never invent an offer, discount, or code.`}
 ${renderKnowledgeBlock(context.knowledge)}
 ${renderClientHistory(context)}
@@ -2141,7 +2153,7 @@ Write only the message to send.`;
   const allowedTimes = (context.freeSlots || []).map(s => s.time);
   // Ellie sends this from a card without opening the thread, so it has to be
   // safe on its own. Same guard, same verified list, as the auto path.
-  const guarded = safeReply(fit.text, { allowedTimes, arrivalNote: writtenNotes });
+  const guarded = safeReply(fit.text, { allowedTimes, arrivalNote: writtenNotes, approvedOffers: context.approvedOffers });
   if (guarded.rejected) {
     logger.warn({
       reason: guarded.reason,
@@ -2150,9 +2162,9 @@ Write only the message to send.`;
     }, 'AI Front Desk BLOCKED an unverifiable claim in a drafted reply');
     if (!holdingFallback) return null;
     const styledFallback = styleFit(guarded.text, style).text;
-    if (checkReplyClaims(styledFallback, { allowedTimes, arrivalNote: writtenNotes }).ok) return styledFallback;
+    if (checkReplyClaims(styledFallback, { allowedTimes, arrivalNote: writtenNotes, approvedOffers: context.approvedOffers }).ok) return styledFallback;
   }
-  return guarded.text;
+  return guarded.rejected ? guarded.text : includeContentLink(guarded.text, context);
 }
 
 // INTENT-SPECIFIC PROMPT BUILDERS
@@ -2503,6 +2515,7 @@ ${renderClientHistory(context)}
 ${buildTranscript(context, lastInboundMessage) ? `Conversation so far:\n${buildTranscript(context, lastInboundMessage)}` : ''}
 ${context.loyalty ? `Loyalty: ${context.loyalty.summary} One of the 3 options may nod to this if it fits, warmly and never pushy.` : ''}
 ${renderPatchTestBlock(context.patchTest)}
+${renderContentReplyContext(context)}
 ${context.offers?.length ? `Offers: ${context.offers.join('; ')}. Mention only if they ask about price or offers, or hesitate on cost. Never volunteer, never invent a code.` : `Offers: none running right now. If they ask about offers, say there is nothing on at the moment. Never invent an offer, discount, or code.`}
 
 Respond with ONLY a JSON array of exactly 3 objects: [{"label":"...","text":"..."}].`,
@@ -2531,5 +2544,6 @@ Respond with ONLY a JSON array of exactly 3 objects: [{"label":"...","text":"...
     // was somebody at the door, so a chip saying what Ellie herself wrote
     // survives instead of being dropped a tap before she sends it.
     arrivalNote: writtenNotesFrom(context.knowledge),
-  }).rejected);
+    approvedOffers: context.approvedOffers,
+  }).rejected).map(suggestion => ({ ...suggestion, text: includeContentLink(suggestion.text, context) }));
 }

@@ -67,6 +67,9 @@ try {
     const unbroken = await inspect({ title: 'A'.repeat(100), body: 'Café, colour & care. 👩🏽‍🎨\n' + 'x'.repeat(150), bookingSlug: '' });
     const photoCanvas = document.createElement('canvas'); photoCanvas.width = 240; photoCanvas.height = 120;
     const photoContext = photoCanvas.getContext('2d'); photoContext.fillStyle = '#ff0000'; photoContext.fillRect(0,0,120,120); photoContext.fillStyle = '#0000ff'; photoContext.fillRect(120,0,120,120);
+    const v2 = [];
+    for (const kind of ['offer','availability','quote','course']) v2.push(await inspect({kind,title:'Your next appointment',body:'Appointments from 1 to 24 December. Book by 20 December. Code FESTIVE10.'}));
+    const pair = await inspect({kind:'before_after',title:'Signature brows',beforeUrl:photoCanvas.toDataURL('image/png'),afterUrl:photoCanvas.toDataURL('image/png')});
     const photo = await inspect({ kind:'treatment', title:'Signature brows', body:'Original photo. Supplied treatment details.', photoUrl:photoCanvas.toDataURL('image/png') });
     const failures = [];
     for (const input of [
@@ -80,7 +83,7 @@ try {
     const afterStyle = document.documentElement.getAttribute('style');
     CanvasRenderingContext2D.prototype.fillText = fillText;
     CanvasRenderingContext2D.prototype.drawImage = drawImage;
-    return { feed,story,long,unbroken,photo,failures,fontsBefore,fontsAfter,beforeStyle,afterStyle };
+    return { feed,story,long,unbroken,photo,v2,pair,failures,fontsBefore,fontsAfter,beforeStyle,afterStyle };
   });
   for (const name of ['feed','story','long','unbroken','photo']) {
     const result = results[name];
@@ -99,6 +102,14 @@ try {
     assert.match(result.filename,/^[a-z0-9-]+\.png$/);
     if (output) writeFileSync(join(output,result.filename.replace('.png',`-${name}.png`)),Buffer.from(result.dataUrl.split(',')[1],'base64'));
   }
+  for (const result of [...results.v2,results.pair]) {
+    assert.equal(result.width,1080); assert.equal(result.height,1350); assert.equal(result.blobType,'image/png');
+    assert.ok(result.size>3000); assert.deepEqual(result.corner,[251,246,241,255]);
+    assert.ok(result.lines.some(line=>line.text==='Booking link in bio'));
+    for(const line of result.lines) assert.ok(line.y+line.size*1.5<1350, 'designed card text stays in frame');
+    if(output) writeFileSync(join(output,result.filename),Buffer.from(result.dataUrl.split(',')[1],'base64'));
+  }
+  assert.equal(results.pair.images.length,2);assert.ok(results.pair.red>10000 && results.pair.blue>10000);
   assert.ok(results.photo.red > 10000 && results.photo.blue > 10000,'both sides of the original photograph survive unchanged');
   assert.equal(results.photo.images.length,1);
   assert.equal(results.photo.images[0].length,4,'photo drawing scales the whole source without a source crop');

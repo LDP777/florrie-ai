@@ -6,8 +6,16 @@ import { createPostFromPhoto, publishPost, draftAvailabilityPost, generateCaptio
 import logger from '../lib/logger.js';
 import assistantRoutes from './content-assistant.js';
 import teamRoutes from './content-team.js';
+import contentV2Routes from './content-v2.js';
 
 const router = Router();
+router.use('/v2', contentV2Routes);
+router.use(requireAuth, (req, res, next) => {
+  if (req.beautician.content_v2 && !['GET','HEAD'].includes(req.method)) {
+    return res.status(409).json({ error: 'Open the updated Content page to change or approve this post.' });
+  }
+  next();
+});
 router.use('/team', teamRoutes);
 router.use('/assistant', assistantRoutes);
 

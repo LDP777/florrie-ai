@@ -11,7 +11,7 @@ import Icon from '../components/ui/Icon.jsx';
 import { readAuthenticatedJson } from '../lib/authenticated-json.js';
 
 const SCOPES = [
-  ['portfolio', 'Portfolio'], ['booking-page', 'Booking page'], ['instagram', 'Instagram'],
+  ['portfolio', 'Portfolio'], ['booking-page', 'Booking page'], ['instagram', 'Instagram'], ['google', 'Google Business Profile'],
   ['tiktok', 'TikTok'], ['facebook', 'Facebook'], ['training', 'Training materials'],
 ];
 const STATUS = {

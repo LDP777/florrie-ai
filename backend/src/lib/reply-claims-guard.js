@@ -545,8 +545,12 @@ export function timesMentionedIn(text) {
  * facet within itself, because one sentence about parking is not permission to
  * talk about a door.
  */
-export function checkReplyClaims(text, { allowedTimes = [], actionPerformed = false, sendPerformed = false, arrivalNote = '' } = {}) {
+export function checkReplyClaims(text, { allowedTimes = [], actionPerformed = false, sendPerformed = false, arrivalNote = '', approvedOffers } = {}) {
   const body = String(text || '');
+  if (approvedOffers !== undefined) {
+    const offerCheck = checkOfferClaims(body, approvedOffers);
+    if (!offerCheck.ok) return offerCheck;
+  }
 
   // FIRST, and with no flag that can switch it off. Florrie is not in the
   // building. Everything below this can in principle become true and is
@@ -643,4 +647,43 @@ export function safeReply(text, opts = {}) {
   const verdict = checkReplyClaims(text, opts);
   if (verdict.ok) return { text, rejected: false };
   return { text: HOLDING_REPLY, rejected: true, ...verdict };
+}
+
+
+// The approved reply is a fact record, not a prompt suggestion. Money, dates,
+// codes and restrictions must survive a model or style rewrite unchanged.
+export function checkOfferClaims(text, offers = []) {
+  const normalise = value => String(value || '').toLowerCase().replace(/[’]/g, "'").replace(/\s+/g, ' ').trim();
+  const body = normalise(text);
+  const mentionsOffer = /\b(?:discount|deal|code)\b|(?:£\s*\d+(?:\.\d{1,2})?|\d+%)\s*off/.test(body)
+    || (/\boffers?\b/.test(body) && /£\s*\d|\d+%|\b(?:finished|expired|ended|january|february|march|april|may|june|july|august|september|october|november|december)\b/.test(body))
+    || offers.some(offer => offer.code && body.includes(normalise(offer.code)));
+  if (!mentionsOffer) return { ok: true };
+  const refusal = () => ({ ok: false, reason: 'offer terms did not match the approved offer', offending: [String(text)] });
+  const named = offers.filter(offer => (offer.code && body.includes(normalise(offer.code)))
+    || (offer.title && body.includes(normalise(offer.title))));
+  // A shared deadline or "one per client" does not identify an offer. Prefer
+  // its code or title, then its discount-and-treatment phrase.
+  const chosen = named.length ? named : offers.filter(offer => offer.active
+    && offer.required_phrases?.[0] && body.includes(normalise(offer.required_phrases[0])));
+  if (!chosen.length) {
+    if (!offers.some(offer => offer.active) && /(?:no |nothing |not |finished|ended|expired)/.test(body)
+      && !/£\s*\d|\d+%|\b\d{1,2} (?:january|february|march|april|may|june|july|august|september|october|november|december)\b/.test(body)) return { ok: true };
+    return refusal();
+  }
+  for (const offer of chosen) {
+    if (!offer.active) {
+      if (!body.includes(normalise(offer.client_reply))) return refusal();
+    } else if (!(offer.required_phrases || []).every(phrase => body.includes(normalise(phrase)))) return refusal();
+  }
+  const evidence = normalise(chosen.map(offer => offer.client_reply).join(' '));
+  const tokens = body.match(/£\s*\d+(?:\.\d{1,2})?|\d+%|\b\d{1,2} (?:january|february|march|april|may|june|july|august|september|october|november|december)\b/g) || [];
+  if (tokens.some(token => !evidence.includes(token))) return refusal();
+  const codes = [...body.matchAll(/\bcode\s+([a-z0-9_-]+)/g)].map(match => match[1]);
+  if (codes.some(code => !chosen.some(offer => normalise(offer.code) === code))) return refusal();
+  // Keep extra qualifying terms from silently widening the approved window.
+  const stripped = chosen.reduce((result, offer) => (offer.active ? offer.required_phrases || [] : [offer.client_reply])
+    .reduce((remaining, phrase) => remaining.replace(normalise(phrase), ''), result), body);
+  if (/\b(?:until|throughout|extend|extended|any treatment|all treatments|any time|any day|no code|twice|unlimited|no limit|as often|tomorrow|today|next week|next month|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/.test(stripped)) return refusal();
+  return { ok: true };
 }
