@@ -84,6 +84,13 @@ describe('future diary review opt-in',()=>{
   it('does not catch up appointments that started before activation',async()=>{
     enable('2026-11-16T11:30:00Z');expect((await scheduleCompletedReviewVisits()).scheduled).toBe(0);
   });
+  it('also applies future-only activation to manual completion and old pending requests',async()=>{
+    await queue();
+    enable('2026-11-16T13:00:00Z');
+    expect(await scheduleReviewRequest('b1','a1','c1')).toEqual({scheduled:false});
+    await processReviewRequests();expect(state.send).not.toHaveBeenCalled();
+    expect(state.db.ai_actions[0].details.reason).toBe('visit_not_eligible');
+  });
   it.each(['off','paused','missing_link','future_completion','future_end','patch_test'])('does not queue %s visits',async reason=>{
     const visit=enable();
     if(reason==='off') visit.beauticians.autonomy.review_request='off';

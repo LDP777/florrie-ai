@@ -25,6 +25,12 @@ function eligible(appt, owner, client, now = Date.now()) {
   const age = wallNow(appt.beauticians?.timezone, now) - Date.parse(appt.starts_at);
   return Number.isFinite(age) && age >= 0 && age <= 72 * HOUR;
 }
+function withinReviewActivation(appt) {
+  const value = appt.beauticians?.autonomy?.review_request_started_at;
+  if (!value) return true; // Existing manual completion workflow.
+  const since = Date.parse(value);
+  return Number.isFinite(since) && Date.parse(appt.starts_at) >= wallNow(appt.beauticians?.timezone, since);
+}
 async function appointment(owner, id) {
   const result = await supabase.from('appointments').select(COLUMNS).eq('beautician_id', owner).eq('id', id).maybeSingle();
   if (result.error) throw result.error;
@@ -37,6 +43,7 @@ export async function scheduleReviewRequest(owner, appointmentId, clientId, { di
   if (!clientId) return { scheduled:false };
   const appt = await appointment(owner, appointmentId);
   if (!eligible(appt, owner, clientId) || wallNow(appt.beauticians?.timezone, Date.now()) - Date.parse(appt.ends_at || appt.starts_at) > 48 * HOUR) return { scheduled:false };
+  if (!withinReviewActivation(appt)) return { scheduled:false };
   if (diary && !diaryReviewEligible(appt)) return { scheduled:false };
   const recent = await supabase.from('ai_actions').select('id').eq('beautician_id', owner)
     .eq('action_type', 'review_requested').eq('client_id', clientId)
@@ -130,7 +137,7 @@ export async function processReviewRequests() {
         await finish(action,'held','expired'); continue;
       }
       const appt = await appointment(action.beautician_id,action.details?.appointment_id);
-      if (!eligible(appt,action.beautician_id,action.client_id)) { await finish(action,'held','visit_not_eligible'); continue; }
+      if (!eligible(appt,action.beautician_id,action.client_id) || !withinReviewActivation(appt)) { await finish(action,'held','visit_not_eligible'); continue; }
       if (action.details?.source === 'diary' && !diaryReviewEligible(appt)) { await finish(action,'held','visit_or_permission_changed'); continue; }
       if (!splitBillable([appt.beauticians]).billable.length) { await finish(action,'held','plan_inactive'); continue; }
       if (appt.beauticians?.client_reminder_prefs?.paused === true) { await finish(action,'held','salon_paused'); continue; }
@@ -187,7 +194,7 @@ export async function beginReviewApproval(owner, outboundId) {
   if (row.error) throw row.error;
   if (!row.data || row.data.details?.version !== VERSION) return null;
   const appt = await appointment(owner,row.data.details.appointment_id);
-  if (!(Date.parse(row.data.details.expires_at) > Date.now() && eligible(appt,owner,row.data.client_id))
+  if (!(Date.parse(row.data.details.expires_at) > Date.now() && eligible(appt,owner,row.data.client_id) && withinReviewActivation(appt))
     || !appt.clients.marketing_consent || appt.clients.marketing_opted_out_at || appt.beauticians?.client_reminder_prefs?.paused
     || appt.beauticians?.autonomy?.review_request === 'off'
     || !googleReviewLink(appt.beauticians) || googleReviewLink(appt.beauticians) !== row.data.details.review_url
