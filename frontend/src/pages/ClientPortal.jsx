@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useBeautician } from '../lib/supabase.js';
+import { PUBLIC_BASE } from '../lib/booking.js';
 import PageLoader from '../components/PageLoader.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import Icon from '../components/ui/Icon';
@@ -13,7 +14,7 @@ export default function ClientPortal() {
   const [error, setError] = useState(null);
   if (loading) return <PageLoader />;
   const slug = beautician?.booking_slug;
-  const bookingUrl = slug ? `https://florrie.ai/book/${encodeURIComponent(slug)}` : null;
+  const bookingUrl = slug ? `${PUBLIC_BASE}/book/${encodeURIComponent(slug)}` : null;
   async function copyLink() {
     setCopyState('copying'); setError(null);
     try {

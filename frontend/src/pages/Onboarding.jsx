@@ -11,6 +11,7 @@ import { isIOSNative, isNativeApp } from '../lib/platform.js';
 import Icon from '../components/ui/Icon';
 import Button from '../components/ui/Button';
 import { cleanSlug, slugProblem, suggestSlug, withSuffix, isUniqueViolation } from '../lib/booking-slug.js';
+import { PUBLIC_BASE } from '../lib/booking.js';
 import { parseCsv, clientsFromCsv } from '../lib/csv.js';
 import { startInstagramConnection } from '../lib/instagram-connect.js';
 import { readAuthenticatedJson } from '../lib/authenticated-json.js';
@@ -971,7 +972,7 @@ function OnboardingDraft({ onComplete, profile }) {
           </div>
           {(() => {
             const bookingSlug = (slug || '').toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-            const bookingUrl = `https://florrie.ai/book/${bookingSlug}`;
+            const bookingUrl = `${PUBLIC_BASE}/book/${bookingSlug}`;
             const copy = async () => {
               try { await navigator.clipboard?.writeText?.(bookingUrl); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 1800); } catch {}
             };
