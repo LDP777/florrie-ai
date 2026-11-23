@@ -293,7 +293,6 @@ router.post('/checkout', requireAuth, requireStripe, async (req, res) => {
     res.json({ url: session.url, session_id: session.id });
   } catch (err) {
     logger.error({ err }, 'Checkout session error');
-    logger.error({ err }, 'Stripe operation failed');
     res.status(500).json({ error: 'Something went wrong' });
   }
 });
@@ -370,7 +369,6 @@ router.post('/subscribe', requireAuth, requireStripe, async (req, res) => {
     res.json({ url: session.url });
   } catch (err) {
     logger.error({ err }, 'Subscribe error');
-    logger.error({ err }, 'Stripe operation failed');
     res.status(500).json({ error: 'Something went wrong' });
   }
 });
@@ -1005,7 +1003,6 @@ router.post('/refund', requireAuth, requireStripe, async (req, res) => {
     });
   } catch (err) {
     logger.error({ err }, 'Refund error');
-    logger.error({ err }, 'Stripe operation failed');
     res.status(500).json({ error: 'Something went wrong' });
   }
 });
@@ -1265,7 +1262,6 @@ router.post('/payment-link', requireAuth, requireStripe, async (req, res) => {
     });
   } catch (err) {
     logger.error({ err }, 'Payment link error');
-    logger.error({ err }, 'Stripe operation failed');
     res.status(500).json({ error: 'Something went wrong' });
   }
 });
@@ -1288,7 +1284,6 @@ router.post('/cleanup-events', requireCronKey, async (req, res) => {
     res.json({ success: true, ...result });
   } catch (err) {
     logger.error({ err }, 'Stripe cleanup error');
-    logger.error({ err }, 'Stripe operation failed');
     res.status(500).json({ error: 'Something went wrong' });
   }
 });
