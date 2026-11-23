@@ -38,7 +38,24 @@ function ContentForOwner({ owner, authId }) {
   },[authId]);
   function remember(post){if(post?.id)setCache(previous=>({...previous,[post.id]:post}));return post;}
   function rememberHome(data){const posts=[...asArray(data.posts_to_check),...asArray(data.coming_up),...asArray(data.reel_plans)];setCache(previous=>({...previous,...Object.fromEntries(posts.map(post=>[post.id,post]))}));latestHome.current=data;setHome(data);}
-  const refresh=useCallback(async(showLoading=false)=>{const seq=++loads.current;if(showLoading)setLoading(true);try{const data=await request('/home',{timeoutMs:25000});if(!Array.isArray(data.posts_to_check)||!Array.isArray(data.coming_up))throw new Error("Florrie couldn't load your saved posts. Try again.");if(Number(data.counts?.total)===0){try{data.first_photos=await request('/photos');}catch{data.first_photos=null;}}if(active.current&&seq===loads.current){rememberHome(data);setError('');}}catch(err){if(active.current&&seq===loads.current)setError(err.message);}finally{if(active.current&&seq===loads.current)setLoading(false);}},[request]);
+  const refresh=useCallback(async(showLoading=false)=>{
+    const seq=++loads.current,generation=epoch.current;
+    const current=()=>active.current&&seq===loads.current&&generation===epoch.current;
+    if(showLoading)setLoading(true);
+    try{
+      const data=await request('/home',{timeoutMs:25000});
+      if(!Array.isArray(data.posts_to_check)||!Array.isArray(data.coming_up))throw new Error("Florrie couldn't load your saved posts. Try again.");
+      if(!current())return;
+      rememberHome(data);setError('');setLoading(false);
+      // Photo suggestions can arrive after the page is usable. Keep account and
+      // refresh guards so a late response cannot overwrite newer content.
+      if(Number(data.counts?.total)===0){
+        try{const photos=await request('/photos');if(current())rememberHome({...latestHome.current,first_photos:photos});}
+        catch{/* Photos remain available through the Photos button. */}
+      }
+    }catch(err){if(current())setError(err.message);}
+    finally{if(current())setLoading(false);}
+  },[request]);
   useEffect(()=>{active.current=true;refresh(true);const subscription=supabase.auth.onAuthStateChange?.((event,session)=>{if(event==='SIGNED_OUT'||session?.user?.id&&session.user.id!==authId){epoch.current++;setHome(null);setCache({});setDeck(null);setSheet(null);setError('Your account changed. Reopen Content for your signed-in salon.');}});return()=>{active.current=false;epoch.current++;clearTimeout(toastTimer.current);subscription?.data?.subscription?.unsubscribe();};},[refresh,authId]);
   useEffect(()=>{const visible=()=>{if(document.visibilityState==='visible')refresh();};document.addEventListener('visibilitychange',visible);const timer=setInterval(async()=>{if(document.visibilityState!=='visible')return;const data=latestHome.current;if(['queued','running'].includes(data?.preparation?.status)){try{const preparation=await request(`/preparations/${data.preparation.id}`,{timeoutMs:12000});if(active.current){setHome(old=>({...old,preparation}));latestHome.current={...latestHome.current,preparation};if(['done','failed'].includes(preparation.status))refresh();}}catch(err){if(active.current)setError(err.message);}}else if(asArray(data?.coming_up).some(post=>post.state==='Posting'||post.state==='publishing'))refresh();},2500);return()=>{clearInterval(timer);document.removeEventListener('visibilitychange',visible);};},[request,refresh]);
   useEffect(()=>{if(hidden){setDeck(null);setSheet(null);setEditing(false);setToast(null);setAnnouncement('Client details hidden.');}},[hidden]);
