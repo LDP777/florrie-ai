@@ -107,6 +107,29 @@ async function week() {
   return db.data.content_posts.filter(p=>p.post_type!=='gallery');
 }
 describe('Content v2 real-column workflow',()=>{
+  it('removes and restores feed and reel drafts without losing their content or granting approval',async()=>{
+    const posts=await week(),count=db.data.content_posts.length;
+    for(const post of [posts.find(p=>p.kind==='post'),posts.find(p=>p.kind==='reel_plan')]){
+      const removed=await service.action(owner,post.id,'remove');
+      expect(removed.post.deleted_at).toBe(NOW.toISOString());
+      await expect(service.getPost(owner,post.id)).rejects.toMatchObject({status:404});
+      const home=await service.home(owner);
+      expect([...home.posts_to_check,...home.coming_up,...home.reel_plans].some(p=>p.id===post.id)).toBe(false);
+      await expect(service.action(other,post.id,'restore')).rejects.toMatchObject({status:404});
+      const restored=await service.action(owner,post.id,'restore');
+      expect(restored.post).toMatchObject({id:post.id,caption:post.caption,image_url:post.image_url,deleted_at:null,status:'draft',approved_hash:null});
+    }
+    expect(db.data.content_posts).toHaveLength(count);
+  });
+  it('refuses to remove posts that are publishing or already published',async()=>{
+    const post=(await week()).find(p=>p.kind==='post');
+    const stored=db.data.content_posts.find(p=>p.id===post.id);
+    stored.publish_claimed_at=NOW.toISOString();
+    await expect(service.action(owner,post.id,'remove')).rejects.toMatchObject({status:409});
+    stored.publish_claimed_at=null;stored.external_post_id='published-test';stored.status='posted';
+    await expect(service.action(owner,post.id,'remove')).rejects.toMatchObject({status:409});
+    expect(stored.deleted_at).toBeFalsy();
+  });
   it('opens an empty home without scanning booking slots for the entire menu',async()=>{
     const home=await service.home(owner);
     expect(home.counts.total).toBe(0);expect(home.ideas.length).toBeGreaterThan(0);

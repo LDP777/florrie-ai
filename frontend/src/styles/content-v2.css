@@ -766,6 +766,18 @@
   min-height:44px;
   color:var(--text-primary);
 }
+.cv2-deck-tools {
+  display:flex;
+  align-items:center;
+  gap:4px;
+}
+.cv2-deck-tools>.cv2-delete-draft {
+  color:var(--danger);
+  font-size:12px;
+  padding:8px;
+  gap:5px;
+  white-space:nowrap;
+}
 .cv2-progress {
   display:flex;
   gap:5px;
