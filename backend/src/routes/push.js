@@ -126,7 +126,7 @@ router.post('/live-activity/register', requireAuth, async (req, res) => {
  * and retires the beautician's tokens.
  */
 router.post('/live-activity/end', requireAuth, async (req, res) => {
-  endLiveActivity(req.beautician.id).catch(() => {});
+  endLiveActivity(req.beautician.id).catch(err => logger.warn({ err }, 'endLiveActivity failed'));
   res.json({ success: true });
 });
 
