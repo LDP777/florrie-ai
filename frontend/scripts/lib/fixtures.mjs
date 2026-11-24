@@ -75,7 +75,7 @@ const ROUTES = [
     id: 'b1', auth_id: 'b1', email: 'ellie@ellindigo.test',
     first_name: 'Ellie', last_name: 'Royden', business_name: 'Ellindigo',
     slug: 'ellindigo', brand_color: '#C76B8A',
-    onboarding_completed_at: '2026-06-01T10:00:00Z',
+    owner_access_approved: true, onboarding_completed_at: '2026-06-01T10:00:00Z',
     trial_ends_at: '2099-01-01T00:00:00Z', plan: 'pro',
     stripe_onboarding_complete: true, timezone: 'Europe/London',
   })],

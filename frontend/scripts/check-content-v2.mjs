@@ -62,7 +62,7 @@ function fixtureSource({mode,base}) {
   }
   const persist=()=>sessionStorage.setItem('cv2-fixture',JSON.stringify(state));persist();
   const home=()=>({posts_to_check:state.posts.filter(p=>p.status==='draft'),coming_up:state.posts.filter(p=>p.status!=='draft'),reel_plans:state.reel,preparation:state.preparation,results_summary:{bookings:3,value_pence:14500},connections:{instagram:{connected:state.connected,needs_reconnect:!state.connected,username:'wren.browlash'},google:{connected:false}},ideas:[{id:'gap',label:'Help fill Saturday',text:'Help fill Saturday'},{id:'photos',type:'show_work',label:'Show off these brows'},{id:'week',label:"Sort next week's posts",request:{type:'week'}}],counts:{total:state.posts.length+state.reel.length,photos:2,offers:1,voice_rules:state.rules.length}});
-  const owner={id:'b1',email:'owner@wren.test',business_name:'Wren Brow & Lash',first_name:'Wren',content_v2:true,onboarding_completed_at:'2026-01-01T00:00:00Z',trial_ends_at:'2099-01-01T00:00:00Z',subscription_status:'active',subscription_plan:'florrie',plan:'pro',timezone:'Europe/London',instagram_username:'wren.browlash'};
+  const owner={id:'b1',email:'owner@wren.test',business_name:'Wren Brow & Lash',first_name:'Wren',content_v2:true,owner_access_approved: true, onboarding_completed_at:'2026-01-01T00:00:00Z',trial_ends_at:'2099-01-01T00:00:00Z',subscription_status:'active',subscription_plan:'florrie',plan:'pro',timezone:'Europe/London',instagram_username:'wren.browlash'};
   window.fetch=async(input,options={})=>{
     const url=new URL(typeof input==='string'?input:input.url,location.href),path=url.pathname,method=options.method||'GET';
     if(path.endsWith('/beauticians'))return json(owner);

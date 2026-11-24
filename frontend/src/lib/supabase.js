@@ -149,7 +149,7 @@ export function useBeautician({ authUserId } = {}) {
   const waitingForIdentity = authUserId !== undefined && resolvedAuthId !== authUserId;
 
   const refresh = useCallback(async ({ force = true } = {}) => {
-    setLoading(true);
+    if (authUserId !== undefined) setLoading(true);
     setError(null);
     try {
       const row = await loadBeauticianOnce({ force, authUserId });
@@ -165,7 +165,7 @@ export function useBeautician({ authUserId } = {}) {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
+    if (authUserId !== undefined) setLoading(true);
     setError(null);
     (async () => {
       try {

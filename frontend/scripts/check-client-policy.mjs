@@ -32,7 +32,7 @@ async function fixture({ bookingPolicy, currentPolicy = bookingPolicy, pagePath 
     window.__blockedPolicyWrites = [];
     const profile = { id: 'b1', auth_id: 'b1', email: 'owner@fictional-salon.test', first_name: 'Mara',
       business_name: 'Fictional Salon', timezone: 'Europe/London', booking_slug: 'policy-demo',
-      onboarding_completed_at: '2026-06-01T10:00:00Z', trial_ends_at: '2099-01-01T00:00:00Z', plan: 'pro',
+      owner_access_approved: true, onboarding_completed_at: '2026-06-01T10:00:00Z', trial_ends_at: '2099-01-01T00:00:00Z', plan: 'pro',
       stripe_onboarding_complete: true, payment_settings: { require_deposit: false }, booking_policy: currentPolicy };
     const json = (data, status = 200) => Promise.resolve(new Response(JSON.stringify(data), {
       status, headers: { 'Content-Type': 'application/json' },

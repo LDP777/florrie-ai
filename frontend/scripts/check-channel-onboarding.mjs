@@ -27,7 +27,7 @@ try {
       window.__connectionActions = [];
       window.__allowConnection = false;
       const profile = { id:'b1', auth_id:'b1', first_name:'Demo', business_name:'Demo salon', booking_slug:'demo-salon',
-        onboarding_completed_at:mode === 'onboarding' ? null : '2026-01-01', trial_ends_at:'2099-01-01', timezone:'Europe/London' };
+        owner_access_approved: true, onboarding_completed_at:mode === 'onboarding' ? null : '2026-01-01', trial_ends_at:'2099-01-01', timezone:'Europe/London' };
       window.fetch = async (input, opts = {}) => {
         const url = String(input);
         if (url.includes('/rest/v1/beauticians')) {
@@ -86,7 +86,7 @@ try {
       const base=window.fetch;
       window.__waChecks=0;window.__finishWrites=[];
       const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json'}});
-      const profile={id:'b1',auth_id:'b1',first_name:'Demo',business_name:'Demo salon',booking_slug:'demo-salon',onboarding_completed_at:null,trial_ends_at:'2099-01-01',timezone:'Europe/London'};
+      const profile={id:'b1',auth_id:'b1',first_name:'Demo',business_name:'Demo salon',booking_slug:'demo-salon',owner_access_approved: true, onboarding_completed_at:null,trial_ends_at:'2099-01-01',timezone:'Europe/London'};
       window.fetch=async(input,opts={})=>{
         const url=String(input);
         if(url.includes('/rest/v1/beauticians')){
