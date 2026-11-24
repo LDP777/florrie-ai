@@ -601,7 +601,7 @@ export default function MoneyTracker() {
     const previous = moneyTotals({ transactions, expenses, start: shiftDate(window.start, -7), end: shiftDate(window.start, -1), timezone });
     return {
       thisWeek: { income: current.income_cents, expenses: current.expenses_cents, profit: current.profit_cents },
-      lastWeek: { income: previous.income_cents, expenses: previous.expenses_cents, profit: previous.profit_cents },
+      lastWeek: { start: shiftDate(window.start, -7), end: shiftDate(window.start, -1), income: previous.income_cents, expenses: previous.expenses_cents, profit: previous.profit_cents },
     };
   }
 
@@ -864,7 +864,7 @@ export default function MoneyTracker() {
   }, [transactions, expenses, timezone]);
   const tax = useMemo(() => taxReport({ transactions, expenses, beautician: beautician || {}, year: taxYear || undefined }), [transactions, expenses, beautician, taxYear]);
 
-  const pulse = useMemo(() => !loading ? computePulse() : null, [loading, expenses, transactions]);
+  const pulse = useMemo(() => !loading ? computePulse() : null, [loading, expenses, transactions, timezone]);
 
   // The Today / This Week / This Month pills. These previously set state that
   // nothing read, so the hero number never changed. Everything below the
@@ -976,6 +976,36 @@ export default function MoneyTracker() {
               <MoneyDiaryOverview summary={reports?.appointments?.periods?.[period]} stats={periodStats}
                 automatic={beautician.completion_receipts_enabled} loading={reportsLoading} onPayments={() => openPeriodIncome()}
                 onRetry={() => setReportsAttempt(n => n + 1)} onCalendar={date => navigate('/calendar', { state: { date } })} />
+              <section className="money-pulse-breakdown" aria-label="Income breakdown">
+                <div className="money-pulse-heading"><h3>Income breakdown</h3><span>{period === 'today' ? 'Today' : period === 'week' ? 'This week' : 'This month'}</span></div>
+              {/* ─── Breakdown Bento ─── */}
+              <section style={S.bentoGrid}>
+                <div style={{ ...S.bentoCard, background: 'rgba(255, 217, 226, 0.3)' }}>
+                  <Icon name={iconName('content_cut')} size={20} inline style={{ color: 'var(--accent)' }} />
+                  <span style={S.bentoLabel}>Treatments</span>
+                  <span style={{ ...S.bentoValue, color: 'var(--accent)' }}><PrivateAmount>{fmtShort(breakdown.treatments)}</PrivateAmount></span>
+                </div>
+                <div
+                  onClick={() => setShowLogSale(s => !s)}
+                  style={{ ...S.bentoCard, background: 'rgba(254, 219, 155, 0.3)', cursor: 'pointer' }}
+                >
+                  <Icon name={iconName('shopping_bag')} size={20} inline style={{ color: 'var(--gold)' }} />
+                  <span style={S.bentoLabel}>Products</span>
+                  <span style={{ ...S.bentoValue, color: 'var(--gold)' }}><PrivateAmount>{fmtShort(breakdown.products)}</PrivateAmount></span>
+
+                </div>
+                <div
+                  onClick={() => setShowLogTip(s => !s)}
+                  style={{ ...S.bentoCard, background: 'rgba(91, 169, 123, 0.1)', cursor: 'pointer' }}
+                >
+                  <Icon name={iconName('volunteer_activism')} size={20} inline style={{ color: 'var(--success)' }} />
+                  <span style={S.bentoLabel}>Tips</span>
+                  <span style={{ ...S.bentoValue, color: 'var(--success)' }}><PrivateAmount>{fmtShort(breakdown.tips)}</PrivateAmount></span>
+
+                </div>
+              </section>
+
+              </section>
               <MoneyRecentPayments payments={recentTx} timezone={timezone} onAll={() => openAllIncome()}
                 onReview={() => openAllIncome('review')} needsReview={reconciliation.assumed_count + reconciliation.review_count > 0 || transactions.some(t => t.reporting_status === 'unpaid')}/>
 
@@ -1038,34 +1068,15 @@ export default function MoneyTracker() {
                 </section>
               )}
 
-              <details className="money-details"><summary>Trends &amp; breakdowns<Icon name="chevron-down" size={16}/></summary>
-          {reports && (
-            <div style={S.reportsCard}>
-              <div style={S.reportsTitle}>Your numbers</div>
-              <div style={S.reportsRow}>
-                <div style={{ ...S.reportStat, gridColumn: '1 / -1' }}>
-                  <span style={S.reportValue}><PrivateAmount>{fmt(reports.revenue.this_month_cents || 0)}</PrivateAmount></span>
-                  <span style={S.reportLabel}>
-                    payments recorded this month{reports.revenue.change_pct != null ? ` \u00B7 ${reports.revenue.change_pct >= 0 ? '+' : ''}${reports.revenue.change_pct}%` : ''}
-                  </span>
-                </div>
-                <div style={S.reportStat}>
-                  <span style={S.reportValue}>{reports.rebooking_rate.pct != null ? `${reports.rebooking_rate.pct}%` : '-'}</span>
-                  <span style={S.reportLabel}>rebook (90d)</span>
-                </div>
-                <div style={S.reportStat}>
-                  <span style={S.reportValue}>{reports.no_show_rate.pct != null ? `${reports.no_show_rate.pct}%` : '-'}</span>
-                  <span style={S.reportLabel}>no-shows (90d)</span>
-                </div>
-              </div>
-              {reports.insight && <div style={S.reportInsight}><PrivateText placeholder="Hidden">{reports.insight}</PrivateText></div>}
-            </div>
-          )}
+              <div className="money-pulse-overview">
               {/* ─── Mini Bar Chart ─── */}
-              <section style={S.chartCard}>
+              <section style={S.chartCard} aria-label="Income over the last 7 days">
+                <div className="money-pulse-heading"><h3>Last 7 days</h3><span>{prettyDate(dailyRevenue[0].dayStr)} – {prettyDate(dailyRevenue[6].dayStr)}</span></div>
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, height: 80 }}>
-                  {!dailyRevenue.some(d => d.total !== 0) ? (
-                    <div style={{ flex: 1, alignSelf: 'center', textAlign: 'center', fontSize: 12, color: 'var(--text-muted)' }}>No takings logged this week yet</div>
+                  {clientDetailsHidden ? (
+                    <div className="money-chart-hidden">Chart hidden</div>
+                  ) : !dailyRevenue.some(d => d.total !== 0) ? (
+                    <div style={{ flex: 1, alignSelf: 'center', textAlign: 'center', fontSize: 12, color: 'var(--text-muted)' }}>No income recorded in the last 7 days</div>
                   ) : dailyRevenue.map((d, i) => {
                     const isToday = i === dailyRevenue.length - 1;
                     const h = Math.max(4, (Math.abs(d.total) / maxDayRevenue) * 72);
@@ -1090,36 +1101,9 @@ export default function MoneyTracker() {
                 </div>
               </section>
 
-              {/* ─── Breakdown Bento ─── */}
-              <section style={S.bentoGrid}>
-                <div style={{ ...S.bentoCard, background: 'rgba(255, 217, 226, 0.3)' }}>
-                  <Icon name={iconName('content_cut')} size={20} inline style={{ color: 'var(--accent)' }} />
-                  <span style={S.bentoLabel}>Treatments</span>
-                  <span style={{ ...S.bentoValue, color: 'var(--accent)' }}><PrivateAmount>{fmtShort(breakdown.treatments)}</PrivateAmount></span>
-                </div>
-                <div
-                  onClick={() => setShowLogSale(s => !s)}
-                  style={{ ...S.bentoCard, background: 'rgba(254, 219, 155, 0.3)', cursor: 'pointer' }}
-                >
-                  <Icon name={iconName('shopping_bag')} size={20} inline style={{ color: 'var(--gold)' }} />
-                  <span style={S.bentoLabel}>Products</span>
-                  <span style={{ ...S.bentoValue, color: 'var(--gold)' }}><PrivateAmount>{fmtShort(breakdown.products)}</PrivateAmount></span>
-
-                </div>
-                <div
-                  onClick={() => setShowLogTip(s => !s)}
-                  style={{ ...S.bentoCard, background: 'rgba(91, 169, 123, 0.1)', cursor: 'pointer' }}
-                >
-                  <Icon name={iconName('volunteer_activism')} size={20} inline style={{ color: 'var(--success)' }} />
-                  <span style={S.bentoLabel}>Tips</span>
-                  <span style={{ ...S.bentoValue, color: 'var(--success)' }}><PrivateAmount>{fmtShort(breakdown.tips)}</PrivateAmount></span>
-
-                </div>
-              </section>
-
               {/* ─── Last Week Comparison ─── */}
-              <section style={{ ...S.compCard, marginTop: 24 }}>
-                <h4 style={S.compTitle}>Last Week</h4>
+              <section style={S.compCard} aria-label="Last week figures">
+                <div className="money-pulse-heading"><h3>Last week</h3><span>{prettyDate(pulse.lastWeek.start)} – {prettyDate(pulse.lastWeek.end)}</span></div>
                 <div style={S.compRow}><span style={S.compLabel}>Income</span><span style={S.compValue}><PrivateAmount>{fmt(pulse.lastWeek.income)}</PrivateAmount></span></div>
                 <div style={S.compRow}><span style={S.compLabel}>Expenses</span><span style={S.compValue}><PrivateAmount>{fmt(pulse.lastWeek.expenses)}</PrivateAmount></span></div>
                 <div style={{ ...S.compRow, borderBottom: 'none' }}>
@@ -1130,7 +1114,7 @@ export default function MoneyTracker() {
                 </div>
               </section>
       {ytd && (
-        <section style={S.ytdCard}>
+        <section style={S.ytdCard} aria-label="Year so far figures">
           <div style={S.ytdHead}>
             <span style={S.ytdTitle}>Tax year {ytd.current.tax_year} so far</span>
             <span style={S.ytdDates}>6 April to {prettyDate(ytd.current.as_at)}</span>
@@ -1166,16 +1150,40 @@ export default function MoneyTracker() {
               today's numbers. */}
           {/* Cut off at the same calendar point last year on purpose. Four
               months against twelve always looks like a collapse. */}
-          <div style={S.ytdCompare}>
+          {(ytd.previous.transaction_count > 0 || ytd.previous.expense_count > 0) && <div style={S.ytdCompare}>
             <span>{ytd.previous.tax_year} to the same point</span>
             <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>
               <PrivateAmount>{fmtNeat(ytd.previous.income_cents)}</PrivateAmount> in, <PrivateAmount>{fmtNeat(ytd.previous.expenses_cents)}</PrivateAmount> out,
               {' '}<PrivateAmount>{fmtNeat(ytd.previous.profit_cents)}</PrivateAmount> profit
             </span>
-          </div>
+          </div>}
         </section>
       )}
 
+              </div>
+              <details className="money-details"><summary>More business figures<Icon name="chevron-down" size={16}/></summary>
+          {reports && (
+            <div style={S.reportsCard}>
+              <div style={S.reportsTitle}>Your numbers</div>
+              <div style={S.reportsRow}>
+                <div style={{ ...S.reportStat, gridColumn: '1 / -1' }}>
+                  <span style={S.reportValue}><PrivateAmount>{fmt(reports.revenue.this_month_cents || 0)}</PrivateAmount></span>
+                  <span style={S.reportLabel}>
+                    payments recorded this month{reports.revenue.change_pct != null ? ` \u00B7 ${reports.revenue.change_pct >= 0 ? '+' : ''}${reports.revenue.change_pct}%` : ''}
+                  </span>
+                </div>
+                <div style={S.reportStat}>
+                  <span style={S.reportValue}>{reports.rebooking_rate.pct != null ? `${reports.rebooking_rate.pct}%` : '-'}</span>
+                  <span style={S.reportLabel}>rebook (90d)</span>
+                </div>
+                <div style={S.reportStat}>
+                  <span style={S.reportValue}>{reports.no_show_rate.pct != null ? `${reports.no_show_rate.pct}%` : '-'}</span>
+                  <span style={S.reportLabel}>no-shows (90d)</span>
+                </div>
+              </div>
+              {reports.insight && <div style={S.reportInsight}><PrivateText placeholder="Hidden">{reports.insight}</PrivateText></div>}
+            </div>
+          )}
               </details>
             </>
           ) : (

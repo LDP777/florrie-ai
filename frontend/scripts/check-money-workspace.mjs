@@ -101,9 +101,11 @@ try {
   await page.getByRole('button',{name:'Pulse',exact:true}).click();
   await page.getByRole('region',{name:'Money received',exact:true}).getByRole('heading',{name:'£30.00',exact:true}).waitFor();
   await page.getByRole('heading',{name:'£30.00',exact:true}).waitFor();
-  await page.getByText('Trends & breakdowns',{exact:true}).click();
+  await page.getByRole('region',{name:'Last week figures'}).waitFor();
+  await page.getByRole('region',{name:'Year so far figures'}).getByText('£30',{exact:true}).first().waitFor();
+  await page.getByText('More business figures',{exact:true}).click();
   await page.getByText('Your numbers',{exact:true}).locator('..').getByText('£30.00',{exact:true}).waitFor();
-  await page.getByText('Trends & breakdowns',{exact:true}).click();
+  await page.getByText('More business figures',{exact:true}).click();
   await page.getByRole('button',{name:'Pulse',exact:true}).getAttribute('aria-pressed').then(value=>assert.equal(value,'true'));
   await page.waitForTimeout(250);
   if(output)await page.screenshot({path:join(output,'pulse-390.png')});

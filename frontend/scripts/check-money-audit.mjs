@@ -133,7 +133,6 @@ try {
   await page.getByRole('button', { name: 'Save', exact: true }).evaluate(b => { b.click(); b.click(); });
   await page.getByRole('status').filter({ hasText: 'Tip saved' }).waitFor();
   assert.equal(await page.evaluate(() => window.__moneyRows.filter(t => t.type === 'tip').length), 1);
-  await page.getByText('Trends & breakdowns', { exact: true }).click();
   await page.getByText('Tips', { exact: true }).locator('..').getByText('£5', { exact: true }).waitFor();
   await page.getByRole('button', { name: 'Tax', exact: true }).click();
   await page.getByRole('region', { name: 'Tax year figures' }).getByText('£1,192.00', { exact: true }).waitFor();

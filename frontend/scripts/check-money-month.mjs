@@ -83,11 +83,27 @@ try {
     assert.equal(await card.locator('details[open]').count(),0);
     assert.equal(await page.locator('.money-recent-row').count(),4);
     assert.match(await page.locator('.money-recent-row').first().innerText(),/19 Nov 2026/);
+    const breakdown=page.getByRole('region',{name:'Income breakdown'});
+    await breakdown.getByText('This month',{exact:true}).waitFor();
+    await breakdown.getByText('£250',{exact:true}).waitFor();
+    await page.getByRole('region',{name:'Last week figures'}).getByText('£0.00',{exact:true}).first().waitFor();
+    await page.getByRole('region',{name:'Year so far figures'}).getByText('£290',{exact:true}).first().waitFor();
+    assert.equal(await page.getByRole('region',{name:'Year so far figures'}).locator('xpath=ancestor::details').count(),0);
+    assert.equal(await page.getByText('Trends & breakdowns',{exact:true}).count(),0);
+    assert.equal(await page.getByText('2025–26 to the same point',{exact:true}).count(),0,'An empty prior year is not a useful comparison');
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
-    if(output)await page.screenshot({path:join(output,`month-${width}.png`)});
+    if(output){
+      await page.evaluate(()=>document.fonts.ready);
+      await page.waitForTimeout(300);
+      await page.screenshot({path:join(output,`month-${width}.png`)});
+      await page.getByRole('region',{name:'Year so far figures'}).scrollIntoViewIfNeeded();
+      await page.screenshot({path:join(output,`pulse-figures-${width}.png`)});
+    }
     await page.getByRole('button',{name:'This Week',exact:true}).click();
     await card.getByRole('heading',{name:'£90.00',exact:true}).waitFor();
     await card.getByText('No previous total',{exact:true}).waitFor();
+    await breakdown.getByText('This week',{exact:true}).waitFor();
+    await breakdown.getByText('£90',{exact:true}).waitFor();
     await page.locator('.money-workspace').getByRole('button',{name:'Today',exact:true}).click();
     await card.getByRole('heading',{name:'£0.00',exact:true}).waitFor();
     assert.equal(await page.locator('.money-recent-row').count(),4,'Latest payments do not disappear on days with no receipts');
@@ -98,6 +114,7 @@ try {
     await page.getByRole('button',{name:'This Month',exact:true}).click();
     await page.getByRole('button',{name:'Hide client details',exact:true}).click();
     assert.doesNotMatch(await page.locator('.money-workspace').innerText(),/£250|£350|£90|525%/);
+    await page.getByText('Chart hidden',{exact:true}).waitFor();
     assert.match(await page.locator('.money-recent').innerText(),/Paid on completion/);
     await page.getByRole('button',{name:'Hide client details',exact:true}).click();
     await page.getByRole('button',{name:'View payments',exact:true}).click();

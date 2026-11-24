@@ -45,6 +45,11 @@
 @media (max-width: 350px) { .money-payment-top { flex-wrap: wrap; gap: 4px; } .money-workspace { padding-inline: 16px !important; } }
 
 .money-quick-actions { display: flex; gap: 8px; margin-bottom: 12px; }
+.money-pulse-heading { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 6px 12px; margin-bottom: 16px; }
+.money-pulse-heading h3 { margin: 0; font: 600 16px/1.4 var(--font-body); color: var(--text-primary); }
+.money-pulse-heading > span { font-size: 11px; color: var(--text-secondary); }
+.money-pulse-breakdown { margin-top: 22px; }
+.money-chart-hidden { flex: 1; align-self: center; text-align: center; color: var(--text-muted); font-size: 12px; }
 
 .money-diary-card { padding: 20px 24px 12px; margin-bottom: 14px; border-radius: 22px; background: var(--gradient-hero); color: #fff; box-shadow: var(--elev-3); }
 .money-diary-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
