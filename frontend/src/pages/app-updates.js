@@ -5,6 +5,13 @@ export const APP_UPDATES = [
     date: '2026-11-24',
     changes: [
       {
+        id: 'public-training-links',
+        title: 'Course links open straight to your dates',
+        description: 'Students can view your courses and choose a training date without signing in or setting up a salon account.',
+        to: '/courses', linkLabel: 'Open your courses',
+        commits: ['59936a1'],
+      },
+      {
         id: 'full-training-descriptions',
         title: 'Room for your full course details',
         description: 'Write or paste longer training descriptions without the old text limit. Students can open the full outline, with your paragraphs and lists kept intact.',
