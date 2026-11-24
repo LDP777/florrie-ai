@@ -5,6 +5,13 @@ export const APP_UPDATES = [
     date: '2026-11-24',
     changes: [
       {
+        id: 'pulse-figures-in-view',
+        title: 'Your money figures, out in the open',
+        description: 'Pulse now shows your income breakdown, seven-day chart, last week’s totals and year so far without opening a hidden section.',
+        to: '/money', linkLabel: 'Open Pulse',
+        commits: ['31e7424'],
+      },
+      {
         id: 'reminders-independent-of-replies',
         title: 'Pause replies, keep your reminders',
         description: 'Your chosen patch-test and pre-appointment reminders keep running when you pause Florrie’s replies. Each reminder still follows your settings.',
