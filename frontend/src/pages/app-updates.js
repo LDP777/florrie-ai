@@ -5,6 +5,13 @@ export const APP_UPDATES = [
     date: '2026-11-24',
     changes: [
       {
+        id: 'reminder-sms-backup',
+        title: 'Text backup for appointment reminders',
+        description: 'If WhatsApp cannot deliver a reminder, Florrie can send it by text. Delivery problems appear in your activity, with a link to the client’s conversation.',
+        to: '/inbox', linkLabel: 'Open Inbox',
+        commits: ['33dd3bf'],
+      },
+      {
         id: 'pulse-figures-in-view',
         title: 'Your money figures, out in the open',
         description: 'Pulse now shows your income breakdown, seven-day chart, last week’s totals and year so far without opening a hidden section.',
