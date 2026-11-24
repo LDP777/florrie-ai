@@ -2,6 +2,18 @@
 // Dates are release dates, not commit-author dates. See docs/app-updates.md.
 export const APP_UPDATES = [
   {
+    date: '2026-11-24',
+    changes: [
+      {
+        id: 'full-training-descriptions',
+        title: 'Room for your full course details',
+        description: 'Write or paste longer training descriptions without the old text limit. Students can open the full outline, with your paragraphs and lists kept intact.',
+        to: '/courses', linkLabel: 'Edit your courses',
+        commits: ['366d013'],
+      },
+    ],
+  },
+  {
     date: '2026-11-23',
     changes: [
       {
