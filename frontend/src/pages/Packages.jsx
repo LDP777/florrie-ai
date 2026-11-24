@@ -29,6 +29,7 @@ import { PrivateAmount, PrivateText, useClientPrivacy } from '../contexts/Client
  * Public page: /training/:slug/:courseId (TrainingBooking.jsx).
  */
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useBeautician, supabase } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
@@ -90,6 +91,10 @@ const tableMissing = (err) => /relation .* does not exist|could not find the tab
 export default function Courses() {
   const { hidden: clientDetailsHidden } = useClientPrivacy();
   const { beautician, loading: bLoading } = useBeautician();
+  const { search } = useLocation();
+  const appliedNotification = useRef(null);
+  const notificationStudent = useRef(null);
+  const [notificationProblem, setNotificationProblem] = useState('');
   const ownerRef = useRef(beautician?.id);
   ownerRef.current = beautician?.id;
   const loadedOwnerRef = useRef(null);
@@ -149,9 +154,45 @@ export default function Courses() {
   useEffect(() => {
     setCourses([]); setEnrollments([]); setShowCreate(false); setSaving(false);
     setEditingItem(null); setAddingTo(null); setErrorMsg(''); setNotice('');
+    setExpandedCourse(null); setOpenStudent(null); setTab('courses');
+    setNotificationProblem(''); appliedNotification.current = null;
     setForm(emptyForm());
   }, [beauticianId]);
   useEffect(() => { if (!bLoading && beauticianId) load(); }, [beauticianId, bLoading, load]);
+
+  // Notification IDs only select from records already loaded for this salon.
+  // Never fetch a student's details from an unscoped ID in a link.
+  useEffect(() => {
+    const params = new URLSearchParams(search);
+    const studentId = params.get('student');
+    if (!studentId) { setNotificationProblem(''); return; }
+    if (bLoading || loading || loadError || loadedOwnerRef.current !== beauticianId) return;
+    const key = `${beauticianId}:${search}`;
+    if (appliedNotification.current === key) return;
+    appliedNotification.current = key;
+    setShowCreate(false);
+    setTab('students');
+    const student = enrollments.find(row => row.id === studentId);
+    const courseId = params.get('course');
+    const course = student && courses.find(row => row.id === student.course_id);
+    if (!course || (courseId && course.id !== courseId)) {
+      setOpenStudent(null);
+      setNotificationProblem('This training booking is no longer available. Your current students are below.');
+      return;
+    }
+    setNotificationProblem('');
+    setExpandedCourse(course.id);
+    setOpenStudent(student.id);
+  }, [search, beauticianId, bLoading, loading, loadError, courses, enrollments]);
+
+  useEffect(() => {
+    if (tab !== 'students' || openStudent !== new URLSearchParams(search).get('student')) return;
+    const frame = requestAnimationFrame(() => {
+      notificationStudent.current?.focus({ preventScroll: true });
+      notificationStudent.current?.scrollIntoView({ block: 'center' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [tab, openStudent, search, loading]);
 
   /* ------------------------------------------------------------ the form -- */
   const priceNum = Number(form.price);
@@ -448,6 +489,7 @@ export default function Courses() {
       </div>}
       {loadError && <ErrorCard message={loadError} onDismiss={() => setLoadError('')} />}
       {notice && <div style={s.notice}><PrivateText>{notice}</PrivateText></div>}
+      {notificationProblem && <p role="status" style={s.notice}>{notificationProblem}</p>}
 
       {/* Stats: things that are true, not price x heads */}
       <div style={s.statsRow}>
@@ -694,7 +736,9 @@ export default function Courses() {
           {enrollments.map(e => {
             const course = courses.find(c => c.id === e.course_id);
             return (
-              <div key={e.id} style={s.enrollCard}>
+              <div key={e.id} style={s.enrollCard}
+                ref={openStudent === e.id ? notificationStudent : undefined}
+                tabIndex={-1} role="region" aria-label="Training booking">
                 <StudentRow row={e} course={course} open={openStudent === e.id} busy={busyId === e.id} showCourse
                   onToggle={() => setOpenStudent(openStudent === e.id ? null : e.id)}
                   onMarkDeposit={() => markPaid(e, 'deposit')} onMarkPaid={() => markPaid(e, 'paid')} onRemove={() => removeStudent(e)} />
@@ -732,7 +776,7 @@ function StudentRow({ row, course, open, busy, showCourse = false, onToggle, onM
   const wa = row.phone ? `https://wa.me/${String(row.phone).replace(/\D/g, '').replace(/^0/, '44')}` : null;
   return (
     <div style={{ ...s.enrollRow, opacity: abandoned ? 0.7 : 1 }}>
-      <button type="button" onClick={onToggle} style={s.enrollMain}>
+      <button type="button" onClick={onToggle} style={s.enrollMain} aria-expanded={open}>
         <div style={s.enrollAvatar}><PrivateText placeholder="•">{(row.name || '?')[0].toUpperCase()}</PrivateText></div>
         <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
           <div style={s.enrollName}><PrivateText placeholder="Client">{row.name || 'Unknown'}</PrivateText></div>

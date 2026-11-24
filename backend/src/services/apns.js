@@ -96,7 +96,7 @@ function getProviderJwt() {
  * Resolves { ok, status, reason } - or null when APNs isn't configured /
  * the connection failed. Never rejects.
  */
-export function sendApnsNotification(deviceToken, { title, body, badge, data, sound } = {}) {
+export function sendApnsNotification(deviceToken, { title, body, badge, data, sound, threadId } = {}) {
   const jwt = getProviderJwt();
   if (!jwt) return Promise.resolve(null);
 
@@ -110,6 +110,7 @@ export function sendApnsNotification(deviceToken, { title, body, badge, data, so
       alert: { title: title || 'florrie.ai', body: body || '' },
       sound: (customOk && sound) ? sound : 'default',
       ...(Number.isFinite(badge) ? { badge } : {}),
+      ...(threadId ? { 'thread-id': threadId } : {}),
     },
     // Custom keys at TOP level: Capacitor exposes the raw userInfo as
     // notification.data, so a nested {data:{url}} was never seen by the
@@ -197,7 +198,7 @@ export function sendApnsNotification(deviceToken, { title, body, badge, data, so
  * Still returns an object with `sent`, so every existing caller's arithmetic
  * is unchanged. It just also says which of the three happened.
  */
-export async function sendApnsToBeautician(beauticianId, { title, body, badge, data, sound } = {}) {
+export async function sendApnsToBeautician(beauticianId, { title, body, badge, data, sound, threadId } = {}) {
   if (!isApnsConfigured()) return { sent: 0, removed: 0, reason: 'apns_not_configured' };
 
   let tokens;
@@ -228,7 +229,7 @@ export async function sendApnsToBeautician(beauticianId, { title, body, badge, d
   const dead = [];
 
   for (const { token } of tokens) {
-    const result = await sendApnsNotification(token, { title, body, badge, data, sound });
+    const result = await sendApnsNotification(token, { title, body, badge, data, sound, threadId });
     if (result?.ok) {
       sent++;
     } else if (result && (

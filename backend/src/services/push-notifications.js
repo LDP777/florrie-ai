@@ -35,7 +35,7 @@ if (VAPID_PUBLIC && VAPID_PRIVATE) {
  * APNs (iOS app device tokens). Each leg is fail-soft: one channel being
  * down or unconfigured never blocks the other, and neither ever throws.
  */
-export async function sendPush(beauticianId, { title, body, icon, url, tag, data, sound, channels = {} }) {
+export async function sendPush(beauticianId, { title, body, icon, url, tag, data, sound, threadId, channels = {} }) {
   let webResult = null;
   try {
     if (channels.web !== false) webResult = await sendWebPush(beauticianId, { title, body, icon, url, tag, data });
@@ -52,6 +52,7 @@ export async function sendPush(beauticianId, { title, body, icon, url, tag, data
       body,
       data: { ...(data || {}), url: url || '/' },
       sound,
+      threadId,
     });
   } catch (err) {
     apnsResult = { sent: 0, reason: 'send_threw' };
@@ -191,6 +192,7 @@ const ACTION_TO_PREF = {
   milestone: 'milestones',
   weekly_review: 'weekly_review',
   booking_confirmed: 'booking_confirmed',
+  course_enrolled: 'course_enrolled',
   // ITS OWN KEY, since 31 August 2026.
   //
   // These two shared 'booking_confirmed' and Settings showed ONE toggle for
@@ -218,7 +220,7 @@ const URGENT_ACTIONS = new Set(['message_escalated', 'client_at_the_door']);
 // pocket without looking. Good news = soft two-note bloom; needs-you = a
 // gentler single note. Files must be bundled in the iOS target (see
 // docs/NOTIFICATION_SOUNDS.md); env-gated in apns.js until they are.
-const GOOD_NEWS = new Set(['booking_confirmed', 'booking_rescheduled', 'patch_test_booked', 'gap_post', 'review_request', 'daily_money_summary', 'milestone', 'weekly_review', 'value_coaching', 'income_logged']);
+const GOOD_NEWS = new Set(['booking_confirmed', 'course_enrolled', 'booking_rescheduled', 'patch_test_booked', 'gap_post', 'review_request', 'daily_money_summary', 'milestone', 'weekly_review', 'value_coaching', 'income_logged']);
 const NEEDS_YOU = new Set(['message_escalated', 'client_at_the_door', 'booking_pending', 'booking_cancelled', 'booking_auto_cancelled', 'channel_failover']);
 function soundFor(actionType) {
   if (GOOD_NEWS.has(actionType)) return 'bloom-good.caf';
@@ -285,7 +287,7 @@ const ACTION_TITLES = {
   booking_auto_cancelled: 'Slot released',
   message_escalated: '💬 Needs you',
   // A student, not a client. Must never read as a treatment booking.
-  course_enrolled: '🎓 New student',
+  course_enrolled: '🎓 Training booking confirmed',
   // Its own headline, on purpose. "Needs you" is on 142 escalations a month and
   // has stopped meaning anything urgent. Somebody on the doorstep is a
   // different kind of moment and has to look like one on the lock screen.
@@ -316,6 +318,7 @@ export async function pushTeamUpdate(beauticianId, actionType, summary, { url, c
     tag: notificationId || `team-${agentId}-${Date.now()}`,
     data: { agentId, actionType, clientName, ...(newClient ? { newClient: true } : {}) },
     sound: soundFor(actionType),
+    ...(actionType === 'course_enrolled' ? { threadId: 'training-bookings' } : {}),
     channels,
   });
 }

@@ -61,17 +61,22 @@ export async function announceEnrolment({ beautician, course, enrollment, paid, 
   const trainer = beautician?.business_name || beautician?.first_name || 'your trainer';
   const student = enrollment?.name || 'A student';
   const when = course?.date ? formatCourseDate(course.date) : 'date to be confirmed';
+  const trainingLink = enrollment?.id && course?.id
+    ? `/packages?course=${encodeURIComponent(course.id)}&student=${encodeURIComponent(enrollment.id)}`
+    : '/packages';
 
   // The owner. Its own headline, because "New booking" is a treatment and this
   // is a student, and because at a glance she should know the money landed.
   try {
     if (delivery.web !== false || delivery.apns !== false) {
       const money = paid === 'paid' ? 'Paid in full.'
-        : paid === 'deposit' ? `Deposit paid (£${(Number(enrollment?.amount_paid_cents || 0) / 100).toFixed(0)}).`
-        : Number(course?.deposit) > 0 ? `Deposit of £${Number(course.deposit).toFixed(0)} still to collect.` : '';
+        : paid === 'deposit' ? `Deposit paid (£${(Number(enrollment?.amount_paid_cents || 0) / 100).toFixed(2)}).`
+        : Number(course?.deposit) > 0 ? `Deposit of £${Number(course.deposit).toFixed(2)} still to collect.` : '';
       const result = await pushTeamUpdate(beautician.id, 'course_enrolled',
-        `${student} booked onto ${course?.name || 'your course'}, ${when}. ${money}`.trim(),
-        { url: '/packages', clientName: student, ...(onDelivered ? { channels: { web: delivery.web !== false, apns: delivery.apns !== false } } : {}) });
+        `${student} booked onto ${course?.name || 'your course'}, ${when}${course?.date && course?.start_time ? ` at ${String(course.start_time).slice(0, 5)}` : ''}. ${money}`.trim(),
+        { url: trainingLink, clientName: student,
+          ...(enrollment?.id ? { notificationId: `course-enrolment-${enrollment.id}` } : {}),
+          ...(onDelivered ? { channels: { web: delivery.web !== false, apns: delivery.apns !== false } } : {}) });
       if (onDelivered) {
         if (delivery.web !== false) {
           if (result && !result.web_failed) await onDelivered('web');

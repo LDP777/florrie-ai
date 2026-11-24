@@ -39,8 +39,8 @@ describe('announceEnrolment', () => {
     await announceEnrolment({ beautician, course, enrollment: { id: 'e1', name: 'Chloe Morgan', email: 'chloe@example.com', notes: 'Complete beginner', payment_status: 'deposit_paid', amount_paid_cents: 15000 }, paid: 'deposit' });
     expect(pushes).toHaveLength(1);
     expect(pushes[0].kind).toBe('course_enrolled');
-    expect(pushes[0].text).toBe('Chloe Morgan booked onto Ultimate Beginner Course, Monday 12 October 2026. Deposit paid (£150).');
-    expect(pushes[0].opts.url).toBe('/packages');
+    expect(pushes[0].text).toBe('Chloe Morgan booked onto Ultimate Beginner Course, Monday 12 October 2026 at 09:30. Deposit paid (£150.00).');
+    expect(pushes[0].opts.url).toBe('/packages?course=c1&student=e1');
 
     expect(emails).toHaveLength(1);
     const m = emails[0];

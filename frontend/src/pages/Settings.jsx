@@ -863,6 +863,16 @@ export default function Settings({ onLogout }) {
               }}
             />
             <NotificationToggle
+              label="Training bookings"
+              desc="A student's course place is confirmed"
+              showEmail={false}
+              prefs={{ push: true, ...beautician.notification_prefs?.course_enrolled }}
+              onChange={v => {
+                const np = { ...(beautician.notification_prefs || {}), course_enrolled: v };
+                saveProfile({ notification_prefs: np });
+              }}
+            />
+            <NotificationToggle
               label="Deposits not completed"
               desc="Someone started a booking and stopped at the payment screen"
               prefs={beautician.notification_prefs?.booking_pending || { email: true, push: true }}
@@ -1950,7 +1960,7 @@ function FieldEditor({ label, value, onSave, placeholder }) {
   </div>;
 }
 
-function NotificationToggle({ label, desc, prefs, onChange }) {
+function NotificationToggle({ label, desc, prefs, onChange, showEmail = true }) {
   const [local, setLocal] = useState(prefs);
   // Sync from parent after a successful save/refresh
   useEffect(() => { setLocal(prefs); }, [prefs.email, prefs.push]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1968,16 +1978,20 @@ function NotificationToggle({ label, desc, prefs, onChange }) {
         <span style={styles.notifDesc}>{desc}</span>
       </div>
       <div style={styles.notifChannels}>
-        <button
+        {showEmail && <button
           onClick={() => toggle('email')}
+          aria-label={`${label}: email`}
+          aria-pressed={!!local.email}
           title={local.email ? 'Email on' : 'Email off'}
           style={{ ...styles.notifChip,
             background: local.email ? 'var(--success-bg)' : 'var(--border-light)',
             color: local.email ? 'var(--success)' : 'var(--text-muted)'
           }}
-        ><Icon name="mail" size={15} /></button>
+        ><Icon name="mail" size={15} /></button>}
         <button
           onClick={() => toggle('push')}
+          aria-label={`${label}: push notification`}
+          aria-pressed={!!local.push}
           title={local.push ? 'Push on' : 'Push off'}
           style={{ ...styles.notifChip,
             background: local.push ? 'var(--success-bg)' : 'var(--border-light)',

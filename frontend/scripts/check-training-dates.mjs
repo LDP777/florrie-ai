@@ -74,10 +74,11 @@ const bundle = await build({
     import {BrowserRouter,Routes,Route,useNavigate} from 'react-router-dom';
     import TrainingBooking from './src/pages/TrainingBooking.jsx';import TrainingCatalogue from './src/pages/TrainingCatalogue.jsx';import Packages from './src/pages/Packages.jsx';
     import {ThemeProvider} from './src/lib/theme.jsx';
+    import {ClientPrivacyProvider} from './src/contexts/ClientPrivacyContext.jsx';
     const json=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json'}});
     const s=window.fixture={owner:${JSON.stringify(trainer)},courses:[],enrollments:[],public:{},requests:[],writes:[],checkout:[],holdGets:[],holdPosts:[],failOwnerRead:false,failOwnerWrite:false};
-    function Harness(){s.navigate=useNavigate();return <Routes><Route path="/courses" element={<Packages/>}/><Route path="/training/:slug" element={<TrainingCatalogue/>}/><Route path="/training/:slug/:courseId" element={<TrainingBooking/>}/></Routes>;}
-    s.render=()=>s.root.render(<ThemeProvider><BrowserRouter><Harness/></BrowserRouter></ThemeProvider>);
+    function Harness(){s.navigate=useNavigate();return <Routes><Route path="/courses" element={<Packages/>}/><Route path="/packages" element={<Packages/>}/><Route path="/training/:slug" element={<TrainingCatalogue/>}/><Route path="/training/:slug/:courseId" element={<TrainingBooking/>}/></Routes>;}
+    s.render=()=>s.root.render(<ThemeProvider><ClientPrivacyProvider><BrowserRouter><Harness/></BrowserRouter></ClientPrivacyProvider></ThemeProvider>);
     s.mount=()=>{s.root=createRoot(document.getElementById('root'));s.render();};
     window.fetch=async(input,options={})=>{
       const url=new URL(typeof input==='string'?input:input.url,location.origin),method=String(options.method||'GET').toUpperCase();
@@ -183,6 +184,48 @@ async function shot(page, name) {
 const pass = message => { passed++; console.log('PASS: ' + message); };
 
 try {
+  for (const hidden of [false, true]) {
+    const student = { id: 'student-notice', beautician_id: trainer.id, course_id: ids.b,
+      name: 'Fictional New Student', email: 'new-student@example.test', reservation_status: 'confirmed',
+      payment_status: 'deposit_paid', amount_paid_cents: 9050 };
+    const { page, close } = await fixture({
+      path: `/packages?course=${ids.b}&student=${student.id}`,
+      courses: dates.map(row => ({ ...row, deposit: 90.50, price: 450.75 })), enrollments: [student],
+      setup: hidden ? () => localStorage.setItem('florrie:hide-client-details:v1', 'true') : undefined,
+    });
+    const booking = page.getByRole('region', { name: 'Training booking', exact: true });
+    await booking.getByRole('button', { name: 'Paid in full', exact: true }).waitFor();
+    assert.match(await booking.innerText(), /Mon,? 9 Nov 2026, 10:00/);
+    assert.match(await booking.innerText(), /Deposit paid/);
+    await page.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === 'Training booking');
+    assert.equal(await booking.getByRole('button', { name: 'Paid in full', exact: true }).isDisabled(), hidden);
+    if (hidden) {
+      assert.doesNotMatch(await page.locator('body').innerText(), /Fictional New Student|new-student@example.test|£360.25/);
+    } else {
+      assert.match(await booking.innerText(), /Fictional New Student/);
+      assert.match(await booking.innerText(), /£360.25 to collect/);
+      await shot(page, 'training-notification-student');
+      await booking.getByRole('button', { expanded: true }).click();
+      await page.evaluate(() => fixture.render());
+      assert.equal(await booking.getByRole('button', { name: 'Paid in full', exact: true }).count(), 0);
+    }
+    assert.deepEqual(await writes(page), []);
+    await close(); pass(`Training push opens the correct date and student without writes; privacy ${hidden ? 'on hides identity and amounts' : 'off preserves payment details and closing the row'}.`);
+  }
+  {
+    const enrollments = [{ id: 'student-notice', beautician_id: trainer.id, course_id: ids.b, name: 'Fictional Student', payment_status: 'paid', reservation_status: 'confirmed' }];
+    const { page, close } = await fixture({ path: `/packages?course=${ids.a}&student=student-notice`, courses: dates, enrollments });
+    await page.getByRole('status').filter({ hasText: 'This training booking is no longer available' }).waitFor();
+    assert.equal(await page.getByRole('button', { expanded: true }).count(), 0);
+    await page.evaluate(id => fixture.navigate(`/packages?course=${id}&student=student-notice`), ids.b);
+    await page.getByRole('button', { name: 'Remove', exact: true }).waitFor();
+    await page.evaluate(() => { fixture.owner = { ...fixture.owner, id: 'different-salon' }; fixture.render(); });
+    await page.getByRole('status').filter({ hasText: 'This training booking is no longer available' }).waitFor();
+    assert.equal(await page.getByText('Fictional Student', { exact: true }).count(), 0);
+    assert.equal(await page.getByRole('button', { name: 'Remove', exact: true }).count(), 0);
+    assert.deepEqual(await writes(page), []);
+    await close(); pass('Mismatched, missing and other-salon notification targets cannot open a student; a new valid target can.');
+  }
   for (const width of [320, 390, 1024]) {
     const { page, close } = await fixture({ width });
     const optional = page.locator('summary').filter({ hasText: 'Phone or questions (optional)' });

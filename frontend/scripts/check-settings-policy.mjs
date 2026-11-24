@@ -41,7 +41,7 @@ const server = http.createServer((request, response) => {
 }).listen(0);
 const browser = await launch();
 
-async function fixture(policy) {
+async function fixture(policy, section = 'policy') {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   await context.addInitScript(fetchStubSource());
   await context.addInitScript(sessionSeedSource(bundleSupabaseUrl(dist)));
@@ -52,6 +52,7 @@ async function fixture(policy) {
       last_name: 'Demo', business_name: 'Fictional Salon', timezone: 'Europe/London',
       owner_access_approved: true, onboarding_completed_at: '2026-06-01T10:00:00Z', trial_ends_at: '2099-01-01T00:00:00Z', plan: 'pro',
       stripe_onboarding_complete: true, payment_settings: { require_deposit: false }, booking_policy: policy };
+    window.__profile.notification_prefs = { booking_confirmed: { email: true, push: false }, untouched_preference: { push: true } };
     const json = data => new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json' } });
     window.fetch = async (input, options = {}) => {
       const url = typeof input === 'string' ? input : input?.url || '';
@@ -72,12 +73,30 @@ async function fixture(policy) {
   page.setDefaultTimeout(15000);
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
-  await page.goto(`http://127.0.0.1:${server.address().port}/settings?section=policy`);
-  await page.getByRole('spinbutton', { name: /late.cancel/i }).waitFor();
+  await page.goto(`http://127.0.0.1:${server.address().port}/settings?section=${section}`);
+  if (section === 'policy') await page.getByRole('spinbutton', { name: /late.cancel/i }).waitFor();
+  else await page.getByRole('heading', { name: 'Your notifications', exact: true }).waitFor();
   return { context, page, pageErrors };
 }
 
 try {
+  const notifications = await fixture(initialPolicy, 'notifications');
+  const trainingToggle = notifications.page.getByRole('button', { name: 'Training bookings: push notification', exact: true });
+  assert.equal(await trainingToggle.getAttribute('aria-pressed'), 'true');
+  assert.equal(await notifications.page.getByRole('button', { name: 'Training bookings: email', exact: true }).count(), 0);
+  assert.deepEqual(await notifications.page.evaluate(() => window.__policyWrites), []);
+  await trainingToggle.click();
+  await notifications.page.waitForFunction(() => window.__profile.notification_prefs.course_enrolled?.push === false);
+  assert.equal(await trainingToggle.getAttribute('aria-pressed'), 'false');
+  assert.deepEqual(await notifications.page.evaluate(() => window.__profile.notification_prefs), {
+    booking_confirmed: { email: true, push: false }, untouched_preference: { push: true }, course_enrolled: { push: false },
+  });
+  await trainingToggle.click();
+  await notifications.page.waitForFunction(() => window.__profile.notification_prefs.course_enrolled?.push === true);
+  assert.deepEqual(notifications.pageErrors, []);
+  await notifications.context.close();
+  console.log('✓ Training push has its own saved preference; treatment settings remain intact and no trainer-email toggle is offered');
+
   const { context, page, pageErrors } = await fixture(initialPolicy);
   const lateFee = page.getByRole('spinbutton', { name: /late.cancel/i });
   const noShowFee = page.getByRole('spinbutton', { name: 'No-show charge', exact: true });
