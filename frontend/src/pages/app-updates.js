@@ -5,6 +5,13 @@ export const APP_UPDATES = [
     date: '2026-11-24',
     changes: [
       {
+        id: 'training-booking-notifications',
+        title: 'A separate alert for training bookings',
+        description: 'Get an iPhone notification when a course place is confirmed. Tap it to see the student, chosen date and payment status. Training alerts have their own switch in Settings.',
+        to: '/packages', linkLabel: 'Open your courses',
+        commits: ['353847c'],
+      },
+      {
         id: 'clearer-training-booking',
         title: 'A simpler training booking page',
         description: 'Clearer date choices, an upfront deposit and a shorter booking form. Students can still read your full course details and add questions before booking.',
