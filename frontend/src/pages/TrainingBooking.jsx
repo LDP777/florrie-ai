@@ -17,6 +17,7 @@ import { API_BASE } from '../lib/config.js';
 import Icon from '../components/ui/Icon';
 import Button from '../components/ui/Button.jsx';
 import CourseDescription from '../components/CourseDescription.jsx';
+import { TrainingHeader, TrainingFooter, TrainingDateStamp, trainingTheme } from '../components/TrainingPublic.jsx';
 
 const INCLUDES_LABELS = {
   certificate: 'Certificate',
@@ -212,7 +213,12 @@ export default function TrainingBooking() {
     }
   };
 
-  const brandColor = beautician?.brand_color || '#92405e';
+  const theme = trainingTheme(beautician);
+  const brandColor = theme['--training-accent'];
+  const pricedDates = availableDates.length ? availableDates : dates;
+  const priceCourse = selectedCourse || pricedDates[0] || course;
+  const pricesVary = !selectedCourse && new Set(pricedDates.map(d => Number(d.price))).size > 1;
+  const depositsVary = !selectedCourse && new Set(pricedDates.map(d => Number(d.deposit || 0))).size > 1;
 
   const formatDate = (d) => {
     if (!d) return 'Date to be confirmed';
@@ -223,20 +229,19 @@ export default function TrainingBooking() {
   };
   const whenLine = course ? `${formatDate(course.date)}${course.start_time ? `, ${course.start_time} start` : ''}` : '';
 
+  const renderState = content => <main className="training-page" style={theme}><div className="training-shell"><TrainingHeader owner={beautician} to={`/training/${slug}`} label="All courses" />{content}<TrainingFooter /></div></main>;
+
   if (loading || loadedKey !== currentKey) {
-    return (
-      <div style={styles.page}>
-        <div style={styles.loadingWrap}>
+    return renderState(
+        <div style={styles.loadingWrap} role="status">
           <div style={styles.spinner} />
           <p style={styles.loadingText}>Loading course...</p>
         </div>
-      </div>
     );
   }
 
   if (success) {
-    return (
-      <div style={styles.page}>
+    return renderState(
         <div style={styles.successCard}>
           <div style={styles.successIcon}>
             <Icon name={success.type === 'submitted' || success.type === 'pending' ? 'clock' : 'check-circle'} size={44} color={brandColor} />
@@ -264,14 +269,11 @@ export default function TrainingBooking() {
             </div>
           )}
         </div>
-        <p style={styles.poweredBy}>Powered by <strong>florrie.ai</strong></p>
-      </div>
     );
   }
 
   if (error && (!course || course.closed)) {
-    return (
-      <div style={styles.page}>
+    return renderState(
         <div style={styles.errorCard}>
           <div style={{ fontSize: 32, marginBottom: 8 }}><Icon name="alert-triangle" size={32} /></div>
           <h2 style={{ fontSize: 18, margin: '0 0 8px' }}>{course?.name || 'Course not available'}</h2>
@@ -279,299 +281,148 @@ export default function TrainingBooking() {
           {beautician && <p style={styles.errorText}>Message {beautician.business_name || beautician.first_name} to hear about the next date.</p>}
           <Button fullWidth style={{ marginTop: 20, background: brandColor }} onClick={() => setRetry(n => n + 1)}>Try again</Button>
         </div>
-        <p style={styles.poweredBy}>Powered by <strong>florrie.ai</strong></p>
-      </div>
     );
   }
 
   return (
-    <div style={styles.page}>
-      {/* Beautician header */}
-      <div style={styles.trainerHeader}>
-        {(beautician?.logo_url || beautician?.avatar_url) && (
-          <img src={beautician.logo_url || beautician.avatar_url} alt="" style={{ ...styles.trainerAvatar, ...(beautician.logo_url ? { width: 120, height: 72, objectFit: 'contain', borderRadius: 0 } : {}) }} />
-        )}
-        <div>
-          <div style={styles.trainerName}>{beautician?.business_name || beautician?.first_name}</div>
-          <div style={styles.trainerSub}>Training course</div>
-        </div>
-      </div>
+    <main className="training-page" style={theme}>
+      <div className="training-shell">
+        <TrainingHeader owner={beautician} to={`/training/${slug}`} label="All courses" />
+        <section className="training-overview" aria-labelledby="training-course-title">
+          <p className="training-eyebrow">Training course</p>
+          <h1 id="training-course-title">{course.name}</h1>
+          <ul className="training-meta">
+            {course.duration && <li><Icon name="clock" size={15} />{course.duration}</li>}
+            {course.location && <li><Icon name="map-pin" size={15} />{course.location}</li>}
+          </ul>
+          <div className="training-outline">
+            <CourseDescription key={course.id} text={course.description} previewLines={4} style={{ margin: '0 0 8px' }} />
+          </div>
+          {course.includes?.length > 0 && <ul className="training-includes" aria-label="Included in your course">
+            {course.includes.map(key => <li key={key}><Icon name="check" size={14} />{INCLUDES_LABELS[key] || key}</li>)}
+          </ul>}
+          <div className="training-price" aria-live="polite" aria-atomic="true">
+            <div className="training-price-total">
+              <strong>{pricesVary
+                ? `From £${Math.min(...pricedDates.map(d => Number(d.price))).toFixed(2)}`
+                : `£${Number(priceCourse.price).toFixed(2)}`}</strong>
+              <span>course fee</span>
+            </div>
+            {depositsVary ? <span>Deposit varies by date</span> : Number(priceCourse.deposit) > 0 && <span>£{Number(priceCourse.deposit).toFixed(2)} deposit</span>}
+          </div>
+        </section>
 
-      {/* Course card */}
-      <div style={styles.courseCard}>
-        <h1 style={styles.courseName}>{course.name}</h1>
+        {cancelledParam && <div role="status" style={styles.cancelledBanner}>
+          The card payment was cancelled, so your place is not booked yet. Fill in your details again to try once more.
+        </div>}
+        {resumeRequest && <p role="status" className="training-selected-date">You have a payment in progress for this date. Resume it with the same name and email.</p>}
 
-        {dates.length > 1 && (
-          <fieldset style={styles.dateChoices} disabled={submitting}>
-            <legend style={styles.dateLegend}>Choose your training date</legend>
-            <p style={styles.dateHint}>Choose one date. Each date has its own places.</p>
-            {dates.map(option => {
-              const unavailable = (option.is_full && resumeRequest?.courseId !== option.id) || option.in_the_past || option.closed;
-              const chosen = option.id === selectedId;
-              return (
-                <label key={option.id} style={{
-                  ...styles.dateOption,
-                  borderColor: chosen ? brandColor : '#efe2e5',
-                  background: chosen ? '#FBF0F3' : '#FFFCF9',
-                  opacity: unavailable ? 0.65 : 1,
-                  cursor: unavailable ? 'default' : 'pointer',
-                }}>
-                  <input type="radio" name="training-date" value={option.id} checked={chosen}
-                    disabled={unavailable} onChange={() => { setSelectedId(option.id); setError(''); }}
-                    style={{ width: 18, height: 18, margin: 0, flexShrink: 0, accentColor: brandColor }} />
-                  <span style={{ minWidth: 0 }}>
-                    <span style={styles.dateName}>{option.date_label || formatDate(option.date)}</span>
-                    <span style={styles.dateMeta}>
+        <div className="training-booking-grid">
+          <section className="training-panel">
+            <fieldset className="training-date-choices" disabled={submitting}>
+              <legend>{dates.length === 1 && selectedId ? 'Your training date' : 'Choose your training date'}</legend>
+              {dates.map(option => {
+                const unavailable = (option.is_full && resumeRequest?.courseId !== option.id) || option.in_the_past || option.closed;
+                const chosen = option.id === selectedId;
+                const singleDate = dates.length === 1 && chosen;
+                const DateRow = singleDate ? 'div' : 'label';
+                return <DateRow key={option.id} className={`training-date-option${chosen ? ' is-selected' : ''}${unavailable ? ' is-unavailable' : ''}${singleDate ? ' is-single' : ''}`}>
+                  <TrainingDateStamp date={option.date} />
+                  <span className="training-date-copy">
+                    <span className="training-date-name">{option.date_label || formatDate(option.date)}</span>
+                    <span className="training-date-meta">
                       {option.start_time ? `${String(option.start_time).slice(0, 5)} start · ` : ''}
                       {option.in_the_past ? 'Date has passed' : option.closed ? 'Bookings closed' : option.is_full
-                        ? 'Fully booked'
+                        ? resumeRequest?.courseId === option.id ? 'Payment in progress' : 'Fully booked'
                         : `${option.spots_left} place${option.spots_left === 1 ? '' : 's'} left`}
                     </span>
-                    {Number(option.price) !== Number(baseCourse.price) && <span style={styles.dateMeta}>£{Number(option.price).toFixed(2)} · £{Number(option.deposit || 0).toFixed(2)} deposit</span>}
+                    {(Number(option.price) !== Number(baseCourse.price) || Number(option.deposit || 0) !== Number(baseCourse.deposit || 0)) && <span className="training-date-meta">£{Number(option.price).toFixed(2)} · £{Number(option.deposit || 0).toFixed(2)} deposit</span>}
                   </span>
-                </label>
-              );
-            })}
-          </fieldset>
-        )}
-        {dates.length === 1 && !selectedId && availableDates.length > 0 && (
-          <label style={styles.dateOption}>
-            <input type="radio" name="training-date" checked={false} disabled={submitting}
-              onChange={() => setSelectedId(dates[0].id)} />
-            <span>{dates[0].date_label || formatDate(dates[0].date)}{dates[0].start_time ? `, ${dates[0].start_time}` : ''}</span>
-          </label>
-        )}
-
-        {/* Details row */}
-        <div style={styles.detailsGrid}>
-          <div style={styles.detailItem}>
-            <span style={styles.detailIcon}><Icon name="calendar" size={15} /></span>
-            <span style={styles.detailText}>{selectedCourse || dates.length <= 1 ? whenLine : 'Choose an offered date above'}</span>
-          </div>
-          {course.location && (
-            <div style={styles.detailItem}>
-              <span style={styles.detailIcon}><Icon name="map-pin" size={15} /></span>
-              <span style={styles.detailText}>{course.location}</span>
-            </div>
-          )}
-          {course.duration && (
-            <div style={styles.detailItem}>
-              <span style={styles.detailIcon}>{<Icon name="clock" inline />}</span>
-              <span style={styles.detailText}>{course.duration}</span>
-            </div>
-          )}
-          <div style={styles.detailItem}>
-            <span style={styles.detailIcon}><Icon name="users" size={15} /></span>
-            <span style={styles.detailText}>
-              {!selectedCourse && dates.length > 1 ? 'Places shown for each date above' : course.is_full
-                ? 'Fully booked'
-                : `${course.spots_left} place${course.spots_left !== 1 ? 's' : ''} left`}
-            </span>
-          </div>
-        </div>
-
-        <CourseDescription key={course.id} text={course.description} style={styles.courseDesc} />
-
-        {/* Includes */}
-        {course.includes?.length > 0 && (
-          <div style={styles.includesSection}>
-            <h3 style={styles.includesTitle}>What's included</h3>
-            <div style={styles.includesWrap}>
-              {course.includes.map(key => (
-                <span key={key} style={styles.includeTag}>
-                  {INCLUDES_LABELS[key] || key}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Price */}
-        <div style={styles.priceSection}>
-          <div style={{ ...styles.priceMain, color: brandColor }}>
-            {!selectedCourse && new Set(dates.map(d => Number(d.price))).size > 1
-              ? `From £${Math.min(...dates.map(d => Number(d.price))).toFixed(2)}`
-              : `£${Number(course.price).toFixed(2)}`}
-          </div>
-          {!selectedCourse && dates.length > 1 ? <div style={styles.priceDeposit}>Select a date to see its booking details.</div> : Number(course.deposit) > 0 && (
-            <div style={styles.priceDeposit}>
-              £{Number(course.deposit).toFixed(2)} deposit to secure your spot
-            </div>
-          )}
-        </div>
-      </div>
-
-      {cancelledParam && (
-        <div style={styles.cancelledBanner}>
-          The card payment was cancelled, so your place is not booked yet. Fill in your details again to try once more.
-        </div>
-      )}
-
-      {/* Enrollment form */}
-      {resumeRequest && <p role="status" style={{ ...styles.detailText, margin: '12px 0' }}>You have a payment in progress for this date. Resume it with the same name and email.</p>}
-      {!availableDates.length && !resumeRequest ? (
-        <div style={styles.fullBanner}>
-          <span style={{ fontSize: 20 }}>{<Icon name="alert-triangle" inline />}</span>
-          <div>
-            <div style={{ fontWeight: 600, fontSize: 15 }}>{dates.length > 0 && dates.every(d => d.is_full) ? 'These course dates are full' : 'No dates are available to book'}</div>
-            <div style={{ fontSize: 13, color: '#6B6560', marginTop: 2 }}>
-              Message {beautician?.business_name || beautician?.first_name} to hear about the next date.
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div style={styles.formCard}>
-          <h2 style={styles.formTitle}>Book your spot</h2>
-          <form onSubmit={handleSubmit}>
-            <fieldset disabled={submitting} style={styles.formFields}>
-            <label htmlFor="training-name" style={styles.label}>Full name *</label>
-            <input
-              id="training-name"
-              type="text"
-              value={form.name}
-              onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-              placeholder="Your name"
-              style={styles.input}
-              required
-            />
-
-            <label htmlFor="training-email" style={styles.label}>Email *</label>
-            <input
-              id="training-email"
-              type="email"
-              value={form.email}
-              onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-              placeholder="you@email.com"
-              style={styles.input}
-              required
-            />
-
-            <label htmlFor="training-phone" style={styles.label}>Phone (optional)</label>
-            <input
-              id="training-phone"
-              type="tel"
-              value={form.phone}
-              onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
-              placeholder="07..."
-              style={styles.input}
-            />
-
-            <label htmlFor="training-notes" style={styles.label}>Any questions or requirements?</label>
-            <textarea
-              id="training-notes"
-              value={form.notes}
-              onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-              placeholder="e.g. allergies, accessibility needs, experience level..."
-              style={{ ...styles.input, height: 70, resize: 'vertical' }}
-            />
-
-            {error && (
-              <div style={styles.errorBanner} role="alert">{error}</div>
-            )}
-
-            <button
-              type="submit"
-              disabled={submitting || !form.name.trim() || !form.email.trim() || !canBook}
-              style={{ ...styles.submitBtn,
-                background: brandColor,
-                opacity: submitting || !form.name.trim() || !form.email.trim() || !canBook ? 0.5 : 1,
-              }}
-            >
-              {submitting
-                ? 'Booking your place...'
-                : canResume ? 'Resume payment'
-                : !selectedCourse ? 'Choose a date to book'
-                : Number(course.deposit) > 0
-                  ? (beautician?.stripe_ready ? `Book my place, pay £${Number(course.deposit).toFixed(2)} deposit` : 'Book my place')
-                  : 'Book my place'}
-            </button>
-
-            <p style={styles.depositNote}>
-              {!selectedCourse ? 'Choose an offered date to see the deposit and remaining balance.' : Number(course.deposit) > 0
-                ? `£${(Number(course.price) - Number(course.deposit)).toFixed(2)} is due on the day.${beautician?.stripe_ready ? '' : ` ${beautician?.business_name || beautician?.first_name || 'Your trainer'} will be in touch to arrange the deposit.`}`
-                : `£${Number(course.price).toFixed(2)} is due on the day.`}
-              {' '}You will get a confirmation by email.
-            </p>
-            <p style={styles.privacyNote}>
-              Your details go to {beautician?.business_name || beautician?.first_name || 'the trainer'} so they can run the course and contact you about it. See our <a href="/privacy" style={styles.privacyLink} target="_blank" rel="noopener noreferrer">Privacy Policy</a>.
-            </p>
+                  {!singleDate && <input type="radio" name="training-date" value={option.id} checked={chosen}
+                    disabled={unavailable} onChange={() => { setSelectedId(option.id); setError(''); }} />}
+                </DateRow>;
+              })}
             </fieldset>
-          </form>
-        </div>
-      )}
+          </section>
 
-      <p style={styles.poweredBy}>Powered by <strong>florrie.ai</strong></p>
-    </div>
+          {!availableDates.length && !resumeRequest ? (
+            <div className="training-panel" role="status">
+              <h2 className="training-form-title">{dates.length > 0 && dates.every(d => d.is_full) ? 'These course dates are full' : 'No dates are available to book'}</h2>
+              <p className="training-outline">Message {beautician?.business_name || beautician?.first_name} to hear about the next date.</p>
+            </div>
+          ) : (
+            <section className="training-panel training-form-panel" aria-labelledby="training-details-title">
+              <h2 id="training-details-title" className="training-form-title">Your details</h2>
+              <form onSubmit={handleSubmit}>
+                <fieldset disabled={submitting} className="training-fields" aria-labelledby="training-details-title">
+                  <div className="training-field">
+                    <label htmlFor="training-name">Full name</label>
+                    <input id="training-name" type="text" autoComplete="name" value={form.name}
+                      onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                      placeholder="Your name" className="training-input" required />
+                  </div>
+                  <div className="training-field">
+                    <label htmlFor="training-email">Email</label>
+                    <input id="training-email" type="email" autoComplete="email" inputMode="email" value={form.email}
+                      onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                      placeholder="you@email.com" className="training-input" required />
+                  </div>
+                  <details className="training-optional">
+                    <summary>Phone or questions (optional)<Icon name="chevron-down" size={15} /></summary>
+                    <div className="training-field">
+                      <label htmlFor="training-phone">Phone</label>
+                      <input id="training-phone" type="tel" autoComplete="tel" value={form.phone}
+                        onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+                        placeholder="07..." className="training-input" />
+                    </div>
+                    <div className="training-field">
+                      <label htmlFor="training-notes">Any questions or requirements?</label>
+                      <textarea id="training-notes" value={form.notes}
+                        onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                        placeholder="e.g. allergies, accessibility needs, experience level..." className="training-input" />
+                    </div>
+                  </details>
+                  {error && <div style={styles.errorBanner} role="alert">{error}</div>}
+                  <button type="submit" className="training-submit"
+                    disabled={submitting || !form.name.trim() || !form.email.trim() || !canBook}>
+                    {submitting ? 'Booking your place...'
+                      : canResume ? 'Resume payment'
+                      : !selectedCourse ? 'Choose a date to book'
+                      : Number(course.deposit) > 0 && beautician?.stripe_ready
+                        ? `Book my place, pay £${Number(course.deposit).toFixed(2)} deposit`
+                        : 'Book my place'}
+                  </button>
+                  {selectedCourse && <p className="training-payment-note">
+                    {Number(course.deposit) > 0
+                      ? `£${(Number(course.price) - Number(course.deposit)).toFixed(2)} is due on the day.${beautician?.stripe_ready ? '' : ` ${beautician?.business_name || beautician?.first_name || 'Your trainer'} will be in touch to arrange the deposit.`}`
+                      : `£${Number(course.price).toFixed(2)} is due on the day.`}
+                    {' '}You will get a confirmation by email.
+                  </p>}
+                  <p className="training-privacy">
+                    Your details are shared with {beautician?.business_name || beautician?.first_name || 'the trainer'} to arrange your course. <a href="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.
+                  </p>
+                </fieldset>
+              </form>
+            </section>
+          )}
+        </div>
+        <TrainingFooter />
+      </div>
+    </main>
   );
 }
 
 const styles = {
-  page: {
-    minHeight: 'var(--shell-viewport)',
-    background: '#FBF6F1',
-    fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
-    padding: '20px 16px 40px',
-    maxWidth: 480,
-    margin: '0 auto',
-  },
   loadingWrap: { textAlign: 'center', padding: '80px 0' },
   spinner: { width: 32, height: 32, border: '3px solid #E8E4E0', borderTopColor: '#92405e', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' },
   loadingText: { fontSize: 14, color: 'var(--text-muted)' },
-
-  trainerHeader: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 },
-  trainerAvatar: { width: 44, height: 44, borderRadius: 22, objectFit: 'cover' },
-  trainerName: { fontSize: 16, fontWeight: 700, color: '#1d1b19' },
-  trainerSub: { fontSize: 12, color: 'var(--text-muted)' },
-
-  courseCard: { background: '#ffffff', borderRadius: 16, padding: 20, marginBottom: 16, border: '1px solid #efe2e5' },
-  courseName: { fontSize: 22, fontWeight: 700, color: '#1d1b19', margin: '0 0 16px' },
-  dateChoices: { border: 0, margin: '0 0 20px', padding: 0, minWidth: 0 },
-  dateLegend: { fontSize: 15, fontWeight: 700, padding: 0, color: '#1d1b19' },
-  dateHint: { fontSize: 13, lineHeight: 1.5, color: '#6B6560', margin: '6px 0 12px' },
-  dateOption: { display: 'flex', alignItems: 'center', gap: 12, padding: '14px 12px', minHeight: 60, boxSizing: 'border-box', border: '1.5px solid #efe2e5', borderRadius: 12, marginBottom: 8 },
-  dateName: { display: 'block', fontSize: 14, fontWeight: 600, lineHeight: 1.45, color: '#1d1b19' },
-  dateMeta: { display: 'block', fontSize: 12, lineHeight: 1.5, marginTop: 3, color: '#6B6560' },
-
-  detailsGrid: { display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 },
-  detailItem: { display: 'flex', alignItems: 'center', gap: 8 },
-  detailIcon: { fontSize: 16, width: 24, textAlign: 'center' },
-  detailText: { fontSize: 14, color: '#4A4540' },
-
-  courseDesc: { fontSize: 14, color: '#6B6560', lineHeight: 1.6, margin: '0 0 16px' },
-
-  includesSection: { marginBottom: 16, paddingTop: 16, borderTop: '1px solid #F0ECE8' },
-  includesTitle: { fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.04em' },
-  includesWrap: { display: 'flex', flexWrap: 'wrap', gap: 6 },
-  includeTag: { fontSize: 13, background: '#FBF6F1', border: '1px solid #efe2e5', borderRadius: 10, padding: '5px 10px', color: '#4A4540' },
-
-  priceSection: { paddingTop: 16, borderTop: '1px solid #F0ECE8', textAlign: 'center' },
-  priceMain: { fontSize: 28, fontWeight: 700, color: '#92405e' },
-  priceDeposit: { fontSize: 13, color: '#6B6560', marginTop: 4 },
-
-  formCard: { background: '#ffffff', borderRadius: 16, padding: 20, marginBottom: 16, border: '1px solid #efe2e5' },
-  formTitle: { fontSize: 18, fontWeight: 700, color: '#1d1b19', margin: '0 0 16px' },
-  formFields: { border: 0, margin: 0, padding: 0, minWidth: 0 },
-  label: { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6, marginTop: 14, textTransform: 'uppercase', letterSpacing: '0.04em' },
-  input: { width: '100%', padding: '11px 14px', borderRadius: 10, border: '1.5px solid #efe2e5', fontSize: 15, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: '#FBF6F1', color: '#1d1b19' },
-
-  submitBtn: { width: '100%', padding: '15px 0', borderRadius: 10, border: 'none', color: '#fff', fontSize: 16, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20 },
-  depositNote: { fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', marginTop: 10, lineHeight: 1.5 },
-  privacyNote: { fontSize: 11, color: '#9C9690', textAlign: 'center', marginTop: 8, lineHeight: 1.5 },
-  privacyLink: { color: '#9C9690', textDecoration: 'underline' },
-
   errorBanner: { background: '#FDEDF0', color: '#C62828', padding: '10px 14px', borderRadius: 10, fontSize: 13, marginTop: 12, fontWeight: 500 },
   cancelledBanner: { background: '#FFF3E0', color: '#B33F00', padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 500, marginBottom: 16, textAlign: 'center' },
-
-  fullBanner: { display: 'flex', alignItems: 'center', gap: 12, background: '#FFF3E0', borderRadius: 10, padding: '16px 14px', marginBottom: 16 },
-
-  successCard: { background: '#ffffff', borderRadius: 16, padding: '40px 20px', textAlign: 'center', border: '1px solid #efe2e5', marginTop: 40 },
+  successCard: { background: '#ffffff', borderRadius: 16, padding: '40px 20px', textAlign: 'center', border: '1px solid #efe2e5', margin: '32px auto 0', maxWidth: 560 },
   successIcon: { fontSize: 48, marginBottom: 12 },
   successTitle: { fontSize: 22, fontWeight: 700, color: '#1d1b19', margin: '0 0 8px' },
   successText: { fontSize: 14, color: '#6B6560', lineHeight: 1.6, margin: '0 0 16px' },
   successMeta: { fontSize: 13, color: '#4A4540', background: '#FBF6F1', borderRadius: 10, padding: 12, display: 'inline-block' },
-
-  errorCard: { background: '#ffffff', borderRadius: 16, padding: '40px 20px', textAlign: 'center', border: '1px solid #efe2e5', marginTop: 40 },
+  errorCard: { background: '#ffffff', borderRadius: 16, padding: '40px 20px', textAlign: 'center', border: '1px solid #efe2e5', margin: '32px auto 0', maxWidth: 560 },
   errorText: { fontSize: 14, color: '#6B6560', lineHeight: 1.5 },
-
-  poweredBy: { textAlign: 'center', fontSize: 11, color: '#CCC', marginTop: 24 },
 };

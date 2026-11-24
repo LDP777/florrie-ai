@@ -1,0 +1,91 @@
+.training-page {
+  --training-accent: #92405e;
+  --training-tint: #f8eff1;
+  --training-ink: #2b2420;
+  --training-muted: #71645b;
+  --training-border: #e7ddd6;
+  min-height: 100dvh;
+  box-sizing: border-box;
+  padding: max(14px, env(safe-area-inset-top)) 20px max(28px, env(safe-area-inset-bottom));
+  background: #fbf6f1;
+  color: var(--training-ink);
+  font-family: var(--font-body, 'Plus Jakarta Sans', -apple-system, sans-serif);
+}
+.training-page *, .training-page *::before, .training-page *::after { box-sizing: border-box; }
+.training-shell { max-width: 880px; margin: 0 auto; }
+.training-catalogue .training-shell { max-width: 620px; }
+.training-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding-bottom: 12px; border-bottom: 1px solid var(--training-border); }
+.training-back { display: inline-flex; align-items: center; gap: 3px; min-height: 44px; margin-left: -6px; padding-right: 6px; color: var(--training-muted); text-decoration: none; font-size: 13px; flex-shrink: 0; }
+.training-brand { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; text-align: right; font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.training-brand img { max-width: 64px; height: 32px; object-fit: contain; }
+.training-intro { padding: 28px 0 24px; }
+.training-eyebrow { margin: 0 0 10px; color: var(--training-accent); font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.training-page h1, .training-course-card h2 { font-family: var(--font-display, 'Playfair Display', Georgia, serif); letter-spacing: -.035em; font-weight: 600; overflow-wrap: anywhere; }
+.training-intro h1 { margin: 0 0 10px; font-size: clamp(32px, 6vw, 40px); line-height: 1.15; }
+.training-intro > p:last-child { margin: 0; color: var(--training-muted); font-size: 14px; line-height: 1.6; }
+.training-course-card { border: 1px solid var(--training-border); border-radius: 22px; background: #fffcf9; margin-bottom: 16px; padding: 24px; }
+.training-course-card h2 { margin: 0 0 14px; font-size: 26px; line-height: 1.2; }
+.training-meta { display: flex; flex-wrap: wrap; gap: 8px 20px; padding: 0; margin: 0 0 18px; list-style: none; color: var(--training-muted); font-size: 12px; line-height: 1.6; }
+.training-meta li { display: flex; align-items: flex-start; gap: 7px; min-width: 0; overflow-wrap: anywhere; }
+.training-meta svg { flex-shrink: 0; margin-top: 2px; }
+.training-outline { color: #5f534b; font-size: 14px; line-height: 1.7; }
+.training-outline .fl-btn { color: var(--training-accent); padding-left: 0; padding-right: 0; }
+.training-course-footer { margin-top: 16px; padding-top: 18px; border-top: 1px solid var(--training-border); }
+.training-card-price { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 10px; }
+.training-card-price strong { font-size: 23px; font-weight: 600; letter-spacing: -.025em; font-variant-numeric: tabular-nums; }
+.training-card-price span, .training-next { font-size: 12px; color: var(--training-muted); line-height: 1.6; }
+.training-next { margin: 9px 0 16px; display: flex; gap: 7px; align-items: flex-start; }
+.training-next svg { flex-shrink: 0; margin-top: 2px; }
+.training-link { display: flex; align-items: center; justify-content: center; min-height: 48px; padding: 12px 16px; border-radius: 13px; background: var(--training-accent); color: #fff; text-decoration: none; text-align: center; font-size: 14px; font-weight: 600; }
+.training-overview { max-width: 650px; margin: 28px 0 24px; }
+.training-overview h1 { font-size: clamp(28px, 4.5vw, 36px); line-height: 1.2; margin: 0 0 16px; }
+.training-overview .training-meta { margin-bottom: 14px; }
+.training-includes { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 0; margin: 14px 0 18px; list-style: none; }
+.training-includes li { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: #5f534b; }
+.training-includes svg { color: var(--training-accent); }
+.training-price { display: flex; flex-wrap: wrap; gap: 7px 16px; align-items: baseline; padding-top: 16px; border-top: 1px solid var(--training-border); }
+.training-price-total { display: flex; align-items: baseline; gap: 7px; }
+.training-price-total strong { font-size: 26px; font-weight: 600; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.training-price span { font-size: 12px; color: var(--training-muted); }
+.training-booking-grid { display: grid; gap: 16px; align-items: start; }
+.training-panel { min-width: 0; border: 1px solid var(--training-border); border-radius: 22px; background: #fffcf9; padding: 22px; }
+.training-date-choices { min-width: 0; border: 0; margin: 0; padding: 0; }
+.training-date-choices legend, .training-form-title { width: 100%; padding: 0; margin: 0 0 16px; font-family: var(--font-body, 'Plus Jakarta Sans', sans-serif); font-size: 17px; line-height: 1.4; font-weight: 600; color: var(--training-ink); letter-spacing: -.02em; }
+.training-date-option { display: flex; gap: 12px; align-items: center; min-height: 76px; padding: 11px 12px 11px 10px; margin-top: 8px; border: 1px solid var(--training-border); border-radius: 14px; background: #fffcf9; cursor: pointer; transition: border-color .16s, background .16s; }
+.training-date-option:first-of-type { margin-top: 0; }
+.training-date-option.is-selected { background: var(--training-tint); border-color: var(--training-accent); box-shadow: inset 0 0 0 .5px var(--training-accent); }
+.training-date-option.is-unavailable { opacity: .6; cursor: default; }
+.training-date-option.is-single { cursor: default; }
+.training-date-option input { width: 18px; height: 18px; flex-shrink: 0; margin: 0 0 0 auto; accent-color: var(--training-accent); }
+.training-date-stamp { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 0 0 42px; min-height: 50px; border-right: 1px solid var(--training-border); padding-right: 10px; color: var(--training-accent); }
+.training-date-stamp > span { font-size: 9px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+.training-date-stamp strong { font-size: 24px; font-weight: 500; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.training-date-copy { min-width: 0; flex: 1; }
+.training-date-name { display: block; font-size: 13px; line-height: 1.45; font-weight: 600; color: var(--training-ink); }
+.training-date-meta { display: block; font-size: 11px; color: var(--training-muted); line-height: 1.6; margin-top: 3px; }
+.training-single-date { display: flex; align-items: center; gap: 12px; }
+.training-selected-date { color: var(--training-accent); background: var(--training-tint); border-radius: 10px; margin: 0 0 16px; padding: 10px 12px; font-size: 12px; line-height: 1.6; }
+.training-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
+.training-field { display: block; margin-bottom: 16px; }
+.training-field > label { display: block; margin-bottom: 7px; color: #5f534b; font-size: 12px; font-weight: 500; }
+.training-input { width: 100%; min-height: 48px; padding: 12px; border-radius: 11px; border: 1px solid #d8cbc2; background: #fffdfa; color: var(--training-ink); font: inherit; font-size: 16px; outline: none; }
+.training-input::placeholder { color: #8a7d72; opacity: 1; }
+.training-page :is(a, button, summary):focus-visible, .training-input:focus-visible { outline: 2px solid var(--training-accent); outline-offset: 3px; }
+.training-date-option:focus-within { outline: 2px solid var(--training-accent); outline-offset: 3px; }
+.training-optional { margin-bottom: 4px; border-top: 1px solid var(--training-border); }
+.training-optional summary { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 44px; padding: 9px 0; list-style: none; font-size: 12px; color: var(--training-muted); cursor: pointer; }
+.training-optional summary::-webkit-details-marker { display: none; }
+.training-optional summary svg { flex-shrink: 0; transition: transform .16s; }
+.training-optional[open] summary svg { transform: rotate(180deg); }
+.training-optional textarea { min-height: 90px; resize: vertical; }
+.training-submit { width: 100%; min-height: 52px; margin-top: 12px; padding: 13px 16px; border: 0; border-radius: 13px; background: var(--training-accent); color: #fff; font: inherit; font-size: 14px; font-weight: 600; line-height: 1.5; cursor: pointer; }
+.training-submit:disabled { background: #e5d8d6; color: #6b5d54; cursor: default; }
+.training-payment-note, .training-privacy { font-size: 12px; line-height: 1.6; margin: 10px 0 0; color: var(--training-muted); }
+.training-privacy { margin-top: 14px; }
+.training-privacy a { color: inherit; text-decoration: underline; }
+.training-footer { display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 10px; color: var(--training-muted); padding: 26px 0 4px; }
+.training-footer strong { font-weight: 600; }
+.training-footer img { margin-right: 2px; }
+@media (min-width: 760px) { .training-page { padding: 24px 32px 40px; } .training-booking-grid { grid-template-columns: 1.08fr 1fr; gap: 22px; } .training-form-panel { position: sticky; top: 24px; } .training-overview { margin-top: 36px; } }
+@media (max-width: 359px) { .training-page { padding-inline: 16px; } .training-course-card, .training-panel { padding: 18px; } .training-date-option { gap: 9px; padding-right: 10px; } .training-date-stamp { flex-basis: 36px; padding-right: 7px; } .training-date-name { font-size: 12px; } .training-brand { font-size: 12px; } }
+@media (prefers-reduced-motion: reduce) { .training-page * { transition: none !important; } }

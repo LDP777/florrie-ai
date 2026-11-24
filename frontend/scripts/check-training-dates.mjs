@@ -114,6 +114,7 @@ const fontCss = fontDir && existsSync(join(fontDir, 'fonts.css')) ? readFileSync
 const preview = process.env.KEEP_TRAINING_PREVIEW === '1';
 const server = http.createServer((req, res) => {
   const path = (req.url || '/').split('?')[0];
+  if (path === '/florrie-petal.svg') { res.setHeader('content-type', 'image/svg+xml'); return res.end(readFileSync(join(root, 'public/florrie-petal.svg'))); }
   if (path === '/fixture.js') { res.setHeader('content-type', 'text/javascript'); return res.end(js); }
   if (path.startsWith('/fonts/') && fontDir && /^\/fonts\/[a-zA-Z0-9._-]+$/.test(path)) {
     const file = join(fontDir, basename(path));
@@ -182,6 +183,39 @@ async function shot(page, name) {
 const pass = message => { passed++; console.log('PASS: ' + message); };
 
 try {
+  for (const width of [320, 390, 1024]) {
+    const { page, close } = await fixture({ width });
+    const optional = page.locator('summary').filter({ hasText: 'Phone or questions (optional)' });
+    await page.getByRole('radio').first().waitFor();
+    assert.equal(await page.getByLabel('Phone', { exact: true }).isVisible(), false);
+    await optional.focus(); await page.keyboard.press('Enter');
+    await page.getByLabel('Phone', { exact: true }).fill('07700900123');
+    await page.getByLabel('Any questions or requirements?', { exact: true }).fill('Fictional access requirement.');
+    await optional.focus(); await page.keyboard.press('Enter');
+    await details(page);
+    await page.getByRole('radio').first().focus(); await page.keyboard.press('ArrowRight');
+    assert.equal(await page.getByRole('radio').nth(1).isChecked(), true);
+    await optional.focus(); await page.keyboard.press('Enter');
+    assert.equal(await page.getByLabel('Any questions or requirements?', { exact: true }).inputValue(), 'Fictional access requirement.');
+    await optional.focus(); await page.keyboard.press('Enter');
+    await fit(page); await shot(page, `training-compact-details-${width}`);
+    await bookButton(page).click(); await page.getByRole('heading', { name: /enrolled/i }).waitFor();
+    const sent = (await posts(page))[0].body;
+    assert.equal(sent.selected_course_id, ids.b);
+    assert.equal(sent.phone, '07700900123');
+    assert.equal(sent.notes, 'Fictional access requirement.');
+    await close(); pass(`${width}px: keyboard date selection and optional details retain and submit the student's full request.`);
+  }
+  {
+    const soldOut = { ...dates[0], price: 200, deposit: 40, is_full: true, spots_left: 0 };
+    const available = { ...dates[1], price: 450.75, deposit: 90.50 };
+    const { page, close } = await fixture({ records: { [ids.a]: { data: publicData([soldOut, available]) } } });
+    await page.getByRole('radio').nth(1).waitFor();
+    assert.equal(await page.locator('.training-price-total').innerText(), '£450.75\ncourse fee');
+    assert.match(await page.locator('.training-price').innerText(), /£90.50 deposit/);
+    assert.equal(await page.getByRole('radio').first().isDisabled(), true);
+    await close(); pass('The initial fee and deposit reflect a bookable date, not a cheaper sold-out date.');
+  }
   // Paste, save, reopen and render a full outline, including beyond the old
   // invisible 2,000-character cutoff. No real salon records are written.
   const outline = ('Course overview 🌸\n\nWho this course is for\nBeginners and experienced artists who want guided practice.\n\nWhat you will learn\n• Consultation and preparation\n• Demonstration, supervised practice and feedback\n\n').repeat(50)

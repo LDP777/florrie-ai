@@ -32,12 +32,11 @@ try {
  await ctx.route('**/*',route=>new URL(route.request().url()).origin===origin?route.continue():route.fulfill({status:200,contentType:'application/json',body:'{}'}));
  const page=await ctx.newPage();
  await page.goto(`${origin}/signup`);
- await page.getByPlaceholder('you@example.com').fill('fictional@example.test');
- await page.getByPlaceholder('At least 8 characters').fill('fictional-test-password');
- await page.getByRole('button',{name:'Create account',exact:true}).click();
- await page.getByRole('heading',{name:'Check your email'}).waitFor();
- assert.equal(await page.evaluate(()=>window.fixture.authCalls[0][0]),'signup');
- console.log('PASS: new web signup waits for email verification before setup');
+ await page.getByRole('heading',{name:'Welcome back',exact:true}).waitFor();
+ assert.equal(await page.getByRole('button',{name:'Create account',exact:true}).count(),0);
+ assert.equal(await page.getByPlaceholder('At least 8 characters').count(),0);
+ assert.deepEqual(await page.evaluate(()=>window.fixture.authCalls),[]);
+ console.log('PASS: legacy signup mode cannot create a public salon account');
  await page.goto(`${origin}/login`);
  await page.getByRole('button',{name:'Forgot password?',exact:true}).click();
  await page.getByPlaceholder('you@example.com').fill('fictional@example.test');
