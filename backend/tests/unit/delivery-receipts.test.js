@@ -8,8 +8,8 @@
  * link and there was nothing in the app that could confirm or deny it.
  *
  * The two things worth testing here are both about not making it worse:
- * receipts arrive OUT OF ORDER, and a failure must never be overwritten by a
- * late success.
+ * receipts arrive OUT OF ORDER, and positive delivery evidence survives a
+ * delayed failure report.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
@@ -22,18 +22,10 @@ vi.mock('../../src/config.js', () => {
     const b = {
       select() { return b; },
       update(p) { pending = p; return b; },
-      eq(c, v) {
-        preds.push(r => r[c] === v);
-        if (pending) {
-          const hit = rows();
-          for (const r of hit) Object.assign(r, pending);
-          if (hit.length) updates.push({ patch: pending, ids: hit.map(r => r.id) });
-          return Promise.resolve({ data: hit, error: null });
-        }
-        return b;
-      },
+      eq(c, v) { preds.push(r => r[c] === v); return b; },
+      is(c, v) { preds.push(r => (r[c] ?? null) === v); return b; },
       maybeSingle() { return Promise.resolve({ data: rows()[0] || null, error: null }); },
-      then(res) { return Promise.resolve({ data: rows(), error: null }).then(res); },
+      then(res) { const hit=rows(); if(pending) {for(const row of hit) Object.assign(row,pending); if(hit.length) updates.push({patch:pending,ids:hit.map(r=>r.id)}); } return Promise.resolve({data:hit,error:null}).then(res); },
     };
     return b;
   }
@@ -82,20 +74,17 @@ describe('a receipt only ever moves a message forward', () => {
   });
 });
 
-describe('a failure is the one thing that always wins', () => {
-  it('overrides a delivered', () => {
-    // A failure after a delivery is real news. Hiding it is how a client
-    // silently gets nothing.
-    expect(receiptPatch('failed', 'delivered', AT)).toEqual({ send_status: 'failed' });
+describe('positive delivery evidence survives out-of-order failures', () => {
+  it('does not replace delivered or read with a delayed failure', () => {
+    expect(receiptPatch('failed', 'delivered', AT)).toBeNull();
+    expect(receiptPatch('failed', 'read', AT)).toBeNull();
   });
-
-  it('is never overwritten by a late success', () => {
-    expect(receiptPatch('delivered', 'failed', AT)).toBeNull();
-    expect(receiptPatch('read', 'failed', AT)).toBeNull();
+  it('accepts later proof of delivery after a failure', () => {
+    expect(receiptPatch('delivered', 'failed', AT)?.send_status).toBe('delivered');
+    expect(receiptPatch('read', 'failed', AT)?.send_status).toBe('read');
   });
-
-  it('can be reported twice without complaint', () => {
-    expect(receiptPatch('failed', 'failed', AT)).toEqual({ send_status: 'failed' });
+  it('does not rewrite duplicate failures', () => {
+    expect(receiptPatch('failed', 'failed', AT)).toBeNull();
   });
 });
 

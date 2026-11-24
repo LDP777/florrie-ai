@@ -51,7 +51,7 @@ import { retryClientCancellationFees } from '../services/client-cancellation-fee
  */
 import { registerJob } from '../lib/scheduler.js';
 
-import { processReminders } from '../services/notifications.js';
+import { processReminders, retryReminderSms } from '../services/notifications.js';
 import { cleanupStaleBookings } from '../services/cleanup.js';
 import { refreshInstagramTokens } from '../services/instagram-token-refresh.js';
 import { expireStaleOutboundSends } from '../services/outbound-expiry.js';
@@ -138,6 +138,12 @@ export const JOBS = [
     // gives the stronger version of that guarantee, at most one pass an hour
     // no matter how often the container restarts, so the intent survives while
     // the missed-hour problem goes away.
+  },
+  {
+    name: 'reminder-sms-fallback',
+    description: 'send SMS for failed WhatsApp appointment reminders',
+    intervalMs: 2 * MINUTE,
+    handler: () => retryReminderSms(),
   },
   {
     name: 'stale-booking-cleanup',

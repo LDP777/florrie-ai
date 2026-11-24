@@ -546,7 +546,7 @@ async function checkPreAppointmentRequirements(beauticianId) {
           deliver: async ({ body, messageType }) => {
             const result = await guardedSend({ beauticianId, clientId: client.id, messageType,
               channel: beauticianPrefs.whatsapp_connected ? 'whatsapp' : 'sms', client, body,
-              send: async () => await sendNudge({ client, body, messageType, beauticianId, beauticianPrefs }) });
+              send: async () => await sendNudge({ client, body, messageType, beauticianId, beauticianPrefs, appointment: appt }) });
             return result.delivered;
           },
         });
@@ -694,7 +694,7 @@ async function checkPreAppointmentRequirements(beauticianId) {
         client,
         body,
         send: async () => {
-          result = await sendNudge({ client, body, messageType, beauticianId, beauticianPrefs });
+          result = await sendNudge({ client, body, messageType, beauticianId, beauticianPrefs, appointment: appt });
           return result;
         },
       });

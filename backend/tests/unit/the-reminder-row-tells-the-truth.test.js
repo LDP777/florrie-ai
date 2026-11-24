@@ -93,6 +93,7 @@ const AI_ACTION_COLUMNS = [
 const db = {
   appointments: [], beauticians: [], clients: [], treatments: [], transactions: [],
   appointment_add_ons: [], messages: [], ai_actions: [], outbound_sends: [],
+  appointment_reminder_deliveries: [], whatsapp_delivery_receipts: [],
 };
 
 /**
@@ -150,9 +151,14 @@ function builder(table) {
     // than throwing, which is why a bad column or a bad value shows up as a
     // silent no-op at the call site and not as a stack trace.
     if (err) return { data: null, error: err, count: null };
+    if (pending?.op === 'upsert') {
+      const existing = db[table].find(r => r.id === pending.payload.id);
+      if (existing) { Object.assign(existing, pending.payload); return { data: [existing], error: null }; }
+      pending.op = 'insert';
+    }
     if (pending?.op === 'insert') {
       const payload = Array.isArray(pending.payload) ? pending.payload : [pending.payload];
-      const created = payload.map(p => ({ id: `${table}_${++idCounter}`, created_at: new Date().toISOString(), ...p }));
+      const created = payload.map(p => ({ id: `${table}_${++idCounter}`, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...(table === 'appointment_reminder_deliveries' ? {state:'preparing'} : {}), ...p }));
       db[table].push(...created);
       if (table === 'ai_actions') {
         for (const row of created) {
@@ -182,6 +188,7 @@ function builder(table) {
       pending = { op: 'insert', payload: p };
       return b;
     },
+    upsert(p) { if(table === 'ai_actions') err = checkAiAction(p); pending = {op:'upsert',payload:p}; return b; },
     // The CHECK applies to an UPDATE too, and this is the statement the fix
     // added. A correction that the database refuses is worth less than no
     // correction at all, because it leaves the claim standing and says nothing.
@@ -210,9 +217,17 @@ function builder(table) {
   return b;
 }
 
+async function rpc(name, args) {
+  if (name === 'claim_appointment_reminder_sms') {
+    const row = db.appointment_reminder_deliveries.find(r => r.id === args.p_id && r.state === 'sms_ready');
+    if (row) row.state = 'sending_sms';
+    return {data:row ? [{...row}] : [], error:null};
+  }
+  throw new Error('Unexpected RPC '+name);
+}
 vi.mock('../../src/config.js', () => ({
-  supabase: { from: builder },
-  supabaseAdmin: { from: builder },
+  supabase: { from: builder, rpc },
+  supabaseAdmin: { from: builder, rpc },
 }));
 
 const logs = { error: [], warn: [], info: [], debug: [] };
@@ -257,8 +272,9 @@ vi.mock('@sentry/node', () => ({ captureMessage: () => {}, captureException: () 
  * that leaves.
  */
 const sent = { meta: [], bird: [], resend: [] };
-const wa = { reminderOk: true };
-const bird = { ok: true };
+const wa = { reminderOk: true, throwPost: false };
+const bird = { ok: true, throwPost: false };
+const resend = { ok: true };
 
 const PHONE_ID = 'phone_1';
 const WABA_ID = 'waba_1';
@@ -289,6 +305,7 @@ global.fetch = vi.fn(async (url, opts = {}) => {
   const u = String(url);
 
   if (u.includes('api.bird.com')) {
+    if(bird.throwPost) throw new Error('network timeout');
     const body = JSON.parse(opts.body || '{}');
     if (!bird.ok) return jsonRes(422, { message: 'one or more fields are invalid' });
     timeline.push('bird:sms');
@@ -299,7 +316,7 @@ global.fetch = vi.fn(async (url, opts = {}) => {
   if (u.includes('api.resend.com')) {
     timeline.push('resend:email');
     sent.resend.push(JSON.parse(opts.body || '{}'));
-    return jsonRes(200, { id: 'resend_1' });
+    return resend.ok ? jsonRes(200, { id: 'resend_1' }) : jsonRes(400, {message:'recipient refused'});
   }
 
   // Which WABA owns the sending phone.
@@ -312,6 +329,7 @@ global.fetch = vi.fn(async (url, opts = {}) => {
   if (u.includes('/phone_numbers')) return jsonRes(200, { data: [{ id: PHONE_ID, display_phone_number: '+441234567890' }] });
 
   if (u.includes(`/${PHONE_ID}/messages`)) {
+    if(wa.throwPost) throw new Error('network timeout');
     const body = JSON.parse(opts.body || '{}');
     if (!wa.reminderOk) {
       // Verbatim shape of the rejection that ran in production for a fortnight.
@@ -379,7 +397,7 @@ function seed({ prefs = {}, phone = '+447700900123', email = null, treatments = 
     ends_at: '2026-08-28T13:20:00.000Z',
     duration_minutes: 20,
     treatment_id: treatments ? 't1' : null,
-    clients: { first_name: 'Sophie', phone, email },
+    clients: { id: 'c1', beautician_id: 'b1', first_name: 'Sophie', phone, email },
     treatments,
     beauticians: {
       business_name: 'Ellindigo', first_name: 'Ellie', booking_slug: 'ellindigo',
@@ -405,7 +423,7 @@ beforeEach(() => {
   sent.meta.length = 0; sent.bird.length = 0; sent.resend.length = 0;
   aiActionWrites.length = 0; timeline.length = 0;
   for (const k of Object.keys(logs)) logs[k].length = 0;
-  wa.reminderOk = true;
+  wa.reminderOk = true; wa.throwPost = false; bird.throwPost = false; resend.ok = true; global.fetch.mockClear();
   bird.ok = true;
   boom.metering = null;
 });
@@ -554,7 +572,7 @@ describe('a patch test, which carries no treatment_id', () => {
     // the unique index guaranteed no later run would retry it.
     seed({ treatments: null, phone: null, email: 'sophie@example.com' });
 
-    await expect(notifyReminder24h('a1')).resolves.toBeUndefined();
+    await expect(notifyReminder24h('a1')).resolves.toMatchObject({sent:true,channels:['email']});
 
     expect(sent.resend, 'the patch test client got no email').toHaveLength(1);
     const mail = sent.resend[0];
@@ -582,24 +600,14 @@ describe('a patch test, which carries no treatment_id', () => {
 
 /* ================================ 5. a throw is recorded before it escapes == */
 describe('when the send half throws', () => {
-  it('records the failure on the claimed row and then rethrows', async () => {
+  it('still sends SMS when WhatsApp preflight throws', async () => {
     boom.metering = 'metering backend unreachable';
     seed({ email: null });
-
-    // Rethrown, so processReminders still logs it and the caller still knows.
-    await expect(notifyReminder24h('a1')).rejects.toThrow('metering backend unreachable');
-
-    const row = reminderRow();
-    expect(row, 'the claim row vanished').toBeTruthy();
-    // The three things it must not be. 'success' was the old behaviour and it
-    // was a lie; 'pending' would be a claim nobody ever came back to.
-    expect(row.outcome).not.toBe('success');
-    expect(row.outcome).not.toBe('pending');
-    expect(row.outcome).toBe('failed');
-    expect(row.summary).toContain('metering backend unreachable');
-    expect(row.summary).not.toMatch(/\bsent\b/i);
-    // Written before the exception left the function, not by some later sweep.
-    expect(timeline[timeline.length - 1]).toBe('settle:failed');
+    await expect(notifyReminder24h('a1')).resolves.toMatchObject({sent:true,channels:['sms']});
+    expect(sent.meta).toHaveLength(0);
+    expect(sent.bird).toHaveLength(1);
+    expect(reminderRow().outcome).toBe('success');
+    expect(reminderRow().summary).toBe("Sent Sophie's 24-hour reminder by sms");
   });
 });
 
@@ -633,7 +641,7 @@ describe('the outcome column', () => {
   it('and the same is true of the run that throws', async () => {
     boom.metering = 'metering backend unreachable';
     seed({ email: null });
-    await expect(notifyReminder24h('a1')).rejects.toThrow();
+    await expect(notifyReminder24h('a1')).resolves.toMatchObject({sent:true});
 
     for (const w of aiActionWrites) {
       if (w.payload.outcome == null) continue;
@@ -674,5 +682,29 @@ describe('the outcome column', () => {
     const good = await builder('ai_actions').update({ outcome: 'failed' }).eq('id', 'x1');
     expect(good.error).toBeNull();
     expect(db.ai_actions[0].outcome).toBe('failed');
+  });
+});
+
+
+describe('provider failures do not invent delivery or duplicate requests', () => {
+  it('does not record an email rejected by Resend as sent', async () => {
+    resend.ok = false; seed({phone:null,email:'sophie@example.com'});
+    expect(await notifyReminder24h('a1')).toMatchObject({sent:false,channels:[]});
+    expect(reminderRow().outcome).toBe('failed');
+    expect(db.messages.some(m=>m.channel==='email')).toBe(false);
+  });
+  it('does not retry an ambiguous SMS POST and still sends the email', async () => {
+    wa.reminderOk = false; bird.throwPost = true; seed({email:'sophie@example.com'});
+    expect(await notifyReminder24h('a1')).toMatchObject({sent:true,channels:['email']});
+    expect(global.fetch.mock.calls.filter(([url])=>String(url).includes('api.bird.com'))).toHaveLength(1);
+    expect(db.appointment_reminder_deliveries[0].state).toBe('sms_unknown');
+    expect(db.ai_actions.some(a=>a.action_type==='reminder_delivery' && a.outcome==='failed')).toBe(true);
+  });
+  it('does not retry an ambiguous WhatsApp POST or blindly send SMS', async () => {
+    wa.throwPost = true; seed({email:'sophie@example.com'});
+    expect(await notifyReminder24h('a1')).toMatchObject({sent:true,channels:['email']});
+    expect(global.fetch.mock.calls.filter(([url])=>String(url).includes(`/${PHONE_ID}/messages`))).toHaveLength(1);
+    expect(sent.bird).toHaveLength(0);
+    expect(db.appointment_reminder_deliveries[0].state).toBe('attention');
   });
 });

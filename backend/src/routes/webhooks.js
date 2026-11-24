@@ -6,6 +6,7 @@ import { resolveWhatsAppCredentials, tenantWhatsAppEnabled } from '../lib/whatsa
 import { processInboundMessage } from '../services/ai-front-desk.js';
 import { shouldProcessInbound } from '../lib/appointment-message-scenario.js';
 import { applyWhatsAppStatuses } from '../services/delivery-receipts.js';
+import { saveWhatsAppReceipts } from '../services/reminder-sms-fallback.js';
 import { applyWhatsAppLifecycle, hasWhatsAppLifecycleEvent } from '../services/whatsapp-lifecycle.js';
 import { pushMessagesWaiting } from '../services/push-notifications.js';
 import { classifyInboundMessage, looksLikeKnownClient } from '../lib/junk-classifier.js';
@@ -18,7 +19,7 @@ import { autoUnarchiveClient } from '../lib/client-archive.js';
 import Anthropic from '@anthropic-ai/sdk';
 import { authorship } from '../lib/authorship.js';
 import { hasColumn } from '../lib/schema-probe.js';
-import { isSharedSmsNumber, sendWhatsAppText, sendSMS, learnPhoneParentWaba } from '../services/notifications.js';
+import { isSharedSmsNumber, sendWhatsAppText, sendSMS, learnPhoneParentWaba, retryReminderSms } from '../services/notifications.js';
 import { guardedSend } from '../lib/outbound-guard.js';
 import { isOptOutMessage, applyOptOut, OPT_OUT_CONFIRMATION } from '../lib/opt-out.js';
 
@@ -206,6 +207,16 @@ router.post('/whatsapp', async (req, res) => {
     catch { return res.status(503).json({ error: 'WhatsApp app event could not be saved. Please retry.' }); }
   }
 
+  const deliveryStatuses = (req.body?.entry || []).flatMap(entry =>
+    (entry.changes || []).flatMap(change => Array.isArray(change.value?.statuses) ? change.value.statuses : []));
+  if (deliveryStatuses.length) {
+    // A receipt can initiate a fallback. Save verified evidence before 200 so
+    // Meta retries a database outage, and an early receipt cannot be lost.
+    if (!secret) return res.status(503).json({ error: 'Webhook not configured' });
+    try { await saveWhatsAppReceipts(deliveryStatuses); }
+    catch { return res.status(503).json({ error: 'Delivery receipt could not be saved. Please retry.' }); }
+  }
+
   recordWebhookHit({ ...hitBase, result: '200_accepted' });
 
   // Signature verified or skipped — return 200 immediately (Meta retries on failure)
@@ -225,10 +236,9 @@ router.post('/whatsapp', async (req, res) => {
     // "which account are we sending from".
     learnPhoneParentWaba(body.entry?.[0]?.changes?.[0]?.value?.metadata?.phone_number_id, body.entry?.[0]?.id);
 
-    const statuses = body.entry?.[0]?.changes?.[0]?.value?.statuses;
-    if (Array.isArray(statuses) && statuses.length) {
-      await applyWhatsAppStatuses(statuses);
-      return;
+    if (deliveryStatuses.length) {
+      await applyWhatsAppStatuses(deliveryStatuses);
+      await retryReminderSms(deliveryStatuses.map(status => status.id).filter(Boolean));
     }
 
     if (!body.entry?.[0]?.changes?.[0]?.value?.messages) {

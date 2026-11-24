@@ -159,7 +159,8 @@ function shape(row) {
     link_to: resolveLink(row),
     outcome: row.outcome || null,
     background_check: row.details?.heartbeat === true,
-    state_label: row.details?.heartbeat ? 'Background check' : row.outcome === 'success' ? 'Completed' : row.outcome === 'failed' ? 'Could not finish' : row.outcome === 'pending' ? 'Not yet confirmed' : row.outcome === 'escalated' ? 'Handed to you' : 'Recorded update',
+    state_label: row.action_type === 'reminder_delivery' && row.details?.delivery_status === 'sms_sent' ? 'Sent by text'
+      : row.details?.heartbeat ? 'Background check' : row.outcome === 'success' ? 'Completed' : row.outcome === 'failed' ? 'Could not finish' : row.outcome === 'pending' ? 'Not yet confirmed' : row.outcome === 'escalated' ? 'Handed to you' : 'Recorded update',
   };
 }
 
@@ -302,6 +303,8 @@ function resolveLink(row) {
       return '/referrals';
     case 'voice_note_processed':
       return '/voice';
+    case 'reminder_delivery':
+      return cid ? thread : calendarDay;
 
     default:
       // Sensible fallback based on what the row references.

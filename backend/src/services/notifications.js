@@ -26,6 +26,8 @@ import { deDash } from '../lib/text.js';
 import { appointmentIcs, googleCalendarUrl } from '../lib/ical.js';
 import { apiPublicBase } from '../lib/public-url.js';
 import { salonEmail } from './salon-email.js';
+import { sendTrackedReminder, processReminderSmsFallbacks } from './reminder-sms-fallback.js';
+import { applyWhatsAppStatuses } from './delivery-receipts.js';
 
 /**
  * Where the booking pages live. Every other service in this directory falls
@@ -341,7 +343,7 @@ export async function readSmsRouting(beauticianId) {
   };
 }
 
-export async function sendSMS({ to, body, beauticianId, originator, messageType = 'general', clientId = null, skipThreadLog = false }) {
+export async function sendSMS({ to, body, beauticianId, originator, messageType = 'general', clientId = null, skipThreadLog = false, singleAttempt = false }) {
   if (!BIRD_API_KEY) {
     logger.debug('Bird not configured, skipping SMS');
     return null;
@@ -414,13 +416,15 @@ export async function sendSMS({ to, body, beauticianId, originator, messageType 
     },
   };
 
-  const maxRetries = 2;
+  const maxRetries = singleAttempt ? 0 : 2;
   const retryDelay = 1000;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    let definitelyRejected = false;
     try {
       const res = await fetch(url, {
         method: 'POST',
+        ...(singleAttempt ? { signal: AbortSignal.timeout(15000) } : {}),
         headers: {
           'Authorization': `AccessKey ${BIRD_API_KEY}`,
           'Content-Type': 'application/json',
@@ -428,6 +432,7 @@ export async function sendSMS({ to, body, beauticianId, originator, messageType 
         body: JSON.stringify(payload),
       });
 
+      definitelyRejected = !res.ok;
       const text = await res.text();
       let data = {};
       try { data = text ? JSON.parse(text) : {}; } catch { data = { raw: text }; }
@@ -444,7 +449,7 @@ export async function sendSMS({ to, body, beauticianId, originator, messageType 
       logger.info({ to, channelId, id: data?.id }, 'SMS sent via Bird');
       // ai_reply texts are already written to the thread by the front desk;
       // everything else (reminders, confirmations, nudges) gets logged here.
-      if (messageType !== 'ai_reply' && !skipThreadLog) logOutboundToThread({ beauticianId, to, clientId, channel: 'sms', body });
+      if (messageType !== 'ai_reply' && !skipThreadLog) await logOutboundToThread({ beauticianId, to, clientId, channel: 'sms', body, providerMessageId: data?.id });
       // Meter the confirmed send: weekly counter (legacy/display) + the monthly
       // combined quota (message_usage), which is the meter we actually bill from.
       if (beauticianId) {
@@ -457,6 +462,11 @@ export async function sendSMS({ to, body, beauticianId, originator, messageType 
       }
       return { ...data, usageInfo };
     } catch (err) {
+      if (singleAttempt) {
+        // An ambiguous POST may already have sent the text. Never replay it.
+        if (!definitelyRejected) err.deliveryUnknown = true;
+        throw err;
+      }
       if (attempt < maxRetries) {
         logger.debug({ attempt: attempt + 1, err }, 'SMS send failed, retrying...');
         await new Promise(resolve => setTimeout(resolve, retryDelay));
@@ -929,11 +939,21 @@ async function logOutboundToThread({ beauticianId, to, clientId, channel, templa
       // which is precisely the question nobody could answer when Lucy Walker
       // said she had never received a link.
       ...(channel === 'whatsapp' && providerMessageId ? { whatsapp_message_id: providerMessageId } : {}),
+      ...(channel === 'sms' && providerMessageId ? { external_message_id: providerMessageId } : {}),
+      ...(templateName ? { template_name: templateName } : {}),
       send_status: 'sent',
       // An approved WhatsApp template when we sent one, otherwise product
       // prose. Either way it is not her writing and must never train her voice.
       ...authorship(templateName ? 'template' : 'system'),
     });
+    if (channel === 'whatsapp' && providerMessageId) {
+      // The webhook can beat this insert. Reconcile its durable receipt once
+      // the thread row exists; receipts arriving later use the normal webhook.
+      const { data: early } = await supabase.from('whatsapp_delivery_receipts')
+        .select('status, provider_at').eq('message_id', providerMessageId).maybeSingle();
+      if (early) await applyWhatsAppStatuses([{ id: providerMessageId, status: early.status,
+        timestamp: String(Date.parse(early.provider_at) / 1000) }]);
+    }
   } catch (err) {
     logger.warn({ err }, 'logOutboundToThread failed (send already succeeded)');
   }
@@ -1024,7 +1044,7 @@ async function sendWhatsAppTemplateViaTwilio({
  */
 export async function sendWhatsApp({
   to, templateName, templateParams, templateFields, templateExtras,
-  beauticianId, clientId = null, skipThreadLog = false, transactional = false,
+  beauticianId, clientId = null, skipThreadLog = false, transactional = false, deliveryTracking = false,
 }) {
   // Resolve provider + sender config from the beautician record. Twilio
   // tenants don't need the Meta token at all, so this runs before the
@@ -1130,11 +1150,13 @@ export async function sendWhatsApp({
   logger.info({ templateName, phoneNumberId, sendingWaba, resolvedLang, languages }, 'sendWhatsApp: locale candidates');
   let lastErr = null;
   for (const lang of languages) {
+    let definitelyRejected = false;
     try {
       const res = await fetch(
         `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`,
         {
           method: 'POST',
+          ...(deliveryTracking ? { signal: AbortSignal.timeout(15000) } : {}),
           headers: {
             'Authorization': `Bearer ${credentials.token}`,
             'Content-Type': 'application/json',
@@ -1155,11 +1177,13 @@ export async function sendWhatsApp({
         }
       );
 
+      definitelyRejected = !res.ok;
       const data = await res.json();
       if (res.ok) {
         logger.info({ to, templateName, lang }, 'WhatsApp template sent');
-        if (beauticianId) await trackWhatsAppMessage(beauticianId);
-        if (!skipThreadLog) logOutboundToThread({
+        try { if (beauticianId) await trackWhatsAppMessage(beauticianId); }
+        catch (err) { logger.warn({ code: err.code, beauticianId }, 'WhatsApp metering failed after acceptance'); }
+        if (!skipThreadLog) await logOutboundToThread({
           beauticianId, to, clientId, channel: 'whatsapp', templateName, templateParams,
           providerMessageId: data?.messages?.[0]?.id || null,
         });
@@ -1169,6 +1193,7 @@ export async function sendWhatsApp({
       // 132001 = template/locale mismatch -> try next locale; any other error -> stop.
       if (data?.error?.code !== 132001) break;
     } catch (err) {
+      if (deliveryTracking && !definitelyRejected) { err.deliveryUnknown = true; throw err; }
       lastErr = err;
       break;
     }
@@ -1198,7 +1223,7 @@ export async function sendWhatsApp({
  * Used for AI-generated replies, nudges, and non-template messages.
  * Note: freeform messages can only be sent within the 24-hour conversation window.
  */
-export async function sendWhatsAppText({ to, body, beauticianId }) {
+export async function sendWhatsAppText({ to, body, beauticianId, deliveryTracking = false }) {
   // House rule choke point for free-form WhatsApp, before either provider
   // branch. Only the body: `to` is a phone number, template sends go via
   // sendWhatsApp() and are not touched here.
@@ -1255,13 +1280,15 @@ export async function sendWhatsAppText({ to, body, beauticianId }) {
     return null;
   }
 
-  const maxRetries = 2;
+  const maxRetries = deliveryTracking ? 0 : 2;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    let definitelyRejected = false;
     try {
       const res = await fetch(
         `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`,
         {
           method: 'POST',
+          ...(deliveryTracking ? { signal: AbortSignal.timeout(15000) } : {}),
           headers: {
             'Authorization': `Bearer ${credentials.token}`,
             'Content-Type': 'application/json',
@@ -1275,12 +1302,15 @@ export async function sendWhatsAppText({ to, body, beauticianId }) {
         }
       );
 
+      definitelyRejected = !res.ok;
       const data = await res.json();
       if (!res.ok) throw new Error(JSON.stringify(data.error || data));
       logger.info({ to }, 'WhatsApp text sent');
-      if (beauticianId) await trackWhatsAppMessage(beauticianId);
+      try { if (beauticianId) await trackWhatsAppMessage(beauticianId); }
+      catch (err) { logger.warn({ code: err.code, beauticianId }, 'WhatsApp metering failed after acceptance'); }
       return data;
     } catch (err) {
+      if (deliveryTracking && !definitelyRejected) { err.deliveryUnknown = true; throw err; }
       if (attempt < maxRetries) {
         await new Promise(r => setTimeout(r, 1000));
       } else {
@@ -1442,14 +1472,39 @@ async function inWhatsAppSession(client) {
  * @param {object} [opts.beauticianPrefs]
  * @param {string} [opts.messageType] - Appointment care can continue while AI replies are paused.
  */
-export async function sendNudge({ client, body, templateName, templateParams, templateFields, templateExtras, beauticianId, beauticianPrefs = {}, messageType = 'ai_checkin' }) {
+export async function sendNudge({ client, body, templateName, templateParams, templateFields, templateExtras, beauticianId, beauticianPrefs = {}, messageType = 'ai_checkin', appointment = null }) {
   // Callers check the reminder preference and outbound rules before delivery.
   // Pausing conversations must not stop those selected care reminders.
   const appointmentCare = ['patch_test', 'consultation_form', 'patch_test_reminder'].includes(messageType);
   // A truthy skipped object could otherwise be logged as a successful send.
   if (beauticianPrefs?.paused && !appointmentCare) return null;
+  // Booked appointment care gets the same durable SMS fallback as the 24h
+  // reminder. Proactive marketing/expiry nudges retain their existing consent flow.
+  const emailOnly = appointmentCare && beauticianPrefs.channel === 'email';
+  const tracked = !emailOnly && appointment?.id && client?.phone && ['patch_test', 'consultation_form'].includes(messageType);
+  if (tracked) {
+    try {
+      const delivered = await sendTrackedReminder({ appointment: { ...appointment, beautician_id: beauticianId },
+        client, body, messageType, sendSms: sendSMS,
+        sendWhatsApp: async () => {
+          if (beauticianPrefs.channel === 'sms' || !client.whatsapp_id || !beauticianPrefs.whatsapp_connected) return null;
+          let result;
+          if (await inWhatsAppSession(client)) {
+            result = await sendWhatsAppText({ to: client.whatsapp_id, body, beauticianId, deliveryTracking: true });
+          } else if (templateName) {
+            result = await sendWhatsApp({ to: client.whatsapp_id, templateName, templateParams, templateFields,
+              templateExtras, beauticianId, clientId: client.id, skipThreadLog: true, deliveryTracking: true });
+          }
+          if (result) await logOutboundToThread({ beauticianId, clientId: client.id, channel: 'whatsapp', body,
+            providerMessageId: result.messages?.[0]?.id || result.sid });
+          return result;
+        },
+      });
+      if (delivered) return delivered;
+    } catch (err) { logger.warn({ appointmentId: appointment.id, code: err.code }, 'Phone care reminder could not be confirmed; trying email'); }
+  }
   // Path 1: active WhatsApp session — send free-form, it'll land immediately
-  if (client?.whatsapp_id && (tenantWhatsAppEnabled() || WA_TOKEN || twilioConfigured()) && beauticianPrefs?.whatsapp_connected && await inWhatsAppSession(client)) {
+  if (!emailOnly && !tracked && client?.whatsapp_id && (tenantWhatsAppEnabled() || WA_TOKEN || twilioConfigured()) && beauticianPrefs?.whatsapp_connected && await inWhatsAppSession(client)) {
     const result = await sendWhatsAppText({ to: client.whatsapp_id, body, beauticianId });
     if (result) {
       await logComms(beauticianId, client.id, 'whatsapp', 'outbound', body);
@@ -1458,7 +1513,7 @@ export async function sendNudge({ client, body, templateName, templateParams, te
   }
 
   // Path 2: WhatsApp template (client has opted in, we have a template, session not required)
-  if (client?.whatsapp_id && (tenantWhatsAppEnabled() || WA_TOKEN || twilioConfigured()) && beauticianPrefs?.whatsapp_connected && templateName) {
+  if (!emailOnly && !tracked && client?.whatsapp_id && (tenantWhatsAppEnabled() || WA_TOKEN || twilioConfigured()) && beauticianPrefs?.whatsapp_connected && templateName) {
     const result = await sendWhatsApp({ to: client.whatsapp_id, templateName, templateParams, templateFields, templateExtras, beauticianId, clientId: client.id, skipThreadLog: true });
     if (result) {
       await logComms(beauticianId, client.id, 'whatsapp', 'outbound', body);
@@ -1467,7 +1522,7 @@ export async function sendNudge({ client, body, templateName, templateParams, te
   }
 
   // Path 3: SMS — universal fallback for proactive outbound
-  if (client?.phone && BIRD_API_KEY) {
+  if (!emailOnly && !tracked && client?.phone && BIRD_API_KEY) {
     const result = await sendSMS({ to: client.phone, body, beauticianId, messageType, clientId: client.id, skipThreadLog: true });
     if (result) {
       await logComms(beauticianId, client.id, 'sms', 'outbound', body);
@@ -2084,11 +2139,11 @@ export async function notifyBookingConfirmed(appointmentId) {
 export async function notifyReminder24h(appointmentId) {
   const { data: appt } = await supabase
     .from('appointments')
-    .select('*, clients(first_name, phone, email, marketing_consent, marketing_opted_out_at, messaging_autonomy), treatments(name, duration_minutes), beauticians(business_name, first_name, email, whatsapp_phone_id, twilio_wa_sender, client_reminder_prefs, brand_color, logo_url, tagline, booking_slug)')
+    .select('*, clients(first_name, phone, email, marketing_consent, marketing_opted_out_at, messaging_autonomy), treatments(name, duration_minutes), beauticians(business_name, first_name, email, whatsapp_phone_id, twilio_wa_sender, client_reminder_prefs, timezone, brand_color, logo_url, tagline, booking_slug)')
     .eq('id', appointmentId)
     .single();
 
-  if (!appt) return;
+  if (!appt || appt.status !== 'confirmed' || !appt.clients) return;
 
   const client = appt.clients;
   const treatment = await wholeTreatment(appt);
@@ -2160,7 +2215,7 @@ export async function notifyReminder24h(appointmentId) {
   const changeLine = reminderManageUrl
     ? ` View your booking and preparation: ${reminderManageUrl}`
     : '';
-  const textMsg = `Hi ${client.first_name}, just a reminder your ${treatmentName} with ${bizName} is tomorrow at ${timeStr}.${changeLine} See you then!`;
+  const textMsg = `Hi ${client.first_name}, just a reminder your ${treatmentName} with ${bizName} is on ${dateStr} at ${timeStr}.${changeLine} See you then!`;
 
   // What actually reached her, filled in as each channel answers, and written
   // back to the claimed row at the end. `delivered` staying empty is the whole
@@ -2170,38 +2225,24 @@ export async function notifyReminder24h(appointmentId) {
   let failure = null;
 
   try {
-    // SMS/WhatsApp — only if opted in
-    {   // unconditional: see notifyBookingConfirmed
+    // Each channel fails independently; a WhatsApp error cannot skip SMS or email.
+    try {
       const channel = prefs.channel || 'whatsapp';
-      const hasWhatsApp = !!(biz?.whatsapp_phone_id || biz?.twilio_wa_sender);
-      if (channel === 'whatsapp' && client.phone) {
-        // TWO parameters, not three. reminder_24h_v2's approved body is "Hi
-        // {{1}}, just a reminder that your appointment is tomorrow at {{2}}." and
-        // has never had a treatment slot, so every reminder sent as three params
-        // was rejected by Meta for parameter count and reached nobody. Found on
-        // 27 August 2026 by reading the live WABA; see lib/whatsapp-templates.js.
-        //
-        // The treatment name goes in templateExtras: _v4 does have a slot for it
-        // and will use it the moment Meta approves _v4, and until then its
-        // absence costs the client nothing, because the body she gets never
-        // promised to name her treatment.
-        const waResult = await sendWhatsApp({
-          to: client.phone,
-          templateName: 'reminder_24h_v2',
-          templateParams: [client.first_name, timeStr],
-          templateExtras: { treatment: treatmentName },
-          beauticianId: appt.beautician_id,
+      if (client.phone && ['whatsapp', 'sms'].includes(channel)) {
+        const phone = await sendTrackedReminder({ appointment: appt,
+          client: { ...client, id: appt.client_id }, body: textMsg,
+          messageType: 'appointment_reminder', sendSms: sendSMS,
+          sendWhatsApp: channel === 'whatsapp' ? () => sendWhatsApp({
+            to: client.phone, templateName: 'reminder_24h_v2',
+            templateParams: [client.first_name, timeStr], templateExtras: { treatment: treatmentName },
+            beauticianId: appt.beautician_id, clientId: appt.client_id, deliveryTracking: true,
+          }) : null,
         });
-        if (waResult) delivered.push('whatsapp');
-        // Fall through to SMS if WhatsApp not available
-        if (!waResult && client.phone && BIRD_API_KEY) {
-          const sms = await sendSMS({ to: client.phone, body: textMsg, beauticianId: appt.beautician_id, messageType: 'appointment_reminder' });
-          if (sms) delivered.push('sms');
-        }
-      } else if ((channel === 'sms' || !hasWhatsApp) && client.phone) {
-        const sms = await sendSMS({ to: client.phone, body: textMsg, beauticianId: appt.beautician_id, messageType: 'appointment_reminder' });
-        if (sms) delivered.push('sms');
+        if (phone) delivered.push(phone.channel);
       }
+    } catch (err) {
+      failure = 'Phone reminder could not be confirmed';
+      logger.warn({ appointmentId, code: err.code }, failure);
     }
 
     // Email — always send unless explicitly disabled
@@ -2230,29 +2271,28 @@ export async function notifyReminder24h(appointmentId) {
       `,
       });
 
-      await sendEmail({
+      const email = await sendEmail({
         salon: { ...biz, id: appt.beautician_id },
         to: client.email,
         subject: `Reminder: ${treatmentName} tomorrow at ${timeStr}`,
         text: textMsg,
         html,
+        idempotencyKey: `reminder-${marker.id}`,
+        timeoutMs: 15000,
         // "Let ${bizName} know as soon as possible" is the last line of the
         // email; a reply has to reach the salon for that to be true.
         replyTo: biz?.email,
       });
       // Show the emailed reminder in the client's thread too, so the beautician
       // can see exactly what went out (email sends were previously invisible here).
-      logOutboundToThread({ beauticianId: appt.beautician_id, clientId: appt.client_id, channel: 'email', body: textMsg });
-      delivered.push('email');
+      if (email) {
+        await logOutboundToThread({ beauticianId: appt.beautician_id, clientId: appt.client_id, channel: 'email', body: textMsg });
+        delivered.push('email');
+      }
     }
   } catch (err) {
-    // A throw here used to be the worst outcome available: the claim row stayed
-    // behind saying the reminder was sent, and the unique index meant no later
-    // run would ever try again. The client's one reminder was spent on an
-    // exception. Now the throw is recorded and rethrown, so processReminders
-    // still logs it and the row tells the truth.
-    failure = err.message || String(err);
-    throw err;
+    failure = 'Email reminder could not be confirmed';
+    logger.warn({ appointmentId, code: err.code }, failure);
   } finally {
     if (marker?.id) {
       const ok = delivered.length > 0;
@@ -2266,6 +2306,11 @@ export async function notifyReminder24h(appointmentId) {
       }).eq('id', marker.id);
     }
   }
+  return { sent: delivered.length > 0, channels: delivered };
+}
+
+export async function retryReminderSms(providerIds = null) {
+  return processReminderSmsFallbacks(sendSMS, providerIds);
 }
 
 /**
@@ -2293,8 +2338,8 @@ export async function processReminders() {
   let sent = 0;
   for (const appt of appointments) {
     try {
-      await notifyReminder24h(appt.id);
-      sent++;
+      const result = await notifyReminder24h(appt.id);
+      if (result?.sent) sent++;
     } catch (err) {
       logger.error({ appointmentId: appt.id, err }, 'Reminder failed');
     }

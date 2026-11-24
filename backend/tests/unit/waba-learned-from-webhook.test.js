@@ -49,7 +49,7 @@ describe('the webhook writes it down', () => {
   it('learns from every delivery, receipts included, after the signature check and before the early returns', () => {
     const learn = src.indexOf('learnPhoneParentWaba(body.entry?.[0]?.changes?.[0]?.value?.metadata?.phone_number_id, body.entry?.[0]?.id)');
     const verified = src.indexOf("recordWebhookHit({ ...hitBase, result: '200_accepted' })");
-    const statuses = src.indexOf("const statuses = body.entry?.[0]?.changes?.[0]?.value?.statuses");
+    const statuses = src.indexOf("await applyWhatsAppStatuses(deliveryStatuses)");
     expect(learn).toBeGreaterThan(verified);   // only from payloads we accepted
     expect(learn).toBeLessThan(statuses);      // receipts teach it too
   });

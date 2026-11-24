@@ -33,17 +33,14 @@ import logger from '../lib/logger.js';
  * WhatsApp's status vocabulary, in the order a message moves through it.
  * Anything unrecognised is ignored rather than guessed at.
  */
-const RANK = { sent: 1, delivered: 2, read: 3, failed: 4 };
+const RANK = { sent: 1, failed: 2, delivered: 3, read: 4 };
 
 /**
  * What a receipt changes on the row, or null if it changes nothing.
  *
- * MONOTONIC, deliberately. Receipts arrive out of order — a `read` can land
- * before the `delivered` that preceded it — and applying them blindly would
- * walk a message backwards from read to delivered. So a receipt only moves the
- * row forward. `failed` is the exception: it always wins, because a failure
- * after a delivered is real news and hiding it is how a client silently gets
- * nothing.
+ * Receipts arrive out of order. Delivered/read is positive evidence and must
+ * survive a delayed failure report; otherwise a received reminder gets an SMS
+ * duplicate. A failure can still replace the earlier API-accepted/sent state.
  *
  * @param {string} status the receipt's status
  * @param {string|null} current what the row says now
@@ -53,8 +50,7 @@ export function receiptPatch(status, current = null, at = new Date().toISOString
   const next = RANK[status];
   if (!next) return null;
   const now = RANK[current] || 0;
-  if (status !== 'failed' && next <= now) return null;
-  if (current === 'failed' && status !== 'failed') return null;
+  if (next <= now) return null;
 
   const patch = { send_status: status };
   if (status === 'delivered') patch.delivered_at = at;
@@ -88,41 +84,48 @@ export async function applyWhatsAppStatuses(statuses) {
     const status = String(s?.status || '').toLowerCase();
     if (!id || !RANK[status]) continue;
 
-    try {
-      const { data: msg, error } = await supabase
-        .from('messages')
-        .select('id, send_status, client_id, beautician_id')
-        .eq('whatsapp_message_id', id)
-        .maybeSingle();
-      if (error) { logger.warn({ err: error, id }, 'receipt lookup failed'); continue; }
-      if (!msg) {
-        // Every message sent before the id was recorded is unmatchable, so
-        // this will be noisy for a while and then go quiet. Counted rather
-        // than logged per row.
-        unmatched++;
-        continue;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const { data: msg, error } = await supabase
+          .from('messages')
+          .select('id, send_status, client_id, beautician_id')
+          .eq('whatsapp_message_id', id)
+          .maybeSingle();
+        if (error) { logger.warn({ err: error, id }, 'receipt lookup failed'); break; }
+        if (!msg) {
+          // Every message sent before the id was recorded is unmatchable, so
+          // this will be noisy for a while and then go quiet. Counted rather
+          // than logged per row.
+          unmatched++;
+          break;
+        }
+
+        const patch = receiptPatch(status, msg.send_status, receiptTime(s.timestamp));
+        if (!patch) break;
+
+        if (status === 'failed') {
+          // Keep WHY. "failed" on its own tells Ellie nothing she can act on;
+          // 131047 (re-engagement window) and 470 (template paused) have
+          // completely different answers.
+          const err = s.errors?.[0];
+          failedSends++;
+          logger.warn({
+            messageId: msg.id, beauticianId: msg.beautician_id, clientId: msg.client_id,
+            code: err?.code, title: err?.title, detail: err?.error_data?.details,
+          }, 'WhatsApp reported a message as FAILED — the client did not receive it');
+        }
+
+        let update = supabase.from('messages').update(patch).eq('id', msg.id);
+        update = msg.send_status == null ? update.is('send_status', null) : update.eq('send_status', msg.send_status);
+        const { data: changed, error: upErr } = await update.select('id');
+        if (upErr) { logger.warn({ err: upErr, id: msg.id }, 'receipt update failed'); break; }
+        if (!changed?.length) continue; // Re-read if another receipt advanced the row first.
+        applied++;
+        break;
+      } catch (err) {
+        logger.warn({ err, id }, 'receipt threw');
+        break;
       }
-
-      const patch = receiptPatch(status, msg.send_status, receiptTime(s.timestamp));
-      if (!patch) continue;
-
-      if (status === 'failed') {
-        // Keep WHY. "failed" on its own tells Ellie nothing she can act on;
-        // 131047 (re-engagement window) and 470 (template paused) have
-        // completely different answers.
-        const err = s.errors?.[0];
-        failedSends++;
-        logger.warn({
-          messageId: msg.id, beauticianId: msg.beautician_id, clientId: msg.client_id,
-          code: err?.code, title: err?.title, detail: err?.error_data?.details,
-        }, 'WhatsApp reported a message as FAILED — the client did not receive it');
-      }
-
-      const { error: upErr } = await supabase.from('messages').update(patch).eq('id', msg.id);
-      if (upErr) { logger.warn({ err: upErr, id: msg.id }, 'receipt update failed'); continue; }
-      applied++;
-    } catch (err) {
-      logger.warn({ err, id }, 'receipt threw');
     }
   }
 
