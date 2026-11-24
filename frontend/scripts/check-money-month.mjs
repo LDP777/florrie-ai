@@ -90,7 +90,7 @@ try {
     await page.getByRole('region',{name:'Year so far figures'}).getByText('£290',{exact:true}).first().waitFor();
     assert.equal(await page.getByRole('region',{name:'Year so far figures'}).locator('xpath=ancestor::details').count(),0);
     assert.equal(await page.getByText('Trends & breakdowns',{exact:true}).count(),0);
-    assert.equal(await page.getByText('2025–26 to the same point',{exact:true}).count(),0,'An empty prior year is not a useful comparison');
+    assert.equal(await page.getByText(/2025[–-]26 to the same point/).count(),0,'An empty prior year is not a useful comparison');
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
     if(output){
       await page.evaluate(()=>document.fonts.ready);
