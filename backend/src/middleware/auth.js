@@ -8,6 +8,7 @@ import logger from '../lib/logger.js';
  * These are fetched server-side only when the relevant route needs them.
  */
 const SAFE_BEAUTICIAN_FIELDS = [
+  'owner_access_approved',
   'id',
   'first_name',
   'last_name',
@@ -155,6 +156,7 @@ export function withTrialWindow(beautician) {
  */
 export async function resolveBeautician(req) {
   if (req.user && req.beautician) {
+    if (req.beautician.owner_access_approved !== true) return { ok: false, reason: 'salon_access_required' };
     return { ok: true, user: req.user, beautician: req.beautician };
   }
 
@@ -179,6 +181,7 @@ export async function resolveBeautician(req) {
     .single();
 
   if (bError || !beautician) return { ok: false, reason: 'no_profile' };
+  if (beautician.owner_access_approved !== true) return { ok: false, reason: 'salon_access_required' };
 
   req.user = user;
   req.beautician = withTrialWindow(beautician);
@@ -203,7 +206,7 @@ export async function requireAuth(req, res, next) {
     if (result.reason === 'invalid_token') {
       return res.status(401).json({ error: 'Invalid or expired token' });
     }
-    return res.status(403).json({ error: 'No beautician profile found. Complete onboarding first.' });
+    return res.status(403).json({ code: 'SALON_ACCESS_REQUIRED', error: 'Salon access is invite only. Use your salon’s public link to book.' });
   } catch (err) {
     logger.error({ err }, 'Auth middleware error');
     return res.status(500).json({ error: 'Authentication failed' });

@@ -26,7 +26,7 @@ const stubs = {
     onAuthStateChange(fn){window.fixture.listeners.add(fn);return {data:{subscription:{unsubscribe(){window.fixture.listeners.delete(fn);}}}};},
     signOut(){window.fixture.signOuts++;throw Error('unexpected sign-out');}
   }};
-  export const useBeautician=()=>({beautician:{id:'fixture-owner',onboarding_completed_at:'2026-09-01',subscription_status:'active'}});`,
+  export const useBeautician=()=>({beautician:{owner_access_approved:true,id:'fixture-owner',onboarding_completed_at:'2026-09-01',subscription_status:'active'}});`,
   config: 'export const API_BASE="";',
   platform: 'export const isIOSNative=()=>true;export const isNativeApp=()=>false;',
   native: 'export const hapticTap=()=>{};',
@@ -109,11 +109,12 @@ try {
   await page.evaluate(() => fixture.event('TOKEN_REFRESHED', fixture.session));
   await page.getByRole('heading', { name: 'Hub', exact: true }).waitFor();
 
-  await mount('/book/demo');
+  await page.goto(origin + '/book/demo');
   await page.getByRole('heading', { name: 'BookingPage', exact: true }).waitFor();
   await page.clock.runFor(16_501);
   await page.getByRole('heading', { name: 'BookingPage', exact: true }).waitFor();
   assert.equal(await page.getByRole('alert').count(), 0, 'owner auth failure must not block client booking');
+  assert.equal(await page.evaluate(() => fixture.requests.length), 0, 'public booking must not start owner auth');
   assert.deepEqual(errors, []);
   console.log('PASS: real App bounds stalled auth; Retry restores workspace; auth events release loading; stale reads cannot overwrite session; transient failures preserve route/storage; public booking stays open; StrictMode cleanup is safe');
 } finally {

@@ -12,7 +12,7 @@ import Button from '../components/ui/Button.jsx';
  * iOS App Store compliance (Guideline 3.1.3(b) Multiplatform Services):
  *   - On native iOS, the signup mode is hidden entirely. Sign-in only.
  *   - No "create your account" copy, no link to florrie.ai, no trial pitch.
- *   - Existing users can still sign in. New users go to florrie.ai on the web.
+ *   - Existing users can still sign in. Salon setup is invitation-only.
  *
  * Apple Guideline 4.8 Sign in with Apple:
  *   - Because Google sign-in is offered, Sign in with Apple is mandatory and
@@ -40,23 +40,17 @@ const GENERIC_SIGNUP_ERROR = 'Something went wrong. Please try again.';
 const RESET_SENT_MESSAGE = "If an account exists with that email, you'll receive a password reset link shortly. Check your inbox (and spam).";
 const APPLE_NOT_CONFIGURED_MESSAGE = 'Apple sign-in could not be completed. Please try again or use email.';
 
-export default function Login({ supabase, initialMode }) {
+export default function Login({ supabase, initialMode, allowSignup = false }) {
   const iosNative = isIOSNative();
+  const canSignUp = allowSignup && !iosNative;
   const location = useLocation();
-  // Which form opens first.
-  //
-  // The paid CTA on the marketing site sends a buyer to /signup. Landing her on
-  // "Welcome back" with a password field and a "Sign up" toggle several taps
-  // down the page is a sign-in form, whatever the URL said, so /signup opens
-  // the signup form (App.jsx passes initialMode; ?mode=signup does the same for
-  // any link written by hand or by an ad).
-  //
-  // iOS native never opens signup: App Store Guideline 3.1.3(b).
+  // Salon signup stays closed during the private beta. Public booking uses
+  // a separate client identity flow and never needs a salon account.
   const requestedMode = initialMode
     || (new URLSearchParams(location.search).get('mode') === 'signup' ? 'signup' : null);
-  // On iOS the only allowed modes are login + forgot + reset-sent. Signup is suppressed.
+  // Ordinary sign-in pages allow login and recovery only.
   const [mode, setMode] = useState(
-    requestedMode === 'signup' && !iosNative ? 'signup' : 'login'
+    requestedMode === 'signup' && canSignUp ? 'signup' : 'login'
   ); // login | signup | confirm | forgot | reset-sent
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -115,9 +109,8 @@ export default function Login({ supabase, initialMode }) {
         navigate('/');
 
       } else if (mode === 'signup') {
-        // Signup mode never renders on iOS native (see render guard below),
-        // but the handler stays defensive in case someone toggles state.
-        if (iosNative) {
+        // A URL or state change cannot enable public salon signup.
+        if (!canSignUp) {
           setError(GENERIC_SIGNUP_ERROR);
           return;
         }
@@ -166,8 +159,8 @@ export default function Login({ supabase, initialMode }) {
   }
 
   function switchMode(newMode) {
-    // Defensive: never allow a switch into signup mode on iOS native.
-    if (iosNative && newMode === 'signup') return;
+    // Both the view and the handler require an enabled invitation flow.
+    if (!canSignUp && newMode === 'signup') return;
     verification.current?.abort();
     verification.current = null;
     setVerifyingEmail(false);
@@ -181,7 +174,7 @@ export default function Login({ supabase, initialMode }) {
 
   async function confirmEmail(event) {
     event.preventDefault();
-    if (iosNative || mode !== 'confirm' || emailConfirmed || verification.current) return;
+    if (!canSignUp || mode !== 'confirm' || emailConfirmed || verification.current) return;
     if (!validConfirmationCode(confirmationCode)) {
       setError('Enter the 6 to 8 digit code from your email.');
       return;
@@ -295,7 +288,7 @@ export default function Login({ supabase, initialMode }) {
   }
 
   // Web signup confirmation. Email-link confirmation remains available too.
-  if (mode === 'confirm') {
+  if (canSignUp && mode === 'confirm') {
     return (
       <div style={styles.page}>
         <div style={styles.logoSection}>
@@ -359,8 +352,8 @@ export default function Login({ supabase, initialMode }) {
     );
   }
 
-  // On iOS native, force login mode regardless of what state says.
-  const effectiveMode = iosNative && mode === 'signup' ? 'login' : mode;
+  // Keep sign-in available when an old link requests the closed signup flow.
+  const effectiveMode = !canSignUp && ['signup', 'confirm'].includes(mode) ? 'login' : mode;
 
   return (
     <div style={styles.page}>
@@ -470,8 +463,8 @@ export default function Login({ supabase, initialMode }) {
           </>
         )}
 
-        {/* Mode switcher: hide signup toggle entirely on iOS native */}
-        {!iosNative && (
+        {/* Signup is available only through an explicitly enabled invitation flow. */}
+        {canSignUp && (
           <button
             type="button"
             onClick={() => switchMode(effectiveMode === 'login' ? 'signup' : 'login')}
@@ -484,7 +477,7 @@ export default function Login({ supabase, initialMode }) {
               : 'Already have an account? Sign in'}
           </button>
         )}
-        {iosNative && effectiveMode === 'forgot' && (
+        {!canSignUp && effectiveMode === 'forgot' && (
           <button
             type="button"
             onClick={() => switchMode('login')}
@@ -495,7 +488,7 @@ export default function Login({ supabase, initialMode }) {
         )}
       </form>
 
-      {effectiveMode === 'signup' && !iosNative && (
+      {effectiveMode === 'signup' && canSignUp && (
         <>
           <p style={styles.trialNote}>
             14 days free, everything included. No card needed to start, and we will

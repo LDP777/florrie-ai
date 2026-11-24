@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import express from 'express';
 import { PGlite } from '@electric-sql/pglite';
 
-const state = vi.hoisted(() => ({ db: null, race: null, writes: [], welcome: vi.fn() }));
+const state = vi.hoisted(() => ({ db: null, race: null, writes: [], appMetadata: {}, userMetadata: {}, welcome: vi.fn() }));
 const AUTH_ID = '00000000-0000-4000-8000-000000000001';
 const DAY = 86400000;
 const future = () => new Date(Date.now() + 3 * DAY).toISOString();
@@ -59,7 +59,7 @@ function from(table) {
 vi.mock('../../src/config.js', () => ({
   supabase: { from },
   supabaseAnon: { auth: { getUser: async token => token === 'fixture-token'
-    ? { data: { user: { id: AUTH_ID, email: 'owner@trial-proof.invalid', user_metadata: { first_name: 'Demo' } } } }
+    ? { data: { user: { id: AUTH_ID, email: 'owner@trial-proof.invalid', app_metadata: state.appMetadata, user_metadata: { first_name: 'Demo', ...state.userMetadata } } } }
     : { data: {}, error: { message: 'Invalid token' } } } },
 }));
 vi.mock('../../src/services/account-deletion.js', () => ({ accountDeletion: { status: async () => null } }));
@@ -77,6 +77,7 @@ beforeAll(async () => {
   await state.db.exec(`CREATE TABLE beauticians (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(), auth_id uuid UNIQUE,
     email text, first_name text, last_name text, business_name text,
+    owner_access_approved boolean NOT NULL DEFAULT false,
     subscription_plan text DEFAULT 'free',
     subscription_status text DEFAULT 'trial' CHECK (subscription_status IN
       ('trial','active','past_due','cancelled','trialing','canceled','unpaid','incomplete','incomplete_expired','paused')),
@@ -99,6 +100,8 @@ afterAll(async () => {
 beforeEach(async () => {
   await state.db.exec('TRUNCATE beauticians, treatments');
   state.race = null;
+  state.appMetadata = { salon_access: 'approved' };
+  state.userMetadata = {};
   state.writes = [];
   state.welcome.mockReset().mockResolvedValue(undefined);
 });
@@ -110,7 +113,7 @@ async function call(path, options = {}) {
 }
 const ensure = () => call('/api/auth/ensure-profile', { method: 'POST' });
 async function insertLegacy(fields = {}) {
-  const row = { auth_id: AUTH_ID, email: 'owner@trial-proof.invalid', ...fields };
+  const row = { owner_access_approved: true, auth_id: AUTH_ID, email: 'owner@trial-proof.invalid', ...fields };
   const keys = Object.keys(row);
   const result = await state.db.query(`INSERT INTO beauticians (${keys.map(quote)}) VALUES (${keys.map((_, i) => `$${i + 1}`)}) RETURNING *`, Object.values(row));
   return result.rows[0];
@@ -206,5 +209,45 @@ describe('signup and legacy trial access with actual SQL defaults', () => {
     expect((await call('/api/treatments')).status).toBe(403);
     expect((await ensure()).body.beautician.trial_ends_at).toBeNull();
     expect(state.writes).toHaveLength(0);
+  });
+});
+
+
+describe('private beta salon admission', () => {
+  it.each([{}, { salon_access: 'approved', owner_access_approved: true }])('rejects client accounts, including forged user metadata %j', async forged => {
+    state.appMetadata = {};
+    state.userMetadata = forged;
+    const result = await ensure();
+    expect(result.status).toBe(403);
+    expect(result.body.code).toBe('SALON_ACCESS_REQUIRED');
+    expect(state.writes).toEqual([]);
+    expect(state.welcome).not.toHaveBeenCalled();
+    expect((await state.db.query('SELECT count(*)::int AS n FROM beauticians')).rows[0].n).toBe(0);
+  });
+
+  it('blocks an unapproved existing profile from ensure, me, edits and owner APIs', async () => {
+    await insertLegacy({ owner_access_approved: false, trial_ends_at: future() });
+    for (const result of [await ensure(), await call('/api/auth/me'),
+      await call('/api/auth/me', { method: 'PATCH', body: JSON.stringify({ business_name: 'Not allowed' }) }),
+      await call('/api/treatments')]) {
+      expect(result.status).toBe(403);
+      expect(result.body.code).toBe('SALON_ACCESS_REQUIRED');
+    }
+    expect(state.writes).toEqual([]);
+    expect(state.welcome).not.toHaveBeenCalled();
+  });
+
+  it('does not require a new invitation for an established approved owner', async () => {
+    state.appMetadata = {};
+    await insertLegacy({ trial_ends_at: future() });
+    expect((await ensure()).status).toBe(200);
+    expect((await call('/api/auth/me')).body.beautician.owner_access_approved).toBe(true);
+    expect((await call('/api/treatments')).status).toBe(200);
+    expect(state.writes).toEqual([]);
+  });
+
+  it('does not expose an alternative public signup endpoint', async () => {
+    expect((await call('/api/auth/signup', { method: 'POST', body: '{}' })).status).toBe(403);
+    expect(state.writes).toEqual([]);
   });
 });

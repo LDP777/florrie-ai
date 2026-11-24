@@ -127,6 +127,8 @@ jobs:
         working-directory: frontend
       - run: node scripts/check-training-dates.mjs
         working-directory: frontend
+      - run: node scripts/check-student-access.mjs
+        working-directory: frontend
       - run: node scripts/check-training-feedback.mjs
         working-directory: frontend
       - run: node scripts/check-launch-waitlist.mjs

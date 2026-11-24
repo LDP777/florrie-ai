@@ -125,6 +125,7 @@ const ensureProfile = (token) => fetch(`${base}/api/auth/ensure-profile`, {
 
 const NEW_USER = {
   id: 'auth-uuid-1',
+  app_metadata: { salon_access: 'approved' },
   email: 'jo@newsalon.co.uk',
   user_metadata: { first_name: 'Jo', last_name: 'Barnes' },
 };
@@ -185,7 +186,7 @@ describe('the welcome sequence fires on a real signup', () => {
 
   it('sends nothing to an account that already existed before this endpoint did', async () => {
     // Ellie: signed up long before ensure-profile, row created by the browser.
-    db.beauticians.push({ id: 'beauticians_99', auth_id: 'auth-uuid-1', email: 'ellie@ellindigo.co.uk', first_name: 'Ellie' });
+    db.beauticians.push({ owner_access_approved: true, id: 'beauticians_99', auth_id: 'auth-uuid-1', email: 'ellie@ellindigo.co.uk', first_name: 'Ellie' });
 
     const res = await ensureProfile('good-token');
     await settle();

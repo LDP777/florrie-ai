@@ -41,7 +41,7 @@ describe('truthful account endpoints',()=>{
   expect((await call('/ensure-profile',{method:'POST'})).status).toBe(503);expect(fake.from).not.toHaveBeenCalled();
  });
  it('unused public signup cannot create a preverified user',async()=>{
-  expect((await call('/signup',{method:'POST',body:JSON.stringify({email:'fake@example.test',password:'password123'})})).status).toBe(410);
+  expect((await call('/signup',{method:'POST',body:JSON.stringify({email:'fake@example.test',password:'password123'})})).status).toBe(403);
   expect(fake.createUser).not.toHaveBeenCalled();
  });
  it('status recovery works after auth deletion using only the scoped token',async()=>{

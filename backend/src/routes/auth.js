@@ -37,6 +37,7 @@ async function createProfileWithWelcome(fields) {
     .from('beauticians')
     .insert({
       ...fields,
+      owner_access_approved: true,
       subscription_plan: 'trial',
       subscription_status: 'trial',
       trial_ends_at: new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000).toISOString(),
@@ -94,7 +95,14 @@ router.post('/ensure-profile', async (req, res) => {
   }
 
   if (existing) {
+    if (existing.owner_access_approved !== true) return res.status(403).json({ code: 'SALON_ACCESS_REQUIRED', error: 'Salon access is invite only. Use your salon’s public link to book.' });
     return res.json({ beautician: sanitizeBeautician(withTrialWindow(existing)), created: false });
+  }
+
+  // Only server-managed app_metadata may authorise a new salon. A booking
+  // customer's Auth account or editable user_metadata is never an invitation.
+  if (user.app_metadata?.salon_access !== 'approved') {
+    return res.status(403).json({ code: 'SALON_ACCESS_REQUIRED', error: 'Salon access is invite only. Use your salon’s public link to book.' });
   }
 
   const meta = user.user_metadata || {};
@@ -114,7 +122,7 @@ router.post('/ensure-profile', async (req, res) => {
         .select('*')
         .eq('auth_id', user.id)
         .maybeSingle();
-      if (raced) return res.json({ beautician: sanitizeBeautician(withTrialWindow(raced)), created: false });
+      if (raced?.owner_access_approved === true) return res.json({ beautician: sanitizeBeautician(withTrialWindow(raced)), created: false });
     }
     logger.error({ err: error }, 'ensure-profile: insert failed');
     return res.status(500).json({ error: 'Failed to create profile' });
@@ -125,7 +133,7 @@ router.post('/ensure-profile', async (req, res) => {
 
 // The browser uses Supabase signUp and its configured email verification.
 // Do not leave an alternate public admin-createUser(email_confirm:true) path.
-router.post('/signup', (_req, res) => res.status(410).json({ error: 'Create your account through the app signup screen.' }));
+router.post('/signup', (_req, res) => res.status(403).json({ code: 'SALON_ACCESS_REQUIRED', error: 'Salon access is invite only.' }));
 
 /**
  * GET /api/auth/me

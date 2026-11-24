@@ -78,7 +78,7 @@ beforeEach(() => {
   state.appointmentReadError = null;
   state.writes = [];
   state.salons = [
-    { id: 'owner-salon', auth_id: 'owner-auth', stripe_account_id: 'acct_owner', stripe_onboarding_complete: true, subscription_plan: 'florrie', subscription_status: 'active' },
+    { owner_access_approved: true, id: 'owner-salon', auth_id: 'owner-auth', stripe_account_id: 'acct_owner', stripe_onboarding_complete: true, subscription_plan: 'florrie', subscription_status: 'active' },
     { id: 'other-salon', auth_id: 'other-auth', stripe_account_id: 'acct_other', stripe_onboarding_complete: true },
   ];
   state.appointments = [

@@ -21,8 +21,7 @@ export const supabase = url ? createClient(url, key, isIOSNative() ? {
 } : undefined) : null;
 
 // Fetches (and caches) the current beautician row.
-// On first signup the row won't exist yet — `ensureProfile`
-// creates it from auth metadata.
+// The server creates a missing profile only for an approved invitation.
 //
 // PERFORMANCE: this hook is used by ~62 components, and several mount at once
 // on a single screen. It used to call supabase.auth.getUser() per component,
@@ -39,11 +38,13 @@ export const supabase = url ? createClient(url, key, isIOSNative() ? {
 let beauticianCache = null;   // last resolved row
 let beauticianCacheAt = 0;
 let beauticianInFlight = null;
+let beauticianGeneration = 0;
 const BEAUTICIAN_CACHE_MS = 30000;
 
 // A sign-in/sign-out must not serve the previous user's row.
 if (supabase) {
   supabase.auth.onAuthStateChange(() => {
+    beauticianGeneration++;
     readAuthenticatedJson.invalidateSession(supabase.auth);
     beauticianCache = null;
     beauticianCacheAt = 0;
@@ -75,12 +76,15 @@ async function createProfile(session, _user) {
   });
   const body = await response.json();
   if (response.status === 409 && body.code === 'ACCOUNT_DELETION_REQUESTED') return { account_deletion: body.deletion };
+  if (response.status === 403 && body.code === 'SALON_ACCESS_REQUIRED') return { owner_access_approved: false };
   if (!response.ok || !body.beautician) throw new Error('Could not create your profile. Please try again.');
   // Billing/trial fields are server-owned. Never fall back to a browser insert.
   return body.beautician;
 }
 
-async function loadBeauticianOnce({ force = false } = {}) {
+async function loadBeauticianOnce({ force = false, authUserId } = {}) {
+  if (authUserId === null) return null;
+  const generation = beauticianGeneration;
   if (!force) {
     if (beauticianCache && Date.now() - beauticianCacheAt < BEAUTICIAN_CACHE_MS) return beauticianCache;
     if (beauticianInFlight) return beauticianInFlight;
@@ -106,6 +110,7 @@ async function loadBeauticianOnce({ force = false } = {}) {
     }
     const user = session?.user || null;
     if (!user) return null;
+    if (authUserId !== undefined && user.id !== authUserId) throw new Error('Your sign-in changed. Please try again.');
 
     let { data, error } = await supabase
       .from('beauticians')
@@ -117,53 +122,66 @@ async function loadBeauticianOnce({ force = false } = {}) {
     if (!data && !error) {
       data = await createProfile(session, user);
     }
+    if (error) throw error;
     return data || null;
   })();
 
   if (!force) beauticianInFlight = run;
   try {
     const row = await run;
-    beauticianCache = row;
-    beauticianCacheAt = Date.now();
+    if (generation === beauticianGeneration) {
+      beauticianCache = row;
+      beauticianCacheAt = Date.now();
+    }
     return row;
   } finally {
     if (beauticianInFlight === run) beauticianInFlight = null;
   }
 }
 
-export function useBeautician() {
+export function useBeautician({ authUserId } = {}) {
   // Seed from the cache so a second component mounting on the same screen
   // renders immediately instead of flashing a spinner.
   const [beautician, setBeautician] = useState(beauticianCache);
   const [loading, setLoading] = useState(!beauticianCache);
+  const [error, setError] = useState(null);
+  const [resolvedAuthId, setResolvedAuthId] = useState(undefined);
+  const waitingForIdentity = authUserId !== undefined && resolvedAuthId !== authUserId;
 
   const refresh = useCallback(async ({ force = true } = {}) => {
+    setLoading(true);
+    setError(null);
     try {
-      const row = await loadBeauticianOnce({ force });
+      const row = await loadBeauticianOnce({ force, authUserId });
       setBeautician(row);
+      setResolvedAuthId(authUserId);
     } catch (err) {
+      setError(err);
       logger.error('useBeautician error:', err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [authUserId]);
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
+    setError(null);
     (async () => {
       try {
-        const row = await loadBeauticianOnce();
-        if (!cancelled) setBeautician(row);
+        const row = await loadBeauticianOnce({ force: authUserId !== undefined, authUserId });
+        if (!cancelled) { setBeautician(row); setResolvedAuthId(authUserId); }
       } catch (err) {
+        if (!cancelled) { setError(err); setResolvedAuthId(authUserId); setBeautician(null); }
         logger.error('useBeautician error:', err);
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [authUserId]);
 
-  return { beautician, loading, refresh };
+  return { beautician: waitingForIdentity ? null : beautician, loading: loading || waitingForIdentity, error, refresh };
 }
 
 // Thin wrappers so pages don't repeat beautician_id filtering.

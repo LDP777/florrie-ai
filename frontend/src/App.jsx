@@ -2,7 +2,7 @@ import './styles/client-privacy.css';
 import { ClientPrivacyProvider, ClientPrivacyToggle, ClientPrivacyStatus } from './contexts/ClientPrivacyContext.jsx';
 import { FlorrieOrb } from './components/ui/FlorrieEffects.jsx';
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
-import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation, useNavigate, matchPath } from 'react-router-dom';
 import { supabase } from './lib/supabase.js';
 import { API_BASE } from './lib/config.js';
 import { useTheme } from './lib/theme.jsx';
@@ -14,6 +14,7 @@ import CoachNudge from './components/CoachNudge.jsx';
 import FloatingMic from './components/FloatingMic.jsx';
 import MoreSectionNav from './components/MoreSectionNav.jsx';
 import AccountDeletionProgress from './components/AccountDeletionProgress.jsx';
+import SalonAccessClosed from './components/SalonAccessClosed.jsx';
 import { isVoiceEnabled } from './lib/voicePref.js';
 import { CoachProvider } from './contexts/CoachContext.jsx';
 import { isIOSNative } from './lib/platform.js';
@@ -264,7 +265,33 @@ function TrialExpiredScreen({ onSignOut, variant = 'trial' }) {
   );
 }
 
+// One route list controls both matching and rendering. Public visitors never
+// mount owner auth/profile hooks, even if they already have an Auth session.
+const PUBLIC_ROUTES = [
+  ['/book/:slug', BookingPage],
+  ['/book/:slug/confirmed', BookingPage],
+  ['/book/:slug/manage/:token', ClientManagePage],
+  ['/training/:slug', TrainingCatalogue],
+  ['/training/:slug/:courseId', TrainingBooking],
+  ['/form/:token', ConsultationFormPublic],
+  ['/privacy', PrivacyPolicy],
+  ['/support', Support],
+  ['/terms', TermsPage],
+  ['/data-deletion', DataDeletionPage],
+  ['/help/data-deletion', DataDeletionPage],
+];
+
 export default function App() {
+  const { pathname } = useLocation();
+  if (PUBLIC_ROUTES.some(([path]) => matchPath({ path, end: true }, pathname))) {
+    return <Suspense fallback={<PageLoader />}><Routes>
+      {PUBLIC_ROUTES.map(([path, Page]) => <Route key={path} path={path} element={<Page />} />)}
+    </Routes></Suspense>;
+  }
+  return <OwnerApp />;
+}
+
+function OwnerApp() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState(null);
@@ -272,7 +299,7 @@ export default function App() {
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { beautician } = useBeautician();
+  const { beautician, loading: profileLoading, error: profileError, refresh: retryProfile } = useBeautician({ authUserId: session?.user?.id || null });
 
   useEffect(() => {
     const startup = startAuthStartup({
@@ -314,19 +341,19 @@ export default function App() {
   // the device token to the backend. Web push stays on its existing
   // onboarding flow; this only runs inside the Capacitor shell.
   useEffect(() => {
-    if (!session) return;
+    if (!session || beautician?.owner_access_approved !== true) return;
     import('./lib/platform.js').then(({ isNativeApp }) => {
       if (!isNativeApp()) return;
       import('./lib/push.js')
         .then(({ registerNativePushToken }) => registerNativePushToken())
         .catch(() => {});
     }).catch(() => {});
-  }, [session]);
+  }, [session, beautician?.owner_access_approved]);
 
   // Native app (iOS): start the "Florrie on the desk" Live Activity once signed
   // in, so the lock-screen / Dynamic Island strip is live through the day.
   useEffect(() => {
-    if (!session || !beautician || beautician.account_deletion) return;
+    if (!session || beautician?.owner_access_approved !== true || beautician.account_deletion) return;
     import('./lib/platform.js').then(({ isNativeApp }) => {
       if (!isNativeApp()) return;
       import('./lib/liveActivity.js')
@@ -338,7 +365,7 @@ export default function App() {
   // Warm the main route chunks in the background once signed in, so tapping a
   // tab navigates instantly instead of showing the lazy-load spinner each time.
   useEffect(() => {
-    if (!session) return;
+    if (!session || beautician?.owner_access_approved !== true) return;
     const warm = () => {
       import('./pages/Hub.jsx');
       import('./pages/CalendarView.jsx');
@@ -356,7 +383,7 @@ export default function App() {
       if (ric && window.cancelIdleCallback) window.cancelIdleCallback(id);
       else clearTimeout(id);
     };
-  }, [session]);
+  }, [session, beautician?.owner_access_approved]);
 
   // Reset scroll to the top on every route change - otherwise the document keeps
   // the previous page's scroll position, so pages like Inbox/Money open part-way down.
@@ -368,11 +395,10 @@ export default function App() {
     if (sc) sc.scrollTop = 0;
   }, [location.pathname]);
 
-  const isPublicRoute = location.pathname.startsWith('/book/') || location.pathname.startsWith('/form/') || location.pathname.includes('/manage/') || location.pathname === '/privacy' || location.pathname === '/support';
   const isAuthRoute = location.pathname === '/login' || location.pathname === '/update-password';
   const isLandingRoute = location.pathname === '/';
 
-  if (loading && !isPublicRoute) {
+  if (loading || (session && profileLoading)) {
     return (
       <div style={styles.loadingScreen}>
         <img src="/florrie-petal.svg" alt="" style={{ width: 48, height: 48, animation: 'spin 2.5s ease-in-out infinite' }} />
@@ -382,7 +408,7 @@ export default function App() {
     );
   }
 
-  if (authError && !isPublicRoute) {
+  if (authError) {
     return (
       <div style={styles.loadingScreen}>
         <img src="/florrie-petal.svg" alt="" width="48" height="48" />
@@ -391,30 +417,6 @@ export default function App() {
         <Button pill onClick={() => authStartup.current?.retry()}>Try again</Button>
         <Button variant="quiet" onClick={() => window.location.reload()}>Reload app</Button>
       </div>
-    );
-  }
-
-  // Public routes don't need auth
-  if (isPublicRoute) {
-    return (
-      <Suspense fallback={<PageLoader />}>
-        <Routes>
-          <Route path="/book/:slug" element={<BookingPage />} />
-          <Route path="/book/:slug/confirmed" element={<BookingPage />} />
-          <Route path="/book/:slug/manage/:token" element={<ClientManagePage />} />
-          <Route path="/training/:slug" element={<TrainingCatalogue />} />
-          <Route path="/training/:slug/:courseId" element={<TrainingBooking />} />
-          <Route path="/form/:token" element={<ConsultationFormPublic />} />
-          {/* The one privacy policy. A second component (PrivacyPage, April
-              2026, no company number, no SMS section) was also registered on
-              this path in the two branches below, and could never be reached:
-              isPublicRoute claims /privacy first. Removed 2 September 2026 so
-              the policy a client reads and the policy the app links to cannot
-              drift apart again. */}
-          <Route path="/privacy" element={<PrivacyPolicy />} />
-          <Route path="/support" element={<Support />} />
-        </Routes>
-      </Suspense>
     );
   }
 
@@ -443,11 +445,7 @@ export default function App() {
       <Suspense fallback={<PageLoader />}>
         <Routes>
           <Route path="/login" element={<Login supabase={supabase} />} />
-          {/* The paid CTA on the marketing site points here. Before this route
-              existed the wildcard below sent that buyer to /login, which opens
-              on "Welcome back" with the account-creation toggle several taps
-              down the page. Same screen, signup form open. */}
-          <Route path="/signup" element={<Login supabase={supabase} initialMode="signup" />} />
+          <Route path="/signup" element={<SalonAccessClosed />} />
           <Route path="/update-password" element={<UpdatePassword supabase={supabase} />} />
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/data-deletion" element={<DataDeletionPage />} />
@@ -456,6 +454,19 @@ export default function App() {
         </Routes>
       </Suspense>
     );
+  }
+
+  if (session && (profileError || !beautician) && location.pathname !== '/update-password') {
+    return <div style={styles.loadingScreen}>
+      <h1>Couldn’t load your salon</h1>
+      <p role="alert">Check your connection, then try again.</p>
+      <Button onClick={() => retryProfile()}>Try again</Button>
+      <Button variant="quiet" onClick={() => supabase.auth.signOut()}>Sign out</Button>
+    </div>;
+  }
+
+  if (beautician?.owner_access_approved !== true && location.pathname !== '/update-password') {
+    return <SalonAccessClosed onSignOut={() => supabase.auth.signOut()} />;
   }
 
   // A new owner can need recovery before finishing setup. Let that route

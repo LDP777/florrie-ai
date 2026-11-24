@@ -28,7 +28,7 @@ const supabase={auth:{
  signUp:async value=>{fixture.signups.push(value);return {data:{user:{id:'synthetic-new-owner',email:value.email},session:null},error:null}},
  signInWithPassword:async value=>{fixture.signins.push(value);return {error:null}},
 }};
-function Harness(){const location=useLocation(),navigate=useNavigate();return <><output data-testid="path">{location.pathname}</output><button onClick={()=>navigate('/elsewhere')}>Leave signup</button>{['/signup','/login'].includes(location.pathname)&&<Login supabase={supabase} initialMode={location.pathname==='/signup'?'signup':undefined}/>}</>}
+function Harness(){const location=useLocation(),navigate=useNavigate();return <><output data-testid="path">{location.pathname}</output><button onClick={()=>navigate('/elsewhere')}>Leave signup</button>{['/signup','/login'].includes(location.pathname)&&<Login allowSignup supabase={supabase} initialMode={location.pathname==='/signup'?'signup':undefined}/>}</>}
 createRoot(document.getElementById('root')).render(<React.StrictMode><BrowserRouter><Harness/></BrowserRouter></React.StrictMode>);
 `;
 const bundle = await build({ stdin:{contents:entry,resolveDir:root,loader:'jsx'}, bundle:true,write:false,format:'iife',platform:'browser',jsx:'automatic',
