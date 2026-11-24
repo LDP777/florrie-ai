@@ -125,10 +125,10 @@ try {
   await page.locator('.calendar-timeline').getByText('24:00',{exact:true}).waitFor();
   await page.goto(origin+'/calendar/week?date=2026-08-09&view=day&slowProfile=1');
   await page.waitForFunction(()=>!!window.finishHoursProfile);
-  await page.locator('.calendar-page').waitFor();
+  // Owner approval is resolved with the profile. A cold start must not expose
+  // private diary tools while that access decision is still pending.
+  assert.equal(await page.locator('.calendar-page').count(),0,'diary waits for owner access');
   assert.equal(await page.locator('.calendar-hours-button').count(),0,'hours editor waits for its owner profile');
-  await page.getByLabel('Calendar tools',{exact:true}).click();
-  assert.equal(await page.getByRole('button',{name:'Hours for this day',exact:true}).isDisabled(),true);
   await page.evaluate(()=>window.finishHoursProfile());
   await page.getByRole('button',{name:/Hours for this day · 05:00–23:30/}).waitFor();
   await page.evaluate(()=>localStorage.setItem('hours-test-rows',JSON.stringify([{date:'2026-08-09',start_time:'09:00',end_time:'20:00'},{date:'2026-08-10',start_time:'09:00',end_time:'20:00'}])));
