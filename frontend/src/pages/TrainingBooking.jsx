@@ -16,6 +16,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { API_BASE } from '../lib/config.js';
 import Icon from '../components/ui/Icon';
 import Button from '../components/ui/Button.jsx';
+import CourseDescription from '../components/CourseDescription.jsx';
 
 const INCLUDES_LABELS = {
   certificate: 'Certificate',
@@ -369,9 +370,7 @@ export default function TrainingBooking() {
           </div>
         </div>
 
-        {course.description && (
-          <p style={styles.courseDesc}>{course.description}</p>
-        )}
+        <CourseDescription key={course.id} text={course.description} style={styles.courseDesc} />
 
         {/* Includes */}
         {course.includes?.length > 0 && (

@@ -62,6 +62,15 @@ async function rejectSafely(call) {
 }
 
 describe('Actual PostgreSQL offered training dates', () => {
+  it('stores a long outline intact and copies it to newly offered dates', async () => {
+    const description = ('Training outline 🌸\n\n• Demonstration\n• Supervised practice\n\n').repeat(1000);
+    await db.query('UPDATE courses SET description=$1 WHERE id=$2', [description, COURSE]);
+    expect((await db.query('SELECT description FROM courses WHERE id=$1', [COURSE])).rows[0].description).toBe(description);
+    const rows = (await add()).rows;
+    expect(rows).toHaveLength(3);
+    for (const row of rows) expect(row.description).toBe(description);
+  });
+
   it('keeps existing single dates and student records unchanged before dates are added', async () => {
     const row = (await db.query('SELECT * FROM courses WHERE id=$1', [COURSE])).rows[0];
     expect(row.course_group_id).toBeNull();

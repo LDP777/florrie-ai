@@ -36,6 +36,7 @@ import ErrorCard from '../components/ErrorCard.jsx';
 import Icon from '../components/ui/Icon';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import Button from '../components/ui/Button.jsx';
+import CourseDescription from '../components/CourseDescription.jsx';
 import { holdsAPlace, checkoutAbandoned, enrolmentLabel, spotsLeft, balanceDue, paidOnline, courseStage, sortCourses, groupCourses } from '../lib/course-enrolment.js';
 
 const DURATIONS = ['1 hour', '2 hours', '3 hours', 'Half day (4hrs)', 'Full day (7hrs)', '2 days'];
@@ -470,8 +471,8 @@ export default function Courses() {
           <label style={s.label}>Course name</label>
           <PrivateText placeholder="Private field hidden"><input aria-label="Course name" value={form.name} onChange={e => setField('name', e.target.value)} placeholder="e.g. Ultimate Beginner Lash Course" style={s.input} maxLength={120} /></PrivateText>
 
-          <label style={s.label}>What students will learn</label>
-          <PrivateText placeholder="Private field hidden"><textarea aria-label="What students will learn" value={form.description} onChange={e => setField('description', e.target.value)} placeholder="What you cover, who it is for, and what they can charge afterwards." style={{ ...s.input, height: 88, resize: 'vertical' }} maxLength={2000} /></PrivateText>
+          <label style={s.label} htmlFor="course-description">What students will learn</label>
+          <PrivateText placeholder="Private field hidden"><textarea id="course-description" value={form.description} onChange={e => setField('description', e.target.value)} placeholder="What you cover, who it is for, and what they can charge afterwards." rows={8} style={{ ...s.input, minHeight: 192, lineHeight: 1.6, resize: 'vertical' }} /></PrivateText>
 
           </>}
           <div style={s.dateIntro}>
@@ -619,7 +620,7 @@ export default function Courses() {
                     {!priceVaries && Number(base.deposit) > 0 && <span style={s.courseDeposit}><PrivateAmount>{pounds(base.deposit)}</PrivateAmount> deposit</span>}
                   </div>
                 </div>
-                {base.description && <p style={s.courseDesc}>{base.description}</p>}
+                <CourseDescription text={base.description} style={s.courseDesc} />
                 {Array.isArray(base.includes) && base.includes.length > 0 && <div style={s.includesRow}>
                   {base.includes.map(key => { const opt = INCLUDES_OPTIONS.find(o => o.key === key); return opt ? <span key={key} style={s.includeTag}>{opt.label}</span> : null; })}
                 </div>}
@@ -650,7 +651,7 @@ export default function Courses() {
                       {course.name !== base.name && <div style={s.courseMeta}>{course.name}</div>}
                       {course.location !== base.location && <div style={s.courseMeta}>{course.location || 'Location to confirm'}</div>}
                       {course.duration !== base.duration && <div style={s.courseMeta}>{course.duration}</div>}
-                      {course.description !== base.description && <p style={s.courseDesc}>{course.description}</p>}
+                      {course.description !== base.description && <CourseDescription text={course.description} style={s.courseDesc} />}
                       {priceVaries && <p style={s.dateHelp}><PrivateAmount>{pounds(course.price)}</PrivateAmount> · {Number(course.deposit) > 0 ? <><PrivateAmount>{pounds(course.deposit)}</PrivateAmount> deposit</> : 'No deposit'}</p>}
                       <div style={s.spotsRow}>
                         <div style={s.spotsBar}><div style={{ ...s.spotsBarFill, width: `${Math.min(100, ((Number(course.enrolled || 0) + Number(course.reserved_places || 0)) / Math.max(1, Number(course.max_students || 1))) * 100)}%`, background: full ? 'var(--warning, #79581C)' : 'var(--accent, #92405e)' }} /></div>

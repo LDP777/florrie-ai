@@ -5,6 +5,7 @@ import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { build } from 'esbuild';
 import { launch } from './lib/browser.mjs';
+import { webkit } from '@playwright/test';
 
 const root = new URL('../', import.meta.url).pathname;
 const output = process.env.FLORRIE_VISUAL_OUT;
@@ -71,11 +72,11 @@ const bundle = await build({
   stdin: { resolveDir: root, loader: 'jsx', contents: `
     import React from 'react';import {createRoot} from 'react-dom/client';
     import {BrowserRouter,Routes,Route,useNavigate} from 'react-router-dom';
-    import TrainingBooking from './src/pages/TrainingBooking.jsx';import Packages from './src/pages/Packages.jsx';
+    import TrainingBooking from './src/pages/TrainingBooking.jsx';import TrainingCatalogue from './src/pages/TrainingCatalogue.jsx';import Packages from './src/pages/Packages.jsx';
     import {ThemeProvider} from './src/lib/theme.jsx';
     const json=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json'}});
     const s=window.fixture={owner:${JSON.stringify(trainer)},courses:[],enrollments:[],public:{},requests:[],writes:[],checkout:[],holdGets:[],holdPosts:[],failOwnerRead:false,failOwnerWrite:false};
-    function Harness(){s.navigate=useNavigate();return <Routes><Route path="/courses" element={<Packages/>}/><Route path="/training/:slug/:courseId" element={<TrainingBooking/>}/></Routes>;}
+    function Harness(){s.navigate=useNavigate();return <Routes><Route path="/courses" element={<Packages/>}/><Route path="/training/:slug" element={<TrainingCatalogue/>}/><Route path="/training/:slug/:courseId" element={<TrainingBooking/>}/></Routes>;}
     s.render=()=>s.root.render(<ThemeProvider><BrowserRouter><Harness/></BrowserRouter></ThemeProvider>);
     s.mount=()=>{s.root=createRoot(document.getElementById('root'));s.render();};
     window.fetch=async(input,options={})=>{
@@ -83,7 +84,7 @@ const bundle = await build({
       const body=options.body?JSON.parse(options.body):null;
       s.requests.push({path:url.pathname,method,body});
       if(!url.pathname.startsWith('/api/courses/'))throw Error('Unexpected fixture fetch '+url.pathname);
-      const id=url.pathname.split('/')[4],record=s.public[id];
+      const id=url.pathname.split('/')[4] || 'catalogue',record=s.public[id];
       if(!record)return json({error:'Course not found'},404);
       const response=()=>method==='GET'?json(record.data,record.status||200):url.pathname.endsWith('/resume') && body?.open_payment===false && record.resumeData?json(record.resumeData):json(record.post||{confirmed:true},record.postStatus||200);
       const holds=method==='GET'?s.holdGets:s.holdPosts;
@@ -132,7 +133,7 @@ const server = http.createServer((req, res) => {
 });
 await new Promise(resolve => server.listen(Number(process.env.TRAINING_PREVIEW_PORT || 0), '127.0.0.1', resolve));
 const origin = `http://127.0.0.1:${server.address().port}`;
-const browser = await launch();
+const browser = process.env.TRAINING_BROWSER === 'webkit' ? await webkit.launch() : await launch();
 let passed = 0;
 async function fixture({ path = `/training/fictional/${ids.a}`, records = { [ids.a]: { data: publicData() } },
   courses = [], enrollments = [], width = 390, setup, clock = false } = {}) {
@@ -181,6 +182,66 @@ async function shot(page, name) {
 const pass = message => { passed++; console.log('PASS: ' + message); };
 
 try {
+  // Paste, save, reopen and render a full outline, including beyond the old
+  // invisible 2,000-character cutoff. No real salon records are written.
+  const outline = ('Course overview 🌸\n\nWho this course is for\nBeginners and experienced artists who want guided practice.\n\nWhat you will learn\n• Consultation and preparation\n• Demonstration, supervised practice and feedback\n\n').repeat(50)
+    + 'Reference: https://example.test/' + 'reference'.repeat(120)
+    + '\n\n<script>window.courseTextExecuted=true</script>\nFinal course paragraph.';
+  for (const width of [320, 390]) {
+    const { page, close } = await fixture({ path: '/courses', width });
+    await page.getByRole('button', { name: '+ New course', exact: true }).click();
+    await page.getByLabel('Course name', { exact: true }).fill('Full training outline');
+    const editor = page.getByLabel('What students will learn', { exact: true });
+    await editor.fill(outline);
+    await editor.press('End');
+    await page.keyboard.insertText(' Extra details after pasting.');
+    const complete = outline + ' Extra details after pasting.';
+    assert.equal(await editor.inputValue(), complete, 'Pasting and continuing to type must keep the entire outline');
+    assert.ok((await editor.boundingBox()).height >= 190, 'The phone editor has room for several paragraphs');
+    await page.getByLabel('Full price (£)', { exact: true }).fill('450');
+    await page.getByLabel('Date 1', { exact: true }).fill('2026-11-02');
+    await fit(page);
+    await editor.scrollIntoViewIfNeeded(); await shot(page, `training-long-editor-${width}`);
+    await page.evaluate(() => { fixture.failOwnerWrite = true; });
+    await page.getByRole('button', { name: 'Create course', exact: true }).click();
+    await page.getByText(/Could not confirm the course was saved/).waitFor();
+    assert.equal(await editor.inputValue(), complete, 'A failed save keeps all the text for retry');
+    await page.evaluate(() => { fixture.failOwnerWrite = false; });
+    await page.getByRole('button', { name: 'Create course', exact: true }).click();
+    await page.getByRole('button', { name: 'Edit date', exact: true }).waitFor();
+    const saved = await page.evaluate(() => fixture.courses[0]);
+    assert.equal(saved.description, complete);
+    assert.equal(saved.price, 450);
+    const display = { ...saved, spots_left: 4, is_full: false, closed: false };
+    await page.evaluate(({ row, trainer }) => {
+      fixture.public[row.id] = { data: { course: row, dates: [row], beautician: trainer } };
+      fixture.public.catalogue = { data: { courses: [{ ...row, dates: [row] }], beautician: trainer } };
+      fixture.navigate('/training/fictional');
+    }, { row: display, trainer });
+    for (const surface of ['catalogue', 'booking']) {
+      const expand = page.getByRole('button', { name: 'Read full description', exact: true });
+      await expand.waitFor();
+      const description = page.locator('p').filter({ hasText: 'Final course paragraph.' });
+      const collapsedHeight = (await description.boundingBox()).height;
+      await expand.click();
+      assert.equal(await description.textContent(), complete);
+      assert.ok((await description.boundingBox()).height > collapsedHeight * 2);
+      assert.equal(await description.evaluate(node => getComputedStyle(node).whiteSpace), 'pre-wrap');
+      assert.equal(await page.evaluate(() => window.courseTextExecuted), undefined, 'Course text never executes as HTML');
+      await fit(page);
+      await page.getByRole('button', { name: 'Show less', exact: true }).click();
+      if (surface === 'catalogue') await page.getByRole('link', { name: 'View course & dates →' }).click();
+      else await shot(page, `training-long-booking-${width}`);
+    }
+    await page.evaluate(() => fixture.navigate('/courses'));
+    await page.getByRole('button', { name: 'Edit date', exact: true }).click();
+    assert.equal(await editor.inputValue(), complete, 'Reopening loads the full saved outline');
+    await editor.fill(complete + '\n\nUpdated after reopening.');
+    await page.getByRole('button', { name: 'Save changes', exact: true }).click();
+    await page.getByRole('button', { name: 'Edit date', exact: true }).waitFor();
+    assert.equal(await page.evaluate(() => fixture.courses[0].description), complete + '\n\nUpdated after reopening.');
+    await close(); pass(`${width}px: long course text survives paste, failed save, retry, public pages and editing without losing paragraphs.`);
+  }
   // A legacy link remains bookable without creating or assigning a replacement date.
   {
     const legacy = course();

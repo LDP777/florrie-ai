@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { API_BASE } from '../lib/config.js';
 import Button from '../components/ui/Button.jsx';
+import CourseDescription from '../components/CourseDescription.jsx';
 
 const money = value => new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(Number(value || 0));
 export default function TrainingCatalogue() {
@@ -37,7 +38,7 @@ export default function TrainingCatalogue() {
         const first = available[0] || course.dates[0];
         return <article key={course.id} style={{ background: 'var(--surface, #fff)', border: '1px solid var(--border, #e7dcd5)', borderRadius: 24, padding: 24, marginBottom: 16 }}>
           <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 26, margin: '0 0 10px' }}>{course.name}</h2>
-          {course.description && <p style={{ lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{course.description}</p>}
+          <CourseDescription text={course.description} style={{ lineHeight: 1.6 }} />
           <p style={{ color: 'var(--text-muted)' }}>{first?.duration}{first?.location ? ` · ${first.location}` : ''}</p>
           <p><strong>{money(first?.price)}</strong>{Number(first?.deposit) > 0 ? ` · ${money(first.deposit)} deposit` : ''}</p>
           <p>{available.length ? `${available.length} ${available.length === 1 ? 'date' : 'dates'} available · next ${first.date_label}` : 'All current dates are full'}</p>
