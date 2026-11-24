@@ -11,6 +11,7 @@ import Icon from '../components/ui/Icon';
 import Money from '../components/ui/Money';
 import { computeSchedule, salonClock, scheduleRange, suggestionsForGap } from './smart-schedule-model.js';
 import { scheduleContentHandoff } from '../lib/content-navigation.js';
+import { PUBLIC_BASE } from '../lib/booking.js';
 
 /** Schedule gaps and client ideas from saved appointments, hours and blocked time. */
 
@@ -141,7 +142,7 @@ export default function SmartSchedule() {
     setCopyError(null); setCopied(false); const seq = request.current.seq;
     try {
       if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable');
-      await navigator.clipboard.writeText(`https://florrie.ai/book/${encodeURIComponent(slug)}`);
+      await navigator.clipboard.writeText(`${PUBLIC_BASE}/book/${encodeURIComponent(slug)}`);
       if (seq !== request.current.seq) return;
       setCopied(true); clearTimeout(copyTimer.current);
       copyTimer.current = setTimeout(() => setCopied(false), 2000);
@@ -354,7 +355,7 @@ export default function SmartSchedule() {
         )}
       </div>
 
-      {copyError && <div style={styles.utilisationCard} role="alert"><p style={styles.utilisationEmpty}>{copyError}</p>{slug && <a href={`https://florrie.ai/book/${encodeURIComponent(slug)}`} style={styles.fillSecondaryBtn}>Open booking page</a>}</div>}
+      {copyError && <div style={styles.utilisationCard} role="alert"><p style={styles.utilisationEmpty}>{copyError}</p>{slug && <a href={`${PUBLIC_BASE}/book/${encodeURIComponent(slug)}`} style={styles.fillSecondaryBtn}>Open booking page</a>}</div>}
       {copied && <p style={styles.suggEmpty} role="status">Booking link copied</p>}
       {/* Tabs */}
       <div style={styles.tabs}>

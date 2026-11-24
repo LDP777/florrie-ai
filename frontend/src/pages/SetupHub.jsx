@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase, useBeautician } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
+import { PUBLIC_BASE } from '../lib/booking.js';
 import { readAuthenticatedJson } from '../lib/authenticated-json.js';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import Button from '../components/ui/Button.jsx';
@@ -37,7 +38,7 @@ function SalonSetup({ owner }) {
   }, [owner.auth_id, reload]);
   const items = status?.readiness?.items || [], next = items.find(i => !i.optional && i.state !== 'ready');
   const groups = [...new Set(items.map(i => i.group))];
-  const bookingUrl = status?.business?.slug ? `https://florrie.ai/book/${encodeURIComponent(status.business.slug)}` : null;
+  const bookingUrl = status?.business?.slug ? `${PUBLIC_BASE}/book/${encodeURIComponent(status.business.slug)}` : null;
   async function copyLink() {
     try { await navigator.clipboard.writeText(bookingUrl); setCopied(true); } catch { setError('Could not copy. Open your booking page and copy its address.'); }
   }
