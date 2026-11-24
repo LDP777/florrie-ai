@@ -5,6 +5,13 @@ export const APP_UPDATES = [
     date: '2026-11-24',
     changes: [
       {
+        id: 'clearer-training-booking',
+        title: 'A simpler training booking page',
+        description: 'Clearer date choices, an upfront deposit and a shorter booking form. Students can still read your full course details and add questions before booking.',
+        to: '/courses', linkLabel: 'Open your courses',
+        commits: ['8b47ea3'],
+      },
+      {
         id: 'public-training-links',
         title: 'Course links open straight to your dates',
         description: 'Students can view your courses and choose a training date without signing in or setting up a salon account.',
