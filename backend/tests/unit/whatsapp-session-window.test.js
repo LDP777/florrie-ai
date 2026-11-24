@@ -165,6 +165,26 @@ describe('a client who messaged five minutes ago', () => {
   });
 });
 
+describe('pausing AI conversations keeps selected appointment reminders running', () => {
+  it.each(['patch_test', 'consultation_form', 'patch_test_reminder'])('delivers %s through the real sender while paused', async messageType => {
+    inboundMessages = inbound(5);
+    const result = await sendNudge({ client, body: 'Your appointment reminder', messageType,
+      beauticianId: 'b1', beauticianPrefs: { ...prefs, paused: true } });
+    expect(result?.channel).toBe('whatsapp_freeform');
+    expect(freeform).toHaveLength(1);
+  });
+
+  it.each([undefined, 'ai_checkin', 'rebook_nudge', 'gap_fill_offer', 'ai_reply'])('keeps unrelated %s messages paused without claiming delivery', async messageType => {
+    inboundMessages = inbound(5);
+    const result = await sendNudge({ client, body: 'A proactive message', messageType,
+      beauticianId: 'b1', beauticianPrefs: { ...prefs, paused: true } });
+    expect(result).toBeNull();
+    expect(freeform).toHaveLength(0);
+    expect(templates).toHaveLength(0);
+    expect(smsSent).toHaveLength(0);
+  });
+});
+
 describe('a client who last messaged two days ago', () => {
   it('correctly falls through to the template, because Meta would refuse the other', async () => {
     inboundMessages = inbound(48 * 60);

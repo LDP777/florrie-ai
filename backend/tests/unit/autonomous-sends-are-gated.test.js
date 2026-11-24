@@ -32,6 +32,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 const gapCalls = vi.hoisted(() => vi.fn(async () => ({matched:0})));
+const preparationCalls = vi.hoisted(() => vi.fn(async ({ deliver }) =>
+  deliver({ messageType: 'consultation_form', body: 'Please complete your consultation before your appointment.' })));
+vi.mock('../../src/services/booking-preparation-reminder.js', () => ({ sendBookingPreparationReminder: preparationCalls }));
 
 const db = {
   beauticians: [], clients: [], appointments: [], patch_tests: [],
@@ -53,14 +56,29 @@ function builder(table) {
     select(_c, o) { if (o?.head) head = true; return b; },
     insert(p) { pending = { op: 'insert', payload: p }; return b; },
     update(p) { pending = { op: 'update', payload: p }; return b; },
-    eq(c, v) { filters.push(r => r[c] === v); return b; },
+    eq(c, v) {
+      filters.push(r => c.includes('->>')
+        ? String(r[c.split('->>')[0]]?.[c.split('->>')[1]]) === v : r[c] === v);
+      return b;
+    },
     neq(c, v) { filters.push(r => r[c] !== v); return b; },
     in(c, v) { filters.push(r => v.includes(r[c])); return b; },
     is(c, v) { filters.push(r => (r[c] ?? null) === v); return b; },
     not(c, _o, v) { filters.push(r => (r[c] ?? null) !== v); return b; },
     gte(c, v) { filters.push(r => String(r[c] ?? '') >= String(v)); return b; },
     lte(c, v) { filters.push(r => String(r[c] ?? '') <= String(v)); return b; },
-    gt() { return b; }, lt() { return b; }, or() { return b; },
+    gt() { return b; }, lt() { return b; },
+    or(expression) {
+      // Honour the salon-selection filter so an AI-only query cannot hide
+      // behind a fake that returns every salon regardless of the query.
+      if (table === 'beauticians') filters.push(r => expression.split(',').some(term => {
+        const [key, op, value] = term.split('.');
+        if (op !== 'eq') throw new Error(`Unsupported filter: ${term}`);
+        const [column, jsonKey] = key.split('->>');
+        return String(jsonKey ? r[column]?.[jsonKey] : r[column]) === value;
+      }));
+      return b;
+    },
     like() { return b; }, order() { return b; }, limit() { return b; },
     maybeSingle() { return Promise.resolve({ data: rows()[0] || null, error: null }); },
     single() { return Promise.resolve({ data: rows()[0] || null, error: null }); },
@@ -116,6 +134,7 @@ function expiringTestDate() {
 beforeEach(() => {
   for (const t of Object.keys(db)) db[t] = [];
   gapCalls.mockClear();
+  preparationCalls.mockClear();
   delivered.length = 0;
   gateCalls.length = 0;
   verdict = { decision: 'send', tier: 'transactional', reason: 'transactional' };
@@ -255,16 +274,83 @@ describe('nothing in this file sends without asking', () => {
 
 
 describe('gap-fill has its own activation preference',()=>{
-  it.each(['ask','auto'])('runs explicit %s gap-fill without AI replies or unrelated nudges',async mode=>{
+  it.each(['ask','auto'])('runs explicit %s gap-fill alongside selected reminders with AI replies off',async mode=>{
     db.beauticians[0].auto_reply_enabled=false;
     db.beauticians[0].autonomy={gap_fill:mode};
     expiringPatchTest();preArrivalAppointment();
     await runAutonomousCycle();
     expect(gapCalls).toHaveBeenCalledExactlyOnceWith('b1',0.9);
-    expect(delivered).toHaveLength(0);expect(gateCalls).toHaveLength(0);
+    expect(delivered).toHaveLength(2);
+    expect(gateCalls.map(c => c.messageType).sort()).toEqual(['patch_test', 'patch_test_reminder']);
   });
   it.each([{}, {gap_fill:'off'},{proactive:'auto'}])('does not activate additional features from implicit or off settings: %j',async autonomy=>{
     db.beauticians[0].auto_reply_enabled=false;db.beauticians[0].autonomy=autonomy;
     await runAutonomousCycle();expect(gapCalls).not.toHaveBeenCalled();expect(delivered).toHaveLength(0);
+  });
+});
+
+describe('appointment care is independent of AI replies', () => {
+  beforeEach(() => {
+    db.beauticians[0].auto_reply_enabled = false;
+    db.beauticians[0].autonomy = { gap_fill: 'off' };
+    db.beauticians[0].client_reminder_prefs = { paused: true };
+  });
+
+  it('runs enabled patch reminders and pre-appointment checks while conversation replies are paused', async () => {
+    expiringPatchTest(); preArrivalAppointment();
+    db.clients.push({ id: 'overdue', beautician_id: 'b1', first_name: 'Overdue', phone: '+447700900099', next_expected_visit: inHours(-48) });
+    await runAutonomousCycle();
+    expect(gateCalls.map(c => c.messageType).sort()).toEqual(['patch_test', 'patch_test_reminder']);
+    expect(delivered.map(c => c.messageType).sort()).toEqual(['patch_test', 'patch_test_reminder']);
+    expect(delivered.every(c => c.beauticianPrefs.paused)).toBe(true);
+    expect(gapCalls).not.toHaveBeenCalled();
+  });
+
+  it('respects patch reminders being off, without suppressing an outstanding consultation', async () => {
+    db.beauticians[0].patch_test_auto_remind = false;
+    expiringPatchTest(); preArrivalAppointment();
+    db.appointments[0].treatments.requires_consultation = true;
+    db.consultation_responses.push({ id: 'form1', client_id: 'c1', beautician_id: 'b1', appointment_id: 'a1', status: 'pending', token: 'formtok' });
+    await runAutonomousCycle();
+    expect(delivered).toHaveLength(1);
+    expect(delivered[0].messageType).toBe('consultation_form');
+    expect(delivered[0].body).not.toMatch(/need.*patch test/);
+  });
+
+  it('does not send opted-out patch reminders, duplicate reminders or reminders for past/cancelled bookings', async () => {
+    db.beauticians[0].patch_test_auto_remind = false;
+    expiringPatchTest(); preArrivalAppointment();
+    await runAutonomousCycle();
+    expect(delivered).toHaveLength(0);
+
+    db.beauticians[0].patch_test_auto_remind = true;
+    db.patch_tests = [];
+    db.appointments.push({ ...db.appointments[0], id: 'past', starts_at: inHours(-48) },
+      { ...db.appointments[0], id: 'cancelled', status: 'cancelled' },
+      { ...db.appointments[0], id: 'later', starts_at: inHours(120) });
+    await runAutonomousCycle();
+    await runAutonomousCycle();
+    expect(delivered).toHaveLength(1);
+    expect(db.ai_actions.filter(a => a.action_type === 'prearrival_reminder').map(a => a.appointment_id)).toEqual(['a1']);
+  });
+
+  it('still honours the outbound decision when AI replies are off', async () => {
+    expiringPatchTest(); preArrivalAppointment();
+    verdict = { decision: 'block', reason: 'error_failsafe' };
+    await runAutonomousCycle();
+    expect(gateCalls).toHaveLength(2);
+    expect(delivered).toHaveLength(0);
+    expect(db.ai_actions).toHaveLength(0);
+  });
+
+  it('also runs the staged consultation journey through the same guarded sender while paused', async () => {
+    preArrivalAppointment();
+    db.consultation_responses.push({ id: 'staged', beautician_id: 'b1', appointment_id: 'a1', booking_care: { version: 1 } });
+    await runAutonomousCycle();
+    expect(preparationCalls).toHaveBeenCalledTimes(1);
+    expect(preparationCalls.mock.calls[0][0]).toMatchObject({ patchReminders: true, appointment: { id: 'a1', beautician_id: 'b1' } });
+    expect(gateCalls).toHaveLength(1);
+    expect(gateCalls[0].messageType).toBe('consultation_form');
+    expect(delivered[0]).toMatchObject({ messageType: 'consultation_form', beauticianPrefs: { paused: true } });
   });
 });

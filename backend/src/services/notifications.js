@@ -1440,10 +1440,14 @@ async function inWhatsAppSession(client) {
  * @param {string[]} [opts.templateParams] - Template variable substitutions
  * @param {string} opts.beauticianId
  * @param {object} [opts.beauticianPrefs]
+ * @param {string} [opts.messageType] - Appointment care can continue while AI replies are paused.
  */
-export async function sendNudge({ client, body, templateName, templateParams, templateFields, templateExtras, beauticianId, beauticianPrefs = {} }) {
-  // Master pause — no proactive outbound goes out on the beautician's behalf.
-  if (beauticianPrefs?.paused) return { skipped: 'paused' };
+export async function sendNudge({ client, body, templateName, templateParams, templateFields, templateExtras, beauticianId, beauticianPrefs = {}, messageType = 'ai_checkin' }) {
+  // Callers check the reminder preference and outbound rules before delivery.
+  // Pausing conversations must not stop those selected care reminders.
+  const appointmentCare = ['patch_test', 'consultation_form', 'patch_test_reminder'].includes(messageType);
+  // A truthy skipped object could otherwise be logged as a successful send.
+  if (beauticianPrefs?.paused && !appointmentCare) return null;
   // Path 1: active WhatsApp session — send free-form, it'll land immediately
   if (client?.whatsapp_id && (tenantWhatsAppEnabled() || WA_TOKEN || twilioConfigured()) && beauticianPrefs?.whatsapp_connected && await inWhatsAppSession(client)) {
     const result = await sendWhatsAppText({ to: client.whatsapp_id, body, beauticianId });
@@ -1464,7 +1468,7 @@ export async function sendNudge({ client, body, templateName, templateParams, te
 
   // Path 3: SMS — universal fallback for proactive outbound
   if (client?.phone && BIRD_API_KEY) {
-    const result = await sendSMS({ to: client.phone, body, beauticianId, messageType: 'ai_checkin', clientId: client.id, skipThreadLog: true });
+    const result = await sendSMS({ to: client.phone, body, beauticianId, messageType, clientId: client.id, skipThreadLog: true });
     if (result) {
       await logComms(beauticianId, client.id, 'sms', 'outbound', body);
       return { channel: 'sms', result };

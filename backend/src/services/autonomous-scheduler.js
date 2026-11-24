@@ -36,15 +36,14 @@ export async function runAutonomousCycle() {
   logger.info('Autonomous scheduler: starting cycle');
 
   try {
-    // Gap-fill has its own owner-controlled dial. Switching off AI replies
-    // must not disable a gap-fill preference the salon explicitly selected.
+    // Appointment care and explicit gap-fill preferences are independent of
+    // AI replies. Select salons before checking each feature's own preference.
     // subscription_status and trial_ends_at are both in 001_initial_schema.sql,
     // so adding them cannot fail the whole select the way a column from an
     // unapplied migration would.
     const { data: allBeauticians, error } = await supabase
       .from('beauticians')
-      .select('id, first_name, confidence_threshold, auto_reply_enabled, subscription_plan, subscription_status, trial_ends_at, tone_model, autonomy')
-      .or('auto_reply_enabled.eq.true,autonomy->>gap_fill.eq.ask,autonomy->>gap_fill.eq.auto');
+      .select('id, first_name, confidence_threshold, auto_reply_enabled, subscription_plan, subscription_status, trial_ends_at, tone_model, autonomy');
 
     if (error || !allBeauticians?.length) {
       logger.info('Autonomous scheduler: no active beauticians or error', { error });
@@ -69,12 +68,7 @@ export async function runAutonomousCycle() {
 
     for (const b of beauticians) {
       try {
-        if (b.auto_reply_enabled === true) await runForBeautician(b);
-        else if (['ask', 'auto'].includes(b.autonomy?.gap_fill)) {
-          // Only the explicitly enabled feature runs here. Other background
-          // features keep their existing activation behaviour.
-          await checkGapFillOpportunities(b.id, b.confidence_threshold || DEFAULT_CONFIDENCE);
-        }
+        await runForBeautician(b);
       } catch (err) {
         logger.error({ err, beauticianId: b.id }, 'Autonomous cycle failed for beautician');
       }
@@ -94,21 +88,14 @@ async function runForBeautician(beautician) {
   const bid = beautician.id;
   const threshold = beautician.confidence_threshold || DEFAULT_CONFIDENCE;
 
-  // Run all checks in parallel.
-  //
-  // Six names were being destructured from five promises. That is what was
-  // left when checkUnansweredMessages was deleted from the middle of the array
-  // and the name list was not shortened with it, so every result after the
-  // second was reported under the label of the check before it, and
-  // `prearrivalResults` was undefined. Reading `.status` off undefined threw a
-  // TypeError, per beautician, every cycle. The work had already been done by
-  // then, so the only casualty was the log line that says what was done, which
-  // is the one thing that could have shown any of the rest of this file was
-  // broken.
+  const aiReplies = beautician.auto_reply_enabled === true;
+  // Preserve promotional activation. Appointment care keeps its own
+  // preferences, time windows and duplicate checks, even with AI replies off.
   const [rebookResults, gapResults, gapFillResults, patchTestResults, prearrivalResults] = await Promise.allSettled([
-    checkRebookDueClients(bid, threshold),
-    checkCalendarGaps(bid, threshold),
-    checkGapFillOpportunities(bid, threshold),
+    aiReplies ? checkRebookDueClients(bid, threshold) : 0,
+    aiReplies ? checkCalendarGaps(bid, threshold) : 0,
+    aiReplies || ['ask', 'auto'].includes(beautician.autonomy?.gap_fill)
+      ? checkGapFillOpportunities(bid, threshold) : { matched: 0 },
     checkPatchTestsExpiring(bid, beautician),
     checkPreAppointmentRequirements(bid),
   ]);
@@ -465,6 +452,7 @@ async function checkPatchTestsExpiring(beauticianId, beautician) {
           result = await sendNudge({
             client,
             body: nudgeBody,
+            messageType: 'patch_test_reminder',
             beauticianId,
             beauticianPrefs,
           });
@@ -558,7 +546,7 @@ async function checkPreAppointmentRequirements(beauticianId) {
           deliver: async ({ body, messageType }) => {
             const result = await guardedSend({ beauticianId, clientId: client.id, messageType,
               channel: beauticianPrefs.whatsapp_connected ? 'whatsapp' : 'sms', client, body,
-              send: async () => await sendNudge({ client, body, beauticianId, beauticianPrefs }) });
+              send: async () => await sendNudge({ client, body, messageType, beauticianId, beauticianPrefs }) });
             return result.delivered;
           },
         });
@@ -692,8 +680,8 @@ async function checkPreAppointmentRequirements(beauticianId) {
       // and 'consultation_form' are both in the guard's transactional set
       // (lib/outbound-guard.js), so it passes straight through rather than
       // waiting in an approvals queue that would not be read in time. Going
-      // through guardedSend still means the master pause applies, the send is
-      // recorded in outbound_sends so other engines' frequency caps can see it,
+      // through guardedSend records it in outbound_sends so other engines'
+      // frequency caps can see it,
       // and if this category is ever reclassified this sender obeys without
       // anyone having to remember it exists.
       const messageType = needsPatchTest ? 'patch_test' : 'consultation_form';
@@ -706,7 +694,7 @@ async function checkPreAppointmentRequirements(beauticianId) {
         client,
         body,
         send: async () => {
-          result = await sendNudge({ client, body, beauticianId, beauticianPrefs });
+          result = await sendNudge({ client, body, messageType, beauticianId, beauticianPrefs });
           return result;
         },
       });
